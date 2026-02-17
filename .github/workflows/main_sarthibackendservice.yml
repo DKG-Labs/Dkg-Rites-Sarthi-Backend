@@ -6,6 +6,10 @@ on:
       - prod
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -23,16 +27,11 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-     
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_PROD }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_PROD }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_PROD }}
-          client-secret: ${{ secrets.AZUREAPPSERVICE_CLIENTSECRET_PROD }}
+          creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
 
-     
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
