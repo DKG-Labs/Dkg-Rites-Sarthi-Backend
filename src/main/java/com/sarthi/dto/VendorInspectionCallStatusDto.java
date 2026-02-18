@@ -7,7 +7,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * DTO for Vendor Inspection Call with Workflow Status.
- * Used to display inspection calls in vendor dashboard with current workflow status.
+ * Used to display inspection calls in vendor dashboard with current workflow
+ * status.
  */
 @Data
 @NoArgsConstructor
@@ -16,31 +17,39 @@ import lombok.NoArgsConstructor;
 public class VendorInspectionCallStatusDto {
 
     /* ==================== Inspection Call Information ==================== */
-    
-    private String icNumber;           // Inspection Call Number
-    private String poNo;               // Purchase Order Number
-    private String poSerialNo;         // PO Serial Number
-    private String typeOfCall;         // Stage: Raw Material, Process, Final
-    private String desiredInspectionDate;  // Call Date
-    private String placeOfInspection;  // Location
-    
+
+    private String icNumber; // Inspection Call Number
+    private String poNo; // Purchase Order Number
+    private String poSerialNo; // PO Serial Number
+    private String typeOfCall; // Stage: Raw Material, Process, Final
+    private String desiredInspectionDate; // Call Date
+    private String placeOfInspection; // Location
+
     /* ==================== Item Information ==================== */
-    
-    private String itemName;           // Item description/name
-    private Integer quantityOffered;   // Quantity offered for inspection
-    
+
+    private String itemName; // Item description/name
+    private Integer quantityOffered; // Quantity offered for inspection
+
     /* ==================== Workflow Status ==================== */
-    
-    private String workflowStatus;     // Latest workflow status from workflow_transition
-    private String currentRoleName;    // Current role in workflow
-    private String nextRoleName;       // Next role in workflow
-    private String jobStatus;          // Job status from workflow
-    
+
+    private String workflowStatus; // Latest workflow status from workflow_transition
+    private String currentRoleName; // Current role in workflow
+    private String nextRoleName; // Next role in workflow
+    private String jobStatus; // Job status from workflow
+
     /* ==================== Additional Information ==================== */
-    
+
+    private String rlyShortName;
+    private String ercType;
+    private Integer noOfHeatsRM;
+    private String lotNoProcess;
+    private String lotNoFinal;
+    private String ieName;
+    private String uom;
+    private String scheduledDate;
+
     private String companyName;
     private String unitName;
     private String createdAt;
     private String updatedAt;
 }
-

@@ -30,8 +30,7 @@ public class ProcessInspectionCallController {
     @Autowired
     public ProcessInspectionCallController(
             ProcessInspectionCallService processInspectionCallService,
-            WorkflowService workflowService
-    ) {
+            WorkflowService workflowService) {
         this.processInspectionCallService = processInspectionCallService;
         this.workflowService = workflowService;
     }
@@ -55,45 +54,60 @@ public class ProcessInspectionCallController {
             // 1️⃣ Save Process inspection call
             InspectionCall ic = processInspectionCallService.createProcessInspectionCall(
                     request.getInspectionCall(),
-                    request.getProcessInspectionDetails()
-            );
+                    request.getProcessInspectionDetails());
 
             // 2️⃣ Trigger workflow ONLY on success
             String workflowName = "INSPECTION CALL";
             try {
-                // Try to parse createdBy as Integer, if it fails, use a default value or skip workflow
                 Integer createdByUserId = null;
                 try {
-                    createdByUserId = Integer.valueOf(ic.getCreatedBy());
+                    if (ic.getCreatedBy() != null && !ic.getCreatedBy().equalsIgnoreCase("system")) {
+                        createdByUserId = Integer.valueOf(ic.getCreatedBy());
+                    } else {
+                        createdByUserId = 3;
+                    }
                 } catch (NumberFormatException e) {
-                    logger.warn("⚠️ createdBy is not a valid integer: {}. Skipping workflow initiation.", ic.getCreatedBy());
+                    logger.warn("⚠️ createdBy is not a valid integer: {}. using default 3.", ic.getCreatedBy());
+                    createdByUserId = 3;
                 }
 
                 if (createdByUserId != null) {
-//                    workflowService.initiateWorkflow(
-//                            ic.getIcNumber(),
-//                            createdByUserId,
-//                            workflowName,
-//                            "560001"
-//                    );
                     workflowService.initiateWorkflow(
                             ic.getIcNumber(),
-                            Integer.valueOf(ic.getCreatedBy()),
+                            createdByUserId,
                             workflowName,
-                            "560001"
-                    );
+                            "560001");
                     logger.info("✅ Workflow initiated for IC: {}", ic.getIcNumber());
                 }
             } catch (Exception workflowEx) {
-                logger.error("⚠️ Workflow initiation failed, but IC was created successfully: {}", workflowEx.getMessage());
+                logger.error("⚠️ Workflow initiation failed, but IC was created successfully: {}",
+                        workflowEx.getMessage());
                 // Don't throw exception - IC was created successfully
             }
 
             logger.info("✅ Process inspection call created successfully with ID: {}", ic.getId());
+
+            // Return simplified response to avoid potential serialization issues with
+            // complex entities
+            java.util.Map<String, Object> responseData = new java.util.HashMap<>();
+            responseData.put("id", ic.getId());
+            responseData.put("icNumber", ic.getIcNumber());
+
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(ic),
-                    HttpStatus.OK
-            );
+                    ResponseBuilder.getSuccessResponse(responseData),
+                    HttpStatus.OK);
+
+        } catch (com.sarthi.exception.BusinessException be) {
+            logger.error("❌ Business error creating Process inspection call: {}", be.getMessage());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(be.getErrorDetails()),
+                    HttpStatus.BAD_REQUEST);
+
+        } catch (com.sarthi.exception.InvalidInputException iie) {
+            logger.error("❌ Invalid input error creating Process inspection call: {}", iie.getMessage());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(iie.getErrorDetails()),
+                    HttpStatus.BAD_REQUEST);
 
         } catch (Exception e) {
 
@@ -103,14 +117,12 @@ public class ProcessInspectionCallController {
                     AppConstant.INTER_SERVER_ERROR,
                     AppConstant.ERROR_TYPE_CODE_INTERNAL,
                     AppConstant.ERROR_TYPE_ERROR,
-                    e.getMessage() != null ? e.getMessage() : "Failed to create Process inspection call"
-            );
+                    e.getMessage() != null ? e.getMessage()
+                            : "Failed to create Process inspection call: " + e.getClass().getSimpleName());
 
             return new ResponseEntity<>(
                     ResponseBuilder.getErrorResponse(errorDetails),
-                    HttpStatus.INTERNAL_SERVER_ERROR
-            );
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }
-

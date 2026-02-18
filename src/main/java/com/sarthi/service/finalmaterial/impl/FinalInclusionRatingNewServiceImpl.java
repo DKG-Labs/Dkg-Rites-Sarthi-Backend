@@ -81,9 +81,13 @@ public class FinalInclusionRatingNewServiceImpl implements FinalInclusionRatingN
                     sample.setSamplingNo(sampleData.getSamplingNo());
                     sample.setSampleNo(sampleData.getSampleNo());
                     sample.setSampleValueA(sampleData.getSampleValueA());
+                    sample.setSampleTypeA(sampleData.getSampleTypeA());
                     sample.setSampleValueB(sampleData.getSampleValueB());
+                    sample.setSampleTypeB(sampleData.getSampleTypeB());
                     sample.setSampleValueC(sampleData.getSampleValueC());
+                    sample.setSampleTypeC(sampleData.getSampleTypeC());
                     sample.setSampleValueD(sampleData.getSampleValueD());
+                    sample.setSampleTypeD(sampleData.getSampleTypeD());
                     sample.setCreatedBy(userId);
                     
                     updatedSamples.put(key, true);
@@ -175,9 +179,13 @@ public class FinalInclusionRatingNewServiceImpl implements FinalInclusionRatingN
                     sampleData.setSamplingNo(sample.getSamplingNo());
                     sampleData.setSampleNo(sample.getSampleNo());
                     sampleData.setSampleValueA(sample.getSampleValueA());
+                    sampleData.setSampleTypeA(sample.getSampleTypeA());
                     sampleData.setSampleValueB(sample.getSampleValueB());
+                    sampleData.setSampleTypeB(sample.getSampleTypeB());
                     sampleData.setSampleValueC(sample.getSampleValueC());
+                    sampleData.setSampleTypeC(sample.getSampleTypeC());
                     sampleData.setSampleValueD(sample.getSampleValueD());
+                    sampleData.setSampleTypeD(sample.getSampleTypeD());
                     sampleData.setCreatedBy(sample.getCreatedBy());
                     sampleData.setCreatedAt(sample.getCreatedAt());
                     return sampleData;

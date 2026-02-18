@@ -33,6 +33,7 @@ public class FinalMicrostructureTestResponse {
     public static class SampleData {
         private Long id;
         private Integer sampleNo;
+        private Integer samplingNo;
         private String sampleType;
         private String createdBy;
         private LocalDateTime createdAt;

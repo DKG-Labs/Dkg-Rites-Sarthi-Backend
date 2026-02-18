@@ -54,11 +54,17 @@ public class FinalInclusionRatingSample {
     @Column(name = "sample_value_a", length = 50)
     private String sampleValueA;
 
+    @Column(name = "sample_type_a", length = 50)
+    private String sampleTypeA;
+
     /**
      * Inclusion rating value B.
      */
     @Column(name = "sample_value_b", length = 50)
     private String sampleValueB;
+
+    @Column(name = "sample_type_b", length = 50)
+    private String sampleTypeB;
 
     /**
      * Inclusion rating value C.
@@ -66,11 +72,17 @@ public class FinalInclusionRatingSample {
     @Column(name = "sample_value_c", length = 50)
     private String sampleValueC;
 
+    @Column(name = "sample_type_c", length = 50)
+    private String sampleTypeC;
+
     /**
      * Inclusion rating value D.
      */
     @Column(name = "sample_value_d", length = 50)
     private String sampleValueD;
+
+    @Column(name = "sample_type_d", length = 50)
+    private String sampleTypeD;
 
     /**
      * Timestamp when this sample value was recorded.
