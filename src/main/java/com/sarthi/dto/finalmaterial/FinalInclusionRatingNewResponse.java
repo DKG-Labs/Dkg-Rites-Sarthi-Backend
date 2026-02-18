@@ -35,9 +35,13 @@ public class FinalInclusionRatingNewResponse {
         private Integer samplingNo;
         private Integer sampleNo;
         private String sampleValueA;
+        private String sampleTypeA;
         private String sampleValueB;
+        private String sampleTypeB;
         private String sampleValueC;
+        private String sampleTypeC;
         private String sampleValueD;
+        private String sampleTypeD;
         private String createdBy;
         private LocalDateTime createdAt;
     }

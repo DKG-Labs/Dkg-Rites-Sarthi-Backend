@@ -6,16 +6,16 @@ import com.sarthi.service.finalmaterial.FinalInspectionSubmoduleService;
 import com.sarthi.dto.finalmaterial.FinalLadleValuesDto;
 import com.sarthi.dto.finalmaterial.FinalChemicalAnalysisRequest;
 import com.sarthi.dto.finalmaterial.FinalChemicalAnalysisResponse;
+import com.sarthi.entity.rawmaterial.RmChemicalAnalysis;
+import com.sarthi.entity.rawmaterial.InspectionCall;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of Final Inspection Submodule Service
@@ -31,6 +31,10 @@ public class FinalInspectionSubmoduleServiceImpl implements FinalInspectionSubmo
     private final FinalApplicationDeflectionRepository applicationDeflectionRepository;
     private final FinalWeightTestRepository weightTestRepository;
     private final FinalToeLoadTestRepository toeLoadTestRepository;
+    private final FinalInspectionDetailsRepository finalInspectionDetailsRepository;
+    private final FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
+    private final com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository;
+    private final com.sarthi.repository.rawmaterial.InspectionCallRepository inspectionCallRepository;
 
     // ===== CALIBRATION & DOCUMENTS =====
     @Override
@@ -283,21 +287,61 @@ public class FinalInspectionSubmoduleServiceImpl implements FinalInspectionSubmo
         toeLoadTestRepository.deleteById(id);
     }
 
-    // ===== LADLE VALUES =====
     @Override
     public List<FinalLadleValuesDto> getLadleValuesByCallNo(String inspectionCallNo) {
-        List<FinalChemicalAnalysis> entities = chemicalAnalysisRepository.findByInspectionCallNo(inspectionCallNo);
-        List<FinalLadleValuesDto> dtos = new ArrayList<>();
+        // 1. Fetch the Inspection Call entity
+        Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(inspectionCallNo);
+        if (callOpt.isEmpty()) {
+            return new ArrayList<>();
+        }
+        InspectionCall call = callOpt.get();
+        String poSerialNo = call.getPoSerialNo();
 
-        for (FinalChemicalAnalysis entity : entities) {
+        // 2. Fetch Final Inspection Details to get the ID
+        Optional<FinalInspectionDetails> detailsOpt = finalInspectionDetailsRepository.findByIcId(call.getId());
+        if (detailsOpt.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Long finalDetailId = detailsOpt.get().getId();
+
+        // 3. Fetch all Lots for this Final Inspection
+        List<FinalInspectionLotDetails> finalLots = finalInspectionLotDetailsRepository.findByFinalDetailId(finalDetailId);
+        if (finalLots.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 4. Fetch all RM Chemical Analysis sharing the same PO Serial Number
+        // (RM data is stored against RM calls, which have the same PO Serial No)
+        List<RmChemicalAnalysis> rmChemicalAnalyses = rmChemicalAnalysisRepository.findByInspectionCallPoSerialNo(poSerialNo);
+
+        // 5. Group RM analyses by Heat Number and keep only the LATEST one (highest ID or latest createdAt)
+        Map<String, RmChemicalAnalysis> latestRmAnalysisByHeat = rmChemicalAnalyses.stream()
+                .collect(Collectors.toMap(
+                        RmChemicalAnalysis::getHeatNumber,
+                        ca -> ca,
+                        (existing, replacement) -> {
+                            // Keep the one with the later createdAt or higher ID
+                            if (replacement.getCreatedAt() != null && existing.getCreatedAt() != null) {
+                                return replacement.getCreatedAt().isAfter(existing.getCreatedAt()) ? replacement : existing;
+                            }
+                            return replacement.getId() > existing.getId() ? replacement : existing;
+                        }
+                ));
+
+        // 6. Map Final Lots to DTOs, matching with the latest RM analysis
+        List<FinalLadleValuesDto> dtos = new ArrayList<>();
+        for (FinalInspectionLotDetails lot : finalLots) {
+            String heatNumber = lot.getHeatNumber();
+            RmChemicalAnalysis rmAnalysis = latestRmAnalysisByHeat.get(heatNumber);
+
             FinalLadleValuesDto dto = FinalLadleValuesDto.builder()
-                    .lotNo(entity.getLotNo())
-                    .heatNo(entity.getHeatNo())
-                    .percentC(entity.getCarbonPercent())
-                    .percentSi(entity.getSiliconPercent())
-                    .percentMn(entity.getManganesePercent())
-                    .percentP(entity.getPhosphorusPercent())
-                    .percentS(entity.getSulphurPercent())
+                    .lotNo(lot.getLotNumber())
+                    .heatNo(heatNumber)
+                    .percentC(rmAnalysis != null ? rmAnalysis.getCarbon() : BigDecimal.ZERO)
+                    .percentSi(rmAnalysis != null ? rmAnalysis.getSilicon() : BigDecimal.ZERO)
+                    .percentMn(rmAnalysis != null ? rmAnalysis.getManganese() : BigDecimal.ZERO)
+                    .percentP(rmAnalysis != null ? rmAnalysis.getPhosphorus() : BigDecimal.ZERO)
+                    .percentS(rmAnalysis != null ? rmAnalysis.getSulphur() : BigDecimal.ZERO)
                     .build();
             dtos.add(dto);
         }

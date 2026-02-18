@@ -287,7 +287,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
 
     @Override
     public List<String> getLotNumbersByMultipleRmAndProcessCertificates(List<String> rmCertificateNos,
-            List<String> processCertificateNos) {
+                                                                        List<String> processCertificateNos) {
         logger.info("Fetching lot numbers for multiple RM certificates: {} and Process certificates: {}",
                 rmCertificateNos, processCertificateNos);
         List<String> lotNumbers = processInspectionDetailsRepository
