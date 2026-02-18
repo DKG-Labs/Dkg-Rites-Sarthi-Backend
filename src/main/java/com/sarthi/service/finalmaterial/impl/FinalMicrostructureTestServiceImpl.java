@@ -65,38 +65,34 @@ public class FinalMicrostructureTestServiceImpl implements FinalMicrostructureTe
                 sampleRepository.findByFinalMicrostructureTestId(savedTest.getId());
 
             // ✅ UPSERT PATTERN: Create map of existing samples by sampleNo for quick lookup
-            Map<String, FinalMicrostructureSample> existingSampleMap = existingSamples.stream()
+            Map<Integer, FinalMicrostructureSample> existingSampleMap = existingSamples.stream()
                 .collect(Collectors.toMap(
-                    s -> s.getSampleNo() + "-" + s.getSamplingNo(),
+                    FinalMicrostructureSample::getSampleNo,
                     s -> s
                 ));
 
-            Map<String, Boolean> updatedSamples = new HashMap<>();
+            Map<Integer, Boolean> updatedSamples = new HashMap<>();
             List<FinalMicrostructureSample> samplesToSave = request.getSamples().stream()
                 .map(sampleData -> {
                     Integer sampleNo = sampleData.getSampleNo();
-                    Integer samplingNo = sampleData.getSamplingNo() != null ? sampleData.getSamplingNo() : 1;
-                    String key = sampleNo + "-" + samplingNo;
-
                     FinalMicrostructureSample sample;
 
-                    if (existingSampleMap.containsKey(key)) {
+                    if (existingSampleMap.containsKey(sampleNo)) {
                         // UPSERT: Update existing sample
-                        sample = existingSampleMap.get(key);
+                        sample = existingSampleMap.get(sampleNo);
                         sample.setSampleType(sampleData.getSampleType());
-                        log.info("Updating existing sample: sampleNo={}, samplingNo={}", sampleNo, samplingNo);
+                        log.info("Updating existing sample: sampleNo={}", sampleNo);
                     } else {
                         // UPSERT: Create new sample
                         sample = new FinalMicrostructureSample();
                         sample.setFinalMicrostructureTest(savedTest);
                         sample.setSampleNo(sampleNo);
-                        sample.setSamplingNo(samplingNo);
                         sample.setSampleType(sampleData.getSampleType());
                         sample.setCreatedBy(userId);
-                        log.info("Creating new sample: sampleNo={}, samplingNo={}", sampleNo, samplingNo);
+                        log.info("Creating new sample: sampleNo={}", sampleNo);
                     }
 
-                    updatedSamples.put(key, true);
+                    updatedSamples.put(sampleNo, true);
                     return sample;
                 })
                 .collect(Collectors.toList());
@@ -105,7 +101,7 @@ public class FinalMicrostructureTestServiceImpl implements FinalMicrostructureTe
             log.info("Saved {} samples for test id={}", samplesToSave.size(), savedTest.getId());
 
             List<FinalMicrostructureSample> orphanedSamples = existingSamples.stream()
-                .filter(s -> !updatedSamples.containsKey(s.getSampleNo() + "-" + s.getSamplingNo()))
+                .filter(s -> !updatedSamples.containsKey(s.getSampleNo()))
                 .collect(Collectors.toList());
 
             if (!orphanedSamples.isEmpty()) {
@@ -183,7 +179,6 @@ public class FinalMicrostructureTestServiceImpl implements FinalMicrostructureTe
                         new FinalMicrostructureTestResponse.SampleData();
                     sampleData.setId(sample.getId());
                     sampleData.setSampleNo(sample.getSampleNo());
-                    sampleData.setSamplingNo(sample.getSamplingNo());
                     sampleData.setSampleType(sample.getSampleType());
                     sampleData.setCreatedBy(sample.getCreatedBy());
                     sampleData.setCreatedAt(sample.getCreatedAt());

@@ -27,7 +27,6 @@ public class FinalMicrostructureTestRequest {
     @Data
     public static class SampleData {
         private Integer sampleNo;
-        private Integer samplingNo;
         private String sampleType;
     }
 }

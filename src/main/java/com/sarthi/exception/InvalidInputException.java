@@ -5,14 +5,14 @@ public class InvalidInputException extends RuntimeException {
     private ErrorDetails errorDetails;
     private Throwable throwable;
 
-    public InvalidInputException(ErrorDetails errorDetails, Throwable throwable) {
-        super(errorDetails != null ? errorDetails.getMessage() : null);
+    public InvalidInputException(ErrorDetails errorDetails,Throwable throwable) {
+        super();
         this.errorDetails = errorDetails;
         this.throwable = throwable;
     }
 
     public InvalidInputException(ErrorDetails errorDetails) {
-        super(errorDetails != null ? errorDetails.getMessage() : null);
+        super();
         this.errorDetails = errorDetails;
         this.throwable = null;
     }

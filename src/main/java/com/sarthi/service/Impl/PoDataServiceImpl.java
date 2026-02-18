@@ -94,21 +94,17 @@ public class PoDataServiceImpl implements PoDataService {
 
         // Section A: PO Header fields (from po_header table)
         dto.setRlyCd(poHeader.getRlyCd());
-        dto.setRlyShortName(poHeader.getRlyShortName());
         dto.setPoNo(poHeader.getPoNo());
 
         // Set PO Serial Number and formatted fields from inspection call if available
         if (inspectionCall != null && inspectionCall.getPoSerialNo() != null) {
-            String rlyPrefix = poHeader.getRlyShortName() != null ? poHeader.getRlyShortName() : poHeader.getRlyCd();
             dto.setPoSerialNo(inspectionCall.getPoSerialNo());
-            dto.setRlyPoNo(rlyPrefix + "/" + poHeader.getPoNo()); // RLY/PO_NO with / separator
-            dto.setRlyPoNoSerial(rlyPrefix + "/" + poHeader.getPoNo() + "/" + inspectionCall.getPoSerialNo()); // RLY/PO_NO/PO_SR
+            dto.setRlyPoNo(poHeader.getRlyCd() + "/" + poHeader.getPoNo()); // RLY/PO_NO with / separator
+            dto.setRlyPoNoSerial(poHeader.getRlyCd() + "/" + poHeader.getPoNo() + "/" + inspectionCall.getPoSerialNo()); // RLY/PO_NO/PO_SR
 
             // Use place_of_inspection from inspection_calls table, fallback to vendor details if null
-            String placeOfInspection = formatPlaceOfInspection(inspectionCall.getCompanyName(), inspectionCall.getUnitAddress());
-            String fallbackPOI = extractPlaceOfInspection(poHeader.getFirmDetails());
-            dto.setInspPlace(placeOfInspection != null ? placeOfInspection : fallbackPOI);
-            dto.setPlaceOfInspection(placeOfInspection != null ? placeOfInspection : fallbackPOI);
+            String placeOfInspection = inspectionCall.getPlaceOfInspection();
+            dto.setInspPlace(placeOfInspection != null ? placeOfInspection : extractPlaceOfInspection(poHeader.getFirmDetails()));
         } else {
             dto.setPoSerialNo("N/A");
             dto.setRlyPoNo("N/A");
@@ -124,36 +120,19 @@ public class PoDataServiceImpl implements PoDataService {
 
         dto.setPurchasingAuthority(poHeader.getPurchaserDetail() != null ?
                 poHeader.getPurchaserDetail() : "Manager, Procurement");
-        
-        // Use bill_pay_off_desc from first item if available
-        String bpo = "BPO-001";
-        if (poHeader.getItems() != null && !poHeader.getItems().isEmpty()) {
-            String desc = poHeader.getItems().get(0).getBillPayOffDesc();
-            if (desc != null && !desc.trim().isEmpty()) {
-                bpo = desc;
-            }
-        }
-        dto.setBillPayingOfficer(bpo);
+        dto.setBillPayingOfficer("BPO-001"); // Default value - can be configured
 
         // Section B: PO Item fields (from po_item table)
         if (poHeader.getItems() != null && !poHeader.getItems().isEmpty()) {
-            // First find the item matching poSerialNo if possible
-            Optional<PoItem> matchedItem = poHeader.getItems().stream()
-                    .filter(item -> inspectionCall.getPoSerialNo().equals(item.getItemSrNo()))
-                    .findFirst();
+            PoItem firstItem = poHeader.getItems().get(0);
 
-            PoItem referenceItem = matchedItem.orElse(poHeader.getItems().get(0));
-
-            dto.setItemDesc(referenceItem.getItemDesc());
-            dto.setConsignee(referenceItem.getImmsConsigneeName());
-            dto.setConsigneeDetail(referenceItem.getConsigneeDetail());
-            dto.setUnit(referenceItem.getUom() != null ? referenceItem.getUom() : "Nos");
-            dto.setDeliveryDate(formatDateTime(referenceItem.getDeliveryDate()));
-            dto.setExtendedDeliveryDate(formatDateTime(referenceItem.getExtendedDeliveryDate()));
-            dto.setPlNo(referenceItem.getPlNo());
-            
-            // Set the specific PO Serial Qty as requested by user
-            dto.setPoSrQty(referenceItem.getQty());
+            dto.setItemDesc(firstItem.getItemDesc());
+            dto.setConsignee(firstItem.getImmsConsigneeName());
+            dto.setConsigneeDetail(firstItem.getConsigneeDetail());
+            dto.setUnit(firstItem.getUom() != null ? firstItem.getUom() : "Nos");
+            dto.setDeliveryDate(formatDateTime(firstItem.getDeliveryDate()));
+            dto.setExtendedDeliveryDate(formatDateTime(firstItem.getExtendedDeliveryDate()));
+            dto.setPlNo(firstItem.getPlNo());
 
             // Calculate total PO Qty from all items
             int totalQty = poHeader.getItems().stream()
@@ -272,28 +251,6 @@ public class PoDataServiceImpl implements PoDataService {
             }
         }
         return "Factory";
-    }
-
-    private String formatPlaceOfInspection(String companyName, String unitAddress) {
-        if (companyName == null && unitAddress == null) {
-            return null;
-        }
-        
-        StringBuilder sb = new StringBuilder();
-        if (companyName != null && !companyName.isEmpty()) {
-            sb.append(companyName);
-        }
-        
-        if (unitAddress != null && !unitAddress.isEmpty()) {
-            String formattedAddress = unitAddress.replace("~#~#", ", ").replace("~", ", ");
-            if (sb.length() > 0) {
-                sb.append(" (").append(formattedAddress).append(")");
-            } else {
-                sb.append(formattedAddress);
-            }
-        }
-        
-        return sb.length() > 0 ? sb.toString() : null;
     }
 
     @Override

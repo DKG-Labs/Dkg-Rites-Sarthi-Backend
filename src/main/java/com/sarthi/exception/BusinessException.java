@@ -5,14 +5,14 @@ public class BusinessException extends RuntimeException {
     private ErrorDetails errorDetails;
     private Throwable throwable;
 
-    public BusinessException(ErrorDetails errorDetails, Throwable throwable) {
-        super(errorDetails != null ? errorDetails.getMessage() : null);
+    public BusinessException(ErrorDetails errorDetails,Throwable throwable) {
+        super();
         this.errorDetails = errorDetails;
         this.throwable = throwable;
     }
 
     public BusinessException(ErrorDetails errorDetails) {
-        super(errorDetails != null ? errorDetails.getMessage() : null);
+        super();
         this.errorDetails = errorDetails;
         this.throwable = null;
     }
