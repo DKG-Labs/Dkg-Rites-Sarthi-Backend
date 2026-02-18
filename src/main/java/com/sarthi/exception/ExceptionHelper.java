@@ -48,7 +48,7 @@ public class ExceptionHelper {
         ex.printStackTrace();
         System.out.println("EXCEPTION EX: " + ex);
         ErrorDetails errorDetails = new ErrorDetails(AppConstant.INTER_SERVER_ERROR, AppConstant.ERROR_TYPE_CODE_INTERNAL,
-                AppConstant.ERROR_TYPE_ERROR, ex.getMessage());
+                AppConstant.ERROR_TYPE_ERROR, "An unexpected error occurred. Please try again later.");
         return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 

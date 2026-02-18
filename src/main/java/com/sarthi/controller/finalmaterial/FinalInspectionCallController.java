@@ -69,53 +69,85 @@ public class FinalInspectionCallController {
     public ResponseEntity<Object> createFinalInspectionCall(
             @RequestBody CreateFinalInspectionCallRequestDto request) {
 
-        logger.info("========== CREATE FINAL INSPECTION CALL REQUEST ==========");
-        logger.info("Request object: {}", request);
-        logger.info("Inspection Call: {}", request.getInspectionCall());
-        logger.info("Final Details: {}", request.getFinalInspectionDetails());
-        logger.info("Lot Details: {}", request.getFinalLotDetails());
-        logger.info("====================================================");
-
-        // 1️⃣ Save Final inspection call
-        InspectionCall ic = finalInspectionCallService.createFinalInspectionCall(
-                request.getInspectionCall(),
-                request.getFinalInspectionDetails(),
-                request.getFinalLotDetails());
-
-        // 2️⃣ Trigger workflow ONLY on success
-        String workflowName = "INSPECTION CALL";
         try {
-            // Try to parse createdBy as Integer, if it fails, use a default value or skip
-            // workflow
-            Integer createdByUserId = null;
+            logger.info("========== CREATE FINAL INSPECTION CALL REQUEST ==========");
+            logger.info("Request object: {}", request);
+            logger.info("Inspection Call: {}", request.getInspectionCall());
+            logger.info("Final Details: {}", request.getFinalInspectionDetails());
+            logger.info("Lot Details: {}", request.getFinalLotDetails());
+            logger.info("====================================================");
+
+            // 1️⃣ Save Final inspection call
+            InspectionCall ic = finalInspectionCallService.createFinalInspectionCall(
+                    request.getInspectionCall(),
+                    request.getFinalInspectionDetails(),
+                    request.getFinalLotDetails());
+
+            // 2️⃣ Trigger workflow ONLY on success
+            String workflowName = "INSPECTION CALL";
             try {
-                createdByUserId = Integer.valueOf(ic.getCreatedBy());
-            } catch (NumberFormatException e) {
-                logger.warn("⚠️ createdBy is not a valid integer: {}. Skipping workflow initiation.",
-                        ic.getCreatedBy());
+                // Try to parse createdBy as Integer, if it fails, use a default value or skip
+                // workflow
+                Integer createdByUserId = null;
+                try {
+                    if (ic.getCreatedBy() != null && !ic.getCreatedBy().equalsIgnoreCase("system")) {
+                        createdByUserId = Integer.valueOf(ic.getCreatedBy());
+                    } else {
+                        createdByUserId = 3;
+                    }
+                } catch (NumberFormatException e) {
+                    logger.warn("⚠️ createdBy is not a valid integer: {}. using default 3.", ic.getCreatedBy());
+                    createdByUserId = 3;
+                }
+
+                if (createdByUserId != null) {
+                    workflowService.initiateWorkflow(
+                            ic.getIcNumber(),
+                            createdByUserId,
+                            workflowName,
+                            "560001");
+                    logger.info("✅ Workflow initiated for IC: {}", ic.getIcNumber());
+                }
+            } catch (Exception workflowEx) {
+                logger.error("⚠️ Workflow initiation failed but IC was created: {}", workflowEx.getMessage());
+                // Don't fail the entire request if workflow fails
             }
 
-            if (createdByUserId != null) {
-                workflowService.initiateWorkflow(
-                        ic.getIcNumber(),
-                        createdByUserId,
-                        workflowName,
-                        "560001");
-                logger.info("✅ Workflow initiated for IC: {}", ic.getIcNumber());
-            }
-        } catch (Exception workflowEx) {
-            logger.error("⚠️ Workflow initiation failed but IC was created: {}", workflowEx.getMessage());
-            // Don't fail the entire request if workflow fails
+            // 3️⃣ Return success response
+            InspectionCallResponse responseData = new InspectionCallResponse(
+                    ic.getId(),
+                    ic.getIcNumber(),
+                    "Final Inspection Call created successfully");
+
+            logger.info("✅ Final Inspection Call created successfully: {}", ic.getIcNumber());
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(responseData), HttpStatus.CREATED);
+
+        } catch (com.sarthi.exception.BusinessException be) {
+            logger.error("❌ Business error creating Final inspection call: {}", be.getMessage());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(be.getErrorDetails()),
+                    HttpStatus.BAD_REQUEST);
+
+        } catch (com.sarthi.exception.InvalidInputException iie) {
+            logger.error("❌ Invalid input error creating Final inspection call: {}", iie.getMessage());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(iie.getErrorDetails()),
+                    HttpStatus.BAD_REQUEST);
+
+        } catch (Exception e) {
+            logger.error("❌ ERROR creating Final inspection call", e);
+
+            ErrorDetails errorDetails = new ErrorDetails(
+                    AppConstant.INTER_SERVER_ERROR,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    e.getMessage() != null ? e.getMessage()
+                            : "Failed to create Final inspection call: " + e.getClass().getSimpleName());
+
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(errorDetails),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
-        // 3️⃣ Return success response
-        InspectionCallResponse responseData = new InspectionCallResponse(
-                ic.getId(),
-                ic.getIcNumber(),
-                "Final Inspection Call created successfully");
-
-        logger.info("✅ Final Inspection Call created successfully: {}", ic.getIcNumber());
-        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(responseData), HttpStatus.CREATED);
     }
 
     /**

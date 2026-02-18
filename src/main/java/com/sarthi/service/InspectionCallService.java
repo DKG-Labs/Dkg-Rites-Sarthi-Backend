@@ -8,15 +8,15 @@ import org.springframework.stereotype.Service;
 @Service
 public interface InspectionCallService {
 
-    public InspectionCall createInspectionCall(
-            InspectionCallRequestDto icRequest,
-            RmInspectionDetailsRequestDto rmRequest);
+        public InspectionCall createInspectionCall(
+                        InspectionCallRequestDto icRequest,
+                        RmInspectionDetailsRequestDto rmRequest);
 
-    /**
-     * Check if an inspection call already exists for a given PO Serial No
-     * 
-     * @param poSerialNo - PO Serial Number to check
-     * @return true if at least one inspection call exists, false otherwise
-     */
-    boolean checkIfCallExistsForPoSerial(String poSerialNo);
+        /**
+         * Check if an inspection call already exists for a given PO Serial No
+         * 
+         * @param poSerialNo - PO Serial Number to check
+         * @return true if at least one inspection call exists, false otherwise
+         */
+        boolean checkIfCallExistsForPoSerial(String poSerialNo);
 }

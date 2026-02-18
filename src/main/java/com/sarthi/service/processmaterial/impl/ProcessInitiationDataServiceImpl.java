@@ -139,9 +139,39 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         dto.setPoDescription("Process Material Inspection");
         dto.setPoQty(poQty != null ? poQty : 0);
         dto.setPoUnit(poUnit);
+        
+        // Populate specific PO Serial Qty by matching itemSrNo
+        if (poHeader != null && poHeader.getItems() != null && ic.getPoSerialNo() != null) {
+            poHeader.getItems().stream()
+                .filter(item -> ic.getPoSerialNo().equals(item.getItemSrNo()))
+                .findFirst()
+                .ifPresent(item -> dto.setPoSrQty(item.getQty()));
+        }
+        
         dto.setConsignee(consignee);
         dto.setDeliveryDate(deliveryDate);
-        dto.setBillPayingOfficer("N/A");
+        
+        // Populate RLY and PO Serial info for consistent formatting
+        String rlyCd = (poHeader != null ? poHeader.getRlyCd() : "");
+        String rlyShortName = poHeader != null ? poHeader.getRlyShortName() : null;
+        String poSerialNo = ic.getPoSerialNo() != null ? ic.getPoSerialNo() : "N/A";
+        String rlyPrefix = rlyShortName != null ? rlyShortName : rlyCd;
+        
+        dto.setRlyCd(rlyCd);
+        dto.setRlyShortName(rlyShortName);
+        dto.setPoSerialNo(poSerialNo);
+        dto.setRlyPoNo(rlyPrefix + "/" + ic.getPoNo());
+        dto.setRlyPoNoSerial(rlyPrefix + "/" + ic.getPoNo() + "/" + poSerialNo);
+
+        // Bill Paying Officer - use description from first item if available
+        String bpo = "N/A";
+        if (poHeader != null && poHeader.getItems() != null && !poHeader.getItems().isEmpty()) {
+            String desc = poHeader.getItems().get(0).getBillPayOffDesc();
+            if (desc != null && !desc.trim().isEmpty()) {
+                bpo = desc;
+            }
+        }
+        dto.setBillPayingOfficer(bpo);
 
         // Section B: Inspection Call Details
         dto.setCallNo(ic.getIcNumber());
@@ -149,7 +179,7 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         dto.setDesiredInspectionDate(ic.getDesiredInspectionDate() != null ? ic.getDesiredInspectionDate().format(DATE_TIME_FORMATTER) : null);
         dto.setTypeOfCall(ic.getTypeOfCall());
         dto.setTypeOfErc(ic.getErcType()); // Type of ERC from inspection_calls table
-        dto.setPlaceOfInspection(ic.getPlaceOfInspection());
+        dto.setPlaceOfInspection(formatPlaceOfInspection(ic.getCompanyName(), ic.getUnitAddress()));
         dto.setCompanyName(ic.getCompanyName());
         dto.setUnitName(ic.getUnitName());
         dto.setUnitAddress(ic.getUnitAddress());
@@ -218,8 +248,29 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
 
         dto.setRmIcHeatInfoList(heatInfoList);
 
-        log.info("Successfully fetched initiation data for Process call: {}", callNo);
         return dto;
+    }
+
+    private String formatPlaceOfInspection(String companyName, String unitAddress) {
+        if (companyName == null && unitAddress == null) {
+            return null;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        if (companyName != null && !companyName.isEmpty()) {
+            sb.append(companyName);
+        }
+
+        if (unitAddress != null && !unitAddress.isEmpty()) {
+            String formattedAddress = unitAddress.replace("~#~#", ", ").replace("~", ", ");
+            if (sb.length() > 0) {
+                sb.append(" (").append(formattedAddress).append(")");
+            } else {
+                sb.append(formattedAddress);
+            }
+        }
+
+        return sb.length() > 0 ? sb.toString() : null;
     }
 }
 

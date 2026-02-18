@@ -42,5 +42,15 @@ public interface RmChemicalAnalysisRepository extends JpaRepository<RmChemicalAn
            "ORDER BY ca.heatNumber, ca.createdAt DESC")
     List<RmChemicalAnalysis> findByInspectionCallNo(@Param("callNo") String callNo);
 
+    /**
+     * Find all chemical analyses for all calls sharing the same PO serial number
+     */
+    @Query("SELECT ca FROM RmChemicalAnalysis ca " +
+           "JOIN ca.rmInspectionDetails rd " +
+           "JOIN rd.inspectionCall ic " +
+           "WHERE ic.poSerialNo = :poSerialNo " +
+           "ORDER BY ca.heatNumber, ca.createdAt DESC")
+    List<RmChemicalAnalysis> findByInspectionCallPoSerialNo(@Param("poSerialNo") String poSerialNo);
+
 }
 

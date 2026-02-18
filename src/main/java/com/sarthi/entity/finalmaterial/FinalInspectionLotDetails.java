@@ -46,6 +46,9 @@ public class FinalInspectionLotDetails {
     private Long processIcId;
     private String processIcNumber;
 
+    @Column(name = "no_of_bags")
+    private Integer noOfBags; // Number of bags offered
+
     // ---- TIMESTAMPS ----
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

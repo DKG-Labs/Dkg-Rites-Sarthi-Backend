@@ -16,6 +16,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -355,4 +356,15 @@ public class CommonUtils {
         return username;
     }
 
+    public static LocalTime convertStringToTimeObject(String timeString) {
+
+        if (timeString == null || timeString.trim().isEmpty()) {
+            return null;
+        }
+
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("HH:mm"); // 13:45
+
+        return LocalTime.parse(timeString, formatter);
+    }
 }

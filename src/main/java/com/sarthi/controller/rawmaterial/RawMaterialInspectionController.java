@@ -246,16 +246,55 @@ public class RawMaterialInspectionController {
 
             // 2️⃣ Trigger workflow ONLY on success
             String workflowName = "INSPECTION CALL";
-            workflowService.initiateWorkflow(
-                    ic.getIcNumber(),
-                    Integer.valueOf(ic.getCreatedBy()),
-                    workflowName,
-                    "560001");
+
+            Integer createdById = null;
+            try {
+                if (ic.getCreatedBy() != null && !ic.getCreatedBy().equalsIgnoreCase("system")) {
+                    createdById = Integer.valueOf(ic.getCreatedBy());
+                } else {
+                    createdById = 3;
+                }
+            } catch (NumberFormatException nfe) {
+                logger.warn("⚠️ Invalid createdBy value: '{}', using default 3", ic.getCreatedBy());
+                createdById = 3;
+            }
+
+            try {
+                workflowService.initiateWorkflow(
+                        ic.getIcNumber(),
+                        createdById,
+                        workflowName,
+                        "560001");
+                logger.info("✅ Workflow initiated for IC: {}", ic.getIcNumber());
+            } catch (Exception workflowEx) {
+                logger.error("⚠️ Workflow initiation failed, but IC was created successfully: {}",
+                        workflowEx.getMessage());
+                // Don't throw exception - IC was created successfully in database
+            }
 
             logger.info("✅ Inspection call created successfully with ID: {}", ic.getId());
+
+            // Return simplified response to avoid potential serialization issues with
+            // complex entities
+            java.util.Map<String, Object> responseData = new java.util.HashMap<>();
+            responseData.put("id", ic.getId());
+            responseData.put("icNumber", ic.getIcNumber());
+
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(ic),
+                    ResponseBuilder.getSuccessResponse(responseData),
                     HttpStatus.OK);
+
+        } catch (com.sarthi.exception.BusinessException be) {
+            logger.error("❌ Business error creating inspection call: {}", be.getMessage());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(be.getErrorDetails()),
+                    HttpStatus.BAD_REQUEST);
+
+        } catch (com.sarthi.exception.InvalidInputException iie) {
+            logger.error("❌ Invalid input error creating inspection call: {}", iie.getMessage());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(iie.getErrorDetails()),
+                    HttpStatus.BAD_REQUEST);
 
         } catch (Exception e) {
 
@@ -265,7 +304,8 @@ public class RawMaterialInspectionController {
                     AppConstant.INTER_SERVER_ERROR,
                     AppConstant.ERROR_TYPE_CODE_INTERNAL,
                     AppConstant.ERROR_TYPE_ERROR,
-                    e.getMessage() != null ? e.getMessage() : "Failed to create inspection call");
+                    e.getMessage() != null ? e.getMessage()
+                            : "Failed to create inspection call: " + e.getClass().getSimpleName());
 
             return new ResponseEntity<>(
                     ResponseBuilder.getErrorResponse(errorDetails),

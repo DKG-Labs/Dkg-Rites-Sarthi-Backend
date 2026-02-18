@@ -25,6 +25,12 @@ public class ProcessInitiationDataDto {
     private String deliveryDate;
     private String purchasingAuthority;
     private String billPayingOfficer;
+    private String rlyCd;
+    private String rlyShortName;
+    private String poSerialNo;
+    private String rlyPoNo;
+    private String rlyPoNoSerial;
+    private Integer poSrQty;
     
     // ==================== SECTION B: Inspection Call Details ====================
     private String callNo;

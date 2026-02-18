@@ -353,14 +353,21 @@ public class CertificateServiceImpl implements CertificateService {
     private String buildResult(List<RmHeatFinalResult> heatResults) {
         if (heatResults.isEmpty()) return "";
 
-        // Check if all heats are accepted
+        // Check if all heats are accepted (fully confirmed)
         boolean allAccepted = heatResults.stream()
                 .allMatch(hr -> "ACCEPTED".equalsIgnoreCase(hr.getStatus()));
 
         if (allAccepted) {
             return "CONFIRMING TO THE SPECIFICATION IRS T–31-2025, GRADE 55SI7";
         } else {
-            return "NOT CONFIRMING TO THE SPECIFICATION IRS T–31-2025, GRADE 55SI7";
+            // Check if any results were found at all (if non-pending exist, it means it's processed)
+            boolean processed = heatResults.stream()
+                    .anyMatch(hr -> List.of("ACCEPTED", "REJECTED", "PARTIALLY_ACCEPTED").contains(hr.getStatus()));
+            
+            if (processed) {
+                return "NOT CONFIRMING TO THE SPECIFICATION IRS T–31-2025, GRADE 55SI7";
+            }
+            return "";
         }
     }
 
@@ -374,10 +381,13 @@ public class CertificateServiceImpl implements CertificateService {
         double totalAccepted = 0.0;
 
         for (RmHeatFinalResult hr : heatResults) {
-            if ("ACCEPTED".equalsIgnoreCase(hr.getStatus())) {
+            // Include both fully ACCEPTED and PARTIALLY_ACCEPTED heats
+            if ("ACCEPTED".equalsIgnoreCase(hr.getStatus()) || "PARTIALLY_ACCEPTED".equalsIgnoreCase(hr.getStatus())) {
                 BigDecimal acceptedQty = hr.getWeightAcceptedMt();
-                sb.append(hr.getHeatNo()).append(" / ").append(acceptedQty).append(" MT\n");
-                totalAccepted += (acceptedQty != null ? acceptedQty.doubleValue() : 0.0);
+                if (acceptedQty != null && acceptedQty.doubleValue() > 0) {
+                    sb.append(hr.getHeatNo()).append(" / ").append(acceptedQty).append(" MT\n");
+                    totalAccepted += acceptedQty.doubleValue();
+                }
             }
         }
 
@@ -395,10 +405,13 @@ public class CertificateServiceImpl implements CertificateService {
         double totalRejected = 0.0;
 
         for (RmHeatFinalResult hr : heatResults) {
-            if ("REJECTED".equalsIgnoreCase(hr.getStatus())) {
+            // Include both fully REJECTED and PARTIALLY_ACCEPTED heats
+            if ("REJECTED".equalsIgnoreCase(hr.getStatus()) || "PARTIALLY_ACCEPTED".equalsIgnoreCase(hr.getStatus())) {
                 BigDecimal rejectedQty = hr.getWeightRejectedMt();
-                sb.append(hr.getHeatNo()).append(" / ").append(rejectedQty).append(" MT\n");
-                totalRejected += (rejectedQty != null ? rejectedQty.doubleValue() : 0.0);
+                if (rejectedQty != null && rejectedQty.doubleValue() > 0) {
+                    sb.append(hr.getHeatNo()).append(" / ").append(rejectedQty).append(" MT\n");
+                    totalRejected += rejectedQty.doubleValue();
+                }
             }
         }
 

@@ -446,6 +446,16 @@ public UserDto createUser(userRequestDto userDto) {
 
             user = userMasterRepository
                     .findByEmployeeCode(loginId);
+
+            if (user == null) {
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_INVALID,
+                                "Invalid login credentials.")
+                );
+            }
         }
 
         // ================= VENDOR LOGIN =================
