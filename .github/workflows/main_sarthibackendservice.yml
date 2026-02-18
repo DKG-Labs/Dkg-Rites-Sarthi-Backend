@@ -1,14 +1,16 @@
-name: Build and deploy JAR app to Azure Web App - rites-app-free-01
+name: Build and deploy JAR app to Azure Web App - SarthiBackendService
 
 on:
   push:
     branches:
-      - prod
+      - main
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: read #This is required for actions/checkout
 
     steps:
       - uses: actions/checkout@v4
@@ -22,22 +24,21 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Upload artifact
+      - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: java-app
-          path: target/*.jar
+          path: '${{ github.workspace }}/target/*.jar'
 
   deploy:
     runs-on: windows-latest
     needs: build
-
     permissions:
-      id-token: write
-      contents: read
+      id-token: write #This is required for requesting the JWT
+      contents: read #This is required for actions/checkout
 
     steps:
-      - name: Download artifact
+      - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: java-app
@@ -45,11 +46,14 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_DDFEA6C3596F4516B39FD09944093F08 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_AD16A5C856474BD58F63E591A9CAAFF9 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_1F052563CFC14289AD6DEA6E53FE1C5F }}
 
       - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'rites-app-free-01'
+          app-name: 'SarthiBackendService'
           slot-name: 'Production'
           package: '*.jar'
