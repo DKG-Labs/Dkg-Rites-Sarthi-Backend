@@ -2,6 +2,7 @@ package com.sarthi.controller;
 
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.InventoryEntryRequestDto;
+import com.sarthi.dto.InventoryBulkEntryRequestDto;
 import com.sarthi.dto.InventoryEntryResponseDto;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.service.InventoryEntryService;
@@ -45,6 +46,43 @@ public class InventoryEntryController {
             logger.error("Error creating inventory entry: {}", e.getMessage(), e);
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Create multiple inventory entries with multiple heats against one TC
+     * POST /api/vendor/inventory/bulk-entries
+     */
+    @PostMapping("/bulk-entries")
+    public ResponseEntity<Object> createMultipleInventoryEntries(@RequestBody InventoryBulkEntryRequestDto requestDto) {
+        logger.info("Received request to create bulk inventory entries for vendor: {} and TC: {}",
+                requestDto.getVendorCode(), requestDto.getTcNumber());
+
+        try {
+            // Check TC uniqueness again before processing
+            if (inventoryEntryService.existsByTcNumber(requestDto.getTcNumber(), requestDto.getVendorCode())) {
+                ErrorDetails errorDetails = new ErrorDetails(
+                        AppConstant.ERROR_CODE_INVALID,
+                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "This TC Number already exists in your inventory.");
+                return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.BAD_REQUEST);
+            }
+
+            List<InventoryEntryResponseDto> response = inventoryEntryService.createMultipleInventoryEntries(requestDto,
+                    null);
+            logger.info("Created {} inventory entries successfully", response.size());
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(response), HttpStatus.CREATED);
+
+        } catch (Exception e) {
+            logger.error("Error creating bulk inventory entries: {}", e.getMessage(), e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Internal Server Error: " + e.getMessage());
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

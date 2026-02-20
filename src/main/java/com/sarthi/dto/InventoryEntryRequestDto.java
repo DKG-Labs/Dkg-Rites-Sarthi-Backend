@@ -41,5 +41,6 @@ public class InventoryEntryRequestDto {
     private BigDecimal rateOfGst;
     private BigDecimal baseValuePo;
     private BigDecimal totalPo;
+    private Integer numberOfBundles;
 }
 
