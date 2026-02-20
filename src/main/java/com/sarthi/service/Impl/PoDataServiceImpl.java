@@ -59,7 +59,7 @@ public class PoDataServiceImpl implements PoDataService {
 
     @Autowired
     private com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository finalInspectionDetailsRepository;
-    
+
     @Autowired
     private com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository finalCumulativeResultsRepository;
 
@@ -93,11 +93,16 @@ public class PoDataServiceImpl implements PoDataService {
 
         // Section A: PO Header fields (from po_header table)
         dto.setRlyCd(poHeader.getRlyCd());
+        dto.setRlyShortName(poHeader.getRlyShortName());
         dto.setPoNo(poHeader.getPoNo());
 
         // Set PO Serial Number and formatted fields from inspection call if available
         if (inspectionCall != null && inspectionCall.getPoSerialNo() != null) {
-            String rlyPrefix = poHeader.getRlyShortName() != null ? poHeader.getRlyShortName() : poHeader.getRlyCd();
+            String rlyPrefix = poHeader.getRlyShortName();
+            if (rlyPrefix == null || rlyPrefix.length() > 6) {
+                rlyPrefix = poHeader.getRlyCd();
+            }
+
             dto.setPoSerialNo(inspectionCall.getPoSerialNo());
             dto.setRlyPoNo(rlyPrefix + "/" + poHeader.getPoNo()); // RLY/PO_NO with / separator
             dto.setRlyPoNoSerial(rlyPrefix + "/" + poHeader.getPoNo() + "/" + inspectionCall.getPoSerialNo()); // RLY/PO_NO/PO_SR
@@ -122,11 +127,19 @@ public class PoDataServiceImpl implements PoDataService {
 
         dto.setPurchasingAuthority(poHeader.getPurchaserDetail() != null ?
                 poHeader.getPurchaserDetail() : "Manager, Procurement");
-        dto.setBillPayingOfficer("BPO-001"); // Default value - can be configured
+
+        // Use bill_pay_off_desc from first item if available
+        String bpo = "BPO-001";
+        if (poHeader.getItems() != null && !poHeader.getItems().isEmpty()) {
+            String desc = poHeader.getItems().get(0).getBillPayOffDesc();
+            if (desc != null && !desc.trim().isEmpty()) {
+                bpo = desc;
+            }
+        }
+        dto.setBillPayingOfficer(bpo);
 
         // Section B: PO Item fields (from po_item table)
         if (poHeader.getItems() != null && !poHeader.getItems().isEmpty()) {
-
             // First find the item matching poSerialNo if possible
             Optional<PoItem> matchedItem = poHeader.getItems().stream()
                     .filter(item -> {
@@ -166,7 +179,7 @@ public class PoDataServiceImpl implements PoDataService {
             dto.setDeliveryDate(formatDateTime(referenceItem.getDeliveryDate()));
             dto.setExtendedDeliveryDate(formatDateTime(referenceItem.getExtendedDeliveryDate()));
             dto.setPlNo(referenceItem.getPlNo());
-            
+
             // Set the specific PO Serial Qty as requested by user
             dto.setPoSrQty(referenceItem.getQty());
 
@@ -175,7 +188,7 @@ public class PoDataServiceImpl implements PoDataService {
                     .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
                     .sum();
             dto.setPoQty(totalQty);
-            
+
             // Calculate Cumulative Qty Passed & Rejected Previously
             // Use a single aggregation query that runs in the DB — avoids loading all calls & results in memory
             int cummPassed = 0;
@@ -221,7 +234,7 @@ public class PoDataServiceImpl implements PoDataService {
             // Try to fetch Type of ERC from inspection_call_details table (Section B)
             // This is the approved value from Section B, which takes priority
             Optional<InspectionCallDetails> callDetailsOpt =
-                inspectionCallDetailsRepository.findByInspectionCallNo(inspectionCall.getIcNumber());
+                    inspectionCallDetailsRepository.findByInspectionCallNo(inspectionCall.getIcNumber());
 
             if (callDetailsOpt.isPresent() && callDetailsOpt.get().getTypeOfErc() != null) {
                 // Use Type of ERC from Section B (inspection_call_details)
@@ -312,6 +325,22 @@ public class PoDataServiceImpl implements PoDataService {
         }
         return vendorDetails;
     }
+
+    private String extractPlaceOfInspection(String vendorDetails) {
+        if (vendorDetails == null) {
+            return "N/A";
+        }
+        // Extract city from vendor details
+        String[] parts = vendorDetails.split("~");
+        if (parts.length > 0) {
+            String[] nameParts = parts[0].split("-");
+            if (nameParts.length > 1) {
+                return nameParts[nameParts.length - 1];
+            }
+        }
+        return "Factory";
+    }
+
     private String formatPlaceOfInspection(String companyName, String unitAddress) {
         if (companyName == null && unitAddress == null) {
             return null;
@@ -332,22 +361,6 @@ public class PoDataServiceImpl implements PoDataService {
         }
 
         return sb.length() > 0 ? sb.toString() : null;
-    }
-
-
-    private String extractPlaceOfInspection(String vendorDetails) {
-        if (vendorDetails == null) {
-            return "N/A";
-        }
-        // Extract city from vendor details
-        String[] parts = vendorDetails.split("~");
-        if (parts.length > 0) {
-            String[] nameParts = parts[0].split("-");
-            if (nameParts.length > 1) {
-                return nameParts[nameParts.length - 1];
-            }
-        }
-        return "Factory";
     }
 
     @Override
@@ -404,7 +417,7 @@ public class PoDataServiceImpl implements PoDataService {
         java.util.Map<String, InventoryEntry> inventoryByHeatTc = new java.util.HashMap<>();
         if (!heatNumbers.isEmpty()) {
             inventoryEntryRepository.findByHeatNumberIn(heatNumbers).forEach(entry ->
-                inventoryByHeatTc.put(entry.getHeatNumber() + ":" + entry.getTcNumber(), entry)
+                    inventoryByHeatTc.put(entry.getHeatNumber() + ":" + entry.getTcNumber(), entry)
             );
         }
 
@@ -484,4 +497,3 @@ public class PoDataServiceImpl implements PoDataService {
         }
     }
 }
-
