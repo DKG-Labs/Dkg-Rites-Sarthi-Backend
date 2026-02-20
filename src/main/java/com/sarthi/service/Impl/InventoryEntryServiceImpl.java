@@ -2,6 +2,7 @@ package com.sarthi.service.Impl;
 
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.InventoryEntryRequestDto;
+import com.sarthi.dto.InventoryBulkEntryRequestDto;
 import com.sarthi.dto.InventoryEntryResponseDto;
 import com.sarthi.entity.InventoryEntry;
 import com.sarthi.exception.BusinessException;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -62,6 +64,80 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
                             AppConstant.ERROR_TYPE_CODE_INTERNAL,
                             AppConstant.ERROR_TYPE_ERROR,
                             "Failed to create inventory entry: " + e.getMessage()));
+        }
+    }
+
+    @Override
+    public List<InventoryEntryResponseDto> createMultipleInventoryEntries(InventoryBulkEntryRequestDto bulkRequestDto,
+            String tcFilePath) {
+        logger.info("Creating multiple inventory entries (bulk) for vendor: {}", bulkRequestDto.getVendorCode());
+
+        String finalTcFilePath = tcFilePath;
+        if (bulkRequestDto.getTcFileBase64() != null && !bulkRequestDto.getTcFileBase64().isEmpty()) {
+            try {
+                // Determine a base path for TC files
+                String basePath = "uploads/tc_files";
+                String fileName = com.sarthi.util.CommonUtils.saveBase64Image(bulkRequestDto.getTcFileBase64(),
+                        basePath);
+                finalTcFilePath = basePath + "/" + fileName;
+                logger.info("TC file saved at: {}", finalTcFilePath);
+            } catch (IOException e) {
+                logger.error("Error saving TC file: {}", e.getMessage());
+            }
+        }
+
+        final String effectivelyFinalTcFilePath = finalTcFilePath;
+
+        List<InventoryEntry> entriesToSave = bulkRequestDto.getHeatEntries().stream().map(heatDto -> {
+            InventoryEntry entry = new InventoryEntry();
+
+            // Common fields
+            entry.setVendorCode(bulkRequestDto.getVendorCode());
+            entry.setVendorName(bulkRequestDto.getVendorName());
+            entry.setCompanyId(bulkRequestDto.getCompanyId());
+            entry.setCompanyName(bulkRequestDto.getCompanyName());
+            entry.setSupplierName(bulkRequestDto.getSupplierName());
+            entry.setUnitName(bulkRequestDto.getUnitName());
+            entry.setSupplierAddress(bulkRequestDto.getSupplierAddress());
+            entry.setRawMaterial(bulkRequestDto.getRawMaterial());
+            entry.setGradeSpecification(bulkRequestDto.getGradeSpecification());
+            entry.setLengthOfBars(bulkRequestDto.getLengthOfBars());
+            entry.setTcNumber(bulkRequestDto.getTcNumber());
+            entry.setTcDate(parseDate(bulkRequestDto.getTcDate()));
+            entry.setUnitOfMeasurement(bulkRequestDto.getUnitOfMeasurement());
+            entry.setTcFilePath(effectivelyFinalTcFilePath);
+
+            // Heat-specific fields
+            entry.setHeatNumber(heatDto.getHeatNumber());
+            entry.setTcQuantity(heatDto.getTcQuantity());
+            entry.setQtyLeftForInspection(heatDto.getTcQuantity()); // Initially equal to quantity
+            entry.setOfferedQuantity(BigDecimal.ZERO);
+            entry.setNumberOfBundles(heatDto.getNumberOfBundles());
+            entry.setSubPoNumber(heatDto.getSubPoNumber());
+            entry.setSubPoDate(parseDate(heatDto.getSubPoDate()));
+            entry.setSubPoQty(heatDto.getSubPoQty());
+            entry.setInvoiceNumber(heatDto.getInvoiceNumber());
+            entry.setInvoiceDate(parseDate(heatDto.getInvoiceDate()));
+
+            entry.setStatus(InventoryEntry.InventoryStatus.FRESH_PO);
+
+            return entry;
+        }).collect(Collectors.toList());
+
+        try {
+            List<InventoryEntry> savedEntries = inventoryEntryRepository.saveAll(entriesToSave);
+            logger.info("Saved {} inventory entries for TC: {}", savedEntries.size(), bulkRequestDto.getTcNumber());
+
+            return savedEntries.stream()
+                    .map(this::mapEntityToResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("Database error while saving bulk entries: {}", e.getMessage(), e);
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Database error: " + e.getMessage()));
         }
     }
 
@@ -311,6 +387,12 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
         entity.setTcNumber(dto.getTcNumber());
         entity.setTcDate(parseDate(dto.getTcDate()));
         entity.setTcQuantity(dto.getTcQuantity());
+        
+        // If it's a fresh entry, keep qtyLeftForInspection in sync with tcQuantity
+        if (entity.getStatus() == InventoryEntry.InventoryStatus.FRESH_PO) {
+            entity.setQtyLeftForInspection(dto.getTcQuantity());
+        }
+        
         entity.setSubPoNumber(dto.getSubPoNumber());
         entity.setSubPoDate(parseDate(dto.getSubPoDate()));
         entity.setSubPoQty(dto.getSubPoQty());
@@ -321,6 +403,7 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
         entity.setRateOfGst(dto.getRateOfGst());
         entity.setBaseValuePo(dto.getBaseValuePo());
         entity.setTotalPo(dto.getTotalPo());
+        entity.setNumberOfBundles(dto.getNumberOfBundles());
     }
 
     /**
@@ -358,6 +441,8 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
         dto.setStatus(entity.getStatus() != null ? entity.getStatus().name() : null);
         dto.setCreatedAt(entity.getCreatedDate());
         dto.setUpdatedAt(entity.getUpdatedDate());
+        dto.setNumberOfBundles(entity.getNumberOfBundles());
+        dto.setTcFilePath(entity.getTcFilePath());
         return dto;
     }
 

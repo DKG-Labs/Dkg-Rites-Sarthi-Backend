@@ -1,6 +1,7 @@
 package com.sarthi.service;
 
 import com.sarthi.dto.InventoryEntryRequestDto;
+import com.sarthi.dto.InventoryBulkEntryRequestDto;
 import com.sarthi.dto.InventoryEntryResponseDto;
 
 import java.math.BigDecimal;
@@ -18,6 +19,16 @@ public interface InventoryEntryService {
      * @return The created inventory entry
      */
     InventoryEntryResponseDto createInventoryEntry(InventoryEntryRequestDto requestDto);
+
+    /**
+     * Create multiple inventory entries with multiple heats against one TC
+     *
+     * @param bulkRequestDto The bulk inventory entry data
+     * @param tcFilePath     Optional path to the uploaded TC PDF file
+     * @return List of created inventory entries
+     */
+    List<InventoryEntryResponseDto> createMultipleInventoryEntries(InventoryBulkEntryRequestDto bulkRequestDto,
+            String tcFilePath);
 
     /**
      * Get all inventory entries for a vendor

@@ -13,10 +13,10 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "inventory_entries", indexes = {
-    @Index(name = "idx_inventory_vendor_code", columnList = "vendor_code"),
-    @Index(name = "idx_inventory_heat_number", columnList = "heat_number"),
-    @Index(name = "idx_inventory_sub_po_number", columnList = "sub_po_number"),
-    @Index(name = "idx_inventory_status", columnList = "status")
+        @Index(name = "idx_inventory_vendor_code", columnList = "vendor_code"),
+        @Index(name = "idx_inventory_heat_number", columnList = "heat_number"),
+        @Index(name = "idx_inventory_sub_po_number", columnList = "sub_po_number"),
+        @Index(name = "idx_inventory_status", columnList = "status")
 })
 @Data
 public class InventoryEntry {
@@ -139,6 +139,12 @@ public class InventoryEntry {
         }
     }
 
+    @Column(name = "number_of_bundles")
+    private Integer numberOfBundles;
+
+    @Column(name = "tc_file_path", length = 255)
+    private String tcFilePath;
+
     @PreUpdate
     protected void onUpdate() {
         this.updatedDate = LocalDateTime.now();
@@ -155,4 +161,3 @@ public class InventoryEntry {
         EXHAUSTED
     }
 }
-
