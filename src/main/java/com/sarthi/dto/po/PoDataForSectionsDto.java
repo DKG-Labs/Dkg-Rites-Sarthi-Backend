@@ -58,6 +58,9 @@ public class PoDataForSectionsDto {
     private String origDp;            // Original DP
     private String extDp;             // Extended DP
     private String origDpStart;       // Original DP Start Date
+    private Integer cummQtyRejectedPreviously; // Cumulative Qty Rejected Previously
+    private Integer cummQtyOfferedPreviously;  // Cumulative Qty Offered Previously
+    private Integer cummQtyPassedPreviously;   // Cumulative Qty Passed Previously
 
     // MA (Amendment) List - all amendments for this PO
     private List<MaInfoDto> maList;

@@ -59,6 +59,12 @@ public class PoDataServiceImpl implements PoDataService {
     private RmHeatQuantityRepository rmHeatQuantityRepository;
 
     @Autowired
+    private com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository finalInspectionDetailsRepository;
+    
+    @Autowired
+    private com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository finalCumulativeResultsRepository;
+
+    @Autowired
     private InventoryEntryRepository inventoryEntryRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -139,7 +145,32 @@ public class PoDataServiceImpl implements PoDataService {
         if (poHeader.getItems() != null && !poHeader.getItems().isEmpty()) {
             // First find the item matching poSerialNo if possible
             Optional<PoItem> matchedItem = poHeader.getItems().stream()
-                    .filter(item -> inspectionCall.getPoSerialNo().equals(item.getItemSrNo()))
+                    .filter(item -> {
+                        String target = inspectionCall.getPoSerialNo();
+                        String current = item.getItemSrNo();
+                        if (target == null || current == null)
+                            return false;
+
+                        // Check if target is composite (e.g. "PO/007") and extract the last part
+                        if (target.contains("/")) {
+                            String[] parts = target.split("/");
+                            if (parts.length > 0) {
+                                target = parts[parts.length - 1]; // Use last part as serial no
+                            }
+                        }
+
+                        // Try exact match
+                        if (target.trim().equals(current.trim()))
+                            return true;
+
+                        // Try numeric match (handle 007 vs 7)
+                        try {
+                            // If strings differ only by leading zeros
+                            return Integer.parseInt(target.trim()) == Integer.parseInt(current.trim());
+                        } catch (NumberFormatException e) {
+                            return false;
+                        }
+                    })
                     .findFirst();
 
             PoItem referenceItem = matchedItem.orElse(poHeader.getItems().get(0));
@@ -154,12 +185,80 @@ public class PoDataServiceImpl implements PoDataService {
             
             // Set the specific PO Serial Qty as requested by user
             dto.setPoSrQty(referenceItem.getQty());
-
+            
             // Calculate total PO Qty from all items
             int totalQty = poHeader.getItems().stream()
                     .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
                     .sum();
             dto.setPoQty(totalQty);
+            
+            // Calculate Cumulative Qty Passed & Rejected Previously
+            // New Logic: Use FinalCumulativeResults table
+            List<com.sarthi.entity.finalmaterial.FinalCumulativeResults> cumulativeResultsList = 
+                finalCumulativeResultsRepository.findByPoNo(poHeader.getPoNo());
+            
+            int cummPassed = 0;
+            int cummRejected = 0;
+            int cummOffered = 0;
+            
+            // We need to filter these results based on:
+            // 1. PO Serial Number (Item) - The cumulative result is stored by Call No, so we need to find the call first?
+            // Wait, FinalCumulativeResults has inspectionCallNo. We can use that to look up the call and check its PO Serial No.
+            // Or, better, we can pre-fetch all calls for this PO to map CallNo -> PoSerialNo.
+            
+            List<InspectionCall> allCalls = inspectionCallRepository.findByPoNoOrderByCreatedAtDesc(poHeader.getPoNo());
+            
+            for (com.sarthi.entity.finalmaterial.FinalCumulativeResults result : cumulativeResultsList) {
+                // Find the corresponding call
+                Optional<InspectionCall> callOpt = allCalls.stream()
+                    .filter(c -> c.getIcNumber().equals(result.getInspectionCallNo()))
+                    .findFirst();
+                
+                if (callOpt.isPresent()) {
+                    InspectionCall call = callOpt.get();
+                    
+                    // Skip current call if we are in context of a specific call
+                    if (inspectionCall != null && call.getId().equals(inspectionCall.getId())) {
+                        continue;
+                    }
+
+                    // Skip calls that are newer than the current call (if inspectionCall is provided)
+                    if (inspectionCall != null && call.getCreatedAt().isAfter(inspectionCall.getCreatedAt())) {
+                       continue;
+                    }
+                    
+                    // Check if this call belongs to the same Item (PO Serial No)
+                    boolean isSameItem = false;
+                    String callSerial = call.getPoSerialNo();
+                    String targetSerial = inspectionCall != null ? inspectionCall.getPoSerialNo() : referenceItem.getItemSrNo();
+                    
+                    if (callSerial != null && targetSerial != null) {
+                         String callSr = callSerial.contains("/") ? callSerial.substring(callSerial.lastIndexOf("/") + 1) : callSerial;
+                         String targetSr = targetSerial.contains("/") ? targetSerial.substring(targetSerial.lastIndexOf("/") + 1) : targetSerial;
+                         
+                         if (callSr.trim().equals(targetSr.trim())) {
+                             isSameItem = true;
+                         } else {
+                             try {
+                                 isSameItem = Integer.parseInt(callSr.trim()) == Integer.parseInt(targetSr.trim());
+                             } catch (NumberFormatException e) {
+                                 isSameItem = false;
+                             }
+                         }
+                    }
+                    
+                    if (isSameItem) {
+                        // Add to cumulative sums
+                        if (result.getQtyNowPassed() != null) cummPassed += result.getQtyNowPassed();
+                        if (result.getQtyNowRejected() != null) cummRejected += result.getQtyNowRejected();
+                        if (result.getQtyNowOffered() != null) cummOffered += result.getQtyNowOffered();
+                    }
+                }
+            }
+            
+            dto.setCummQtyPassedPreviously(cummPassed);
+            dto.setCummQtyRejectedPreviously(cummRejected);
+            dto.setCummQtyOfferedPreviously(cummOffered);
         }
 
         // Section B: Additional fields from inspection_calls and rm_inspection_details

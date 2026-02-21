@@ -62,9 +62,9 @@ public class FinalHardnessTestServiceImpl implements FinalHardnessTestService {
             test.setStatus("PENDING");
             test.setRemarks(request.getRemarks());
             test.setCreatedBy(userId);
-            // test.setUpdatedBy(userId);
+            test.setUpdatedBy(userId);
             test.setCreatedAt(LocalDateTime.now());
-            // test.setUpdatedAt(LocalDateTime.now());
+            test.setUpdatedAt(LocalDateTime.now());
             log.info("Creating new hardness test session");
         }
 
