@@ -29,7 +29,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Service implementation for fetching PO data for Inspection Initiation Sections
@@ -71,21 +70,15 @@ public class PoDataServiceImpl implements PoDataService {
 
     @Override
     public PoDataForSectionsDto getPoDataByPoNumber(String poNo) {
-        // Find PO Header by PO Number using existing repository method
-        List<PoHeader> poHeaders = poHeaderRepository.findAll();
-        PoHeader poHeader = poHeaders.stream()
-                .filter(h -> poNo.equals(h.getPoNo()))
-                .findFirst()
-                .orElse(null);
+        // Find PO Header by PO Number with items eagerly loaded
+        PoHeader poHeader = poHeaderRepository.findByPoNoWithItems(poNo).orElse(null);
 
         if (poHeader == null) {
             return null;
         }
 
-        // Find MA records for this PO using existing repository
-        List<PoMaHeader> maHeaders = poMaHeaderRepository.findAll().stream()
-                .filter(ma -> poNo.equals(ma.getPoNo()))
-                .collect(Collectors.toList());
+        // Find MA records for this PO using targeted repository query
+        List<PoMaHeader> maHeaders = poMaHeaderRepository.findByPoNo(poNo);
 
         // Transform to DTO
         return mapToDto(poHeader, maHeaders);
@@ -193,73 +186,44 @@ public class PoDataServiceImpl implements PoDataService {
             dto.setPoQty(totalQty);
             
             // Calculate Cumulative Qty Passed & Rejected Previously
-            // New Logic: Use FinalCumulativeResults table
-            List<com.sarthi.entity.finalmaterial.FinalCumulativeResults> cumulativeResultsList = 
-                finalCumulativeResultsRepository.findByPoNo(poHeader.getPoNo());
-            
+            // Use a single aggregation query that runs in the DB — avoids loading all calls & results in memory
             int cummPassed = 0;
             int cummRejected = 0;
             int cummOffered = 0;
-            
-            // We need to filter these results based on:
-            // 1. PO Serial Number (Item) - The cumulative result is stored by Call No, so we need to find the call first?
-            // Wait, FinalCumulativeResults has inspectionCallNo. We can use that to look up the call and check its PO Serial No.
-            // Or, better, we can pre-fetch all calls for this PO to map CallNo -> PoSerialNo.
-            
-            List<InspectionCall> allCalls = inspectionCallRepository.findByPoNoOrderByCreatedAtDesc(poHeader.getPoNo());
-            
-            for (com.sarthi.entity.finalmaterial.FinalCumulativeResults result : cumulativeResultsList) {
-                // Find the corresponding call
-                Optional<InspectionCall> callOpt = allCalls.stream()
-                    .filter(c -> c.getIcNumber().equals(result.getInspectionCallNo()))
-                    .findFirst();
-                
-                if (callOpt.isPresent()) {
-                    InspectionCall call = callOpt.get();
-                    
-                    // Skip current call if we are in context of a specific call
-                    if (inspectionCall != null && call.getId().equals(inspectionCall.getId())) {
-                        continue;
-                    }
 
-                    // Skip calls that are newer than the current call (if inspectionCall is provided)
-                    if (inspectionCall != null && call.getCreatedAt().isAfter(inspectionCall.getCreatedAt())) {
-                       continue;
-                    }
-                    
-                    // Check if this call belongs to the same Item (PO Serial No)
-                    boolean isSameItem = false;
-                    String callSerial = call.getPoSerialNo();
-                    String targetSerial = inspectionCall != null ? inspectionCall.getPoSerialNo() : referenceItem.getItemSrNo();
-                    
-                    if (callSerial != null && targetSerial != null) {
-                         String callSr = callSerial.contains("/") ? callSerial.substring(callSerial.lastIndexOf("/") + 1) : callSerial;
-                         String targetSr = targetSerial.contains("/") ? targetSerial.substring(targetSerial.lastIndexOf("/") + 1) : targetSerial;
-                         
-                         if (callSr.trim().equals(targetSr.trim())) {
-                             isSameItem = true;
-                         } else {
-                             try {
-                                 isSameItem = Integer.parseInt(callSr.trim()) == Integer.parseInt(targetSr.trim());
-                             } catch (NumberFormatException e) {
-                                 isSameItem = false;
-                             }
-                         }
-                    }
-                    
-                    if (isSameItem) {
-                        // Add to cumulative sums
-                        if (result.getQtyNowPassed() != null) cummPassed += result.getQtyNowPassed();
-                        if (result.getQtyNowRejected() != null) cummRejected += result.getQtyNowRejected();
-                        if (result.getQtyNowOffered() != null) cummOffered += result.getQtyNowOffered();
-                    }
+            if (inspectionCall != null && inspectionCall.getPoSerialNo() != null) {
+                // Extract the trailing serial number (e.g. "PO/007" → "007")
+                String rawSerial = inspectionCall.getPoSerialNo();
+                String serialSuffix = rawSerial.contains("/")
+                        ? rawSerial.substring(rawSerial.lastIndexOf("/") + 1)
+                        : rawSerial;
+
+                // Normalize: strip leading zeros so "007" and "7" both match
+                try {
+                    serialSuffix = String.valueOf(Integer.parseInt(serialSuffix.trim()));
+                } catch (NumberFormatException ignored) {
+                    serialSuffix = serialSuffix.trim();
+                }
+
+                Object[] sums = finalCumulativeResultsRepository.sumCumulativeByPoNoAndSerialNoExcludingCall(
+                        poHeader.getPoNo(),
+                        serialSuffix,
+                        inspectionCall.getId().intValue(),
+                        inspectionCall.getCreatedAt()
+                );
+
+                if (sums != null && sums.length >= 3) {
+                    cummPassed   = sums[0] != null ? ((Number) sums[0]).intValue() : 0;
+                    cummRejected = sums[1] != null ? ((Number) sums[1]).intValue() : 0;
+                    cummOffered  = sums[2] != null ? ((Number) sums[2]).intValue() : 0;
                 }
             }
-            
+
             dto.setCummQtyPassedPreviously(cummPassed);
             dto.setCummQtyRejectedPreviously(cummRejected);
             dto.setCummQtyOfferedPreviously(cummOffered);
         }
+
 
         // Section B: Additional fields from inspection_calls and rm_inspection_details
         if (inspectionCall != null) {
@@ -397,20 +361,15 @@ public class PoDataServiceImpl implements PoDataService {
 
     @Override
     public PoDataForSectionsDto getPoDataWithRmDetailsForSectionC(String poNo, String requestId) {
-        // Find PO Header
-        PoHeader poHeader = poHeaderRepository.findAll().stream()
-                .filter(po -> poNo.equals(po.getPoNo()))
-                .findFirst()
-                .orElse(null);
+        // Find PO Header using targeted query with items eagerly loaded (avoids full-table scan + lazy load issue)
+        PoHeader poHeader = poHeaderRepository.findByPoNoWithItems(poNo).orElse(null);
 
         if (poHeader == null) {
             return null;
         }
 
-        // Find MA records for this PO
-        List<PoMaHeader> maHeaders = poMaHeaderRepository.findAll().stream()
-                .filter(ma -> poNo.equals(ma.getPoNo()))
-                .collect(Collectors.toList());
+        // Find MA records for this PO using targeted query (avoids full-table scan)
+        List<PoMaHeader> maHeaders = poMaHeaderRepository.findByPoNo(poNo);
 
         // Find inspection call based on requestId or get the latest one
         InspectionCall targetCall = null;
@@ -444,24 +403,34 @@ public class PoDataServiceImpl implements PoDataService {
         // Find all heat quantities for this RM detail
         List<RmHeatQuantity> heatQuantities = rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rmDetails.getId()));
 
+        // Batch-fetch all inventory entries for the heat numbers in this RM detail (avoids N+1 queries)
+        List<String> heatNumbers = heatQuantities.stream()
+                .map(RmHeatQuantity::getHeatNumber)
+                .filter(h -> h != null)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+
+        java.util.Map<String, InventoryEntry> inventoryByHeatTc = new java.util.HashMap<>();
+        if (!heatNumbers.isEmpty()) {
+            inventoryEntryRepository.findByHeatNumberIn(heatNumbers).forEach(entry ->
+                inventoryByHeatTc.put(entry.getHeatNumber() + ":" + entry.getTcNumber(), entry)
+            );
+        }
+
         // Build RM Heat Details list
         List<PoDataForSectionsDto.RmHeatDetailsDto> rmHeatDetailsList = new ArrayList<>();
         for (RmHeatQuantity heat : heatQuantities) {
             PoDataForSectionsDto.RmHeatDetailsDto heatDto = new PoDataForSectionsDto.RmHeatDetailsDto();
 
-            // Fetch grade, raw material name, total_po, and tc_quantity from inventory_entries table based on heat + TC combination
+            // Look up inventory from the pre-fetched map (no DB call per row)
             String rawMaterialName = rmDetails.getItemDescription(); // Default from rm_inspection_details
             String grade = "N/A"; // Default
             BigDecimal totalValueOfPo = null; // Default
             BigDecimal tcQuantity = null; // Default
 
             if (heat.getHeatNumber() != null && heat.getTcNumber() != null) {
-                Optional<InventoryEntry> inventoryEntryOpt = inventoryEntryRepository
-                        .findByHeatNumberAndTcNumber(heat.getHeatNumber(), heat.getTcNumber());
-
-                if (inventoryEntryOpt.isPresent()) {
-                    InventoryEntry inventoryEntry = inventoryEntryOpt.get();
-                    // Override with inventory data if available
+                InventoryEntry inventoryEntry = inventoryByHeatTc.get(heat.getHeatNumber() + ":" + heat.getTcNumber());
+                if (inventoryEntry != null) {
                     rawMaterialName = inventoryEntry.getRawMaterial();
                     grade = inventoryEntry.getGradeSpecification();
                     totalValueOfPo = inventoryEntry.getTotalPo();
@@ -492,6 +461,7 @@ public class PoDataServiceImpl implements PoDataService {
 
             rmHeatDetailsList.add(heatDto);
         }
+
 
         dto.setRmHeatDetails(rmHeatDetailsList);
         return dto;
