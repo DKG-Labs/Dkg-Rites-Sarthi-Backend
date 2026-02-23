@@ -84,4 +84,12 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
      */
     List<InventoryEntry> findByVendorCodeAndStatusOrderByCreatedDateDesc(String vendorCode,
             InventoryEntry.InventoryStatus status);
+
+    /**
+     * Find all inventory entries for a set of heat numbers (batch fetch to avoid N+1)
+     *
+     * @param heatNumbers list of heat numbers
+     * @return List of inventory entries matching any of the heat numbers
+     */
+    List<InventoryEntry> findByHeatNumberIn(List<String> heatNumbers);
 }
