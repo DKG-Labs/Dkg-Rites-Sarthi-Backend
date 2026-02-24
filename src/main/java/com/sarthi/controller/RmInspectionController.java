@@ -274,6 +274,7 @@ public class RmInspectionController {
                 defects.put("Groove", entity.getGroove());
                 defects.put("Excessive Scaling", entity.getExcessiveScaling());
                 defects.put("Internal Defect (Piping, Segregation)", entity.getInternalDefect());
+                defects.put("Other", entity.getOther());
                 dto.put("defects", defects);
 
                 // Convert entity defect lengths to map
@@ -289,7 +290,12 @@ public class RmInspectionController {
                 if (entity.getGrooveLength() != null) defectLengths.put("Groove", entity.getGrooveLength());
                 if (entity.getExcessiveScalingLength() != null) defectLengths.put("Excessive Scaling", entity.getExcessiveScalingLength());
                 if (entity.getInternalDefectLength() != null) defectLengths.put("Internal Defect (Piping, Segregation)", entity.getInternalDefectLength());
+                if (entity.getOtherLength() != null) defectLengths.put("Other", entity.getOtherLength());
                 dto.put("defectLengths", defectLengths);
+
+                if (entity.getOtherRemarks() != null) {
+                    dto.put("otherRemarks", entity.getOtherRemarks());
+                }
 
                 // Add passedAt if available
                 if (entity.getPassedAt() != null) {
@@ -381,6 +387,11 @@ public class RmInspectionController {
                         }
                     }
                 }
+            }
+
+            // Set other remarks if provided
+            if (passData.containsKey("otherRemarks")) {
+                record.setOtherRemarks((String) passData.get("otherRemarks"));
             }
 
             // Always update passed_at and createdBy on pass
@@ -574,6 +585,9 @@ public class RmInspectionController {
             case "internal defect":
                 entity.setInternalDefect(selected);
                 break;
+            case "other":
+                entity.setOther(selected);
+                break;
         }
     }
 
@@ -612,6 +626,9 @@ public class RmInspectionController {
             case "internal defect (piping, segregation)":
             case "internal defect":
                 entity.setInternalDefectLength(length);
+                break;
+            case "other":
+                entity.setOtherLength(length);
                 break;
         }
     }
