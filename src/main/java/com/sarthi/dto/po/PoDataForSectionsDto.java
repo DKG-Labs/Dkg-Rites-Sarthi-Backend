@@ -45,6 +45,7 @@ public class PoDataForSectionsDto {
     private String deliveryDate;      // Delivery Date
     private String extendedDeliveryDate; // Extended Delivery Date
     private String plNo;              // PL Number
+    private String placeOfInspection;
 
     // Section B: Additional fields from inspection_calls and rm_inspection_details
     private String ercType;           // Type of ERC (from inspection_calls.erc_type)
@@ -64,6 +65,7 @@ public class PoDataForSectionsDto {
 
     // Section C: RM Inspection Details (from rm_inspection_details, rm_heat_quantities)
     private List<RmHeatDetailsDto> rmHeatDetails;
+
 
     /**
      * Inner class for MA (Amendment) information
