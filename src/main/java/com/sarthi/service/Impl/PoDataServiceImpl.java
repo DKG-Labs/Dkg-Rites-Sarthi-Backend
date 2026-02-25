@@ -97,13 +97,16 @@ public class PoDataServiceImpl implements PoDataService {
 
         // Set PO Serial Number and formatted fields from inspection call if available
         if (inspectionCall != null && inspectionCall.getPoSerialNo() != null) {
+            String rlyPrefix = poHeader.getRlyShortName() != null ? poHeader.getRlyShortName() : poHeader.getRlyCd();
             dto.setPoSerialNo(inspectionCall.getPoSerialNo());
-            dto.setRlyPoNo(poHeader.getRlyCd() + "/" + poHeader.getPoNo()); // RLY/PO_NO with / separator
-            dto.setRlyPoNoSerial(poHeader.getRlyCd() + "/" + poHeader.getPoNo() + "/" + inspectionCall.getPoSerialNo()); // RLY/PO_NO/PO_SR
+            dto.setRlyPoNo(rlyPrefix + "/" + poHeader.getPoNo()); // RLY/PO_NO with / separator
+            dto.setRlyPoNoSerial(rlyPrefix + "/" + poHeader.getPoNo() + "/" + inspectionCall.getPoSerialNo()); // RLY/PO_NO/PO_SR
 
             // Use place_of_inspection from inspection_calls table, fallback to vendor details if null
-            String placeOfInspection = inspectionCall.getPlaceOfInspection();
-            dto.setInspPlace(placeOfInspection != null ? placeOfInspection : extractPlaceOfInspection(poHeader.getFirmDetails()));
+            String placeOfInspection = formatPlaceOfInspection(inspectionCall.getCompanyName(), inspectionCall.getUnitAddress());
+            String fallbackPOI = extractPlaceOfInspection(poHeader.getFirmDetails());
+            dto.setInspPlace(placeOfInspection != null ? placeOfInspection : fallbackPOI);
+            dto.setPlaceOfInspection(placeOfInspection != null ? placeOfInspection : fallbackPOI);
         } else {
             dto.setPoSerialNo("N/A");
             dto.setRlyPoNo("N/A");
@@ -309,6 +312,28 @@ public class PoDataServiceImpl implements PoDataService {
         }
         return vendorDetails;
     }
+    private String formatPlaceOfInspection(String companyName, String unitAddress) {
+        if (companyName == null && unitAddress == null) {
+            return null;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        if (companyName != null && !companyName.isEmpty()) {
+            sb.append(companyName);
+        }
+
+        if (unitAddress != null && !unitAddress.isEmpty()) {
+            String formattedAddress = unitAddress.replace("~#~#", ", ").replace("~", ", ");
+            if (sb.length() > 0) {
+                sb.append(" (").append(formattedAddress).append(")");
+            } else {
+                sb.append(formattedAddress);
+            }
+        }
+
+        return sb.length() > 0 ? sb.toString() : null;
+    }
+
 
     private String extractPlaceOfInspection(String vendorDetails) {
         if (vendorDetails == null) {

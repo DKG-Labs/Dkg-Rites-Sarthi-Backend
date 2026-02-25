@@ -69,6 +69,9 @@ public class RmVisualInspection {
     @Column(name = "internal_defect")
     private Boolean internalDefect = false;
 
+    @Column(name = "other")
+    private Boolean other = false;
+
     // Defect Length Columns
     @Column(name = "distortion_length", precision = 10, scale = 2)
     private BigDecimal distortionLength;
@@ -102,6 +105,12 @@ public class RmVisualInspection {
 
     @Column(name = "internal_defect_length", precision = 10, scale = 2)
     private BigDecimal internalDefectLength;
+
+    @Column(name = "other_length", precision = 10, scale = 2)
+    private BigDecimal otherLength;
+
+    @Column(name = "other_remarks", length = 500)
+    private String otherRemarks;
 
     @Column(name = "passed_at")
     private LocalDateTime passedAt;
