@@ -22,5 +22,7 @@ public class FinalInspectionLotDetailsRequestDto {
 
     // ---- PROCESS IC REFERENCE ----
     private String processIcNumber;
-}
 
+    // ---- ADDITIONAL INFORMATION ----
+    private Integer noOfBags;
+}
