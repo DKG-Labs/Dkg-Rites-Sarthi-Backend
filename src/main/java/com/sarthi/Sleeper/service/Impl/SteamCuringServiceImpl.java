@@ -9,6 +9,9 @@ import com.sarthi.Sleeper.entity.SteamCuring.SteamCuringManual;
 import com.sarthi.Sleeper.entity.SteamCuring.SteamCuringScada;
 import com.sarthi.Sleeper.repository.SteamCuringRepository;
 import com.sarthi.Sleeper.service.SteamCuringService;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
@@ -138,8 +141,13 @@ public class SteamCuringServiceImpl implements SteamCuringService {
                                              SteamCuringRequestDto dto) {
 
             SteamCuring entity = steamCuringRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Record not found"));
-
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Steam Curing record not found.")
+                    ));
             entity.setBatchNo(dto.getBatchNo());
             entity.setChamber(dto.getChamber());
             entity.setGrade(dto.getGrade());
@@ -252,8 +260,13 @@ public class SteamCuringServiceImpl implements SteamCuringService {
         public SteamCuringResponseDto getById(Long id) {
 
             SteamCuring entity = steamCuringRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Record not found"));
-
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Steam Curing record not found.")
+                    ));
             return mapToResponse(entity);
         }
 
@@ -270,7 +283,16 @@ public class SteamCuringServiceImpl implements SteamCuringService {
 
         @Override
         public void delete(Long id) {
-            steamCuringRepository.deleteById(id);
+
+            SteamCuring entity = steamCuringRepository.findById(id)
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Steam Curing record not found.")
+                    ));
+            steamCuringRepository.deleteById(entity.getId());
         }
 
 

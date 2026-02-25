@@ -9,6 +9,9 @@ import com.sarthi.Sleeper.entity.Compaction.CompactionManual;
 import com.sarthi.Sleeper.entity.Compaction.CompactionScada;
 import com.sarthi.Sleeper.repository.CompactionRepository;
 import com.sarthi.Sleeper.service.CompactionService;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -110,7 +113,13 @@ public class CompactionServiceImpl implements CompactionService {
                                             CompactionRequestDto dto) {
 
             Compaction entity = compactionRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Record not found"));
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Compaction record not found.")
+                    ));
 
             entity.setBatchNo(dto.getBatchNo());
             entity.setSleeperType(dto.getSleeperType());
@@ -196,8 +205,13 @@ public class CompactionServiceImpl implements CompactionService {
         public CompactionResponseDto getById(Long id) {
 
             Compaction entity = compactionRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Record not found"));
-
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Compaction record not found.")
+                    ));
             return mapToResponse(entity);
         }
 
@@ -214,7 +228,15 @@ public class CompactionServiceImpl implements CompactionService {
 
         @Override
         public void delete(Long id) {
-            compactionRepository.deleteById(id);
+            Compaction entity = compactionRepository.findById(id)
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Compaction record not found.")
+                    ));
+            compactionRepository.deleteById(entity.getId());
         }
 
 

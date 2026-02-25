@@ -2,9 +2,13 @@ package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.BenchMouldDtos.BenchMouldInspectionRequestDto;
 import com.sarthi.Sleeper.dto.BenchMouldDtos.BenchMouldInspectionResponseDto;
+import com.sarthi.Sleeper.entity.BatchWeighment.BatchWeighment;
 import com.sarthi.Sleeper.entity.BenchMouldInspection;
 import com.sarthi.Sleeper.repository.BenchMouldInspectionRepository;
 import com.sarthi.Sleeper.service.BenchMouldInspectionService;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -77,9 +81,13 @@ public class BenchMouldInspectionServiceImpl
 
         BenchMouldInspection entity =
                 repository.findById(id)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Inspection not found"));
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Inspection not found.")
+                ));
 
         entity.setLineShedNo(dto.getLineShedNo());
 
@@ -127,10 +135,13 @@ public class BenchMouldInspectionServiceImpl
 
         BenchMouldInspection entity =
                 repository.findById(id)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Inspection not found"));
-
+                        .orElseThrow(() -> new BusinessException(
+                                new ErrorDetails(
+                                        AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "Inspection not found.")
+                        ));
         return mapToResponse(entity);
     }
 
@@ -147,8 +158,16 @@ public class BenchMouldInspectionServiceImpl
 
     @Override
     public void delete(Long id) {
-
-        repository.deleteById(id);
+        BenchMouldInspection entity =
+                repository.findById(id)
+                        .orElseThrow(() -> new BusinessException(
+                                new ErrorDetails(
+                                        AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "Inspection not found.")
+                        ));
+        repository.deleteById(entity.getId());
     }
 
 

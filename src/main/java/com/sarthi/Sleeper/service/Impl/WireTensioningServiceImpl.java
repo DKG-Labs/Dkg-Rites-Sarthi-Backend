@@ -9,6 +9,9 @@ import com.sarthi.Sleeper.entity.WireTensioning.WireTensioningManual;
 import com.sarthi.Sleeper.entity.WireTensioning.WireTensioningScada;
 import com.sarthi.Sleeper.repository.WireTensioningRepository;
 import com.sarthi.Sleeper.service.wireTensioningService;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
@@ -131,8 +134,13 @@ public class WireTensioningServiceImpl implements wireTensioningService {
                                             WireTensioningRequestDto dto) {
 
         WireTensioning entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Record not found"));
-
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Wire Tensioning record not found.")
+                ));
         entity.setBatchNo(dto.getBatchNo());
         entity.setSleeperType(dto.getSleeperType());
         entity.setWiresPerSleeper(dto.getWiresPerSleeper());
@@ -236,8 +244,13 @@ public class WireTensioningServiceImpl implements wireTensioningService {
     public WireTensioningResponseDto getById(Long id) {
 
         WireTensioning entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Record not found"));
-
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Wire Tensioning record not found.")
+                ));
         return mapToResponse(entity);
     }
 
@@ -253,7 +266,16 @@ public class WireTensioningServiceImpl implements wireTensioningService {
 
     @Override
     public void delete(Long id) {
-        repository.deleteById(id);
+
+        WireTensioning entity = repository.findById(id)
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Wire Tensioning record not found.")
+                ));
+        repository.deleteById(entity.getId());
     }
 
 

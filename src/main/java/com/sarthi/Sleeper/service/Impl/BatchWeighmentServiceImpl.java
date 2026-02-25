@@ -7,6 +7,9 @@ import com.sarthi.Sleeper.entity.BatchWeighment.ManualWeighment;
 import com.sarthi.Sleeper.entity.BatchWeighment.ScadaWeighment;
 import com.sarthi.Sleeper.repository.BatchWeighmentRepository;
 import com.sarthi.Sleeper.service.BatchWeighmentService;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import org.springframework.stereotype.Service;
 
 import com.sarthi.util.CommonUtils;
@@ -186,7 +189,14 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
     public BatchWeighmentResponseDto update(Long id, BatchWeighmentRequestDto dto) {
 
         BatchWeighment entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Batch not found"));
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Batch not found.")
+                ));
+
 
         entity.setLineNo(dto.getLineNo());
 
@@ -352,8 +362,13 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         public BatchWeighmentResponseDto getById(Long id) {
 
             BatchWeighment entity = repository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Batch not found"));
-
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Batch not found.")
+                    ));
             return mapToResponse(entity);
         }
 
@@ -370,7 +385,15 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
 
         @Override
         public void delete(Long id) {
-            repository.deleteById(id);
+            BatchWeighment entity = repository.findById(id)
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Batch not found.")
+                    ));
+            repository.deleteById(entity.getId());
         }
 
 
