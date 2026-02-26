@@ -21,7 +21,6 @@ public class reportsController {
     @Autowired
     private reports reportService;
 
-
     @GetMapping("/1stLevelReportPoData")
     public ResponseEntity<Object> get1stLevelReportPoData() {
         List<PoInspection1stLevelStatusDto> list = reportService.getPoInspection1stLevelStatusList();
@@ -33,29 +32,32 @@ public class reportsController {
         List<PoInspection2ndLevelSerialStatusDto> list = reportService.getSerialStatusByPoNo(poNumber);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
+
     @GetMapping("/3rdLevelReportICData/{poNo}/{callNo}")
-    public ResponseEntity<Object> getInspectionDataBasedOnSerialNo(@PathVariable String poNo, @PathVariable String callNo) {
+    public ResponseEntity<Object> getInspectionDataBasedOnSerialNo(@PathVariable String poNo,
+            @PathVariable String callNo) {
         List<PoInspection3rdLevelCallStatusDto> list = reportService.getCallWiseStatusBy(poNo, callNo);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
-@GetMapping("/3rdLevelReportICData")
-public ResponseEntity<Object> getInspectionDataBasedOnSerialNo(
 
-        @RequestParam String callNo,
-        @RequestParam String poNo,
+    @GetMapping("/3rdLevelReportICData")
+    public ResponseEntity<Object> getInspectionDataBasedOnSerialNo(
 
-        @RequestParam(defaultValue = "0") int page,
+            @RequestParam String callNo,
+            @RequestParam String poNo,
 
-        @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "0") int page,
 
-    Page<PoInspection3rdLevelCallStatusDto> result =
-            reportService.getCallWiseStatusBySerialNo(poNo, callNo, page, size);;
+            @RequestParam(defaultValue = "20") int size) {
 
-    return new ResponseEntity<>(
-            ResponseBuilder.getSuccessResponse(result),
-            HttpStatus.OK
-    );
-}
+        Page<PoInspection3rdLevelCallStatusDto> result = reportService.getCallWiseStatusBySerialNo(poNo, callNo, page,
+                size);
+        ;
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK);
+    }
 
     @GetMapping("/4thLevelReportICData/{callNo}")
     public ResponseEntity<Object> getProcessDataCallWise(@PathVariable String callNo) {
@@ -63,5 +65,9 @@ public ResponseEntity<Object> getInspectionDataBasedOnSerialNo(
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
-
+    @GetMapping("/dashboardSummary")
+    public ResponseEntity<Object> getDashboardSummary() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDashboardSummary()),
+                HttpStatus.OK);
+    }
 }

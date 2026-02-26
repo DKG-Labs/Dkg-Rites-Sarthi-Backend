@@ -154,6 +154,15 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                 lotDetails.setManufacturer(lotDto.getManufacturer());
                 lotDetails.setManufacturerHeat(lotDto.getManufacturerHeat());
                 lotDetails.setOfferedQty(lotDto.getOfferedQty());
+
+                // Set No. of Bags - Use value from DTO if provided, otherwise calculate
+                if (lotDto.getNoOfBags() != null && lotDto.getNoOfBags() > 0) {
+                    lotDetails.setNoOfBags(lotDto.getNoOfBags());
+                } else if (lotDto.getOfferedQty() != null) {
+                    int bags = (int) Math.ceil((double) lotDto.getOfferedQty() / 50);
+                    lotDetails.setNoOfBags(bags);
+                }
+
                 lotDetails.setQtyAccepted(null); // Will be set after inspection
                 lotDetails.setQtyRejected(null); // Will be set after inspection
                 lotDetails.setRejectionReason(null);

@@ -38,6 +38,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
     boolean existsByInspectionCallNo(String inspectionCallNo);
 
 
+
     @Query(value = """
         SELECT 
             p.id,
@@ -108,5 +109,17 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
         @Param("currentCallId") Integer currentCallId,
         @Param("beforeOrAt") LocalDateTime beforeOrAt
     );
+
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowPassed) FROM FinalCumulativeResults fcr")
+    Long sumTotalQtyNowPassed();
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowPassed) FROM FinalCumulativeResults fcr WHERE fcr.createdAt >= :date")
+    Long sumTotalQtyNowPassedLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowRejected), SUM(fcr.qtyNowOffered) FROM FinalCumulativeResults fcr WHERE fcr.createdAt >= :date")
+    List<Object[]> sumFinalRejectionLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
 }
