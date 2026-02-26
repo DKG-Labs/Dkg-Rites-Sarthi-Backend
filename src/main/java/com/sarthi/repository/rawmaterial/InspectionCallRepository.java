@@ -205,155 +205,199 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
         @Query("SELECT COUNT(ic) FROM InspectionCall ic WHERE ic.poNo = :poNo AND UPPER(ic.status) IN :statuses")
         long countByPoNoAndStatusIn(@Param("poNo") String poNo, @Param("statuses") List<String> statuses);
 
-    /*
+        /*
 
+            @Query(value = """
+        SELECT
+            ph.rly_short_name,
+            ic.po_no,
+            ph.firm_details,
+
+            COALESCE((
+                SELECT SUM(pi.qty)
+                FROM po_item pi
+                WHERE pi.po_header_id = ph.id
+            ),0) AS poQty,
+
+            COALESCE((
+                SELECT SUM(r.accepted_qty_mt)
+                FROM rm_heat_final_result r
+                WHERE r.inspection_call_no IN (
+                    SELECT ic2.ic_number
+                    FROM inspection_calls ic2
+                    WHERE ic2.po_no = ic.po_no
+                      AND ic2.created_at BETWEEN :startDate AND :endDate
+                )
+            ),0) AS monthlyRm,
+
+            COALESCE((
+                SELECT SUM(pq.INSPECTED_QTY)
+                FROM process_ie_qty pq
+                WHERE pq.REQUEST_ID IN (
+                    SELECT ic2.ic_number
+                    FROM inspection_calls ic2
+                    WHERE ic2.po_no = ic.po_no
+                      AND ic2.created_at BETWEEN :startDate AND :endDate
+                )
+            ),0) AS monthlyProcess,
+
+            COALESCE((
+                SELECT SUM(f.qty_now_passed)
+                FROM final_cumulative_results f
+                WHERE f.inspection_call_no IN (
+                    SELECT ic2.ic_number
+                    FROM inspection_calls ic2
+                    WHERE ic2.po_no = ic.po_no
+                      AND ic2.created_at BETWEEN :startDate AND :endDate
+                )
+            ),0) AS monthlyFinal,
+
+            COALESCE((
+                SELECT SUM(f.qty_now_passed)
+                FROM final_cumulative_results f
+                WHERE f.inspection_call_no IN (
+                    SELECT ic3.ic_number
+                    FROM inspection_calls ic3
+                    WHERE ic3.po_no = ic.po_no
+                )
+            ),0) AS totalFinalInspected
+
+        FROM (
+            SELECT DISTINCT po_no
+            FROM inspection_calls
+            WHERE created_at BETWEEN :startDate AND :endDate
+        ) ic
+
+        LEFT JOIN po_header ph
+            ON ph.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+
+        """,
+                    countQuery = """
+            SELECT COUNT(DISTINCT po_no)
+            FROM inspection_calls
+            WHERE created_at BETWEEN :startDate AND :endDate
+        """,
+                    nativeQuery = true)
+            Page<Object[]> fetchMonthlyProgress(
+                    @Param("startDate") LocalDate startDate,
+                    @Param("endDate") LocalDate endDate,
+                    Pageable pageable);  */
         @Query(value = """
-    SELECT 
-        ph.rly_short_name,
-        ic.po_no,
-        ph.firm_details,
+                SELECT 
+                    ph.rly_short_name,
+                    ic.po_no,
+                    ph.firm_details,
 
-        COALESCE((
-            SELECT SUM(pi.qty)
-            FROM po_item pi
-            WHERE pi.po_header_id = ph.id
-        ),0) AS poQty,
+                    COALESCE((
+                        SELECT SUM(pi.qty)
+                        FROM po_item pi
+                        WHERE pi.po_header_id = ph.id
+                    ),0) AS poQty,
 
-        COALESCE((
-            SELECT SUM(r.accepted_qty_mt)
-            FROM rm_heat_final_result r
-            WHERE r.inspection_call_no IN (
-                SELECT ic2.ic_number
-                FROM inspection_calls ic2
-                WHERE ic2.po_no = ic.po_no
-                  AND ic2.created_at BETWEEN :startDate AND :endDate
-            )
-        ),0) AS monthlyRm,
+                    COALESCE((
+                        SELECT SUM(r.accepted_qty_mt)
+                        FROM rm_heat_final_result r
+                        WHERE r.inspection_call_no IN (
+                            SELECT ic2.ic_number
+                            FROM inspection_calls ic2
+                            WHERE ic2.po_no = ic.po_no
+                              AND ic2.created_at BETWEEN :startDate AND :endDate
+                        )
+                    ),0) AS monthlyRm,
 
-        COALESCE((
-            SELECT SUM(pq.INSPECTED_QTY)
-            FROM process_ie_qty pq
-            WHERE pq.REQUEST_ID IN (
-                SELECT ic2.ic_number
-                FROM inspection_calls ic2
-                WHERE ic2.po_no = ic.po_no
-                  AND ic2.created_at BETWEEN :startDate AND :endDate
-            )
-        ),0) AS monthlyProcess,
+                    COALESCE((
+                        SELECT SUM(pq.INSPECTED_QTY)
+                        FROM process_ie_qty pq
+                        WHERE pq.REQUEST_ID IN (
+                            SELECT ic2.ic_number
+                            FROM inspection_calls ic2
+                            WHERE ic2.po_no = ic.po_no
+                              AND ic2.created_at BETWEEN :startDate AND :endDate
+                        )
+                    ),0) AS monthlyProcess,
 
-        COALESCE((
-            SELECT SUM(f.qty_now_passed)
-            FROM final_cumulative_results f
-            WHERE f.inspection_call_no IN (
-                SELECT ic2.ic_number
-                FROM inspection_calls ic2
-                WHERE ic2.po_no = ic.po_no
-                  AND ic2.created_at BETWEEN :startDate AND :endDate
-            )
-        ),0) AS monthlyFinal,
+                    COALESCE((
+                        SELECT SUM(f.qty_now_passed)
+                        FROM final_cumulative_results f
+                        WHERE f.inspection_call_no IN (
+                            SELECT ic2.ic_number
+                            FROM inspection_calls ic2
+                            WHERE ic2.po_no = ic.po_no
+                              AND ic2.created_at BETWEEN :startDate AND :endDate
+                        )
+                    ),0) AS monthlyFinal,
 
-        COALESCE((
-            SELECT SUM(f.qty_now_passed)
-            FROM final_cumulative_results f
-            WHERE f.inspection_call_no IN (
-                SELECT ic3.ic_number
-                FROM inspection_calls ic3
-                WHERE ic3.po_no = ic.po_no
-            )
-        ),0) AS totalFinalInspected
+                    --  TOTAL FINAL WITHOUT DATE FILTER
+                    COALESCE((
+                        SELECT SUM(f.qty_now_passed)
+                        FROM final_cumulative_results f
+                        WHERE f.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+                    ),0) AS totalFinalInspected
 
-    FROM (
-        SELECT DISTINCT po_no
-        FROM inspection_calls
-        WHERE created_at BETWEEN :startDate AND :endDate
-    ) ic
+                FROM (
+                    SELECT DISTINCT po_no
+                    FROM inspection_calls
+                    WHERE created_at BETWEEN :startDate AND :endDate
+                ) ic
 
-    LEFT JOIN po_header ph
-        ON ph.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
-
-    """,
+                LEFT JOIN po_header ph
+                    ON ph.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+                """,
                 countQuery = """
-        SELECT COUNT(DISTINCT po_no)
-        FROM inspection_calls
-        WHERE created_at BETWEEN :startDate AND :endDate
-    """,
+                            SELECT COUNT(DISTINCT po_no)
+                            FROM inspection_calls
+                            WHERE created_at BETWEEN :startDate AND :endDate
+                        """,
                 nativeQuery = true)
         Page<Object[]> fetchMonthlyProgress(
                 @Param("startDate") LocalDate startDate,
                 @Param("endDate") LocalDate endDate,
-                Pageable pageable);  */
-    @Query(value = """
+                Pageable pageable);
+
+
+        @Query(value = """
 SELECT 
-    ph.rly_short_name,
-    ic.po_no,
-    ph.firm_details,
+    ic.company_name AS manufacturer,
 
-    COALESCE((
-        SELECT SUM(pi.qty)
-        FROM po_item pi
-        WHERE pi.po_header_id = ph.id
-    ),0) AS poQty,
+    COALESCE(SUM(
+        CASE 
+            WHEN f.qty_now_offered IS NOT NULL 
+                 THEN f.qty_now_offered
+            ELSE p.manufacture_qty
+        END
+    ),0) AS manufactured,
 
-    COALESCE((
-        SELECT SUM(r.accepted_qty_mt)
-        FROM rm_heat_final_result r
-        WHERE r.inspection_call_no IN (
-            SELECT ic2.ic_number
-            FROM inspection_calls ic2
-            WHERE ic2.po_no = ic.po_no
-              AND ic2.created_at BETWEEN :startDate AND :endDate
-        )
-    ),0) AS monthlyRm,
+    COALESCE(SUM(f.qty_now_passed),0) AS inspected,
+    COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
 
-    COALESCE((
-        SELECT SUM(pq.INSPECTED_QTY)
-        FROM process_ie_qty pq
-        WHERE pq.REQUEST_ID IN (
-            SELECT ic2.ic_number
-            FROM inspection_calls ic2
-            WHERE ic2.po_no = ic.po_no
-              AND ic2.created_at BETWEEN :startDate AND :endDate
-        )
-    ),0) AS monthlyProcess,
+    COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
+    COALESCE(SUM(p.rejected_qty),0) AS processRejected,
+    COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected
 
-    COALESCE((
-        SELECT SUM(f.qty_now_passed)
-        FROM final_cumulative_results f
-        WHERE f.inspection_call_no IN (
-            SELECT ic2.ic_number
-            FROM inspection_calls ic2
-            WHERE ic2.po_no = ic.po_no
-              AND ic2.created_at BETWEEN :startDate AND :endDate
-        )
-    ),0) AS monthlyFinal,
+FROM inspection_calls ic
 
-    --  TOTAL FINAL WITHOUT DATE FILTER
-    COALESCE((
-        SELECT SUM(f.qty_now_passed)
-        FROM final_cumulative_results f
-        WHERE f.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
-    ),0) AS totalFinalInspected
+LEFT JOIN final_cumulative_results f
+       ON f.inspection_call_no = ic.ic_number
 
-FROM (
-    SELECT DISTINCT po_no
-    FROM inspection_calls
-    WHERE created_at BETWEEN :startDate AND :endDate
-) ic
+LEFT JOIN rm_heat_final_result r
+       ON r.inspection_call_no = ic.ic_number
 
-LEFT JOIN po_header ph
-    ON ph.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+LEFT JOIN process_ie_qty p
+       ON p.REQUEST_ID = ic.ic_number
+
+WHERE ic.created_at BETWEEN :startDate AND :endDate
+
+GROUP BY ic.company_name
 """,
-            countQuery = """
-    SELECT COUNT(DISTINCT po_no)
-    FROM inspection_calls
-    WHERE created_at BETWEEN :startDate AND :endDate
+                countQuery = """
+SELECT COUNT(DISTINCT company_name)
+FROM inspection_calls
+WHERE created_at BETWEEN :startDate AND :endDate
 """,
-            nativeQuery = true)
-    Page<Object[]> fetchMonthlyProgress(
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            Pageable pageable);
+                nativeQuery = true)
+        Page<Object[]> fetchManufacturerSummary(
+                @Param("startDate") LocalDate startDate,
+                @Param("endDate") LocalDate endDate,
+                Pageable pageable);
 
 }
-
-
