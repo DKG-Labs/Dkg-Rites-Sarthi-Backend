@@ -44,4 +44,15 @@ public class SummaryReportController {
         return ResponseBuilder.getSuccessResponse(
                 summaryService.getMonthlyProgress(page, size, startDate, endDate));
     }
+
+    @GetMapping("/Manufature_wise_analysis")
+    public APIResponse getMonthlyManufatureWiseAnalysis(
+            @RequestParam int page,
+            @RequestParam int size,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        return ResponseBuilder.getSuccessResponse(
+                summaryService.getMonthlyAnalysis(page, size, startDate, endDate));
+    }
 }

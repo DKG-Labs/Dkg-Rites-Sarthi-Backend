@@ -1,6 +1,7 @@
 package com.sarthi.service;
 
 import com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO;
+import com.sarthi.dto.summaryDtos.MonthlyAnalysisDTO;
 import com.sarthi.dto.summaryDtos.MonthlyProgressReportDTO;
 import com.sarthi.dto.summaryDtos.PageResponseDTO;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,12 @@ public interface SummaryService {
             LocalDate startDate,
             LocalDate endDate);
 
+    public PageResponseDTO<MonthlyAnalysisDTO> getMonthlyAnalysis(
+            int page,
+            int size,
+            LocalDate startDate,
+            LocalDate endDate);
 
 
-    }
+
+}

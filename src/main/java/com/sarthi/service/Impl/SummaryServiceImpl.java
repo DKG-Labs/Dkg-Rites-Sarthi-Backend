@@ -1,6 +1,7 @@
 package com.sarthi.service.Impl;
 
 import com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO;
+import com.sarthi.dto.summaryDtos.MonthlyAnalysisDTO;
 import com.sarthi.dto.summaryDtos.MonthlyProgressReportDTO;
 import com.sarthi.dto.summaryDtos.PageResponseDTO;
 import com.sarthi.repository.ProcessIeQtyRepository;
@@ -158,5 +159,68 @@ public class SummaryServiceImpl implements SummaryService {
     }
 
 
+    @Override
+    public PageResponseDTO<MonthlyAnalysisDTO> getMonthlyAnalysis(
+            int page,
+            int size,
+            LocalDate startDate,
+            LocalDate endDate) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Object[]> dbPage =
+                inspectionCallRepository.fetchMonthlyAnalysis(startDate, endDate, pageable);
+
+        List<MonthlyAnalysisDTO> content =
+                dbPage.getContent()
+                        .stream()
+                        .map(this::mapMonthlyAnalysisRow)
+                        .toList();
+
+        PageResponseDTO<MonthlyAnalysisDTO> response = new PageResponseDTO<>();
+
+        response.setContent(content);
+        response.setPage(page);
+        response.setSize(size);
+        response.setTotalElements(dbPage.getTotalElements());
+        response.setTotalPages(dbPage.getTotalPages());
+
+        return response;
+    }
+
+    private MonthlyAnalysisDTO mapMonthlyAnalysisRow(Object[] row) {
+
+        MonthlyAnalysisDTO dto = new MonthlyAnalysisDTO();
+
+        dto.setManufacturer((String) row[0]);
+
+        Double manufactured = getDouble(row[1]);
+        Double inspected = getDouble(row[2]);
+        Double rejected = getDouble(row[3]);
+
+        Double rmRejected = getDouble(row[4]);
+        Double processRejected = getDouble(row[5]);
+        Double finalRejected = getDouble(row[6]);
+
+        dto.setManufactured(manufactured);
+        dto.setInspected(inspected);
+        dto.setRejected(rejected);
+
+        dto.setRmRejected(rmRejected);
+        dto.setProcessRejected(processRejected);
+        dto.setFinalRejected(finalRejected);
+
+        // Percentages
+        dto.setRmRejPercent(calcPercent(rmRejected, manufactured));
+        dto.setProcessRejPercent(calcPercent(processRejected, manufactured));
+        dto.setFinalRejPercent(calcPercent(finalRejected, manufactured));
+
+        return dto;
+    }
+
+    private Double calcPercent(Double rejected, Double total) {
+        if (total == null || total == 0) return 0.0;
+        return (rejected / total) * 100;
+    }
 
 }
