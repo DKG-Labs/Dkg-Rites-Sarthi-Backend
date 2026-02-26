@@ -169,7 +169,7 @@ public class SummaryServiceImpl implements SummaryService {
         Pageable pageable = PageRequest.of(page, size);
 
         Page<Object[]> dbPage =
-                inspectionCallRepository.fetchMonthlyAnalysis(startDate, endDate, pageable);
+                inspectionCallRepository.fetchManufacturerSummary(startDate, endDate, pageable);
 
         List<MonthlyAnalysisDTO> content =
                 dbPage.getContent()

@@ -353,46 +353,49 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 @Param("startDate") LocalDate startDate,
                 @Param("endDate") LocalDate endDate,
                 Pageable pageable);
+
+
         @Query(value = """
 SELECT 
     ic.company_name AS manufacturer,
 
-    -- FINAL TABLE
-    COALESCE(SUM(f.qty_now_offered),0) AS manufactured,
+    COALESCE(SUM(
+        CASE 
+            WHEN f.qty_now_offered IS NOT NULL 
+                 THEN f.qty_now_offered
+            ELSE p.manufacture_qty
+        END
+    ),0) AS manufactured,
+
     COALESCE(SUM(f.qty_now_passed),0) AS inspected,
     COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
 
-    -- RM REJECTION
     COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
-
-    -- PROCESS REJECTION
     COALESCE(SUM(p.rejected_qty),0) AS processRejected,
-
-    -- FINAL REJECTION
     COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected
 
 FROM inspection_calls ic
 
 LEFT JOIN final_cumulative_results f
-    ON f.inspection_call_no = ic.ic_number
+       ON f.inspection_call_no = ic.ic_number
 
 LEFT JOIN rm_heat_final_result r
-    ON r.inspection_call_no = ic.ic_number
+       ON r.inspection_call_no = ic.ic_number
 
 LEFT JOIN process_ie_qty p
-    ON p.REQUEST_ID = ic.ic_number
+       ON p.REQUEST_ID = ic.ic_number
 
 WHERE ic.created_at BETWEEN :startDate AND :endDate
 
 GROUP BY ic.company_name
 """,
                 countQuery = """
-SELECT COUNT(DISTINCT ic.company_name)
-FROM inspection_calls ic
-WHERE ic.created_at BETWEEN :startDate AND :endDate
+SELECT COUNT(DISTINCT company_name)
+FROM inspection_calls
+WHERE created_at BETWEEN :startDate AND :endDate
 """,
                 nativeQuery = true)
-        Page<Object[]> fetchMonthlyAnalysis(
+        Page<Object[]> fetchManufacturerSummary(
                 @Param("startDate") LocalDate startDate,
                 @Param("endDate") LocalDate endDate,
                 Pageable pageable);
