@@ -15,6 +15,7 @@ public class PoDataForSectionsDto {
 
     // Section A: Main PO Information (from po_header)
     private String rlyPoNo;           // RLY/PO_NO (combined field with / separator)
+    private String rlyShortName;
     private String rlyCd;             // Railway code
     private String poNo;              // PO Number
     private String poSerialNo;        // PO Serial Number (from inspection_calls table)

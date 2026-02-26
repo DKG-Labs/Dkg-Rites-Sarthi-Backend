@@ -45,7 +45,7 @@ public class FinalInspectionLotDetails {
     // ---- ADDITIONAL TRACKING ----
     private Long processIcId;
     private String processIcNumber;
-    private Integer noOfBags;
+        private Integer noOfBags;
 
     // ---- TIMESTAMPS ----
     private LocalDateTime createdAt;

@@ -23,6 +23,7 @@ public class FinalMicrostructureTestResponse {
     private LocalDateTime createdAt;
     private String updatedBy;
     private LocalDateTime updatedAt;
+    private Integer samplingNo;
 
     /**
      * Nested sample data
@@ -36,6 +37,9 @@ public class FinalMicrostructureTestResponse {
         private String sampleType;
         private String createdBy;
         private LocalDateTime createdAt;
+        private Integer samplingNo;
+
+
     }
 }
 
