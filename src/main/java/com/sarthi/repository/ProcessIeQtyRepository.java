@@ -4,12 +4,15 @@ import com.sarthi.dto.InspectionQtySummaryView;
 import com.sarthi.dto.TotalManufaturedQtyOfPoDto;
 import com.sarthi.entity.ProcessIeQty;
 import org.springframework.beans.PropertyValues;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -165,4 +168,45 @@ public interface ProcessIeQtyRepository
     List<Object[]> findProcessQtyByCallNos(
             @Param("callNos") List<String> callNos);
 
+    @Query(value = """
+        SELECT 
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ru.rio,
+            'PROCESS',
+            SUM(q.offered_qty),
+            SUM(q.inspected_qty),
+            SUM(q.rejected_qty)
+
+        FROM pincode_poi_mapping p
+
+        JOIN ie_poi_mapping ip
+             ON ip.poi_code = p.poi_code
+
+        JOIN user_master u
+             ON u.userid = ip.ie_user_id
+
+          LEFT JOIN ie_fields_mapping ru
+             ON ru.pin_code = p.pin_code
+
+        JOIN process_ie_users pu
+             ON pu.ie_user_id = u.userid
+
+        JOIN process_ie_qty q
+             ON q.ie_user_id = pu.process_user_id
+            WHERE (:startDate IS NULL OR DATE(q.created_date) >= :startDate)
+              AND (:endDate IS NULL OR DATE(q.created_date) <= :endDate)
+        GROUP BY 
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ru.rio
+        """,
+            countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+            nativeQuery = true)
+    Page<Object[]> fetchProcess(@Param("startDate") LocalDate startDate,
+                                 @Param("endDate") LocalDate endDate,Pageable pageable);
 }
