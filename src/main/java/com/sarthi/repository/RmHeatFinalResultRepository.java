@@ -56,44 +56,42 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
     // );
 
     @Query("""
-    SELECT
-        SUM(r.totalQtyOfferedMt),
-        SUM(r.weightRejectedMt)
-    FROM RmHeatFinalResult r
-    WHERE r.inspectionCallNo IN :callNos
-""")
+                SELECT
+                    SUM(r.totalQtyOfferedMt),
+                    SUM(r.weightRejectedMt)
+                FROM RmHeatFinalResult r
+                WHERE r.inspectionCallNo IN :callNos
+            """)
     List<Object[]> findOfferedAndRejectedByCallNos(
             @Param("callNos") List<String> callNos);
 
-  /*  @Query("""
-    SELECT
-        SUM(r.acceptedQtyMt),
-        SUM(r.weightRejectedMt),
-        SUM(r.weightOfferedMt)
-    FROM RmHeatFinalResult r
-    WHERE r.inspectionCallNo IN :callNos
-""")
+    /*
+     * @Query("""
+     * SELECT
+     * SUM(r.acceptedQtyMt),
+     * SUM(r.weightRejectedMt),
+     * SUM(r.weightOfferedMt)
+     * FROM RmHeatFinalResult r
+     * WHERE r.inspectionCallNo IN :callNos
+     * """)
+     * List<Object[]> findRmSummaryByCallNos(
+     * 
+     * @Param("callNos") List<String> callNos
+     * );
+     */
+    @Query("""
+            SELECT
+                r.inspectionCallNo,
+                SUM(r.totalQtyOfferedMt),
+                SUM(r.weightAcceptedMt),
+                SUM(r.weightRejectedMt)
+            FROM RmHeatFinalResult r
+            WHERE r.inspectionCallNo IN :callNos
+            GROUP BY r.inspectionCallNo
+            """)
     List<Object[]> findRmSummaryByCallNos(
-            @Param("callNos") List<String> callNos
-    );*/
-  @Query("""
-SELECT
-    r.inspectionCallNo,
-    SUM(r.totalQtyOfferedMt),
-    SUM(r.weightAcceptedMt),
-    SUM(r.weightRejectedMt)
-FROM RmHeatFinalResult r
-WHERE r.inspectionCallNo IN :callNos
-GROUP BY r.inspectionCallNo
-""")
-  List<Object[]> findRmSummaryByCallNos(
-          @Param("callNos") List<String> callNos
-  );
+            @Param("callNos") List<String> callNos);
 
-
-
-
-
-
-
+    @Query("SELECT SUM(r.weightRejectedMt), SUM(r.weightOfferedMt) FROM RmHeatFinalResult r WHERE r.createdAt >= :date")
+    List<Object[]> sumRmRejectionLast30Days(@Param("date") java.time.LocalDateTime date);
 }

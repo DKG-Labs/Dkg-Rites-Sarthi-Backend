@@ -27,5 +27,15 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
      * Check if cumulative results exist for a call
      */
     boolean existsByInspectionCallNo(String inspectionCallNo);
-}
 
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowPassed) FROM FinalCumulativeResults fcr")
+    Long sumTotalQtyNowPassed();
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowPassed) FROM FinalCumulativeResults fcr WHERE fcr.createdAt >= :date")
+    Long sumTotalQtyNowPassedLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowRejected), SUM(fcr.qtyNowOffered) FROM FinalCumulativeResults fcr WHERE fcr.createdAt >= :date")
+    List<Object[]> sumFinalRejectionLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+}
