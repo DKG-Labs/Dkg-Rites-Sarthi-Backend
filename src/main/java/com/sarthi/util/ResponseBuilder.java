@@ -1,6 +1,7 @@
 package com.sarthi.util;
 
 import com.sarthi.constant.AppConstant;
+import com.sarthi.dto.summaryDtos.PageResponseDTO;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.ErrorDetails;
 import org.slf4j.Logger;
@@ -32,6 +33,18 @@ public class ResponseBuilder {
         APIResponse response = new APIResponse();
         response.setResponseStatus(responseStatus);
         response.setResponseData(responseData);
+        return response;
+    }
+
+    public static <T> APIResponse getPageSuccessResponse(PageResponseDTO<T> pageData) {
+
+        APIResponseStatus responseStatus = new APIResponseStatus();
+        responseStatus.setStatusCode(AppConstant.API_SUCCESS);
+
+        APIResponse response = new APIResponse();
+        response.setResponseStatus(responseStatus);
+        response.setResponseData(pageData);
+
         return response;
     }
 
