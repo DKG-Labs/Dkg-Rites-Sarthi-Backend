@@ -45,7 +45,7 @@ public class FinalInspectionLotDetails {
     // ---- ADDITIONAL TRACKING ----
     private Long processIcId;
     private String processIcNumber;
-        private Integer noOfBags;
+
 
     @Column(name = "no_of_bags")
     private Integer noOfBags; // Number of bags offered
