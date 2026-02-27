@@ -212,4 +212,105 @@ public interface ProcessIeQtyRepository
             nativeQuery = true)
     Page<Object[]> fetchProcess(@Param("startDate") LocalDate startDate,
                                  @Param("endDate") LocalDate endDate,Pageable pageable);
+
+
+        @Query(value = """
+        SELECT 
+            DATE(p.CREATED_DATE) AS inspectionDate,
+            p.SWIFT_CODE AS shift,
+
+            SUM(p.INSPECTED_QTY) AS accepted,
+            SUM(p.rejected_qty) AS rejected,
+
+            COALESCE(SUM(
+                s.length_cut_bar_rejected +
+                s.improper_dia_rejected +
+                s.sharp_edges_rejected +
+                s.cracked_edges_rejected
+            ),0) AS shearing,
+
+            COALESCE(SUM(
+                t.parallel_length_rejected +
+                t.full_turning_length_rejected +
+                t.turning_dia_rejected
+            ),0) AS turning,
+
+            COALESCE(SUM(temp.total_tempering_rejection),0) AS tempering,
+            COALESCE(SUM(mpi.mpi_rejected),0) AS mpi,
+            COALESCE(SUM(forg.forging_temp_rejected + 
+            forg.improper_forging_rejected +
+            forg.forging_defect_rejected +
+            forg.embossing_defect_rejected +
+            ),0) AS forging,
+            COALESCE(SUM(q.total_quenching_rejection +
+            q.quenching_duration_rejected +
+            q.quenching_hardness_rejected +
+            q.box_gauge_rejected +
+            q.flat_bearing_area_rejected +
+            q.falling_gauge_rejected
+           ),0) AS quenching
+
+        FROM process_ie_qty p
+
+        LEFT JOIN process_shearing_data s
+               ON s.inspection_call_no = p.REQUEST_ID
+              AND s.lot_number = p.lot_number
+              AND s.shift = p.SWIFT_CODE
+
+        LEFT JOIN process_turning_data t
+               ON t.inspection_call_no = p.REQUEST_ID
+              AND t.lot_number = p.lot_number
+              AND t.shift = p.SWIFT_CODE
+
+        LEFT JOIN process_tempering_data temp
+               ON temp.inspection_call_no = p.REQUEST_ID
+              AND temp.lot_number = p.lot_number
+              AND temp.shift = p.SWIFT_CODE
+
+        LEFT JOIN process_mpi_data mpi
+               ON mpi.inspection_call_no = p.REQUEST_ID
+              AND mpi.lot_number = p.lot_number
+              AND mpi.shift = p.SWIFT_CODE
+
+        LEFT JOIN process_forging_data forg
+               ON forg.inspection_call_no = p.REQUEST_ID
+              AND forg.lot_number = p.lot_number
+              AND forg.shift = p.SWIFT_CODE
+
+        LEFT JOIN process_quenching_data q
+               ON q.inspection_call_no = p.REQUEST_ID
+              AND q.lot_number = p.lot_number
+              AND q.shift = p.SWIFT_CODE
+
+     
+
+        WHERE p.REQUEST_ID = :callNo
+          AND p.lot_number = :lotNo
+
+        GROUP BY DATE(p.CREATED_DATE), p.SWIFT_CODE
+        ORDER BY inspectionDate
+        """,
+                nativeQuery = true)
+        List<Object[]> getLotClosedLoop(
+                @Param("callNo") String callNo,
+                @Param("lotNo") String lotNo);
+
+        @Query(value = """
+        SELECT DISTINCT p.REQUEST_ID
+        FROM process_ie_qty p
+        WHERE DATE(p.date_of_inspection) BETWEEN :startDate AND :endDate
+        ORDER BY p.REQUEST_ID
+        """, nativeQuery = true)
+        List<String> findRequestIdsByDateRange(
+                @Param("startDate") LocalDate startDate,
+                @Param("endDate") LocalDate endDate);
+
+        @Query(value = """
+        SELECT DISTINCT p.lot_number
+        FROM process_ie_qty p
+        WHERE p.REQUEST_ID = :requestId
+        ORDER BY p.lot_number
+        """, nativeQuery = true)
+        List<String> findLotNumbersByRequestId(
+                @Param("requestId") String requestId);
 }
