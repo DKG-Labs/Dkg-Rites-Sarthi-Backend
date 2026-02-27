@@ -51,6 +51,8 @@ public class TransitionActionReqDto {
 
     private String heatNo;
     private BigDecimal rejectedQty;
+
+    private java.time.LocalDate dateOfInspection;
 }
 
 

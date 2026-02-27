@@ -206,6 +206,19 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                 dto.setWeightAcceptedMt(weightAcceptedMt);
                 dto.setOfferedEarlier(offeredEarlier != null ? offeredEarlier : 0);
 
+                // Fetch sealing info from RM inspection results
+                List<com.sarthi.entity.RmHeatFinalResult> rmResults = rmHeatFinalResultRepository.findByInspectionCallNoInAndHeatNo(callNos, heatNo);
+                if (!rmResults.isEmpty()) {
+                        rmResults.stream()
+                                .filter(r -> r.getSealingType() != null)
+                                .findFirst()
+                                .ifPresent(latest -> {
+                                        dto.setSealingType(latest.getSealingType());
+                                        dto.setSteelStampNumber(latest.getSteelStampNumber());
+                                        dto.setHologramDetails(latest.getHologramDetails());
+                                });
+                }
+
                 return dto;
         }
 

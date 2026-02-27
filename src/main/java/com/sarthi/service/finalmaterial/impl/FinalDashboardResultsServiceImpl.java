@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,6 +61,7 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             entity.setTotalSampleSize(dto.getTotalSampleSize());
             entity.setBagsForSampling(dto.getBagsForSampling());
             entity.setBagsOffered(dto.getBagsOffered());
+            entity.setDateOfInspection(dto.getDateOfInspection());
             entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : userId);
             entity.setUpdatedAt(dto.getUpdatedAt() != null ? dto.getUpdatedAt() : LocalDateTime.now());
         } else {
@@ -77,6 +79,7 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             entity.setTotalSampleSize(dto.getTotalSampleSize());
             entity.setBagsForSampling(dto.getBagsForSampling());
             entity.setBagsOffered(dto.getBagsOffered());
+            entity.setDateOfInspection(dto.getDateOfInspection());
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : userId);
             entity.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : LocalDateTime.now());
             entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : userId);

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Date;
 
 @Entity
@@ -41,6 +42,9 @@ public class ProcessIeQty {
 
     private String heatNo;
     private BigDecimal rejectedQty;
+
+    @Column(name = "date_of_inspection")
+    private LocalDate dateOfInspection;
 
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "CREATED_DATE")

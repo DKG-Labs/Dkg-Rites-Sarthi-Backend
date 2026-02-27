@@ -44,6 +44,13 @@ public class RmHeatFinalResultDto {
     // Shift
     private String shift;
 
+    // Sealing and Hologram Details
+    private String sealingType;
+    private String steelStampNumber;
+    private String hologramDetails;
+
+    private java.time.LocalDate dateOfInspection;
+
     // Audit fields
     private String createdBy;
     private String updatedBy;
