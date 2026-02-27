@@ -38,7 +38,7 @@ public class FinalMicrostructureTestResponse {
         private String sampleType;
         private String createdBy;
         private LocalDateTime createdAt;
-        private Integer samplingNo;
+
 
 
     }

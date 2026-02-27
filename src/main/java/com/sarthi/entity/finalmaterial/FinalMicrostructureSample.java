@@ -47,11 +47,7 @@ public class FinalMicrostructureSample {
     private Integer samplingNo;
 
 
-    /**
-     * Sampling number (1st or 2nd sampling round).
-     */
-    @Column(name = "sampling_no", nullable = false)
-    private Integer samplingNo;
+
 
     /**
      * Type of microstructure sample.
