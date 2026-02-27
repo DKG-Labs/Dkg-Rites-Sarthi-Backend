@@ -1,9 +1,6 @@
 package com.sarthi.service.Impl;
 
-import com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO;
-import com.sarthi.dto.summaryDtos.MonthlyAnalysisDTO;
-import com.sarthi.dto.summaryDtos.MonthlyProgressReportDTO;
-import com.sarthi.dto.summaryDtos.PageResponseDTO;
+import com.sarthi.dto.summaryDtos.*;
 import com.sarthi.repository.ProcessIeQtyRepository;
 import com.sarthi.repository.RmHeatFinalResultRepository;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
@@ -15,8 +12,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.sql.Date;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
+
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -28,6 +28,8 @@ public class SummaryServiceImpl implements SummaryService {
     private final ProcessIeQtyRepository processRepo;
     private final FinalCumulativeResultsRepository finalRepo;
     private final InspectionCallRepository inspectionCallRepository;
+
+    private final ProcessIeQtyRepository processIeQtyRepository;
 
     @Override
     public PageResponseDTO<ManufacturerInspectionSummaryDTO> getDashboard(
@@ -222,5 +224,43 @@ public class SummaryServiceImpl implements SummaryService {
         if (total == null || total == 0) return 0.0;
         return (rejected / total) * 100;
     }
+
+    public List<LotWiseClosedLoopDTO> getClosedLoop(String callNo, String lotNo) {
+
+        List<Object[]> rows = processRepo.getLotClosedLoop(callNo, lotNo);
+
+        List<LotWiseClosedLoopDTO> list = new ArrayList<>();
+
+        for (Object[] r : rows) {
+
+            LotWiseClosedLoopDTO dto = new LotWiseClosedLoopDTO();
+
+            dto.setInspectionDate(((Date) r[0]).toLocalDate());
+            dto.setShift((String) r[1]);
+
+            dto.setAccepted(getDouble(r[2]));
+            dto.setRejected(getDouble(r[3]));
+            dto.setShearing(getDouble(r[4]));
+            dto.setTurning(getDouble(r[5]));
+            dto.setTempering(getDouble(r[6]));
+            dto.setMpi(getDouble(r[7]));
+            dto.setForging(getDouble(r[8]));
+            dto.setQuenching(getDouble(r[9]));
+            dto.setTesting(getDouble(r[10]));
+
+            list.add(dto);
+        }
+
+        return list;
+    }
+
+    public List<String> getRequestIds(LocalDate startDate, LocalDate endDate) {
+        return processRepo.findRequestIdsByDateRange(startDate, endDate);
+    }
+
+    public List<String> getLotNumbers(String requestId) {
+        return processRepo.findLotNumbersByRequestId(requestId);
+    }
+
 
 }
