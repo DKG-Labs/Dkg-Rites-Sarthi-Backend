@@ -1,5 +1,6 @@
 package com.sarthi.controller;
 
+import com.sarthi.dto.summaryDtos.LotWiseClosedLoopDTO;
 import com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO;
 import com.sarthi.dto.summaryDtos.PageResponseDTO;
 import com.sarthi.service.SummaryService;
@@ -7,12 +8,14 @@ import com.sarthi.util.APIResponse;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/SummaryReports")
@@ -55,4 +58,39 @@ public class SummaryReportController {
         return ResponseBuilder.getSuccessResponse(
                 summaryService.getMonthlyAnalysis(page, size, startDate, endDate));
     }
+
+
+
+        @GetMapping("/lot-closed-loop")
+        public ResponseEntity<?> getLotClosedLoop(
+                @RequestParam String callNo,
+                @RequestParam String lotNo) {
+
+            List<LotWiseClosedLoopDTO> response =
+                   summaryService.getClosedLoop(callNo, lotNo);
+
+            return ResponseEntity.ok(response);
+        }
+
+    @GetMapping("/lot-numbers")
+    public ResponseEntity<?> getLotNumbers(
+            @RequestParam String requestId) {
+
+        List<String> data =
+                summaryService.getLotNumbers(requestId);
+
+        return ResponseEntity.ok(data);
+    }
+
+    @GetMapping("/request-ids")
+    public ResponseEntity<?> getRequestIds(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate) {
+
+        return ResponseEntity.ok(
+                summaryService.getRequestIds(startDate, endDate));
+    }
+
+
+
 }

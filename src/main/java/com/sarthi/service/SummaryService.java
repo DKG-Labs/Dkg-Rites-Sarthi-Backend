@@ -1,12 +1,10 @@
 package com.sarthi.service;
 
-import com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO;
-import com.sarthi.dto.summaryDtos.MonthlyAnalysisDTO;
-import com.sarthi.dto.summaryDtos.MonthlyProgressReportDTO;
-import com.sarthi.dto.summaryDtos.PageResponseDTO;
+import com.sarthi.dto.summaryDtos.*;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Service
 public interface SummaryService {
@@ -25,6 +23,15 @@ public interface SummaryService {
             int size,
             LocalDate startDate,
             LocalDate endDate);
+
+    public List<LotWiseClosedLoopDTO> getClosedLoop(String callNo, String lotNo);
+
+    public List<String> getRequestIds(LocalDate startDate, LocalDate endDate);
+
+
+    public List<String> getLotNumbers(String requestId);
+
+
 
 
 
