@@ -256,9 +256,13 @@ public class RmInspectionServiceImpl implements RmInspectionService {
             entity.setNoOfErcFinished(dto.getNoOfErcFinished());
             entity.setRemarks(dto.getRemarks());
             entity.setShiftOfInspection(dto.getShift());
+            entity.setSealingType(dto.getSealingType());
+            entity.setSteelStampNumber(dto.getSteelStampNumber());
+            entity.setHologramDetails(dto.getHologramDetails());
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setUpdatedBy(dto.getUpdatedBy());
             entity.setUpdatedAt(LocalDateTime.now());
+            entity.setDateOfInspection(dto.getDateOfInspection() != null ? dto.getDateOfInspection().atStartOfDay() : null);
 
             heatResultRepository.save(entity);
         }
@@ -695,6 +699,9 @@ public class RmInspectionServiceImpl implements RmInspectionService {
             heatDto.setNoOfBundles(entity.getNoOfBundles());
             heatDto.setNoOfErcFinished(entity.getNoOfErcFinished());
             heatDto.setRemarks(entity.getRemarks());
+            heatDto.setSealingType(entity.getSealingType());
+            heatDto.setSteelStampNumber(entity.getSteelStampNumber());
+            heatDto.setHologramDetails(entity.getHologramDetails());
             heatResultDtos.add(heatDto);
         }
         dto.setHeatFinalResults(heatResultDtos);

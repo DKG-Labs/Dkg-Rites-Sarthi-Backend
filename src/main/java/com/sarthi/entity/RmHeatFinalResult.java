@@ -114,6 +114,18 @@ public class RmHeatFinalResult {
     @Column(name = "shift_of_inspection", length = 20)
     private String shiftOfInspection;
 
+    @Column(name = "sealing_type", length = 50)
+    private String sealingType;
+
+    @Column(name = "steel_stamp_number", length = 255)
+    private String steelStampNumber;
+
+    @Column(name = "hologram_details", columnDefinition = "TEXT")
+    private String hologramDetails;
+
+    @Column(name = "date_of_inspection")
+    private LocalDateTime dateOfInspection;
+
     // -------------------------
     // Audit Fields
     // -------------------------

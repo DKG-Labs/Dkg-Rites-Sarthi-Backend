@@ -34,6 +34,8 @@ public class FinalCumulativeResultsDto {
     private Integer bagsForSampling;
     private Integer bagsOffered;
 
+    private java.time.LocalDate dateOfInspection;
+
     // ---- AUDIT FIELDS ----
     private String createdBy;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")

@@ -14,6 +14,9 @@ public class TotalManufaturedQtyOfPoDto {
     private String heatNo;
     private BigDecimal weightAcceptedMt;
     private Integer offeredEarlier;
+    private String sealingType;
+    private String steelStampNumber;
+    private String hologramDetails;
 
     public TotalManufaturedQtyOfPoDto(
             BigDecimal manufaturedQty,
