@@ -3,6 +3,7 @@ package com.sarthi.entity.finalmaterial;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * Entity for Final Inspection Cumulative Results
@@ -43,6 +44,9 @@ public class FinalCumulativeResults {
     private Integer totalSampleSize;
     private Integer bagsForSampling;
     private Integer bagsOffered;
+
+    @Column(name = "date_of_inspection")
+    private LocalDate dateOfInspection;
 
     // ---- AUDIT FIELDS ----
     private String createdBy;
