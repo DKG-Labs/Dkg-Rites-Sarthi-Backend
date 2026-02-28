@@ -36,6 +36,7 @@ public class FinalInspectionLotDetails {
 
     // ---- QUANTITY INFORMATION ----
     private Integer offeredQty;
+    private Integer noOfBags;
     private Integer qtyAccepted;
     private Integer qtyRejected;
 
