@@ -84,13 +84,11 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         ProcessInspectionDetails processDetails = processDetailsList.get(0);
 
         // 3. Fetch PO Header data
-        PoHeader poHeader = poHeaderRepository.findByPoNo(ic.getPoNo())
+        PoHeader poHeader = poHeaderRepository.findByPoNoWithItems(ic.getPoNo())
                 .orElse(null);
 
-        // 4. Fetch MA (Amendment) data
-        List<PoMaHeader> maHeaders = poMaHeaderRepository.findAll().stream()
-                .filter(ma -> ic.getPoNo().equals(ma.getPoNo()))
-                .collect(Collectors.toList());
+        // 4. Fetch MA (Amendment) data using targeted query
+        List<PoMaHeader> maHeaders = poMaHeaderRepository.findByPoNo(ic.getPoNo());
 
         // 5. Fetch RM IC Mappings (heat numbers)
         List<ProcessRmIcMapping> rmMappings = processRmIcMappingRepository.findByProcessIcId(ic.getId());
@@ -99,10 +97,36 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         ProcessInitiationDataDto dto = new ProcessInitiationDataDto();
 
         // Section A: PO Information (from PoHeader and InspectionCall)
-        dto.setPoNo(ic.getPoNo());
+        String rlyPrefix = null;
+        if (poHeader != null) {
+            rlyPrefix = poHeader.getRlyShortName();
+            if (rlyPrefix == null || rlyPrefix.length() > 6) {
+                rlyPrefix = poHeader.getRlyCd();
+            }
+        }
+        
+        String formattedPoNo = ic.getPoNo();
+        String rlyPoNo = formattedPoNo;
+        if (rlyPrefix != null) {
+            rlyPoNo = rlyPrefix + " / " + formattedPoNo;
+        }
+        
+        String rlyPoNoSerial = rlyPoNo;
+        if (ic.getPoSerialNo() != null) {
+            String srNo = ic.getPoSerialNo();
+            if (srNo.contains("/")) {
+                String[] parts = srNo.split("/");
+                srNo = parts[parts.length - 1];
+            }
+            rlyPoNoSerial = rlyPoNo + " / " + srNo;
+        }
+        dto.setPoNo(formattedPoNo); // Keep raw poNo mapped
+        dto.setRlyPoNo(rlyPoNo); // Map Rly / PO No
+        dto.setRlyPoNoSerial(rlyPoNoSerial); // Map Rly / PO No / Sr No
 
         // Fetch PO Item data for quantity and other details
         Integer poQty = null;
+        Integer poSrQty = null;
         String poUnit = "Nos";
         String consignee = "N/A";
         String deliveryDate = "N/A";
@@ -113,15 +137,42 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
             dto.setVendorCode(poHeader.getVendorCode());
             dto.setPurchasingAuthority(poHeader.getPurchaserDetail());
 
-            // Get PO quantity from first item (if available)
             if (poHeader.getItems() != null && !poHeader.getItems().isEmpty()) {
-                var firstItem = poHeader.getItems().get(0);
-                poQty = firstItem.getQty();
-                poUnit = firstItem.getUom() != null ? firstItem.getUom() : "Nos";
-                consignee = firstItem.getConsigneeDetail() != null ? firstItem.getConsigneeDetail() : "N/A";
-                if (firstItem.getDeliveryDate() != null) {
-                    deliveryDate = firstItem.getDeliveryDate().format(DATE_TIME_FORMATTER);
+                // Find item matching PO Serial No
+                java.util.Optional<com.sarthi.entity.PoItem> matchedItem = poHeader.getItems().stream()
+                        .filter(item -> {
+                            String target = ic.getPoSerialNo();
+                            String current = item.getItemSrNo();
+                            if (target == null || current == null) return false;
+                            
+                            if (target.contains("/")) {
+                                String[] parts = target.split("/");
+                                target = parts[parts.length - 1];
+                            }
+                            
+                            if (target.trim().equals(current.trim())) return true;
+                            
+                            try {
+                                return Integer.parseInt(target.trim()) == Integer.parseInt(current.trim());
+                            } catch (NumberFormatException e) {
+                                return false;
+                            }
+                        })
+                        .findFirst();
+                
+                com.sarthi.entity.PoItem referenceItem = matchedItem.orElse(poHeader.getItems().get(0));
+                
+                poSrQty = referenceItem.getQty();
+                poUnit = referenceItem.getUom() != null ? referenceItem.getUom() : "Nos";
+                consignee = referenceItem.getConsigneeDetail() != null ? referenceItem.getConsigneeDetail() : "N/A";
+                if (referenceItem.getDeliveryDate() != null) {
+                    deliveryDate = referenceItem.getDeliveryDate().format(DATE_TIME_FORMATTER);
                 }
+
+                int totalQty = poHeader.getItems().stream()
+                        .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
+                        .sum();
+                poQty = totalQty;
             }
         }
 
@@ -138,6 +189,7 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         // Set PO fields
         dto.setPoDescription("Process Material Inspection");
         dto.setPoQty(poQty != null ? poQty : 0);
+        dto.setPoSrQty(poSrQty != null ? poSrQty : 0);
         dto.setPoUnit(poUnit);
         dto.setConsignee(consignee);
         dto.setDeliveryDate(deliveryDate);

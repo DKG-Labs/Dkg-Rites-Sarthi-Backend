@@ -105,7 +105,13 @@ public class PoDataServiceImpl implements PoDataService {
 
             dto.setPoSerialNo(inspectionCall.getPoSerialNo());
             dto.setRlyPoNo(rlyPrefix + "/" + poHeader.getPoNo()); // RLY/PO_NO with / separator
-            dto.setRlyPoNoSerial(rlyPrefix + "/" + poHeader.getPoNo() + "/" + inspectionCall.getPoSerialNo()); // RLY/PO_NO/PO_SR
+            
+            String srNo = inspectionCall.getPoSerialNo();
+            if (srNo != null && srNo.contains("/")) {
+                String[] parts = srNo.split("/");
+                srNo = parts[parts.length - 1];
+            }
+            dto.setRlyPoNoSerial(rlyPrefix + "/" + poHeader.getPoNo() + "/" + srNo); // RLY/PO_NO/PO_SR
 
             // Use place_of_inspection from inspection_calls table, fallback to vendor details if null
             String placeOfInspection = formatPlaceOfInspection(inspectionCall.getCompanyName(), inspectionCall.getUnitAddress());
