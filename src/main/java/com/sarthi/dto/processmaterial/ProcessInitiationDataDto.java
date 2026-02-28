@@ -12,10 +12,13 @@ import java.util.List;
 public class ProcessInitiationDataDto {
 
     // ==================== SECTION A: Main PO Information ====================
+    private String rlyPoNo;
+    private String rlyPoNoSerial;
     private String poNo;
     private String poDate;
     private String poDescription;
     private Integer poQty;
+    private Integer poSrQty;
     private String poUnit;
     private String amendmentNo;
     private String amendmentDate;
