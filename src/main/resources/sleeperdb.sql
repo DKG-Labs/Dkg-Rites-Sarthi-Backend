@@ -255,3 +255,306 @@ CREATE TABLE bench_mould_inspection (
 
     status VARCHAR(10)
 );
+
+
+
+CREATE TABLE production_declaration (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    plant_type VARCHAR(50),
+    production_unit VARCHAR(100),
+    casting_date DATE,
+    shift VARCHAR(50),
+
+    batch_number VARCHAR(50),
+    mix_design_reference VARCHAR(100),
+    lbc_time TIME,
+
+    total_casted_sleepers INT,
+    total_sleeper_types INT,
+    total_rft_casted DOUBLE,
+
+    remarks VARCHAR(255),
+
+    created_by INT,
+    updated_by INT,
+    created_date DATETIME,
+    updated_date DATETIME
+);
+
+
+CREATE TABLE production_chamber (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    declaration_id BIGINT,
+
+    chamber_no VARCHAR(50),
+
+    created_by INT,
+    updated_by INT,
+    created_date DATETIME,
+    updated_date DATETIME,
+
+    CONSTRAINT fk_prod_chamber_decl
+    FOREIGN KEY (declaration_id)
+    REFERENCES production_declaration(id)
+);
+
+
+CREATE TABLE production_bench (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    chamber_id BIGINT,
+
+    bench_no VARCHAR(50),
+    count int,
+    sleeper_type VARCHAR(100),
+    mould_per_bench INT,
+    rft_meters DOUBLE,
+
+    created_by INT,
+    updated_by INT,
+    created_date DATETIME,
+    updated_date DATETIME,
+
+    CONSTRAINT fk_prod_bench_chamber
+    FOREIGN KEY (chamber_id)
+    REFERENCES production_chamber(id)
+);
+
+
+CREATE TABLE hts_wire (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    date_of_receipt DATE,
+    grade_spec VARCHAR(100),
+    manufacturer VARCHAR(150),
+
+    invoice_number VARCHAR(100),
+    invoice_date DATE,
+
+    rites_ic_number VARCHAR(100),
+    rites_ic_date DATE,
+
+    relaxation_test VARCHAR(10),
+    relaxation_test_date DATE,
+
+    total_qty_received DOUBLE,
+
+    created_by INT,
+    updated_by INT,
+    created_date DATETIME,
+    updated_date DATETIME
+);
+
+drop table  hts_coil_details
+
+select *from  hts_coil_details
+CREATE TABLE hts_coil_details (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    coil_from VARCHAR(50),
+    coil_to VARCHAR(50),
+
+    lot_no VARCHAR(50),
+	coil_no VARCHAR(50),
+    qty_kg DOUBLE,
+
+    entry_type VARCHAR(10),
+
+    hts_wire_id BIGINT,
+
+    CONSTRAINT fk_hts_wire
+        FOREIGN KEY (hts_wire_id)
+        REFERENCES hts_wire(id)
+        ON DELETE CASCADE
+);
+
+
+CREATE TABLE cement_receipt (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    date_of_receipt DATE,
+    grade_spec VARCHAR(100),
+    manufacturer VARCHAR(150),
+
+    invoice_number VARCHAR(100),
+    invoice_date DATE,
+
+    total_qty_received DOUBLE,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
+
+
+CREATE TABLE cement_batch_details (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    week_no INT,
+    year_no INT,
+    mtc_no VARCHAR(100),
+    quantity_kg DOUBLE,
+
+    cement_receipt_id BIGINT,
+
+    CONSTRAINT fk_cement_receipt
+        FOREIGN KEY (cement_receipt_id)
+        REFERENCES cement_receipt(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE admixture_inventory (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    date_of_receipt DATE,
+    manufacturer VARCHAR(150),
+    grade_spec VARCHAR(100),
+
+    invoice_number VARCHAR(100),
+    invoice_date DATE,
+
+    lot_no VARCHAR(100),
+    mtc_no VARCHAR(100),
+
+    total_quantity DOUBLE,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
+
+CREATE TABLE aggregates_inventory (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    date_of_receipt DATE,
+    grade_spec VARCHAR(100),
+    source VARCHAR(150),
+
+    challan_number VARCHAR(100),
+    challan_date DATE,
+
+    total_qty_received DOUBLE,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
+
+CREATE TABLE sgci_insert_inventory (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    date_of_receipt DATE,
+
+    grade_type VARCHAR(150),
+    manufacturer VARCHAR(150),
+
+    invoice_number VARCHAR(100),
+    invoice_date DATE,
+
+    rites_ic_number VARCHAR(100),
+    rites_ic_date DATE,
+
+    total_qty_received INT,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
+
+CREATE TABLE dowel_inventory (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    date_of_receipt DATE,
+
+    grade_type VARCHAR(150),
+    manufacturer VARCHAR(150),
+
+    invoice_number VARCHAR(100),
+    invoice_date DATE,
+
+    rites_ic_number VARCHAR(100),
+    rites_ic_date DATE,
+
+    total_qty_received INT,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
+
+CREATE TABLE plant_profile (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    plant_name_location VARCHAR(255),
+    vendor_code VARCHAR(100),
+    plant_type VARCHAR(100),
+    number_of_sheds INT,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
+
+CREATE TABLE raw_material_source (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    raw_material_type VARCHAR(150),
+    supplier_name VARCHAR(200),
+    approval_reference VARCHAR(200),
+
+    valid_from DATE,
+    valid_to DATE,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
+
+
+CREATE TABLE mix_design (
+
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    identification VARCHAR(150),
+    concrete_grade VARCHAR(100),
+    authority_of_approval VARCHAR(100),
+
+    cement DOUBLE,
+    ca1 DOUBLE,
+    ca2 DOUBLE,
+    fa DOUBLE,
+    water DOUBLE,
+
+    ac_ratio DOUBLE,
+    wc_ratio DOUBLE,
+
+    created_by INT,
+    created_date DATETIME,
+
+    updated_by INT,
+    updated_date DATETIME
+);
