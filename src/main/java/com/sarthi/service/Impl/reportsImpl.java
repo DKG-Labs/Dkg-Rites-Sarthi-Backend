@@ -3,8 +3,6 @@ package com.sarthi.service.Impl;
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
 import com.sarthi.dto.reports.DashboardSummaryDto;
 import com.sarthi.dto.reports.*;
-import com.sarthi.entity.RmHeatFinalResult;
-import com.sarthi.entity.WorkflowTransition;
 import com.sarthi.entity.processmaterial.*;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.*;
@@ -21,8 +19,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.Temporal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1548,8 +1544,6 @@ public class reportsImpl implements reports {
                                 .from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
 
                 // 1. Avg Production / Day (based on last 30 days)
-                Long prod30Days = finalCumulativeResultsRepository.sumTotalQtyNowPassedLast30Days(thirtyDaysAgo);
-                double avgProd = prod30Days != null ? prod30Days / 30.0 : 0.0;
 
                 // 2. Process Rejection %
                 List<Object[]> processRejResults = processIeQtyRepository
@@ -1595,11 +1589,18 @@ public class reportsImpl implements reports {
                 dto.setPoQuantityMt(qtyMt != null ? qtyMt : 0.0);
                 dto.setFinalInspectionQuantity(finalQtyPassed != null ? finalQtyPassed : 0L);
 
-                dto.setAvgProductionPerDay(avgProd);
+                dto.setAvgProductionPerDay(getAvgProductionPerDay());
                 dto.setProcessRejectionPercentage(processRejectionPctValue);
                 dto.setFinalRejectionPercentage(finalRejectionPctValue);
                 dto.setRmRejectionPercentage(rmRejectionPctValue);
 
                 return dto;
+        }
+
+        @Override
+        public double getAvgProductionPerDay() {
+                LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+                Long shearingSum = processLineFinalResultRepository.sumShearingManufacturedLast30Days(thirtyDaysAgo);
+                return shearingSum != null ? shearingSum / 30.0 : 0.0;
         }
 }

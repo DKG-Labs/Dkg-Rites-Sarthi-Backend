@@ -16,7 +16,5 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     UserMaster findByEmployeeCode(String employeeCode);
 
-
-
-
+    java.util.List<UserMaster> findByRoleNameContaining(String roleName);
 }

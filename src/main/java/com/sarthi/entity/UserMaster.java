@@ -1,4 +1,5 @@
 package com.sarthi.entity;
+
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -54,14 +55,13 @@ public class UserMaster implements UserDetails {
     private String shortName;
 
     @Column(name = "DATE_OF_BIRTH")
-    private LocalDate dateOfBirth;
+    private String dateOfBirth;
 
     @Column(name = "DESIGNATION", length = 100)
     private String designation;
 
     @Column(name = "DISCIPLINE", length = 50)
     private String discipline;
-
 
     @Column(name = "CREATEDBY")
     private String createdBy;
@@ -80,7 +80,7 @@ public class UserMaster implements UserDetails {
         return Arrays.stream(roleName.split(","))
                 .map(String::trim)
                 .map(SimpleGrantedAuthority::new)
-                .toList();  // This is OK in Java 17+
+                .toList(); // This is OK in Java 17+
     }
 
     @Override

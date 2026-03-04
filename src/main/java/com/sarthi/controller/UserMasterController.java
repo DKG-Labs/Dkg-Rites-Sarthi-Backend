@@ -15,6 +15,7 @@ public class UserMasterController {
 
     @Autowired
     private UserService userService;
+
     @PostMapping
     public ResponseEntity<Object> createUser(@RequestBody userRequestDto userRequestDto) {
         UserDto user = userService.createUser(userRequestDto);
@@ -33,7 +34,6 @@ public class UserMasterController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
 
-
     @PostMapping("/api/OnlyRoleBasedCreation")
     public ResponseEntity<Object> createUserAndRole(@RequestBody userRequestDto userRequestDto) {
         UserDto user = userService.createUserAndRole(userRequestDto);
@@ -43,17 +43,49 @@ public class UserMasterController {
     @PostMapping("/api/IeMapping")
     public ResponseEntity<Object> creatMapingIe(@RequestParam Long userId, @RequestBody IeSetupRequestDto dto) {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse( userService.setupIe(userId,dto)), HttpStatus.OK);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.setupIe(userId, dto)),
+                HttpStatus.OK);
     }
 
     @PostMapping("/api/processIeMapping")
-    public ResponseEntity<Object> createMappingProcessIe(@RequestBody ProcessIeMappingRequestDto dto, @RequestParam Long userId,
-                                                         @RequestParam String createdBy) {
+    public ResponseEntity<Object> createMappingProcessIe(@RequestBody ProcessIeMappingRequestDto dto,
+            @RequestParam Long userId,
+            @RequestParam String createdBy) {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.mapProcessIe(userId, dto, createdBy)), HttpStatus.OK);
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(userService.mapProcessIe(userId, dto, createdBy)), HttpStatus.OK);
     }
 
+    @GetMapping("/api/roles")
+    public ResponseEntity<Object> getAllRoles() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getAllRoleNames()),
+                HttpStatus.OK);
+    }
 
+    @GetMapping("/api/users/by-role")
+    public ResponseEntity<Object> getUsersByRole(@RequestParam String roleName) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getUsersByRole(roleName)),
+                HttpStatus.OK);
+    }
 
+    @GetMapping("/api/pincode-poi/companies")
+    public ResponseEntity<Object> getAllCompanies() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getAllCompanies()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/api/pincode-poi/units")
+    public ResponseEntity<Object> getUnitsByCompany(@RequestParam String companyName) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(userService.getUnitsByCompany(companyName)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/api/pincode-poi/details")
+    public ResponseEntity<Object> getMappingDetails(@RequestParam String companyName, @RequestParam String unitName) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(userService.getMappingByCompanyAndUnit(companyName, unitName)),
+                HttpStatus.OK);
+    }
 
 }

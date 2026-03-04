@@ -6,14 +6,14 @@ import lombok.Data;
 
 import java.util.List;
 
-
 @Data
 public class userRequestDto {
 
+    private Integer userId;
     private String userName;
     private String password;
     private List<String> roleNames;
-    //  private String roleName;
+    // private String roleName;
     private String email;
     private String mobileNumber;
     private String employeeId;
@@ -21,26 +21,22 @@ public class userRequestDto {
 
     private String clusterName;
     private String regionName;
-    private Integer priority;  //if role secondary ie  this mandetory
+    private Integer priority; // if role secondary ie this mandetory
 
-
-    private List<Integer> ieUserIds;   // IE users mapped under Process IE
-
-
-
+    private List<Integer> ieUserIds; // IE users mapped under Process IE
 
     private String employeeCode;
-    private Integer ritesEmployeeCode;  // only REGULAR / CONTRACTUAL
-    private String employmentType;      // REGULAR / CONTRACTUAL / MPA
+    private Integer ritesEmployeeCode; // only REGULAR / CONTRACTUAL
+    private String employmentType; // REGULAR / CONTRACTUAL / MPA
     private String fullName;
     private String shortName;
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")
     private String dateOfBirth;
     private String designation;
     private String discipline;
 
-
-    //IE
-    private String rio;                      // NRIO / ERIO
+    // IE
+    private String rio; // NRIO / ERIO
     private String currentCityOfPosting;
     private Integer metalStampNo;
 
@@ -50,11 +46,6 @@ public class userRequestDto {
     // IE → Controlling Manager
     private Integer controllingManagerUserId;
 
-
-
     private List<IePoiMappingDto> iePoiMappings;
 
-
-
 }
-

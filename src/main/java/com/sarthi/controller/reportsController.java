@@ -70,4 +70,10 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDashboardSummary()),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/avgProductionPerDay")
+    public ResponseEntity<Object> getAvgProductionPerDay() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getAvgProductionPerDay()),
+                HttpStatus.OK);
+    }
 }
