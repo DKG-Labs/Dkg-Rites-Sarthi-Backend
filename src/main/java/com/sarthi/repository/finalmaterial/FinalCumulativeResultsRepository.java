@@ -122,4 +122,12 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
     List<Object[]> sumFinalRejectionLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
+    @Query("""
+        SELECT 
+            SUM(f.qtyNowPassed),
+            SUM(f.qtyNowRejected)
+        FROM FinalCumulativeResults f
+        WHERE f.inspectionCallNo IN :callNos
+       """)
+    List<Object[]> findFinalInspectionQty(@Param("callNos") List<String> callNos);
 }

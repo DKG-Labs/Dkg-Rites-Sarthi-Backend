@@ -109,7 +109,7 @@ public class reportsImpl implements reports {
                                 continue;
                         }
 
-                        // ================= Offered + Rejected =================
+                       /* // ================= Offered + Rejected =================
                         List<Object[]> resultList = rmHeatFinalResultRepository
                                         .findOfferedAndRejectedByCallNos(callNos);
 
@@ -146,7 +146,39 @@ public class reportsImpl implements reports {
                         int balance = dto.getPoQty() - accepted;
                         balance = Math.max(balance, 0); // safety
 
-                        dto.setBalancePoQty(balance);
+                        dto.setBalancePoQty(balance);*/
+
+                        List<Object[]> finalResultList =
+                                finalCumulativeResultsRepository.findFinalInspectionQty(callNos);
+
+                        double passed = 0.0;
+                        double rejected = 0.0;
+
+                        if (finalResultList != null && !finalResultList.isEmpty()) {
+
+                                Object[] finalResult = finalResultList.get(0);
+
+                                if (finalResult[0] != null)
+                                        passed = ((Number) finalResult[0]).doubleValue();
+
+                                if (finalResult[1] != null)
+                                        rejected = ((Number) finalResult[1]).doubleValue();
+                        }
+
+// Final Accepted
+                        int accepted = (int) Math.round(passed);
+                        dto.setFinalQuantityAcceptedByRites(accepted);
+
+                        int balance = dto.getPoQty() - accepted;
+                        dto.setBalancePoQty(Math.max(balance, 0));
+
+                        double finalRejectPct = 0.0;
+
+                        if (passed + rejected > 0) {
+                                finalRejectPct = (rejected * 100.0) / (passed + rejected);
+                        }
+
+                        dto.setFinalInspectionRejectionPercentage(finalRejectPct);
 
                         // ================= Process Rejection % =================
                         Double processPct = processIeQtyRepository
