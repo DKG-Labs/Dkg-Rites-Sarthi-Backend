@@ -416,6 +416,6 @@ WHERE created_at BETWEEN :startDate AND :endDate
                 )
             )
         """, nativeQuery = true)
-    List<String> findProcessIcNumbersByUser(@Param("userId") Long userId);
+    List<String> findIcNumbersByUserId(@Param("userId") Long userId);
 
 }
