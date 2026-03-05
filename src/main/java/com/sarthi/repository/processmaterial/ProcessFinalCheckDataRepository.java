@@ -62,21 +62,35 @@ AND p.createdAt BETWEEN :startDate AND :endDate
     );
 
 
-    @Query("""
-            SELECT COALESCE(SUM(p.temperingHardnessRejected),0)
-            FROM ProcessFinalCheckData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
-    Integer getTemperingHardnessSumByDate(
-            @Param("callNo") String callNo,
-            @Param("lotNo") String lotNo,
-            @Param("shift") String shift,
-            @Param("date") LocalDate date
-    );
+//    @Query("""
+//            SELECT COALESCE(SUM(p.temperingHardnessRejected),0)
+//            FROM ProcessFinalCheckData p
+//            WHERE p.inspectionCallNo = :callNo
+//            AND p.lotNo = :lotNo
+//            AND p.shift = :shift
+//            AND DATE(p.createdAt) = :date
+//            """)
+//    Integer getTemperingHardnessSumByDate(
+//            @Param("callNo") String callNo,
+//            @Param("lotNo") String lotNo,
+//            @Param("shift") String shift,
+//            @Param("date") LocalDate date
+//    );
 
+    @Query(value = """
+SELECT COALESCE(SUM(tempering_hardness_rejected),0)
+FROM process_final_check_data
+WHERE inspection_call_no = :callId
+AND lot_no = :lotNumber
+AND shift = :shift
+AND created_at BETWEEN :startDate AND :endDate
+""", nativeQuery = true)
+    Integer getTemperingHardnessSumByDate(
+            String callId,
+            String lotNumber,
+            String shift,
+            LocalDateTime startDate,
+            LocalDateTime endDate);
     @Query("""
             SELECT COALESCE(SUM(p.boxGaugeRejected),0)
             FROM ProcessFinalCheckData p

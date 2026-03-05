@@ -1,5 +1,7 @@
 package com.sarthi.dto.reports;
 
+import com.sarthi.dto.QuenchingDefectsDto;
+import com.sarthi.dto.TemperingDefectsDto;
 import lombok.Data;
 
 @Data
@@ -23,6 +25,11 @@ public class FourthLevelInspectionDto {
         private TestingDefectsDto testingDefects;
 
         private FinishingDefectsDto finishingDefects;
+
+        private QuenchingDefectsDto quenchingDefects;
+
+        private TemperingDefectsDto temperingDefects;
+
 
 
 }

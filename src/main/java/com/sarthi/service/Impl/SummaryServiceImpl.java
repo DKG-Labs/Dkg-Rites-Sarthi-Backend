@@ -246,7 +246,6 @@ public class SummaryServiceImpl implements SummaryService {
             dto.setMpi(getDouble(r[7]));
             dto.setForging(getDouble(r[8]));
             dto.setQuenching(getDouble(r[9]));
-            dto.setTesting(getDouble(r[10]));
 
             list.add(dto);
         }

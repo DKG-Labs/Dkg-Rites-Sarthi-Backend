@@ -1,6 +1,8 @@
 package com.sarthi.service.Impl;
 
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
+import com.sarthi.dto.QuenchingDefectsDto;
+import com.sarthi.dto.TemperingDefectsDto;
 import com.sarthi.dto.reports.DashboardSummaryDto;
 import com.sarthi.dto.reports.*;
 import com.sarthi.entity.RmHeatFinalResult;
@@ -61,6 +63,8 @@ public class reportsImpl implements reports {
         private ProcessTestingFinishingDataRepository processTestingFinishingDataRepository;
         @Autowired
         private ProcessQuenchingDataRepository processQuenchingDataRepository;
+        @Autowired
+        private ProcessTemperingDataRepository processTemperingDataRepository;
 
         @Autowired
         private FinalCumulativeResultsRepository finalCumulativeResultsRepository;
@@ -1328,9 +1332,20 @@ public class reportsImpl implements reports {
                         process.setTemperingProductionQty(
                                         process.getTemperingProductionQty() + p.getTemperingManufactured());
 
-                        process.setTemperingRejectionQty(
-                                        process.getTemperingRejectionQty() + p.getTemperingRejected());
+//                        process.setTemperingRejectionQty(
+//                                        process.getTemperingRejectionQty() + p.getTemperingRejected());
 
+                        Integer totalTemperingRejected =
+                                processLineFinalResultRepository.getTotalTemperingRejected(
+                                        callId,
+                                        p.getLotNumber(),
+                                        p.getShift(),
+                                        startDate,
+                                        endDate);
+
+                        process.setTemperingRejectionQty(
+                                process.getTemperingRejectionQty()
+                                        + (totalTemperingRejected != null ? totalTemperingRejected : 0));
                         // ================= SHEARING DEFECTS =================
                         List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
                                         callId,
@@ -1374,6 +1389,38 @@ public class reportsImpl implements reports {
 
                         dto.setTurningDefects(turning);
 
+                        Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
+                                callId,
+                                p.getLotNumber(),
+                                p.getShift(),
+                                startDate,
+                                endDate
+                        );
+
+                        QuenchingDefectsDto quenching = new QuenchingDefectsDto();
+                        quenching.setQuenchingHardness(quenchingHardness != null ? quenchingHardness : 0);
+
+                        dto.setQuenchingDefects(quenching);
+
+                        List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
+                                callId,
+                                p.getLotNumber(),
+                                p.getShift(),
+                                startDate,
+                                endDate
+                        );
+
+                        Object[] temperingSums = (temperingList != null && !temperingList.isEmpty()) ? temperingList.get(0) : null;
+
+                        TemperingDefectsDto tempering = new TemperingDefectsDto();
+
+                        if (temperingSums != null && temperingSums.length == 2) {
+
+                                tempering.setTemperingTemp(((Number) temperingSums[0]).intValue());
+                                tempering.setTemperingDuration(((Number) temperingSums[1]).intValue());
+                        }
+
+                        dto.setTemperingDefects(tempering);
                         // ================= FORGING DEFECTS =================
                         List<Object[]> fList = processForgingDataRepository.getForgingSumByDate(
                                         callId,
@@ -1434,12 +1481,18 @@ public class reportsImpl implements reports {
                         dto.setVisualDefects(visual);
 
                         // ================= TESTING =================
-                        Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
-                                        callId,
-                                        p.getLotNumber(),
-                                        p.getShift(),
-                                        date);
+//                        Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
+//                                        callId,
+//                                        p.getLotNumber(),
+//                                        p.getShift(),
+//                                        date);
 
+                        Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
+                                callId,
+                                p.getLotNumber(),
+                                p.getShift(),
+                                startDate,
+                                endDate);
                         List<Object[]> tfList = processTestingFinishingDataRepository.getTestingFinishingSumByDate(
                                         callId,
                                         p.getLotNumber(),
@@ -1601,5 +1654,16 @@ public class reportsImpl implements reports {
                 dto.setRmRejectionPercentage(rmRejectionPctValue);
 
                 return dto;
+        }
+
+        public List<String> getProcessIcNumbersByUserId(Long userId) {
+
+                List<String> icNumbers = inspectionCallRepository.findIcNumbersByUserId(userId);
+
+                if (icNumbers == null || icNumbers.isEmpty()) {
+                        throw new RuntimeException("No IC Numbers found for this user");
+                }
+
+                return icNumbers;
         }
 }

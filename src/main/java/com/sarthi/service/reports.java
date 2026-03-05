@@ -28,4 +28,6 @@ public interface reports {
     public List<FourthLevelInspectionDto> getFourthLevelReport(String callId);
 
     public DashboardSummaryDto getDashboardSummary();
+
+    public List<String> getProcessIcNumbersByUserId(Long userId);
 }

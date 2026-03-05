@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -85,4 +86,20 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
             String shift,
             LocalDate date
     );
+
+    @Query(value = """
+            SELECT COALESCE(SUM(quenching_hardness_rejected),0)
+            FROM process_quenching_data
+            WHERE inspection_call_no = :callId
+            AND lot_no = :lotNumber
+            AND shift = :shift
+            AND created_at BETWEEN :startDate AND :endDate
+            """, nativeQuery = true)
+    Integer getQuenchingHardnessSum(
+            String callId,
+            String lotNumber,
+            String shift,
+            LocalDateTime startDate,
+            LocalDateTime endDate);
+
 }
