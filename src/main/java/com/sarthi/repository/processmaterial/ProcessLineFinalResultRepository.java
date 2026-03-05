@@ -26,9 +26,11 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     Optional<ProcessLineFinalResult> findByInspectionCallNoAndLineNo(String inspectionCallNo, String lineNo);
 
     /**
-     * Find the most recent final result for a specific inspection call and line number.
+     * Find the most recent final result for a specific inspection call and line
+     * number.
      */
-    Optional<ProcessLineFinalResult> findFirstByInspectionCallNoAndLineNoOrderByCreatedAtDesc(String inspectionCallNo, String lineNo);
+    Optional<ProcessLineFinalResult> findFirstByInspectionCallNoAndLineNoOrderByCreatedAtDesc(String inspectionCallNo,
+            String lineNo);
 
     /**
      * Find all final results for a specific PO.
@@ -39,6 +41,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
      * Delete all final results for a specific inspection call.
      */
     void deleteByInspectionCallNo(String inspectionCallNo);
+
 
     @Query(value = """
             SELECT 
@@ -90,5 +93,10 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             LocalDateTime startDate,
             LocalDateTime endDate
     );
+
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(p.shearingManufactured) FROM ProcessLineFinalResult p WHERE p.createdAt >= :date")
+    Long sumShearingManufacturedLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
 }
