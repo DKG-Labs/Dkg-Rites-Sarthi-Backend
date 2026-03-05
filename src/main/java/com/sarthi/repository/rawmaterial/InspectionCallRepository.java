@@ -400,4 +400,13 @@ WHERE created_at BETWEEN :startDate AND :endDate
                 @Param("endDate") LocalDate endDate,
                 Pageable pageable);
 
+        @Query(value = """
+        SELECT DISTINCT ic.ic_number
+        FROM ie_poi_mapping ipm
+        JOIN inspection_calls ic
+            ON ic.place_of_inspection = ipm.POI_CODE
+        WHERE ipm.IE_USER_ID = :userId
+        AND ic.type_of_call = 'process'
+        """, nativeQuery = true)
+        List<String> findIcNumbersByUserId(@Param("userId") Long userId);
 }

@@ -70,4 +70,9 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDashboardSummary()),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/process/ic-numbers/{userId}")
+    public ResponseEntity<List<String>> getIcNumbers(@PathVariable Long userId) {
+        return ResponseEntity.ok(reportService.getProcessIcNumbersByUserId(userId));
+    }
 }
