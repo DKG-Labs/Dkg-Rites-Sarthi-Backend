@@ -122,6 +122,11 @@ public class FinalCertificateDto {
     private String trRecDate;
 
     /**
+     * No. of visits: Derived from WorkflowTransitions
+     */
+    private String noOfVisits;
+
+    /**
      * Quantity now passed in words and details
      */
     private String quantityNowPassedText;

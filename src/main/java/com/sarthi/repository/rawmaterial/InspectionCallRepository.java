@@ -129,10 +129,10 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
         List<String> findCallNumbersByPoNo(@Param("poSerialNo") String poSerialNo);
 
         @Query("""
-                SELECT ic.icNumber
-                FROM InspectionCall ic
-                WHERE ic.poNo =poNo
-                """)
+SELECT ic.icNumber
+FROM InspectionCall ic
+WHERE ic.poNo = :poNo
+""")
         List<String> findCallNumbersByPo(@Param("poNo") String poNo);
 
         @Query("""

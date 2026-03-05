@@ -151,6 +151,11 @@ public class ProcessMaterialCertificateDto {
      */
     private String manDays;
     
+    /**
+     * No. of visits: Derived from WorkflowTransitions
+     */
+    private String noOfVisits;
+    
     /* ==================== Sealing & Signature ==================== */
     
     /**
