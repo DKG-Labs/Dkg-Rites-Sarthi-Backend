@@ -13,6 +13,12 @@ public class UserDto {
     private String mobileNumber;
     private String roleName;
     private String createdBy;
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDateTime createdDate;
+    private String fullName;
+    private String employeeCode;
+    private String designation;
+    private String discipline;
+    private String employmentType;
+    private String dateOfBirth;
 }
-

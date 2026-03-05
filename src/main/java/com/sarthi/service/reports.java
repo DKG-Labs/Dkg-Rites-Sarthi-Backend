@@ -30,4 +30,7 @@ public interface reports {
     public DashboardSummaryDto getDashboardSummary();
 
     public List<String> getProcessIcNumbersByUserId(Long userId);
+
+    public double getAvgProductionPerDay();
+
 }
