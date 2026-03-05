@@ -71,8 +71,15 @@ public class reportsController {
                 HttpStatus.OK);
     }
 
+
     @GetMapping("/process/ic-numbers/{userId}")
     public ResponseEntity<List<String>> getIcNumbers(@PathVariable Long userId) {
         return ResponseEntity.ok(reportService.getProcessIcNumbersByUserId(userId));
+    }
+
+    @GetMapping("/avgProductionPerDay")
+    public ResponseEntity<Object> getAvgProductionPerDay() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getAvgProductionPerDay()),
+                HttpStatus.OK);
     }
 }

@@ -95,6 +95,9 @@ public class CertificateServiceImpl implements CertificateService {
     @Autowired
     private FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
 
+    @Autowired
+    private com.sarthi.repository.WorkflowTransitionRepository workflowTransitionRepository;
+
     @Override
     public RawMaterialCertificateDto generateRawMaterialCertificate(String icNumber) {
         logger.info("Generating Raw Material Certificate for IC Number: {}", icNumber);
@@ -171,7 +174,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractor(buildContractorInfo(poHeader))
                 .manufacturer(buildManufacturerInfo(heatQuantities))
                 .placeOfInspection(buildPlaceOfInspection(inspectionCall))
-                .contractRef(buildContractRef(poHeader))
+                .contractRef(buildContractRef(poHeader, inspectionCall))
                 .contractorPo(buildContractorPo(rmDetails))
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
                 .consigneeRailway(buildConsigneeRailway(poItems))
@@ -190,8 +193,8 @@ public class CertificateServiceImpl implements CertificateService {
                 .qtyRejected(buildQtyRejected(heatResults))
                 .remarks(buildRemarks(inspectionCall))
                 .dateOfCall(buildDateOfCall(inspectionCall))
-                .noOfVisits("") // Keep blank for now
-                .dateOfInspection(buildDateOfInspection(heatResults))
+                .noOfVisits(calculateNoOfVisits(inspectionCall.getIcNumber()))
+                .dateOfInspection(calculateInspectionDateRangeFromWorkflow(inspectionCall.getIcNumber()))
                 .sealingPattern(buildSealingPattern())
                 .sealFacsimile("") // Blank for stamp
                 .inspectingEngineer("") // Keep blank for now (DSC signature)
@@ -267,9 +270,26 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Build Contract Reference (PO Number & Date + Modification Advise)
      */
-    private String buildContractRef(PoHeader poHeader) {
+    private String buildContractRef(PoHeader poHeader, InspectionCall inspectionCall) {
         if (poHeader == null) return "";
-		return poHeader.getPoNo() + " dated " + formatDate(poHeader.getPoDate() != null ? poHeader.getPoDate().toLocalDate() : null);
+        
+        String rly = poHeader.getRlyShortName() != null ? poHeader.getRlyShortName() : "";
+        String poNo = poHeader.getPoNo() != null ? poHeader.getPoNo() : "";
+        String serial = (inspectionCall != null && inspectionCall.getPoSerialNo() != null) ? inspectionCall.getPoSerialNo() : "";
+        
+        // If serial already contains poNo (e.g., "60256836107122/020"), we just use serial
+        String basePoDetails;
+        if (!serial.isEmpty() && serial.contains(poNo) && !poNo.isEmpty()) {
+            basePoDetails = (rly.isEmpty() ? "" : rly + "/") + serial;
+        } else {
+            basePoDetails = (rly.isEmpty() ? "" : rly + "/") + 
+                            poNo + 
+                            (serial.isEmpty() ? "" : "/" + serial);
+        }
+        
+        String dateStr = formatDate(poHeader.getPoDate() != null ? poHeader.getPoDate().toLocalDate() : null);
+        
+        return basePoDetails + " dated " + dateStr;
     }
 
     /**
@@ -435,6 +455,103 @@ public class CertificateServiceImpl implements CertificateService {
                 inspectionCall.getCreatedAt().toLocalDate() : null);
         String desiredDate = formatDate(inspectionCall.getDesiredInspectionDate());
         return "Call Date: " + callDate + ", Desired Date: " + desiredDate;
+    }
+
+    /**
+     * Calculate visits from workflow_transition starting from INSPECTION_INITIATION to INSPECTION_COMPLETE_CONFIRM
+     */
+    private String calculateNoOfVisits(String icNumber) {
+        if (icNumber == null || icNumber.isEmpty()) return "";
+        try {
+            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository.findByRequestId(icNumber);
+            if (transitions == null || transitions.isEmpty()) return "";
+
+            transitions.sort(java.util.Comparator.comparing(com.sarthi.entity.WorkflowTransition::getWorkflowTransitionId));
+            
+            java.util.Set<LocalDate> visitDates = new java.util.HashSet<>();
+            boolean inspectionStarted = false;
+            
+            for (com.sarthi.entity.WorkflowTransition wt : transitions) {
+                String status = wt.getStatus() != null ? wt.getStatus() : "";
+                String action = wt.getAction() != null ? wt.getAction() : "";
+                
+                if ("INSPECTION_INITIATION".equalsIgnoreCase(status) || "INITIATE_INSPECTION".equalsIgnoreCase(action) || "INSPECTION_IN_PROGRESS".equalsIgnoreCase(status)) {
+                    inspectionStarted = true;
+                }
+                
+                if (inspectionStarted && wt.getCreatedDate() != null) {
+                    LocalDate date = wt.getCreatedDate().toInstant()
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate();
+                    visitDates.add(date);
+                }
+                
+                if ("INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(status) || "INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(action)) {
+                    break;
+                }
+            }
+            
+            return visitDates.isEmpty() ? "" : String.valueOf(visitDates.size());
+        } catch (Exception e) {
+            logger.error("Error calculating visits for IC: {}", icNumber, e);
+            return "";
+        }
+    }
+
+    /**
+     * Calculate inspection date range from workflow_transition (start to end)
+     */
+    private String calculateInspectionDateRangeFromWorkflow(String icNumber) {
+        if (icNumber == null || icNumber.isEmpty()) return "";
+        try {
+            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository.findByRequestId(icNumber);
+            if (transitions == null || transitions.isEmpty()) return "";
+
+            transitions.sort(java.util.Comparator.comparing(com.sarthi.entity.WorkflowTransition::getWorkflowTransitionId));
+            
+            java.util.Set<LocalDate> visitDates = new java.util.HashSet<>();
+            boolean inspectionStarted = false;
+            
+            for (com.sarthi.entity.WorkflowTransition wt : transitions) {
+                String status = wt.getStatus() != null ? wt.getStatus() : "";
+                String action = wt.getAction() != null ? wt.getAction() : "";
+                
+                if ("INSPECTION_INITIATION".equalsIgnoreCase(status) || "INITIATE_INSPECTION".equalsIgnoreCase(action) || "INSPECTION_IN_PROGRESS".equalsIgnoreCase(status)) {
+                    inspectionStarted = true;
+                }
+                
+                if (inspectionStarted && wt.getCreatedDate() != null) {
+                    LocalDate date = wt.getCreatedDate().toInstant()
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate();
+                    visitDates.add(date);
+                }
+                
+                if ("INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(status) || "INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(action)) {
+                    break;
+                }
+            }
+            
+            if (visitDates.isEmpty()) return "";
+            
+            List<LocalDate> sortedDates = new java.util.ArrayList<>(visitDates);
+            sortedDates.sort(java.util.Comparator.naturalOrder());
+            
+            LocalDate start = sortedDates.get(0);
+            LocalDate end = sortedDates.get(sortedDates.size() - 1);
+            
+            String startStr = formatDate(start);
+            String endStr = formatDate(end);
+            
+            if (start.equals(end)) {
+                return startStr;
+            } else {
+                return startStr + " to " + endStr;
+            }
+        } catch (Exception e) {
+            logger.error("Error calculating date range for IC: {}", icNumber, e);
+            return "";
+        }
     }
 
     /**
@@ -637,7 +754,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .passedInstNo(passedInst)
                 .contractor(inspectionCall.getCompanyName() != null ? inspectionCall.getCompanyName() : "")
                 .manufacturer(processDetails != null ? processDetails.getManufacturer() : "")
-                .contractRef(buildContractRef(poHeader))
+                .contractRef(buildContractRef(poHeader, inspectionCall))
                 .poDetails(buildPoDetails(poHeader))
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
                 .consigneeRailway(poItem != null ? poItem.getConsigneeDetail() : "")
@@ -653,8 +770,9 @@ public class CertificateServiceImpl implements CertificateService {
                 .lots(lots)
                 .reference(buildProcessReference(inspectionCall))
                 .callDate(formatDate(inspectionCall.getDesiredInspectionDate()))
-                .inspectionDate(buildInspectionDateRange(inspectionCall))
-                .manDays("")
+                .inspectionDate(calculateInspectionDateRangeFromWorkflow(inspectionCall.getIcNumber()))
+                .manDays(calculateNoOfVisits(inspectionCall.getIcNumber()))
+                .noOfVisits(calculateNoOfVisits(inspectionCall.getIcNumber()))
                 .sealingPattern(buildProcessSealingPattern())
                 .inspectingEngineer("")
                 .build();
@@ -862,6 +980,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .totalRejectedQty(finalDetails != null && finalDetails.getTotalRejectedQty() != null ? finalDetails.getTotalRejectedQty() : 0)
                 .remarks(buildFinalRemarks(finalDetails))
                 .trRecDate("")
+                .noOfVisits(calculateNoOfVisits(inspectionCall.getIcNumber()))
                 .quantityNowPassedText("")
                 .lotDetails(buildFinalLotDetails(lotDetails))
                 .build();

@@ -5,8 +5,6 @@ import com.sarthi.dto.QuenchingDefectsDto;
 import com.sarthi.dto.TemperingDefectsDto;
 import com.sarthi.dto.reports.DashboardSummaryDto;
 import com.sarthi.dto.reports.*;
-import com.sarthi.entity.RmHeatFinalResult;
-import com.sarthi.entity.WorkflowTransition;
 import com.sarthi.entity.processmaterial.*;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.*;
@@ -23,8 +21,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.Temporal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -113,7 +109,7 @@ public class reportsImpl implements reports {
                                 continue;
                         }
 
-                        // ================= Offered + Rejected =================
+                       /* // ================= Offered + Rejected =================
                         List<Object[]> resultList = rmHeatFinalResultRepository
                                         .findOfferedAndRejectedByCallNos(callNos);
 
@@ -150,7 +146,39 @@ public class reportsImpl implements reports {
                         int balance = dto.getPoQty() - accepted;
                         balance = Math.max(balance, 0); // safety
 
-                        dto.setBalancePoQty(balance);
+                        dto.setBalancePoQty(balance);*/
+
+                        List<Object[]> finalResultList =
+                                finalCumulativeResultsRepository.findFinalInspectionQty(callNos);
+
+                        double passed = 0.0;
+                        double rejected = 0.0;
+
+                        if (finalResultList != null && !finalResultList.isEmpty()) {
+
+                                Object[] finalResult = finalResultList.get(0);
+
+                                if (finalResult[0] != null)
+                                        passed = ((Number) finalResult[0]).doubleValue();
+
+                                if (finalResult[1] != null)
+                                        rejected = ((Number) finalResult[1]).doubleValue();
+                        }
+
+// Final Accepted
+                        int accepted = (int) Math.round(passed);
+                        dto.setFinalQuantityAcceptedByRites(accepted);
+
+                        int balance = dto.getPoQty() - accepted;
+                        dto.setBalancePoQty(Math.max(balance, 0));
+
+                        double finalRejectPct = 0.0;
+
+                        if (passed + rejected > 0) {
+                                finalRejectPct = (rejected * 100.0) / (passed + rejected);
+                        }
+
+                        dto.setFinalInspectionRejectionPercentage(finalRejectPct);
 
                         // ================= Process Rejection % =================
                         Double processPct = processIeQtyRepository
@@ -1601,8 +1629,6 @@ public class reportsImpl implements reports {
                                 .from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
 
                 // 1. Avg Production / Day (based on last 30 days)
-                Long prod30Days = finalCumulativeResultsRepository.sumTotalQtyNowPassedLast30Days(thirtyDaysAgo);
-                double avgProd = prod30Days != null ? prod30Days / 30.0 : 0.0;
 
                 // 2. Process Rejection %
                 List<Object[]> processRejResults = processIeQtyRepository
@@ -1648,7 +1674,7 @@ public class reportsImpl implements reports {
                 dto.setPoQuantityMt(qtyMt != null ? qtyMt : 0.0);
                 dto.setFinalInspectionQuantity(finalQtyPassed != null ? finalQtyPassed : 0L);
 
-                dto.setAvgProductionPerDay(avgProd);
+                dto.setAvgProductionPerDay(getAvgProductionPerDay());
                 dto.setProcessRejectionPercentage(processRejectionPctValue);
                 dto.setFinalRejectionPercentage(finalRejectionPctValue);
                 dto.setRmRejectionPercentage(rmRejectionPctValue);
@@ -1666,4 +1692,12 @@ public class reportsImpl implements reports {
 
                 return icNumbers;
         }
+
+        @Override
+        public double getAvgProductionPerDay() {
+                LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+                Long shearingSum = processLineFinalResultRepository.sumShearingManufacturedLast30Days(thirtyDaysAgo);
+                return shearingSum != null ? shearingSum / 30.0 : 0.0;
+        }
+
 }
