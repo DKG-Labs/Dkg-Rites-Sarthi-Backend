@@ -1,11 +1,13 @@
 package com.sarthi.Sleeper.entity.ProductionDeclaration;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 import java.util.List;
 
 @Entity
 @Table(name="production_stress_chamber")
+@Data
 public class ProductionStressChamber {
 
     @Id

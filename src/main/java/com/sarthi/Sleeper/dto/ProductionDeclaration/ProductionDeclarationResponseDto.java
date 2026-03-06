@@ -3,6 +3,8 @@ package com.sarthi.Sleeper.dto.ProductionDeclaration;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
 
 @Data
 public class ProductionDeclarationResponseDto {
@@ -18,7 +20,7 @@ public class ProductionDeclarationResponseDto {
     private String batchNumber;
     private String mixDesignReference;
 
-    private String lbcTime;
+    private LocalTime lbcTime;
 
     private Integer totalCastedSleepers;
     private Integer totalSleeperTypes;
@@ -32,8 +34,8 @@ public class ProductionDeclarationResponseDto {
     private Long updatedBy;
     private LocalDateTime updatedDate;
 
-  //  private List<ProductionStressChamberResponseDto> chambers;
+    private List<ProductionStressChamberResponseDto> chambers;
 
- //   private List<ProductionLongLineGangResponseDto> gangs;
+    private List<ProductionLongLineGangResponseDto> gangs;
 
 }

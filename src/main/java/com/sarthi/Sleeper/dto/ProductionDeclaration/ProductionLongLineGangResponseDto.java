@@ -1,0 +1,21 @@
+package com.sarthi.Sleeper.dto.ProductionDeclaration;
+
+import lombok.Data;
+
+@Data
+public class ProductionLongLineGangResponseDto {
+
+    private Long id;
+
+    private String mode;
+
+    private Integer gangFrom;
+    private Integer gangTo;
+
+    private Integer gangNo;
+
+    private String sleeperType;
+
+    private Integer mouldsPerGang;
+
+}

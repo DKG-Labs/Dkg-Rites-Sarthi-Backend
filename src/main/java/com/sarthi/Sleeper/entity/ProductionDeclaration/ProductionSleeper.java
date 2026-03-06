@@ -1,9 +1,11 @@
 package com.sarthi.Sleeper.entity.ProductionDeclaration;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
 @Table(name="production_sleeper")
+@Data
 public class ProductionSleeper {
 
     @Id

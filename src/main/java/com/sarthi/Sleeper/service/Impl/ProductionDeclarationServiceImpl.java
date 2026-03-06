@@ -1,16 +1,21 @@
 package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.ProductionDeclaration.*;
-import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
+import com.sarthi.Sleeper.entity.PlantProfile;
+import com.sarthi.Sleeper.entity.ProductionDeclaration.*;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.service.ProductionDeclarationService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -18,137 +23,140 @@ import java.util.Set;
 @Service
 public class ProductionDeclarationServiceImpl implements ProductionDeclarationService {
 
-    private final ProductionDeclarationRepository repository;
+        @Autowired
+        private ProductionDeclarationRepository repository;
 
-    public ProductionDeclarationServiceImpl(ProductionDeclarationRepository repository) {
-        this.repository = repository;
-    }
+        @Override
+        public ProductionDeclarationResponseDto create(
+                ProductionDeclarationRequestDto dto) {
 
+            ProductionDeclaration entity = new ProductionDeclaration();
 
-    // ================= CREATE =================
+            entity.setPlantType(dto.getPlantType());
+            entity.setProductionUnit(dto.getProductionUnit());
+            LocalDate cDate = CommonUtils.convertStringToDateObject(dto.getCastingDate());
 
-    @Override
-    public PProductionDeclarationRequestDto create(
-            ProductionDeclarationRequestDto dto) {
-
-        ProductionDeclaration entity =
-                new ProductionDeclaration();
-
-        entity.setPlantType(dto.getPlantType());
-        entity.setProductionUnit(dto.getProductionUnit());
-
-        if (dto.getCastingDate() != null) {
-            entity.setCastingDate(
-                    CommonUtils.convertStringToDateObject(
-                            dto.getCastingDate()));
-        }
-
-        entity.setShift(dto.getShift());
-        entity.setBatchNumber(dto.getBatchNumber());
-        entity.setMixDesignReference(dto.getMixDesignReference());
-
-        if (dto.getLbcTime() != null) {
-            entity.setLbcTime(
-                    CommonUtils.convertStringToTimeObject(
-                            dto.getLbcTime()));
-        }
-
-        entity.setRemarks(dto.getRemarks());
-
-        entity.setCreatedBy(dto.getCreatedBy());
-        entity.setCreatedDate(LocalDateTime.now());
+           entity.setCastingDate(cDate);
+            entity.setShift(dto.getShift());
+            entity.setBatchNumber(dto.getBatchNumber());
+            entity.setMixDesignReference(dto.getMixDesignReference());
+            LocalTime pTime = CommonUtils.convertStringToTimeObject(dto.getLbcTime());
 
 
-        // ===== Chambers =====
+            entity.setLbcTime(pTime);
 
-        if (dto.getChambers() != null) {
+            entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
+            entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
+            entity.setTotalRft(dto.getTotalRft());
 
-            for (ProductionChamberRequestDto cDto :
-                    dto.getChambers()) {
+            entity.setRemarks(dto.getRemarks());
 
-                ProductionChamber chamber =
-                        new ProductionChamber();
+            entity.setCreatedBy(dto.getCreatedBy());
+            entity.setCreatedDate(LocalDateTime.now());
 
-                chamber.setChamberNo(cDto.getChamberNo());
-                chamber.setDeclaration(entity);
+            List<ProductionStressChamber> chamberList = new ArrayList<>();
 
-                entity.getChambers().add(chamber);
+            if (dto.getChambers() != null) {
 
+                for (ProductionStressChamberRequestDto chamberDto : dto.getChambers()) {
 
-                if (cDto.getBenches() != null) {
+                    ProductionStressChamber chamber = new ProductionStressChamber();
 
-                    for (ProductionDeclarationResponseDto bDto :
-                            cDto.getBenches()) {
+                    chamber.setChamberNo(chamberDto.getChamberNo());
+                    chamber.setDeclaration(entity);
 
-                        ProductionBench bench =
-                                new ProductionBench();
+                    List<ProductionBenchGroup> benchList = new ArrayList<>();
 
-                        bench.setBenchNo(
-                                bDto.getBenchNumbers());
-                        bench.setCount(bDto.getCount());
-                        bench.setSleeperType(
-                                bDto.getSleeperType());
-                        bench.setMouldPerBench(
-                                bDto.getMouldPerBench());
-                        bench.setRftMeters(
-                                bDto.getRftMeters());
+                    for (ProductionBenchGroupRequestDto benchDto : chamberDto.getBenchGroups()) {
+
+                        ProductionBenchGroup bench = new ProductionBenchGroup();
+
+                        bench.setBenchNo(benchDto.getBenchNo());
+                        bench.setSleeperType(benchDto.getSleeperType());
+                        bench.setMouldPerBench(benchDto.getMouldPerBench());
+                        bench.setRft(benchDto.getRft());
 
                         bench.setChamber(chamber);
 
-                        chamber.getBenches().add(bench);
+                        List<ProductionSleeper> sleepers = new ArrayList<>();
+
+                        for (String sleeperNo : benchDto.getSleepers()) {
+
+                            ProductionSleeper sleeper = new ProductionSleeper();
+
+                            sleeper.setSleeperNo(sleeperNo);
+                            sleeper.setBenchGroup(bench);
+
+                            sleepers.add(sleeper);
+                        }
+
+                        bench.setSleepers(sleepers);
+
+                        benchList.add(bench);
                     }
+
+                    chamber.setBenchGroups(benchList);
+
+                    chamberList.add(chamber);
                 }
             }
+
+            entity.setChambers(chamberList);
+
+            List<ProductionLongLineGang> gangList = new ArrayList<>();
+
+            if (dto.getGangs() != null) {
+
+                for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
+
+                    ProductionLongLineGang gang = new ProductionLongLineGang();
+
+                    gang.setMode(gangDto.getMode());
+                    gang.setGangFrom(gangDto.getGangFrom());
+                    gang.setGangTo(gangDto.getGangTo());
+                    gang.setGangNo(gangDto.getGangNo());
+                    gang.setSleeperType(gangDto.getSleeperType());
+                    gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+
+                    gang.setDeclaration(entity);
+
+                    gangList.add(gang);
+                }
+            }
+
+            entity.setGangs(gangList);
+
+            repository.save(entity);
+
+            return getById(entity.getId());
         }
 
-
-        // ===== SUMMARY CALCULATION =====
-
-        calculateSummary(entity);
-
-
-        ProductionDeclaration saved =
-                repository.save(entity);
-
-        return mapToResponse(saved);
-    }
-
-
-    // ================= UPDATE =================
-
     @Override
-    public PProductionDeclarationRequestDto update(
+    public ProductionDeclarationResponseDto update(
             Long id,
             ProductionDeclarationRequestDto dto) {
 
-        ProductionDeclaration entity =
-                repository.findById(id)
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Record not found")));
+        ProductionDeclaration entity = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Record not found"));
 
+        // ===== Header Fields =====
 
         entity.setPlantType(dto.getPlantType());
         entity.setProductionUnit(dto.getProductionUnit());
+        LocalDate cDate = CommonUtils.convertStringToDateObject(dto.getCastingDate());
 
-        if (dto.getCastingDate() != null) {
-            entity.setCastingDate(
-                    CommonUtils.convertStringToDateObject(
-                            dto.getCastingDate()));
-        }
-
+        entity.setCastingDate(cDate);
         entity.setShift(dto.getShift());
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setMixDesignReference(dto.getMixDesignReference());
+        LocalTime pTime = CommonUtils.convertStringToTimeObject(dto.getLbcTime());
 
-        if (dto.getLbcTime() != null) {
-            entity.setLbcTime(
-                    CommonUtils.convertStringToTimeObject(
-                            dto.getLbcTime()));
-        }
+
+        entity.setLbcTime(pTime);
+
+        entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
+        entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
+        entity.setTotalRft(dto.getTotalRft());
 
         entity.setRemarks(dto.getRemarks());
 
@@ -156,243 +164,231 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         entity.setUpdatedDate(LocalDateTime.now());
 
 
-        entity.getChambers().clear();
+        // ===== CLEAR OLD DATA =====
 
+        entity.getChambers().clear();
+        entity.getGangs().clear();
+
+
+        // ===== STRESS CHAMBERS =====
 
         if (dto.getChambers() != null) {
 
-            for (ProductionChamberRequestDto cDto :
-                    dto.getChambers()) {
+            for (ProductionStressChamberRequestDto chamberDto : dto.getChambers()) {
 
-                ProductionChamber chamber =
-                        new ProductionChamber();
+                ProductionStressChamber chamber = new ProductionStressChamber();
 
-                chamber.setChamberNo(cDto.getChamberNo());
+                chamber.setChamberNo(chamberDto.getChamberNo());
                 chamber.setDeclaration(entity);
 
                 entity.getChambers().add(chamber);
 
 
-                if (cDto.getBenches() != null) {
+                if (chamberDto.getBenchGroups() != null) {
 
-                    for (ProductionDeclarationResponseDto bDto :
-                            cDto.getBenches()) {
+                    for (ProductionBenchGroupRequestDto benchDto : chamberDto.getBenchGroups()) {
 
-                        ProductionBench bench =
-                                new ProductionBench();
+                        ProductionBenchGroup bench = new ProductionBenchGroup();
 
-                        bench.setBenchNo(
-                                bDto.getBenchNumbers());
-                        bench.setCount(bDto.getCount());
-                        bench.setSleeperType(
-                                bDto.getSleeperType());
-                        bench.setMouldPerBench(
-                                bDto.getMouldPerBench());
-                        bench.setRftMeters(
-                                bDto.getRftMeters());
+                        bench.setBenchNo(benchDto.getBenchNo());
+                        bench.setSleeperType(benchDto.getSleeperType());
+                        bench.setMouldPerBench(benchDto.getMouldPerBench());
+                        bench.setRft(benchDto.getRft());
 
                         bench.setChamber(chamber);
 
-                        chamber.getBenches().add(bench);
+                        chamber.getBenchGroups().add(bench);
+
+
+                        if (benchDto.getSleepers() != null) {
+
+                            for (String sleeperNo : benchDto.getSleepers()) {
+
+                                ProductionSleeper sleeper = new ProductionSleeper();
+
+                                sleeper.setSleeperNo(sleeperNo);
+                                sleeper.setBenchGroup(bench);
+
+                                bench.getSleepers().add(sleeper);
+                            }
+                        }
                     }
                 }
             }
         }
 
 
-        calculateSummary(entity);
+        // ===== LONG LINE =====
 
+        if (dto.getGangs() != null) {
 
-        ProductionDeclaration updated =
-                repository.save(entity);
+            for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
 
-        return mapToResponse(updated);
-    }
+                ProductionLongLineGang gang = new ProductionLongLineGang();
 
+                gang.setMode(gangDto.getMode());
+                gang.setGangFrom(gangDto.getGangFrom());
+                gang.setGangTo(gangDto.getGangTo());
+                gang.setGangNo(gangDto.getGangNo());
+                gang.setSleeperType(gangDto.getSleeperType());
+                gang.setMouldsPerGang(gangDto.getMouldsPerGang());
 
-    // ================= GET =================
+                gang.setDeclaration(entity);
 
-    @Override
-    public PProductionDeclarationRequestDto getById(
-            Long id) {
-
-        ProductionDeclaration entity =
-                repository.findById(id)
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Record not found")));
-
-        return mapToResponse(entity);
-    }
-
-
-    @Override
-    public List<PProductionDeclarationRequestDto> getAll() {
-
-        return repository.findAll()
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
-
-
-    @Override
-    public void delete(Long id) {
-
-        ProductionDeclaration entity =
-                repository.findById(id)
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Record not found")));
-        repository.deleteById(entity.getId());
-    }
-
-
-    // ================= SUMMARY =================
-
-    private void calculateSummary(
-            ProductionDeclaration entity) {
-
-        int totalSleepers = 0;
-        double totalRft = 0;
-        Set<String> sleeperTypes = new HashSet<>();
-
-        for (ProductionChamber chamber :
-                entity.getChambers()) {
-
-            for (ProductionBench bench :
-                    chamber.getBenches()) {
-
-                if (bench.getMouldPerBench() != null)
-                    totalSleepers += bench.getMouldPerBench();
-
-                if (bench.getRftMeters() != null)
-                    totalRft += bench.getRftMeters();
-
-                if (bench.getSleeperType() != null)
-                    sleeperTypes.add(
-                            bench.getSleeperType());
+                entity.getGangs().add(gang);
             }
         }
 
-        entity.setTotalCastedSleepers(totalSleepers);
-        entity.setTotalRftCasted(totalRft);
-        entity.setTotalSleeperTypes(sleeperTypes.size());
+        repository.save(entity);
+
+        // return full response
+        return getById(entity.getId());
     }
 
+    @Override
+    public ProductionDeclarationResponseDto getById(Long id) {
 
-    // ================= RESPONSE MAPPER =================
+        ProductionDeclaration entity = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Record not found"));
 
-    private PProductionDeclarationRequestDto mapToResponse(
-            ProductionDeclaration entity) {
+        ProductionDeclarationResponseDto response =
+                new ProductionDeclarationResponseDto();
 
-        PProductionDeclarationRequestDto dto =
-                new PProductionDeclarationRequestDto();
+        response.setId(entity.getId());
+        response.setPlantType(entity.getPlantType());
+        response.setProductionUnit(entity.getProductionUnit());
+        response.setCastingDate(CommonUtils.convertDateToString(entity.getCastingDate()));
+        response.setShift(entity.getShift());
+        response.setBatchNumber(entity.getBatchNumber());
+        response.setMixDesignReference(entity.getMixDesignReference());
+        response.setLbcTime(entity.getLbcTime());
 
-        dto.setId(entity.getId());
-        dto.setPlantType(entity.getPlantType());
-        dto.setProductionUnit(entity.getProductionUnit());
+        response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
+        response.setTotalSleeperTypes(entity.getTotalSleeperTypes());
+        response.setTotalRft(entity.getTotalRft());
 
-        if (entity.getCastingDate() != null) {
-            dto.setCastingDate(
-                    CommonUtils.convertDateToString(
-                            entity.getCastingDate()));
-        }
+        response.setRemarks(entity.getRemarks());
 
-        dto.setShift(entity.getShift());
-        dto.setBatchNumber(entity.getBatchNumber());
-        dto.setMixDesignReference(
-                entity.getMixDesignReference());
-
-        if (entity.getLbcTime() != null) {
-            dto.setLbcTime(entity.getLbcTime().toString());
-        }
-
-        // ===== SUMMARY =====
-
-        dto.setTotalCastedSleepers(
-                entity.getTotalCastedSleepers());
-
-        dto.setTotalRftCasted(
-                entity.getTotalRftCasted());
-
-        dto.setTotalSleeperTypes(
-                entity.getTotalSleeperTypes());
-
-        dto.setRemarks(entity.getRemarks());
+        response.setCreatedBy(entity.getCreatedBy());
+        response.setCreatedDate(entity.getCreatedDate());
+        response.setUpdatedBy(entity.getUpdatedBy());
+        response.setUpdatedDate(entity.getUpdatedDate());
 
 
-        // ===== CHAMBERS =====
+
+        // ================= STRESS BENCH =================
 
         if (entity.getChambers() != null) {
 
-            List<ProductionStressChamberRequestDto> chamberDtos =
-                    entity.getChambers()
-                            .stream()
-                            .map(chamber -> {
+            List<ProductionStressChamberResponseDto> chamberList =
+                    new ArrayList<>();
 
-                                ProductionStressChamberRequestDto cDto =
-                                        new ProductionStressChamberRequestDto();
+            for (ProductionStressChamber chamber : entity.getChambers()) {
 
-                                cDto.setId(chamber.getId());
-                                cDto.setChamberNo(
-                                        chamber.getChamberNo());
+                ProductionStressChamberResponseDto chamberDto =
+                        new ProductionStressChamberResponseDto();
 
+                chamberDto.setId(chamber.getId());
+                chamberDto.setChamberNo(chamber.getChamberNo());
 
-                                // ===== BENCHES =====
+                List<ProductionBenchGroupResponseDto> benchList =
+                        new ArrayList<>();
 
-                                if (chamber.getBenches() != null) {
+                if (chamber.getBenchGroups() != null) {
 
-                                    List<ProductionBenchGroupRequestDto> benchDtos =
-                                            chamber.getBenches()
-                                                    .stream()
-                                                    .map(bench -> {
+                    for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
 
-                                                        ProductionBenchGroupRequestDto bDto =
-                                                                new ProductionBenchGroupRequestDto();
+                        ProductionBenchGroupResponseDto benchDto =
+                                new ProductionBenchGroupResponseDto();
 
-                                                        bDto.setId(
-                                                                bench.getId());
+                        benchDto.setId(bench.getId());
+                        benchDto.setBenchNo(bench.getBenchNo());
+                        benchDto.setSleeperType(bench.getSleeperType());
+                        benchDto.setMouldPerBench(bench.getMouldPerBench());
+                        benchDto.setRft(bench.getRft());
 
-                                                        bDto.setBenchNumbers(
-                                                                bench.getBenchNo());
+                        List<String> sleeperNumbers = new ArrayList<>();
 
-                                                        bDto.setCount(
-                                                                bench.getCount());
+                        if (bench.getSleepers() != null) {
 
-                                                        bDto.setSleeperType(
-                                                                bench.getSleeperType());
+                            for (ProductionSleeper sleeper : bench.getSleepers()) {
 
-                                                        bDto.setMouldPerBench(
-                                                                bench.getMouldPerBench());
+                                sleeperNumbers.add(sleeper.getSleeperNo());
+                            }
+                        }
 
-                                                        bDto.setRftMeters(
-                                                                bench.getRftMeters());
+                        benchDto.setSleepers(sleeperNumbers);
 
-                                                        return bDto;
+                        benchList.add(benchDto);
+                    }
+                }
 
-                                                    })
-                                                    .toList();
+                chamberDto.setBenchGroups(benchList);
 
-                                    cDto.setBenches(benchDtos);
-                                }
+                chamberList.add(chamberDto);
+            }
 
-                                return cDto;
-
-                            })
-                            .toList();
-
-            dto.setChambers(chamberDtos);
+            response.setChambers(chamberList);
         }
 
-        return dto;
+
+
+        // ================= LONG LINE =================
+
+        if (entity.getGangs() != null) {
+
+            List<ProductionLongLineGangResponseDto> gangList =
+                    new ArrayList<>();
+
+            for (ProductionLongLineGang gang : entity.getGangs()) {
+
+                ProductionLongLineGangResponseDto gangDto =
+                        new ProductionLongLineGangResponseDto();
+
+                gangDto.setId(gang.getId());
+                gangDto.setMode(gang.getMode());
+                gangDto.setGangFrom(gang.getGangFrom());
+                gangDto.setGangTo(gang.getGangTo());
+                gangDto.setGangNo(gang.getGangNo());
+                gangDto.setSleeperType(gang.getSleeperType());
+                gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+
+                gangList.add(gangDto);
+            }
+
+            response.setGangs(gangList);
+        }
+
+        return response;
     }
 
+    @Override
+    public void delete(Long id) {
+//        PlantProfile entity = repository.findById(id)
+//                .orElseThrow(() -> new BusinessException(
+//                        new ErrorDetails(
+//                                AppConstant.ERROR_CODE_RESOURCE,
+//                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+//                                AppConstant.ERROR_TYPE_VALIDATION,
+//                                "Plant Profile not found")));
+
+        repository.deleteById(id);
     }
+
+    @Override
+    public List<ProductionDeclarationResponseDto> getAll() {
+
+        List<ProductionDeclarationResponseDto> list = new ArrayList<>();
+
+        for (ProductionDeclaration entity : repository.findAll()) {
+
+            list.add(getById(entity.getId()));
+        }
+
+        return list;
+    }
+
+
+
+}
 

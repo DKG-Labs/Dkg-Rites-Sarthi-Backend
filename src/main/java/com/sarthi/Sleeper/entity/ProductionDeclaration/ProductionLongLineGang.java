@@ -1,9 +1,11 @@
 package com.sarthi.Sleeper.entity.ProductionDeclaration;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
 @Table(name="production_longline_gang")
+@Data
 public class ProductionLongLineGang {
 
     @Id

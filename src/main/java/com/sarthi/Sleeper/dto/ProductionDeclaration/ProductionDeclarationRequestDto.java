@@ -25,6 +25,7 @@ public class ProductionDeclarationRequestDto {
     private String remarks;
 
     private Long createdBy;
+    private Long updatedBy;
 
     private List<ProductionStressChamberRequestDto> chambers;
 

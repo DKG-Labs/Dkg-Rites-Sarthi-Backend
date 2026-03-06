@@ -1,21 +1,19 @@
 package com.sarthi.Sleeper.service;
 
-import com.sarthi.Sleeper.dto.ProductionDeclaration.PProductionDeclarationRequestDto;
+import com.sarthi.Sleeper.dto.ProductionDeclaration.ProductionDeclarationRequestDto;
+import com.sarthi.Sleeper.dto.ProductionDeclaration.ProductionDeclarationResponseDto;
 
 import java.util.List;
 
 public interface ProductionDeclarationService {
 
-    PProductionDeclarationRequestDto create(
-            ProductionDeclarationRequestDto dto);
+    ProductionDeclarationResponseDto create(ProductionDeclarationRequestDto dto);
 
-    PProductionDeclarationRequestDto update(
-            Long id,
-            ProductionDeclarationRequestDto dto);
+    ProductionDeclarationResponseDto update(Long id, ProductionDeclarationRequestDto dto);
 
-    PProductionDeclarationRequestDto getById(Long id);
+    ProductionDeclarationResponseDto getById(Long id);
 
-    List<PProductionDeclarationRequestDto> getAll();
+    List<ProductionDeclarationResponseDto> getAll();
 
     void delete(Long id);
 }
