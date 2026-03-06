@@ -255,10 +255,42 @@ public class reportsImpl implements reports {
                         dto.setRawMaterialRejectionPercentage(rmRejectionPct);
 
                         // ================= Process Summary =================
-                        List<Object[]> processResultList = processIeQtyRepository
-                                        .findProcessSummaryByCallNos(callNos);
+//                        List<Object[]> processResultList = processIeQtyRepository
+//                                        .findProcessSummaryByCallNos(callNos);
+                        List<Object[]> processRows = processLineFinalResultRepository
+                                .findProcessLineSummaryByCallNos(callNos);
 
-                        int processAccepted = 0;
+                        double totalManufactured = 0;
+                        double totalRejected = 0;
+
+                        if (processRows != null) {
+
+                                for (Object[] row : processRows) {
+
+                                        if (row[0] != null)
+                                                totalManufactured += ((Number) row[0]).doubleValue();
+
+                                        if (row[1] != null)
+                                                totalRejected += ((Number) row[1]).doubleValue();
+                                }
+                        }
+
+                        int processAccepted = (int) (totalManufactured - totalRejected);
+
+                        dto.setProcessInspectionMaterialAcceptedNos(processAccepted);
+
+                        double processRejectionPct = 0.0;
+
+                        if (totalManufactured > 0) {
+
+                                processRejectionPct = (totalRejected * 100.0) / totalManufactured;
+
+                                processRejectionPct = Math.round(processRejectionPct * 100.0) / 100.0;
+                        }
+
+                        dto.setProcessInspectionMaterialRejectionPercentage(processRejectionPct);
+
+                      /*  int processAccepted = 0;
                         double processRejected = 0.0;
                         double processOffered = 0.0;
 
@@ -286,7 +318,9 @@ public class reportsImpl implements reports {
                         }
 
                         dto.setProcessInspectionMaterialRejectionPercentage(processRejectionPct);
-                }
+
+                       */
+                          }
 
                 return list;
         }
