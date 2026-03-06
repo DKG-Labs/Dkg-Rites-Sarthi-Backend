@@ -110,4 +110,14 @@ WHERE p.inspectionCallNo IN :callNos
 GROUP BY p.inspectionCallNo
 """)
     List<Object[]> findProcessSummaryByCallNos(List<String> callNos);
+
+    @Query("""
+SELECT 
+    SUM(p.totalManufactured),
+    SUM(p.totalRejected)
+FROM ProcessLineFinalResult p
+WHERE p.inspectionCallNo IN :callNos
+GROUP BY p.inspectionCallNo
+""")
+    List<Object[]> findProcessLineSummaryByCallNos(List<String> callNos);
 }
