@@ -1,8 +1,6 @@
 package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.ProductionDeclaration.*;
-import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionBench;
-import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionChamber;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.service.ProductionDeclarationService;
@@ -30,7 +28,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     // ================= CREATE =================
 
     @Override
-    public ProductionDeclarationResponseDto create(
+    public PProductionDeclarationRequestDto create(
             ProductionDeclarationRequestDto dto) {
 
         ProductionDeclaration entity =
@@ -79,7 +77,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
                 if (cDto.getBenches() != null) {
 
-                    for (ProductionBenchRequestDto bDto :
+                    for (ProductionDeclarationResponseDto bDto :
                             cDto.getBenches()) {
 
                         ProductionBench bench =
@@ -119,7 +117,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     // ================= UPDATE =================
 
     @Override
-    public ProductionDeclarationResponseDto update(
+    public PProductionDeclarationRequestDto update(
             Long id,
             ProductionDeclarationRequestDto dto) {
 
@@ -177,7 +175,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
                 if (cDto.getBenches() != null) {
 
-                    for (ProductionBenchRequestDto bDto :
+                    for (ProductionDeclarationResponseDto bDto :
                             cDto.getBenches()) {
 
                         ProductionBench bench =
@@ -215,7 +213,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     // ================= GET =================
 
     @Override
-    public ProductionDeclarationResponseDto getById(
+    public PProductionDeclarationRequestDto getById(
             Long id) {
 
         ProductionDeclaration entity =
@@ -232,7 +230,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
 
     @Override
-    public List<ProductionDeclarationResponseDto> getAll() {
+    public List<PProductionDeclarationRequestDto> getAll() {
 
         return repository.findAll()
                 .stream()
@@ -291,11 +289,11 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
     // ================= RESPONSE MAPPER =================
 
-    private ProductionDeclarationResponseDto mapToResponse(
+    private PProductionDeclarationRequestDto mapToResponse(
             ProductionDeclaration entity) {
 
-        ProductionDeclarationResponseDto dto =
-                new ProductionDeclarationResponseDto();
+        PProductionDeclarationRequestDto dto =
+                new PProductionDeclarationRequestDto();
 
         dto.setId(entity.getId());
         dto.setPlantType(entity.getPlantType());
@@ -334,13 +332,13 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         if (entity.getChambers() != null) {
 
-            List<ProductionChamberResponseDto> chamberDtos =
+            List<ProductionStressChamberRequestDto> chamberDtos =
                     entity.getChambers()
                             .stream()
                             .map(chamber -> {
 
-                                ProductionChamberResponseDto cDto =
-                                        new ProductionChamberResponseDto();
+                                ProductionStressChamberRequestDto cDto =
+                                        new ProductionStressChamberRequestDto();
 
                                 cDto.setId(chamber.getId());
                                 cDto.setChamberNo(
@@ -351,13 +349,13 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
                                 if (chamber.getBenches() != null) {
 
-                                    List<ProductionBenchResponseDto> benchDtos =
+                                    List<ProductionBenchGroupRequestDto> benchDtos =
                                             chamber.getBenches()
                                                     .stream()
                                                     .map(bench -> {
 
-                                                        ProductionBenchResponseDto bDto =
-                                                                new ProductionBenchResponseDto();
+                                                        ProductionBenchGroupRequestDto bDto =
+                                                                new ProductionBenchGroupRequestDto();
 
                                                         bDto.setId(
                                                                 bench.getId());

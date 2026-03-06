@@ -9,22 +9,25 @@ public class ProductionDeclarationRequestDto {
 
     private String plantType;
     private String productionUnit;
+
     private String castingDate;
     private String shift;
 
     private String batchNumber;
     private String mixDesignReference;
+
     private String lbcTime;
 
     private Integer totalCastedSleepers;
     private Integer totalSleeperTypes;
-    private Double totalRftCasted;
-
+    private Double totalRft;
 
     private String remarks;
 
-    private Integer createdBy;
-    private Integer updatedBy;
+    private Long createdBy;
 
-    private List<ProductionChamberRequestDto> chambers;
+    private List<ProductionStressChamberRequestDto> chambers;
+
+    private List<ProductionLongLineGangRequestDto> gangs;
+
 }

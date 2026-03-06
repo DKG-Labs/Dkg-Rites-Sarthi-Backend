@@ -52,8 +52,8 @@ public class ProductionDeclaration {
 
         // STRESS BENCH RELATION
 
-     //   @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
-    //    private List<ProductionStressChamber> chambers;
+        @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
+        private List<ProductionStressChamber> chambers;
 
         // LONG LINE RELATION
 
