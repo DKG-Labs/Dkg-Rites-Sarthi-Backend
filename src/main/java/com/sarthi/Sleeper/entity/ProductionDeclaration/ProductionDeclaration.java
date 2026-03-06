@@ -14,39 +14,51 @@ import java.util.List;
 @Data
 public class ProductionDeclaration {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
 
-    private String plantType;
-    private String productionUnit;
-    private LocalDate castingDate;
-    private String shift;
+        private String plantType;
 
-    private String batchNumber;
-    private String mixDesignReference;
-    private LocalTime lbcTime;
+        private String productionUnit;
 
-    // ===== SUMMARY SECTION =====
+        private LocalDate castingDate;
 
-    private Integer totalCastedSleepers;
-    private Integer totalSleeperTypes;
-    private Double totalRftCasted;
+        private String shift;
 
-    private String remarks;
+        private String batchNumber;
 
-    // ===== AUDIT =====
+        private String mixDesignReference;
 
-    private Integer createdBy;
-    private Integer updatedBy;
-    private LocalDateTime createdDate;
-    private LocalDateTime updatedDate;
+        private LocalTime lbcTime;
+
+        // SUMMARY FIELDS
+
+        private Integer totalCastedSleepers;
+
+        private Integer totalSleeperTypes;
+
+        private Double totalRft;
+
+        private String remarks;
+
+        private Long createdBy;
+
+        private LocalDateTime createdDate;
+
+        private Long updatedBy;
+
+        private LocalDateTime updatedDate;
+
+        // STRESS BENCH RELATION
+
+     //   @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
+    //    private List<ProductionStressChamber> chambers;
+
+        // LONG LINE RELATION
+
+        @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
+        private List<ProductionLongLineGang> gangs;
 
 
-    @OneToMany(
-            mappedBy = "declaration",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
-    private List<ProductionChamber> chambers = new ArrayList<>();
 }
