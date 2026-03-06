@@ -26,7 +26,6 @@ public class VendorPoServiceImpl implements VendorPoService {
         return poHeaders.stream().map(this::mapToHeaderDto).toList();
     }
 
-
     private VendorPoHeaderResponseDto mapToHeaderDto(PoHeader poHeader) {
 
         VendorPoHeaderResponseDto dto = new VendorPoHeaderResponseDto();
@@ -35,17 +34,17 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setPoDate(
                 poHeader.getPoDate() != null
                         ? poHeader.getPoDate().toLocalDate().toString()
-                        : null
-        );
+                        : null);
         dto.setPoDes(poHeader.getFirmDetails());
         dto.setUnit("Nos");
+        dto.setRlyShortName(poHeader.getRlyShortName());
+        dto.setRlyCd(poHeader.getRlyCd());
 
         BigDecimal totalQty = poHeader.getItems().stream()
                 .map(item -> BigDecimal.valueOf(item.getQty()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         dto.setQty(totalQty);
-
 
         List<VendorPoItemsResponseDto> itemDtos = poHeader.getItems()
                 .stream()
@@ -69,8 +68,7 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setDeliveryPeriod(
                 item.getDeliveryDate() != null
                         ? item.getDeliveryDate().toLocalDate().toString()
-                        : null
-        );
+                        : null);
 
         return dto;
     }
