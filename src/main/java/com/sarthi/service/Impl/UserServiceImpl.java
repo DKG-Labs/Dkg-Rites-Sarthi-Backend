@@ -16,6 +16,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.List;
@@ -63,6 +64,8 @@ public class UserServiceImpl implements UserService {
     private IePoiMappingRepository iePoiMappingRepository;
     @Autowired
     private PincodePoIMappingRepository pincodePoIMappingRepository;
+
+
 
     /*
      * @Override
@@ -713,5 +716,49 @@ public class UserServiceImpl implements UserService {
         } catch (NumberFormatException e) {
             return 1L; // Default to system/admin ID if not a number
         }
+    }
+
+
+    @Override
+    public List<CompanyUnitIeResponseDto> getAllCompanyMappedIe() {
+
+        List<Object[]> rows = pincodePoIMappingRepository.findAllCompanyUnitIe();
+
+        List<CompanyUnitIeResponseDto> list = new ArrayList<>();
+
+        for (Object[] r : rows) {
+
+            CompanyUnitIeResponseDto dto = new CompanyUnitIeResponseDto();
+
+            dto.setCompanyName((String) r[0]);
+            dto.setUnitName((String) r[1]);
+            dto.setEmployeeCode((String) r[2]);
+            dto.setRio((String) r[3]);
+
+            list.add(dto);
+        }
+
+        return list;
+    }
+
+    @Override
+    public List<CompanyUnitProcessIeDto> getCompanyUnitProcessIe() {
+
+        List<Object[]> rows = pincodePoIMappingRepository.findCompanyUnitEmployees();
+
+        List<CompanyUnitProcessIeDto> list = new ArrayList<>();
+
+        for (Object[] r : rows) {
+
+            CompanyUnitProcessIeDto dto = new CompanyUnitProcessIeDto();
+
+            dto.setCompanyName((String) r[0]);
+            dto.setUnitName((String) r[1]);
+            dto.setEmployeeCode((String) r[2]);
+
+            list.add(dto);
+        }
+
+        return list;
     }
 }
