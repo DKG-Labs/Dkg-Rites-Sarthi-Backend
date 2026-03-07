@@ -22,4 +22,6 @@ public class StressBenchResponseDto {
     private Long createdBy;
     private LocalDateTime createdDate;
 
+    private Long updatedBy;
+    private LocalDateTime updatedDate;
 }

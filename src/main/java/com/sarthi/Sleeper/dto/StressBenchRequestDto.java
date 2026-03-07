@@ -16,5 +16,6 @@ public class StressBenchRequestDto {
 
     private String sleeperCategory;
     private Integer mouldsPerBench;
+    private Long createdBy;
 
 }

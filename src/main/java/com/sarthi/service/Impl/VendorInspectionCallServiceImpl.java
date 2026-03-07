@@ -12,6 +12,7 @@ import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
 import com.sarthi.repository.PoHeaderRepository;
 import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.repository.WorkflowTransitionRepository;
+import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
 import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
@@ -59,7 +60,7 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
     @Autowired
     private RmHeatQuantityRepository rmHeatQuantityRepository;
     @Autowired
-    private FinalInspectionDetailsRepository finalInspectionLotDetailsRepository;
+    private FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
 
     @Override
     @Transactional(readOnly = true)

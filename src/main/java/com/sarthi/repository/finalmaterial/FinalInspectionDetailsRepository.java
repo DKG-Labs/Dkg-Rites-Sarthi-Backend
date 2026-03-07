@@ -35,6 +35,6 @@ public interface FinalInspectionDetailsRepository extends JpaRepository<FinalIns
     @Query("SELECT fd FROM FinalInspectionDetails fd JOIN FETCH fd.inspectionCall WHERE fd.inspectionCall.icNumber = :icNumber")
     Optional<FinalInspectionDetails> findByIcNumberWithCall(@Param("icNumber") String icNumber);
 
-    List<FinalInspectionLotDetails> findByFinalDetailId(Long id);
+
 }
 

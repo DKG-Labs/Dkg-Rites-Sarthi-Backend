@@ -9,14 +9,14 @@ import java.util.List;
 @Service
 public interface StressBenchMasterService {
 
-    /*  StressBenchResponseDto createBench(StressBenchRequestDto dto, Long userId);
+   public StressBenchResponseDto createBench(StressBenchRequestDto dto);
 
-    StressBenchResponseDto updateBench(Long id, StressBenchRequestDto dto, Long userId);
+   public StressBenchResponseDto updateBench(Long id, StressBenchRequestDto dto);
 
-    StressBenchResponseDto getBenchById(Long id);
+   public StressBenchResponseDto getBenchById(Long id);
 
-    List<StressBenchResponseDto> getAllBenches();
+   public List<StressBenchResponseDto> getAllBenches();
 
-    void deleteBench(Long id); */
+   public void deleteBench(Long id);
 
 }

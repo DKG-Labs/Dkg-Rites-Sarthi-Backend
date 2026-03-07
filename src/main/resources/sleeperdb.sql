@@ -558,3 +558,26 @@ CREATE TABLE mix_design (
     updated_by INT,
     updated_date DATETIME
 );
+
+
+CREATE TABLE stress_bench_master (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    bench_no INT NULL,
+    bench_from INT NULL,
+    bench_to INT NULL,
+
+    no_of_benches INT,
+
+    sleeper_category VARCHAR(50),
+
+    moulds_per_bench INT,
+
+    entry_type VARCHAR(20),   -- RANGE or SINGLE
+
+    created_by BIGINT,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_by BIGINT,
+    updated_date TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP
+);

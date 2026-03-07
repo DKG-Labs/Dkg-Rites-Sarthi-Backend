@@ -1,11 +1,13 @@
 package com.sarthi.Sleeper.entity;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "stress_bench_master")
+@Data
 public class StressBenchMaster {
 
     @Id
