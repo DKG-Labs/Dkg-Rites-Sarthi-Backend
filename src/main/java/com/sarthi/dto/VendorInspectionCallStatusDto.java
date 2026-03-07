@@ -37,9 +37,7 @@ public class VendorInspectionCallStatusDto {
     private String jobStatus;          // Job status from workflow
     
     /* ==================== Additional Information ==================== */
-<<<<<<< HEAD
-    
-=======
+
 
     private String rlyShortName;
     private String rlyCd;
@@ -51,7 +49,6 @@ public class VendorInspectionCallStatusDto {
     private String uom;
     private String scheduledDate;
 
->>>>>>> kishore-mergefix
     private String companyName;
     private String unitName;
     private String createdAt;

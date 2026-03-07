@@ -1,11 +1,13 @@
 package com.sarthi.repository.finalmaterial;
 
 import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
+import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -32,5 +34,7 @@ public interface FinalInspectionDetailsRepository extends JpaRepository<FinalIns
 
     @Query("SELECT fd FROM FinalInspectionDetails fd JOIN FETCH fd.inspectionCall WHERE fd.inspectionCall.icNumber = :icNumber")
     Optional<FinalInspectionDetails> findByIcNumberWithCall(@Param("icNumber") String icNumber);
+
+    List<FinalInspectionLotDetails> findByFinalDetailId(Long id);
 }
 
