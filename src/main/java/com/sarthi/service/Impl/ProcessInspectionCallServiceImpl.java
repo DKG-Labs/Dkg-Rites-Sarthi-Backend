@@ -178,25 +178,49 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
             logger.info("🎉 Successfully saved {} lots for Process IC: {}", lotCounter, inspectionCall.getIcNumber());
 
             // ================== 3. CREATE PROCESS RM IC MAPPING ==================
-            // Create mapping entries for each lot-heat combination (only if RM IC exists)
-            if (rmIc != null) {
-                for (ProcessInspectionDetailsRequestDto detail : processDetailsList) {
-                    ProcessRmIcMapping mapping = new ProcessRmIcMapping();
+            // The rmIcNumberFromRequest may be comma-separated (multiple RM ICs selected).
+            // We split it and create ONE mapping row per RM IC (correct relational design).
+            if (rmIcNumberFromRequest != null && !rmIcNumberFromRequest.isEmpty()) {
+                String[] allRmIcNumbers = rmIcNumberFromRequest.split(",");
 
-                    mapping.setProcessIcId(inspectionCall.getId());
-                    mapping.setRmIcId(rmIc.getId());
-                    mapping.setRmIcNumber(detail.getRmIcNumber());
-                    mapping.setHeatNumber(detail.getHeatNumber());
-                    mapping.setManufacturer(detail.getManufacturer());
-                    mapping.setRmQtyAccepted(
-                            detail.getTotalAcceptedQtyRm() != null ? detail.getTotalAcceptedQtyRm() : 0);
-                    mapping.setRmIcDate(rmIc.getDesiredInspectionDate());
+                for (String rawRmIcEntry : allRmIcNumbers) {
+                    String singleCertNo = rawRmIcEntry.trim();
 
-                    processMappingRepository.save(mapping);
-                    logger.info("✅ Process RM IC Mapping saved for heat: {}", detail.getHeatNumber());
+                    // Extract call number from certificate format "N/ER-xxxxx/RAJK"
+                    String singleCallNo = singleCertNo;
+                    if (singleCertNo.startsWith("N/")) {
+                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("N/([^/]+)/");
+                        java.util.regex.Matcher m = p.matcher(singleCertNo);
+                        if (m.find()) {
+                            singleCallNo = m.group(1);
+                        }
+                    }
+
+                    InspectionCall singleRmIc = inspectionCallRepository.findByIcNumber(singleCallNo).orElse(null);
+                    if (singleRmIc == null) {
+                        logger.warn("⚠️ RM IC not found for '{}' (extracted: '{}'). Skipping mapping row.",
+                                singleCertNo, singleCallNo);
+                        continue;
+                    }
+
+                    for (ProcessInspectionDetailsRequestDto detail : processDetailsList) {
+                        ProcessRmIcMapping mapping = new ProcessRmIcMapping();
+
+                        mapping.setProcessIcId(inspectionCall.getId());
+                        mapping.setRmIcId(singleRmIc.getId());
+                        mapping.setRmIcNumber(singleCertNo); // ← single IC number, no truncation
+                        mapping.setHeatNumber(detail.getHeatNumber());
+                        mapping.setManufacturer(detail.getManufacturer());
+                        mapping.setRmQtyAccepted(
+                                detail.getTotalAcceptedQtyRm() != null ? detail.getTotalAcceptedQtyRm() : 0);
+                        mapping.setRmIcDate(singleRmIc.getDesiredInspectionDate());
+
+                        processMappingRepository.save(mapping);
+                        logger.info("✅ Mapping saved: RmIC={} Heat={}", singleCertNo, detail.getHeatNumber());
+                    }
                 }
             } else {
-                logger.info("⚠️ Skipping Process RM IC Mapping creation - RM IC not found");
+                logger.info("⚠️ Skipping Process RM IC Mapping creation - no RM IC numbers provided");
             }
         }
 

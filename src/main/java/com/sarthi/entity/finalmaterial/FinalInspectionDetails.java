@@ -31,13 +31,17 @@ public class FinalInspectionDetails {
     @ToString.Exclude
     private InspectionCall inspectionCall;
 
-    // ---- REFERENCE TO PARENT RM IC ----
-    private Long rmIcId;
-    private String rmIcNumber;
+    // ---- REFERENCE TO PARENT RM ICs (comma-separated if multiple) ----
+    private Long rmIcId; // Primary RM IC id (first one)
 
-    // ---- REFERENCE TO PARENT PROCESS IC ----
-    private Long processIcId;
-    private String processIcNumber;
+    @Column(columnDefinition = "TEXT")
+    private String rmIcNumber; // Comma-separated RM IC numbers
+
+    // ---- REFERENCE TO PARENT PROCESS ICs (comma-separated if multiple) ----
+    private Long processIcId; // Primary Process IC id (first one)
+
+    @Column(columnDefinition = "TEXT")
+    private String processIcNumber; // Comma-separated Process IC numbers
 
     // ---- PLACE OF INSPECTION (SAME AS RM IC & PROCESS IC) ----
     private Integer companyId;
@@ -69,4 +73,3 @@ public class FinalInspectionDetails {
         updatedAt = LocalDateTime.now();
     }
 }
-
