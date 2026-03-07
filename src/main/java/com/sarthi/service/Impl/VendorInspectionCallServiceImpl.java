@@ -1,13 +1,19 @@
 package com.sarthi.service.Impl;
 
 import com.sarthi.dto.VendorInspectionCallStatusDto;
+import com.sarthi.entity.PoHeader;
+import com.sarthi.entity.UserMaster;
 import com.sarthi.entity.WorkflowTransition;
+import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmInspectionDetails;
 import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
 import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
+import com.sarthi.repository.PoHeaderRepository;
+import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.repository.WorkflowTransitionRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
+import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
 import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
@@ -46,6 +52,14 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
     @Autowired
     private FinalInspectionDetailsRepository finalInspectionDetailsRepository;
+    @Autowired
+    private PoHeaderRepository  poHeaderRepository;
+    @Autowired
+    private UserMasterRepository userMasterRepository;
+    @Autowired
+    private RmHeatQuantityRepository rmHeatQuantityRepository;
+    @Autowired
+    private FinalInspectionDetailsRepository finalInspectionLotDetailsRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -79,6 +93,65 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         String itemName = getItemName(ic);
         Integer quantityOffered = getQuantityOffered(ic);
 
+
+        // Fetch PoHeader for Railway Short Name
+        String rlyShortName = "N/A";
+        String rlyCd = "N/A";
+        Optional<PoHeader> ph = poHeaderRepository.findByPoNo(ic.getPoNo());
+        if (ph.isPresent()) {
+            rlyShortName = ph.get().getRlyShortName();
+            rlyCd = ph.get().getRlyCd();
+        }
+
+        // Fetch IE Name from UserMaster
+        String ieName = "Not Assigned";
+        if (latestTransition != null && latestTransition.getAssignedToUser() != null) {
+            ieName = userMasterRepository.findByUserId(latestTransition.getAssignedToUser())
+                    .map(UserMaster::getFullName)
+                    .orElse("Not Assigned");
+        } else if (latestTransition != null && latestTransition.getProcessIeUserId() != null) {
+            ieName = userMasterRepository.findByUserId(latestTransition.getProcessIeUserId())
+                    .map(UserMaster::getFullName)
+                    .orElse("Not Assigned");
+        }
+
+        // Get Heats/Lots count
+        Integer noOfHeatsRM = null;
+        String lotNoProcess = null;
+        String lotNoFinal = null;
+        String uom = "N/A";
+
+        if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall())) {
+            Optional<RmInspectionDetails> rmDetails = rmInspectionDetailsRepository.findByIcId(ic.getId());
+            if (rmDetails.isPresent()) {
+                noOfHeatsRM = rmHeatQuantityRepository.findByRmDetailId(rmDetails.get().getId().intValue()).size();
+                uom = rmDetails.get().getUnitOfMeasurement();
+            }
+        } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall())) {
+            List<ProcessInspectionDetails> processList = processInspectionDetailsRepository.findByIcId(ic.getId());
+            if (!processList.isEmpty()) {
+                lotNoProcess = processList.get(0).getLotNumber();
+            }
+        } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
+            Optional<FinalInspectionDetails> finalDetails = finalInspectionDetailsRepository.findByIcId(ic.getId());
+            if (finalDetails.isPresent()) {
+                List<FinalInspectionLotDetails> lots = finalInspectionLotDetailsRepository
+                        .findByFinalDetailId(finalDetails.get().getId());
+                if (!lots.isEmpty()) {
+                    lotNoFinal = lots.get(0).getLotNumber();
+                }
+            }
+        }
+
+        String scheduledDate = null;
+        if (latestTransition != null && "SCHEDULED".equalsIgnoreCase(latestTransition.getStatus())) {
+            // Assuming we might have a scheduled date in the transition or IC
+            // For now, let's check actualInspectionDate or something if available
+            scheduledDate = ic.getActualInspectionDate() != null ? ic.getActualInspectionDate().format(DATE_FORMATTER)
+                    : null;
+        }
+
+
         return VendorInspectionCallStatusDto.builder()
                 .icNumber(ic.getIcNumber())
                 .poNo(ic.getPoNo())
@@ -97,6 +170,17 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                 .unitName(ic.getUnitName())
                 .createdAt(ic.getCreatedAt() != null ? ic.getCreatedAt().format(DATE_FORMATTER) : null)
                 .updatedAt(ic.getUpdatedAt() != null ? ic.getUpdatedAt().format(DATE_FORMATTER) : null)
+
+                .rlyShortName(rlyShortName)
+                .rlyCd(rlyCd)
+                .ercType(ic.getErcType())
+                .noOfHeatsRM(noOfHeatsRM)
+                .lotNoProcess(lotNoProcess)
+                .lotNoFinal(lotNoFinal)
+                .ieName(ieName)
+                .uom(uom)
+                .scheduledDate(scheduledDate)
+
                 .build();
     }
 

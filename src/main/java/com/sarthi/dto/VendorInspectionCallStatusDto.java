@@ -37,7 +37,21 @@ public class VendorInspectionCallStatusDto {
     private String jobStatus;          // Job status from workflow
     
     /* ==================== Additional Information ==================== */
+<<<<<<< HEAD
     
+=======
+
+    private String rlyShortName;
+    private String rlyCd;
+    private String ercType;
+    private Integer noOfHeatsRM;
+    private String lotNoProcess;
+    private String lotNoFinal;
+    private String ieName;
+    private String uom;
+    private String scheduledDate;
+
+>>>>>>> kishore-mergefix
     private String companyName;
     private String unitName;
     private String createdAt;

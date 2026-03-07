@@ -13,7 +13,9 @@ public class VendorPoHeaderResponseDto {
     private String poDes;
     private BigDecimal qty;
     private String unit;
+    private String rlyShortName;
+    private String rlyCd;
 
-   private List<VendorPoItemsResponseDto> poItem;
+    private List<VendorPoItemsResponseDto> poItem;
 
 }

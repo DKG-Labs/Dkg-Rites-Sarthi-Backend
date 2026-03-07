@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -99,4 +100,24 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     Long sumShearingManufacturedLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
+    @Query("""
+SELECT 
+    p.inspectionCallNo,
+    SUM(p.totalManufactured),
+    SUM(p.totalRejected)
+FROM ProcessLineFinalResult p
+WHERE p.inspectionCallNo IN :callNos
+GROUP BY p.inspectionCallNo
+""")
+    List<Object[]> findProcessSummaryByCallNos(List<String> callNos);
+
+    @Query("""
+SELECT 
+    SUM(p.totalManufactured),
+    SUM(p.totalRejected)
+FROM ProcessLineFinalResult p
+WHERE p.inspectionCallNo IN :callNos
+GROUP BY p.inspectionCallNo
+""")
+    List<Object[]> findProcessLineSummaryByCallNos(List<String> callNos);
 }

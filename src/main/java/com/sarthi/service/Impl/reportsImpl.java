@@ -255,10 +255,42 @@ public class reportsImpl implements reports {
                         dto.setRawMaterialRejectionPercentage(rmRejectionPct);
 
                         // ================= Process Summary =================
-                        List<Object[]> processResultList = processIeQtyRepository
-                                        .findProcessSummaryByCallNos(callNos);
+//                        List<Object[]> processResultList = processIeQtyRepository
+//                                        .findProcessSummaryByCallNos(callNos);
+                        List<Object[]> processRows = processLineFinalResultRepository
+                                .findProcessLineSummaryByCallNos(callNos);
 
-                        int processAccepted = 0;
+                        double totalManufactured = 0;
+                        double totalRejected = 0;
+
+                        if (processRows != null) {
+
+                                for (Object[] row : processRows) {
+
+                                        if (row[0] != null)
+                                                totalManufactured += ((Number) row[0]).doubleValue();
+
+                                        if (row[1] != null)
+                                                totalRejected += ((Number) row[1]).doubleValue();
+                                }
+                        }
+
+                        int processAccepted = (int) (totalManufactured - totalRejected);
+
+                        dto.setProcessInspectionMaterialAcceptedNos(processAccepted);
+
+                        double processRejectionPct = 0.0;
+
+                        if (totalManufactured > 0) {
+
+                                processRejectionPct = (totalRejected * 100.0) / totalManufactured;
+
+                                processRejectionPct = Math.round(processRejectionPct * 100.0) / 100.0;
+                        }
+
+                        dto.setProcessInspectionMaterialRejectionPercentage(processRejectionPct);
+
+                      /*  int processAccepted = 0;
                         double processRejected = 0.0;
                         double processOffered = 0.0;
 
@@ -286,7 +318,9 @@ public class reportsImpl implements reports {
                         }
 
                         dto.setProcessInspectionMaterialRejectionPercentage(processRejectionPct);
-                }
+
+                       */
+                          }
 
                 return list;
         }
@@ -575,12 +609,19 @@ public class reportsImpl implements reports {
                                                 r -> (String) r[0],
                                                 r -> (String) r[1]));
 
-                Map<String, Object[]> processMap = processIeQtyRepository
+              /*  Map<String, Object[]> processMap = processIeQtyRepository
                                 .findProcessQtyByCallNos(callNos)
                                 .stream()
                                 .collect(Collectors.toMap(
                                                 r -> (String) r[0],
-                                                r -> r));
+                                                r -> r));*/
+
+                Map<String, Object[]> processMap = processLineFinalResultRepository
+                        .findProcessSummaryByCallNos(callNos)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                r -> (String) r[0],
+                                r -> r));
 
                 Map<String, Object[]> rmMap = rmHeatFinalResultRepository
                                 .findRmSummaryByCallNos(callNos)
@@ -660,7 +701,7 @@ public class reportsImpl implements reports {
                         }
 
                         // PROCESS
-                        else if (callType != null &&
+                        /*  else if (callType != null &&
                                         callType.toUpperCase().contains("PROCESS")) {
 
                                 Object[] row = processMap.get(callNo);
@@ -679,6 +720,28 @@ public class reportsImpl implements reports {
 
                                         if (offered > 0) {
                                                 rejectionPct = (rejected * 100) / offered;
+                                        }
+                                }
+                        }*/
+                        else if (callType != null && callType.toUpperCase().contains("PROCESS")) {
+
+                                Object[] row = processMap.get(callNo);
+
+                                if (row != null) {
+
+                                        double manufactured = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+
+                                        double rejected = row[2] != null ? ((Number) row[2]).doubleValue() : 0;
+
+                                        offeredQty = manufactured;
+                                        acceptedQty = manufactured - rejected;
+                                        balanceQty = rejected;
+
+                                        if (manufactured > 0) {
+
+                                                rejectionPct = (rejected * 100.0) / manufactured;
+
+                                                rejectionPct = Math.round(rejectionPct * 100.0) / 100.0;
                                         }
                                 }
                         }
