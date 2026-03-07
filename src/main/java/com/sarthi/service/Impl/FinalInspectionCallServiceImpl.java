@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Service implementation for Final Inspection Call operations
@@ -114,20 +115,41 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         FinalInspectionDetails finalInspectionDetails = new FinalInspectionDetails();
         finalInspectionDetails.setInspectionCall(inspectionCall);
 
-        // Get RM IC and Process IC IDs from IC numbers
-        Optional<InspectionCall> rmIcOpt = inspectionCallRepository.findByIcNumber(finalDetails.getRmIcNumber());
-        Optional<InspectionCall> processIcOpt = inspectionCallRepository
-                .findByIcNumber(finalDetails.getProcessIcNumber());
+        // ---- Resolve RM IC numbers (support both single and multi-select) ----
+        // If rmIcNumbers list is provided (new multi-select flow), use it; else fall
+        // back to single rmIcNumber
+        List<String> rmIcList = (finalDetails.getRmIcNumbers() != null && !finalDetails.getRmIcNumbers().isEmpty())
+                ? finalDetails.getRmIcNumbers()
+                : (finalDetails.getRmIcNumber() != null ? List.of(finalDetails.getRmIcNumber()) : List.of());
 
+        String rmIcNumbersCsv = rmIcList.stream().collect(Collectors.joining(","));
+        finalInspectionDetails.setRmIcNumber(rmIcNumbersCsv);
+
+        // Set primary RM IC ID using the first IC in the list
+        Optional<InspectionCall> rmIcOpt = rmIcList.isEmpty()
+                ? Optional.empty()
+                : inspectionCallRepository.findByIcNumber(rmIcList.get(0));
         if (rmIcOpt.isPresent()) {
             finalInspectionDetails.setRmIcId(rmIcOpt.get().getId().longValue());
         }
-        finalInspectionDetails.setRmIcNumber(finalDetails.getRmIcNumber());
 
+        // ---- Resolve Process IC numbers (support both single and multi-select) ----
+        List<String> processIcList = (finalDetails.getProcessIcNumbers() != null
+                && !finalDetails.getProcessIcNumbers().isEmpty())
+                        ? finalDetails.getProcessIcNumbers()
+                        : (finalDetails.getProcessIcNumber() != null ? List.of(finalDetails.getProcessIcNumber())
+                                : List.of());
+
+        String processIcNumbersCsv = processIcList.stream().collect(Collectors.joining(","));
+        finalInspectionDetails.setProcessIcNumber(processIcNumbersCsv);
+
+        // Set primary Process IC ID using the first IC in the list
+        Optional<InspectionCall> processIcOpt = processIcList.isEmpty()
+                ? Optional.empty()
+                : inspectionCallRepository.findByIcNumber(processIcList.get(0));
         if (processIcOpt.isPresent()) {
             finalInspectionDetails.setProcessIcId(processIcOpt.get().getId().longValue());
         }
-        finalInspectionDetails.setProcessIcNumber(finalDetails.getProcessIcNumber());
 
         finalInspectionDetails.setCompanyId(finalDetails.getCompanyId());
         finalInspectionDetails.setCompanyName(finalDetails.getCompanyName());
@@ -183,24 +205,32 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         }
 
         // ================== 4. CREATE FINAL PROCESS IC MAPPING ==================
-        // Create mapping entries for each lot (linking Final IC to Process IC)
-        if (processIcOpt.isPresent() && lotDetailsList != null && !lotDetailsList.isEmpty()) {
-            InspectionCall processIc = processIcOpt.get();
+        // Create mapping entries for each lot × each Process IC selected
+        if (!processIcList.isEmpty() && lotDetailsList != null && !lotDetailsList.isEmpty()) {
+            for (String processIcNumber : processIcList) {
+                Optional<InspectionCall> processIcForMapping = inspectionCallRepository.findByIcNumber(processIcNumber);
+                if (!processIcForMapping.isPresent()) {
+                    logger.warn("⚠️ Process IC not found for number: {}. Skipping mapping.", processIcNumber);
+                    continue;
+                }
+                InspectionCall processIc = processIcForMapping.get();
 
-            for (FinalInspectionLotDetailsRequestDto lotDto : lotDetailsList) {
-                FinalProcessIcMapping mapping = new FinalProcessIcMapping();
+                for (FinalInspectionLotDetailsRequestDto lotDto : lotDetailsList) {
+                    FinalProcessIcMapping mapping = new FinalProcessIcMapping();
 
-                mapping.setFinalIcId(inspectionCall.getId().longValue());
-                mapping.setProcessIcId(processIc.getId().longValue());
-                mapping.setProcessIcNumber(finalDetails.getProcessIcNumber());
-                mapping.setLotNumber(lotDto.getLotNumber());
-                mapping.setHeatNumber(lotDto.getHeatNumber());
-                mapping.setManufacturer(lotDto.getManufacturer());
-                mapping.setProcessQtyAccepted(lotDto.getOfferedQty()); // Assuming offered qty from process
-                mapping.setProcessIcDate(processIc.getDesiredInspectionDate());
+                    mapping.setFinalIcId(inspectionCall.getId().longValue());
+                    mapping.setProcessIcId(processIc.getId().longValue());
+                    mapping.setProcessIcNumber(processIcNumber);
+                    mapping.setLotNumber(lotDto.getLotNumber());
+                    mapping.setHeatNumber(lotDto.getHeatNumber());
+                    mapping.setManufacturer(lotDto.getManufacturer());
+                    mapping.setProcessQtyAccepted(lotDto.getOfferedQty());
+                    mapping.setProcessIcDate(processIc.getDesiredInspectionDate());
 
-                finalProcessIcMappingRepository.save(mapping);
-                logger.info("✅ Final-Process IC Mapping saved for Lot: {}", lotDto.getLotNumber());
+                    finalProcessIcMappingRepository.save(mapping);
+                    logger.info("✅ Final-Process IC Mapping saved: ProcessIC={} Lot={}", processIcNumber,
+                            lotDto.getLotNumber());
+                }
             }
         }
 
