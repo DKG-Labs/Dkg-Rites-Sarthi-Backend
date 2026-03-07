@@ -101,14 +101,12 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
         // Fetch PoHeader for Railway Short Name
         String rlyShortName = "N/A";
-        poHeaderRepository.findByPoNo(ic.getPoNo()).ifPresent(ph -> {
-            // Overwriting rlyShortName local variable from inside lambda requires it to be
-            // final or effectively final
-            // So we use a container or use an orElse
-        });
-        rlyShortName = poHeaderRepository.findByPoNo(ic.getPoNo())
-                .map(PoHeader::getRlyShortName)
-                .orElse("N/A");
+        String rlyCd = "N/A";
+        Optional<PoHeader> ph = poHeaderRepository.findByPoNo(ic.getPoNo());
+        if (ph.isPresent()) {
+            rlyShortName = ph.get().getRlyShortName();
+            rlyCd = ph.get().getRlyCd();
+        }
 
         // Fetch IE Name from UserMaster
         String ieName = "Not Assigned";
@@ -178,6 +176,7 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                 .createdAt(ic.getCreatedAt() != null ? ic.getCreatedAt().format(DATE_FORMATTER) : null)
                 .updatedAt(ic.getUpdatedAt() != null ? ic.getUpdatedAt().format(DATE_FORMATTER) : null)
                 .rlyShortName(rlyShortName)
+                .rlyCd(rlyCd)
                 .ercType(ic.getErcType())
                 .noOfHeatsRM(noOfHeatsRM)
                 .lotNoProcess(lotNoProcess)

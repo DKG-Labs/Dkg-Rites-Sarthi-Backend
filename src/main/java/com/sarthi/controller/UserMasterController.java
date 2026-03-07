@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/auth")
 public class UserMasterController {
@@ -86,6 +88,23 @@ public class UserMasterController {
         return new ResponseEntity<Object>(
                 ResponseBuilder.getSuccessResponse(userService.getMappingByCompanyAndUnit(companyName, unitName)),
                 HttpStatus.OK);
+    }
+
+
+    @GetMapping("/ie/company-unit")
+    public ResponseEntity<Object> getIeByCompanyAndUnit() {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse( userService.getAllCompanyMappedIe()),
+                HttpStatus.OK);
+
+    }
+
+    @GetMapping("/company-unit-process-ie")
+    public ResponseEntity<Object> getCompanyUnitProcessIe() {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse( userService.getCompanyUnitProcessIe()),
+                HttpStatus.OK);
+
     }
 
 }

@@ -72,4 +72,38 @@ public interface PincodePoIMappingRepository extends JpaRepository<PincodePoIMap
 
     Optional<PincodePoIMapping> findByCompanyNameAndUnitName(String companyName, String unitName);
 
+    @Query(value = """
+SELECT DISTINCT
+    ppm.company_name,
+    ppm.unit_name,
+    ipm.employee_code,
+    ip.rio
+FROM pincode_poi_mapping ppm
+JOIN ie_pincode_poi_mapping ipm 
+     ON ppm.pin_code = ipm.pin_code
+     AND ppm.poi_code = ipm.poi_code
+JOIN ie_profile ip 
+     ON ip.employee_code = ipm.employee_code
+ORDER BY ppm.company_name, ppm.unit_name
+""", nativeQuery = true)
+    List<Object[]> findAllCompanyUnitIe();
+
+    @Query(value = """
+           SELECT
+                           ppm.company_name,
+                           ppm.unit_name,
+                           GROUP_CONCAT(DISTINCT um.employee_code ORDER BY um.employee_code) AS employeeCode
+                       FROM pincode_poi_mapping ppm
+                       JOIN ie_poi_mapping ipm
+                           ON ppm.poi_code = ipm.poi_code
+                       JOIN process_ie_users piu
+                           ON piu.ie_user_id = ipm.ie_user_id
+                              OR piu.process_user_id = ipm.ie_user_id
+                       JOIN user_master um
+                           ON um.userid = piu.ie_user_id
+                              OR um.userid = piu.process_user_id
+                       GROUP BY ppm.company_name, ppm.unit_name
+                       ORDER BY ppm.company_name;
+""", nativeQuery = true)
+    List<Object[]> findCompanyUnitEmployees();
 }

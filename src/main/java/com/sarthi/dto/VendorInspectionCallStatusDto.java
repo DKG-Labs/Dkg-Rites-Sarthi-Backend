@@ -40,6 +40,7 @@ public class VendorInspectionCallStatusDto {
     /* ==================== Additional Information ==================== */
 
     private String rlyShortName;
+    private String rlyCd;
     private String ercType;
     private Integer noOfHeatsRM;
     private String lotNoProcess;

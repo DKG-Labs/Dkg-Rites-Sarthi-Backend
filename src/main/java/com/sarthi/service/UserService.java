@@ -5,6 +5,8 @@ import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.entity.PincodePoIMapping;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public interface UserService {
 
@@ -31,4 +33,10 @@ public interface UserService {
     public java.util.List<String> getUnitsByCompany(String companyName);
 
     public PincodePoIMapping getMappingByCompanyAndUnit(String companyName, String unitName);
+
+
+
+    public List<CompanyUnitIeResponseDto> getAllCompanyMappedIe();
+
+    List<CompanyUnitProcessIeDto> getCompanyUnitProcessIe();
 }
