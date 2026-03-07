@@ -23,6 +23,7 @@ public class ProcessRmIcMapping {
     private Long rmIcId;
 
     // ---- RM IC INFORMATION ----
+    @Column(columnDefinition = "TEXT")
     private String rmIcNumber;
     private String heatNumber;
     private String manufacturer;
@@ -49,4 +50,3 @@ public class ProcessRmIcMapping {
         updatedAt = LocalDateTime.now();
     }
 }
-

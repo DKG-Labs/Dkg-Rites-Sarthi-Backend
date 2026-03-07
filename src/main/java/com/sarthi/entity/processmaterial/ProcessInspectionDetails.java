@@ -29,6 +29,8 @@ public class ProcessInspectionDetails {
 
     // ---- REFERENCE TO PARENT RM IC ----
     private Long rmIcId;
+
+    @Column(columnDefinition = "TEXT")
     private String rmIcNumber;
 
     // ---- LOT INFORMATION ----
@@ -74,4 +76,3 @@ public class ProcessInspectionDetails {
         updatedAt = LocalDateTime.now();
     }
 }
-

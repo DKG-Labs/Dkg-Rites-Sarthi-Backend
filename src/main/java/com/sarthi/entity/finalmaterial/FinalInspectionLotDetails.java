@@ -7,7 +7,8 @@ import java.time.LocalDateTime;
 
 /**
  * Entity for Final Inspection Lot Details
- * Stores individual lot information for Final inspection (one-to-many relationship)
+ * Stores individual lot information for Final inspection (one-to-many
+ * relationship)
  */
 @Entity
 @Table(name = "final_inspection_lot_details")
@@ -44,6 +45,8 @@ public class FinalInspectionLotDetails {
 
     // ---- ADDITIONAL TRACKING ----
     private Long processIcId;
+
+    @Column(columnDefinition = "TEXT")
     private String processIcNumber;
 
     @Column(name = "no_of_bags")
@@ -64,4 +67,3 @@ public class FinalInspectionLotDetails {
         updatedAt = LocalDateTime.now();
     }
 }
-
