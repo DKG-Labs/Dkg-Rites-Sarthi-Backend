@@ -2335,7 +2335,7 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
             ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
 
 
-            ieUsers.add(processIe);
+          //  ieUsers.add(processIe);
             dto.setProcessIes(ieUsers);
         }
 
@@ -2393,6 +2393,7 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
                 processIeUsersRepository
                         .findIeUsersByProcessIeAndPoi(
                                 processIeUserId, poiCode);
+        System.out.println("ie user"+ ieUserIds);
 
         if (ieUserIds.isEmpty()) {
             throw new BusinessException(
@@ -2881,7 +2882,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             List<Integer> ieUsers =
                     getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
 
-            ieUsers.add(processIe);
+          //  ieUsers.add(processIe);
             dto.setProcessIes(ieUsers);
         }
 
