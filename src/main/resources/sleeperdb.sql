@@ -581,3 +581,36 @@ CREATE TABLE stress_bench_master (
     updated_by BIGINT,
     updated_date TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP
 );
+
+
+
+CREATE TABLE sleeper_workflow_transaction (
+    workflow_transition_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    workflow_id BIGINT,
+    module_id BIGINT,
+    request_id VARCHAR(255),
+    action VARCHAR(100),
+    status VARCHAR(100),
+    remarks TEXT,
+    assigned_to_user BIGINT,
+    created_by BIGINT,
+    modified_by BIGINT,
+    created_date DATETIME,
+    updated_date DATETIME
+);
+
+CREATE TABLE sleeper_workflow (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    workflow_name VARCHAR(255) NOT NULL,
+    created_by BIGINT,
+    created_date DATETIME
+);
+
+CREATE TABLE sleeper_module (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    module_name VARCHAR(255) NOT NULL,
+    workflow_id BIGINT,
+    created_by BIGINT,
+    created_date DATETIME,
+    FOREIGN KEY (workflow_id) REFERENCES sleeper_workflow(id)
+);

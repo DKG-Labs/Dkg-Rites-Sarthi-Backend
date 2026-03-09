@@ -17,4 +17,5 @@ public class SleeperTransitionActionReqDto {
 
     private Long actionBy;
 
+
 }

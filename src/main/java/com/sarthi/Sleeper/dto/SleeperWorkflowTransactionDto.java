@@ -1,5 +1,7 @@
 package com.sarthi.Sleeper.dto;
 
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.ErrorDetails;
 import jdk.jshell.Snippet;
 import lombok.Builder;
 import lombok.Data;
@@ -10,7 +12,7 @@ import java.time.LocalDateTime;
 @Builder
 public class SleeperWorkflowTransactionDto {
 
-    private Long id;
+    private Long workflowTransitionId;
 
     private Long moduleId;
 

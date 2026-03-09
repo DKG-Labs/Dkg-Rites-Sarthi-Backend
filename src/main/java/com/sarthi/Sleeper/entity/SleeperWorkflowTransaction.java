@@ -12,7 +12,7 @@ public class SleeperWorkflowTransaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer workflowTransitionId;
 
     private Long workflowId;
 

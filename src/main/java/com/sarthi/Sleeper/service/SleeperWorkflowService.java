@@ -9,8 +9,8 @@ import java.util.List;
 @Service
 public interface SleeperWorkflowService {
 
-/*
-   public SleeperWorkflowTransactionDto initiateWorkflow(
+
+  public SleeperWorkflowTransactionDto initiateWorkflow(
             String requestId,
             Long moduleId,
             Long workflowId,
@@ -24,5 +24,7 @@ public interface SleeperWorkflowService {
             Long userId);
 
    public List<SleeperWorkflowTransactionDto> workflowTransitionHistory(
-            String requestId);*/
+            String requestId);
+
+
 }
