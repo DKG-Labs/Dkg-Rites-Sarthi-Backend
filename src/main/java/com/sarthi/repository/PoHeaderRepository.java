@@ -13,21 +13,19 @@ import java.util.Optional;
 @Repository
 public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
+    /**
+     * Find PO Header by PO Number.
+     */
+    Optional<PoHeader> findByPoNo(String poNo);
 
+    List<PoHeader> findByPoNoIn(List<String> poNos);
 
-	/**
-	 * Find PO Header by PO Number.
-	 */
-	Optional<PoHeader> findByPoNo(String poNo);
-
-	/**
-	 * Find PO Header by PO Number with items eagerly loaded (JOIN FETCH).
-	 * Use this when item data is needed to avoid LazyInitializationException.
-	 */
-	@Query("SELECT DISTINCT h FROM PoHeader h LEFT JOIN FETCH h.items WHERE h.poNo = :poNo")
-	Optional<PoHeader> findByPoNoWithItems(@Param("poNo") String poNo);
-
-
+    /**
+     * Find PO Header by PO Number with items eagerly loaded (JOIN FETCH).
+     * Use this when item data is needed to avoid LazyInitializationException.
+     */
+    @Query("SELECT DISTINCT h FROM PoHeader h LEFT JOIN FETCH h.items WHERE h.poNo = :poNo")
+    Optional<PoHeader> findByPoNoWithItems(@Param("poNo") String poNo);
 
     boolean existsByPoKey(String poKey);
 

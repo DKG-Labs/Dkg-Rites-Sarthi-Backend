@@ -15,8 +15,8 @@ public class WorkflowTransitionDto {
 
     private String requestId;
 
-    private String status;      // SUBMITTED / VERIFIED / RETURNED / ROUTED_CORRECTION
-    private String action;      // VERIFY / RETURN_TO_VENDOR / FIX_ROUTING
+    private String status; // SUBMITTED / VERIFIED / RETURNED / ROUTED_CORRECTION
+    private String action; // VERIFY / RETURN_TO_VENDOR / FIX_ROUTING
     private String remarks;
 
     private String currentRole;
@@ -44,5 +44,11 @@ public class WorkflowTransitionDto {
     private List<Integer> processIes;
 
     private List<Integer> finalIes;
+
+    private String rlyShortName;
+    private String poSerialNo;
+    private String placeOfInspection;
+    private String dpDate;
+    private String extDpDate;
 
 }

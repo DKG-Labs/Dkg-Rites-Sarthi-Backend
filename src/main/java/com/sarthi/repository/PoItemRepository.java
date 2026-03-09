@@ -18,6 +18,8 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
      */
     Optional<PoItem> findByPoHeader_PoNoAndItemSrNo(String poNo, String itemSrNo);
 
+    List<PoItem> findByPoHeader_PoNoIn(List<String> poNos);
+
     /**
      * Fetch PO items by PO header id.
      */
