@@ -106,6 +106,7 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 SELECT new com.sarthi.dto.InspectionDataDto(
                     ic.icNumber,
                     ic.poNo,
+                    ic.poSerialNo,
                     ic.vendorId,
                     ic.typeOfCall,
                     ic.desiredInspectionDate,

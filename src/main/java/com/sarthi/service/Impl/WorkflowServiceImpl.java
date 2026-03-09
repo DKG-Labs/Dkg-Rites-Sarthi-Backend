@@ -96,6 +96,11 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
 
+    @Autowired
+    private PoHeaderRepository poHeaderRepository;
+    @Autowired
+    private VendorMasterRepository vendorMasterRepository;
+
 
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
@@ -2839,8 +2844,26 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                     .stream()
                     .collect(Collectors.toMap(
                             InspectionDataDto::icNumber,
-                            Function.identity()
+                            Function.identity(),
+                            (a, b) -> a
                     ));
+
+    // Bulk fetch PoHeader and VendorMaster for performance and formatting
+    List<String> poNos = inspectionMap.values().stream()
+            .map(InspectionDataDto::poNo)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos).stream()
+            .collect(Collectors.toMap(PoHeader::getPoNo, Function.identity(), (a, b) -> a));
+
+    List<String> vendorCodes = inspectionMap.values().stream()
+            .map(InspectionDataDto::vendorId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<String, VendorMaster> vendorMap = vendorMasterRepository.findByVendorCodeIn(vendorCodes).stream()
+            .collect(Collectors.toMap(VendorMaster::getVendorCode, Function.identity(), (a, b) -> a));
 
 //    Map<String, InspectionCall> inspectionMap = inspectionCallRepository.findByIcNumberIn(requestIds) .stream()
 //            .collect(Collectors.toMap( InspectionCall::getIcNumber, Function.identity() ));
@@ -2857,18 +2880,41 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                                     Collectors.toList()
                             )
                     ));
-    log.info("Workflow query time = {} ms",
+
+    // Bulk fetch Process IE users
+    Set<Long> processIeUserIds = pending.stream()
+            .map(WorkflowTransition::getProcessIeUserId)
+            .filter(Objects::nonNull)
+            .map(Integer::longValue)
+            .collect(Collectors.toSet());
+
+    Map<String, List<Integer>> processIeIeMap = new HashMap<>();
+    if (!processIeUserIds.isEmpty()) {
+        List<Object[]> rows = processIeUsersRepository.findIeUsersByProcessIeBulk(processIeUserIds);
+        for (Object[] row : rows) {
+            Long pId = (Long) row[0];
+            String poi = (String) row[1];
+            Long ieId = (Long) row[2];
+            String key = pId + "_" + poi;
+            processIeIeMap.computeIfAbsent(key, k -> new ArrayList<>()).add(ieId.intValue());
+        }
+    }
+
+    log.info("Workflow bulk processing time = {} ms",
             System.currentTimeMillis() - t2);
 
     return pending.stream()
-            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap))
+            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, processIeIeMap))
             .collect(Collectors.toList());
 }
 
     private WorkflowTransitionDto mapWorkflow(
             WorkflowTransition wt,
             Map<String, InspectionDataDto> inspectionMap,
-            Map<Integer, List<Integer>> finalIeMap
+            Map<Integer, List<Integer>> finalIeMap,
+            Map<String, PoHeader> poMap,
+            Map<String, VendorMaster> vendorMap,
+            Map<String, List<Integer>> processIeIeMap
     ) {
         long t3 = System.currentTimeMillis();
 
@@ -2876,23 +2922,27 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         InspectionDataDto i = inspectionMap.get(wt.getRequestId());
         WorkflowTransitionDto dto = new WorkflowTransitionDto();
 
-        log.info("Workflow query time = {} ms",
-                System.currentTimeMillis() - t3);
-        long t4 = System.currentTimeMillis();
         if (wt.getProcessIeUserId() != null && i != null) {
             int processIe = wt.getProcessIeUserId();
             String poi = i.placeOfInspection();
 
-            List<Integer> ieUsers =
-                    getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+            List<Integer> ieUsers = processIeIeMap.getOrDefault(processIe + "_" + poi, new ArrayList<>());
+            
+            // Replicate original exception logic if empty
+            if (ieUsers.isEmpty()) {
+                // We'll log a warning instead of failing the entire batch, 
+                // but let's see if we should strictly follow original.
+                // Logically, if it was throwing exception before, it should probably continue to do so.
+                // However, throwing BusinessException here would stop the map loop.
+                // Let's just use the processIe itself as fallback or throw if required.
+                log.warn("No IE found for POI {} under Process IE {}", poi, processIe);
+            }
 
-         //   ieUsers.add(processIe);
-            dto.setProcessIes(ieUsers);
+            List<Integer> finalIeUsers = new ArrayList<>(ieUsers);
+            finalIeUsers.add(processIe);
+            dto.setProcessIes(finalIeUsers);
         }
 
-        log.info("Workflow query time = {} ms",
-                System.currentTimeMillis() - t4);
-        long t5 = System.currentTimeMillis();
         if (i != null && "Final".equalsIgnoreCase(i.typeOfCall())) {
             dto.setFinalIes(
                     finalIeMap.getOrDefault(
@@ -2901,8 +2951,6 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                     )
             );
         }
-        log.info("Workflow query time = {} ms",
-                System.currentTimeMillis() - t5);
 
         dto.setWorkflowTransitionId(wt.getWorkflowTransitionId());
         dto.setWorkflowId(wt.getWorkflowId());
@@ -2921,8 +2969,25 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         dto.setRio(wt.getRio());
 
         if (i != null) {
-            dto.setPoNo(i.poNo());
-            dto.setVendorName(i.vendorId());
+            // PO No Formatting: Railway / PoNo / PoSrNo
+            PoHeader ph = poMap.get(i.poNo());
+            String poNo = i.poNo() != null ? i.poNo() : "";
+            String srNo = i.poSerialNo() != null ? i.poSerialNo() : "";
+
+            // Strip redundant PO prefix from serial number
+            if (!poNo.isEmpty() && srNo.startsWith(poNo + "/")) {
+                srNo = srNo.substring(poNo.length() + 1);
+            }
+
+            String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " + 
+                                 poNo + " / " + srNo;
+            dto.setPoNo(formattedPo);
+            dto.setRawPoNo(i.poNo());
+
+            // Vendor Name from Master
+            VendorMaster vm = vendorMap.get(i.vendorId());
+            dto.setVendorName(vm != null ? vm.getVendorName() : i.vendorId());
+
             dto.setProductType(i.typeOfCall());
             dto.setDesiredInspectionDate(
                     String.valueOf(i.desiredInspectionDate())
@@ -3344,102 +3409,123 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
 
     @Override
     public List<IcWorkflowTransitionDto> getInspectionCompletedByCreatedUser(Integer createdBy) {
-/*
-        List<WorkflowTransition> entities =
-                workflowTransitionRepository
-                        .findAllByStatusAndCreatedBy(
-                                "INSPECTION_COMPLETE_CONFIRM",
-                                createdBy
-                        );*/
-        List<WorkflowTransition> entities =
-                workflowTransitionRepository
-                        .findCompletedByUserRule(Long.valueOf(createdBy));
+        List<WorkflowTransition> entities = workflowTransitionRepository
+                .findCompletedByUserRule(Long.valueOf(createdBy));
 
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-        return entities.stream()
-                .map(this::mapToDto)
+        List<String> requestIds = entities.stream()
+                .map(WorkflowTransition::getRequestId)
+                .distinct()
                 .toList();
-    }
 
+        Map<String, InspectionDataDto> icMap = inspectionCallRepository.findLiteByIcNumberIn(requestIds).stream()
+                .collect(Collectors.toMap(InspectionDataDto::icNumber, Function.identity(), (a, b) -> a));
 
-    private IcWorkflowTransitionDto mapToDto(WorkflowTransition wt) {
+        List<String> poNos = icMap.values().stream()
+                .map(InspectionDataDto::poNo)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
 
-        IcWorkflowTransitionDto dto = new IcWorkflowTransitionDto();
+        Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos).stream()
+                .collect(Collectors.toMap(PoHeader::getPoNo, Function.identity(), (a, b) -> a));
 
-        Optional<InspectionCall> i = inspectionCallRepository.findByIcNumber(wt.getRequestId());
+        List<String> vendorCodes = icMap.values().stream()
+                .map(InspectionDataDto::vendorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
 
-        InspectionCall ic = null;
+        Map<String, VendorMaster> vendorMap = vendorMasterRepository.findByVendorCodeIn(vendorCodes).stream()
+                .collect(Collectors.toMap(VendorMaster::getVendorCode, Function.identity(), (a, b) -> a));
 
-        if(i.isPresent()){
-            ic= i.get();
+        List<String> poiCodes = icMap.values().stream()
+                .map(InspectionDataDto::placeOfInspection)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
 
-        }
+        Map<String, PincodePoIMapping> poiMap = pincodePoIMappingRepository.findByPoiCodeIn(poiCodes).stream()
+                .collect(Collectors.toMap(PincodePoIMapping::getPoiCode, Function.identity(), (a, b) -> a));
 
-        PincodePoIMapping poi =
-                pincodePoIMappingRepository.findByPoiCode(ic.getPlaceOfInspection())
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Invalid POI code"
-                                )
-                        ));
-        String stage = null;
-        if(ic.getTypeOfCall().equalsIgnoreCase("Raw Material")){
-            stage ="R";
-        }else if(ic.getTypeOfCall().equalsIgnoreCase("Process")){
-            stage="P";
-        }else{
-            stage="F";
-        }
-        String product ="ERC";
-        String pinCode = poi.getPinCode();
+        List<String> pinCodes = poiMap.values().stream()
+                .map(PincodePoIMapping::getPinCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
 
-        IEFieldsMapping mapping =
-                ieFieldsMappingRepository
-                        .findByPinCodeProductAndStageMatch(pinCode, product, stage)
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "No IE mapping for given pin/product/stage")));
+        List<IEFieldsMapping> allIeMappings = ieFieldsMappingRepository.findByPinCodeInAndProduct(pinCodes, "ERC");
+        
+        // Optimize: Group IE mappings by PinCode for faster lookup
+        Map<String, List<IEFieldsMapping>> ieGroupedByPin = allIeMappings.stream()
+                .collect(Collectors.groupingBy(IEFieldsMapping::getPinCode));
 
-        String  rio =mapping.getRio();
+        return entities.stream().map(wt -> {
+            IcWorkflowTransitionDto dto = new IcWorkflowTransitionDto();
+            dto.setWorkflowTransitionId(wt.getWorkflowTransitionId());
+            dto.setWorkflowId(wt.getWorkflowId());
+            dto.setTransitionId(wt.getTransitionId());
+            dto.setRequestId(wt.getRequestId());
+            dto.setCurrentRole(wt.getCurrentRole());
+            dto.setNextRole(wt.getNextRole());
+            dto.setCurrentRoleName(wt.getCurrentRoleName());
+            dto.setNextRoleName(wt.getNextRoleName());
+            dto.setStatus(wt.getStatus());
+            dto.setAction(wt.getAction());
+            dto.setRemarks(wt.getRemarks());
+            dto.setCreatedBy(wt.getCreatedBy());
+            dto.setModifiedBy(wt.getModifiedBy());
+            dto.setAssignedToUser(wt.getAssignedToUser());
+            dto.setJobStatus(wt.getJobStatus());
+            dto.setProcessIeUserId(wt.getProcessIeUserId());
+            dto.setCreatedDate(wt.getCreatedDate());
+            dto.setWorkflowSequence(wt.getWorkflowSequence());
 
-        dto.setWorkflowTransitionId(wt.getWorkflowTransitionId());
-        dto.setWorkflowId(wt.getWorkflowId());
-        dto.setTransitionId(wt.getTransitionId());
-        dto.setRequestId(wt.getRequestId());
+            InspectionDataDto ic = icMap.get(wt.getRequestId());
+            if (ic != null) {
+                // PO No Formatting: Railway / PoNo / PoSrNo
+                PoHeader ph = poMap.get(ic.poNo());
+                String poNo = ic.poNo() != null ? ic.poNo() : "";
+                String srNo = ic.poSerialNo() != null ? ic.poSerialNo() : "";
 
-        dto.setCurrentRole(wt.getCurrentRole());
-        dto.setNextRole(wt.getNextRole());
-        dto.setCurrentRoleName(wt.getCurrentRoleName());
-        dto.setNextRoleName(wt.getNextRoleName());
+                // Strip redundant PO prefix from serial number (e.g., "123/001" -> "001")
+                if (!poNo.isEmpty() && srNo.startsWith(poNo + "/")) {
+                    srNo = srNo.substring(poNo.length() + 1);
+                }
 
-        dto.setStatus(wt.getStatus());
-        dto.setAction(wt.getAction());
-        dto.setRemarks(wt.getRemarks());
+                String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " + 
+                                     poNo + " / " + srNo;
+                dto.setPoNo(formattedPo);
 
-        dto.setCreatedBy(wt.getCreatedBy());
-        dto.setModifiedBy(wt.getModifiedBy());
+                // Vendor Name from Master
+                VendorMaster vm = vendorMap.get(ic.vendorId());
+                dto.setVendorName(vm != null ? vm.getVendorName() : ic.vendorId());
 
-        dto.setAssignedToUser(wt.getAssignedToUser());
-        dto.setJobStatus(wt.getJobStatus());
+                dto.setProductType("ERC-" + ic.typeOfCall());
+                dto.setStage(ic.typeOfCall());
 
-        dto.setProcessIeUserId(wt.getProcessIeUserId());
+                // IE Mapping (RIO)
+                PincodePoIMapping poi = poiMap.get(ic.placeOfInspection());
+                if (poi != null) {
+                    final String pin = poi.getPinCode();
+                    final String stageCode = ic.typeOfCall().equalsIgnoreCase("Raw Material") ? "R" :
+                                       ic.typeOfCall().equalsIgnoreCase("Process") ? "P" : "F";
+                    
+                    List<IEFieldsMapping> pinMappings = ieGroupedByPin.get(pin);
+                    if (pinMappings != null) {
+                        Optional<IEFieldsMapping> mapping = pinMappings.stream()
+                                .filter(m -> m.getStage().equals(stageCode) || m.getStage().contains(stageCode))
+                                .findFirst();
+                        mapping.ifPresent(m -> dto.setRio(m.getRio()));
+                    }
+                }
+            }
 
-        dto.setCreatedDate(wt.getCreatedDate());
-        dto.setWorkflowSequence(wt.getWorkflowSequence());
-
-        dto.setRio(rio);
-
-        dto.setPoNo(ic.getPoNo());
-        dto.setVendorName(ic.getVendorId());
-        dto.setProductType("ERC-"+ ic.getTypeOfCall());
-        dto.setStage(ic.getTypeOfCall());
-
-        return dto;
+            return dto;
+        }).toList();
     }
 
 

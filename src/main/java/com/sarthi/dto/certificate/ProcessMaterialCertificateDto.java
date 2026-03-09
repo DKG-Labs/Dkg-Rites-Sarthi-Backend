@@ -137,9 +137,9 @@ public class ProcessMaterialCertificateDto {
     private String reference;
     
     /**
-     * Call Date: Date on which call has been raised
+     * Date of call: Call Date + Desired Date
      */
-    private String callDate;
+    private String dateOfCall;
     
     /**
      * Inspection Date: Dates on which inspection done for that Inspection call number
