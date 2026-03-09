@@ -2886,7 +2886,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             List<Integer> ieUsers =
                     getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
 
-            ieUsers.add(processIe);
+         //   ieUsers.add(processIe);
             dto.setProcessIes(ieUsers);
         }
 
