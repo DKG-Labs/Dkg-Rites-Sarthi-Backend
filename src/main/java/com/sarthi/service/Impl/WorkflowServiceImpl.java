@@ -198,7 +198,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                  //  validateProcessIeAction(last.getProcessIeUserId(),createdBy);
                    validateProcessIeAction(
                            last.getProcessIeUserId().longValue(),
-                           createdBy.longValue()
+                           createdBy.longValue(), ic.getPlaceOfInspection()
                    );
 
                }else if (ic.getTypeOfCall().equalsIgnoreCase("FINAL")) {
@@ -424,11 +424,15 @@ public class WorkflowServiceImpl implements WorkflowService {
         }
     }
 
-    private void validateProcessIeAction(Long processIeUserId, Long actionBy) {
+    private void validateProcessIeAction(Long processIeUserId, Long actionBy,String poicode) {
 
-        List<ProcessIeUsers> mappings =
-                processIeUsersRepository.findAllByProcessUserId(Math.toIntExact(processIeUserId));
+//        List<ProcessIeUsers> mappings =
+//                processIeUsersRepository.findAllByProcessUserId(Math.toIntExact(processIeUserId));
 
+        List<Long> mappings =
+                processIeUsersRepository.findIeUsersByProcessIeAndPoi(Math.toIntExact(processIeUserId), poicode);
+
+        System.out.println(mappings);
         if (mappings.isEmpty()) {
             throw new BusinessException(
                     new ErrorDetails(
@@ -440,13 +444,13 @@ public class WorkflowServiceImpl implements WorkflowService {
             );
         }
 
-        List<Long> allowedUsers = mappings.stream()
-                .map(ProcessIeUsers::getIeUserId)
-                .collect(Collectors.toList());
+//        List<Long> allowedUsers = mappings.stream()
+//                .map(ProcessIeUsers::getIeUserId)
+//                .collect(Collectors.toList());
+//
+//        allowedUsers.add(processIeUserId);
 
-        allowedUsers.add(processIeUserId);
-
-        if (!allowedUsers.contains(actionBy)) {
+        if (!mappings.contains(actionBy)) {
             throw new InvalidInputException(
                     new ErrorDetails(
                             AppConstant.ACCESS_DENIED,
@@ -589,7 +593,7 @@ public class WorkflowServiceImpl implements WorkflowService {
               //  validateProcessIeAction(last.getProcessIeUserId(),req.getActionBy());
                 validateProcessIeAction(
                         last.getProcessIeUserId().longValue(),
-                        req.getActionBy().longValue()
+                        req.getActionBy().longValue(), call.getPlaceOfInspection()
                 );
 
             }else if (call.getTypeOfCall().equalsIgnoreCase("FINAL")) {
@@ -648,7 +652,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                 if ("PROCESS".equalsIgnoreCase(inspectionType)) {
 
                     Integer processIeUserId =
-                            getProcessIeUserFromPoi(ic.getPlaceOfInspection());
+                            getProcessIeUserFromPoi(ic.getPlaceOfInspection(), last.getProcessIeUserId());
 
                     next.setAssignedToUser(processIeUserId);
                     next.setProcessIeUserId(processIeUserId);
@@ -958,7 +962,7 @@ public class WorkflowServiceImpl implements WorkflowService {
             if ("PROCESS".equalsIgnoreCase(inspectionType)) {
 
                 Integer processIeUserId =
-                        getProcessIeUserFromPoi(im.getPlaceOfInspection());
+                        getProcessIeUserFromPoi(im.getPlaceOfInspection(), last.getProcessIeUserId());
 
                 next.setAssignedToUser(processIeUserId);
                 next.setProcessIeUserId(processIeUserId);
@@ -1466,7 +1470,7 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
     if ("PROCESS".equalsIgnoreCase(inspectionType)) {
 
         // First time PROCESS IE assignment → use the Process IE user ID
-        Integer processIeUserId = getProcessIeUserFromPoi(insp.getPlaceOfInspection());
+        Integer processIeUserId = getProcessIeUserFromPoi(insp.getPlaceOfInspection(), 0);
 
         callReg.setAssignedToUser(processIeUserId);
         callReg.setProcessIeUserId(processIeUserId);
@@ -2335,7 +2339,7 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
             ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
 
 
-          //  ieUsers.add(processIe);
+           // ieUsers.add(processIe);
             dto.setProcessIes(ieUsers);
         }
 
@@ -2393,7 +2397,7 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
                 processIeUsersRepository
                         .findIeUsersByProcessIeAndPoi(
                                 processIeUserId, poiCode);
-        System.out.println("ie user"+ ieUserIds);
+
 
         if (ieUserIds.isEmpty()) {
             throw new BusinessException(
@@ -2882,7 +2886,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             List<Integer> ieUsers =
                     getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
 
-          //  ieUsers.add(processIe);
+            ieUsers.add(processIe);
             dto.setProcessIes(ieUsers);
         }
 
@@ -3012,7 +3016,8 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         );
     }
 */
-private Integer getProcessIeUserFromPoi(String poiCode) {
+
+private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
 
     // 1. Get latest IE mapped to POI
     IePoiMapping latestPoiIe =
@@ -3026,25 +3031,31 @@ private Integer getProcessIeUserFromPoi(String poiCode) {
                                     "No IE found for POI: " + poiCode
                             )
                     ));
+    ProcessIeUsers latestProcessIe =null;
+    if(processIe!=0){
+        return processIe;
+    }else {
 
-    // 2. Get latest Process IE for that IE
-    ProcessIeUsers latestProcessIe =
-            processIeUsersRepository
-                    .findTopByIeUserIdOrderByCreatedDateDesc(
-                            latestPoiIe.getIeUserId()
-                    )
-                    .orElseThrow(() -> new BusinessException(
-                            new ErrorDetails(
-                                    AppConstant.ERROR_CODE_RESOURCE,
-                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                    AppConstant.ERROR_TYPE_VALIDATION,
-                                    "No Process IE mapped for IE: " + latestPoiIe.getIeUserId()
-                            )
-                    ));
+        // 2. Get latest Process IE for that IE
+       latestProcessIe =
+                processIeUsersRepository
+                        .findTopByIeUserIdOrderByCreatedDateDesc(
+                                latestPoiIe.getIeUserId()
+                        )
+                        .orElseThrow(() -> new BusinessException(
+                                new ErrorDetails(
+                                        AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "No Process IE mapped for IE: " + latestPoiIe.getIeUserId()
+                                )
+                        ));
+    }
 
     // 3. Return Process User ID
     return latestProcessIe.getProcessUserId().intValue();
 }
+
 
 
 
