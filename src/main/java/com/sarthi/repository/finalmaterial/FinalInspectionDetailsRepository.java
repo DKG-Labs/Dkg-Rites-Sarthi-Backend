@@ -32,5 +32,17 @@ public interface FinalInspectionDetailsRepository extends JpaRepository<FinalIns
 
     @Query("SELECT fd FROM FinalInspectionDetails fd JOIN FETCH fd.inspectionCall WHERE fd.inspectionCall.icNumber = :icNumber")
     Optional<FinalInspectionDetails> findByIcNumberWithCall(@Param("icNumber") String icNumber);
+
+    /**
+     * Sum totalOfferedQty for all inspection calls with the same PO Serial No that occurred before the given ID.
+     */
+    @Query("SELECT SUM(fd.totalOfferedQty) FROM FinalInspectionDetails fd WHERE fd.inspectionCall.poSerialNo = :poSerialNo AND fd.id < :currentId")
+    Long sumOfferedQtyByPoSerialNoAndIdLessThan(@Param("poSerialNo") String poSerialNo, @Param("currentId") Long currentId);
+
+    /**
+     * Sum totalAcceptedQty for all inspection calls with the same PO Serial No that occurred before the given ID.
+     */
+    @Query("SELECT SUM(fd.totalAcceptedQty) FROM FinalInspectionDetails fd WHERE fd.inspectionCall.poSerialNo = :poSerialNo AND fd.id < :currentId")
+    Long sumAcceptedQtyByPoSerialNoAndIdLessThan(@Param("poSerialNo") String poSerialNo, @Param("currentId") Long currentId);
 }
 

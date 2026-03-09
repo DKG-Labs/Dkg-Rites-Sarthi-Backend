@@ -97,20 +97,40 @@ public class FinalCertificateDto {
     private Integer totalLots;
     
     /**
-     * Total Offered Quantity: Total quantity offered for inspection
+     * Quantity on Order: Total quantity from PO for this item serial number
      */
-    private Integer totalOfferedQty;
-    
+    private Integer qtyOnOrder;
+
     /**
-     * Total Accepted Quantity: Total quantity accepted
+     * Quantity Offered Previously: Sum of totalOfferedQty from previous EF- calls
      */
-    private Integer totalAcceptedQty;
-    
+    private Integer qtyOfferedPreviously;
+
     /**
-     * Total Rejected Quantity: Total quantity rejected
+     * Quantity Passed Previously: Sum of totalAcceptedQty from previous EF- calls
      */
-    private Integer totalRejectedQty;
-    
+    private Integer qtyPassedPreviously;
+
+    /**
+     * Quantity Now Offered: Current call's offered quantity
+     */
+    private Integer qtyNowOffered;
+
+    /**
+     * Quantity Now Passed: Current call's accepted quantity
+     */
+    private Integer qtyNowPassed;
+
+    /**
+     * Quantity Now Rejected: Current call's rejected quantity
+     */
+    private Integer qtyNowRejected;
+
+    /**
+     * Quantity Still Due: qtyOnOrder - cumulative passed quantity
+     */
+    private Integer qtyStillDue;
+
     /**
      * Remarks: Certificate remarks
      */
@@ -122,14 +142,34 @@ public class FinalCertificateDto {
     private String trRecDate;
 
     /**
+     * No. of items checked: Fixed value of 1 as per requirement
+     */
+    private String noOfItemsChecked;
+
+    /**
+     * Date of call: Derived from InspectionCall (format: Call Date: X, Desired Date: Y)
+     */
+    private String dateOfCall;
+
+    /**
      * No. of visits: Derived from WorkflowTransitions
      */
     private String noOfVisits;
 
     /**
+     * Date(s) of inspection: From WorkflowTransitions
+     */
+    private String inspectionDates;
+
+    /**
      * Quantity now passed in words and details
      */
     private String quantityNowPassedText;
+
+    /**
+     * Sealing Pattern: Dynamic text generated from hologram details
+     */
+    private String sealingPattern;
     
     /* ==================== Lot Details ==================== */
     

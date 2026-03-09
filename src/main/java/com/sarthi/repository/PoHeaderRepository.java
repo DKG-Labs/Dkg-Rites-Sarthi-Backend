@@ -20,6 +20,8 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 	 */
 	Optional<PoHeader> findByPoNo(String poNo);
 
+	List<PoHeader> findByPoNoIn(List<String> poNos);
+
 	/**
 	 * Find PO Header by PO Number with items eagerly loaded (JOIN FETCH).
 	 * Use this when item data is needed to avoid LazyInitializationException.

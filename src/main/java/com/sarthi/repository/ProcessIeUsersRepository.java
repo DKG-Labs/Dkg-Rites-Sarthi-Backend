@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface ProcessIeUsersRepository extends JpaRepository<ProcessIeUsers, Long> {
@@ -57,6 +58,14 @@ FROM (
          @Param("processIeUserId") Integer processIeUserId,
          @Param("poiCode") String poiCode
  );
+
+    @Query("""
+SELECT piu.processUserId, ipm.poiCode, piu.ieUserId
+FROM ProcessIeUsers piu
+JOIN IePoiMapping ipm ON ipm.ieUserId = piu.ieUserId
+WHERE piu.processUserId IN :processIeUserIds
+""")
+    List<Object[]> findIeUsersByProcessIeBulk(@Param("processIeUserIds") Set<Long> processIeUserIds);
 
     Optional<ProcessIeUsers>
     findTopByIeUserIdOrderByCreatedDateDesc(Long ieUserId);
