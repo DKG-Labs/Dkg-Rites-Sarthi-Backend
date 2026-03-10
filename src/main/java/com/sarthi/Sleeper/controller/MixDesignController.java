@@ -1,7 +1,9 @@
 package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.MixDesignRequestDto;
+import com.sarthi.Sleeper.dto.MixDesignResponseDto;
 import com.sarthi.Sleeper.service.MixDesignService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,14 +16,23 @@ public class MixDesignController {
 
     @Autowired
     private MixDesignService service;
+    @Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
+
 
     // ================= CREATE =================
     @PostMapping
     public ResponseEntity<Object> create(
             @RequestBody MixDesignRequestDto dto) {
+        MixDesignResponseDto result =  service.create(dto);
+
+        String requestId = String.valueOf(result.getId());
+        Long md = 1L;
+        Long wid = 1L;
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
 
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.create(dto)),
+                ResponseBuilder.getSuccessResponse(),
                 HttpStatus.OK
         );
     }

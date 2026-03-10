@@ -1,7 +1,9 @@
 package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.RawMaterialSourceRequestDto;
+import com.sarthi.Sleeper.dto.RawMaterialSourceResponseDto;
 import com.sarthi.Sleeper.service.RawMaterialSourceService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -15,14 +17,22 @@ public class RawMaterialSourceController {
 
     @Autowired
     private RawMaterialSourceService service;
+    @Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
 
     // ================= CREATE =================
     @PostMapping
     public ResponseEntity<Object> create(
             @RequestBody RawMaterialSourceRequestDto dto) {
 
+        RawMaterialSourceResponseDto result =  service.create(dto);
+        String requestId = String.valueOf(result.getId());
+        Long md = 1L;
+        Long wid = 1L;
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
+
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.create(dto)),
+                ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK
         );
     }

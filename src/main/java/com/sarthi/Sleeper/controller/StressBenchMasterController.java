@@ -1,6 +1,8 @@
 package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.StressBenchRequestDto;
+import com.sarthi.Sleeper.dto.StressBenchResponseDto;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.Sleeper.service.StressBenchMasterService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,14 +18,22 @@ public class StressBenchMasterController {
         @Autowired
         private StressBenchMasterService stressBenchService;
 
+        @Autowired
+        private SleeperWorkflowService sleeperWorkflowService;
 
         @PostMapping("/create")
         public ResponseEntity<Object> create(
                 @RequestBody StressBenchRequestDto dto) {
 
+            StressBenchResponseDto result =  stressBenchService.createBench(dto);
+            String requestId = String.valueOf(result.getId());
+            Long md = 1L;
+            Long wid = 1L;
+            sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
+
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(
-                            stressBenchService.createBench(dto)),
+                           result),
                     HttpStatus.OK);
         }
 

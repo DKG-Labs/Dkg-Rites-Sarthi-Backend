@@ -1,7 +1,10 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.Dowel.DowelResponseDto;
 import com.sarthi.Sleeper.dto.SgciInventory.SgciInsertRequestDto;
+import com.sarthi.Sleeper.dto.SgciInventory.SgciInsertResponseDto;
 import com.sarthi.Sleeper.service.SgciInsertInventoryService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,15 +19,22 @@ public class SgciInsertInventoryController {
 
     @Autowired
         private SgciInsertInventoryService service;
-
+    @Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
         // ================= CREATE =================
 
         @PostMapping
         public ResponseEntity<Object> create(
                 @RequestBody SgciInsertRequestDto dto) {
 
+            SgciInsertResponseDto result = service.create(dto);
+            String requestId = String.valueOf(result.getId());
+            Long md = 1L;
+            Long wid = 1L;
+            sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
+
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(service.create(dto)),
+                    ResponseBuilder.getSuccessResponse(result),
                     HttpStatus.OK
             );
         }

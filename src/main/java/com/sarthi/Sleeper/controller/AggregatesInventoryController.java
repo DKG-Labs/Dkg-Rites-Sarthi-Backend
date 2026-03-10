@@ -2,7 +2,9 @@ package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.Aggregates.AggregatesRequestDto;
 
+import com.sarthi.Sleeper.dto.Aggregates.AggregatesResponseDto;
 import com.sarthi.Sleeper.service.AggregatesService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -15,6 +17,8 @@ public class AggregatesInventoryController {
 
     @Autowired
     private AggregatesService service;
+    @Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
 
     // ================= CREATE =================
 
@@ -22,8 +26,14 @@ public class AggregatesInventoryController {
     public ResponseEntity<Object> create(
             @RequestBody AggregatesRequestDto dto) {
 
+        AggregatesResponseDto result = service.create(dto);
+        String requestId = String.valueOf(result.getId());
+        Long md = 1L;
+        Long wid = 1L;
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
+
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.create(dto)),
+                ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK
         );
     }

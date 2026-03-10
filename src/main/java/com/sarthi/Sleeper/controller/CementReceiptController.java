@@ -1,7 +1,9 @@
 package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.Cement.CementReceiptRequestDto;
+import com.sarthi.Sleeper.dto.Cement.CementReceiptResponseDto;
 import com.sarthi.Sleeper.service.CementService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,13 +16,21 @@ public class CementReceiptController {
 
     @Autowired
     private CementService service;
+    @Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
 
     @PostMapping
     public ResponseEntity<Object> create(
             @RequestBody CementReceiptRequestDto dto) {
+        CementReceiptResponseDto result =  service.create(dto);
+        String requestId = String.valueOf(result.getId());
+        Long md = 1L;
+        Long wid = 1L;
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
+
 
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.create(dto)),
+                ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK
         );
     }
@@ -29,6 +39,7 @@ public class CementReceiptController {
     public ResponseEntity<Object> update(
             @PathVariable Long id,
             @RequestBody CementReceiptRequestDto dto) {
+
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(service.update(id, dto)),

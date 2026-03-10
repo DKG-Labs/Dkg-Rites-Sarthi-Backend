@@ -1,7 +1,10 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.AdmixtureResponseDto;
 import com.sarthi.Sleeper.dto.Dowel.DowelRequestDto;
+import com.sarthi.Sleeper.dto.Dowel.DowelResponseDto;
 import com.sarthi.Sleeper.service.DowelService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -16,13 +19,20 @@ public class DowelController {
     private DowelService service;
 
     // ================= CREATE =================
-
+@Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
     @PostMapping
     public ResponseEntity<Object> create(
             @RequestBody DowelRequestDto dto) {
 
+        DowelResponseDto result = service.create(dto);
+        String requestId = String.valueOf(result.getId());
+        Long md = 1L;
+        Long wid = 1L;
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
+
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.create(dto)),
+                ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK
         );
     }

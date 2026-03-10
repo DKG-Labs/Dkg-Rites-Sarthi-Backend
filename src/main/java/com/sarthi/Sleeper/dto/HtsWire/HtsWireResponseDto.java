@@ -23,6 +23,7 @@ public class HtsWireResponseDto {
     private String relaxationTestDate;
 
     private Double totalQtyReceived;
+    private int createdBy;
 
     private List<HtsCoilDetailsResponseDto> coilDetails;
 }
