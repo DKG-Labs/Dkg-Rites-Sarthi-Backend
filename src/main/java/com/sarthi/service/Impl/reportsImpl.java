@@ -181,11 +181,40 @@ public class reportsImpl implements reports {
                         dto.setFinalInspectionRejectionPercentage(finalRejectPct);
 
                         // ================= Process Rejection % =================
-                        Double processPct = processIeQtyRepository
-                                        .findProcessRejectionPctByCallNos(callNos);
+//                        Double processPct = processIeQtyRepository
+//                                        .findProcessRejectionPctByCallNos(callNos);
+//
+//                        dto.setProcessInspectionRejectionPercentage(
+//                                        processPct != null ? processPct : 0.0);
+                        List<Object[]> processRows = processLineFinalResultRepository
+                                .findProcessLineSummaryByCallNos(callNos);
 
-                        dto.setProcessInspectionRejectionPercentage(
-                                        processPct != null ? processPct : 0.0);
+                        double totalManufactured = 0;
+                        double totalRejected = 0;
+
+                        if (processRows != null) {
+
+                                for (Object[] row : processRows) {
+
+                                        if (row[0] != null)
+                                                totalManufactured += ((Number) row[0]).doubleValue();
+
+                                        if (row[1] != null)
+                                                totalRejected += ((Number) row[1]).doubleValue();
+                                }
+                        }
+
+                        int processAccepted = (int) (totalManufactured - totalRejected);
+
+                        double processRejectionPct = 0.0;
+
+                        if (totalManufactured > 0) {
+
+                                processRejectionPct = (totalRejected * 100.0) / totalManufactured;
+
+                                processRejectionPct = Math.round(processRejectionPct * 100.0) / 100.0;
+                        }
+                        dto.setProcessInspectionRejectionPercentage( processRejectionPct);
                 }
 
                 return list;
