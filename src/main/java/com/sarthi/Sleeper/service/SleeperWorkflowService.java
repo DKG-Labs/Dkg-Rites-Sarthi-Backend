@@ -21,10 +21,11 @@ public interface SleeperWorkflowService {
             SleeperTransitionActionReqDto req);
 
    public List<SleeperWorkflowTransactionDto> allPendingWorkflowTransitions(
-            Long userId);
+            String roleName);
 
    public List<SleeperWorkflowTransactionDto> workflowTransitionHistory(
             String requestId);
 
 
+    public List<SleeperWorkflowTransactionDto> allCompletedWorkflowTransitions();
 }

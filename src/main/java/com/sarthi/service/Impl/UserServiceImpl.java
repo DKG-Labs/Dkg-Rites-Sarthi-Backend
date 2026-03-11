@@ -557,6 +557,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setEmail(userDto.getEmail());
         userMaster.setCreatedBy(userDto.getCreatedBy());
         userMaster.setEmployeeId(userDto.getEmployeeId());
+        userMaster.setProductType(userDto.getProductType());
 
         userMaster.setEmployeeCode(userDto.getEmployeeCode());
         userMaster.setRitesEmployeeCode(userDto.getRitesEmployeeCode());

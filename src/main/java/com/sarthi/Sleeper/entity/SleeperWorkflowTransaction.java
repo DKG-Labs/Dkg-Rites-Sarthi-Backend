@@ -27,6 +27,14 @@ public class SleeperWorkflowTransaction {
     @Column(columnDefinition = "TEXT")
     private String remarks;
 
+    private String currentRole;
+    private String nextRole;
+    private String shift;
+
+    private String poiCode;
+
+    private String rio;
+
     private Long assignedToUser;
 
     private Long createdBy;

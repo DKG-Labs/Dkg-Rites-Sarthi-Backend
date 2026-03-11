@@ -66,6 +66,8 @@ public class UserMaster implements UserDetails {
     @Column(name = "CREATEDBY")
     private String createdBy;
 
+    private String productType;
+
     @Column(name = "CREATEDDATE")
     private LocalDateTime createdDate = LocalDateTime.now();
 

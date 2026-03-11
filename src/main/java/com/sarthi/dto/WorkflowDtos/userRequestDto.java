@@ -46,6 +46,8 @@ public class userRequestDto {
     // IE → Controlling Manager
     private Integer controllingManagerUserId;
 
+    private String productType;
+
     private List<IePoiMappingDto> iePoiMappings;
 
 }

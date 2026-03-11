@@ -1,15 +1,13 @@
 package com.sarthi.Sleeper.dto;
 
-import com.sarthi.constant.AppConstant;
-import com.sarthi.exception.ErrorDetails;
-import jdk.jshell.Snippet;
 import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
-@Builder
+
 public class SleeperWorkflowTransactionDto {
 
     private Long workflowTransitionId;
@@ -32,5 +30,21 @@ public class SleeperWorkflowTransactionDto {
 
     private LocalDateTime createdDate;
 
+    private String currentRole;
+    private String nextRole;
+    private String shift;
+
+    private String poiCode;
+
+    private List<Integer> accessibleUserIds;
+
+    private Long createdBy;
+
+    private String rio;
+    private Long modifiedBy;
+
+
+
+    private LocalDateTime updatedDate;
 
 }
