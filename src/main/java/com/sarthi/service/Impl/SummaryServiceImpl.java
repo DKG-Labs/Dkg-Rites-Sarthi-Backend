@@ -36,40 +36,36 @@ public class SummaryServiceImpl implements SummaryService {
             int page,
             int size,
             LocalDate startDate,
-            LocalDate endDate) {
+            LocalDate endDate, String rio, String zone, String vendor) {
 
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<Object[]> rawPage = rawRepo.fetchRaw(startDate, endDate, pageable);
-        Page<Object[]> processPage = processRepo.fetchProcess(startDate, endDate, pageable);
-        Page<Object[]> finalPage = finalRepo.fetchFinal(startDate, endDate, pageable);
+        Page<Object[]> rawPage = rawRepo.fetchRaw(startDate, endDate, rio, zone, vendor, pageable);
+        Page<Object[]> processPage = processRepo.fetchProcess(startDate, endDate, rio, zone, vendor, pageable);
+        Page<Object[]> finalPage = finalRepo.fetchFinal(startDate, endDate, rio, zone, vendor, pageable);
 
-        List<ManufacturerInspectionSummaryDTO> combined =
-                Stream.of(rawPage.getContent(),
-                                processPage.getContent(),
-                                finalPage.getContent())
-                        .flatMap(Collection::stream)
-                        .map(this::mapRow)
-                        .toList();
+        List<ManufacturerInspectionSummaryDTO> combined = Stream.of(rawPage.getContent(),
+                processPage.getContent(),
+                finalPage.getContent())
+                .flatMap(Collection::stream)
+                .map(this::mapRow)
+                .toList();
 
-        PageResponseDTO<ManufacturerInspectionSummaryDTO> response =
-                new PageResponseDTO<>();
+        PageResponseDTO<ManufacturerInspectionSummaryDTO> response = new PageResponseDTO<>();
 
         response.setContent(combined);
         response.setPage(page);
         response.setSize(size);
 
-        long total =
-                rawPage.getTotalElements()
-                        + processPage.getTotalElements()
-                        + finalPage.getTotalElements();
+        long total = rawPage.getTotalElements()
+                + processPage.getTotalElements()
+                + finalPage.getTotalElements();
 
         response.setTotalElements(total);
         response.setTotalPages((int) Math.ceil((double) total / size));
 
         return response;
     }
-
 
     private ManufacturerInspectionSummaryDTO mapRow(Object[] row) {
 
@@ -79,10 +75,10 @@ public class SummaryServiceImpl implements SummaryService {
         dto.setManufacturerName((String) row[1]);
         dto.setPoiCode((String) row[2]);
 
-        dto.setUsername((String) row[3]);   // NEW
-        dto.setRio((String) row[4]);        // NEW
+        dto.setUsername((String) row[3]); // NEW
+        dto.setRio((String) row[4]); // NEW
 
-        dto.setStage((String) row[5]);      // shifted
+        dto.setStage((String) row[5]); // shifted
 
         Double inspected = getDouble(row[6]);
         Double accepted = getDouble(row[7]);
@@ -99,7 +95,6 @@ public class SummaryServiceImpl implements SummaryService {
         return dto;
     }
 
-
     private Double getDouble(Object value) {
         return value == null ? 0.0 : ((Number) value).doubleValue();
     }
@@ -109,22 +104,20 @@ public class SummaryServiceImpl implements SummaryService {
             int page,
             int size,
             LocalDate startDate,
-            LocalDate endDate) {
+            LocalDate endDate, String rio, String zone, String vendor) {
 
         Pageable pageable = PageRequest.of(page, size);
 
         // Step 1: Get PO level data using repository
-        Page<Object[]> poPage =
-                inspectionCallRepository.fetchMonthlyProgress(startDate, endDate, pageable);
+        Page<Object[]> poPage = inspectionCallRepository.fetchMonthlyProgress(startDate, endDate, rio, zone, vendor,
+                pageable);
 
-        List<MonthlyProgressReportDTO> content =
-                poPage.getContent()
-                        .stream()
-                        .map(this::mapMonthlyRow)
-                        .toList();
+        List<MonthlyProgressReportDTO> content = poPage.getContent()
+                .stream()
+                .map(this::mapMonthlyRow)
+                .toList();
 
-        PageResponseDTO<MonthlyProgressReportDTO> response =
-                new PageResponseDTO<>();
+        PageResponseDTO<MonthlyProgressReportDTO> response = new PageResponseDTO<>();
 
         response.setContent(content);
         response.setPage(page);
@@ -139,8 +132,8 @@ public class SummaryServiceImpl implements SummaryService {
 
         MonthlyProgressReportDTO dto = new MonthlyProgressReportDTO();
 
-        dto.setRly((String) row[0]);          // rly_short_name
-        dto.setPoNumber((String) row[1]);     // po_no
+        dto.setRly((String) row[0]); // rly_short_name
+        dto.setPoNumber((String) row[1]); // po_no
         dto.setManufacturer((String) row[2]); // firm_details
 
         Double poQty = getDouble(row[3]);
@@ -160,24 +153,22 @@ public class SummaryServiceImpl implements SummaryService {
         return dto;
     }
 
-
     @Override
     public PageResponseDTO<MonthlyAnalysisDTO> getMonthlyAnalysis(
             int page,
             int size,
             LocalDate startDate,
-            LocalDate endDate) {
+            LocalDate endDate, String rio, String zone, String vendor) {
 
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<Object[]> dbPage =
-                inspectionCallRepository.fetchManufacturerSummary(startDate, endDate, pageable);
+        Page<Object[]> dbPage = inspectionCallRepository.fetchManufacturerSummary(startDate, endDate, rio, zone, vendor,
+                pageable);
 
-        List<MonthlyAnalysisDTO> content =
-                dbPage.getContent()
-                        .stream()
-                        .map(this::mapMonthlyAnalysisRow)
-                        .toList();
+        List<MonthlyAnalysisDTO> content = dbPage.getContent()
+                .stream()
+                .map(this::mapMonthlyAnalysisRow)
+                .toList();
 
         PageResponseDTO<MonthlyAnalysisDTO> response = new PageResponseDTO<>();
 
@@ -221,7 +212,8 @@ public class SummaryServiceImpl implements SummaryService {
     }
 
     private Double calcPercent(Double rejected, Double total) {
-        if (total == null || total == 0) return 0.0;
+        if (total == null || total == 0)
+            return 0.0;
         return (rejected / total) * 100;
     }
 
@@ -260,6 +252,5 @@ public class SummaryServiceImpl implements SummaryService {
     public List<String> getLotNumbers(String requestId) {
         return processRepo.findLotNumbersByRequestId(requestId);
     }
-
 
 }
