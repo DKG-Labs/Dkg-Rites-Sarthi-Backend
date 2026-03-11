@@ -43,6 +43,34 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
      */
     void deleteByInspectionCallNo(String inspectionCallNo);
 
+    /**
+     * Get the sum of accepted quantities across all stages for a specific call and lot.
+     */
+    @Query("""
+        SELECT new com.sarthi.dto.processmaterial.ProcessStageAcceptedQtyDto(
+            p.inspectionCallNo,
+            p.lotNumber,
+            SUM(CAST(COALESCE(p.shearingManufactured, 0) AS long)),
+            SUM(CAST(COALESCE(p.shearingAccepted, 0) AS long)),
+            SUM(CAST(COALESCE(p.turningManufactured, 0) AS long)),
+            SUM(CAST(COALESCE(p.turningAccepted, 0) AS long)),
+            SUM(CAST(COALESCE(p.mpiManufactured, 0) AS long)),
+            SUM(CAST(COALESCE(p.mpiAccepted, 0) AS long)),
+            SUM(CAST(COALESCE(p.forgingManufactured, 0) AS long)),
+            SUM(CAST(COALESCE(p.forgingAccepted, 0) AS long)),
+            SUM(CAST(COALESCE(p.quenchingManufactured, 0) AS long)),
+            SUM(CAST(COALESCE(p.quenchingAccepted, 0) AS long)),
+            SUM(CAST(COALESCE(p.temperingManufactured, 0) AS long)),
+            SUM(CAST(COALESCE(p.temperingAccepted, 0) AS long))
+        )
+        FROM ProcessLineFinalResult p
+        WHERE p.inspectionCallNo = :callNo AND p.lotNumber = :lotNo
+        GROUP BY p.inspectionCallNo, p.lotNumber
+    """)
+    com.sarthi.dto.processmaterial.ProcessStageAcceptedQtyDto getSumOfAcceptedQuantitiesByCallAndLot(
+            @org.springframework.data.repository.query.Param("callNo") String callNo, 
+            @org.springframework.data.repository.query.Param("lotNo") String lotNo);
+
 
     @Query(value = """
             SELECT 
