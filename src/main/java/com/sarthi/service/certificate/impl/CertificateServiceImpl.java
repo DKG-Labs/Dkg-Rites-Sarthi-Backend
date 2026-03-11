@@ -800,16 +800,20 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Build lot details from Process Line Final Results
+     * Aggregates quantities by heatNo-lotNo combinations across all shifts and lines.
      */
     private List<ProcessMaterialCertificateDto.LotDetailDto> buildProcessLotDetails(
             List<ProcessLineFinalResult> lineFinalResults) {
 
-        List<ProcessMaterialCertificateDto.LotDetailDto> lots = new ArrayList<>();
+        // Use LinkedHashMap to preserve the order of lots as they appear in the results
+        java.util.Map<String, ProcessMaterialCertificateDto.LotDetailDto> aggregatedLots = new java.util.LinkedHashMap<>();
 
         for (ProcessLineFinalResult result : lineFinalResults) {
             String heatNum = result.getHeatNumber();
             String lotNum = result.getLotNumber();
             String heatLot;
+            
+            // Construct unique heatLot key
             if (heatNum != null && !heatNum.isBlank()) {
                 heatLot = heatNum;
                 if (lotNum != null && !lotNum.isBlank() && !lotNum.equals(heatNum)) {
@@ -819,16 +823,25 @@ public class CertificateServiceImpl implements CertificateService {
                 heatLot = lotNum != null ? lotNum : "";
             }
 
-            ProcessMaterialCertificateDto.LotDetailDto lot = ProcessMaterialCertificateDto.LotDetailDto.builder()
-                    .heatNo(heatLot)
-                    .totalProcessed(result.getTotalManufactured() != null ? result.getTotalManufactured() : 0)
-                    .acceptedQty(result.getTotalAccepted() != null ? result.getTotalAccepted() : 0)
-                    .rejectedQty(result.getTotalRejected() != null ? result.getTotalRejected() : 0)
-                    .build();
-            lots.add(lot);
+            if (aggregatedLots.containsKey(heatLot)) {
+                // Aggregate quantities for existing lot
+                ProcessMaterialCertificateDto.LotDetailDto existingLot = aggregatedLots.get(heatLot);
+                existingLot.setTotalProcessed(existingLot.getTotalProcessed() + (result.getTotalManufactured() != null ? result.getTotalManufactured() : 0));
+                existingLot.setAcceptedQty(existingLot.getAcceptedQty() + (result.getTotalAccepted() != null ? result.getTotalAccepted() : 0));
+                existingLot.setRejectedQty(existingLot.getRejectedQty() + (result.getTotalRejected() != null ? result.getTotalRejected() : 0));
+            } else {
+                // Add new lot entry
+                ProcessMaterialCertificateDto.LotDetailDto newLot = ProcessMaterialCertificateDto.LotDetailDto.builder()
+                        .heatNo(heatLot)
+                        .totalProcessed(result.getTotalManufactured() != null ? result.getTotalManufactured() : 0)
+                        .acceptedQty(result.getTotalAccepted() != null ? result.getTotalAccepted() : 0)
+                        .rejectedQty(result.getTotalRejected() != null ? result.getTotalRejected() : 0)
+                        .build();
+                aggregatedLots.put(heatLot, newLot);
+            }
         }
 
-        return lots;
+        return new ArrayList<>(aggregatedLots.values());
     }
 
     /**
