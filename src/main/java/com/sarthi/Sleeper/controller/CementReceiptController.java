@@ -24,7 +24,7 @@ public class CementReceiptController {
             @RequestBody CementReceiptRequestDto dto) {
         CementReceiptResponseDto result =  service.create(dto);
         String requestId = String.valueOf(result.getId());
-        Long md = 1L;
+        Long md = 6L;
         Long wid = 1L;
         sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
 

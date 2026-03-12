@@ -1,7 +1,9 @@
 package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.BenchMouldDtos.BenchMouldInspectionRequestDto;
+import com.sarthi.Sleeper.dto.BenchMouldDtos.BenchMouldInspectionResponseDto;
 import com.sarthi.Sleeper.service.BenchMouldInspectionService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,13 +16,21 @@ public class BenchMouldInspectionController {
 
     @Autowired
     private BenchMouldInspectionService benchMouldInspectionService;
+
+    @Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
     @PostMapping("/create")
     public ResponseEntity<Object> create(
             @RequestBody BenchMouldInspectionRequestDto dto) {
 
+        BenchMouldInspectionResponseDto result = benchMouldInspectionService.create(dto);
+        String requestId = String.valueOf(result.getId());
+        Long md = 2L;
+        Long wid = 1L;
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, (long) result.getCreatedBy());
+
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(
-                        benchMouldInspectionService.create(dto)),
+                ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK);
     }
 

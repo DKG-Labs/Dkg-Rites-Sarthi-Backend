@@ -23,5 +23,6 @@ public class BenchMouldInspectionResponseDto {
         private String mouldDimensionalResult;
 
         private String combinedRemarks;
+        private int createdBy;
 }
 

@@ -31,7 +31,7 @@ public class HtsWireController {
             @RequestBody HtsWireRequestDto dto) {
         HtsWireResponseDto result =  service.create(dto);
         String requestId = String.valueOf(result.getId());
-        Long md = 1L;
+        Long md = 5L;
         Long wid = 1L;
         sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
 
