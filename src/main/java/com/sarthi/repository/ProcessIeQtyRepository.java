@@ -308,6 +308,41 @@ public interface ProcessIeQtyRepository
             WHERE p.REQUEST_ID = :requestId
             ORDER BY p.lot_number
             """, nativeQuery = true)
-    List<String> findLotNumbersByRequestId(
-            @Param("requestId") String requestId);
+    List<String> findLotNumbersByRequestId(@Param("requestId") String requestId);
+
+    @Query(value = """
+            SELECT 
+                ic.company_name AS name,
+                (SUM(p.rejected_qty) * 100.0 / NULLIF(SUM(p.offered_qty), 0)) AS rejectionPct
+            FROM process_ie_qty p
+            JOIN inspection_calls ic ON ic.ic_number = p.REQUEST_ID
+            WHERE p.CREATED_DATE >= :date
+            GROUP BY ic.company_name
+            ORDER BY rejectionPct ASC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findTop5ProcessPerformance(@Param("date") java.util.Date date);
+
+    @Query(value = """
+            SELECT 
+                ic.company_name AS name,
+                (SUM(p.rejected_qty) * 100.0 / NULLIF(SUM(p.offered_qty), 0)) AS rejectionPct
+            FROM process_ie_qty p
+            JOIN inspection_calls ic ON ic.ic_number = p.REQUEST_ID
+            WHERE p.CREATED_DATE >= :date
+            GROUP BY ic.company_name
+            ORDER BY rejectionPct DESC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findWorst5ProcessPerformance(@Param("date") java.util.Date date);
+    @Query(value = """
+            SELECT 
+                DATE_FORMAT(p.date_of_inspection, '%d-%b') AS displayDate,
+                (SUM(p.rejected_qty) * 100.0 / NULLIF(SUM(p.manufacture_qty), 0)) AS rejectionPct
+            FROM process_ie_qty p
+            WHERE p.date_of_inspection BETWEEN :startDate AND :endDate
+            GROUP BY p.date_of_inspection
+            ORDER BY p.date_of_inspection ASC
+            """, nativeQuery = true)
+    List<Object[]> findDailyRejectionTrend(@Param("startDate") java.util.Date startDate, @Param("endDate") java.util.Date endDate);
 }
