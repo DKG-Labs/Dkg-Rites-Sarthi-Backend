@@ -157,5 +157,66 @@ public class ProcessInspectionController {
             return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    /**
+     * Get final inspection results for all production lines for a given inspection call.
+     * Used for manufactured quantity validation across stages.
+     * GET /api/process-material/final-results/{callNo}
+     */
+    @GetMapping("/final-results/{callNo}")
+    @Operation(summary = "Get Process final results", description = "Retrieves final inspection results for all lines of a call number")
+    public ResponseEntity<APIResponse> getFinalResultsByCallNo(@PathVariable String callNo) {
+        logger.info("GET /api/process-material/final-results/{} - Fetching final results", callNo);
+        
+        try {
+            var results = service.getFinalResultsByCallNo(callNo);
+            if (results == null || results.isEmpty()) {
+                logger.warn("⚠️ No final results found for call: {}", callNo);
+                return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(results), HttpStatus.OK); // Return empty list
+            }
+            logger.info("✅ Final results retrieved successfully for call: {}", callNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(results), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("❌ Error fetching final results for call: {}", callNo, e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                AppConstant.ERROR_CODE_INTERNAL,
+                AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                AppConstant.ERROR_TYPE_INTERNAL,
+                "Failed to fetch final results: " + e.getMessage()
+            );
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Get sum of accepted quantities for all stages for a given inspection call and lot number.
+     * GET /api/process-material/accepted-quantities
+     */
+    @GetMapping("/accepted-quantities")
+    @Operation(summary = "Get accepted quantities sum", description = "Retrieves sum of accepted quantities for all stages of a call number and lot number")
+    public ResponseEntity<APIResponse> getAcceptedQuantities(
+            @RequestParam String callNo,
+            @RequestParam String lotNo) {
+        logger.info("GET /api/process-material/accepted-quantities - Fetching accepted quantities sum for call: {}, lot: {}", callNo, lotNo);
+        
+        try {
+            var result = service.getAcceptedQuantitySum(callNo, lotNo);
+            if (result == null) {
+                logger.warn("⚠️ No accepted quantities found for call: {}, lot: {}", callNo, lotNo);
+                return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(null), HttpStatus.OK);
+            }
+            logger.info("✅ Accepted quantities sum retrieved successfully for call: {}, lot: {}", callNo, lotNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("❌ Error fetching accepted quantities sum for call: {}, lot: {}", callNo, lotNo, e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                AppConstant.ERROR_CODE_INTERNAL,
+                AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                AppConstant.ERROR_TYPE_INTERNAL,
+                "Failed to fetch accepted quantities sum: " + e.getMessage()
+            );
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
 

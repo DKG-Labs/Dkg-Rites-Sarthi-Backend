@@ -84,7 +84,23 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
      * @Param("callNos") List<String> callNos
      * );
      */
- /*   @Query("""
+    /*
+     * @Query("""
+     * SELECT
+     * r.inspectionCallNo,
+     * SUM(r.totalQtyOfferedMt),
+     * SUM(r.weightAcceptedMt),
+     * SUM(r.weightRejectedMt)
+     * FROM RmHeatFinalResult r
+     * WHERE r.inspectionCallNo IN :callNos
+     * GROUP BY r.inspectionCallNo
+     * """)
+     * List<Object[]> findRmSummaryByCallNos(
+     * 
+     * @Param("callNos") List<String> callNos
+     * );
+     */
+    @Query("""
             SELECT
                 r.inspectionCallNo,
                 SUM(r.totalQtyOfferedMt),
@@ -95,61 +111,46 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             GROUP BY r.inspectionCallNo
             """)
     List<Object[]> findRmSummaryByCallNos(
-            @Param("callNos") List<String> callNos
-    );*/
-  @Query("""
-SELECT
-    r.inspectionCallNo,
-    SUM(r.totalQtyOfferedMt),
-    SUM(r.weightAcceptedMt),
-    SUM(r.weightRejectedMt)
-FROM RmHeatFinalResult r
-WHERE r.inspectionCallNo IN :callNos
-GROUP BY r.inspectionCallNo
-""")
-  List<Object[]> findRmSummaryByCallNos(
-          @Param("callNos") List<String> callNos
-  );
-
+            @Param("callNos") List<String> callNos);
 
     @Query(value = """
-        SELECT 
-            p.id,
-            p.company_name,
-            p.poi_code,
-            u.username,
-            ru.rio,
-            'Raw Material' AS stage,
-            SUM(r.total_qty_offered_mt),
-            SUM(r.accepted_qty_mt),
-            SUM(r.weight_rejected_mt)
-        FROM pincode_poi_mapping p
+            SELECT
+                p.id,
+                p.company_name,
+                p.poi_code,
+                u.username,
+                ip.rio,
+                'Raw Material' AS stage,
+                SUM(r.total_qty_offered_mt),
+                SUM(r.accepted_qty_mt),
+                SUM(r.weight_rejected_mt)
+            FROM rm_heat_final_result r
+            JOIN inspection_calls ic ON ic.ic_number = r.inspection_call_no
+            JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+            LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+            LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
+            LEFT JOIN po_header ph ON ph.po_no = ic.po_no
 
-        JOIN ie_pincode_poi_mapping ip
-             ON ip.poi_code = p.poi_code
+            JOIN user_master u ON u.userid = r.created_by
 
-        JOIN user_master u
-             ON u.EMPLOYEE_ID = ip.employee_code
-
-          LEFT JOIN ie_fields_mapping ru
-             ON ru.pin_code = p.pin_code
-
-        JOIN rm_heat_final_result r
-             ON r.created_by = u.userid
-             WHERE (:startDate IS NULL OR DATE(r.created_at) >= :startDate)
-                      AND (:endDate IS NULL OR DATE(r.created_at) <= :endDate)
-        GROUP BY 
-            p.id,
-            p.company_name,
-            p.poi_code,
-            u.username,
-            ru.rio
-        """,
-            countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
-            nativeQuery = true)
+            WHERE (:startDate IS NULL OR DATE(r.created_at) >= :startDate)
+              AND (:endDate IS NULL OR DATE(r.created_at) <= :endDate)
+              AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+              AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+              AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+            GROUP BY
+                p.id,
+                p.company_name,
+                p.poi_code,
+                u.username,
+                ip.rio
+            """, countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping", nativeQuery = true)
     Page<Object[]> fetchRaw(@Param("startDate") LocalDate startDate,
-                            @Param("endDate") LocalDate endDate, Pageable pageable);
-
+            @Param("endDate") LocalDate endDate,
+            @Param("rio") String rio,
+            @Param("zone") String zone,
+            @Param("vendor") String vendor,
+            Pageable pageable);
 
     @Query("SELECT SUM(r.weightRejectedMt), SUM(r.weightOfferedMt) FROM RmHeatFinalResult r WHERE r.createdAt >= :date")
     List<Object[]> sumRmRejectionLast30Days(@Param("date") java.time.LocalDateTime date);

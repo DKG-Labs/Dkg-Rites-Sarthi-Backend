@@ -23,29 +23,35 @@ public class SummaryReportController {
 
     @Autowired
     private SummaryService summaryService;
+
     @GetMapping("/dashboard")
     public APIResponse getDashboard(
             @RequestParam int page,
             @RequestParam int size,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String zone,
+            @RequestParam(required = false) String vendor) {
 
-        PageResponseDTO<ManufacturerInspectionSummaryDTO> data =
-                summaryService.getDashboard(page, size, startDate, endDate);
+        PageResponseDTO<ManufacturerInspectionSummaryDTO> data = summaryService.getDashboard(page, size, startDate,
+                endDate, rio, zone, vendor);
 
         return ResponseBuilder.getSuccessResponse(data);
     }
-
 
     @GetMapping("/monthly-progress")
     public APIResponse getMonthlyProgress(
             @RequestParam int page,
             @RequestParam int size,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String zone,
+            @RequestParam(required = false) String vendor) {
 
         return ResponseBuilder.getSuccessResponse(
-                summaryService.getMonthlyProgress(page, size, startDate, endDate));
+                summaryService.getMonthlyProgress(page, size, startDate, endDate, rio, zone, vendor));
     }
 
     @GetMapping("/Manufature_wise_analysis")
@@ -53,31 +59,30 @@ public class SummaryReportController {
             @RequestParam int page,
             @RequestParam int size,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String zone,
+            @RequestParam(required = false) String vendor) {
 
         return ResponseBuilder.getSuccessResponse(
-                summaryService.getMonthlyAnalysis(page, size, startDate, endDate));
+                summaryService.getMonthlyAnalysis(page, size, startDate, endDate, rio, zone, vendor));
     }
 
+    @GetMapping("/lot-closed-loop")
+    public ResponseEntity<?> getLotClosedLoop(
+            @RequestParam String callNo,
+            @RequestParam String lotNo) {
 
+        List<LotWiseClosedLoopDTO> response = summaryService.getClosedLoop(callNo, lotNo);
 
-        @GetMapping("/lot-closed-loop")
-        public ResponseEntity<?> getLotClosedLoop(
-                @RequestParam String callNo,
-                @RequestParam String lotNo) {
-
-            List<LotWiseClosedLoopDTO> response =
-                   summaryService.getClosedLoop(callNo, lotNo);
-
-            return ResponseEntity.ok(response);
-        }
+        return ResponseEntity.ok(response);
+    }
 
     @GetMapping("/lot-numbers")
     public ResponseEntity<?> getLotNumbers(
             @RequestParam String requestId) {
 
-        List<String> data =
-                summaryService.getLotNumbers(requestId);
+        List<String> data = summaryService.getLotNumbers(requestId);
 
         return ResponseEntity.ok(data);
     }
@@ -90,7 +95,5 @@ public class SummaryReportController {
         return ResponseEntity.ok(
                 summaryService.getRequestIds(startDate, endDate));
     }
-
-
 
 }

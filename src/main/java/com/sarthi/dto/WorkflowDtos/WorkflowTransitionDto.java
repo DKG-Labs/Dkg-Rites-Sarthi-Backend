@@ -32,6 +32,7 @@ public class WorkflowTransitionDto {
     private Integer modifiedBy;
 
     private String poNo;
+    private String rawPoNo;
     private String vendorName;
     private String productType;
     private String desiredInspectionDate;

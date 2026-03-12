@@ -359,6 +359,11 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public com.sarthi.dto.processmaterial.ProcessStageAcceptedQtyDto getAcceptedQuantitySum(String callNo, String lotNo) {
+        return lineFinalResultRepository.getSumOfAcceptedQuantitiesByCallAndLot(callNo, lotNo);
+    }
+
     private ProcessLineFinalResultDto toFinalResultDto(ProcessLineFinalResult entity) {
         ProcessLineFinalResultDto dto = new ProcessLineFinalResultDto();
         BeanUtils.copyProperties(entity, dto);

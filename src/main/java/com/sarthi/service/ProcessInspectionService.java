@@ -41,6 +41,19 @@ public interface ProcessInspectionService {
      * @param callNo The inspection call number
      * @return List of line final results
      */
+    /**
+     * Get final inspection results for all production lines for a given inspection call.
+     * @param callNo The inspection call number
+     * @return List of line final results
+     */
     List<ProcessLineFinalResultDto> getFinalResultsByCallNo(String callNo);
+
+    /**
+     * Get sum of accepted quantities for all stages by call number and lot number.
+     * @param callNo The inspection call number
+     * @param lotNo The lot number
+     * @return DTO containing summed accepted quantities
+     */
+    com.sarthi.dto.processmaterial.ProcessStageAcceptedQtyDto getAcceptedQuantitySum(String callNo, String lotNo);
 }
 
