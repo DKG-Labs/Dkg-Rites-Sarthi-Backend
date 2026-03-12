@@ -42,6 +42,17 @@ public class VendorController {
         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
+/*
+    @GetMapping("/po-assigned")
+    public ResponseEntity<Object> getPoAssigned(@RequestParam(required = false) String vendorId, @RequestParam String vendorType) {
+        // If vendorId is not provided, return empty list
+        if (vendorId == null || vendorId.isEmpty()) {
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(List.of()), HttpStatus.OK);
+        }
+        List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorId, vendorType);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+    }
+*/
 
     @GetMapping("/po-assigned")
     public ResponseEntity<Object> getPoAssigned(@RequestParam(required = false) String vendorId) {
@@ -52,7 +63,6 @@ public class VendorController {
         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorId);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
-
     /**
      * Get available heat numbers for a vendor.
      *
