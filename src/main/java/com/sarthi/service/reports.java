@@ -5,6 +5,8 @@ import com.sarthi.dto.reports.DashboardSummaryDto;
 import com.sarthi.dto.reports.FourthLevelInspectionDto;
 import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
 import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
+import com.sarthi.dto.reports.ProcessPerformanceResponseDto;
+import com.sarthi.dto.reports.StageRejectionDto;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -32,5 +34,13 @@ public interface reports {
     public List<String> getProcessIcNumbersByUserId(Long userId);
 
     public double getAvgProductionPerDay();
+
+    public List<StageRejectionDto> getStageWiseRejection();
+
+    public List<StageRejectionDto> getManufacturerRejection();
+
+    public ProcessPerformanceResponseDto getProcessPerformance();
+
+    public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate);
 
 }

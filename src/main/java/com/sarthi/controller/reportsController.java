@@ -82,4 +82,29 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getAvgProductionPerDay()),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/qualityRejection")
+    public ResponseEntity<Object> getQualityRejection() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getStageWiseRejection()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/manufacturerRejection")
+    public ResponseEntity<Object> getManufacturerRejection() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getManufacturerRejection()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/processPerformance")
+    public ResponseEntity<Object> getProcessPerformance() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getProcessPerformance()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/dailyRejectionTrend")
+    public ResponseEntity<Object> getDailyRejectionTrend(@RequestParam(required = false) String startDate,
+                                                          @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDailyRejectionTrend(startDate, endDate)),
+                HttpStatus.OK);
+    }
 }

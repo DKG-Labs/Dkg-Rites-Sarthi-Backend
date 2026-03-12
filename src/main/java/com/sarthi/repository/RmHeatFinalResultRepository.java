@@ -155,4 +155,17 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
     @Query("SELECT SUM(r.weightRejectedMt), SUM(r.weightOfferedMt) FROM RmHeatFinalResult r WHERE r.createdAt >= :date")
     List<Object[]> sumRmRejectionLast30Days(@Param("date") java.time.LocalDateTime date);
 
+    @Query(value = """
+            SELECT 
+                ic.company_name AS name,
+                (SUM(r.weight_rejected_mt) * 100.0 / NULLIF(SUM(r.weight_offered_mt), 0)) AS rejectionPct
+            FROM rm_heat_final_result r
+            JOIN inspection_calls ic ON ic.ic_number = r.inspection_call_no
+            WHERE r.created_at >= :date
+            GROUP BY ic.company_name
+            ORDER BY rejectionPct DESC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findTop5ManufacturerRejection(@Param("date") java.time.LocalDateTime date);
+
 }

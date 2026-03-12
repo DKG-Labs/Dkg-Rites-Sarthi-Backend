@@ -18,11 +18,22 @@ public class VendorPoServiceImpl implements VendorPoService {
     @Autowired
     private PoHeaderRepository poHeaderRepository;
 
-    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode) {
+    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode ) {
 
         // List<PoHeader> poHeaders = poHeaderRepository.findByVendorCode(vendorCode);
         List<PoHeader> poHeaders = poHeaderRepository.findAllByVendorCodeWithItems(vendorCode);
+      /*  String type = null;
+        if(vendorType.equalsIgnoreCase("ERC")){
+            type = "Elastic Rail Clips";
+        }else if(vendorType.equalsIgnoreCase("Sleeper")){
+            type = "PSC Mainline Sleeper";
+        }else if(vendorType.equalsIgnoreCase("Rail Pads")){
+            type = "Rail Pads";
+        }
+        List<PoHeader> poHeaders =
+                poHeaderRepository.findAllByVendorCodeAndItemCatDescrWithItems(vendorCode, type);
 
+*/
         return poHeaders.stream().map(this::mapToHeaderDto).toList();
     }
 
