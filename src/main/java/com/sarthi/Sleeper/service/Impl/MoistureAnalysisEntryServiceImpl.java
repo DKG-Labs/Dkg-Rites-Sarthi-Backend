@@ -3,7 +3,9 @@ package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.MoistureAnalysisRequestDTO;
 import com.sarthi.Sleeper.dto.MoistureAnalysisResponseDTO;
+import com.sarthi.Sleeper.dto.MouldPreparationResponseDTO;
 import com.sarthi.Sleeper.entity.MoistureAnalysisEntry;
+import com.sarthi.Sleeper.entity.MouldPreparation;
 import com.sarthi.Sleeper.repository.MoistureAnalysisEntryRepository;
 import com.sarthi.Sleeper.service.MoistureAnalysisEntryService;
 import com.sarthi.constant.AppConstant;
@@ -153,6 +155,20 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
         return mapToResponse(updated);
     }
 
+    @Override
+    public MoistureAnalysisResponseDTO getById(Long id) {
+
+        MoistureAnalysisEntry e =
+                moistureAnalysisEntryRepository.findById(id)
+                        .orElseThrow(() -> new BusinessException(
+                                new ErrorDetails(
+                                        AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        " Moisture Analysis not found for the provided Id.")
+                        ));
+        return mapToResponse(e);
+    }
 
 
     private MoistureAnalysisResponseDTO mapToResponse(

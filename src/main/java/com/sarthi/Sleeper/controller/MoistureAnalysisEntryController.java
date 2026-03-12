@@ -2,6 +2,8 @@ package com.sarthi.Sleeper.controller;
 
 
 import com.sarthi.Sleeper.dto.MoistureAnalysisRequestDTO;
+import com.sarthi.Sleeper.dto.MoistureAnalysisResponseDTO;
+import com.sarthi.Sleeper.dto.MouldPreparationResponseDTO;
 import com.sarthi.Sleeper.service.MoistureAnalysisEntryService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,5 +46,17 @@ public class MoistureAnalysisEntryController {
                     HttpStatus.OK);
         }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<Object> getById(
+            @PathVariable Long id) {
+
+        MoistureAnalysisResponseDTO response =
+               moistureAnalysisEntryService.getById(id);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(response),
+                HttpStatus.OK
+        );
+    }
 
 }

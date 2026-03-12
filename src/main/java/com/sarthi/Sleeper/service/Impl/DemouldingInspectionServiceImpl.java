@@ -264,17 +264,16 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         dto.setId(entity.getId());
         dto.setLineShedNo(entity.getLineShedNo());
 
-        String iDate = CommonUtils.convertDateToString(entity.getInspectionDate());
-        if (dto.getInspectionDate() != null) {
-            dto.setInspectionDate(iDate);
+        if (entity.getInspectionDate() != null) {
+            dto.setInspectionDate(
+                    CommonUtils.convertDateToString(entity.getInspectionDate()));
         }
 
-        entity.setInspectionTime(dto.getInspectionTime());
+        dto.setInspectionTime(entity.getInspectionTime());
 
-        String cDate = CommonUtils.convertDateToString(entity.getCastingDate());
-
-        if (dto.getCastingDate() != null) {
-            dto.setCastingDate(cDate);
+        if (entity.getCastingDate() != null) {
+            dto.setCastingDate(
+                    CommonUtils.convertDateToString(entity.getCastingDate()));
         }
 
         dto.setBatchNo(entity.getBatchNo());
@@ -287,20 +286,15 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
 
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setUpdatedBy(entity.getUpdatedBy());
-
         dto.setCreatedDate(entity.getCreatedDate());
         dto.setUpdatedDate(entity.getUpdatedDate());
         dto.setStatus(entity.getStatus());
 
-
-        /* Map defects */
         if (entity.getDefectiveSleepers() != null) {
 
-            List<DemouldingDefectiveSleeperDTO> list =
-                    new ArrayList<>();
+            List<DemouldingDefectiveSleeperDTO> list = new ArrayList<>();
 
-            for (DemouldingDefectiveSleeper d
-                    : entity.getDefectiveSleepers()) {
+            for (DemouldingDefectiveSleeper d : entity.getDefectiveSleepers()) {
 
                 DemouldingDefectiveSleeperDTO dd =
                         new DemouldingDefectiveSleeperDTO();
