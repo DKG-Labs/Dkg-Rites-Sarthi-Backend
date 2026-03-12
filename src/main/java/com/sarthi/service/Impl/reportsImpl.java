@@ -1791,5 +1791,144 @@ public class reportsImpl implements reports {
                 Long shearingSum = processLineFinalResultRepository.sumShearingManufacturedLast30Days(thirtyDaysAgo);
                 return shearingSum != null ? shearingSum / 30.0 : 0.0;
         }
+    @Override
+    public List<StageRejectionDto> getStageWiseRejection() {
+        List<StageRejectionDto> data = new ArrayList<>();
+
+        // Using last 30 days for dynamic stats (consistent with dashboard summary)
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        java.util.Date thirtyDaysAgoDate = java.util.Date.from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
+
+        // 1. Raw Material Rejection
+        List<Object[]> rmResults = rmHeatFinalResultRepository.sumRmRejectionLast30Days(thirtyDaysAgo);
+        double rmVal = 0.0;
+        if (rmResults != null && !rmResults.isEmpty() && rmResults.get(0) != null) {
+            Object[] row = rmResults.get(0);
+            double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+            double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+            if (offered > 0) rmVal = (rejected * 100.0) / offered;
+        }
+        data.add(new StageRejectionDto("Raw Material", Math.round(rmVal * 100.0) / 100.0, "#2563eb"));
+
+        // 2. Process Rejection
+        List<Object[]> procResults = processIeQtyRepository.sumProcessRejectionLast30Days(thirtyDaysAgoDate);
+        double procVal = 0.0;
+        if (procResults != null && !procResults.isEmpty() && procResults.get(0) != null) {
+            Object[] row = procResults.get(0);
+            double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+            double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+            if (offered > 0) procVal = (rejected * 100.0) / offered;
+        }
+        data.add(new StageRejectionDto("Process", Math.round(procVal * 100.0) / 100.0, "#f59e0b"));
+
+        // 3. Final Rejection
+        List<Object[]> finalResults = finalCumulativeResultsRepository.sumFinalRejectionLast30Days(thirtyDaysAgo);
+        double finalVal = 0.0;
+        if (finalResults != null && !finalResults.isEmpty() && finalResults.get(0) != null) {
+            Object[] row = finalResults.get(0);
+            double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+            double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+            if (offered > 0) finalVal = (rejected * 100.0) / offered;
+        }
+        data.add(new StageRejectionDto("Final", Math.round(finalVal * 100.0) / 100.0, "#ef4444"));
+
+        return data;
+    }
+    @Override
+    public List<StageRejectionDto> getManufacturerRejection() {
+        List<StageRejectionDto> data = new ArrayList<>();
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+
+        List<Object[]> results = rmHeatFinalResultRepository.findTop5ManufacturerRejection(thirtyDaysAgo);
+        
+        // Define colors for the chart
+        String[] colors = {"#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"};
+
+        if (results != null) {
+            for (int i = 0; i < results.size(); i++) {
+                Object[] row = results.get(i);
+                String name = row[0] != null ? row[0].toString() : "Unknown";
+                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                
+                // Color mapping: highest rejection is more red/alarming
+                String color = i < colors.length ? colors[i] : "#64748b";
+                
+                data.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
+            }
+        }
+        
+        return data;
+    }
+    @Override
+    public ProcessPerformanceResponseDto getProcessPerformance() {
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        java.util.Date thirtyDaysAgoDate = java.util.Date.from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
+
+        List<Object[]> topResults = processIeQtyRepository.findTop5ProcessPerformance(thirtyDaysAgoDate);
+        List<Object[]> worstResults = processIeQtyRepository.findWorst5ProcessPerformance(thirtyDaysAgoDate);
+
+        List<StageRejectionDto> topList = new ArrayList<>();
+        List<StageRejectionDto> worstList = new ArrayList<>();
+
+        // Success colors (Greenish)
+        String[] successColors = {"#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"};
+        // Defect colors (Reddish)
+        String[] defectColors = {"#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2"};
+
+        if (topResults != null) {
+            for (int i = 0; i < topResults.size(); i++) {
+                Object[] row = topResults.get(i);
+                String name = row[0] != null ? row[0].toString() : "Unknown";
+                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                String color = i < successColors.length ? successColors[i] : "#10b981";
+                topList.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
+            }
+        }
+
+        if (worstResults != null) {
+            for (int i = 0; i < worstResults.size(); i++) {
+                Object[] row = worstResults.get(i);
+                String name = row[0] != null ? row[0].toString() : "Unknown";
+                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                String color = i < defectColors.length ? defectColors[i] : "#ef4444";
+                worstList.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
+            }
+        }
+
+        return new ProcessPerformanceResponseDto(topList, worstList);
+    }
+    @Override
+    public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate) {
+        List<StageRejectionDto> trend = new ArrayList<>();
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
+            java.util.Date start;
+            java.util.Date end;
+
+            if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
+                start = sdf.parse(startDate);
+                end = sdf.parse(endDate);
+            } else {
+                // Default to last 30 days for daily trend if no range
+                Calendar cal = Calendar.getInstance();
+                end = cal.getTime();
+                cal.add(Calendar.DAY_OF_YEAR, -30);
+                start = cal.getTime();
+            }
+
+            List<Object[]> results = processIeQtyRepository.findDailyRejectionTrend(start, end);
+            
+            if (results != null) {
+                for (Object[] row : results) {
+                    String date = row[0] != null ? row[0].toString() : "Unknown";
+                    double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                    trend.add(new StageRejectionDto(date, Math.round(percentage * 100.0) / 100.0, "#8b5cf6"));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return trend;
+    }
 
 }
