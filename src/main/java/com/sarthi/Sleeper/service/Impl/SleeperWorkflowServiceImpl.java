@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -202,20 +203,31 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         System.out.println(tx.getPoiCode());
         // Fetch users who can access this POI
 
-        List<SleeperPoiIeMapping> mappings;
+        List<SleeperPoiIeMapping> mappings = null;
+        String vendorId = null;
 
+        List<Integer> userIds = new ArrayList<>();
         if (tx.getWorkflowId().equals(2L)) {
             // Only Main IE for workflow 2
             mappings = poiIeMappingRepository
                     .findByPoiCodeAndIeType(tx.getPoiCode(), "Main IE");
         } else {
-            // Existing logic
-            mappings = poiIeMappingRepository
-                    .findByPoiCode(tx.getPoiCode());
+           if(tx.getNextRole().equalsIgnoreCase("Vendor")){
+              vendorId = sleeperPincodePoIMappingRepository
+                       .findVendorCodeByPoiCode(tx.getPoiCode())
+                       .orElseThrow(() -> new RuntimeException("Vendor not found for POI " ));
+           }else{
+               // Existing logic
+               mappings = poiIeMappingRepository
+                       .findByPoiCode(tx.getPoiCode());
+           }
         }
-        List<Integer> userIds = mappings.stream()
-                .map(SleeperPoiIeMapping::getIeUserId)
-                .toList();
+        if (mappings != null) {
+            userIds = mappings.stream()
+                    .map(SleeperPoiIeMapping::getIeUserId)
+                    .toList();
+        }
+        dto.setAssignedToUser(Long.valueOf(vendorId));
 
         dto.setAccessibleUserIds(userIds);
 

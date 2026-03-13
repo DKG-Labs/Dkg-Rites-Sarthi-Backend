@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.entity.SleeperPincodePoIMapping;
 import com.sarthi.Sleeper.entity.SleeperPoiIeMapping;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -16,4 +17,6 @@ public interface SleeperPincodePoIMappingRepository extends JpaRepository<Sleepe
 
     Optional<SleeperPincodePoIMapping> findByPoiCode(String poiCode);
 
-  }
+    @Query("SELECT s.vendorCode FROM SleeperPincodePoIMapping s WHERE s.poiCode = :poiCode")
+    Optional<String> findVendorCodeByPoiCode(@Param("poiCode") String poiCode);
+}
