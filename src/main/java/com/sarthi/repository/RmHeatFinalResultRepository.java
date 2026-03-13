@@ -160,8 +160,8 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             ip.rio,
             'Raw Material' AS stage,
 
-            SUM(r.weight_accepted_mt + r.weight_rejected_mt) AS inspected_qty,
-            SUM(r.weight_accepted_mt) AS accepted_qty,
+            SUM(r.accepted_qty_mt + r.weight_rejected_mt) AS inspected_qty,
+            SUM(r.accepted_qty_mt) AS accepted_qty,
             SUM(r.weight_rejected_mt) AS rejected_qty
 
         FROM rm_heat_final_result r
