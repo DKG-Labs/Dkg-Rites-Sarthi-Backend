@@ -222,6 +222,7 @@ public class HtsWireServiceImpl implements HtsWireService {
         dto.setInvoiceNumber(entity.getInvoiceNumber());
         dto.setRitesIcNumber(entity.getRitesIcNumber());
 
+        dto.setCreatedBy(entity.getCreatedBy());
         dto.setRelaxationTest(entity.getRelaxationTest());
         dto.setTotalQtyReceived(entity.getTotalQtyReceived());
 
