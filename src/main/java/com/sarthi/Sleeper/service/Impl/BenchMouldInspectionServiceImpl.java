@@ -207,6 +207,7 @@ public class BenchMouldInspectionServiceImpl
 
         dto.setCombinedRemarks(
                 entity.getCombinedRemarks());
+        dto.setCreatedBy(Integer.parseInt(entity.getCreatedBy()));
 
         return dto;
     }
