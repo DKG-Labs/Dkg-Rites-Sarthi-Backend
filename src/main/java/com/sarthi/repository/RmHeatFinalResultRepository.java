@@ -150,7 +150,55 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             @Param("rio") String rio,
             @Param("zone") String zone,
             @Param("vendor") String vendor,
-            Pageable pageable);
+            Pageable pageable);*/
+@Query(value = """
+        SELECT
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ip.rio,
+            'Raw Material' AS stage,
+
+            SUM(r.accepted_qty_mt + r.weight_rejected_mt) AS inspected_qty,
+            SUM(r.accepted_qty_mt) AS accepted_qty,
+            SUM(r.weight_rejected_mt) AS rejected_qty
+
+        FROM rm_heat_final_result r
+        JOIN inspection_calls ic ON ic.ic_number = r.inspection_call_no
+        JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+        LEFT JOIN ie_pincode_poi_mapping ipm 
+            ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+        LEFT JOIN ie_profile ip 
+            ON ip.employee_code = ipm.employee_code
+        LEFT JOIN po_header ph 
+            ON ph.po_no = ic.po_no
+
+        JOIN user_master u 
+            ON u.userid = r.created_by
+
+        WHERE (:startDate IS NULL OR DATE(r.created_at) >= :startDate)
+          AND (:endDate IS NULL OR DATE(r.created_at) <= :endDate)
+          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+          AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+        GROUP BY
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ip.rio
+        """,
+        countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+        nativeQuery = true)
+Page<Object[]> fetchRaw(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        @Param("rio") String rio,
+        @Param("zone") String zone,
+        @Param("vendor") String vendor,
+        Pageable pageable);
 
  */
 
@@ -204,5 +252,18 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             Pageable pageable);
     @Query("SELECT SUM(r.weightRejectedMt), SUM(r.weightOfferedMt) FROM RmHeatFinalResult r WHERE r.createdAt >= :date")
     List<Object[]> sumRmRejectionLast30Days(@Param("date") java.time.LocalDateTime date);
+
+    @Query(value = """
+            SELECT 
+                ic.company_name AS name,
+                (SUM(r.weight_rejected_mt) * 100.0 / NULLIF(SUM(r.weight_offered_mt), 0)) AS rejectionPct
+            FROM rm_heat_final_result r
+            JOIN inspection_calls ic ON ic.ic_number = r.inspection_call_no
+            WHERE r.created_at >= :date
+            GROUP BY ic.company_name
+            ORDER BY rejectionPct DESC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findTop5ManufacturerRejection(@Param("date") java.time.LocalDateTime date);
 
 }

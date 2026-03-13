@@ -50,6 +50,15 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
             """)
     List<PoHeader> findAllByVendorCodeWithItems(String vendorCode);
 
+	@Query("""
+       select distinct h
+       from PoHeader h
+       left join fetch h.items i
+       where h.vendorCode = :vendorCode
+       and h.itemCatDescr = :itemCatDescr
+       """)
+	List<PoHeader> findAllByVendorCodeAndItemCatDescrWithItems(String vendorCode, String itemCatDescr);
+
     /*
      * @Query("""
      * SELECT new com.sarthi.dto.reports.PoInspection1stLevelStatusDto(

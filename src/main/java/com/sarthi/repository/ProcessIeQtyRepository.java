@@ -171,47 +171,7 @@ public interface ProcessIeQtyRepository
     @Query("SELECT SUM(p.rejectedQty), SUM(p.offeredQty) FROM ProcessIeQty p WHERE p.createdDate >= :date")
     List<Object[]> sumProcessRejectionLast30Days(@Param("date") java.util.Date date);
 /*
-    @Query(value = """
-            SELECT
-                p.id,
-                p.company_name,
-                p.poi_code,
-                u.username,
-                ip.rio,
-                'PROCESS',
-                SUM(q.offered_qty),
-                SUM(q.inspected_qty),
-                SUM(q.rejected_qty)
 
-            FROM process_ie_qty q
-            JOIN inspection_calls ic ON ic.ic_number = q.request_id
-            JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
-            LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
-            LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
-            LEFT JOIN po_header ph ON ph.po_no = ic.po_no
-
-            JOIN user_master u ON u.userid = q.ie_user_id
-
-                WHERE (:startDate IS NULL OR DATE(q.created_date) >= :startDate)
-                  AND (:endDate IS NULL OR DATE(q.created_date) <= :endDate)
-                  AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
-                  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-                  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
-            GROUP BY
-                p.id,
-                p.company_name,
-                p.poi_code,
-                u.username,
-                ip.rio
-            """, countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping", nativeQuery = true)
-    Page<Object[]> fetchProcess(@Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            @Param("rio") String rio,
-            @Param("zone") String zone,
-            @Param("vendor") String vendor,
-            Pageable pageable);
-
- */
 @Query(value = """
         SELECT
             p.id,
@@ -274,6 +234,150 @@ Page<Object[]> fetchProcess(
         @Param("vendor") String vendor,
         Pageable pageable);
 
+ */
+
+    @Query(value = """
+SELECT
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    'PROCESS' AS stage,
+
+    (
+        LEAST(
+            SUM(pl.shearing_accepted),
+            SUM(pl.turning_accepted),
+            SUM(pl.mpi_accepted),
+            SUM(pl.forging_accepted),
+            SUM(pl.quenching_accepted),
+            SUM(pl.tempering_accepted)
+        )
+        +
+        SUM(
+            pl.shearing_rejected +
+            pl.turning_rejected +
+            pl.mpi_rejected +
+            pl.forging_rejected +
+            pl.quenching_rejected +
+            pl.tempering_rejected
+        )
+    ) AS inspected_qty,
+
+    LEAST(
+        SUM(pl.shearing_accepted),
+        SUM(pl.turning_accepted),
+        SUM(pl.mpi_accepted),
+        SUM(pl.forging_accepted),
+        SUM(pl.quenching_accepted),
+        SUM(pl.tempering_accepted)
+    ) AS accepted_qty,
+
+    SUM(
+        pl.shearing_rejected +
+        pl.turning_rejected +
+        pl.mpi_rejected +
+        pl.forging_rejected +
+        pl.quenching_rejected +
+        pl.tempering_rejected
+    ) AS rejected_qty
+
+FROM process_line_final_result pl
+JOIN inspection_calls ic ON ic.ic_number = pl.inspection_call_no
+JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
+LEFT JOIN po_header ph ON ph.po_no = ic.po_no
+JOIN user_master u ON u.userid = pl.created_by
+
+WHERE (:startDate IS NULL OR DATE(pl.created_at) >= :startDate)
+  AND (:endDate IS NULL OR DATE(pl.created_at) <= :endDate)
+  AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+GROUP BY
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio
+""",
+            countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+            nativeQuery = true)
+    Page<Object[]> fetchProcess(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("rio") String rio,
+            @Param("zone") String zone,
+            @Param("vendor") String vendor,
+            Pageable pageable);
+
+/*
+@Query(value = """
+        SELECT
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ip.rio,
+            'PROCESS' AS stage,
+
+            SUM(
+                pl.shearing_accepted + pl.turning_accepted + pl.mpi_accepted +
+                pl.forging_accepted + pl.quenching_accepted + pl.tempering_accepted +
+                pl.shearing_rejected + pl.turning_rejected + pl.mpi_rejected +
+                pl.forging_rejected + pl.quenching_rejected + pl.tempering_rejected
+            ) AS inspected_qty,
+
+            SUM(
+                pl.shearing_accepted + pl.turning_accepted + pl.mpi_accepted +
+                pl.forging_accepted + pl.quenching_accepted + pl.tempering_accepted
+            ) AS accepted_qty,
+
+            SUM(
+                pl.shearing_rejected + pl.turning_rejected + pl.mpi_rejected +
+                pl.forging_rejected + pl.quenching_rejected + pl.tempering_rejected
+            ) AS rejected_qty
+
+        FROM process_line_final_result pl
+        JOIN inspection_calls ic ON ic.ic_number = pl.inspection_call_no
+        JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+        LEFT JOIN ie_pincode_poi_mapping ipm 
+            ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+        LEFT JOIN ie_profile ip 
+            ON ip.employee_code = ipm.employee_code
+        LEFT JOIN po_header ph 
+            ON ph.po_no = ic.po_no
+
+        JOIN user_master u 
+            ON u.userid = pl.created_by
+
+        WHERE (:startDate IS NULL OR DATE(pl.created_at) >= :startDate)
+          AND (:endDate IS NULL OR DATE(pl.created_at) <= :endDate)
+          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+          AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+        GROUP BY
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ip.rio
+        """,
+        countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+        nativeQuery = true)
+Page<Object[]> fetchProcess(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        @Param("rio") String rio,
+        @Param("zone") String zone,
+        @Param("vendor") String vendor,
+        Pageable pageable);
+
+*/
     @Query(value = """
             SELECT
                 DATE(p.date_of_inspection) AS inspectionDate,
@@ -371,6 +475,41 @@ Page<Object[]> fetchProcess(
             WHERE p.REQUEST_ID = :requestId
             ORDER BY p.lot_number
             """, nativeQuery = true)
-    List<String> findLotNumbersByRequestId(
-            @Param("requestId") String requestId);
+    List<String> findLotNumbersByRequestId(@Param("requestId") String requestId);
+
+    @Query(value = """
+            SELECT 
+                ic.company_name AS name,
+                (SUM(p.rejected_qty) * 100.0 / NULLIF(SUM(p.offered_qty), 0)) AS rejectionPct
+            FROM process_ie_qty p
+            JOIN inspection_calls ic ON ic.ic_number = p.REQUEST_ID
+            WHERE p.CREATED_DATE >= :date
+            GROUP BY ic.company_name
+            ORDER BY rejectionPct ASC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findTop5ProcessPerformance(@Param("date") java.util.Date date);
+
+    @Query(value = """
+            SELECT 
+                ic.company_name AS name,
+                (SUM(p.rejected_qty) * 100.0 / NULLIF(SUM(p.offered_qty), 0)) AS rejectionPct
+            FROM process_ie_qty p
+            JOIN inspection_calls ic ON ic.ic_number = p.REQUEST_ID
+            WHERE p.CREATED_DATE >= :date
+            GROUP BY ic.company_name
+            ORDER BY rejectionPct DESC
+            LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findWorst5ProcessPerformance(@Param("date") java.util.Date date);
+    @Query(value = """
+            SELECT 
+                DATE_FORMAT(p.date_of_inspection, '%d-%b') AS displayDate,
+                (SUM(p.rejected_qty) * 100.0 / NULLIF(SUM(p.manufacture_qty), 0)) AS rejectionPct
+            FROM process_ie_qty p
+            WHERE p.date_of_inspection BETWEEN :startDate AND :endDate
+            GROUP BY p.date_of_inspection
+            ORDER BY p.date_of_inspection ASC
+            """, nativeQuery = true)
+    List<Object[]> findDailyRejectionTrend(@Param("startDate") java.util.Date startDate, @Param("endDate") java.util.Date endDate);
 }

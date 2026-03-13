@@ -2344,6 +2344,7 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
             ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
 
 
+
            // ieUsers.add(processIe);
             dto.setProcessIes(ieUsers);
         }
@@ -2926,8 +2927,9 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             int processIe = wt.getProcessIeUserId();
             String poi = i.placeOfInspection();
 
-            List<Integer> ieUsers = processIeIeMap.getOrDefault(processIe + "_" + poi, new ArrayList<>());
-            
+         //   List<Integer> ieUsers = processIeIeMap.getOrDefault(processIe + "_" + poi, new ArrayList<>());
+            List<Integer>   ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+
             // Replicate original exception logic if empty
             if (ieUsers.isEmpty()) {
                 // We'll log a warning instead of failing the entire batch, 
