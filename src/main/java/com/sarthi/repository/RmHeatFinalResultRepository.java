@@ -200,7 +200,7 @@ Page<Object[]> fetchRaw(
         @Param("vendor") String vendor,
         Pageable pageable);
 
- */
+ /*
 
     @Query(value = """
         SELECT
@@ -250,6 +250,8 @@ Page<Object[]> fetchRaw(
             @Param("zone") String zone,
             @Param("vendor") String vendor,
             Pageable pageable);
+
+  */
     @Query("SELECT SUM(r.weightRejectedMt), SUM(r.weightOfferedMt) FROM RmHeatFinalResult r WHERE r.createdAt >= :date")
     List<Object[]> sumRmRejectionLast30Days(@Param("date") java.time.LocalDateTime date);
 
