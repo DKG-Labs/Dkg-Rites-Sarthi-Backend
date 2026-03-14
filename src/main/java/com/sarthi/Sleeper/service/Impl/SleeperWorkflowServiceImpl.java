@@ -227,7 +227,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     .map(SleeperPoiIeMapping::getIeUserId)
                     .toList();
         }
-        dto.setAssignedToUser(Long.valueOf(vendorId));
+        if(vendorId != null){
+            dto.setAssignedToUser(Long.valueOf(vendorId));
+        }
 
         dto.setAccessibleUserIds(userIds);
 
