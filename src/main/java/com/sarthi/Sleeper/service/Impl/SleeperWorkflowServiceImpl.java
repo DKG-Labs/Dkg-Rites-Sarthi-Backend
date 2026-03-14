@@ -212,7 +212,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             mappings = poiIeMappingRepository
                     .findByPoiCodeAndIeType(tx.getPoiCode(), "Main IE");
         } else {
-           if(tx.getNextRole().equalsIgnoreCase("Vendor")){
+            if("Vendor".equalsIgnoreCase(tx.getNextRole())){
               vendorId = sleeperPincodePoIMappingRepository
                        .findVendorCodeByPoiCode(tx.getPoiCode())
                        .orElseThrow(() -> new RuntimeException("Vendor not found for POI " ));
