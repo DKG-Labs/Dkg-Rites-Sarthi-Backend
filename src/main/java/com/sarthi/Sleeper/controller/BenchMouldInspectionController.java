@@ -25,9 +25,9 @@ public class BenchMouldInspectionController {
 
         BenchMouldInspectionResponseDto result = benchMouldInspectionService.create(dto);
         String requestId = String.valueOf(result.getId());
-        Long md = 2L;
-        Long wid = 1L;
-        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, (long) result.getCreatedBy());
+//        Long md = 2L;
+//        Long wid = 1L;
+//        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, (long) result.getCreatedBy());
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(result),

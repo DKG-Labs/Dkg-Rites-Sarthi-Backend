@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.CompanyUnitResponseDto;
 import com.sarthi.Sleeper.dto.SgciInventory.SgciInsertRequestDto;
 import com.sarthi.Sleeper.dto.SleeperPoiIeMappingDto;
 import com.sarthi.Sleeper.service.SleeperPoiIeMappingService;
@@ -22,6 +23,17 @@ public class SleeperPoiIeMapping {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(sleeperPoiIeMappingService.saveMapping(dto)),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/company-units/{ieUserId}")
+    public ResponseEntity<Object>  getCompanyUnits(
+            @PathVariable Integer ieUserId) {
+
+        CompanyUnitResponseDto result = sleeperPoiIeMappingService.getCompanyUnits(ieUserId);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK
         );
     }

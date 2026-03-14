@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,4 +20,7 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
      List<SleeperPoiIeMapping> findByPoiCodeAndIeType(String poiCode, String mainIe);
 
     boolean existsByPoiCodeAndIeUserIdAndIeType(String poiCode, int intExact, String mainIe);
+
+    List<SleeperPoiIeMapping> findByIeUserId(Integer ieUserId);
+
 }

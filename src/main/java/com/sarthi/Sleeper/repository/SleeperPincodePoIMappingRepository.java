@@ -19,4 +19,6 @@ public interface SleeperPincodePoIMappingRepository extends JpaRepository<Sleepe
 
     @Query("SELECT s.vendorCode FROM SleeperPincodePoIMapping s WHERE s.poiCode = :poiCode")
     Optional<String> findVendorCodeByPoiCode(@Param("poiCode") String poiCode);
+
+    List<SleeperPincodePoIMapping> findByPoiCodeIn(List<String> poiCodes);
 }
