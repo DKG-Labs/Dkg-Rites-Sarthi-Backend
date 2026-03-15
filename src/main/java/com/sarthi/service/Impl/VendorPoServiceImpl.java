@@ -18,11 +18,11 @@ public class VendorPoServiceImpl implements VendorPoService {
     @Autowired
     private PoHeaderRepository poHeaderRepository;
 
-    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode ) {
+    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode , String vendorType) {
 
-        // List<PoHeader> poHeaders = poHeaderRepository.findByVendorCode(vendorCode);
-        List<PoHeader> poHeaders = poHeaderRepository.findAllByVendorCodeWithItems(vendorCode);
-      /*  String type = null;
+       //  List<PoHeader> poHeaders = poHeaderRepository.findByVendorCode(vendorCode);
+      //  List<PoHeader> poHeaders = poHeaderRepository.findAllByVendorCodeWithItems(vendorCode);
+       String type = null;
         if(vendorType.equalsIgnoreCase("ERC")){
             type = "Elastic Rail Clips";
         }else if(vendorType.equalsIgnoreCase("Sleeper")){
@@ -33,7 +33,7 @@ public class VendorPoServiceImpl implements VendorPoService {
         List<PoHeader> poHeaders =
                 poHeaderRepository.findAllByVendorCodeAndItemCatDescrWithItems(vendorCode, type);
 
-*/
+
         return poHeaders.stream().map(this::mapToHeaderDto).toList();
     }
 

@@ -34,15 +34,15 @@ public class VendorController {
     private VendorHeatNumberService vendorHeatNumberService;
 
     @GetMapping("/poData")
-    // public ResponseEntity<Object> login(@RequestParam String vendorCode) {
-    //     List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode);
-    //     return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
-    // }
-    public ResponseEntity<Object> getPoData(@RequestParam String vendorCode) {
-        List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode);
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
-    }
-/*
+    public ResponseEntity<Object> login(@RequestParam String vendorCode, @RequestParam String vendorType) {
+         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode, vendorType);
+         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+     }
+//    public ResponseEntity<Object> getPoData(@RequestParam String vendorCode) {
+//        List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode);
+//        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+//    }
+
     @GetMapping("/po-assigned")
     public ResponseEntity<Object> getPoAssigned(@RequestParam(required = false) String vendorId, @RequestParam String vendorType) {
         // If vendorId is not provided, return empty list
@@ -52,7 +52,7 @@ public class VendorController {
         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorId, vendorType);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
-*/
+/*
 
     @GetMapping("/po-assigned")
     public ResponseEntity<Object> getPoAssigned(@RequestParam(required = false) String vendorId) {
@@ -62,7 +62,7 @@ public class VendorController {
         }
         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorId);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
-    }
+    }*/
     /**
      * Get available heat numbers for a vendor.
      *

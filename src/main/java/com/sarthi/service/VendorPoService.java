@@ -9,8 +9,8 @@ import java.util.List;
 @Service
 public interface VendorPoService {
 
-   // public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode, String vendorType);
-   public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode);
+    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode, String vendorType);
+   //public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode);
 
 
 }
