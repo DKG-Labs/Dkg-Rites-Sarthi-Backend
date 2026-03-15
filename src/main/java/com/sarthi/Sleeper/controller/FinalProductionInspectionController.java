@@ -85,11 +85,10 @@ public class FinalProductionInspectionController {
 
         // ================= GET ALL =================
 
-        @GetMapping
-        public ResponseEntity<Object> getAll() {
-
+        @GetMapping("/getAll/{userId}")
+        public ResponseEntity<Object> getAll(@PathVariable("userId") Long userId) {
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(service.getAll()),
+                    ResponseBuilder.getSuccessResponse(service.getAll(userId)),
                     HttpStatus.OK
             );
         }
