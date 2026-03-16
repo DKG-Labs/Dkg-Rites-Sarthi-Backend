@@ -1,6 +1,5 @@
 package com.sarthi.Sleeper.entity;
 
-
 import com.sarthi.Sleeper.entity.FinalInspection.MorSampleDeclaration;
 import jakarta.persistence.*;
 import lombok.Data;

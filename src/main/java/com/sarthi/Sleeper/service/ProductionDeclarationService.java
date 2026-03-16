@@ -15,5 +15,7 @@ public interface ProductionDeclarationService {
 
     List<ProductionDeclarationResponseDto> getAll();
 
+    List<ProductionDeclarationResponseDto> getByUser(Long userId);
+
     void delete(Long id);
 }
