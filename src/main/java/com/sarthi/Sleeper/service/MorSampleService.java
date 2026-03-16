@@ -2,7 +2,6 @@ package com.sarthi.Sleeper.service;
 
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.MorSampleRequestDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.MorSampleResponseDto;
-import com.sarthi.Sleeper.dto.FinalInspectionDtos.MorTestResultDto;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,13 +15,7 @@ public interface MorSampleService {
 
     MorSampleResponseDto getById(Long id);
 
-    List<MorSampleResponseDto> getAll(Long userId);
-    
-    List<MorSampleResponseDto> getHistorical(Long userId);
-
-    List<MorSampleResponseDto> getPendingMorDeclarations(Long userId);
-
-    MorSampleResponseDto saveTestResults(Long declarationId, List<MorTestResultDto> results);
+    List<MorSampleResponseDto> getAll();
 
     void delete(Long id);
 }

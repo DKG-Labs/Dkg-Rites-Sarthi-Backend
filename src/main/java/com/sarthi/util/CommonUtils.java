@@ -146,22 +146,8 @@ public class CommonUtils {
        if (dateString == null || dateString.trim().isEmpty()) {
            return null;
        }
-       
-       List<DateTimeFormatter> formatters = Arrays.asList(
-               DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-               DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-               DateTimeFormatter.ofPattern("dd-MM-yyyy"),
-               DateTimeFormatter.ofPattern("yyyy/MM/dd")
-       );
-
-       for (DateTimeFormatter formatter : formatters) {
-           try {
-               return LocalDate.parse(dateString, formatter);
-           } catch (DateTimeParseException ignored) {
-           }
-       }
-       
-       throw new DateTimeParseException("Invalid date format: " + dateString, dateString, 0);
+       DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+       return LocalDate.parse(dateString, formatter);
    }
     public static LocalDate convertIsoDateStringToDateObject(String dateString) {
         if (dateString == null || dateString.trim().isEmpty()) {
@@ -383,11 +369,4 @@ public class CommonUtils {
     }
 
 
-    public static String convertTimeToString(LocalTime time) {
-        if (time != null) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
-            return time.format(formatter);
-        }
-        return null;
-    }
 }

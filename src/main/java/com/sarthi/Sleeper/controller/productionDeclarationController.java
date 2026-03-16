@@ -72,15 +72,6 @@ public class productionDeclarationController {
                     HttpStatus.OK);
         }
 
-        @GetMapping("/getByUser/{userId}")
-        public ResponseEntity<Object> getByUser(@PathVariable("userId") Long userId) {
-
-            return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(
-                            service.getByUser(userId)),
-                    HttpStatus.OK);
-        }
-
 
         @DeleteMapping("/delete/{id}")
         public ResponseEntity<Object> delete(

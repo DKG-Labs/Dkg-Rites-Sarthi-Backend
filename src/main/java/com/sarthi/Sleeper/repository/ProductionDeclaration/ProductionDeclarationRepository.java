@@ -4,7 +4,6 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -58,7 +57,4 @@ FROM ProductionDeclaration d
 WHERE d.id = :batchId
 """)
     ProductionDeclaration findBatchById(Long batchId);
-
-    @Query("SELECT d FROM ProductionDeclaration d WHERE d.createdBy = :createdBy")
-    List<ProductionDeclaration> findByCreatedBy(@Param("createdBy") Long createdBy);
 }

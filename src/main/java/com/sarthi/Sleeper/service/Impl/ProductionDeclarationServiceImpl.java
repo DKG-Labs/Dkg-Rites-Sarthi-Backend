@@ -507,19 +507,6 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         return list;
     }
 
-    @Override
-    public List<ProductionDeclarationResponseDto> getByUser(Long userId) {
-
-        List<ProductionDeclarationResponseDto> list = new ArrayList<>();
-
-        for (ProductionDeclaration entity : repository.findByCreatedBy(userId)) {
-
-            list.add(getById(entity.getId()));
-        }
-
-        return list;
-    }
-
 
 
 }
