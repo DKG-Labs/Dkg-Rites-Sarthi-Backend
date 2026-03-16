@@ -176,4 +176,7 @@ Page<Object[]> fetchFinal(
              WHERE f.inspectionCallNo IN :callNos
             """)
     List<Object[]> findFinalInspectionQty(@Param("callNos") List<String> callNos);
+
+    @Query("SELECT COALESCE(SUM(f.qtyNowPassed), 0), COALESCE(SUM(f.qtyNowRejected), 0) FROM FinalCumulativeResults f")
+    List<Object[]> sumFinalAcceptedAndRejected();
 }

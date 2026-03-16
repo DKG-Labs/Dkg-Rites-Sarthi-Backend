@@ -7,6 +7,8 @@ import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
 import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
 import com.sarthi.dto.reports.ProcessPerformanceResponseDto;
 import com.sarthi.dto.reports.StageRejectionDto;
+import com.sarthi.dto.reports.InspectionCallStatusDto;
+import com.sarthi.dto.reports.InspectionDetailsDto;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -43,4 +45,11 @@ public interface reports {
 
     public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate);
 
+    public List<StageRejectionDto> getManufacturingStepWiseRejection();
+
+    public List<InspectionCallStatusDto> getInspectionCallStatus();
+
+    public List<StageRejectionDto> getParetoAnalysis();
+
+    public List<InspectionDetailsDto> getInspectionDetails();
 }
