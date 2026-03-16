@@ -36,48 +36,50 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
      * Check if cumulative results exist for a call
      */
     boolean existsByInspectionCallNo(String inspectionCallNo);
+    /*
+        @Query(value = """
+                SELECT
+                    p.id,
+                    p.company_name,
+                    p.poi_code,
+                    u.username,
+                    ip.rio,
+                    'FINAL' AS stage,
+                    SUM(f.qty_now_offered),
+                    SUM(f.qty_now_passed),
+                    SUM(f.qty_now_rejected)
 
- /*   @Query(value = """
-            SELECT
-                p.id,
-                p.company_name,
-                p.poi_code,
-                u.username,
-                ip.rio,
-                'FINAL' AS stage,
-                SUM(f.qty_now_offered),
-                SUM(f.qty_now_passed),
-                SUM(f.qty_now_rejected)
+                FROM final_cumulative_results f
+                JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
+                JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+                LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+                LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
+                LEFT JOIN po_header ph ON ph.po_no = f.po_no
 
-            FROM final_cumulative_results f
-            JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
-            JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
-            LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
-            LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
-            LEFT JOIN po_header ph ON ph.po_no = f.po_no
+                JOIN user_master u ON u.userid = f.created_by
 
-            JOIN user_master u ON u.userid = f.created_by
+                WHERE (:startDate IS NULL OR DATE(f.created_at) >= :startDate)
+                  AND (:endDate IS NULL OR DATE(f.created_at) <= :endDate)
+                  AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+                  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+                  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
 
-            WHERE (:startDate IS NULL OR DATE(f.created_at) >= :startDate)
-              AND (:endDate IS NULL OR DATE(f.created_at) <= :endDate)
-              AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
-              AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-              AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+                GROUP BY
+                    p.id,
+                    p.company_name,
+                    p.poi_code,
+                    u.username,
+                    ip.rio
+                """, countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping", nativeQuery = true)
+        Page<Object[]> fetchFinal(@Param("startDate") LocalDate startDate,
+                @Param("endDate") LocalDate endDate,
+                @Param("rio") String rio,
+                @Param("zone") String zone,
+                @Param("vendor") String vendor,
+                Pageable pageable);
 
-            GROUP BY
-                p.id,
-                p.company_name,
-                p.poi_code,
-                u.username,
-                ip.rio
-            """, countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping", nativeQuery = true)
-    Page<Object[]> fetchFinal(@Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            @Param("rio") String rio,
-            @Param("zone") String zone,
-            @Param("vendor") String vendor,
-            Pageable pageable); */
- @Query(value = """
+     */
+    @Query(value = """
         SELECT
             p.id,
             p.company_name,
@@ -116,15 +118,15 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
             u.username,
             ip.rio
         """,
-         countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
-         nativeQuery = true)
- Page<Object[]> fetchFinal(
-         @Param("startDate") LocalDate startDate,
-         @Param("endDate") LocalDate endDate,
-         @Param("rio") String rio,
-         @Param("zone") String zone,
-         @Param("vendor") String vendor,
-         Pageable pageable);
+            countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+            nativeQuery = true)
+    Page<Object[]> fetchFinal(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("rio") String rio,
+            @Param("zone") String zone,
+            @Param("vendor") String vendor,
+            Pageable pageable);
 
     /**
      * Aggregation query: computes cumulative sums directly in the database.
@@ -174,4 +176,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
              WHERE f.inspectionCallNo IN :callNos
             """)
     List<Object[]> findFinalInspectionQty(@Param("callNos") List<String> callNos);
+
+    @Query("SELECT COALESCE(SUM(f.qtyNowPassed), 0), COALESCE(SUM(f.qtyNowRejected), 0) FROM FinalCumulativeResults f")
+    List<Object[]> sumFinalAcceptedAndRejected();
 }
