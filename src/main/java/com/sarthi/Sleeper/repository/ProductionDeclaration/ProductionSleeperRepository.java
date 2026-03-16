@@ -18,4 +18,23 @@ JOIN c.declaration d
 WHERE d.id = :batchId
 """)
     List<ProductionSleeper> getSleepersByBatch(Long batchId);
+
+    @Query("""
+SELECT COUNT(s.id)
+FROM ProductionSleeper s
+JOIN s.benchGroup b
+JOIN b.chamber c
+JOIN c.declaration d
+WHERE d.id = :batchId
+""")
+    Long countByBatchId(Long batchId);
+
+    @Query("""
+SELECT DISTINCT b.sleeperType
+FROM ProductionBenchGroup b
+JOIN b.chamber c
+JOIN c.declaration d
+WHERE d.id = :batchId
+""")
+    String getSleeperTypeByBatch(Long batchId);
 }

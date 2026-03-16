@@ -1,9 +1,11 @@
 package com.sarthi.Sleeper.entity.FinalInspection;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
 @Table(name = "inspection_parameter")
+@Data
 public class InspectionParameter {
 
     @Id

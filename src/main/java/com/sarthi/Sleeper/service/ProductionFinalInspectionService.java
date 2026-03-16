@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.service;
 
+import com.sarthi.Sleeper.dto.BatchInspectionResponseDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchInspectionDetailDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.InspectionSaveRequestDto;
@@ -14,4 +15,6 @@ public interface ProductionFinalInspectionService {
     public List<BatchTestingListResponseDto> getAllBatchTesting();
 
     public BatchInspectionDetailDto getBatchInspection(Long batchId);
+
+    public List<BatchInspectionResponseDto> getCompletedBatches();
 }

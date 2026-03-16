@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.BatchInspectionResponseDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.*;
 import com.sarthi.Sleeper.service.MorSampleService;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
@@ -107,6 +108,17 @@ public class FinalProductionInspectionController {
                     HttpStatus.OK
             );
         }
+
+    @GetMapping("/completed-batches")
+    public ResponseEntity<Object> getCompletedBatches() {
+
+        List<BatchInspectionResponseDto>  result=  inspectionService.getCompletedBatches();
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK
+        );
+    }
 
 
 }

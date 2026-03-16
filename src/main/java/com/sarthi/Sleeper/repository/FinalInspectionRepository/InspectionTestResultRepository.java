@@ -25,4 +25,24 @@ JOIN r.testHeader h
 WHERE h.batchId = :batchId
 """)
     List<InspectionTestResult> findByBatchId(Long batchId);
+
+    @Query("""
+SELECT COUNT(DISTINCT r.sleeperId)
+FROM InspectionTestResult r
+JOIN r.testHeader h
+WHERE h.batchId = :batchId
+AND h.module.id = :moduleId
+""")
+    Long countTestedSleepers(Long batchId, Long moduleId);
+
+
+    @Query("""
+           SELECT r
+           FROM InspectionTestResult r
+           JOIN r.testHeader h
+           WHERE h.batchId = :batchId
+           AND h.module.id = 3
+           AND h.status='Completed'
+           """)
+    List<InspectionTestResult> findFinalModuleResults(Long batchId);
 }

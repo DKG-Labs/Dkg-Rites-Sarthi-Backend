@@ -27,6 +27,8 @@ public class InspectionTestHeader {
 
     private LocalDateTime createdDate;
 
+    private String status;
+
     @ManyToOne
     @JoinColumn(name = "module_id")
     private InspectionModule module;
