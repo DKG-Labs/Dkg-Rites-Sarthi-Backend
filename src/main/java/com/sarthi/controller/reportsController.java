@@ -107,4 +107,28 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDailyRejectionTrend(startDate, endDate)),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/manufacturingStepWiseRejection")
+    public ResponseEntity<Object> getManufacturingStepWiseRejection() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getManufacturingStepWiseRejection()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/inspectionCallStatus")
+    public ResponseEntity<Object> getInspectionCallStatus() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionCallStatus()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/paretoAnalysis")
+    public ResponseEntity<Object> getParetoAnalysis() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getParetoAnalysis()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/inspectionDetails")
+    public ResponseEntity<Object> getInspectionDetails() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionDetails()),
+                HttpStatus.OK);
+    }
 }
