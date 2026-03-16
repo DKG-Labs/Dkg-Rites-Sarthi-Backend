@@ -216,4 +216,6 @@ Page<Object[]> fetchRaw(
             """, nativeQuery = true)
     List<Object[]> findTop5ManufacturerRejection(@Param("date") java.time.LocalDateTime date);
 
+    @Query("SELECT COALESCE(SUM(r.acceptedQtyMt), 0), COALESCE(SUM(r.weightRejectedMt), 0) FROM RmHeatFinalResult r")
+    List<Object[]> sumRmAcceptedAndRejected();
 }
