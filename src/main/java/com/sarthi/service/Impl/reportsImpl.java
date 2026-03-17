@@ -110,47 +110,49 @@ public class reportsImpl implements reports {
                                 continue;
                         }
 
-                       /* // ================= Offered + Rejected =================
-                        List<Object[]> resultList = rmHeatFinalResultRepository
-                                        .findOfferedAndRejectedByCallNos(callNos);
+                        /*
+                         * // ================= Offered + Rejected =================
+                         * List<Object[]> resultList = rmHeatFinalResultRepository
+                         * .findOfferedAndRejectedByCallNos(callNos);
+                         * 
+                         * double offered = 0.0;
+                         * double rejected = 0.0;
+                         * 
+                         * // if (resultList != null && !resultList.isEmpty()) {
+                         * //
+                         * // Object[] result = resultList.get(0);
+                         * //
+                         * // if (result[0] != null)
+                         * // offered = ((Number) result[0]).doubleValue();
+                         * //
+                         * // if (result[1] != null)
+                         * // rejected = ((Number) result[1]).doubleValue();
+                         * // }
+                         * if (resultList != null && !resultList.isEmpty()) {
+                         * 
+                         * for (Object[] result : resultList) {
+                         * 
+                         * if (result[0] != null)
+                         * offered += ((Number) result[0]).doubleValue();
+                         * 
+                         * if (result[1] != null)
+                         * rejected += ((Number) result[1]).doubleValue();
+                         * }
+                         * }
+                         * 
+                         * // ================= Final Accepted =================
+                         * int accepted = (int) Math.round(offered);
+                         * dto.setFinalQuantityAcceptedByRites(accepted);
+                         * 
+                         * // ================= Balance =================
+                         * int balance = dto.getPoQty() - accepted;
+                         * balance = Math.max(balance, 0); // safety
+                         * 
+                         * dto.setBalancePoQty(balance);
+                         */
 
-                        double offered = 0.0;
-                        double rejected = 0.0;
-
-                        // if (resultList != null && !resultList.isEmpty()) {
-                        //
-                        // Object[] result = resultList.get(0);
-                        //
-                        // if (result[0] != null)
-                        // offered = ((Number) result[0]).doubleValue();
-                        //
-                        // if (result[1] != null)
-                        // rejected = ((Number) result[1]).doubleValue();
-                        // }
-                        if (resultList != null && !resultList.isEmpty()) {
-
-                                for (Object[] result : resultList) {
-
-                                        if (result[0] != null)
-                                                offered += ((Number) result[0]).doubleValue();
-
-                                        if (result[1] != null)
-                                                rejected += ((Number) result[1]).doubleValue();
-                                }
-                        }
-
-                        // ================= Final Accepted =================
-                        int accepted = (int) Math.round(offered);
-                        dto.setFinalQuantityAcceptedByRites(accepted);
-
-                        // ================= Balance =================
-                        int balance = dto.getPoQty() - accepted;
-                        balance = Math.max(balance, 0); // safety
-
-                        dto.setBalancePoQty(balance);*/
-
-                        List<Object[]> finalResultList =
-                                finalCumulativeResultsRepository.findFinalInspectionQty(callNos);
+                        List<Object[]> finalResultList = finalCumulativeResultsRepository
+                                        .findFinalInspectionQty(callNos);
 
                         double passed = 0.0;
                         double rejected = 0.0;
@@ -166,7 +168,7 @@ public class reportsImpl implements reports {
                                         rejected = ((Number) finalResult[1]).doubleValue();
                         }
 
-// Final Accepted
+                        // Final Accepted
                         int accepted = (int) Math.round(passed);
                         dto.setFinalQuantityAcceptedByRites(accepted);
 
@@ -182,13 +184,13 @@ public class reportsImpl implements reports {
                         dto.setFinalInspectionRejectionPercentage(finalRejectPct);
 
                         // ================= Process Rejection % =================
-//                        Double processPct = processIeQtyRepository
-//                                        .findProcessRejectionPctByCallNos(callNos);
-//
-//                        dto.setProcessInspectionRejectionPercentage(
-//                                        processPct != null ? processPct : 0.0);
+                        // Double processPct = processIeQtyRepository
+                        // .findProcessRejectionPctByCallNos(callNos);
+                        //
+                        // dto.setProcessInspectionRejectionPercentage(
+                        // processPct != null ? processPct : 0.0);
                         List<Object[]> processRows = processLineFinalResultRepository
-                                .findProcessLineSummaryByCallNos(callNos);
+                                        .findProcessLineSummaryByCallNos(callNos);
 
                         double totalManufactured = 0;
                         double totalRejected = 0;
@@ -215,7 +217,7 @@ public class reportsImpl implements reports {
 
                                 processRejectionPct = Math.round(processRejectionPct * 100.0) / 100.0;
                         }
-                        dto.setProcessInspectionRejectionPercentage( processRejectionPct);
+                        dto.setProcessInspectionRejectionPercentage(processRejectionPct);
                 }
 
                 return list;
@@ -285,10 +287,10 @@ public class reportsImpl implements reports {
                         dto.setRawMaterialRejectionPercentage(rmRejectionPct);
 
                         // ================= Process Summary =================
-//                        List<Object[]> processResultList = processIeQtyRepository
-//                                        .findProcessSummaryByCallNos(callNos);
+                        // List<Object[]> processResultList = processIeQtyRepository
+                        // .findProcessSummaryByCallNos(callNos);
                         List<Object[]> processRows = processLineFinalResultRepository
-                                .findProcessLineSummaryByCallNos(callNos);
+                                        .findProcessLineSummaryByCallNos(callNos);
 
                         double totalManufactured = 0;
                         double totalRejected = 0;
@@ -320,37 +322,38 @@ public class reportsImpl implements reports {
 
                         dto.setProcessInspectionMaterialRejectionPercentage(processRejectionPct);
 
-                      /*  int processAccepted = 0;
-                        double processRejected = 0.0;
-                        double processOffered = 0.0;
-
-                        if (processResultList != null && !processResultList.isEmpty()) {
-
-                                Object[] row = processResultList.get(0);
-
-                                if (row[0] != null)
-                                        processAccepted = ((Number) row[0]).intValue();
-
-                                if (row[1] != null)
-                                        processRejected = ((Number) row[1]).doubleValue();
-
-                                if (row[2] != null)
-                                        processOffered = ((Number) row[2]).doubleValue();
-                        }
-
-                        // ================= Set Process =================
-                        dto.setProcessInspectionMaterialAcceptedNos(processAccepted);
-
-                        double processRejectionPct = 0.0;
-
-                        if (processOffered > 0) {
-                                processRejectionPct = (processRejected * 100.0) / processOffered;
-                        }
-
-                        dto.setProcessInspectionMaterialRejectionPercentage(processRejectionPct);
-
-                       */
-                          }
+                        /*
+                         * int processAccepted = 0;
+                         * double processRejected = 0.0;
+                         * double processOffered = 0.0;
+                         * 
+                         * if (processResultList != null && !processResultList.isEmpty()) {
+                         * 
+                         * Object[] row = processResultList.get(0);
+                         * 
+                         * if (row[0] != null)
+                         * processAccepted = ((Number) row[0]).intValue();
+                         * 
+                         * if (row[1] != null)
+                         * processRejected = ((Number) row[1]).doubleValue();
+                         * 
+                         * if (row[2] != null)
+                         * processOffered = ((Number) row[2]).doubleValue();
+                         * }
+                         * 
+                         * // ================= Set Process =================
+                         * dto.setProcessInspectionMaterialAcceptedNos(processAccepted);
+                         * 
+                         * double processRejectionPct = 0.0;
+                         * 
+                         * if (processOffered > 0) {
+                         * processRejectionPct = (processRejected * 100.0) / processOffered;
+                         * }
+                         * 
+                         * dto.setProcessInspectionMaterialRejectionPercentage(processRejectionPct);
+                         * 
+                         */
+                }
 
                 return list;
         }
@@ -639,19 +642,21 @@ public class reportsImpl implements reports {
                                                 r -> (String) r[0],
                                                 r -> (String) r[1]));
 
-              /*  Map<String, Object[]> processMap = processIeQtyRepository
-                                .findProcessQtyByCallNos(callNos)
+                /*
+                 * Map<String, Object[]> processMap = processIeQtyRepository
+                 * .findProcessQtyByCallNos(callNos)
+                 * .stream()
+                 * .collect(Collectors.toMap(
+                 * r -> (String) r[0],
+                 * r -> r));
+                 */
+
+                Map<String, Object[]> processMap = processLineFinalResultRepository
+                                .findProcessSummaryByCallNos(callNos)
                                 .stream()
                                 .collect(Collectors.toMap(
                                                 r -> (String) r[0],
-                                                r -> r));*/
-
-                Map<String, Object[]> processMap = processLineFinalResultRepository
-                        .findProcessSummaryByCallNos(callNos)
-                        .stream()
-                        .collect(Collectors.toMap(
-                                r -> (String) r[0],
-                                r -> r));
+                                                r -> r));
 
                 Map<String, Object[]> rmMap = rmHeatFinalResultRepository
                                 .findRmSummaryByCallNos(callNos)
@@ -731,28 +736,30 @@ public class reportsImpl implements reports {
                         }
 
                         // PROCESS
-                        /*  else if (callType != null &&
-                                        callType.toUpperCase().contains("PROCESS")) {
-
-                                Object[] row = processMap.get(callNo);
-
-                                if (row != null) {
-
-                                        double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
-
-                                        double accepted = row[2] != null ? ((Number) row[2]).doubleValue() : 0;
-
-                                        double rejected = row[3] != null ? ((Number) row[3]).doubleValue() : 0;
-
-                                        offeredQty = offered;
-                                        acceptedQty = accepted;
-                                        balanceQty = offered - accepted;
-
-                                        if (offered > 0) {
-                                                rejectionPct = (rejected * 100) / offered;
-                                        }
-                                }
-                        }*/
+                        /*
+                         * else if (callType != null &&
+                         * callType.toUpperCase().contains("PROCESS")) {
+                         * 
+                         * Object[] row = processMap.get(callNo);
+                         * 
+                         * if (row != null) {
+                         * 
+                         * double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                         * 
+                         * double accepted = row[2] != null ? ((Number) row[2]).doubleValue() : 0;
+                         * 
+                         * double rejected = row[3] != null ? ((Number) row[3]).doubleValue() : 0;
+                         * 
+                         * offeredQty = offered;
+                         * acceptedQty = accepted;
+                         * balanceQty = offered - accepted;
+                         * 
+                         * if (offered > 0) {
+                         * rejectionPct = (rejected * 100) / offered;
+                         * }
+                         * }
+                         * }
+                         */
                         else if (callType != null && callType.toUpperCase().contains("PROCESS")) {
 
                                 Object[] row = processMap.get(callNo);
@@ -1368,7 +1375,9 @@ public class reportsImpl implements reports {
                                 continue;
                         }
 
-                        LocalDate date = p.getCreatedAt().toLocalDate();
+                        LocalDate date = p.getDateOfInspection() != null 
+                                ? p.getDateOfInspection() 
+                                : p.getCreatedAt().toLocalDate();
 
                         // Create key for grouping
                         String key = date + "|" +
@@ -1453,11 +1462,10 @@ public class reportsImpl implements reports {
                         process.setTemperingProductionQty(
                                         process.getTemperingProductionQty() + p.getTemperingManufactured());
 
-//                        process.setTemperingRejectionQty(
-//                                        process.getTemperingRejectionQty() + p.getTemperingRejected());
+                        // process.setTemperingRejectionQty(
+                        // process.getTemperingRejectionQty() + p.getTemperingRejected());
 
-                        Integer totalTemperingRejected =
-                                processLineFinalResultRepository.getTotalTemperingRejected(
+                        Integer totalTemperingRejected = processLineFinalResultRepository.getTotalTemperingRejected(
                                         callId,
                                         p.getLotNumber(),
                                         p.getShift(),
@@ -1465,8 +1473,9 @@ public class reportsImpl implements reports {
                                         endDate);
 
                         process.setTemperingRejectionQty(
-                                process.getTemperingRejectionQty()
-                                        + (totalTemperingRejected != null ? totalTemperingRejected : 0));
+                                        process.getTemperingRejectionQty()
+                                                        + (totalTemperingRejected != null ? totalTemperingRejected
+                                                                        : 0));
                         // ================= SHEARING DEFECTS =================
                         List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
                                         callId,
@@ -1511,12 +1520,11 @@ public class reportsImpl implements reports {
                         dto.setTurningDefects(turning);
 
                         Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
-                                callId,
-                                p.getLotNumber(),
-                                p.getShift(),
-                                startDate,
-                                endDate
-                        );
+                                        callId,
+                                        p.getLotNumber(),
+                                        p.getShift(),
+                                        startDate,
+                                        endDate);
 
                         QuenchingDefectsDto quenching = new QuenchingDefectsDto();
                         quenching.setQuenchingHardness(quenchingHardness != null ? quenchingHardness : 0);
@@ -1524,14 +1532,15 @@ public class reportsImpl implements reports {
                         dto.setQuenchingDefects(quenching);
 
                         List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
-                                callId,
-                                p.getLotNumber(),
-                                p.getShift(),
-                                startDate,
-                                endDate
-                        );
+                                        callId,
+                                        p.getLotNumber(),
+                                        p.getShift(),
+                                        startDate,
+                                        endDate);
 
-                        Object[] temperingSums = (temperingList != null && !temperingList.isEmpty()) ? temperingList.get(0) : null;
+                        Object[] temperingSums = (temperingList != null && !temperingList.isEmpty())
+                                        ? temperingList.get(0)
+                                        : null;
 
                         TemperingDefectsDto tempering = new TemperingDefectsDto();
 
@@ -1602,18 +1611,19 @@ public class reportsImpl implements reports {
                         dto.setVisualDefects(visual);
 
                         // ================= TESTING =================
-//                        Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
-//                                        callId,
-//                                        p.getLotNumber(),
-//                                        p.getShift(),
-//                                        date);
+                        // Integer temperingHardness =
+                        // processFinalCheckDataRepository.getTemperingHardnessSumByDate(
+                        // callId,
+                        // p.getLotNumber(),
+                        // p.getShift(),
+                        // date);
 
                         Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
-                                callId,
-                                p.getLotNumber(),
-                                p.getShift(),
-                                startDate,
-                                endDate);
+                                        callId,
+                                        p.getLotNumber(),
+                                        p.getShift(),
+                                        startDate,
+                                        endDate);
                         List<Object[]> tfList = processTestingFinishingDataRepository.getTestingFinishingSumByDate(
                                         callId,
                                         p.getLotNumber(),
@@ -1777,317 +1787,352 @@ public class reportsImpl implements reports {
         }
 
         @Override
-    public double getAvgProductionPerDay() {
-        return calculateAvgProductionPerDayNewLogic();
-    }
-    @Override
-    public List<StageRejectionDto> getStageWiseRejection() {
-        List<StageRejectionDto> data = new ArrayList<>();
-
-        // Using last 30 days for dynamic stats (consistent with dashboard summary)
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        java.util.Date thirtyDaysAgoDate = java.util.Date.from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
-
-        // 1. Raw Material Rejection
-        List<Object[]> rmResults = rmHeatFinalResultRepository.sumRmRejectionLast30Days(thirtyDaysAgo);
-        double rmVal = 0.0;
-        if (rmResults != null && !rmResults.isEmpty() && rmResults.get(0) != null) {
-            Object[] row = rmResults.get(0);
-            double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
-            double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-            if (offered > 0) rmVal = (rejected * 100.0) / offered;
-        }
-        data.add(new StageRejectionDto("Raw Material", Math.round(rmVal * 100.0) / 100.0, "#2563eb"));
-
-        // 2. Process Rejection (New Logic)
-        double procVal = calculateProcessRejectionPercentageNewLogic(thirtyDaysAgo);
-        data.add(new StageRejectionDto("Process", Math.round(procVal * 100.0) / 100.0, "#f59e0b"));
-
-        // 3. Final Rejection
-        List<Object[]> finalResults = finalCumulativeResultsRepository.sumFinalRejectionLast30Days(thirtyDaysAgo);
-        double finalVal = 0.0;
-        if (finalResults != null && !finalResults.isEmpty() && finalResults.get(0) != null) {
-            Object[] row = finalResults.get(0);
-            double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
-            double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-            if (offered > 0) finalVal = (rejected * 100.0) / offered;
-        }
-        data.add(new StageRejectionDto("Final", Math.round(finalVal * 100.0) / 100.0, "#ef4444"));
-
-        return data;
-    }
-    @Override
-    public List<StageRejectionDto> getManufacturerRejection() {
-        List<StageRejectionDto> data = new ArrayList<>();
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-
-        List<Object[]> results = rmHeatFinalResultRepository.findTop5ManufacturerRejection(thirtyDaysAgo);
-        
-        // Define colors for the chart
-        String[] colors = {"#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"};
-
-        if (results != null) {
-            for (int i = 0; i < results.size(); i++) {
-                Object[] row = results.get(i);
-                String name = row[0] != null ? row[0].toString() : "Unknown";
-                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-                
-                // Color mapping: highest rejection is more red/alarming
-                String color = i < colors.length ? colors[i] : "#64748b";
-                
-                data.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
-            }
-        }
-        
-        return data;
-    }
-    @Override
-    public ProcessPerformanceResponseDto getProcessPerformance() {
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        java.util.Date thirtyDaysAgoDate = java.util.Date.from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
-
-        List<Object[]> topResults = processLineFinalResultRepository.findTop5ProcessPerformanceNewLogic(thirtyDaysAgo);
-        List<Object[]> worstResults = processLineFinalResultRepository.findWorst5ProcessPerformanceNewLogic(thirtyDaysAgo);
-
-        List<StageRejectionDto> topList = new ArrayList<>();
-        List<StageRejectionDto> worstList = new ArrayList<>();
-
-        // Success colors (Greenish)
-        String[] successColors = {"#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"};
-        // Defect colors (Reddish)
-        String[] defectColors = {"#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2"};
-
-        if (topResults != null) {
-            for (int i = 0; i < topResults.size(); i++) {
-                Object[] row = topResults.get(i);
-                String name = row[0] != null ? row[0].toString() : "Unknown";
-                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-                String color = i < successColors.length ? successColors[i] : "#10b981";
-                topList.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
-            }
+        public double getAvgProductionPerDay() {
+                return calculateAvgProductionPerDayNewLogic();
         }
 
-        if (worstResults != null) {
-            for (int i = 0; i < worstResults.size(); i++) {
-                Object[] row = worstResults.get(i);
-                String name = row[0] != null ? row[0].toString() : "Unknown";
-                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-                String color = i < defectColors.length ? defectColors[i] : "#ef4444";
-                worstList.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
-            }
-        }
+        @Override
+        public List<StageRejectionDto> getStageWiseRejection() {
+                List<StageRejectionDto> data = new ArrayList<>();
 
-        return new ProcessPerformanceResponseDto(topList, worstList);
-    }
-    @Override
-    public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate) {
-        List<StageRejectionDto> trend = new ArrayList<>();
-        try {
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
-            java.util.Date start;
-            java.util.Date end;
+                // Using last 30 days for dynamic stats (consistent with dashboard summary)
+                LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+                java.util.Date thirtyDaysAgoDate = java.util.Date
+                                .from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
 
-            LocalDateTime lStart;
-            LocalDateTime lEnd;
-
-            if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
-                start = sdf.parse(startDate);
-                end = sdf.parse(endDate);
-                lStart = start.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime().with(java.time.LocalTime.MIN);
-                lEnd = end.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime().with(java.time.LocalTime.MAX);
-            } else {
-                lEnd = LocalDateTime.now();
-                lStart = lEnd.minusDays(30).with(java.time.LocalTime.MIN);
-            }
-
-            List<Object[]> results = processLineFinalResultRepository.findDailyRejectionTrendNewLogic(lStart, lEnd);
-            
-            if (results != null) {
-                for (Object[] row : results) {
-                    String date = row[0] != null ? row[0].toString() : "Unknown";
-                    double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-                    trend.add(new StageRejectionDto(date, Math.round(percentage * 100.0) / 100.0, "#8b5cf6"));
+                // 1. Raw Material Rejection
+                List<Object[]> rmResults = rmHeatFinalResultRepository.sumRmRejectionLast30Days(thirtyDaysAgo);
+                double rmVal = 0.0;
+                if (rmResults != null && !rmResults.isEmpty() && rmResults.get(0) != null) {
+                        Object[] row = rmResults.get(0);
+                        double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+                        double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                        if (offered > 0)
+                                rmVal = (rejected * 100.0) / offered;
                 }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return trend;
-    }
+                data.add(new StageRejectionDto("Raw Material", Math.round(rmVal * 100.0) / 100.0, "#2563eb"));
 
-    @Override
-    public List<StageRejectionDto> getManufacturingStepWiseRejection() {
-        List<StageRejectionDto> breakdown = new ArrayList<>();
-        LocalDateTime last30Days = LocalDateTime.now().minusDays(30);
+                // 2. Process Rejection (New Logic)
+                double procVal = calculateProcessRejectionPercentageNewLogic(thirtyDaysAgo);
+                data.add(new StageRejectionDto("Process", Math.round(procVal * 100.0) / 100.0, "#f59e0b"));
 
-        List<Object[]> results = processLineFinalResultRepository.sumStepWiseRejectionLast30Days(last30Days);
+                // 3. Final Rejection
+                List<Object[]> finalResults = finalCumulativeResultsRepository
+                                .sumFinalRejectionLast30Days(thirtyDaysAgo);
+                double finalVal = 0.0;
+                if (finalResults != null && !finalResults.isEmpty() && finalResults.get(0) != null) {
+                        Object[] row = finalResults.get(0);
+                        double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+                        double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                        if (offered > 0)
+                                finalVal = (rejected * 100.0) / offered;
+                }
+                data.add(new StageRejectionDto("Final", Math.round(finalVal * 100.0) / 100.0, "#ef4444"));
 
-        if (results != null && !results.isEmpty()) {
-            Object[] row = results.get(0);
-            double shearing = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
-            double turning = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-            double mpi = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
-            double forging = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
-            double quenching = row[4] != null ? ((Number) row[4]).doubleValue() : 0.0;
-            double tempering = row[5] != null ? ((Number) row[5]).doubleValue() : 0.0;
-
-            double totalRejection = shearing + turning + mpi + forging + quenching + tempering;
-
-            // Define consistent colors from the design
-            String[] colors = {"#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#10b981", "#06b6d4"};
-
-            if (totalRejection > 0) {
-                breakdown.add(new StageRejectionDto("Shearing", Math.round((shearing * 100.0) / totalRejection * 100.0) / 100.0, colors[0]));
-                breakdown.add(new StageRejectionDto("Turning", Math.round((turning * 100.0) / totalRejection * 100.0) / 100.0, colors[1]));
-                breakdown.add(new StageRejectionDto("MPI", Math.round((mpi * 100.0) / totalRejection * 100.0) / 100.0, colors[2]));
-                breakdown.add(new StageRejectionDto("Forging", Math.round((forging * 100.0) / totalRejection * 100.0) / 100.0, colors[3]));
-                breakdown.add(new StageRejectionDto("Quenching", Math.round((quenching * 100.0) / totalRejection * 100.0) / 100.0, colors[4]));
-                breakdown.add(new StageRejectionDto("Tempering", Math.round((tempering * 100.0) / totalRejection * 100.0) / 100.0, colors[5]));
-            } else {
-                // Return zeroed data if no rejections found
-                breakdown.add(new StageRejectionDto("Shearing", 0.0, colors[0]));
-                breakdown.add(new StageRejectionDto("Turning", 0.0, colors[1]));
-                breakdown.add(new StageRejectionDto("MPI", 0.0, colors[2]));
-                breakdown.add(new StageRejectionDto("Forging", 0.0, colors[3]));
-                breakdown.add(new StageRejectionDto("Quenching", 0.0, colors[4]));
-                breakdown.add(new StageRejectionDto("Tempering", 0.0, colors[5]));
-            }
-        }
-        return breakdown;
-    }
-
-    @Override
-    public List<InspectionCallStatusDto> getInspectionCallStatus() {
-        List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdown();
-        List<InspectionCallStatusDto> list = new ArrayList<>();
-        
-        long totalUnder = 0;
-        long totalPending = 0;
-        
-        if (results != null) {
-            for (Object[] row : results) {
-                String category = (String) row[0];
-                long under = row[1] != null ? ((Number) row[1]).longValue() : 0;
-                long pending = row[2] != null ? ((Number) row[2]).longValue() : 0;
-                
-                list.add(new InspectionCallStatusDto(category, under, pending));
-                totalUnder += under;
-                totalPending += pending;
-            }
-        }
-        
-        // Prepend Total category
-        list.add(0, new InspectionCallStatusDto("Total", totalUnder, totalPending));
-        
-        return list;
-    }
-
-    // ================= NEW LOGIC FOR PROCESS REJECTION % =================
-    // Logic: (Total pieces rejected (from shearing to tempering) / Total pieces produced in Shearing) * 100
-    // Added at the bottom for clarity as requested.
-    private double calculateProcessRejectionPercentageNewLogic(LocalDateTime thirtyDaysAgo) {
-        List<Object[]> results = processLineFinalResultRepository.sumProcessRejectionNewLogicLast30Days(thirtyDaysAgo);
-        if (results != null && !results.isEmpty() && results.get(0) != null) {
-            Object[] row = results.get(0);
-            double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
-            double shearingProduced = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-            if (shearingProduced > 0) {
-                return (rejected * 100.0) / shearingProduced;
-            }
-        }
-        return 0.0;
-    }
-
-    // ================= NEW LOGIC FOR AVG PRODUCTION / DAY =================
-    // Logic: (Sum of total tempering produced in the last 30 days / 30)
-    private double calculateAvgProductionPerDayNewLogic() {
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        Long temperingSum = processLineFinalResultRepository.sumTemperingManufacturedLast30Days(thirtyDaysAgo);
-        return temperingSum != null ? temperingSum / 30.0 : 0.0;
-    }
-
-    // ===== NEW: Pareto Analysis – Top 10 Rejection Parameters (all process stages) =====
-    @Override
-    public List<StageRejectionDto> getParetoAnalysis() {
-        List<Object[]> rows = processLineFinalResultRepository.getParetoAnalysisRejections();
-        List<StageRejectionDto> result = new ArrayList<>();
-
-        if (rows == null || rows.isEmpty()) {
-            return result;
+                return data;
         }
 
-        // Colours cycling through a vibrant palette
-        String[] palette = { "#2563eb", "#f59e0b", "#ef4444", "#10b981", "#8b5cf6",
-                             "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#14b8a6" };
+        @Override
+        public List<StageRejectionDto> getManufacturerRejection() {
+                List<StageRejectionDto> data = new ArrayList<>();
+                LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
 
-        // Calculate total for cumulative % (Pareto line)
-        long grandTotal = rows.stream()
-                .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
-                .sum();
+                List<Object[]> results = rmHeatFinalResultRepository.findTop5ManufacturerRejection(thirtyDaysAgo);
 
-        long runningTotal = 0;
-        for (int i = 0; i < rows.size(); i++) {
-            Object[] row = rows.get(i);
-            String name = (String) row[0];
-            long count = row[1] != null ? ((Number) row[1]).longValue() : 0;
-            runningTotal += count;
+                // Define colors for the chart
+                String[] colors = { "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6" };
 
-            double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
+                if (results != null) {
+                        for (int i = 0; i < results.size(); i++) {
+                                Object[] row = results.get(i);
+                                String name = row[0] != null ? row[0].toString() : "Unknown";
+                                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
 
-            // StageRejectionDto reused: name = param name, value = raw count, color = palette colour
-            // We append cumulative % as a secondary value in a separate DTO field via overloaded ctor if available,
-            // otherwise encode cumulative in a separate entry. Here we send raw count as value and cumulative as
-            // a second field using the existing 3-field ctor (name, value, color).
-            StageRejectionDto dto = new StageRejectionDto(name, (double) count, palette[i % palette.length]);
-            dto.setCumulative(Math.round(cumulative * 10.0) / 10.0); // 1 decimal
-            result.add(dto);
+                                // Color mapping: highest rejection is more red/alarming
+                                String color = i < colors.length ? colors[i] : "#64748b";
+
+                                data.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
+                        }
+                }
+
+                return data;
         }
 
-        return result;
-    }
+        @Override
+        public ProcessPerformanceResponseDto getProcessPerformance() {
+                LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+                java.util.Date thirtyDaysAgoDate = java.util.Date
+                                .from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
 
-    // ===== NEW: Inspection Details – Accepted vs. Rejected (RM, Process, Final) =====
-    @Override
-    public List<InspectionDetailsDto> getInspectionDetails() {
-        List<InspectionDetailsDto> result = new ArrayList<>();
+                List<Object[]> topResults = processLineFinalResultRepository
+                                .findTop5ProcessPerformanceNewLogic(thirtyDaysAgo);
+                List<Object[]> worstResults = processLineFinalResultRepository
+                                .findWorst5ProcessPerformanceNewLogic(thirtyDaysAgo);
 
-        // 1. RM
-        List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejected();
-        double rmAcc = 0, rmRej = 0;
-        if (rmData != null && !rmData.isEmpty()) {
-            Object[] row = rmData.get(0);
-            rmAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
-            rmRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                List<StageRejectionDto> topList = new ArrayList<>();
+                List<StageRejectionDto> worstList = new ArrayList<>();
+
+                // Success colors (Greenish)
+                String[] successColors = { "#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5" };
+                // Defect colors (Reddish)
+                String[] defectColors = { "#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2" };
+
+                if (topResults != null) {
+                        for (int i = 0; i < topResults.size(); i++) {
+                                Object[] row = topResults.get(i);
+                                String name = row[0] != null ? row[0].toString() : "Unknown";
+                                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                                String color = i < successColors.length ? successColors[i] : "#10b981";
+                                topList.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0, color));
+                        }
+                }
+
+                if (worstResults != null) {
+                        for (int i = 0; i < worstResults.size(); i++) {
+                                Object[] row = worstResults.get(i);
+                                String name = row[0] != null ? row[0].toString() : "Unknown";
+                                double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                                String color = i < defectColors.length ? defectColors[i] : "#ef4444";
+                                worstList.add(new StageRejectionDto(name, Math.round(percentage * 100.0) / 100.0,
+                                                color));
+                        }
+                }
+
+                return new ProcessPerformanceResponseDto(topList, worstList);
         }
 
-        // 2. Process
-        List<Object[]> procData = processLineFinalResultRepository.sumProcessAcceptedAndRejected();
-        double procAcc = 0, procRej = 0;
-        if (procData != null && !procData.isEmpty()) {
-            Object[] row = procData.get(0);
-            procAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
-            procRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+        @Override
+        public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate) {
+                List<StageRejectionDto> trend = new ArrayList<>();
+                try {
+                        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
+                        java.util.Date start;
+                        java.util.Date end;
+
+                        LocalDateTime lStart;
+                        LocalDateTime lEnd;
+
+                        if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
+                                start = sdf.parse(startDate);
+                                end = sdf.parse(endDate);
+                                lStart = start.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+                                                .with(java.time.LocalTime.MIN);
+                                lEnd = end.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+                                                .with(java.time.LocalTime.MAX);
+                        } else {
+                                lEnd = LocalDateTime.now();
+                                lStart = lEnd.minusDays(30).with(java.time.LocalTime.MIN);
+                        }
+
+                        List<Object[]> results = processLineFinalResultRepository
+                                        .findDailyRejectionTrendNewLogic(lStart, lEnd);
+
+                        if (results != null) {
+                                for (Object[] row : results) {
+                                        String date = row[0] != null ? row[0].toString() : "Unknown";
+                                        double percentage = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                                        trend.add(new StageRejectionDto(date, Math.round(percentage * 100.0) / 100.0,
+                                                        "#8b5cf6"));
+                                }
+                        }
+                } catch (Exception e) {
+                        e.printStackTrace();
+                }
+                return trend;
         }
 
-        // 3. Final
-        List<Object[]> finalData = finalCumulativeResultsRepository.sumFinalAcceptedAndRejected();
-        double finalAcc = 0, finalRej = 0;
-        if (finalData != null && !finalData.isEmpty()) {
-            Object[] row = finalData.get(0);
-            finalAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
-            finalRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+        @Override
+        public List<StageRejectionDto> getManufacturingStepWiseRejection() {
+                List<StageRejectionDto> breakdown = new ArrayList<>();
+                LocalDateTime last30Days = LocalDateTime.now().minusDays(30);
+
+                List<Object[]> results = processLineFinalResultRepository.sumStepWiseRejectionLast30Days(last30Days);
+
+                if (results != null && !results.isEmpty()) {
+                        Object[] row = results.get(0);
+                        double shearing = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+                        double turning = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                        double mpi = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+                        double forging = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
+                        double quenching = row[4] != null ? ((Number) row[4]).doubleValue() : 0.0;
+                        double tempering = row[5] != null ? ((Number) row[5]).doubleValue() : 0.0;
+
+                        double totalRejection = shearing + turning + mpi + forging + quenching + tempering;
+
+                        // Define consistent colors from the design
+                        String[] colors = { "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#10b981", "#06b6d4" };
+
+                        if (totalRejection > 0) {
+                                breakdown.add(new StageRejectionDto("Shearing",
+                                                Math.round((shearing * 100.0) / totalRejection * 100.0) / 100.0,
+                                                colors[0]));
+                                breakdown.add(new StageRejectionDto("Turning",
+                                                Math.round((turning * 100.0) / totalRejection * 100.0) / 100.0,
+                                                colors[1]));
+                                breakdown.add(new StageRejectionDto("MPI",
+                                                Math.round((mpi * 100.0) / totalRejection * 100.0) / 100.0, colors[2]));
+                                breakdown.add(new StageRejectionDto("Forging",
+                                                Math.round((forging * 100.0) / totalRejection * 100.0) / 100.0,
+                                                colors[3]));
+                                breakdown.add(new StageRejectionDto("Quenching",
+                                                Math.round((quenching * 100.0) / totalRejection * 100.0) / 100.0,
+                                                colors[4]));
+                                breakdown.add(new StageRejectionDto("Tempering",
+                                                Math.round((tempering * 100.0) / totalRejection * 100.0) / 100.0,
+                                                colors[5]));
+                        } else {
+                                // Return zeroed data if no rejections found
+                                breakdown.add(new StageRejectionDto("Shearing", 0.0, colors[0]));
+                                breakdown.add(new StageRejectionDto("Turning", 0.0, colors[1]));
+                                breakdown.add(new StageRejectionDto("MPI", 0.0, colors[2]));
+                                breakdown.add(new StageRejectionDto("Forging", 0.0, colors[3]));
+                                breakdown.add(new StageRejectionDto("Quenching", 0.0, colors[4]));
+                                breakdown.add(new StageRejectionDto("Tempering", 0.0, colors[5]));
+                        }
+                }
+                return breakdown;
         }
 
-        // 4. Calculate Total
-        double totalAcc = rmAcc + procAcc + finalAcc;
-        double totalRej = rmRej + procRej + finalRej;
+        @Override
+        public List<InspectionCallStatusDto> getInspectionCallStatus() {
+                List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdown();
+                List<InspectionCallStatusDto> list = new ArrayList<>();
 
-        // Add to result in order: Total, RM, Process, Final
-        result.add(new InspectionDetailsDto("Total", totalAcc, totalRej));
-        result.add(new InspectionDetailsDto("RM", rmAcc, rmRej));
-        result.add(new InspectionDetailsDto("Process", procAcc, procRej));
-        result.add(new InspectionDetailsDto("Final", finalAcc, finalRej));
+                long totalUnder = 0;
+                long totalPending = 0;
 
-        return result;
-    }
+                if (results != null) {
+                        for (Object[] row : results) {
+                                String category = (String) row[0];
+                                long under = row[1] != null ? ((Number) row[1]).longValue() : 0;
+                                long pending = row[2] != null ? ((Number) row[2]).longValue() : 0;
+
+                                list.add(new InspectionCallStatusDto(category, under, pending));
+                                totalUnder += under;
+                                totalPending += pending;
+                        }
+                }
+
+                // Prepend Total category
+                list.add(0, new InspectionCallStatusDto("Total", totalUnder, totalPending));
+
+                return list;
+        }
+
+        // ================= NEW LOGIC FOR PROCESS REJECTION % =================
+        // Logic: (Total pieces rejected (from shearing to tempering) / Total pieces
+        // produced in Shearing) * 100
+        // Added at the bottom for clarity as requested.
+        private double calculateProcessRejectionPercentageNewLogic(LocalDateTime thirtyDaysAgo) {
+                List<Object[]> results = processLineFinalResultRepository
+                                .sumProcessRejectionNewLogicLast30Days(thirtyDaysAgo);
+                if (results != null && !results.isEmpty() && results.get(0) != null) {
+                        Object[] row = results.get(0);
+                        double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+                        double shearingProduced = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                        if (shearingProduced > 0) {
+                                return (rejected * 100.0) / shearingProduced;
+                        }
+                }
+                return 0.0;
+        }
+
+        // ================= NEW LOGIC FOR AVG PRODUCTION / DAY =================
+        // Logic: (Sum of total tempering produced in the last 30 days / 30)
+        private double calculateAvgProductionPerDayNewLogic() {
+                LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+                Long temperingSum = processLineFinalResultRepository.sumTemperingManufacturedLast30Days(thirtyDaysAgo);
+                return temperingSum != null ? temperingSum / 30.0 : 0.0;
+        }
+
+        // ===== NEW: Pareto Analysis – Top 10 Rejection Parameters (all process stages)
+        // =====
+        @Override
+        public List<StageRejectionDto> getParetoAnalysis() {
+                List<Object[]> rows = processLineFinalResultRepository.getParetoAnalysisRejections();
+                List<StageRejectionDto> result = new ArrayList<>();
+
+                if (rows == null || rows.isEmpty()) {
+                        return result;
+                }
+
+                // Colours cycling through a vibrant palette
+                String[] palette = { "#2563eb", "#f59e0b", "#ef4444", "#10b981", "#8b5cf6",
+                                "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#14b8a6" };
+
+                // Calculate total for cumulative % (Pareto line)
+                long grandTotal = rows.stream()
+                                .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
+                                .sum();
+
+                long runningTotal = 0;
+                for (int i = 0; i < rows.size(); i++) {
+                        Object[] row = rows.get(i);
+                        String name = (String) row[0];
+                        long count = row[1] != null ? ((Number) row[1]).longValue() : 0;
+                        runningTotal += count;
+
+                        double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
+
+                        // StageRejectionDto reused: name = param name, value = raw count, color =
+                        // palette colour
+                        // We append cumulative % as a secondary value in a separate DTO field via
+                        // overloaded ctor if available,
+                        // otherwise encode cumulative in a separate entry. Here we send raw count as
+                        // value and cumulative as
+                        // a second field using the existing 3-field ctor (name, value, color).
+                        StageRejectionDto dto = new StageRejectionDto(name, (double) count,
+                                        palette[i % palette.length]);
+                        dto.setCumulative(Math.round(cumulative * 10.0) / 10.0); // 1 decimal
+                        result.add(dto);
+                }
+
+                return result;
+        }
+
+        // ===== NEW: Inspection Details – Accepted vs. Rejected (RM, Process, Final)
+        // =====
+        @Override
+        public List<InspectionDetailsDto> getInspectionDetails() {
+                List<InspectionDetailsDto> result = new ArrayList<>();
+
+                // 1. RM
+                List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejected();
+                double rmAcc = 0, rmRej = 0;
+                if (rmData != null && !rmData.isEmpty()) {
+                        Object[] row = rmData.get(0);
+                        rmAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
+                        rmRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                }
+
+                // 2. Process
+                List<Object[]> procData = processLineFinalResultRepository.sumProcessAcceptedAndRejected();
+                double procAcc = 0, procRej = 0;
+                if (procData != null && !procData.isEmpty()) {
+                        Object[] row = procData.get(0);
+                        procAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
+                        procRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                }
+
+                // 3. Final
+                List<Object[]> finalData = finalCumulativeResultsRepository.sumFinalAcceptedAndRejected();
+                double finalAcc = 0, finalRej = 0;
+                if (finalData != null && !finalData.isEmpty()) {
+                        Object[] row = finalData.get(0);
+                        finalAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
+                        finalRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                }
+
+                // 4. Calculate Total
+                double totalAcc = rmAcc + procAcc + finalAcc;
+                double totalRej = rmRej + procRej + finalRej;
+
+                // Add to result in order: Total, RM, Process, Final
+                result.add(new InspectionDetailsDto("Total", totalAcc, totalRej));
+                result.add(new InspectionDetailsDto("RM", rmAcc, rmRej));
+                result.add(new InspectionDetailsDto("Process", procAcc, procRej));
+                result.add(new InspectionDetailsDto("Final", finalAcc, finalRej));
+
+                return result;
+        }
 }
