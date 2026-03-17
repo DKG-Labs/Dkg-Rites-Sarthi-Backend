@@ -148,4 +148,162 @@ WHERE p.inspectionCallNo IN :callNos
 GROUP BY p.inspectionCallNo
 """)
     List<Object[]> findProcessLineSummaryByCallNos(List<String> callNos);
+
+    @Query("""
+        SELECT 
+            SUM(COALESCE(p.shearingRejected, 0) + 
+                COALESCE(p.turningRejected, 0) + 
+                COALESCE(p.mpiRejected, 0) + 
+                COALESCE(p.forgingRejected, 0) + 
+                COALESCE(p.quenchingRejected, 0) + 
+                COALESCE(p.temperingRejected, 0)),
+            SUM(COALESCE(p.shearingManufactured, 0))
+        FROM ProcessLineFinalResult p
+        WHERE p.createdAt >= :date
+    """)
+    List<Object[]> sumProcessRejectionNewLogicLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @Query(value = """
+        SELECT 
+            ic.company_name AS name,
+            SUM(COALESCE(p.shearing_rejected, 0) + 
+                COALESCE(p.turning_rejected, 0) + 
+                COALESCE(p.mpi_rejected, 0) + 
+                COALESCE(p.forging_rejected, 0) + 
+                COALESCE(p.quenching_rejected, 0) + 
+                COALESCE(p.tempering_rejected, 0)) * 100.0 / 
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+        FROM process_line_final_result p
+        JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+        WHERE p.created_at >= :date
+        GROUP BY ic.company_name
+        ORDER BY rejectionPct ASC
+        LIMIT 5
+    """, nativeQuery = true)
+    List<Object[]> findTop5ProcessPerformanceNewLogic(@org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @Query(value = """
+        SELECT 
+            ic.company_name AS name,
+            SUM(COALESCE(p.shearing_rejected, 0) + 
+                COALESCE(p.turning_rejected, 0) + 
+                COALESCE(p.mpi_rejected, 0) + 
+                COALESCE(p.forging_rejected, 0) + 
+                COALESCE(p.quenching_rejected, 0) + 
+                COALESCE(p.tempering_rejected, 0)) * 100.0 / 
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+        FROM process_line_final_result p
+        JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+        WHERE p.created_at >= :date
+        GROUP BY ic.company_name
+        ORDER BY rejectionPct DESC
+        LIMIT 5
+    """, nativeQuery = true)
+    List<Object[]> findWorst5ProcessPerformanceNewLogic(@org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @Query(value = """
+        SELECT 
+            DATE_FORMAT(p.created_at, '%d-%b') AS displayDate,
+            SUM(COALESCE(p.shearing_rejected, 0) + 
+                COALESCE(p.turning_rejected, 0) + 
+                COALESCE(p.mpi_rejected, 0) + 
+                COALESCE(p.forging_rejected, 0) + 
+                COALESCE(p.quenching_rejected, 0) + 
+                COALESCE(p.tempering_rejected, 0)) * 100.0 / 
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+        FROM process_line_final_result p
+        WHERE p.created_at BETWEEN :startDate AND :endDate
+        GROUP BY DATE(p.created_at), DATE_FORMAT(p.created_at, '%d-%b')
+        ORDER BY DATE(p.created_at) ASC
+    """, nativeQuery = true)
+    List<Object[]> findDailyRejectionTrendNewLogic(
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate, 
+        @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT 
+            SUM(COALESCE(p.shearing_rejected, 0)) AS shearing,
+            SUM(COALESCE(p.turning_rejected, 0)) AS turning,
+            SUM(COALESCE(p.mpi_rejected, 0)) AS mpi,
+            SUM(COALESCE(p.forging_rejected, 0)) AS forging,
+            SUM(COALESCE(p.quenching_rejected, 0)) AS quenching,
+            SUM(COALESCE(p.tempering_rejected, 0)) AS tempering
+        FROM process_line_final_result p
+        WHERE p.created_at >= :date
+    """, nativeQuery = true)
+    List<Object[]> sumStepWiseRejectionLast30Days(@org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(p.temperingManufactured) FROM ProcessLineFinalResult p WHERE p.createdAt >= :date")
+    Long sumTemperingManufacturedLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    // ===== NEW: Pareto Analysis – aggregate rejections across all process tables =====
+    @org.springframework.data.jpa.repository.Query(value = """
+        SELECT 'Forging Temp' AS param_name, COALESCE(SUM(forging_temp_rejected), 0) AS total FROM process_forging_data
+        UNION ALL
+        SELECT 'Forging Stabilisation', COALESCE(SUM(forging_stabilisation_rejection_rejected), 0) FROM process_forging_data
+        UNION ALL
+        SELECT 'Improper Forging', COALESCE(SUM(improper_forging_rejected), 0) FROM process_forging_data
+        UNION ALL
+        SELECT 'Forging Defect', COALESCE(SUM(forging_defect_rejected), 0) FROM process_forging_data
+        UNION ALL
+        SELECT 'Embossing Defect', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_forging_data
+        UNION ALL
+        SELECT 'MPI', COALESCE(SUM(mpi_rejected), 0) FROM process_mpi_data
+        UNION ALL
+        SELECT 'Length Cut Bar', COALESCE(SUM(length_cut_bar_rejected), 0) FROM process_shearing_data
+        UNION ALL
+        SELECT 'Improper Dia', COALESCE(SUM(improper_dia_rejected), 0) FROM process_shearing_data
+        UNION ALL
+        SELECT 'Sharp Edges', COALESCE(SUM(sharp_edges_rejected), 0) FROM process_shearing_data
+        UNION ALL
+        SELECT 'Cracked Edges', COALESCE(SUM(cracked_edges_rejected), 0) FROM process_shearing_data
+        UNION ALL
+        SELECT 'Parallel Length', COALESCE(SUM(parallel_length_rejected), 0) FROM process_turning_data
+        UNION ALL
+        SELECT 'Full Turning Length', COALESCE(SUM(full_turning_length_rejected), 0) FROM process_turning_data
+        UNION ALL
+        SELECT 'Turning Dia', COALESCE(SUM(turning_dia_rejected), 0) FROM process_turning_data
+        UNION ALL
+        SELECT 'Quenching Hardness', COALESCE(SUM(quenching_hardness_rejected), 0) FROM process_quenching_data
+        UNION ALL
+        SELECT 'Box Gauge (Quenching)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_quenching_data
+        UNION ALL
+        SELECT 'Flat Bearing Area (Quenching)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_quenching_data
+        UNION ALL
+        SELECT 'Falling Gauge (Quenching)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_quenching_data
+        UNION ALL
+        SELECT 'Tempering Temperature', COALESCE(SUM(tempering_temperature_rejected), 0) FROM process_tempering_data
+        UNION ALL
+        SELECT 'Tempering Duration', COALESCE(SUM(tempering_duration_rejected), 0) FROM process_tempering_data
+        UNION ALL
+        SELECT 'Box Gauge (Final)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_final_check_data
+        UNION ALL
+        SELECT 'Flat Bearing Area (Final)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_final_check_data
+        UNION ALL
+        SELECT 'Falling Gauge (Final)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_final_check_data
+        UNION ALL
+        SELECT 'Surface Defect', COALESCE(SUM(surface_defect_rejected), 0) FROM process_final_check_data
+        UNION ALL
+        SELECT 'Embossing (Final)', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_final_check_data
+        UNION ALL
+        SELECT 'Marking', COALESCE(SUM(marking_rejected), 0) FROM process_final_check_data
+        UNION ALL
+        SELECT 'Tempering Hardness', COALESCE(SUM(tempering_hardness_rejected), 0) FROM process_final_check_data
+        UNION ALL
+        SELECT 'Toe Load', COALESCE(SUM(toe_load_rejected), 0) FROM process_testing_finishing_data
+        UNION ALL
+        SELECT 'Weight', COALESCE(SUM(weight_rejected), 0) FROM process_testing_finishing_data
+        UNION ALL
+        SELECT 'Paint Identification', COALESCE(SUM(paint_identification_rejected), 0) FROM process_testing_finishing_data
+        UNION ALL
+        SELECT 'ERC Coating', COALESCE(SUM(erc_coating_rejected), 0) FROM process_testing_finishing_data
+        ORDER BY total DESC
+        LIMIT 10
+        """, nativeQuery = true)
+    java.util.List<Object[]> getParetoAnalysisRejections();
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.temperingAccepted), 0), COALESCE(SUM(p.totalRejected), 0) FROM ProcessLineFinalResult p")
+    List<Object[]> sumProcessAcceptedAndRejected();
 }
