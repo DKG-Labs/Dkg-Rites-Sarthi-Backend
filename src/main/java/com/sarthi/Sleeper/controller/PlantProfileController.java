@@ -54,10 +54,21 @@ public class PlantProfileController {
     // ================= GET BY ID =================
     @GetMapping("/{id}")
     public ResponseEntity<Object> getById(
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(service.getById(id)),
+                HttpStatus.OK
+        );
+    }
+
+    // ================= GET SHEDS BY VENDOR =================
+    @GetMapping("/vendor/{vendorCode}/sheds")
+    public ResponseEntity<Object> getDistinctShedsByVendorCode(
+            @PathVariable("vendorCode") String vendorCode) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getDistinctShedsByVendorCode(vendorCode)),
                 HttpStatus.OK
         );
     }
@@ -75,7 +86,7 @@ public class PlantProfileController {
     // ================= DELETE =================
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
 
         service.delete(id);
 

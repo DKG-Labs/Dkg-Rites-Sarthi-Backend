@@ -29,7 +29,7 @@ public class SleeperPoiIeMapping {
 
     @GetMapping("/company-units/{ieUserId}")
     public ResponseEntity<Object>  getCompanyUnits(
-            @PathVariable Integer ieUserId) {
+            @PathVariable("ieUserId") Integer ieUserId) {
 
         CompanyUnitResponseDto result = sleeperPoiIeMappingService.getCompanyUnits(ieUserId);
         return new ResponseEntity<>(

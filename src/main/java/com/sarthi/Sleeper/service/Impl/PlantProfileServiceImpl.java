@@ -113,6 +113,11 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             repository.deleteById(entity.getId());
         }
 
+        @Override
+        public List<Integer> getDistinctShedsByVendorCode(String vendorCode) {
+            return repository.findDistinctNumberOfShedsByVendorCode(vendorCode);
+        }
+
         private PlantProfileResponseDto buildResponse(PlantProfile entity) {
 
             PlantProfileResponseDto dto = new PlantProfileResponseDto();

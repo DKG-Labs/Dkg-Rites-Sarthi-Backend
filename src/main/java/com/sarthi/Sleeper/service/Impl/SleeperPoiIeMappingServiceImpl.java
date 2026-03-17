@@ -60,6 +60,12 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
         CompanyUnitResponseDto dto = new CompanyUnitResponseDto();
 
         dto.setCompanyName(mappings.get(0).getCompanyName());
+        dto.setCompanyNames(
+                mappings.stream()
+                        .map(SleeperPincodePoIMapping::getCompanyName)
+                        .distinct()
+                        .toList()
+        );
 
         dto.setUnitNames(
                 mappings.stream()
@@ -67,6 +73,27 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
                         .distinct()
                         .toList()
         );
+
+        java.util.Map<String, String> unitVendorMap = new java.util.HashMap<>();
+        java.util.Map<String, List<String>> companyUnitMap = new java.util.HashMap<>();
+        for (SleeperPincodePoIMapping mapping : mappings) {
+            if (mapping.getCompanyName() != null) {
+                if (mapping.getUnitName() != null) {
+                    companyUnitMap.computeIfAbsent(mapping.getCompanyName(), k -> new java.util.ArrayList<>())
+                                  .add(mapping.getUnitName());
+                    
+                    if (mapping.getVendorCode() != null) {
+                        unitVendorMap.put(mapping.getUnitName(), mapping.getVendorCode());
+                    }
+                }
+            }
+        }
+        
+        // Remove duplicate unit names within each company
+        companyUnitMap.replaceAll((k, v) -> v.stream().distinct().toList());
+
+        dto.setUnitVendorMap(unitVendorMap);
+        dto.setCompanyUnitMap(companyUnitMap);
 
         return dto;
     }

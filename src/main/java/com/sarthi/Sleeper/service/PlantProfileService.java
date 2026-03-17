@@ -18,4 +18,6 @@ public interface PlantProfileService {
    public List<PlantProfileResponseDto> getAll();
 
    public void delete(Long id);
+
+   public List<Integer> getDistinctShedsByVendorCode(String vendorCode);
 }
