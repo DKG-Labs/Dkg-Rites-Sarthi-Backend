@@ -200,7 +200,7 @@ public class AggregatesServiceImpl implements AggregatesService {
             response.setUpdatedDate(entity.getUpdatedDate());
 
             String status = sleeperWorkflowRepository
-                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 8L)
                     .orElse("NOT_STARTED");
             if (status != null) {
                 response.setStatus(status);

@@ -314,7 +314,7 @@ public class CementServiceImpl implements CementService {
                         CommonUtils.convertDateToString(entity.getInvoiceDate()));
             }
             String status = sleeperWorkflowRepository
-                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 6L)
                     .orElse("NOT_STARTED");
             if (status != null) {
                 response.setStatus(status);

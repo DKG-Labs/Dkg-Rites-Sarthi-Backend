@@ -219,7 +219,7 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
             }
 
             String status = sleeperWorkflowRepository
-                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 7L)
                     .orElse("NOT_STARTED");
             if (status != null) {
                 response.setStatus(status);

@@ -158,7 +158,7 @@ public class RawMaterialSourceServiceImpl implements RawMaterialSourceService {
             dto.setUpdatedBy(entity.getUpdatedBy());
             dto.setUpdatedDate(entity.getUpdatedDate());
             String status = sleeperWorkflowRepository
-                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 3L)
                     .orElse("NOT_STARTED");
             if (status != null) {
                 dto.setStatus(status);

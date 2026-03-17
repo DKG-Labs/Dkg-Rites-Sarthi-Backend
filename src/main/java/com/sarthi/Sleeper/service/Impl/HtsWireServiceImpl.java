@@ -255,7 +255,7 @@ public class HtsWireServiceImpl implements HtsWireService {
                             entity.getRelaxationTestDate()));
         }
         String status = sleeperWorkflowRepository
-                .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 5L)
                 .orElse("NOT_STARTED");
         if (status != null) {
             dto.setStatus(status);

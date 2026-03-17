@@ -196,7 +196,7 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
                 response.setUpdatedDate(entity.getUpdatedDate());
 
                 String status = sleeperWorkflowRepository
-                        .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                        .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 9L)
                         .orElse("NOT_STARTED");
                 if (status != null) {
                     response.setStatus(status);

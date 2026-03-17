@@ -13,5 +13,4 @@ public interface PlantProfileRepository extends JpaRepository<PlantProfile, Long
     @Query("SELECT DISTINCT p.numberOfSheds FROM PlantProfile p WHERE p.createdBy = :vendorCode AND p.numberOfSheds IS NOT NULL")
     List<Integer> findDistinctNumberOfShedsByVendorCode(String vendorCode);
 
-
 }

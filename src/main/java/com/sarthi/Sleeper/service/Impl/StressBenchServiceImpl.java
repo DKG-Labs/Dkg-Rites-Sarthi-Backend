@@ -137,7 +137,7 @@ public class StressBenchServiceImpl  implements StressBenchMasterService {
             dto.setUpdatedBy(entity.getUpdatedBy());
             dto.setUpdatedDate(entity.getUpdatedDate());
             String status = sleeperWorkflowRepository
-                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 2L)
                     .orElse("NOT_STARTED");
             if (status != null) {
                 dto.setStatus(status);
