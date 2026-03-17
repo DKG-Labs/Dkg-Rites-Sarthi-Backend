@@ -7,6 +7,7 @@ import com.sarthi.Sleeper.dto.Cement.CementReceiptResponseDto;
 import com.sarthi.Sleeper.entity.Cement.CementBatchDetails;
 import com.sarthi.Sleeper.entity.Cement.CementReceipt;
 import com.sarthi.Sleeper.repository.CementReceiptRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.CementService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -24,6 +25,8 @@ public class CementServiceImpl implements CementService {
 
     @Autowired
     private CementReceiptRepository repository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
         // ================= CREATE =================
 
@@ -309,6 +312,12 @@ public class CementServiceImpl implements CementService {
             if (entity.getInvoiceDate() != null) {
                 response.setInvoiceDate(
                         CommonUtils.convertDateToString(entity.getInvoiceDate()));
+            }
+            String status = sleeperWorkflowRepository
+                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .orElse("NOT_STARTED");
+            if (status != null) {
+                response.setStatus(status);
             }
 
             // ===== CHILD BATCH DETAILS =====

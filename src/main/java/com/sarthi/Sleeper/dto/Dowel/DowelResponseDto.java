@@ -27,4 +27,6 @@ public class DowelResponseDto {
 
     private Integer updatedBy;
     private LocalDateTime updatedDate;
+
+    private String status;
 }

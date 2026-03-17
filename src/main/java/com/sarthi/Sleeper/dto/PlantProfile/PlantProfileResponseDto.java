@@ -20,4 +20,6 @@ public class PlantProfileResponseDto {
         private Integer updatedBy;
         private LocalDateTime updatedDate;
 
+        private String status;
+
 }

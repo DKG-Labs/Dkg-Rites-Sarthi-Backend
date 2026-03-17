@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.ProductionDeclaration.*;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.*;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.ProductionDeclarationService;
 import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,8 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
     @Autowired
     private ProductionDeclarationRepository repository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
     @Override
     public ProductionDeclarationResponseDto create(
@@ -385,6 +388,13 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         response.setCreatedDate(entity.getCreatedDate());
         response.setUpdatedBy(entity.getUpdatedBy());
         response.setUpdatedDate(entity.getUpdatedDate());
+
+        String status = sleeperWorkflowRepository
+                .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                .orElse("NOT_STARTED");
+        if (status != null) {
+            response.setStatus(status);
+        }
 
         // ================= STRESS BENCH =================
 

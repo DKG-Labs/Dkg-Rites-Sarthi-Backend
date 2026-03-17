@@ -28,5 +28,7 @@ public class CementReceiptResponseDto {
 
     private LocalDateTime updatedDate;
 
+    private String status;
+
     private List<CementBatchDetailsResponseDto> batchDetails;
 }

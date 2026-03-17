@@ -3,7 +3,9 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileRequestDto;
 import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileResponseDto;
 import com.sarthi.Sleeper.entity.PlantProfile;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.repository.PlantProfileRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.PlantProfileService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -20,6 +22,8 @@ public class PlantProfileServiceImpl implements PlantProfileService {
 
     @Autowired
     private PlantProfileRepository repository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
         // CREATE
         @Override
@@ -113,6 +117,7 @@ public class PlantProfileServiceImpl implements PlantProfileService {
 
             PlantProfileResponseDto dto = new PlantProfileResponseDto();
 
+
             dto.setId(entity.getId());
             dto.setPlantNameLocation(entity.getPlantNameLocation());
             dto.setVendorCode(entity.getVendorCode());
@@ -123,6 +128,12 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             dto.setUpdatedBy(entity.getUpdatedBy());
             dto.setUpdatedDate(entity.getUpdatedDate());
 
+            String status = sleeperWorkflowRepository
+                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .orElse("NOT_STARTED");
+            if (status != null) {
+                dto.setStatus(status);
+            }
             return dto;
         }
 

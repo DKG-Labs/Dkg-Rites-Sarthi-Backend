@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.AdmixtureResponseDto;
 
 import com.sarthi.Sleeper.entity.AdmixtureInventory;
 import com.sarthi.Sleeper.repository.AdmixtureInventoryRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.AdmixtureInventoryService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -22,6 +23,8 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
 
     @Autowired
     private AdmixtureInventoryRepository admixtureInventoryRepository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
     // ================= CREATE =================
 
@@ -213,6 +216,13 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
             if (entity.getInvoiceDate() != null) {
                 response.setInvoiceDate(
                         CommonUtils.convertDateToString(entity.getInvoiceDate()));
+            }
+
+            String status = sleeperWorkflowRepository
+                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .orElse("NOT_STARTED");
+            if (status != null) {
+                response.setStatus(status);
             }
 
             list.add(response);

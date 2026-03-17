@@ -26,4 +26,5 @@ public class AdmixtureResponseDto {
 
     private Integer updatedBy;
     private LocalDateTime updatedDate;
+    private String status;
 }

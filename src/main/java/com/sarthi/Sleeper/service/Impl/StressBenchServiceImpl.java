@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.StressBenchRequestDto;
 import com.sarthi.Sleeper.dto.StressBenchResponseDto;
 import com.sarthi.Sleeper.entity.StressBenchMaster;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.repository.StressBenchMasterRepository;
 import com.sarthi.Sleeper.service.StressBenchMasterService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,12 @@ public class StressBenchServiceImpl  implements StressBenchMasterService {
       @Autowired
       private StressBenchMasterRepository repository;
 
-        @Override
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
+
+
+
+    @Override
         public StressBenchResponseDto createBench(StressBenchRequestDto dto) {
 
             StressBenchMaster entity = new StressBenchMaster();
@@ -130,6 +136,12 @@ public class StressBenchServiceImpl  implements StressBenchMasterService {
 
             dto.setUpdatedBy(entity.getUpdatedBy());
             dto.setUpdatedDate(entity.getUpdatedDate());
+            String status = sleeperWorkflowRepository
+                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .orElse("NOT_STARTED");
+            if (status != null) {
+                dto.setStatus(status);
+            }
 
             return dto;
         }

@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.SgciInventory.SgciInsertRequestDto;
 import com.sarthi.Sleeper.dto.SgciInventory.SgciInsertResponseDto;
 import com.sarthi.Sleeper.entity.SgciInsertInventory;
 import com.sarthi.Sleeper.repository.SgciInsertInventoryRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.SgciInsertInventoryService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -19,6 +20,9 @@ import java.util.List;
 public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryService {
     @Autowired
     private SgciInsertInventoryRepository repository;
+
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
         // ================= CREATE =================
 
@@ -190,6 +194,13 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
                 response.setCreatedDate(entity.getCreatedDate());
                 response.setUpdatedBy(entity.getUpdatedBy());
                 response.setUpdatedDate(entity.getUpdatedDate());
+
+                String status = sleeperWorkflowRepository
+                        .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                        .orElse("NOT_STARTED");
+                if (status != null) {
+                    response.setStatus(status);
+                }
 
                 if (entity.getDateOfReceipt() != null) {
                     response.setDateOfReceipt(

@@ -3,9 +3,11 @@ package com.sarthi.Sleeper.repository;
 import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SleeperWorkflowRepository
@@ -48,4 +50,13 @@ WHERE t.workflowTransitionId = (
 AND t.status = 'Completed'
 """)
     List<SleeperWorkflowTransaction> findCompletedRequests();
+
+    @Query(value = """
+    SELECT status 
+    FROM sleeper_workflow_transaction 
+    WHERE request_id = :requestId 
+    ORDER BY workflow_transition_id DESC 
+    LIMIT 1
+""", nativeQuery = true)
+    Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
 }

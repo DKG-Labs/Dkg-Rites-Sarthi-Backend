@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.MixDesignRequestDto;
 import com.sarthi.Sleeper.dto.MixDesignResponseDto;
 import com.sarthi.Sleeper.entity.MixDesign;
 import com.sarthi.Sleeper.repository.MixDesignRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.MixDesignService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -20,6 +21,9 @@ public class MixDesignServiceImpl implements MixDesignService {
 
     @Autowired
     private MixDesignRepository repository;
+
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
     // ================= CREATE =================
     @Override
@@ -139,6 +143,12 @@ public class MixDesignServiceImpl implements MixDesignService {
         dto.setCreatedDate(entity.getCreatedDate());
         dto.setUpdatedBy(entity.getUpdatedBy());
         dto.setUpdatedDate(entity.getUpdatedDate());
+        String status = sleeperWorkflowRepository
+                .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                .orElse("NOT_STARTED");
+        if (status != null) {
+            dto.setStatus(status);
+        }
 
         return dto;
     }

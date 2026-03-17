@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.Dowel.DowelRequestDto;
 import com.sarthi.Sleeper.dto.Dowel.DowelResponseDto;
 import com.sarthi.Sleeper.entity.DowelInventory;
 import com.sarthi.Sleeper.repository.DowelInventoryRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.DowelService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -22,6 +23,8 @@ public class DowelServiceImpl implements DowelService {
 
     @Autowired
     private DowelInventoryRepository repository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
         // ================= CREATE =================
 
@@ -167,6 +170,13 @@ public class DowelServiceImpl implements DowelService {
             response.setCreatedDate(entity.getCreatedDate());
             response.setUpdatedBy(entity.getUpdatedBy());
             response.setUpdatedDate(entity.getUpdatedDate());
+
+            String status = sleeperWorkflowRepository
+                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .orElse("NOT_STARTED");
+            if (status != null) {
+                response.setStatus(status);
+            }
 
             if (entity.getDateOfReceipt() != null) {
                 response.setDateOfReceipt(

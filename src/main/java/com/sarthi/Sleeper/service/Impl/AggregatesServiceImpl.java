@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.Aggregates.AggregatesRequestDto;
 import com.sarthi.Sleeper.dto.Aggregates.AggregatesResponseDto;
 import com.sarthi.Sleeper.entity.AggregatesInventory;
 import com.sarthi.Sleeper.repository.AggregatesInventoryRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.AggregatesService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -22,6 +23,9 @@ public class AggregatesServiceImpl implements AggregatesService {
 
     @Autowired
     private AggregatesInventoryRepository repository;
+
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
     // ================= CREATE =================
 
@@ -194,6 +198,13 @@ public class AggregatesServiceImpl implements AggregatesService {
             response.setCreatedDate(entity.getCreatedDate());
             response.setUpdatedBy(entity.getUpdatedBy());
             response.setUpdatedDate(entity.getUpdatedDate());
+
+            String status = sleeperWorkflowRepository
+                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .orElse("NOT_STARTED");
+            if (status != null) {
+                response.setStatus(status);
+            }
 
             if (entity.getDateOfReceipt() != null) {
                 response.setDateOfReceipt(

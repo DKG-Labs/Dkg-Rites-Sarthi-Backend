@@ -25,5 +25,7 @@ public class HtsWireResponseDto {
     private Double totalQtyReceived;
     private int createdBy;
 
+    private String status;
+
     private List<HtsCoilDetailsResponseDto> coilDetails;
 }

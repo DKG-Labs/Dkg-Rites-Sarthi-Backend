@@ -8,12 +8,14 @@ import com.sarthi.Sleeper.entity.DowelInventory;
 import com.sarthi.Sleeper.entity.VendorHtsWire.HtsCoilDetails;
 import com.sarthi.Sleeper.entity.VendorHtsWire.HtsWire;
 import com.sarthi.Sleeper.repository.HtsWireRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.HtsWireService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -24,6 +26,9 @@ import java.util.List;
 public class HtsWireServiceImpl implements HtsWireService {
 
     private final HtsWireRepository repository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
+
 
     // ================= CREATE =================
 
@@ -249,6 +254,12 @@ public class HtsWireServiceImpl implements HtsWireService {
                     CommonUtils.convertDateToString(
                             entity.getRelaxationTestDate()));
         }
+        String status = sleeperWorkflowRepository
+                .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                .orElse("NOT_STARTED");
+        if (status != null) {
+            dto.setStatus(status);
+        }
 
 
         // ===== CHILD COILS =====
@@ -278,6 +289,7 @@ public class HtsWireServiceImpl implements HtsWireService {
 
             dto.setCoilDetails(coilList);
         }
+
 
         return dto;
     }

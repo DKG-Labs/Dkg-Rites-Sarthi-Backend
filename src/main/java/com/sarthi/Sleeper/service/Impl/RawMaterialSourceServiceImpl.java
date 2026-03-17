@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.RawMaterialSourceRequestDto;
 import com.sarthi.Sleeper.dto.RawMaterialSourceResponseDto;
 import com.sarthi.Sleeper.entity.RawMaterialSource;
 import com.sarthi.Sleeper.repository.RawMaterialSourceRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.RawMaterialSourceService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -21,8 +22,11 @@ public class RawMaterialSourceServiceImpl implements RawMaterialSourceService {
 
     @Autowired
     private RawMaterialSourceRepository repository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
-        // CREATE
+
+    // CREATE
         @Override
         public RawMaterialSourceResponseDto create(RawMaterialSourceRequestDto dto) {
 
@@ -153,6 +157,12 @@ public class RawMaterialSourceServiceImpl implements RawMaterialSourceService {
             dto.setCreatedDate(entity.getCreatedDate());
             dto.setUpdatedBy(entity.getUpdatedBy());
             dto.setUpdatedDate(entity.getUpdatedDate());
+            String status = sleeperWorkflowRepository
+                    .findLatestStatusByRequestId(String.valueOf(entity.getId()))
+                    .orElse("NOT_STARTED");
+            if (status != null) {
+                dto.setStatus(status);
+            }
 
             return dto;
         }

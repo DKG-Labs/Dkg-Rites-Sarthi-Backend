@@ -24,4 +24,6 @@ public class StressBenchResponseDto {
 
     private Long updatedBy;
     private LocalDateTime updatedDate;
+
+    private String status;
 }

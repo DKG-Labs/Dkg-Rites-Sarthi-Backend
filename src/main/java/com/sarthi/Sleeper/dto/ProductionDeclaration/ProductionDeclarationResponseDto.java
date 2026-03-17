@@ -34,6 +34,8 @@ public class ProductionDeclarationResponseDto {
     private Long updatedBy;
     private LocalDateTime updatedDate;
 
+    private String status;
+
     private List<ProductionStressChamberResponseDto> chambers;
 
     private List<ProductionLongLineGangResponseDto> gangs;
