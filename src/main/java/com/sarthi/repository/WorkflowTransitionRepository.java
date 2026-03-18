@@ -201,4 +201,49 @@ WHERE wt.status = 'INSPECTION_COMPLETE_CONFIRM'
         ) t3
         """, nativeQuery = true)
     List<Object[]> getInspectionCallStatusBreakdown();
+
+    @Query(value = """
+        SELECT 'RM' as category,
+               COUNT(DISTINCT CASE WHEN has_initiate = 1 AND is_complete = 0 THEN requestId END) as under,
+               COUNT(DISTINCT CASE WHEN has_created = 1 AND has_initiate = 0 AND is_complete = 0 THEN requestId END) as pending
+        FROM (
+            SELECT requestId,
+                   MAX(CASE WHEN UPPER(status) LIKE '%INITIATE%INSPECTION%' THEN 1 ELSE 0 END) as has_initiate,
+                   MAX(CASE WHEN UPPER(status) = 'CREATED' THEN 1 ELSE 0 END) as has_created,
+                   MAX(CASE WHEN UPPER(status) LIKE '%COMPLETE%CONFIRM%' THEN 1 ELSE 0 END) as is_complete
+            FROM workflow_transition
+            WHERE requestId LIKE '%ER%'
+              AND requestId NOT IN (SELECT ic_number FROM inspection_calls WHERE po_no = :excludePo)
+            GROUP BY requestId
+        ) t1
+        UNION ALL
+        SELECT 'Process' as category,
+               COUNT(DISTINCT CASE WHEN has_initiate = 1 AND is_complete = 0 THEN requestId END) as under,
+               COUNT(DISTINCT CASE WHEN has_created = 1 AND has_initiate = 0 AND is_complete = 0 THEN requestId END) as pending
+        FROM (
+            SELECT requestId,
+                   MAX(CASE WHEN UPPER(status) LIKE '%INITIATE%INSPECTION%' THEN 1 ELSE 0 END) as has_initiate,
+                   MAX(CASE WHEN UPPER(status) = 'CREATED' THEN 1 ELSE 0 END) as has_created,
+                   MAX(CASE WHEN UPPER(status) LIKE '%COMPLETE%CONFIRM%' THEN 1 ELSE 0 END) as is_complete
+            FROM workflow_transition
+            WHERE requestId LIKE '%EP%'
+               AND requestId NOT IN (SELECT ic_number FROM inspection_calls WHERE po_no = :excludePo)
+            GROUP BY requestId
+        ) t2
+        UNION ALL
+        SELECT 'Final' as category,
+               COUNT(DISTINCT CASE WHEN has_initiate = 1 AND is_complete = 0 THEN requestId END) as under,
+               COUNT(DISTINCT CASE WHEN has_created = 1 AND has_initiate = 0 AND is_complete = 0 THEN requestId END) as pending
+        FROM (
+            SELECT requestId,
+                   MAX(CASE WHEN UPPER(status) LIKE '%INITIATE%INSPECTION%' THEN 1 ELSE 0 END) as has_initiate,
+                   MAX(CASE WHEN UPPER(status) = 'CREATED' THEN 1 ELSE 0 END) as has_created,
+                   MAX(CASE WHEN UPPER(status) LIKE '%COMPLETE%CONFIRM%' THEN 1 ELSE 0 END) as is_complete
+            FROM workflow_transition
+            WHERE requestId LIKE '%EF%'
+               AND requestId NOT IN (SELECT ic_number FROM inspection_calls WHERE po_no = :excludePo)
+            GROUP BY requestId
+        ) t3
+        """, nativeQuery = true)
+    List<Object[]> getInspectionCallStatusBreakdownExcludingDummyPo(@Param("excludePo") String excludePo);
 }

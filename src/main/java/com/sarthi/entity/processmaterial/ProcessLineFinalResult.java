@@ -2,6 +2,7 @@ package com.sarthi.entity.processmaterial;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -37,6 +38,9 @@ public class ProcessLineFinalResult {
 
     @Column(name = "heat_number", length = 50)
     private String heatNumber;
+
+    @Column(name = "date_of_inspection")
+    private LocalDate dateOfInspection;
 
     // Quantities
     @Column(name = "offered_qty")
