@@ -1958,28 +1958,8 @@ public class reportsImpl implements reports {
 
     @Override
     public List<InspectionCallStatusDto> getInspectionCallStatus() {
-        List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdown();
-        List<InspectionCallStatusDto> list = new ArrayList<>();
-        
-        long totalUnder = 0;
-        long totalPending = 0;
-        
-        if (results != null) {
-            for (Object[] row : results) {
-                String category = (String) row[0];
-                long under = row[1] != null ? ((Number) row[1]).longValue() : 0;
-                long pending = row[2] != null ? ((Number) row[2]).longValue() : 0;
-                
-                list.add(new InspectionCallStatusDto(category, under, pending));
-                totalUnder += under;
-                totalPending += pending;
-            }
-        }
-        
-        // Prepend Total category
-        list.add(0, new InspectionCallStatusDto("Total", totalUnder, totalPending));
-        
-        return list;
+        // Updated to exclude Dummy PO data as requested
+        return getInspectionCallStatusWithExclLogic();
     }
 
     // ================= NEW LOGIC FOR PROCESS REJECTION % =================
@@ -2089,5 +2069,35 @@ public class reportsImpl implements reports {
         result.add(new InspectionDetailsDto("Final", finalAcc, finalRej));
 
         return result;
+    }
+
+    /**
+     * Updated logic for Inspection Calls Status to exclude data related to DummyPo_001.
+     * This considers the requestId in workflow_transition that matches ic_number in inspection_calls.
+     */
+    private List<InspectionCallStatusDto> getInspectionCallStatusWithExclLogic() {
+        String excludePo = "DummyPo_001";
+        List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdownExcludingDummyPo(excludePo);
+        List<InspectionCallStatusDto> list = new ArrayList<>();
+        
+        long totalUnder = 0;
+        long totalPending = 0;
+        
+        if (results != null) {
+            for (Object[] row : results) {
+                String category = (String) row[0];
+                long under = row[1] != null ? ((Number) row[1]).longValue() : 0;
+                long pending = row[2] != null ? ((Number) row[2]).longValue() : 0;
+                
+                list.add(new InspectionCallStatusDto(category, under, pending));
+                totalUnder += under;
+                totalPending += pending;
+            }
+        }
+        
+        // Prepend Total category with aggregated results
+        list.add(0, new InspectionCallStatusDto("Total", totalUnder, totalPending));
+        
+        return list;
     }
 }
