@@ -1797,8 +1797,6 @@ public class reportsImpl implements reports {
 
                 // Using last 30 days for dynamic stats (consistent with dashboard summary)
                 LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-                java.util.Date thirtyDaysAgoDate = java.util.Date
-                                .from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
 
                 // 1. Raw Material Rejection
                 List<Object[]> rmResults = rmHeatFinalResultRepository.sumRmRejectionLast30Days(thirtyDaysAgo);
@@ -1906,15 +1904,12 @@ public class reportsImpl implements reports {
                 List<StageRejectionDto> trend = new ArrayList<>();
                 try {
                         java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
-                        java.util.Date start;
-                        java.util.Date end;
-
                         LocalDateTime lStart;
                         LocalDateTime lEnd;
 
                         if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
-                                start = sdf.parse(startDate);
-                                end = sdf.parse(endDate);
+                                java.util.Date start = sdf.parse(startDate);
+                                java.util.Date end = sdf.parse(endDate);
                                 lStart = start.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
                                                 .with(java.time.LocalTime.MIN);
                                 lEnd = end.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
@@ -1995,28 +1990,8 @@ public class reportsImpl implements reports {
 
         @Override
         public List<InspectionCallStatusDto> getInspectionCallStatus() {
-                List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdown();
-                List<InspectionCallStatusDto> list = new ArrayList<>();
-
-                long totalUnder = 0;
-                long totalPending = 0;
-
-                if (results != null) {
-                        for (Object[] row : results) {
-                                String category = (String) row[0];
-                                long under = row[1] != null ? ((Number) row[1]).longValue() : 0;
-                                long pending = row[2] != null ? ((Number) row[2]).longValue() : 0;
-
-                                list.add(new InspectionCallStatusDto(category, under, pending));
-                                totalUnder += under;
-                                totalPending += pending;
-                        }
-                }
-
-                // Prepend Total category
-                list.add(0, new InspectionCallStatusDto("Total", totalUnder, totalPending));
-
-                return list;
+                // Updated to exclude Dummy PO data as requested
+                return getInspectionCallStatusWithExclLogic();
         }
 
         // ================= NEW LOGIC FOR PROCESS REJECTION % =================
@@ -2074,13 +2049,6 @@ public class reportsImpl implements reports {
 
                         double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
 
-                        // StageRejectionDto reused: name = param name, value = raw count, color =
-                        // palette colour
-                        // We append cumulative % as a secondary value in a separate DTO field via
-                        // overloaded ctor if available,
-                        // otherwise encode cumulative in a separate entry. Here we send raw count as
-                        // value and cumulative as
-                        // a second field using the existing 3-field ctor (name, value, color).
                         StageRejectionDto dto = new StageRejectionDto(name, (double) count,
                                         palette[i % palette.length]);
                         dto.setCumulative(Math.round(cumulative * 10.0) / 10.0); // 1 decimal
@@ -2134,5 +2102,35 @@ public class reportsImpl implements reports {
                 result.add(new InspectionDetailsDto("Final", finalAcc, finalRej));
 
                 return result;
+        }
+
+        /**
+         * Updated logic for Inspection Calls Status to exclude data related to DummyPo_001.
+         * This considers the requestId in workflow_transition that matches ic_number in inspection_calls.
+         */
+        private List<InspectionCallStatusDto> getInspectionCallStatusWithExclLogic() {
+                String excludePo = "DummyPo_001";
+                List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdownExcludingDummyPo(excludePo);
+                List<InspectionCallStatusDto> list = new ArrayList<>();
+
+                long totalUnder = 0;
+                long totalPending = 0;
+
+                if (results != null) {
+                        for (Object[] row : results) {
+                                String category = (String) row[0];
+                                long under = row[1] != null ? ((Number) row[1]).longValue() : 0;
+                                long pending = row[2] != null ? ((Number) row[2]).longValue() : 0;
+
+                                list.add(new InspectionCallStatusDto(category, under, pending));
+                                totalUnder += under;
+                                totalPending += pending;
+                        }
+                }
+
+                // Prepend Total category with aggregated results
+                list.add(0, new InspectionCallStatusDto("Total", totalUnder, totalPending));
+
+                return list;
         }
 }
