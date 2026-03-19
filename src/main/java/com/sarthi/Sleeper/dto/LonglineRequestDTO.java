@@ -3,6 +3,8 @@ package com.sarthi.Sleeper.dto;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class LonglineRequestDTO {
 
@@ -21,4 +23,6 @@ public class LonglineRequestDTO {
 
     private int createdBy;
     private int updatedBy;
+
+    private List<String> sleepers;
 }
