@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/longLine-bench")
+@RequestMapping("/api/longLine-bench")
 public class LongLineController {
 
     @Autowired

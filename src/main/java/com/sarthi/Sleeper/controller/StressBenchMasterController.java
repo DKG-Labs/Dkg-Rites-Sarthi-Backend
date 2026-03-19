@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/stress-bench")
+@RequestMapping("/api/stress-bench")
 public class StressBenchMasterController {
 
 
