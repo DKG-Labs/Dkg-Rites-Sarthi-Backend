@@ -1,6 +1,7 @@
 package com.sarthi.dto.processmaterial;
 
 import lombok.Data;
+import java.time.LocalDate;
 
 /**
  * DTO for per-line final results in Process Material Inspection.
@@ -15,6 +16,7 @@ public class ProcessLineFinalResultDto {
     private String lotNumber;
     private String heatNumber;
     private String shift;
+    private LocalDate dateOfInspection;
 
     // Quantities
     private Integer offeredQty;
