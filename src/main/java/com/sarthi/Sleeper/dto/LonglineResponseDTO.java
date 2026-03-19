@@ -4,6 +4,7 @@ package com.sarthi.Sleeper.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class LonglineResponseDTO {
@@ -31,4 +32,5 @@ public class LonglineResponseDTO {
 
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
+    private List<String> sleepers;
 }

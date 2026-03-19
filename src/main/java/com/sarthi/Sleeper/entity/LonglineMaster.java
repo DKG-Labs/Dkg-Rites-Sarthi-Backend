@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "longline_master")
@@ -31,4 +32,7 @@ public class LonglineMaster {
 
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
+
+    @OneToMany(mappedBy = "longlineMaster", cascade = CascadeType.ALL)
+    private List<SleeperDetails> sleepers;
 }
