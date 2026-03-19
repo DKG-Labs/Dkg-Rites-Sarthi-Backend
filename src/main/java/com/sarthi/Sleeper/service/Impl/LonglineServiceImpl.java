@@ -9,6 +9,7 @@ import com.sarthi.Sleeper.entity.LonglineMaster;
 import com.sarthi.Sleeper.repository.LonglineRepository;
 import com.sarthi.Sleeper.service.LonglineService;
 import lombok.RequiredArgsConstructor;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,13 +28,30 @@ public class LonglineServiceImpl implements LonglineService {
 
         LonglineMaster entity = new LonglineMaster();
 
-        // mapping
-        entity.setLineFrom(dto.getLineFrom());
-        entity.setLineTo(dto.getLineTo());
-        entity.setNoOfLines(dto.getNoOfLines());
-        entity.setMouldsPerLine(dto.getMouldsPerLine());
-        entity.setSleeperCategory(dto.getSleeperCategory());
-        entity.setEntryType(dto.getEntryType());
+
+        entity.setCategory(dto.getCategory());
+        entity.setMouldsPerGang(dto.getMouldsPerGang());
+        entity.setEntryMode(dto.getEntryMode());
+
+
+        if ("RANGE".equalsIgnoreCase(dto.getEntryMode())) {
+
+            entity.setGangFrom(dto.getGangFrom());
+            entity.setGangTo(dto.getGangTo());
+            entity.setGangNo(null);
+
+            // auto count (recommended)
+            if (dto.getGangFrom() != null && dto.getGangTo() != null) {
+                entity.setCount(dto.getGangTo() - dto.getGangFrom() + 1);
+            }
+
+        } else {
+
+            entity.setGangNo(dto.getGangNo());
+            entity.setGangFrom(null);
+            entity.setGangTo(null);
+            entity.setCount(1);
+        }
 
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
@@ -49,12 +67,29 @@ public class LonglineServiceImpl implements LonglineService {
         LonglineMaster entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found"));
 
-        entity.setLineFrom(dto.getLineFrom());
-        entity.setLineTo(dto.getLineTo());
-        entity.setNoOfLines(dto.getNoOfLines());
-        entity.setMouldsPerLine(dto.getMouldsPerLine());
-        entity.setSleeperCategory(dto.getSleeperCategory());
-        entity.setEntryType(dto.getEntryType());
+
+        entity.setCategory(dto.getCategory());
+        entity.setMouldsPerGang(dto.getMouldsPerGang());
+        entity.setEntryMode(dto.getEntryMode());
+
+
+        if ("RANGE".equalsIgnoreCase(dto.getEntryMode())) {
+
+            entity.setGangFrom(dto.getGangFrom());
+            entity.setGangTo(dto.getGangTo());
+            entity.setGangNo(null);
+
+            if (dto.getGangFrom() != null && dto.getGangTo() != null) {
+                entity.setCount(dto.getGangTo() - dto.getGangFrom() + 1);
+            }
+
+        } else {
+
+            entity.setGangNo(dto.getGangNo());
+            entity.setGangFrom(null);
+            entity.setGangTo(null);
+            entity.setCount(1);
+        }
 
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
@@ -66,6 +101,7 @@ public class LonglineServiceImpl implements LonglineService {
 
     @Override
     public LonglineResponseDTO getById(Long id) {
+
         LonglineMaster entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found"));
 
@@ -74,6 +110,7 @@ public class LonglineServiceImpl implements LonglineService {
 
     @Override
     public List<LonglineResponseDTO> getAll() {
+
         return repository.findAll()
                 .stream()
                 .map(this::mapToResponse)
@@ -91,19 +128,21 @@ public class LonglineServiceImpl implements LonglineService {
         LonglineResponseDTO dto = new LonglineResponseDTO();
 
         dto.setId(entity.getId());
-        dto.setLineFrom(entity.getLineFrom());
-        dto.setLineTo(entity.getLineTo());
-        dto.setNoOfLines(entity.getNoOfLines());
-        dto.setMouldsPerLine(entity.getMouldsPerLine());
-        dto.setSleeperCategory(entity.getSleeperCategory());
-        dto.setEntryType(entity.getEntryType());
+
+        dto.setGangFrom(entity.getGangFrom());
+        dto.setGangTo(entity.getGangTo());
+        dto.setGangNo(entity.getGangNo());
+        dto.setCount(entity.getCount());
+        dto.setMouldsPerGang(entity.getMouldsPerGang());
+        dto.setCategory(entity.getCategory());
+        dto.setEntryMode(entity.getEntryMode());
 
         String status = sleeperWorkflowRepository
                 .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 12L)
                 .orElse("NOT_STARTED");
-        if (status != null) {
-            dto.setStatus(status);
-        }
+
+        dto.setStatus(status);
+
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setUpdatedBy(entity.getUpdatedBy());
         dto.setCreatedDate(entity.getCreatedDate());

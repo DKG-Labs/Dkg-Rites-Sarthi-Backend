@@ -10,13 +10,19 @@ public class LonglineResponseDTO {
 
     private Long id;
 
-    private Integer lineFrom;
-    private Integer lineTo;
-    private Integer noOfLines;
-    private Integer mouldsPerLine;
+    // RANGE
+    private Integer gangFrom;
+    private Integer gangTo;
 
-    private String sleeperCategory;
-    private String entryType;
+    // SINGLE
+    private Integer gangNo;
+
+    // Common
+    private Integer count;
+    private Integer mouldsPerGang;
+
+    private String category;
+    private String entryMode;
 
     private String status;
 

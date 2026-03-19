@@ -6,13 +6,18 @@ import lombok.Data;
 @Data
 public class LonglineRequestDTO {
 
-    private Integer lineFrom;
-    private Integer lineTo;
-    private Integer noOfLines;
-    private Integer mouldsPerLine;
+    private Integer gangFrom;
+    private Integer gangTo;
 
-    private String sleeperCategory;
-    private String entryType;
+    // SINGLE
+    private Integer gangNo;
+
+    // Common
+    private Integer count;
+    private Integer mouldsPerGang;
+
+    private String category;
+    private String entryMode; // RANGE / SINGLE
 
     private int createdBy;
     private int updatedBy;

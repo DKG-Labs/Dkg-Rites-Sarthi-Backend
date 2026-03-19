@@ -13,15 +13,18 @@ public class LonglineMaster {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private Integer gangFrom;
+    private Integer gangTo;
 
-    private Integer lineFrom;
-    private Integer lineTo;
-    private Integer noOfLines;
-    private Integer mouldsPerLine;
+    // SINGLE field (clarity)
+    private Integer gangNo;
 
-    private String sleeperCategory;
-    private String entryType; // RANGE / SINGLE
+    // Common
+    private Integer count;
+    private Integer mouldsPerGang;
 
+    private String category;
+    private String entryMode; // RANGE / SINGLE
 
     private int createdBy;
     private int updatedBy;
