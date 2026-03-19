@@ -8,6 +8,9 @@ import java.util.List;
 public class BatchInspectionResponseDto {
 
     private Long batchId;
+    private String batchNumber;
+    private String castDate;
+
     private Long totalSleepers;
     private Long goodCount;
     private Long badCount;

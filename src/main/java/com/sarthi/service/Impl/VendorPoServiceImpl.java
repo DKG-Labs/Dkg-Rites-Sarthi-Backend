@@ -50,12 +50,18 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setUnit("Nos");
         dto.setRlyShortName(poHeader.getRlyShortName());
         dto.setRlyCd(poHeader.getRlyCd());
+        dto.setItemCategory(poHeader.getItemCatDescr());
+        dto.setStatus(poHeader.getPoStatus());
 
         BigDecimal totalQty = poHeader.getItems().stream()
-                .map(item -> BigDecimal.valueOf(item.getQty()))
+                .map(item -> BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         dto.setQty(totalQty);
+
+        BigDecimal totalVal = poHeader.getItems().stream()
+                .map(item -> item.getValue() != null ? item.getValue() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        dto.setTotalValue(totalVal);
 
         List<VendorPoItemsResponseDto> itemDtos = poHeader.getItems()
                 .stream()
@@ -74,7 +80,12 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setPoSerialNo(item.getPoHeader().getPoNo() + "/" + item.getItemSrNo());
         dto.setPoDes(item.getItemDesc());
         dto.setConigness(item.getImmsConsigneeName());
-        dto.setOrderedQty(BigDecimal.valueOf(item.getQty()));
+        dto.setOrderedQty(BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0));
+        
+        dto.setItemSrNo(item.getItemSrNo());
+        dto.setOfferedTillNow(BigDecimal.ZERO);
+        dto.setAcceptedTillNow(BigDecimal.ZERO);
+        dto.setDue(BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0));
 
         dto.setDeliveryPeriod(
                 item.getDeliveryDate() != null

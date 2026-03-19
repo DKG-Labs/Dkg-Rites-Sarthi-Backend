@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.BatchInspectionResponseDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.*;
 import com.sarthi.Sleeper.service.MorSampleService;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
+import com.sarthi.Sleeper.service.SleeperInspectionCallService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,9 @@ public class FinalProductionInspectionController {
 
     @Autowired
     private MorSampleService service;
+
+    @Autowired
+    private SleeperInspectionCallService sleeperInspectionCallService;
 
     @PostMapping("/save")
     public ResponseEntity<String> saveInspection(
@@ -110,9 +114,11 @@ public class FinalProductionInspectionController {
         }
 
     @GetMapping("/completed-batches")
-    public ResponseEntity<Object> getCompletedBatches() {
+    public ResponseEntity<Object> getCompletedBatches(
+            @RequestParam String sleeperType,
+            @RequestParam String userId) {
 
-        List<BatchInspectionResponseDto>  result=  inspectionService.getCompletedBatches();
+        List<BatchInspectionResponseDto>  result=  inspectionService.getCompletedBatches(sleeperType, userId);
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(result),
@@ -120,5 +126,22 @@ public class FinalProductionInspectionController {
         );
     }
 
+    @PostMapping("/submit-inspection-call")
+    public ResponseEntity<Object> submitInspectionCall(@RequestBody SleeperInspectionCallSubmitDto submitDto) {
+        String callNo = sleeperInspectionCallService.submitInspectionCall(submitDto);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(callNo),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/inspection-calls")
+    public ResponseEntity<Object> getInspectionCalls(@RequestParam Long userId) {
+        List<SleeperInspectionCallListDto> calls = sleeperInspectionCallService.getVendorInspectionCalls(userId);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(calls),
+                HttpStatus.OK
+        );
+    }
 
 }

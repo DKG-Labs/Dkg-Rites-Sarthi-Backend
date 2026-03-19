@@ -307,9 +307,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
 
     @Override
-    public List<BatchInspectionResponseDto> getCompletedBatches() {
+    public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId) {
 
-        List<Long> batchIds = headerRepository.findCompletedBatchIds();
+        Long vendorId = Long.parseLong(userId.replace(":", ""));
+        List<Long> batchIds = headerRepository.findCompletedBatchIdsBySleeperTypeAndUserId(sleeperType, vendorId);
 
         List<BatchInspectionResponseDto> responseList = new ArrayList<>();
 
@@ -345,7 +346,14 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             BatchInspectionResponseDto response =
                     new BatchInspectionResponseDto();
 
+            ProductionDeclaration declaration =
+                    productionDeclarationRepository.findBatchById(batchId);
+
             response.setBatchId(batchId);
+            if (declaration != null) {
+                response.setBatchNumber(declaration.getBatchNumber());
+                response.setCastDate(declaration.getCastingDate() != null ? declaration.getCastingDate().toString() : "");
+            }
             response.setTotalSleepers((long) results.size());
             response.setGoodCount((long) goodSleepers.size());
             response.setBadCount((long) badSleepers.size());

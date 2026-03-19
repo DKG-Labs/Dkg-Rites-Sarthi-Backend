@@ -16,6 +16,10 @@ public class VendorPoHeaderResponseDto {
     private String rlyShortName;
     private String rlyCd;
 
+    private String itemCategory;
+    private BigDecimal totalValue;
+    private String status;
+
     private List<VendorPoItemsResponseDto> poItem;
 
 }
