@@ -11,6 +11,9 @@ import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupR
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
+import com.sarthi.entity.UserMaster;
+import com.sarthi.repository.UserMasterRepository;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     @Autowired
     private InspectionModuleRepository moduleRepository;
+    
+    @Autowired
+    private UserMasterRepository userMasterRepository;
 
     @Autowired
     private InspectionTestHeaderRepository headerRepository;
@@ -309,7 +315,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Override
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId) {
 
-        Long vendorId = Long.parseLong(userId.replace(":", ""));
+        String parsedUserId = userId.replace(":", "");
+        Long vendorId = Long.parseLong(parsedUserId);
+
+        Optional<UserMaster> userOpt = userMasterRepository.findByUserName(userId);
+        if (userOpt.isEmpty()) {
+            userOpt = userMasterRepository.findByUserName(parsedUserId);
+        }
+
+        if (userOpt.isPresent()) {
+            vendorId = userOpt.get().getUserId().longValue();
+        }
+
         List<Long> batchIds = headerRepository.findCompletedBatchIdsBySleeperTypeAndUserId(sleeperType, vendorId);
 
         List<BatchInspectionResponseDto> responseList = new ArrayList<>();

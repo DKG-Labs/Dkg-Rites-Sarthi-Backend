@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.*;
 import com.sarthi.Sleeper.service.MorSampleService;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
 import com.sarthi.Sleeper.service.SleeperInspectionCallService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,9 @@ public class FinalProductionInspectionController {
 
     @Autowired
     private SleeperInspectionCallService sleeperInspectionCallService;
+    
+    @Autowired
+    private SleeperWorkflowService sleeperWorkflowService;
 
     @PostMapping("/save")
     public ResponseEntity<String> saveInspection(
@@ -41,7 +45,7 @@ public class FinalProductionInspectionController {
 
     @GetMapping("/inspection/batch/{batchId}")
     public BatchInspectionDetailDto getBatchInspection(
-            @PathVariable Long batchId) {
+            @PathVariable("batchId") Long batchId) {
 
         return inspectionService.getBatchInspection(batchId);
     }
@@ -67,7 +71,7 @@ public class FinalProductionInspectionController {
 
         @PutMapping("/{id}")
         public ResponseEntity<Object> update(
-                @PathVariable Long id,
+                @PathVariable("id") Long id,
                 @RequestBody MorSampleRequestDto dto) {
 
             return new ResponseEntity<>(
@@ -80,7 +84,7 @@ public class FinalProductionInspectionController {
 
         @GetMapping("/{id}")
         public ResponseEntity<Object> getById(
-                @PathVariable Long id) {
+                @PathVariable("id") Long id) {
 
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(service.getById(id)),
@@ -103,7 +107,7 @@ public class FinalProductionInspectionController {
 
         @DeleteMapping("/{id}")
         public ResponseEntity<Object> delete(
-                @PathVariable Long id) {
+                @PathVariable("id") Long id) {
 
             service.delete(id);
 
@@ -115,8 +119,8 @@ public class FinalProductionInspectionController {
 
     @GetMapping("/completed-batches")
     public ResponseEntity<Object> getCompletedBatches(
-            @RequestParam String sleeperType,
-            @RequestParam String userId) {
+            @RequestParam("sleeperType") String sleeperType,
+            @RequestParam("userId") String userId) {
 
         List<BatchInspectionResponseDto>  result=  inspectionService.getCompletedBatches(sleeperType, userId);
 
@@ -129,14 +133,18 @@ public class FinalProductionInspectionController {
     @PostMapping("/submit-inspection-call")
     public ResponseEntity<Object> submitInspectionCall(@RequestBody SleeperInspectionCallSubmitDto submitDto) {
         String callNo = sleeperInspectionCallService.submitInspectionCall(submitDto);
+        String requestId = callNo;
+        Long md = 0L;
+        Long wid = 2L;
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(submitDto.getCreatedBy()));
+
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(callNo),
                 HttpStatus.OK
         );
     }
-
     @GetMapping("/inspection-calls")
-    public ResponseEntity<Object> getInspectionCalls(@RequestParam Long userId) {
+    public ResponseEntity<Object> getInspectionCalls(@RequestParam("userId") Long userId) {
         List<SleeperInspectionCallListDto> calls = sleeperInspectionCallService.getVendorInspectionCalls(userId);
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(calls),
