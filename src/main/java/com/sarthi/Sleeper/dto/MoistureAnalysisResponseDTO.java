@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class MoistureAnalysisResponseDTO {
@@ -14,40 +15,36 @@ public class MoistureAnalysisResponseDTO {
         private String entryTime;
         private String batchNo;
 
-        private Double batchWtDryCa1;
-        private Double batchWtDryCa2;
-        private Double batchWtDryFa;
-        private Double batchWtDryWater;
-        private Double batchWtDryAdmix;
-        private Double batchWtDryCement;
+        private String approvedMixDesign;
+
+        private Double designAC;
+        private Double designWC;
+        private Double designCement;
+        private Double designCA1;
+        private Double designCA2;
+        private Double designFA;
+        private Double designWater;
+        private Double designAdmix;
+
+        private Double actualCement;
+        private Double actualCA1;
+        private Double actualCA2;
+        private Double actualFA;
+        private Double actualWater;
+        private Double actualAdmix;
 
         private Double wtAdoptedCa1;
         private Double wtAdoptedCa2;
         private Double wtAdoptedFa;
-
         private Double totalFreeMoisture;
         private Double adjustedWaterWt;
         private Double wcRatio;
         private Double acRatio;
 
-        private String sectionType;
-
-        private Double wtWetSample;
-        private Double wtDriedSample;
-        private Double wtMoistureSample;
-        private Double moisturePercent;
-        private Double absorptionPercent;
-        private Double freeMoisturePercent;
-        private Double batchWtDry;
-        private Double freeMoistureKg;
-        private Double adjustedWeight;
-        private Double adoptedWeight;
+        private List<MoistureSectionDTO> sections;
 
         private int createdBy;
         private int updatedBy;
-
-        private LocalDateTime createdDate;
-        private LocalDateTime updatedDate;
 
         private String status;
 

@@ -3,10 +3,13 @@ package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.MoistureAnalysisRequestDTO;
 import com.sarthi.Sleeper.dto.MoistureAnalysisResponseDTO;
+import com.sarthi.Sleeper.dto.MoistureSectionDTO;
 import com.sarthi.Sleeper.dto.MouldPreparationResponseDTO;
 import com.sarthi.Sleeper.entity.MoistureAnalysisEntry;
+import com.sarthi.Sleeper.entity.MoistureSection;
 import com.sarthi.Sleeper.entity.MouldPreparation;
 import com.sarthi.Sleeper.repository.MoistureAnalysisEntryRepository;
+import com.sarthi.Sleeper.repository.MoistureSectionRepository;
 import com.sarthi.Sleeper.service.MoistureAnalysisEntryService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -25,28 +28,38 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
 
     @Autowired
     private MoistureAnalysisEntryRepository moistureAnalysisEntryRepository;
+    @Autowired
+    private MoistureSectionRepository moistureSectionRepository;
 
 
     @Override
     public MoistureAnalysisResponseDTO create(MoistureAnalysisRequestDTO dto) {
 
-        MoistureAnalysisEntry e =
-                new MoistureAnalysisEntry();
+        MoistureAnalysisEntry e = new MoistureAnalysisEntry();
 
-        LocalDate eDate = CommonUtils.convertStringToDateObject(dto.getEntryDate());
-        if (eDate != null) {
-            e.setEntryDate(eDate);
-        }
-
+        e.setEntryDate(CommonUtils.convertStringToDateObject(dto.getEntryDate()));
         e.setShift(dto.getShift());
         e.setEntryTime(dto.getEntryTime());
         e.setBatchNo(dto.getBatchNo());
-        e.setBatchWtDryCa1(dto.getBatchWtDryCa1());
-        e.setBatchWtDryCa2(dto.getBatchWtDryCa2());
-        e.setBatchWtDryFa(dto.getBatchWtDryFa());
-        e.setBatchWtDryWater(dto.getBatchWtDryWater());
-        e.setBatchWtDryAdmix(dto.getBatchWtDryAdmix());
-        e.setBatchWtDryCement(dto.getBatchWtDryCement());
+
+        // NEW
+        e.setApprovedMixDesign(dto.getApprovedMixDesign());
+
+        e.setDesignAC(dto.getDesignAC());
+        e.setDesignWC(dto.getDesignWC());
+        e.setDesignCement(dto.getDesignCement());
+        e.setDesignCA1(dto.getDesignCA1());
+        e.setDesignCA2(dto.getDesignCA2());
+        e.setDesignFA(dto.getDesignFA());
+        e.setDesignWater(dto.getDesignWater());
+        e.setDesignAdmix(dto.getDesignAdmix());
+
+        e.setActualCement(dto.getActualCement());
+        e.setActualCA1(dto.getActualCA1());
+        e.setActualCA2(dto.getActualCA2());
+        e.setActualFA(dto.getActualFA());
+        e.setActualWater(dto.getActualWater());
+        e.setActualAdmix(dto.getActualAdmix());
 
         e.setWtAdoptedCa1(dto.getWtAdoptedCa1());
         e.setWtAdoptedCa2(dto.getWtAdoptedCa2());
@@ -57,26 +70,31 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
         e.setWcRatio(dto.getWcRatio());
         e.setAcRatio(dto.getAcRatio());
 
-        e.setSectionType(dto.getSectionType());
-
-        e.setWtWetSample(dto.getWtWetSample());
-        e.setWtDriedSample(dto.getWtDriedSample());
-        e.setWtMoistureSample(dto.getWtMoistureSample());
-        e.setMoisturePercent(dto.getMoisturePercent());
-        e.setAbsorptionPercent(dto.getAbsorptionPercent());
-        e.setFreeMoisturePercent(dto.getFreeMoisturePercent());
-        e.setBatchWtDry(dto.getBatchWtDry());
-        e.setFreeMoistureKg(dto.getFreeMoistureKg());
-        e.setAdjustedWeight(dto.getAdjustedWeight());
-        e.setAdoptedWeight(dto.getAdoptedWeight());
-
-
         e.setCreatedBy(dto.getCreatedBy());
         e.setCreatedDate(LocalDateTime.now());
         e.setStatus("A");
 
-        MoistureAnalysisEntry saved =
-                moistureAnalysisEntryRepository.save(e);
+        // SECTIONS SAVE
+        List<MoistureSection> sections = dto.getSections().stream().map(s -> {
+            MoistureSection sec = new MoistureSection();
+            sec.setSectionType(s.getSectionType());
+            sec.setWtWetSample(s.getWtWetSample());
+            sec.setWtDriedSample(s.getWtDriedSample());
+            sec.setWtMoistureSample(s.getWtMoistureSample());
+            sec.setMoisturePercent(s.getMoisturePercent());
+            sec.setAbsorptionPercent(s.getAbsorptionPercent());
+            sec.setFreeMoisturePercent(s.getFreeMoisturePercent());
+            sec.setBatchWtDry(s.getBatchWtDry());
+            sec.setFreeMoistureKg(s.getFreeMoistureKg());
+            sec.setAdjustedWeight(s.getAdjustedWeight());
+            sec.setAdoptedWeight(s.getAdoptedWeight());
+            sec.setEntry(e);
+            return sec;
+        }).toList();
+
+        e.setSections(sections);
+
+        MoistureAnalysisEntry saved = moistureAnalysisEntryRepository.save(e);
 
         return mapToResponse(saved);
     }
@@ -107,53 +125,65 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
                                         AppConstant.ERROR_TYPE_VALIDATION,
                                         " Moisture Analysis not found for the provided Id.")
                         ));
-        LocalDate eDate = CommonUtils.convertStringToDateObject(dto.getEntryDate());
-        if (eDate != null) {
-            e.setEntryDate(eDate);
+        e.setEntryDate(CommonUtils.convertStringToDateObject(dto.getEntryDate()));
+            e.setShift(dto.getShift());
+            e.setEntryTime(dto.getEntryTime());
+            e.setBatchNo(dto.getBatchNo());
+
+            e.setApprovedMixDesign(dto.getApprovedMixDesign());
+
+            e.setDesignAC(dto.getDesignAC());
+            e.setDesignWC(dto.getDesignWC());
+            e.setDesignCement(dto.getDesignCement());
+            e.setDesignCA1(dto.getDesignCA1());
+            e.setDesignCA2(dto.getDesignCA2());
+            e.setDesignFA(dto.getDesignFA());
+            e.setDesignWater(dto.getDesignWater());
+            e.setDesignAdmix(dto.getDesignAdmix());
+
+            e.setActualCement(dto.getActualCement());
+            e.setActualCA1(dto.getActualCA1());
+            e.setActualCA2(dto.getActualCA2());
+            e.setActualFA(dto.getActualFA());
+            e.setActualWater(dto.getActualWater());
+            e.setActualAdmix(dto.getActualAdmix());
+
+            e.setWtAdoptedCa1(dto.getWtAdoptedCa1());
+            e.setWtAdoptedCa2(dto.getWtAdoptedCa2());
+            e.setWtAdoptedFa(dto.getWtAdoptedFa());
+
+            e.setTotalFreeMoisture(dto.getTotalFreeMoisture());
+            e.setAdjustedWaterWt(dto.getAdjustedWaterWt());
+            e.setWcRatio(dto.getWcRatio());
+            e.setAcRatio(dto.getAcRatio());
+
+            //  CLEAR & RESET SECTIONS
+            e.getSections().clear();
+
+            List<MoistureSection> sections = dto.getSections().stream().map(s -> {
+                MoistureSection sec = new MoistureSection();
+                sec.setSectionType(s.getSectionType());
+                sec.setWtWetSample(s.getWtWetSample());
+                sec.setWtDriedSample(s.getWtDriedSample());
+                sec.setWtMoistureSample(s.getWtMoistureSample());
+                sec.setMoisturePercent(s.getMoisturePercent());
+                sec.setAbsorptionPercent(s.getAbsorptionPercent());
+                sec.setFreeMoisturePercent(s.getFreeMoisturePercent());
+                sec.setBatchWtDry(s.getBatchWtDry());
+                sec.setFreeMoistureKg(s.getFreeMoistureKg());
+                sec.setAdjustedWeight(s.getAdjustedWeight());
+                sec.setAdoptedWeight(s.getAdoptedWeight());
+                sec.setEntry(e);
+                return sec;
+            }).toList();
+
+            e.getSections().addAll(sections);
+
+            e.setUpdatedBy(dto.getUpdatedBy());
+            e.setUpdatedDate(LocalDateTime.now());
+
+            return mapToResponse(moistureAnalysisEntryRepository.save(e));
         }
-
-        e.setShift(dto.getShift());
-        e.setEntryTime(dto.getEntryTime());
-        e.setBatchNo(dto.getBatchNo());
-
-        e.setBatchWtDryCa1(dto.getBatchWtDryCa1());
-        e.setBatchWtDryCa2(dto.getBatchWtDryCa2());
-        e.setBatchWtDryFa(dto.getBatchWtDryFa());
-        e.setBatchWtDryWater(dto.getBatchWtDryWater());
-        e.setBatchWtDryAdmix(dto.getBatchWtDryAdmix());
-        e.setBatchWtDryCement(dto.getBatchWtDryCement());
-
-        e.setWtAdoptedCa1(dto.getWtAdoptedCa1());
-        e.setWtAdoptedCa2(dto.getWtAdoptedCa2());
-        e.setWtAdoptedFa(dto.getWtAdoptedFa());
-
-        e.setTotalFreeMoisture(dto.getTotalFreeMoisture());
-        e.setAdjustedWaterWt(dto.getAdjustedWaterWt());
-        e.setWcRatio(dto.getWcRatio());
-        e.setAcRatio(dto.getAcRatio());
-
-
-        e.setSectionType(dto.getSectionType());
-
-        e.setWtWetSample(dto.getWtWetSample());
-        e.setWtDriedSample(dto.getWtDriedSample());
-        e.setWtMoistureSample(dto.getWtMoistureSample());
-        e.setMoisturePercent(dto.getMoisturePercent());
-        e.setAbsorptionPercent(dto.getAbsorptionPercent());
-        e.setFreeMoisturePercent(dto.getFreeMoisturePercent());
-        e.setBatchWtDry(dto.getBatchWtDry());
-        e.setFreeMoistureKg(dto.getFreeMoistureKg());
-        e.setAdjustedWeight(dto.getAdjustedWeight());
-        e.setAdoptedWeight(dto.getAdoptedWeight());
-        e.setUpdatedBy(dto.getUpdatedBy());
-
-        e.setUpdatedDate(LocalDateTime.now());
-
-        MoistureAnalysisEntry updated =
-                moistureAnalysisEntryRepository.save(e);
-
-        return mapToResponse(updated);
-    }
 
     @Override
     public MoistureAnalysisResponseDTO getById(Long id) {
@@ -171,11 +201,9 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
     }
 
 
-    private MoistureAnalysisResponseDTO mapToResponse(
-            MoistureAnalysisEntry e) {
+    private MoistureAnalysisResponseDTO mapToResponse(MoistureAnalysisEntry e) {
 
-        MoistureAnalysisResponseDTO dto =
-                new MoistureAnalysisResponseDTO();
+        MoistureAnalysisResponseDTO dto = new MoistureAnalysisResponseDTO();
 
         dto.setId(e.getId());
 
@@ -188,13 +216,26 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
         dto.setEntryTime(e.getEntryTime());
         dto.setBatchNo(e.getBatchNo());
 
-        dto.setBatchWtDryCa1(e.getBatchWtDryCa1());
-        dto.setBatchWtDryCa2(e.getBatchWtDryCa2());
-        dto.setBatchWtDryFa(e.getBatchWtDryFa());
-        dto.setBatchWtDryWater(e.getBatchWtDryWater());
-        dto.setBatchWtDryAdmix(e.getBatchWtDryAdmix());
-        dto.setBatchWtDryCement(e.getBatchWtDryCement());
+        //NEW FIELDS
+        dto.setApprovedMixDesign(e.getApprovedMixDesign());
 
+        dto.setDesignAC(e.getDesignAC());
+        dto.setDesignWC(e.getDesignWC());
+        dto.setDesignCement(e.getDesignCement());
+        dto.setDesignCA1(e.getDesignCA1());
+        dto.setDesignCA2(e.getDesignCA2());
+        dto.setDesignFA(e.getDesignFA());
+        dto.setDesignWater(e.getDesignWater());
+        dto.setDesignAdmix(e.getDesignAdmix());
+
+        dto.setActualCement(e.getActualCement());
+        dto.setActualCA1(e.getActualCA1());
+        dto.setActualCA2(e.getActualCA2());
+        dto.setActualFA(e.getActualFA());
+        dto.setActualWater(e.getActualWater());
+        dto.setActualAdmix(e.getActualAdmix());
+
+        // COMMON
         dto.setWtAdoptedCa1(e.getWtAdoptedCa1());
         dto.setWtAdoptedCa2(e.getWtAdoptedCa2());
         dto.setWtAdoptedFa(e.getWtAdoptedFa());
@@ -204,24 +245,37 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
         dto.setWcRatio(e.getWcRatio());
         dto.setAcRatio(e.getAcRatio());
 
-        dto.setSectionType(e.getSectionType());
+        // ================= SECTIONS MAPPING =================
+        if (e.getSections() != null) {
 
-        dto.setWtWetSample(e.getWtWetSample());
-        dto.setWtDriedSample(e.getWtDriedSample());
-        dto.setWtMoistureSample(e.getWtMoistureSample());
-        dto.setMoisturePercent(e.getMoisturePercent());
-        dto.setAbsorptionPercent(e.getAbsorptionPercent());
-        dto.setFreeMoisturePercent(e.getFreeMoisturePercent());
-        dto.setBatchWtDry(e.getBatchWtDry());
-        dto.setFreeMoistureKg(e.getFreeMoistureKg());
-        dto.setAdjustedWeight(e.getAdjustedWeight());
-        dto.setAdoptedWeight(e.getAdoptedWeight());
+            List<MoistureSectionDTO> sectionList = e.getSections()
+                    .stream()
+                    .map(s -> {
+                        MoistureSectionDTO sd = new MoistureSectionDTO();
+
+                        sd.setSectionType(s.getSectionType());
+                        sd.setWtWetSample(s.getWtWetSample());
+                        sd.setWtDriedSample(s.getWtDriedSample());
+                        sd.setWtMoistureSample(s.getWtMoistureSample());
+                        sd.setMoisturePercent(s.getMoisturePercent());
+                        sd.setAbsorptionPercent(s.getAbsorptionPercent());
+                        sd.setFreeMoisturePercent(s.getFreeMoisturePercent());
+                        sd.setBatchWtDry(s.getBatchWtDry());
+                        sd.setFreeMoistureKg(s.getFreeMoistureKg());
+                        sd.setAdjustedWeight(s.getAdjustedWeight());
+                        sd.setAdoptedWeight(s.getAdoptedWeight());
+
+                        return sd;
+                    })
+                    .toList();
+
+            dto.setSections(sectionList);
+        }
 
         dto.setCreatedBy(e.getCreatedBy());
         dto.setUpdatedBy(e.getUpdatedBy());
 
-        dto.setCreatedDate(e.getCreatedDate());
-        dto.setUpdatedDate(e.getUpdatedDate());
+
         dto.setStatus(e.getStatus());
 
         return dto;
