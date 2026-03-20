@@ -107,4 +107,12 @@ public class UserMasterController {
 
     }
 
+    @GetMapping("/employee-codes/{callNo}")
+    public ResponseEntity<Object> getEmployeeCodes(@PathVariable String callNo) {
+     List<String > result =  userService.getEmployeeCodesByCallNo(callNo);
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK);
+    }
+
 }

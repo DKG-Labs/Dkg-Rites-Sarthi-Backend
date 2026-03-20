@@ -8,6 +8,7 @@ import com.sarthi.entity.ProcessIeUsers;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
+import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,11 +17,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.List;
-import java.util.Date;
 import java.time.LocalDateTime;
 
 @Service
@@ -64,6 +62,8 @@ public class UserServiceImpl implements UserService {
     private IePoiMappingRepository iePoiMappingRepository;
     @Autowired
     private PincodePoIMappingRepository pincodePoIMappingRepository;
+    @Autowired
+    private InspectionCallRepository inspectionCallRepository;
 
 
 
@@ -438,6 +438,14 @@ public class UserServiceImpl implements UserService {
                             AppConstant.ERROR_TYPE_INVALID,
                             "Invalid login credentials."));
         }
+        List<UserRoleMaster> userRoles = userRoleMasterRepository.findByUserId(user.getUserId());
+
+        List<String> roleNames = userRoles.stream()
+                .map(userRole -> roleMasterRepository.findByRoleId(userRole.getRoleId())
+                        .map(RoleMaster::getRoleName)
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .toList();
 
         String rio = rioUserRepository
                 .findByEmployeeCode(user.getEmployeeCode())
@@ -449,7 +457,7 @@ public class UserServiceImpl implements UserService {
         return new LoginResponseDto(
                 user.getUserId(),
                 user.getUsername(),
-                user.getRoleName(),
+                roleNames,
                 token,
                 rio,
                 user.getShortName() // Include shortName for IC number generation
@@ -513,6 +521,14 @@ public class UserServiceImpl implements UserService {
                             AppConstant.ERROR_TYPE_INVALID,
                             "Invalid login credentials."));
         }
+        List<UserRoleMaster> userRoles = userRoleMasterRepository.findByUserId(user.getUserId());
+
+        List<String> roleNames = userRoles.stream()
+                .map(userRole -> roleMasterRepository.findByRoleId(userRole.getRoleId())
+                        .map(RoleMaster::getRoleName)
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .toList();
 
         // ================= RIO =================
         String rio = rioUserRepository
@@ -527,7 +543,7 @@ public class UserServiceImpl implements UserService {
         return new LoginResponseDto(
                 user.getUserId(),
                 user.getUsername(),
-                user.getRoleName(),
+               roleNames,
                 token,
                 rio,
                 user.getShortName());
@@ -760,5 +776,28 @@ public class UserServiceImpl implements UserService {
         }
 
         return list;
+    }
+
+
+    @Override
+    public List<String> getEmployeeCodesByCallNo(String callNo) {
+
+        callNo = callNo.trim();
+
+        String prefix = callNo.split("-")[0];
+
+        String poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+
+        if (poiCode == null) {
+            throw new RuntimeException("Invalid Call No");
+        }
+
+        if ("EP".equalsIgnoreCase(prefix)) {
+            return pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
+        } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
+            return pincodePoIMappingRepository.findIeEmpCodeWithName(poiCode);
+        } else {
+            throw new RuntimeException("Invalid Call Type");
+        }
     }
 }

@@ -39,4 +39,6 @@ public interface UserService {
     public List<CompanyUnitIeResponseDto> getAllCompanyMappedIe();
 
     List<CompanyUnitProcessIeDto> getCompanyUnitProcessIe();
+
+    public List<String> getEmployeeCodesByCallNo(String callNo);
 }
