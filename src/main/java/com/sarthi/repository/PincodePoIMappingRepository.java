@@ -108,4 +108,56 @@ ORDER BY ppm.company_name, ppm.unit_name
                        ORDER BY ppm.company_name;
 """, nativeQuery = true)
     List<Object[]> findCompanyUnitEmployees();
+
+    @Query(value = """
+SELECT DISTINCT ipm.employee_code
+FROM pincode_poi_mapping ppm
+JOIN ie_pincode_poi_mapping ipm 
+     ON ppm.pin_code = ipm.pin_code
+     AND ppm.poi_code = ipm.poi_code
+WHERE ppm.poi_code = :poiCode
+""", nativeQuery = true)
+    List<String> findIesByPoi(@Param("poiCode") String poiCode);
+
+    @Query(value = """
+SELECT DISTINCT um.employee_code
+FROM pincode_poi_mapping ppm
+JOIN ie_poi_mapping ipm
+    ON ppm.poi_code = ipm.poi_code
+JOIN process_ie_users piu
+    ON piu.ie_user_id = ipm.ie_user_id
+       OR piu.process_user_id = ipm.ie_user_id
+JOIN user_master um
+    ON um.userid = piu.ie_user_id
+       OR um.userid = piu.process_user_id
+WHERE ppm.poi_code = :poiCode
+""", nativeQuery = true)
+    List<String> findProcessIesByPoi(@Param("poiCode") String poiCode);
+
+    @Query(value = """
+SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username)
+FROM pincode_poi_mapping ppm
+JOIN ie_pincode_poi_mapping ipm 
+     ON ppm.pin_code = ipm.pin_code
+     AND ppm.poi_code = ipm.poi_code
+JOIN user_master um
+     ON um.employee_code = ipm.employee_code
+WHERE ppm.poi_code = :poiCode
+""", nativeQuery = true)
+    List<String> findIeEmpCodeWithName(@Param("poiCode") String poiCode);
+
+    @Query(value = """
+SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username)
+FROM pincode_poi_mapping ppm
+JOIN ie_poi_mapping ipm
+    ON ppm.poi_code = ipm.poi_code
+JOIN process_ie_users piu
+    ON piu.ie_user_id = ipm.ie_user_id
+       OR piu.process_user_id = ipm.ie_user_id
+JOIN user_master um
+    ON um.userid = piu.ie_user_id
+       OR um.userid = piu.process_user_id
+WHERE ppm.poi_code = :poiCode
+""", nativeQuery = true)
+    List<String> findProcessIeEmpCodeWithName(@Param("poiCode") String poiCode);
 }

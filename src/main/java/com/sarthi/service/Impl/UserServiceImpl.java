@@ -8,6 +8,7 @@ import com.sarthi.entity.ProcessIeUsers;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
+import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +62,8 @@ public class UserServiceImpl implements UserService {
     private IePoiMappingRepository iePoiMappingRepository;
     @Autowired
     private PincodePoIMappingRepository pincodePoIMappingRepository;
+    @Autowired
+    private InspectionCallRepository inspectionCallRepository;
 
 
 
@@ -773,5 +776,28 @@ public class UserServiceImpl implements UserService {
         }
 
         return list;
+    }
+
+
+    @Override
+    public List<String> getEmployeeCodesByCallNo(String callNo) {
+
+        callNo = callNo.trim();
+
+        String prefix = callNo.split("-")[0];
+
+        String poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+
+        if (poiCode == null) {
+            throw new RuntimeException("Invalid Call No");
+        }
+
+        if ("EP".equalsIgnoreCase(prefix)) {
+            return pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
+        } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
+            return pincodePoIMappingRepository.findIeEmpCodeWithName(poiCode);
+        } else {
+            throw new RuntimeException("Invalid Call Type");
+        }
     }
 }
