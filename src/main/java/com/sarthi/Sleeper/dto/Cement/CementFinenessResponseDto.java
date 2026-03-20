@@ -9,6 +9,7 @@ public class CementFinenessResponseDto {
     private Long id;
     private LocalDate testDate;
     private String consignmentNo;
+    private Long requestId;
     private Double sampleWeightW1;
     private Double residueWeightW2;
     private Double percentageFineness;

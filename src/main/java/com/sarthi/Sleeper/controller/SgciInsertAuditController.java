@@ -31,6 +31,11 @@ public class SgciInsertAuditController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(service.getById(id)), HttpStatus.OK);
     }
 
+    @GetMapping("/request/{requestId}")
+    public ResponseEntity<Object> getByRequestId(@PathVariable Long requestId) {
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(service.getByRequestId(requestId)), HttpStatus.OK);
+    }
+
     @GetMapping
     public ResponseEntity<Object> getAll() {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(service.getAll()), HttpStatus.OK);

@@ -91,6 +91,13 @@ public class AggregateFlakinessServiceImpl implements AggregateFlakinessService 
         repository.deleteById(id);
     }
 
+    @Override
+    public AggregateFlakinessResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapToResponseDto)
+                .orElse(null);
+    }
+
     private AggregateFlakinessResponseDto mapToResponseDto(AggregateFlakinessTest entity) {
         AggregateFlakinessResponseDto dto = new AggregateFlakinessResponseDto();
         BeanUtils.copyProperties(entity, dto, "observations");

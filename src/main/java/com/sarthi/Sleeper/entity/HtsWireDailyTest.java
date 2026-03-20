@@ -14,6 +14,9 @@ public class HtsWireDailyTest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "request_id")
+    private Long requestId;
+
     @Column(name = "test_date")
     private LocalDate testDate;
 

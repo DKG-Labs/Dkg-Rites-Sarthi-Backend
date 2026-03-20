@@ -9,6 +9,7 @@ import java.util.List;
 public class Cement7DayStrengthResponseDto {
     private Long id;
     private String typeOfTesting;
+    private Long requestId;
     private String consignmentNo;
     private LocalDate testDate;
     private Double roomTemp;

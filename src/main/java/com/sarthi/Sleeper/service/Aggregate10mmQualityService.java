@@ -10,4 +10,5 @@ public interface Aggregate10mmQualityService {
     Aggregate10mmQualityResponseDto getById(Long id);
     List<Aggregate10mmQualityResponseDto> getAll();
     void delete(Long id);
+    Aggregate10mmQualityResponseDto getByRequestId(Long requestId);
 }

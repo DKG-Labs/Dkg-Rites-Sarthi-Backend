@@ -91,6 +91,13 @@ public class AggregateGranulometricServiceImpl implements AggregateGranulometric
         repository.deleteById(id);
     }
 
+    @Override
+    public AggregateGranulometricResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapToResponseDto)
+                .orElse(null);
+    }
+
     private AggregateGranulometricResponseDto mapToResponseDto(AggregateGranulometricTest entity) {
         AggregateGranulometricResponseDto dto = new AggregateGranulometricResponseDto();
         BeanUtils.copyProperties(entity, dto, "observations");

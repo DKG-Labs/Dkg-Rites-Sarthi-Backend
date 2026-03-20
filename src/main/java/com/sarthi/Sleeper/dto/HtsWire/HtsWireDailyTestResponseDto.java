@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 @Data
 public class HtsWireDailyTestResponseDto {
     private Long id;
+    private Long requestId;
     private LocalDate testDate;
     private String consignmentNo;
     private String coilNo;

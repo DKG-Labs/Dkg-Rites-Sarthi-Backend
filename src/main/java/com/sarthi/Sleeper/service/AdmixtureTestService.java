@@ -8,6 +8,7 @@ public interface AdmixtureTestService {
     AdmixtureTestResponseDto create(AdmixtureTestRequestDto dto);
     AdmixtureTestResponseDto update(Long id, AdmixtureTestRequestDto dto);
     AdmixtureTestResponseDto getById(Long id);
+    AdmixtureTestResponseDto getByRequestId(Long requestId);
     List<AdmixtureTestResponseDto> getAll();
     void delete(Long id);
 }

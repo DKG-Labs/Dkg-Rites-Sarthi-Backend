@@ -41,6 +41,13 @@ public class AdmixtureTestServiceImpl implements AdmixtureTestService {
     }
 
     @Override
+    public AdmixtureTestResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::convertToDto)
+                .orElse(null);
+    }
+
+    @Override
     public List<AdmixtureTestResponseDto> getAll() {
         return repository.findAll().stream().map(this::convertToDto).collect(Collectors.toList());
     }

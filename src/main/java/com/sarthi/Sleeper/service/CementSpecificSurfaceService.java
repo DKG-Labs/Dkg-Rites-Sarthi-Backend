@@ -10,4 +10,5 @@ public interface CementSpecificSurfaceService {
     CementSpecificSurfaceResponseDto getById(Long id);
     List<CementSpecificSurfaceResponseDto> getAll();
     void delete(Long id);
+    CementSpecificSurfaceResponseDto getByRequestId(Long requestId);
 }

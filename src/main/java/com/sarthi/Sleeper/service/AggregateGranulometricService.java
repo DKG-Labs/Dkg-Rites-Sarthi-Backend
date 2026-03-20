@@ -10,4 +10,5 @@ public interface AggregateGranulometricService {
     AggregateGranulometricResponseDto getById(Long id);
     List<AggregateGranulometricResponseDto> getAll();
     void delete(Long id);
+    AggregateGranulometricResponseDto getByRequestId(Long requestId);
 }

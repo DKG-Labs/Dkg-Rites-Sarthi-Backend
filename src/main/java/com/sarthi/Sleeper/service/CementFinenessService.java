@@ -10,4 +10,5 @@ public interface CementFinenessService {
     CementFinenessResponseDto getById(Long id);
     List<CementFinenessResponseDto> getAll();
     void delete(Long id);
+    CementFinenessResponseDto getByRequestId(Long requestId);
 }

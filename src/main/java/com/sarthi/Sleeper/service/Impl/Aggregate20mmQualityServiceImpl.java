@@ -63,6 +63,13 @@ public class Aggregate20mmQualityServiceImpl implements Aggregate20mmQualityServ
         repository.deleteById(id);
     }
 
+    @Override
+    public Aggregate20mmQualityResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapToResponseDto)
+                .orElse(null);
+    }
+
     private Aggregate20mmQualityResponseDto mapToResponseDto(Aggregate20mmQuality entity) {
         Aggregate20mmQualityResponseDto dto = new Aggregate20mmQualityResponseDto();
         BeanUtils.copyProperties(entity, dto);

@@ -6,6 +6,7 @@ import java.util.List;
 
 @Data
 public class SgciInsertAuditAuditRequestDto {
+    private Long requestId;
     private LocalDate testDate;
     private String consignmentNo;
     private String lotNo;

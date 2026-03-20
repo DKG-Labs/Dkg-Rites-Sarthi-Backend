@@ -10,4 +10,5 @@ public interface AggregateFlakinessService {
     AggregateFlakinessResponseDto getById(Long id);
     List<AggregateFlakinessResponseDto> getAll();
     void delete(Long id);
+    AggregateFlakinessResponseDto getByRequestId(Long requestId);
 }

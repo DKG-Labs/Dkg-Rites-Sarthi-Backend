@@ -59,6 +59,13 @@ public class CementSpecificSurfaceServiceImpl implements CementSpecificSurfaceSe
     }
 
     @Override
+    public CementSpecificSurfaceResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapToResponseDto)
+                .orElse(null);
+    }
+
+    @Override
     public void delete(Long id) {
         repository.deleteById(id);
     }

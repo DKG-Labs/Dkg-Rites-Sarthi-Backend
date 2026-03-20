@@ -60,6 +60,13 @@ public class CementNormalConsistencyServiceImpl implements CementNormalConsisten
     }
 
     @Override
+    public CementNormalConsistencyResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapToResponseDto)
+                .orElse(null);
+    }
+
+    @Override
     @Transactional
     public void delete(Long id) {
         repository.deleteById(id);
@@ -75,6 +82,7 @@ public class CementNormalConsistencyServiceImpl implements CementNormalConsisten
     private void updateEntity(CementNormalConsistency entity, CementNormalConsistencyRequestDto dto) {
         entity.setTestDate(dto.getTestDate());
         entity.setTypeOfTesting(dto.getTypeOfTesting());
+        entity.setRequestId(dto.getRequestId());
         entity.setConsignmentNo(dto.getConsignmentNo());
         entity.setRoomTemp(dto.getRoomTemp());
         entity.setSampleWeight(dto.getSampleWeight());
@@ -107,6 +115,7 @@ public class CementNormalConsistencyServiceImpl implements CementNormalConsisten
         dto.setId(entity.getId());
         dto.setTestDate(entity.getTestDate());
         dto.setTypeOfTesting(entity.getTypeOfTesting());
+        dto.setRequestId(entity.getRequestId());
         dto.setConsignmentNo(entity.getConsignmentNo());
         dto.setRoomTemp(entity.getRoomTemp());
         dto.setSampleWeight(entity.getSampleWeight());

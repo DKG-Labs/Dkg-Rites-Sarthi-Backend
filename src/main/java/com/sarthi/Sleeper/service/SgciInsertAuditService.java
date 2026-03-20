@@ -8,6 +8,7 @@ public interface SgciInsertAuditService {
     SgciInsertAuditAuditResponseDto create(SgciInsertAuditAuditRequestDto dto);
     SgciInsertAuditAuditResponseDto update(Long id, SgciInsertAuditAuditRequestDto dto);
     SgciInsertAuditAuditResponseDto getById(Long id);
+    SgciInsertAuditAuditResponseDto getByRequestId(Long requestId);
     List<SgciInsertAuditAuditResponseDto> getAll();
     void delete(Long id);
 }

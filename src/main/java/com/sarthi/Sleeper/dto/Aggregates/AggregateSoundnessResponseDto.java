@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class AggregateSoundnessResponseDto {
     private Long id;
     private LocalDate testDate;
+    private Long requestId;
     private String consignmentNo;
     private String method;
     private Integer cycles;

@@ -47,6 +47,14 @@ public class Aggregate20mmQualityController {
         );
     }
 
+    @GetMapping("/request/{requestId}")
+    public ResponseEntity<Object> getByRequestId(@PathVariable("requestId") Long requestId) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getByRequestId(requestId)),
+                HttpStatus.OK
+        );
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(@PathVariable Long id) {
         service.delete(id);

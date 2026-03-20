@@ -10,4 +10,5 @@ public interface AggregateSoundnessService {
     AggregateSoundnessResponseDto getById(Long id);
     List<AggregateSoundnessResponseDto> getAll();
     void delete(Long id);
+    AggregateSoundnessResponseDto getByRequestId(Long requestId);
 }

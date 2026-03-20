@@ -40,6 +40,13 @@ public class HtsWireDailyTestServiceImpl implements HtsWireDailyTestService {
     }
 
     @Override
+    public HtsWireDailyTestResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::convertToDto)
+                .orElse(null);
+    }
+
+    @Override
     public List<HtsWireDailyTestResponseDto> getAll() {
         return repository.findAll().stream().map(this::convertToDto).collect(Collectors.toList());
     }

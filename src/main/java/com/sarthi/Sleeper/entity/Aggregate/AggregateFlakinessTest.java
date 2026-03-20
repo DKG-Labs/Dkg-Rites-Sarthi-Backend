@@ -14,6 +14,9 @@ public class AggregateFlakinessTest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
+    @Column(name="request_id")
+    private Long requestId;
 
     private LocalDate testDate;
     private String consignmentNo;

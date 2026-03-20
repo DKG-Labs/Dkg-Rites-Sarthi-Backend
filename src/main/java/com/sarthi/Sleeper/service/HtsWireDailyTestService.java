@@ -8,6 +8,7 @@ public interface HtsWireDailyTestService {
     HtsWireDailyTestResponseDto create(HtsWireDailyTestRequestDto dto);
     HtsWireDailyTestResponseDto update(Long id, HtsWireDailyTestRequestDto dto);
     HtsWireDailyTestResponseDto getById(Long id);
+    HtsWireDailyTestResponseDto getByRequestId(Long requestId);
     List<HtsWireDailyTestResponseDto> getAll();
     void delete(Long id);
 }

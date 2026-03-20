@@ -10,4 +10,5 @@ public interface CementNormalConsistencyService {
     CementNormalConsistencyResponseDto getById(Long id);
     List<CementNormalConsistencyResponseDto> getAll();
     void delete(Long id);
+    CementNormalConsistencyResponseDto getByRequestId(Long requestId);
 }

@@ -7,6 +7,7 @@ import java.time.LocalDate;
 public class CementFinenessRequestDto {
     private LocalDate testDate;
     private String consignmentNo;
+    private Long requestId;
     private Double sampleWeightW1;
     private Double residueWeightW2;
     private Double percentageFineness;

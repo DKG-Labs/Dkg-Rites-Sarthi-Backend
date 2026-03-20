@@ -59,6 +59,13 @@ public class CementFinenessServiceImpl implements CementFinenessService {
     }
 
     @Override
+    public CementFinenessResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapToResponseDto)
+                .orElse(null);
+    }
+
+    @Override
     public void delete(Long id) {
         repository.deleteById(id);
     }

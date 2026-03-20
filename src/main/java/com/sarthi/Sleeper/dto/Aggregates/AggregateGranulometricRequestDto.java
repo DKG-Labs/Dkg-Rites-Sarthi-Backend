@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class AggregateGranulometricRequestDto {
     private LocalDate testDate;
+    private Long requestId;
     private String consignmentNo;
     
     private List<AggregateGranulometricRowDto> observations;

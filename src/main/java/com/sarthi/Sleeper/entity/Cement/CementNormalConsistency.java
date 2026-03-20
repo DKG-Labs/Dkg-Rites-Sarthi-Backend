@@ -20,6 +20,9 @@ public class CementNormalConsistency {
     @Column(name = "type_of_testing")
     private String typeOfTesting;
 
+    @Column(name = "request_id")
+    private Long requestId;
+
     @Column(name = "consignment_no")
     private String consignmentNo;
 

@@ -9,6 +9,7 @@ import java.util.List;
 public class AggregateGranulometricResponseDto {
     private Long id;
     private LocalDate testDate;
+    private Long requestId;
     private String consignmentNo;
     
     private List<AggregateGranulometricRowDto> observations;

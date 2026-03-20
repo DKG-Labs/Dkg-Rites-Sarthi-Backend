@@ -5,6 +5,7 @@ import java.time.LocalDate;
 
 @Data
 public class AdmixtureTestRequestDto {
+    private Long requestId;
     private LocalDate testDate;
     private String consignmentNo;
     private Double dosage;

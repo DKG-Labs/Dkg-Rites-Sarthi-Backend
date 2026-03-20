@@ -7,6 +7,7 @@ import java.time.LocalDate;
 public class CementSpecificSurfaceRequestDto {
     private LocalDate testDate;
     private String typeOfTesting;
+    private Long requestId;
     private String consignmentNo;
     private Double roomTemp;
     private Double weight;

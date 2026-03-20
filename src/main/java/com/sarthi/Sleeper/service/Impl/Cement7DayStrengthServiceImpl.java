@@ -71,6 +71,13 @@ public class Cement7DayStrengthServiceImpl implements Cement7DayStrengthService 
     }
 
     @Override
+    public Cement7DayStrengthResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapEntityToResponse)
+                .orElse(null);
+    }
+
+    @Override
     public void delete(Long id) {
         repository.deleteById(id);
     }
@@ -78,6 +85,7 @@ public class Cement7DayStrengthServiceImpl implements Cement7DayStrengthService 
     private void mapRequestToEntity(Cement7DayStrengthRequestDto dto, Cement7DayStrength entity) {
         entity.setTestDate(dto.getTestDate());
         entity.setTypeOfTesting(dto.getTypeOfTesting());
+        entity.setRequestId(dto.getRequestId());
         entity.setConsignmentNo(dto.getConsignmentNo());
         entity.setRoomTemp(dto.getRoomTemp());
         entity.setNormalConsistency(dto.getNormalConsistency());
@@ -116,6 +124,7 @@ public class Cement7DayStrengthServiceImpl implements Cement7DayStrengthService 
         response.setId(entity.getId());
         response.setTestDate(entity.getTestDate());
         response.setTypeOfTesting(entity.getTypeOfTesting());
+        response.setRequestId(entity.getRequestId());
         response.setConsignmentNo(entity.getConsignmentNo());
         response.setRoomTemp(entity.getRoomTemp());
         response.setNormalConsistency(entity.getNormalConsistency());

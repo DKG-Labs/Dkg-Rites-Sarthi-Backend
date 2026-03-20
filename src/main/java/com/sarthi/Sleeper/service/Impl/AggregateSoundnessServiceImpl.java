@@ -63,6 +63,13 @@ public class AggregateSoundnessServiceImpl implements AggregateSoundnessService 
         repository.deleteById(id);
     }
 
+    @Override
+    public AggregateSoundnessResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::mapToResponseDto)
+                .orElse(null);
+    }
+
     private AggregateSoundnessResponseDto mapToResponseDto(AggregateSoundnessTest entity) {
         AggregateSoundnessResponseDto dto = new AggregateSoundnessResponseDto();
         BeanUtils.copyProperties(entity, dto);

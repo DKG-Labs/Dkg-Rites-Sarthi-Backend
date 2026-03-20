@@ -19,6 +19,9 @@ public class CementFinenessTest {
     @Column(name = "consignment_no")
     private String consignmentNo;
 
+    @Column(name = "request_id")
+    private Long requestId;
+
     @Column(name = "sample_weight_w1")
     private Double sampleWeightW1;
 

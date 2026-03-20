@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class Cement7DayStrengthRequestDto {
     private String typeOfTesting;
+    private Long requestId;
     private String consignmentNo;
     private LocalDate testDate;
     private Double roomTemp;

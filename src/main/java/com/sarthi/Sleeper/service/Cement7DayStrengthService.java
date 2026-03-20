@@ -11,4 +11,5 @@ public interface Cement7DayStrengthService {
     Cement7DayStrengthResponseDto getById(Long id);
     List<Cement7DayStrengthResponseDto> getAll();
     void delete(Long id);
+    Cement7DayStrengthResponseDto getByRequestId(Long requestId);
 }

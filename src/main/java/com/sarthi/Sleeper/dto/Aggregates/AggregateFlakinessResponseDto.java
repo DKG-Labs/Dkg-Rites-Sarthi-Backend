@@ -9,6 +9,7 @@ import java.util.List;
 public class AggregateFlakinessResponseDto {
     private Long id;
     private LocalDate testDate;
+    private Long requestId;
     private String consignmentNo;
     private Double combinedIndex20mm;
     private String result20mm;

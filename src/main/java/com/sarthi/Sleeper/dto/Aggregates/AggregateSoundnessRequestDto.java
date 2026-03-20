@@ -6,6 +6,7 @@ import java.time.LocalDate;
 @Data
 public class AggregateSoundnessRequestDto {
     private LocalDate testDate;
+    private Long requestId;
     private String consignmentNo;
     private String method;
     private Integer cycles;

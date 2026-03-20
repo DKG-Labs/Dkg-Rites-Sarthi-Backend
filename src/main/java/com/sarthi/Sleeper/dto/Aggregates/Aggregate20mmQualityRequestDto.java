@@ -6,6 +6,7 @@ import java.time.LocalDate;
 @Data
 public class Aggregate20mmQualityRequestDto {
     private LocalDate testDate;
+    private Long requestId;
     private String typeOfTesting;
     private String consignmentNo;
 

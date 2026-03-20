@@ -40,6 +40,14 @@ public class Cement7DayStrengthController {
         );
     }
 
+    @GetMapping("/request/{requestId}")
+    public ResponseEntity<Object> getByRequestId(@PathVariable("requestId") Long requestId) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getByRequestId(requestId)),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping
     public ResponseEntity<Object> getAll() {
         return new ResponseEntity<>(

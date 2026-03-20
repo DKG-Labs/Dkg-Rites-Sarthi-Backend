@@ -67,6 +67,13 @@ public class SgciInsertAuditServiceImpl implements SgciInsertAuditService {
     }
 
     @Override
+    public SgciInsertAuditAuditResponseDto getByRequestId(Long requestId) {
+        return repository.findByRequestId(requestId)
+                .map(this::convertToDto)
+                .orElse(null);
+    }
+
+    @Override
     public List<SgciInsertAuditAuditResponseDto> getAll() {
         return repository.findAll().stream().map(this::convertToDto).collect(Collectors.toList());
     }

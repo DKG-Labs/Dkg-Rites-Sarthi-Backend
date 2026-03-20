@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class Aggregate20mmQualityResponseDto {
     private Long id;
     private LocalDate testDate;
+    private Long requestId;
     private String typeOfTesting;
     private String consignmentNo;
 
