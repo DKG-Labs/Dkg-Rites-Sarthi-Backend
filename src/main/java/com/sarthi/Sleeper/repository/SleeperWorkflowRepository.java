@@ -50,6 +50,18 @@ WHERE t.workflowTransitionId = (
 AND t.status = 'Completed'
 """)
     List<SleeperWorkflowTransaction> findCompletedRequests();
+
+    @Query("""
+SELECT t.requestId FROM SleeperWorkflowTransaction t
+WHERE t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM SleeperWorkflowTransaction t2
+    WHERE t2.requestId = t.requestId
+)
+AND t.moduleId = :moduleId
+AND t.status = 'Completed'
+""")
+    List<String> findCompletedRequestIdsByModuleId(@Param("moduleId") Long moduleId);
 /*
     @Query(value = """
     SELECT status 

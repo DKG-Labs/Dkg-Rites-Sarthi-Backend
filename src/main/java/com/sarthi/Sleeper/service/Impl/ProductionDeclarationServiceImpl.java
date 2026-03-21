@@ -512,4 +512,22 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         return list;
     }
 
+    @Override
+    public List<String> getVerifiedProductionDeclarations() {
+        List<String> requestIds = sleeperWorkflowRepository.findCompletedRequestIdsByModuleId(11L);
+        if (requestIds == null || requestIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Long> ids = requestIds.stream()
+                .map(Long::valueOf)
+                .toList();
+
+        List<ProductionDeclaration> verifiedDeclarations = repository.findByIdIn(ids);
+
+        return verifiedDeclarations.stream()
+                .map(v -> v.getPlantType() + "/" + v.getCastingDate() + "/" + v.getBatchNumber() + "(" + v.getCreatedBy() + ")")
+                .toList();
+    }
+
 }

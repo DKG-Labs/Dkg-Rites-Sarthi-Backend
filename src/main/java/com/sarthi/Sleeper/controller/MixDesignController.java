@@ -70,6 +70,15 @@ public class MixDesignController {
         );
     }
 
+    // ================= GET VERIFIED IDENTIFICATIONS =================
+    @GetMapping("/verified-identifications")
+    public ResponseEntity<Object> getVerifiedIdentifications() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getVerifiedMixDesignIdentifications()),
+                HttpStatus.OK
+        );
+    }
+
     // ================= DELETE =================
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> delete(

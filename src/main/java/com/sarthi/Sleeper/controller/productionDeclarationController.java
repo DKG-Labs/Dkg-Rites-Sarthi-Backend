@@ -86,4 +86,12 @@ public class productionDeclarationController {
                                 HttpStatus.OK);
         }
 
+        @GetMapping("/verified-declarations")
+        public ResponseEntity<Object> getVerifiedDeclarations() {
+                return new ResponseEntity<>(
+                                ResponseBuilder.getSuccessResponse(
+                                                service.getVerifiedProductionDeclarations()),
+                                HttpStatus.OK);
+        }
+
 }

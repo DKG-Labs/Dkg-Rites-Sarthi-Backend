@@ -62,4 +62,6 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     ProductionDeclaration findBatchById(Long batchId);
 
     List<ProductionDeclaration> findByCreatedBy(Long createdBy);
+
+    List<ProductionDeclaration> findByIdIn(List<Long> ids);
 }

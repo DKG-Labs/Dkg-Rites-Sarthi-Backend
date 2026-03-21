@@ -110,6 +110,25 @@ public class MixDesignServiceImpl implements MixDesignService {
         return list;
     }
 
+    // ================= GET VERIFIED IDENTIFICATIONS =================
+    @Override
+    public List<String> getVerifiedMixDesignIdentifications() {
+        List<String> requestIds = sleeperWorkflowRepository.findCompletedRequestIdsByModuleId(4L);
+        if (requestIds == null || requestIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Long> ids = requestIds.stream()
+                .map(Long::valueOf)
+                .toList();
+
+        List<MixDesign> verifiedMixes = repository.findByIdIn(ids);
+
+        return verifiedMixes.stream()
+                .map(mix -> mix.getIdentification() + "(" + mix.getCreatedBy() + ")")
+                .toList();
+    }
+
     // ================= DELETE =================
     @Override
     public void delete(Long id) {
