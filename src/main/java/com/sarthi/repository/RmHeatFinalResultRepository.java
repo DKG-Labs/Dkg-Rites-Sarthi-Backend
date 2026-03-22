@@ -218,4 +218,15 @@ Page<Object[]> fetchRaw(
 
     @Query("SELECT COALESCE(SUM(r.acceptedQtyMt), 0), COALESCE(SUM(r.weightRejectedMt), 0) FROM RmHeatFinalResult r")
     List<Object[]> sumRmAcceptedAndRejected();
+
+    @Query(value = """
+        SELECT 
+            SUM(COALESCE(r.accepted_qty_mt, 0)), 
+            SUM(COALESCE(r.weight_rejected_mt, 0)) 
+        FROM rm_heat_final_result r 
+        WHERE (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+    """, nativeQuery = true)
+    List<Object[]> sumRmAcceptedAndRejectedRevisedLogic(
+            @Param("startDate") java.time.LocalDate startDate, 
+            @Param("endDate") java.time.LocalDate endDate);
 }
