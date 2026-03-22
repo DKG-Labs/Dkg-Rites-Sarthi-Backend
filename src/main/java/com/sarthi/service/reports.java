@@ -52,4 +52,6 @@ public interface reports {
     public List<StageRejectionDto> getParetoAnalysis();
 
     public List<InspectionDetailsDto> getInspectionDetails();
+
+    public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate);
 }

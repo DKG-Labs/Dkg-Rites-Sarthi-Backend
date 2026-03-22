@@ -127,8 +127,9 @@ public class reportsController {
     }
 
     @GetMapping("/inspectionDetails")
-    public ResponseEntity<Object> getInspectionDetails() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionDetails()),
+    public ResponseEntity<Object> getInspectionDetails(@RequestParam(required = false) String startDate,
+                                                        @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionDetails(startDate, endDate)),
                 HttpStatus.OK);
     }
 }

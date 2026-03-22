@@ -179,4 +179,15 @@ Page<Object[]> fetchFinal(
 
     @Query("SELECT COALESCE(SUM(f.qtyNowPassed), 0), COALESCE(SUM(f.qtyNowRejected), 0) FROM FinalCumulativeResults f")
     List<Object[]> sumFinalAcceptedAndRejected();
+
+    @Query(value = """
+        SELECT 
+            SUM(COALESCE(f.qty_now_passed, 0)), 
+            SUM(COALESCE(f.qty_now_rejected, 0)) 
+        FROM final_cumulative_results f 
+        WHERE (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
+    """, nativeQuery = true)
+    List<Object[]> sumFinalAcceptedAndRejectedRevisedLogic(
+            @Param("startDate") java.time.LocalDate startDate, 
+            @Param("endDate") java.time.LocalDate endDate);
 }

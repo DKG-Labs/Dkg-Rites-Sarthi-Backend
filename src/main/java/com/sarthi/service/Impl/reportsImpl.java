@@ -1733,8 +1733,8 @@ public class reportsImpl implements reports {
 
                 // 1. Avg Production / Day (based on last 30 days)
 
-                // 2. Process Rejection % (New Logic)
-                double processRejectionPctValue = calculateProcessRejectionPercentageNewLogic(thirtyDaysAgo);
+                // 2. Process Rejection (Revised Logic)
+                double processRejectionPctValue = calculateProcessRejectionPercentageRevisedLogic(thirtyDaysAgo);
 
                 // 3. Final Rejection %
                 List<Object[]> finalRejResults = finalCumulativeResultsRepository
@@ -1810,8 +1810,8 @@ public class reportsImpl implements reports {
                 }
                 data.add(new StageRejectionDto("Raw Material", Math.round(rmVal * 100.0) / 100.0, "#2563eb"));
 
-                // 2. Process Rejection (New Logic)
-                double procVal = calculateProcessRejectionPercentageNewLogic(thirtyDaysAgo);
+                // 2. Process Rejection (Revised Logic)
+                double procVal = calculateProcessRejectionPercentageRevisedLogic(thirtyDaysAgo);
                 data.add(new StageRejectionDto("Process", Math.round(procVal * 100.0) / 100.0, "#f59e0b"));
 
                 // 3. Final Rejection
@@ -1863,9 +1863,9 @@ public class reportsImpl implements reports {
                                 .from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
 
                 List<Object[]> topResults = processLineFinalResultRepository
-                                .findTop5ProcessPerformanceNewLogic(thirtyDaysAgo);
+                                .findTop5ProcessPerformanceRevisedLogic(thirtyDaysAgo);
                 List<Object[]> worstResults = processLineFinalResultRepository
-                                .findWorst5ProcessPerformanceNewLogic(thirtyDaysAgo);
+                                .findWorst5ProcessPerformanceRevisedLogic(thirtyDaysAgo);
 
                 List<StageRejectionDto> topList = new ArrayList<>();
                 List<StageRejectionDto> worstList = new ArrayList<>();
@@ -1920,7 +1920,7 @@ public class reportsImpl implements reports {
                         }
 
                         List<Object[]> results = processLineFinalResultRepository
-                                        .findDailyRejectionTrendNewLogic(lStart, lEnd);
+                                        .findDailyRejectionTrendRevisedLogic(lStart, lEnd);
 
                         if (results != null) {
                                 for (Object[] row : results) {
@@ -2062,46 +2062,7 @@ public class reportsImpl implements reports {
         // =====
         @Override
         public List<InspectionDetailsDto> getInspectionDetails() {
-                List<InspectionDetailsDto> result = new ArrayList<>();
-
-                // 1. RM
-                List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejected();
-                double rmAcc = 0, rmRej = 0;
-                if (rmData != null && !rmData.isEmpty()) {
-                        Object[] row = rmData.get(0);
-                        rmAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
-                        rmRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
-                }
-
-                // 2. Process
-                List<Object[]> procData = processLineFinalResultRepository.sumProcessAcceptedAndRejected();
-                double procAcc = 0, procRej = 0;
-                if (procData != null && !procData.isEmpty()) {
-                        Object[] row = procData.get(0);
-                        procAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
-                        procRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
-                }
-
-                // 3. Final
-                List<Object[]> finalData = finalCumulativeResultsRepository.sumFinalAcceptedAndRejected();
-                double finalAcc = 0, finalRej = 0;
-                if (finalData != null && !finalData.isEmpty()) {
-                        Object[] row = finalData.get(0);
-                        finalAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
-                        finalRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
-                }
-
-                // 4. Calculate Total
-                double totalAcc = rmAcc + procAcc + finalAcc;
-                double totalRej = rmRej + procRej + finalRej;
-
-                // Add to result in order: Total, RM, Process, Final
-                result.add(new InspectionDetailsDto("Total", totalAcc, totalRej));
-                result.add(new InspectionDetailsDto("RM", rmAcc, rmRej));
-                result.add(new InspectionDetailsDto("Process", procAcc, procRej));
-                result.add(new InspectionDetailsDto("Final", finalAcc, finalRej));
-
-                return result;
+                return getInspectionDetails(null, null);
         }
 
         /**
@@ -2132,5 +2093,79 @@ public class reportsImpl implements reports {
                 list.add(0, new InspectionCallStatusDto("Total", totalUnder, totalPending));
 
                 return list;
+        }
+
+        // ================= REVISED LOGIC FOR PROCESS REJECTION % =================
+        // Logic: (Total pieces rejected / Total pieces produced in Shearing) * 100
+        // Uses the totalRejected field from process_line_final_result
+        private double calculateProcessRejectionPercentageRevisedLogic(LocalDateTime thirtyDaysAgo) {
+                List<Object[]> results = processLineFinalResultRepository
+                                .sumProcessRejectionRevisedLogicLast30Days(thirtyDaysAgo);
+                if (results != null && !results.isEmpty() && results.get(0) != null) {
+                        Object[] row = results.get(0);
+                        double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+                        double shearingProduced = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                        if (shearingProduced > 0) {
+                                return (rejected * 100.0) / shearingProduced;
+                        }
+                }
+                return 0.0;
+        }
+
+        @Override
+        public List<InspectionDetailsDto> getInspectionDetails(String startDateStr, String endDateStr) {
+                LocalDate startDate = startDateStr != null ? LocalDate.parse(startDateStr) : LocalDate.of(2000, 1, 1);
+                LocalDate endDate = endDateStr != null ? LocalDate.parse(endDateStr) : LocalDate.now();
+
+                List<InspectionDetailsDto> result = new ArrayList<>();
+
+                // 1. RM: accepted_qty_mt, weight_rejected_mt
+                List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                double rmAcc = 0, rmRej = 0;
+                if (rmData != null && !rmData.isEmpty()) {
+                        Object[] row = rmData.get(0);
+                        rmAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
+                        rmRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                }
+
+                // 2. Process: tempering_accepted, total_rejected
+                List<Object[]> procData = processLineFinalResultRepository
+                                .sumProcessAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                double procAcc = 0, procRej = 0;
+                if (procData != null && !procData.isEmpty()) {
+                        Object[] row = procData.get(0);
+                        procAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
+                        procRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                }
+
+                // 3. Final: qty_now_passed, qty_now_rejected
+                List<Object[]> finalData = finalCumulativeResultsRepository
+                                .sumFinalAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                double finalAcc = 0, finalRej = 0;
+                if (finalData != null && !finalData.isEmpty()) {
+                        Object[] row = finalData.get(0);
+                        finalAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
+                        finalRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                }
+
+                // No decimal values (rounding for RM BigDecimals, others are typically integers)
+                rmAcc = Math.round(rmAcc);
+                rmRej = Math.round(rmRej);
+                procAcc = Math.round(procAcc);
+                procRej = Math.round(procRej);
+                finalAcc = Math.round(finalAcc);
+                finalRej = Math.round(finalRej);
+
+                // 4. Calculate Total
+                double totalAcc = rmAcc + procAcc + finalAcc;
+                double totalRej = rmRej + procRej + finalRej;
+
+                // Add to result in order: Total, RM, Process, Final
+                result.add(new InspectionDetailsDto("Total", (long) totalAcc, (long) totalRej));
+                result.add(new InspectionDetailsDto("RM", (long) rmAcc, (long) rmRej));
+                result.add(new InspectionDetailsDto("Process", (long) procAcc, (long) procRej));
+                result.add(new InspectionDetailsDto("Final", (long) finalAcc, (long) finalRej));
+
+                return result;
         }
 }

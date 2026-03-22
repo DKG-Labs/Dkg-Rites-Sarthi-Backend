@@ -9,6 +9,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class InspectionDetailsDto {
     private String name; // Total, RM, Process, Final
-    private double accepted;
-    private double rejected;
+    private long accepted;
+    private long rejected;
 }
