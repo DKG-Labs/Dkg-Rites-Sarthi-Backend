@@ -69,4 +69,20 @@ WHERE piu.processUserId IN :processIeUserIds
 
     Optional<ProcessIeUsers>
     findTopByIeUserIdOrderByCreatedDateDesc(Long ieUserId);
+
+    @Query(value = """
+    SELECT p.process_user_id, p.ie_user_id, 
+           u1.employee_code, u2.employee_code
+    FROM process_ie_users p
+    JOIN ie_poi_mapping i 
+        ON p.ie_user_id = i.ie_user_id
+    JOIN user_master u1 
+        ON p.ie_user_id = u1.userid
+    JOIN user_master u2 
+        ON p.process_user_id = u2.userid
+    WHERE i.poi_code = :poiCode
+""", nativeQuery = true)
+    List<Object[]> getProcessAndIeWithEmp(@Param("poiCode") String poiCode);
+
+    List<ProcessIeUsers> findByProcessUserIdIn(List<Long> inputIds);
 }

@@ -8,6 +8,7 @@ import com.sarthi.entity.ProcessIeUsers;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
+import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +62,8 @@ public class UserServiceImpl implements UserService {
     private IePoiMappingRepository iePoiMappingRepository;
     @Autowired
     private PincodePoIMappingRepository pincodePoIMappingRepository;
+    @Autowired
+    private InspectionCallRepository inspectionCallRepository;
 
 
 
@@ -776,5 +779,189 @@ public class UserServiceImpl implements UserService {
 
         return list;
     }
+
+
+    @Override
+    public List<String> getEmployeeCodesByCallNo(String callNo) {
+
+        callNo = callNo.trim();
+
+        String prefix = callNo.split("-")[0];
+
+        String poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+
+        if (poiCode == null) {
+            throw new RuntimeException("Invalid Call No");
+        }
+
+        if ("EP".equalsIgnoreCase(prefix)) {
+            return pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
+        } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
+            return pincodePoIMappingRepository.findIeEmpCodeWithName(poiCode);
+        } else {
+            throw new RuntimeException("Invalid Call Type");
+        }
+    }
+
+
+
+
+    public List<IePincodePoiMapping> getEmployeesByPoi(String poiCode) {
+        return iePincodePoiMappingRepository.findByPoiCode(poiCode);
+    }
+
+
+    @Transactional
+    public String updateCompanyIeMapping(String poiCode, List<IePinPoiDto> newList) {
+
+        // 1. Fetch existing mappings
+        List<IePincodePoiMapping> existingList =
+                iePincodePoiMappingRepository.findByPoiCode(poiCode);
+
+        Map<String, IePincodePoiMapping> existingMap = existingList.stream()
+                .collect(Collectors.toMap(IePincodePoiMapping::getEmployeeCode, e -> e));
+
+        Set<String> newEmpCodes = newList.stream()
+                .map(IePinPoiDto::getEmployeeCode)
+                .collect(Collectors.toSet());
+
+        // =========================
+        // 2. DELETE removed employees
+        // =========================
+        List<IePincodePoiMapping> toDelete = existingList.stream()
+                .filter(e -> !newEmpCodes.contains(e.getEmployeeCode()))
+                .collect(Collectors.toList());
+
+        if (!toDelete.isEmpty()) {
+            iePincodePoiMappingRepository.deleteAll(toDelete);
+        }
+
+
+        List<IePincodePoiMapping> toSave = new ArrayList<>();
+
+        for (IePinPoiDto dto : newList) {
+
+            IePincodePoiMapping entity = existingMap.get(dto.getEmployeeCode());
+
+            if (entity == null) {
+                entity = new IePincodePoiMapping();
+                entity.setEmployeeCode(dto.getEmployeeCode());
+                entity.setPoiCode(poiCode);
+            }
+
+            entity.setProduct(dto.getProduct());
+            entity.setPinCode(dto.getPinCode());
+            entity.setIeType(dto.getIeType());
+
+            toSave.add(entity);
+        }
+
+        if (!toSave.isEmpty()) {
+            iePincodePoiMappingRepository.saveAll(toSave);
+        }
+
+        return "Company mapping synced successfully";
+    }
+
+
+    public Map<String, Object> getProcessAndIeUsers(String poiCode) {
+
+        List<Object[]> rows = processIeUsersRepository.getProcessAndIeWithEmp(poiCode);
+
+        Map<Long, String> ieUsers = new HashMap<>();
+        Map<Long, String> processUsers = new HashMap<>();
+
+        for (Object[] row : rows) {
+
+            Long processId = ((Number) row[0]).longValue();
+            Long ieUserId = ((Number) row[1]).longValue();
+            String ieEmp = (String) row[2];
+            String processEmp = (String) row[3];
+
+            ieUsers.put(ieUserId, ieEmp);
+            processUsers.put(processId, processEmp);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("processIe", processUsers);
+        result.put("ieUsers", ieUsers);
+
+        return result;
+    }
+
+    @Transactional
+    public String updatePoiIeUsers(String poiCode,
+                                           List<Long> inputIds,
+                                           String createdBy) {
+
+        Long createdById = Long.parseLong(createdBy);
+
+
+
+        Set<Long> allIeUsers = new HashSet<>();
+
+        // 1A: treat all as processIds first
+        List<ProcessIeUsers> processMappings =
+                processIeUsersRepository.findByProcessUserIdIn(inputIds);
+
+        Set<Long> processIdsFound = processMappings.stream()
+                .map(ProcessIeUsers::getProcessUserId)
+                .collect(Collectors.toSet());
+
+        // IE users from process
+        for (ProcessIeUsers m : processMappings) {
+            allIeUsers.add(m.getIeUserId());
+        }
+
+        // 1B: remaining IDs → treat as IE users
+        for (Long id : inputIds) {
+            if (!processIdsFound.contains(id)) {
+                allIeUsers.add(id);
+            }
+        }
+
+
+        List<IePoiMapping> existing =
+                iePoiMappingRepository.findByPoiCode(poiCode);
+
+        Set<Long> existingIds = existing.stream()
+                .map(IePoiMapping::getIeUserId)
+                .collect(Collectors.toSet());
+
+
+        List<IePoiMapping> toDelete = existing.stream()
+                .filter(e -> !allIeUsers.contains(e.getIeUserId()))
+                .toList();
+
+        if (!toDelete.isEmpty()) {
+            iePoiMappingRepository.deleteAll(toDelete);
+        }
+
+
+        List<IePoiMapping> toSave = new ArrayList<>();
+
+        for (Long ieId : allIeUsers) {
+            if (!existingIds.contains(ieId)) {
+
+                IePoiMapping m = new IePoiMapping();
+                m.setIeUserId(ieId);
+                m.setPoiCode(poiCode);
+                m.setCreatedBy(createdById);
+                m.setCreatedDate(new Date());
+
+                toSave.add(m);
+            }
+        }
+
+        if (!toSave.isEmpty()) {
+            iePoiMappingRepository.saveAll(toSave);
+        }
+
+        return "POI updated correctly";
+    }
+
+
+
+
 }
 
