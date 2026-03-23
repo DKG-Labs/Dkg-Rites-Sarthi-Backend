@@ -240,59 +240,46 @@ SELECT
     p.id,
     p.company_name,
     p.poi_code,
-    u.username,
+    u.username,         -- directly username
     ip.rio,
     'PROCESS' AS stage,
 
-    (
+    (pl.accepted_qty + pl.rejected_qty) AS inspected_qty,
+    pl.accepted_qty,
+    pl.rejected_qty
+
+FROM (
+    SELECT
+        inspection_call_no,
+        created_by,
+
         LEAST(
-            SUM(pl.shearing_accepted),
-            SUM(pl.turning_accepted),
-            SUM(pl.mpi_accepted),
-            SUM(pl.forging_accepted),
-            SUM(pl.quenching_accepted),
-            SUM(pl.tempering_accepted)
-        )
-        +
-        SUM(
-            pl.shearing_rejected +
-            pl.turning_rejected +
-            pl.mpi_rejected +
-            pl.forging_rejected +
-            pl.quenching_rejected +
-            pl.tempering_rejected
-        )
-    ) AS inspected_qty,
+            SUM(COALESCE(shearing_accepted,0)),
+            SUM(COALESCE(turning_accepted,0)),
+            SUM(COALESCE(mpi_accepted,0)),
+            SUM(COALESCE(forging_accepted,0)),
+            SUM(COALESCE(quenching_accepted,0)),
+            SUM(COALESCE(tempering_accepted,0))
+        ) AS accepted_qty,
 
-    LEAST(
-        SUM(pl.shearing_accepted),
-        SUM(pl.turning_accepted),
-        SUM(pl.mpi_accepted),
-        SUM(pl.forging_accepted),
-        SUM(pl.quenching_accepted),
-        SUM(pl.tempering_accepted)
-    ) AS accepted_qty,
+        SUM(COALESCE(total_rejected,0)) AS rejected_qty
 
-    SUM(
-        pl.shearing_rejected +
-        pl.turning_rejected +
-        pl.mpi_rejected +
-        pl.forging_rejected +
-        pl.quenching_rejected +
-        pl.tempering_rejected
-    ) AS rejected_qty
+    FROM process_line_final_result
+    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
 
-FROM process_line_final_result pl
+    GROUP BY inspection_call_no, created_by
+) pl
+
 JOIN inspection_calls ic ON ic.ic_number = pl.inspection_call_no
 JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
-LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+LEFT JOIN ie_pincode_poi_mapping ipm 
+    ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
 LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
 LEFT JOIN po_header ph ON ph.po_no = ic.po_no
 JOIN user_master u ON u.userid = pl.created_by
 
-WHERE (:startDate IS NULL OR DATE(pl.created_at) >= :startDate)
-  AND (:endDate IS NULL OR DATE(pl.created_at) <= :endDate)
-  AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
   AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
   AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
 
@@ -301,9 +288,11 @@ GROUP BY
     p.company_name,
     p.poi_code,
     u.username,
-    ip.rio
+    ip.rio,
+    pl.accepted_qty,
+    pl.rejected_qty
 """,
-            countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+            countQuery = "SELECT COUNT(*) FROM process_line_final_result",
             nativeQuery = true)
     Page<Object[]> fetchProcess(
             @Param("startDate") LocalDate startDate,
