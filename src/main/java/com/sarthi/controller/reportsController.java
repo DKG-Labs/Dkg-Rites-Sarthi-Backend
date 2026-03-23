@@ -132,4 +132,11 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionDetails(startDate, endDate)),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/monthlyRejectionTrend")
+    public ResponseEntity<Object> getMonthlyRejectionTrend(@RequestParam(required = false) String startDate,
+                                                          @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getMonthlyRejectionTrend(startDate, endDate)),
+                HttpStatus.OK);
+    }
 }
