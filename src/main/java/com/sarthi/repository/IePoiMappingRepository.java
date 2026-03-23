@@ -16,4 +16,6 @@ public interface IePoiMappingRepository extends JpaRepository<IePoiMapping, Long
 
     Optional<IePoiMapping>
     findTopByPoiCodeOrderByCreatedDateDesc(String poiCode);
+
+    List<IePoiMapping> findByPoiCode(String poiCode);
 }

@@ -115,4 +115,38 @@ public class UserMasterController {
                 HttpStatus.OK);
     }
 
+
+    @PutMapping("/company/{poiCode}/updateIemapping")
+    public ResponseEntity<Object> syncCompanyMapping(
+            @PathVariable String poiCode,
+            @RequestBody List<IePinPoiDto> dtoList) {
+
+        String response = userService.updateCompanyIeMapping(poiCode, dtoList);
+        return ResponseEntity.ok(response);
+    }
+
+
+    @GetMapping("/getEmpBYcompany/{poiCode}")
+    public ResponseEntity<Object> getEmployeesByCompany(@PathVariable String poiCode) {
+
+        return ResponseEntity.ok(
+                userService.getEmployeesByPoi(poiCode)
+        );
+    }
+
+    @GetMapping("/poi/{poiCode}/getProcessIeByPOI")
+    public ResponseEntity<Object> getProcessAndIe(@PathVariable String poiCode) {
+        return ResponseEntity.ok(userService.getProcessAndIeUsers(poiCode));
+    }
+
+    @PutMapping("/poi/{poiCode}/Update/processIe")
+    public ResponseEntity<Object> updatePoiIeUsers(
+            @PathVariable String poiCode,
+            @RequestBody List<Long> ieUserIds,
+            @RequestHeader("userId") String createdBy) {
+
+        return ResponseEntity.ok(
+                userService.updatePoiIeUsers(poiCode, ieUserIds, createdBy)
+        );
+    }
 }

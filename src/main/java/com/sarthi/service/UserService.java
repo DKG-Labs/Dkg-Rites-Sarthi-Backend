@@ -2,10 +2,13 @@ package com.sarthi.service;
 
 import com.sarthi.dto.*;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
+import com.sarthi.entity.IePincodePoiMapping;
 import com.sarthi.entity.PincodePoIMapping;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public interface UserService {
@@ -41,4 +44,14 @@ public interface UserService {
     List<CompanyUnitProcessIeDto> getCompanyUnitProcessIe();
 
     public List<String> getEmployeeCodesByCallNo(String callNo);
+
+    public String updateCompanyIeMapping(String poiCode, List<IePinPoiDto> newList);
+
+    public List<IePincodePoiMapping> getEmployeesByPoi(String poiCode);
+
+    public Map<String, Object> getProcessAndIeUsers(String poiCode);
+
+    public String updatePoiIeUsers(String poiCode,
+                                   List<Long> newIeUserIds,
+                                   String createdBy);
 }
