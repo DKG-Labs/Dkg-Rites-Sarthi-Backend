@@ -160,4 +160,11 @@ JOIN user_master um
 WHERE ppm.poi_code = :poiCode
 """, nativeQuery = true)
     List<String> findProcessIeEmpCodeWithName(@Param("poiCode") String poiCode);
+
+    @Query(value = """
+    SELECT poi_code 
+    FROM pincode_poi_mapping 
+    WHERE vendor_code = :vendorCode
+""", nativeQuery = true)
+    List<String> findPoiCodesByVendorCode(@Param("vendorCode") String vendorCode);
 }
