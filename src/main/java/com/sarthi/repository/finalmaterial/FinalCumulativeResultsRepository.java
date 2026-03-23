@@ -80,45 +80,58 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
 
  */
 @Query(value = """
-        SELECT
-            p.id,
-            p.company_name,
-            p.poi_code,
-            u.username,
-            ip.rio,
-            'FINAL' AS stage,
+SELECT
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    'FINAL' AS stage,
 
-            SUM(f.qty_now_passed + f.qty_now_rejected) AS inspected_qty,
-            SUM(f.qty_now_passed) AS accepted_qty,
-            SUM(f.qty_now_rejected) AS rejected_qty
+    (f.accepted_qty + f.rejected_qty) AS inspected_qty,
+    f.accepted_qty,
+    f.rejected_qty
 
-        FROM final_cumulative_results f
-        JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
-        JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
-        LEFT JOIN ie_pincode_poi_mapping ipm 
-            ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
-        LEFT JOIN ie_profile ip 
-            ON ip.employee_code = ipm.employee_code
-        LEFT JOIN po_header ph 
-            ON ph.po_no = f.po_no
+FROM (
+    SELECT
+        inspection_call_no,
+        created_by,
 
-        JOIN user_master u 
-            ON u.userid = f.created_by
+        SUM(COALESCE(qty_now_passed,0)) AS accepted_qty,
+        SUM(COALESCE(qty_now_rejected,0)) AS rejected_qty
 
-        WHERE (:startDate IS NULL OR DATE(f.created_at) >= :startDate)
-          AND (:endDate IS NULL OR DATE(f.created_at) <= :endDate)
-          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
-          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-          AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+    FROM final_cumulative_results
+    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
 
-        GROUP BY
-            p.id,
-            p.company_name,
-            p.poi_code,
-            u.username,
-            ip.rio
-        """,
-        countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+    GROUP BY inspection_call_no, created_by
+) f
+
+JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
+JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+LEFT JOIN ie_pincode_poi_mapping ipm 
+    ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+LEFT JOIN ie_profile ip 
+    ON ip.employee_code = ipm.employee_code
+LEFT JOIN po_header ph 
+    ON ph.po_no = ic.po_no
+JOIN user_master u 
+    ON u.userid = f.created_by
+
+WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+GROUP BY
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    f.accepted_qty,
+    f.rejected_qty
+""",
+        countQuery = "SELECT COUNT(*) FROM final_cumulative_results",
         nativeQuery = true)
 Page<Object[]> fetchFinal(
         @Param("startDate") LocalDate startDate,

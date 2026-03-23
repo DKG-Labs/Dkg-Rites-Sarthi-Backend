@@ -152,45 +152,58 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             @Param("vendor") String vendor,
             Pageable pageable);*/
 @Query(value = """
-        SELECT
-            p.id,
-            p.company_name,
-            p.poi_code,
-            u.username,
-            ip.rio,
-            'Raw Material' AS stage,
+SELECT
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    'Raw Material' AS stage,
 
-            SUM(r.accepted_qty_mt + r.weight_rejected_mt) AS inspected_qty,
-            SUM(r.accepted_qty_mt) AS accepted_qty,
-            SUM(r.weight_rejected_mt) AS rejected_qty
+    (r.accepted_qty + r.rejected_qty) AS inspected_qty,
+    r.accepted_qty,
+    r.rejected_qty
 
-        FROM rm_heat_final_result r
-        JOIN inspection_calls ic ON ic.ic_number = r.inspection_call_no
-        JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
-        LEFT JOIN ie_pincode_poi_mapping ipm 
-            ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
-        LEFT JOIN ie_profile ip 
-            ON ip.employee_code = ipm.employee_code
-        LEFT JOIN po_header ph 
-            ON ph.po_no = ic.po_no
+FROM (
+    SELECT
+        inspection_call_no,
+        created_by,
 
-        JOIN user_master u 
-            ON u.userid = r.created_by
+        SUM(COALESCE(accepted_qty_mt,0)) AS accepted_qty,
+        SUM(COALESCE(weight_rejected_mt,0)) AS rejected_qty
 
-        WHERE (:startDate IS NULL OR DATE(r.created_at) >= :startDate)
-          AND (:endDate IS NULL OR DATE(r.created_at) <= :endDate)
-          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
-          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-          AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+    FROM rm_heat_final_result
+    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
 
-        GROUP BY
-            p.id,
-            p.company_name,
-            p.poi_code,
-            u.username,
-            ip.rio
-        """,
-        countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+    GROUP BY inspection_call_no, created_by
+) r
+
+JOIN inspection_calls ic ON ic.ic_number = r.inspection_call_no
+JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+LEFT JOIN ie_pincode_poi_mapping ipm 
+    ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+LEFT JOIN ie_profile ip 
+    ON ip.employee_code = ipm.employee_code
+LEFT JOIN po_header ph 
+    ON ph.po_no = ic.po_no
+JOIN user_master u 
+    ON u.userid = r.created_by
+
+WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+GROUP BY
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    r.accepted_qty,
+    r.rejected_qty
+""",
+        countQuery = "SELECT COUNT(*) FROM rm_heat_final_result",
         nativeQuery = true)
 Page<Object[]> fetchRaw(
         @Param("startDate") LocalDate startDate,
