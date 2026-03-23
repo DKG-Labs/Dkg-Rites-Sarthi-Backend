@@ -164,6 +164,16 @@ GROUP BY p.inspectionCallNo
     List<Object[]> sumProcessRejectionNewLogicLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
+    @Query("""
+        SELECT 
+            SUM(COALESCE(p.totalRejected, 0)),
+            SUM(COALESCE(p.shearingManufactured, 0))
+        FROM ProcessLineFinalResult p
+        WHERE p.createdAt >= :date
+    """)
+    List<Object[]> sumProcessRejectionRevisedLogicLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
     @Query(value = """
         SELECT 
             ic.company_name AS name,
@@ -186,6 +196,20 @@ GROUP BY p.inspectionCallNo
     @Query(value = """
         SELECT 
             ic.company_name AS name,
+            SUM(COALESCE(p.total_rejected, 0)) * 100.0 / 
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+        FROM process_line_final_result p
+        JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+        WHERE p.created_at >= :date
+        GROUP BY ic.company_name
+        ORDER BY rejectionPct ASC
+        LIMIT 5
+    """, nativeQuery = true)
+    List<Object[]> findTop5ProcessPerformanceRevisedLogic(@org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @Query(value = """
+        SELECT 
+            ic.company_name AS name,
             SUM(COALESCE(p.shearing_rejected, 0) + 
                 COALESCE(p.turning_rejected, 0) + 
                 COALESCE(p.mpi_rejected, 0) + 
@@ -204,6 +228,20 @@ GROUP BY p.inspectionCallNo
 
     @Query(value = """
         SELECT 
+            ic.company_name AS name,
+            SUM(COALESCE(p.total_rejected, 0)) * 100.0 / 
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+        FROM process_line_final_result p
+        JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+        WHERE p.created_at >= :date
+        GROUP BY ic.company_name
+        ORDER BY rejectionPct DESC
+        LIMIT 5
+    """, nativeQuery = true)
+    List<Object[]> findWorst5ProcessPerformanceRevisedLogic(@org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @Query(value = """
+        SELECT 
             DATE_FORMAT(p.created_at, '%d-%b') AS displayDate,
             SUM(COALESCE(p.shearing_rejected, 0) + 
                 COALESCE(p.turning_rejected, 0) + 
@@ -218,6 +256,20 @@ GROUP BY p.inspectionCallNo
         ORDER BY DATE(p.created_at) ASC
     """, nativeQuery = true)
     List<Object[]> findDailyRejectionTrendNewLogic(
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate, 
+        @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT 
+            DATE_FORMAT(p.created_at, '%d-%b') AS displayDate,
+            SUM(COALESCE(p.total_rejected, 0)) * 100.0 / 
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+        FROM process_line_final_result p
+        WHERE p.created_at BETWEEN :startDate AND :endDate
+        GROUP BY DATE(p.created_at), DATE_FORMAT(p.created_at, '%d-%b')
+        ORDER BY DATE(p.created_at) ASC
+    """, nativeQuery = true)
+    List<Object[]> findDailyRejectionTrendRevisedLogic(
         @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate, 
         @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
 
@@ -306,4 +358,15 @@ GROUP BY p.inspectionCallNo
 
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.temperingAccepted), 0), COALESCE(SUM(p.totalRejected), 0) FROM ProcessLineFinalResult p")
     List<Object[]> sumProcessAcceptedAndRejected();
+
+    @Query(value = """
+        SELECT 
+            SUM(COALESCE(p.tempering_accepted, 0)), 
+            SUM(COALESCE(p.total_rejected, 0)) 
+        FROM process_line_final_result p 
+        WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+    """, nativeQuery = true)
+    List<Object[]> sumProcessAcceptedAndRejectedRevisedLogic(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate, 
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
 }

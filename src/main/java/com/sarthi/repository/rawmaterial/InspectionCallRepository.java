@@ -457,4 +457,12 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
             """, nativeQuery = true)
     List<String> findIcNumbersByUserId(@Param("userId") Long userId);
 
+
+
+    @Query(value = """
+    SELECT place_of_inspection 
+    FROM inspection_calls 
+    WHERE ic_number = :callNo
+""", nativeQuery = true)
+    String findPoiByCallNo(@Param("callNo") String callNo);
 }
