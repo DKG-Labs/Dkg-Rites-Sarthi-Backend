@@ -148,5 +148,16 @@ public class UserMasterController {
         return ResponseEntity.ok(
                 userService.updatePoiIeUsers(poiCode, ieUserIds, createdBy)
         );
+
+
+
+    }
+
+    @GetMapping("/{callNo}/poi-codes")
+    public ResponseEntity<?> getPoiCodes(@PathVariable String callNo) {
+
+        return ResponseEntity.ok(
+                userService.getPlaceOfInspection(callNo)
+        );
     }
 }

@@ -959,6 +959,24 @@ public class UserServiceImpl implements UserService {
     }
 
 
+    public String getPlaceOfInspection(String icNumber) {
+
+        if (icNumber == null || icNumber.trim().isEmpty()) {
+            throw new RuntimeException("IC Number is empty");
+        }
+
+        String poi = inspectionCallRepository
+                .findPlaceOfInspectionByIcNumber(icNumber.trim());
+
+        if (poi == null) {
+            throw new RuntimeException("No data found for given IC Number");
+        }
+
+        return poi;
+    }
+
+
+
 
 
 }
