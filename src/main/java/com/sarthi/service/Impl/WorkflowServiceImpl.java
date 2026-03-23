@@ -10,12 +10,16 @@ import com.sarthi.dto.WorkflowDtos.WorkflowTransitionDto;
 import com.sarthi.entity.*;
 import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
 import com.sarthi.entity.rawmaterial.InspectionCall;
+import com.sarthi.entity.rawmaterial.RmHeatQuantity;
+import com.sarthi.entity.rawmaterial.RmInspectionDetails;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
+import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
+import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
 import com.sarthi.service.WorkflowService;
 
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -24,6 +28,8 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -100,6 +106,12 @@ public class WorkflowServiceImpl implements WorkflowService {
     private PoHeaderRepository poHeaderRepository;
     @Autowired
     private VendorMasterRepository vendorMasterRepository;
+    @Autowired
+    private RmInspectionDetailsRepository rmInspectionDetailsRepository;
+    @Autowired
+    private RmHeatQuantityRepository rmHeatQuantityRepository;
+    @Autowired
+    private InventoryEntryRepository inventoryEntryRepository;
 
 
     private static final Logger log =
@@ -2932,7 +2944,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
 
             // Replicate original exception logic if empty
             if (ieUsers.isEmpty()) {
-                // We'll log a warning instead of failing the entire batch, 
+                // We'll log a warning instead of failing the entire batch,
                 // but let's see if we should strictly follow original.
                 // Logically, if it was throwing exception before, it should probably continue to do so.
                 // However, throwing BusinessException here would stop the map loop.
@@ -2981,7 +2993,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                 srNo = srNo.substring(poNo.length() + 1);
             }
 
-            String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " + 
+            String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " +
                                  poNo + " / " + srNo;
             dto.setPoNo(formattedPo);
             dto.setRawPoNo(i.poNo());
@@ -3324,7 +3336,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                 transitionDto.setConditionId(transitionMaster.getConditionId());
                 transitionDto.setCurrentRoleId(transitionMaster.getCurrentRoleId());
                 transitionDto.setNextRoleId(transitionMaster.getNextRoleId());
-              
+
                 transitionDto.setTransitionName(transitionMaster.getTransitionName());
                 transitionDto.setWorkflowName(workflowNameById(transitionMaster.getWorkflowId()));
                 transitionDto.setCurrentRoleName(roleNameById(transitionMaster.getCurrentRoleId()));
@@ -3460,7 +3472,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                 .toList();
 
         List<IEFieldsMapping> allIeMappings = ieFieldsMappingRepository.findByPinCodeInAndProduct(pinCodes, "ERC");
-        
+
         // Optimize: Group IE mappings by PinCode for faster lookup
         Map<String, List<IEFieldsMapping>> ieGroupedByPin = allIeMappings.stream()
                 .collect(Collectors.groupingBy(IEFieldsMapping::getPinCode));
@@ -3498,7 +3510,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                     srNo = srNo.substring(poNo.length() + 1);
                 }
 
-                String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " + 
+                String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " +
                                      poNo + " / " + srNo;
                 dto.setPoNo(formattedPo);
 
@@ -3515,7 +3527,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                     final String pin = poi.getPinCode();
                     final String stageCode = ic.typeOfCall().equalsIgnoreCase("Raw Material") ? "R" :
                                        ic.typeOfCall().equalsIgnoreCase("Process") ? "P" : "F";
-                    
+
                     List<IEFieldsMapping> pinMappings = ieGroupedByPin.get(pin);
                     if (pinMappings != null) {
                         Optional<IEFieldsMapping> mapping = pinMappings.stream()
@@ -3530,6 +3542,131 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         }).toList();
     }
 
+    @Transactional
+    public String withdrawCall(TransitionActionReqDto dto) {
+
+        // =========================
+        // 1. VALIDATION
+        // =========================
+        if (dto.getWorkflowTransitionId() == null) {
+            throw new RuntimeException("WorkflowTransitionId is required");
+        }
+
+        // =========================
+        // 2. FETCH WORKFLOW
+        // =========================
+        WorkflowTransition wf = workflowTransitionRepository
+                .findById(dto.getWorkflowTransitionId())
+                .orElseThrow(() -> new RuntimeException("Record not found"));
+
+        if ("WITHDRAW".equalsIgnoreCase(wf.getStatus())) {
+            throw new RuntimeException("Already withdrawn");
+        }
+
+        String icNumber = wf.getRequestId();
+
+        // =========================
+        // 3. UPDATE WORKFLOW
+        // =========================
+        wf.setStatus("WITHDRAW");
+        wf.setAction("WITHDRAW");
+        wf.setJobStatus("WITHDRAW");
+        wf.setRemarks(dto.getRemarks());
+        wf.setModifiedBy(dto.getActionBy());
+        wf.setNextRole(null);
+
+
+
+        workflowTransitionRepository.save(wf);
+
+        // =========================
+        // 4. GET INSPECTION CALL
+        // =========================
+        Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(icNumber);
+
+        if (callOpt.isEmpty()) {
+            return "Withdrawn (No inspection call)";
+        }
+
+        InspectionCall inspectionCall = callOpt.get();
+
+
+        Optional<RmInspectionDetails> rmDetails =
+                rmInspectionDetailsRepository.findByIcId(inspectionCall.getId());
+
+        if (rmDetails == null || rmDetails.isEmpty()) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_RESOURCE,
+                    "Inspection request not found with ID: " + inspectionCall.getId()
+            ));
+        }
+
+
+
+
+        rmDetails.ifPresent(rm -> {
+
+            List<RmHeatQuantity> heats =
+                    rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rm.getId()));
+
+            if (heats.isEmpty()) return;
+
+            for (RmHeatQuantity heat : heats) {
+
+                BigDecimal qty = heat.getOfferedQty();
+
+                if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+                if (heat.getHeatNumber() == null || heat.getTcNumber() == null) continue;
+
+                restoreInventoryJpa(
+                        heat.getHeatNumber(),
+                        heat.getTcNumber(),
+                        qty
+                );
+            }
+        });
+
+        return "Call withdrawn & inventory restored successfully";
+    }
+
+    private void restoreInventoryJpa(String heatNumber, String tcNumber, BigDecimal qty) {
+
+        InventoryEntry inv = inventoryEntryRepository
+                .findByHeatNumberAndTcNumber(heatNumber, tcNumber)
+                .orElseThrow(() -> new RuntimeException(
+                        "Inventory not found for Heat: " + heatNumber + " TC: " + tcNumber
+                ));
+
+
+        BigDecimal offeredQty = inv.getOfferedQuantity();
+        BigDecimal inspectionQty = inv.getQtyLeftForInspection();
+
+        if (offeredQty == null) offeredQty = BigDecimal.ZERO;
+        if (inspectionQty == null) inspectionQty = BigDecimal.ZERO;
+
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+
+        BigDecimal updatedOffered = offeredQty.subtract(qty);
+
+        if (updatedOffered.compareTo(BigDecimal.ZERO) < 0) {
+            updatedOffered = BigDecimal.ZERO; // safety
+        }
+
+        // add to qty_left_for_inspection
+        BigDecimal updatedInspection = inspectionQty.add(qty);
+
+
+        inv.setOfferedQuantity(updatedOffered);
+        inv.setQtyLeftForInspection(updatedInspection);
+
+        inventoryEntryRepository.save(inv);
+    }
 
 
 }
