@@ -54,4 +54,6 @@ public interface UserService {
     public String updatePoiIeUsers(String poiCode,
                                    List<Long> newIeUserIds,
                                    String createdBy);
+
+    public String getPlaceOfInspection(String icNumber);
 }
