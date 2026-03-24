@@ -160,4 +160,12 @@ public class UserMasterController {
                 userService.getPlaceOfInspection(callNo)
         );
     }
+
+    @PostMapping("/map")
+    public ResponseEntity<Object> mapProcessIe(
+            @RequestBody PoiProcessIeRequestDto dto) {
+
+        String res= userService.mapProcessIe(dto);
+        return ResponseEntity.ok(res);
+    }
 }

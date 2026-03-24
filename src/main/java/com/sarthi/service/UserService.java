@@ -56,4 +56,7 @@ public interface UserService {
                                    String createdBy);
 
     public String getPlaceOfInspection(String icNumber);
+
+
+    public String mapProcessIe(PoiProcessIeRequestDto dto);
 }

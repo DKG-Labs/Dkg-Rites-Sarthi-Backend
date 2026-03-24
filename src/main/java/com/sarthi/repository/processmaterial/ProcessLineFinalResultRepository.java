@@ -167,7 +167,7 @@ GROUP BY p.inspectionCallNo
     @Query("""
         SELECT 
             SUM(COALESCE(p.totalRejected, 0)),
-            SUM(COALESCE(p.shearingManufactured, 0))
+            SUM(COALESCE(p.shearingManufactured, p.totalManufactured, 0))
         FROM ProcessLineFinalResult p
         WHERE p.createdAt >= :date
     """)
@@ -249,7 +249,7 @@ GROUP BY p.inspectionCallNo
                 COALESCE(p.forging_rejected, 0) + 
                 COALESCE(p.quenching_rejected, 0) + 
                 COALESCE(p.tempering_rejected, 0)) * 100.0 / 
-            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, p.total_manufactured, 0)), 0) AS rejectionPct
         FROM process_line_final_result p
         WHERE p.created_at BETWEEN :startDate AND :endDate
         GROUP BY DATE(p.created_at), DATE_FORMAT(p.created_at, '%d-%b')
@@ -263,7 +263,7 @@ GROUP BY p.inspectionCallNo
         SELECT 
             DATE_FORMAT(p.created_at, '%d-%b') AS displayDate,
             SUM(COALESCE(p.total_rejected, 0)) * 100.0 / 
-            NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+            NULLIF(SUM(COALESCE(p.shearing_manufactured, p.total_manufactured, 0)), 0) AS rejectionPct
         FROM process_line_final_result p
         WHERE p.created_at BETWEEN :startDate AND :endDate
         GROUP BY DATE(p.created_at), DATE_FORMAT(p.created_at, '%d-%b')
@@ -369,4 +369,37 @@ GROUP BY p.inspectionCallNo
     List<Object[]> sumProcessAcceptedAndRejectedRevisedLogic(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate, 
             @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
+    @Query(value = """
+        SELECT 
+            DATE_FORMAT(IFNULL(p.date_of_inspection, p.created_at), '%b-%y') AS Month_Year,
+            SUM(COALESCE(p.total_rejected, 0)) AS Total_Rejected,
+            SUM(COALESCE(p.shearing_manufactured, p.total_manufactured, 0)) AS Total_Produced,
+            ROUND(SUM(COALESCE(p.total_rejected, 0)) * 100.0 / 
+                  NULLIF(SUM(COALESCE(p.shearing_manufactured, p.total_manufactured, 0)), 0), 2) AS Rejection_Percentage
+        FROM process_line_final_result p
+        WHERE IFNULL(p.date_of_inspection, p.created_at) BETWEEN :startDate AND :endDate
+        GROUP BY 
+            YEAR(IFNULL(p.date_of_inspection, p.created_at)), 
+            MONTH(IFNULL(p.date_of_inspection, p.created_at)),
+            Month_Year
+        ORDER BY MIN(IFNULL(p.date_of_inspection, p.created_at)) ASC
+    """, nativeQuery = true)
+    List<Object[]> findMonthlyRejectionTrend(
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate, 
+        @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT 
+            COALESCE(i.supplier_name, 'Other/Unknown') AS supplier_name,
+            ROUND(SUM(COALESCE(p.mpi_rejected, 0)) * 100.0 / 
+                  NULLIF(SUM(COALESCE(p.mpi_manufactured, p.total_manufactured, 0)), 0), 2) AS mpi_rejection_percentage
+        FROM process_line_final_result p
+        LEFT JOIN inventory_entries i ON TRIM(p.heat_number) = TRIM(i.heat_number)
+        WHERE p.created_at >= :startDate
+        GROUP BY supplier_name
+        ORDER BY mpi_rejection_percentage DESC
+        LIMIT 5
+    """, nativeQuery = true)
+    List<Object[]> findMpiRejectionBySupplier(
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate);
 }
