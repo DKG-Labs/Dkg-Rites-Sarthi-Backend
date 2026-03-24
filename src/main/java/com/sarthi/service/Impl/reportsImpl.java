@@ -1835,7 +1835,9 @@ public class reportsImpl implements reports {
                 List<StageRejectionDto> data = new ArrayList<>();
                 LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
 
-                List<Object[]> results = rmHeatFinalResultRepository.findTop5ManufacturerRejection(thirtyDaysAgo);
+                // Updated logic: Join process_line_final_result with inventory_entries via heat_number
+                // to calculate MPI rejection % based on supplier_name.
+                List<Object[]> results = processLineFinalResultRepository.findMpiRejectionBySupplier(thirtyDaysAgo);
 
                 // Define colors for the chart
                 String[] colors = { "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6" };
@@ -2167,5 +2169,41 @@ public class reportsImpl implements reports {
                 result.add(new InspectionDetailsDto("Final", (long) finalAcc, (long) finalRej));
 
                 return result;
+        }
+
+        @Override
+        public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate) {
+                List<StageRejectionDto> trend = new ArrayList<>();
+                try {
+                        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
+                        LocalDateTime lStart;
+                        LocalDateTime lEnd;
+
+                        if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
+                                java.util.Date start = sdf.parse(startDate);
+                                java.util.Date end = sdf.parse(endDate);
+                                lStart = start.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+                                        .with(java.time.LocalTime.MIN);
+                                lEnd = end.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+                                        .with(java.time.LocalTime.MAX);
+                        } else {
+                                lEnd = LocalDateTime.now();
+                                lStart = lEnd.minusMonths(6).with(java.time.LocalTime.MIN);
+                        }
+
+                        List<Object[]> results = processLineFinalResultRepository
+                                .findMonthlyRejectionTrend(lStart, lEnd);
+
+                        if (results != null) {
+                                for (Object[] row : results) {
+                                        String label = row[0] != null ? row[0].toString() : "Unknown";
+                                        double percentage = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
+                                        trend.add(new StageRejectionDto(label, percentage, "#8b5cf6"));
+                                }
+                        }
+                } catch (Exception e) {
+                        e.printStackTrace();
+                }
+                return trend;
         }
 }

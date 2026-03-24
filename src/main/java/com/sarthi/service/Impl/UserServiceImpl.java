@@ -4,6 +4,7 @@ import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.*;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.entity.*;
+import com.sarthi.entity.PoiProcessIeMapping;
 import com.sarthi.entity.ProcessIeUsers;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
@@ -64,6 +65,9 @@ public class UserServiceImpl implements UserService {
     private PincodePoIMappingRepository pincodePoIMappingRepository;
     @Autowired
     private InspectionCallRepository inspectionCallRepository;
+
+    @Autowired
+    private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
 
 
 
@@ -977,6 +981,25 @@ public class UserServiceImpl implements UserService {
         return poi;
     }
 
+
+    @Transactional
+    public String mapProcessIe(PoiProcessIeRequestDto dto) {
+
+
+        // 2. Insert new mappings
+        List<PoiProcessIeMapping> list = dto.getEmployeeCodes().stream().map(emp -> {
+            PoiProcessIeMapping m = new PoiProcessIeMapping();
+            m.setEmployeeCode(emp);
+            m.setPoiCode(dto.getPoiCode());
+            m.setCreatedBy(Long.valueOf(dto.getCreatedBy()));
+           /// m.setCreatedDate(new Date());
+            return m;
+        }).toList();
+
+        poiProcessIeMappingRepository.saveAll(list);
+
+        return "Process IE mapping saved successfully";
+    }
 
 
 
