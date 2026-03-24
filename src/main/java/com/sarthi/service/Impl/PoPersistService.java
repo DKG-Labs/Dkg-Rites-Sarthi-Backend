@@ -1,19 +1,15 @@
 package com.sarthi.service.Impl;
 
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
-import com.sarthi.entity.PoHeader;
-import com.sarthi.entity.PoItem;
-import com.sarthi.entity.VendorMaster;
-import com.sarthi.repository.PoHeaderRepository;
-import com.sarthi.repository.PoItemRepository;
-import com.sarthi.repository.UserMasterRepository;
-import com.sarthi.repository.VendorMasterRepository;
+import com.sarthi.entity.*;
+import com.sarthi.repository.*;
 import com.sarthi.service.UserService;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -34,6 +30,10 @@ public class PoPersistService {
     private UserService userService;
     @Autowired
     private UserMasterRepository userMasterRepository;
+    @Autowired
+    private RoleMasterRepository roleMasterRepository;
+    @Autowired
+    private UserRoleMasterRepository userRoleMasterRepository;
 
     private static final DateTimeFormatter PO_DT_FMT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -88,7 +88,7 @@ public class PoPersistService {
 
         PoHeader h = new PoHeader();
 
-      //  h.setPoKey((String) m.get("CASE_NO"));
+        //  h.setPoKey((String) m.get("CASE_NO"));
         h.setPoKey((String) m.get("POKEY"));
         h.setPoNo((String) m.get("PO_NO"));
         h.setL5PoNo((String) m.get("L5NO_PO"));
@@ -139,7 +139,7 @@ public class PoPersistService {
         i.setPoHeader(header);
 
         i.setCaseNo((String) m.get("CASE_NO"));
-     //   i.setPoKey((String) m.get("POKEY"));
+        //   i.setPoKey((String) m.get("POKEY"));
         i.setItemSrNo((String) m.get("ITEM_SRNO"));
         i.setPlNo((String) m.get("PL_NO"));
         i.setItemDesc((String) m.get("ITEM_DESC"));
@@ -198,6 +198,20 @@ public class PoPersistService {
     }
 
 
+    private String getVendorRole(String itemCatDescr) {
+        if (itemCatDescr == null) return "Vendor";
+
+        switch (itemCatDescr.trim()) {
+            case "Elastic Rail Clips":
+                return "ERC Vendor";
+            case "PSC Mainline Sleeper":
+                return "Sleeper Vendor";
+            case "Rail Pads":
+                return "Rail Pad Vendor";
+            default:
+                return "Vendor";
+        }
+    }
     @Transactional
     public void createVendorIfNotExists(Map<String, Object> hdrMap) {
 
@@ -229,7 +243,9 @@ public class PoPersistService {
         dto.setPassword("Vendor@123");                   // or encoded inside service
         dto.setEmail(vendorCode + "@vendor.local");
         dto.setMobileNumber(null);
-        dto.setRoleNames(List.of("Vendor"));
+        //  dto.setRoleNames(List.of("Vendor"));
+        String role = getVendorRole((String) hdrMap.get("ITEM_CAT_DESCR"));
+        dto.setRoleNames(List.of(role));
 
         dto.setCreatedBy("Crics");
         dto.setEmployeeId(null);
@@ -240,6 +256,31 @@ public class PoPersistService {
         dto.setIeUserIds(null);
 
         userService.createUser(dto);
+        //  String role = getVendorRole((String) hdrMap.get("ITEM_CAT_DESCR"));
+
+        Optional<UserMaster> userOpt = userMasterRepository.findByUserName(vendorCode);
+
+        if (userOpt.isPresent() && role != null && !role.equals("Vendor")) {
+
+            Integer userId = userOpt.get().getUserId();
+
+            Optional<RoleMaster> roleId = roleMasterRepository.findByRoleName(role);
+
+            RoleMaster roleIds=null;
+            if (roleId.isPresent()){
+                roleIds = roleId.get();
+            }
+            boolean exists = userRoleMasterRepository.existsByUserIdAndRoleId(userId, roleIds.getRoleId());
+
+            if (!exists) {
+                UserRoleMaster urm = new UserRoleMaster();
+                urm.setUserId(userId);
+                urm.setRoleId(roleIds.getRoleId());
+                urm.setCreatedBy("CRIS");
+
+                userRoleMasterRepository.save(urm);
+            }
+        }
     }
 
 }
