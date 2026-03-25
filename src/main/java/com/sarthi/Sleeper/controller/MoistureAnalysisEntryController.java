@@ -59,4 +59,15 @@ public class MoistureAnalysisEntryController {
         );
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Object> delete(@PathVariable Long id){
+
+        moistureAnalysisEntryService.delete(id);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse("Deleted Successfully"),
+                HttpStatus.OK
+        );
+    }
+
 }

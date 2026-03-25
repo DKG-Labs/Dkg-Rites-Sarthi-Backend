@@ -10,13 +10,13 @@ import java.util.List;
 
 @Repository
 public interface InspectionTestResultRepository extends JpaRepository<InspectionTestResult, Long> {
-    @Query("""
+   /* @Query("""
         SELECT COUNT(DISTINCT r.sleeperId)
         FROM InspectionTestResult r
         JOIN r.testHeader h
         WHERE h.batchId = :batchId
     """)
-    Long countTestedSleepers(@Param("batchId") Long batchId);
+    Long countTestedSleepers(@Param("batchId") Long batchId);*/
 
     @Query("""
 SELECT r
@@ -45,4 +45,6 @@ AND h.module.id = :moduleId
            AND h.status='Completed'
            """)
     List<InspectionTestResult> findFinalModuleResults(Long batchId);
+
+
 }

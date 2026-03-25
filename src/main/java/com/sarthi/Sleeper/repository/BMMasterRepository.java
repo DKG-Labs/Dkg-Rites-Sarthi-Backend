@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BMMasterRepository extends JpaRepository<BMMaster, Long> {
+    BMMaster findById(BMMaster bmMaster);
 }

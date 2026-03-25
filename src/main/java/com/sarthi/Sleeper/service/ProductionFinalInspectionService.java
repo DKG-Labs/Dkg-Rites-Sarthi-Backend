@@ -12,7 +12,7 @@ import java.util.List;
 public interface ProductionFinalInspectionService {
     void saveInspection(InspectionSaveRequestDto dto);
 
-    public List<BatchTestingListResponseDto> getAllBatchTesting();
+    public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId);
 
     public BatchInspectionDetailDto getBatchInspection(Long batchId);
 

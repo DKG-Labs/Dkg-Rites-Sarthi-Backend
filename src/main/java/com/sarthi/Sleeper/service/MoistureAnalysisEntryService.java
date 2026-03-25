@@ -18,4 +18,6 @@ public interface MoistureAnalysisEntryService {
     public MoistureAnalysisResponseDTO getById(Long id);
 
    public MoistureAnalysisResponseDTO update(Long id, MoistureAnalysisRequestDTO dto);
+
+    void delete(Long id);
 }

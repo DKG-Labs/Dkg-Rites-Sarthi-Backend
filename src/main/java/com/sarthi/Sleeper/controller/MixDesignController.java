@@ -91,4 +91,14 @@ public class MixDesignController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/approvedMixDesign")
+    public ResponseEntity<Object> getApprovedMixDesigns(
+            @RequestParam Long moduleId) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getApprovedMixDesigns(moduleId)),
+                HttpStatus.OK
+        );
+    }
 }
