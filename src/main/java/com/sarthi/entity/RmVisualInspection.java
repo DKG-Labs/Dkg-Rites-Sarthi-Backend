@@ -112,6 +112,13 @@ public class RmVisualInspection {
     @Column(name = "other_remarks", length = 500)
     private String otherRemarks;
 
+    // Derived calculated fields stored explicitly
+    @Column(name = "defect_count")
+    private Integer defectCount;
+
+    @Column(name = "weight_rejected", precision = 10, scale = 6)
+    private BigDecimal weightRejected;
+
     @Column(name = "passed_at")
     private LocalDateTime passedAt;
 

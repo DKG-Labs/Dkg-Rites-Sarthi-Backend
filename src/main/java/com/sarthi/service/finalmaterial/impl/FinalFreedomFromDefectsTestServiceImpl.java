@@ -43,6 +43,9 @@ public class FinalFreedomFromDefectsTestServiceImpl implements FinalFreedomFromD
             test.setUpdatedBy(userId);
             test.setUpdatedAt(LocalDateTime.now());
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
+            test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             log.info("Updating existing freedom from defects test session, id={}", test.getId());
         } else {
             test = new FinalFreedomFromDefectsTest();
@@ -52,7 +55,9 @@ public class FinalFreedomFromDefectsTestServiceImpl implements FinalFreedomFromD
             test.setSampleSize(request.getSampleSize());
             test.setQty(request.getQty());
             test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             test.setCreatedBy(userId);
             log.info("Creating new freedom from defects test session");
         }
@@ -169,7 +174,9 @@ public class FinalFreedomFromDefectsTestServiceImpl implements FinalFreedomFromD
         response.setSampleSize(entity.getSampleSize());
         response.setQty(entity.getQty());
         response.setRemarks(entity.getRemarks());
+        response.setDateOfInspection(entity.getDateOfInspection());
         response.setStatus(entity.getStatus());
+        response.setRejected(entity.getRejected());
         response.setCreatedBy(entity.getCreatedBy());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedBy(entity.getUpdatedBy());

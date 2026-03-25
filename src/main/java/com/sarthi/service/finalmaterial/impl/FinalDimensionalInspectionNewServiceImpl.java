@@ -46,8 +46,11 @@ public class FinalDimensionalInspectionNewServiceImpl implements FinalDimensiona
             // UPDATE: Existing inspection session
             inspection = existing.get();
             inspection.setRemarks(request.getRemarks());
+            inspection.setStatus(request.getStatus() != null ? request.getStatus() : "OK");
+            inspection.setRejected(request.getRejected() != null ? request.getRejected() : 0);
+            inspection.setRemarks(request.getRemarks());
+            inspection.setDateOfInspection(request.getDateOfInspection());
             inspection.setUpdatedBy(userId);
-            // updatedAt is set automatically by @PreUpdate
             log.info("Updating existing dimensional inspection record");
         } else {
             // CREATE: New inspection session
@@ -56,8 +59,10 @@ public class FinalDimensionalInspectionNewServiceImpl implements FinalDimensiona
             inspection.setLotNo(request.getLotNo());
             inspection.setHeatNo(request.getHeatNo());
             inspection.setSampleSize(request.getSampleSize());
-            inspection.setStatus("PENDING");
+            inspection.setStatus(request.getStatus() != null ? request.getStatus() : "OK");
+            inspection.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             inspection.setRemarks(request.getRemarks());
+            inspection.setDateOfInspection(request.getDateOfInspection());
             inspection.setCreatedBy(userId);
             inspection.setUpdatedBy(userId);
             log.info("Creating new dimensional inspection record");
@@ -195,7 +200,9 @@ public class FinalDimensionalInspectionNewServiceImpl implements FinalDimensiona
         response.setHeatNo(inspection.getHeatNo());
         response.setSampleSize(inspection.getSampleSize());
         response.setStatus(inspection.getStatus());
+        response.setRejected(inspection.getRejected());
         response.setRemarks(inspection.getRemarks());
+        response.setDateOfInspection(inspection.getDateOfInspection());
         response.setCreatedBy(inspection.getCreatedBy());
         response.setCreatedAt(inspection.getCreatedAt());
         response.setUpdatedBy(inspection.getUpdatedBy());

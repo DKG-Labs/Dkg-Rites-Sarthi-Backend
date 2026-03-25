@@ -50,6 +50,7 @@ public class FinalDimensionalInspectionFlatServiceImpl implements FinalDimension
                 entity.setStatus(dto.getStatus());
             }
             entity.setRemarks(dto.getRemarks());
+            entity.setDateOfInspection(dto.getDateOfInspection());
             entity.setUpdatedBy(userId);
             log.info("Updating existing dimensional inspection (flat) record");
         } else {
@@ -66,6 +67,7 @@ public class FinalDimensionalInspectionFlatServiceImpl implements FinalDimension
             entity.setTotalRejected(dto.getTotalRejected() != null ? dto.getTotalRejected() : 0);
             entity.setStatus(dto.getStatus() != null ? dto.getStatus() : "PENDING");
             entity.setRemarks(dto.getRemarks());
+            entity.setDateOfInspection(dto.getDateOfInspection());
             entity.setCreatedBy(userId);
             entity.setUpdatedBy(userId);
             log.info("Creating new dimensional inspection (flat) record");
@@ -118,6 +120,7 @@ public class FinalDimensionalInspectionFlatServiceImpl implements FinalDimension
         entity.setTotalRejected(dto.getTotalRejected());
         entity.setStatus(dto.getStatus());
         entity.setRemarks(dto.getRemarks());
+        entity.setDateOfInspection(dto.getDateOfInspection());
         entity.setUpdatedBy(userId);
         entity.setUpdatedAt(LocalDateTime.now());
 

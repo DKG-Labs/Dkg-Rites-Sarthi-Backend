@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * Entity for Final Inspection - Chemical Analysis
@@ -24,6 +25,9 @@ public class FinalChemicalAnalysis {
 
     @Column(name = "inspection_call_no", nullable = false, length = 50)
     private String inspectionCallNo;
+
+    @Column(name = "date_of_inspection")
+    private LocalDate dateOfInspection;
 
     @Column(name = "lot_no", length = 100)
     private String lotNo;

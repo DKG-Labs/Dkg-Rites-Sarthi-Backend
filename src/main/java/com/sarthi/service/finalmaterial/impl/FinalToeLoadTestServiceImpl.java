@@ -51,6 +51,13 @@ public class FinalToeLoadTestServiceImpl implements FinalToeLoadTestService {
             test.setUpdatedBy(userId);
             test.setUpdatedAt(LocalDateTime.now());
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
+            if (request.getStatus() != null) {
+                test.setStatus(request.getStatus());
+            }
+            if (request.getRejected() != null) {
+                test.setRejected(request.getRejected());
+            }
             log.info("Updating existing toe load test session, id={}", test.getId());
         } else {
             // FIRST SAVE: Create new parent row
@@ -59,8 +66,10 @@ public class FinalToeLoadTestServiceImpl implements FinalToeLoadTestService {
             test.setLotNo(request.getLotNo());
             test.setHeatNo(request.getHeatNo());
             test.setQtyNo(request.getQtyNo());
-            test.setStatus("PENDING");
+            test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             test.setCreatedBy(userId);
             test.setUpdatedBy(userId);
             test.setCreatedAt(LocalDateTime.now());
@@ -133,7 +142,7 @@ public class FinalToeLoadTestServiceImpl implements FinalToeLoadTestService {
             }
         }
 
-        // Update rejected count
+        // Backend recalculation as a safety measure
         long rejectedCount = sampleRepository.countRejectedByTestId(test.getId());
         test.setRejected((int) rejectedCount);
         test = toeLoadTestRepository.save(test);
@@ -200,6 +209,7 @@ public class FinalToeLoadTestServiceImpl implements FinalToeLoadTestService {
         response.setStatus(test.getStatus());
         response.setRejected(test.getRejected());
         response.setRemarks(test.getRemarks());
+        response.setDateOfInspection(test.getDateOfInspection());
         response.setCreatedBy(test.getCreatedBy());
         response.setCreatedAt(test.getCreatedAt());
         response.setUpdatedBy(test.getUpdatedBy());
@@ -224,4 +234,3 @@ public class FinalToeLoadTestServiceImpl implements FinalToeLoadTestService {
         return response;
     }
 }
-

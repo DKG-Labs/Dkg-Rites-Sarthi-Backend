@@ -24,6 +24,12 @@ public interface FinalApplicationDeflectionSampleRepository extends JpaRepositor
             Long parentId, Integer samplingNo);
 
     /**
+     * Sum the number of samples failed across all sampling rounds for a given parent inspection.
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(s.noOfSamplesFailed), 0) FROM FinalApplicationDeflectionSample s WHERE s.finalApplicationDeflection.id = :parentId")
+    long sumRejectedByTestId(@org.springframework.data.repository.query.Param("parentId") Long parentId);
+
+    /**
      * Delete all samples for a given parent inspection.
      */
     void deleteByFinalApplicationDeflectionId(Long parentId);
