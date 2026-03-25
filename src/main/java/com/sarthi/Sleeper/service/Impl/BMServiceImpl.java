@@ -1,9 +1,11 @@
 package com.sarthi.Sleeper.service.Impl;
 
+import com.sarthi.Sleeper.dto.BenchGroupResponseDTO;
 import com.sarthi.Sleeper.dto.BenchMouldLongStrssDtos.BMDetailRequestDTO;
 import com.sarthi.Sleeper.dto.BenchMouldLongStrssDtos.BMDetailResponseDTO;
 import com.sarthi.Sleeper.dto.BenchMouldLongStrssDtos.BMRequestDTO;
 import com.sarthi.Sleeper.dto.BenchMouldLongStrssDtos.BMResponseDTO;
+import com.sarthi.Sleeper.dto.BenchQueryRequestDTO;
 import com.sarthi.Sleeper.entity.BenchMouldLongAndStress.BMLongLineDetails;
 import com.sarthi.Sleeper.entity.BenchMouldLongAndStress.BMMaster;
 import com.sarthi.Sleeper.entity.BenchMouldLongAndStress.BMStressDetails;
@@ -348,6 +350,60 @@ public class BMServiceImpl implements BMService {
         dto.setNoOfMoulds(d.getNoOfMoulds());
 
         return dto;
+    }
+
+
+    @Override
+    public List<BenchGroupResponseDTO> getBenchDetails(BenchQueryRequestDTO request) {
+
+        List<BenchGroupResponseDTO> responseList = new ArrayList<>();
+
+        if ("STRESS".equalsIgnoreCase(request.getPlantType())) {
+
+            List<BMStressDetails> list =
+                    stressRepo.findByBenchNumbers(request.getBenchNumbers());
+
+            for (BMStressDetails d : list) {
+
+                BenchGroupResponseDTO dto = new BenchGroupResponseDTO();
+
+                Optional<BMMaster> master = masterRepo.findById(d.getBmMaster().getId());
+                BMMaster bm = null;
+                if(master.isPresent()){
+                    bm = master.get();
+                }
+                dto.setBenchOrGangNumber(d.getBenchNumber());
+                dto.setSleeperType(bm.getDrawingNo()+"/"+d.getSleeperCode()+ "/"+ d.getSleeperDrawingNo());
+                dto.setNoOfMoulds(d.getNoOfMoulds());
+
+                // Optional calculations
+               // dto.setCount(1); // or calculate based on logic
+               // dto.setRft(2.5); // static or calculate later
+
+                responseList.add(dto);
+            }
+
+        } else {
+
+            List<BMLongLineDetails> list =
+                    longLineRepo.findByGangNumbers(request.getGangNumbers());
+
+            for (BMLongLineDetails d : list) {
+
+                BenchGroupResponseDTO dto = new BenchGroupResponseDTO();
+
+                dto.setBenchOrGangNumber(d.getGangNumber());
+                dto.setSleeperType(d.getSleeperCode());
+                dto.setNoOfMoulds(d.getNoOfMoulds());
+
+                dto.setCount(1);
+                dto.setRft(2.5);
+
+                responseList.add(dto);
+            }
+        }
+
+        return responseList;
     }
 
 

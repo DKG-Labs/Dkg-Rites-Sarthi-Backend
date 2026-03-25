@@ -10,6 +10,7 @@ import com.sarthi.Sleeper.repository.FinalInspectionRepository.*;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.UserMasterRepository;
@@ -50,6 +51,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     private ProductionDeclarationRepository productionDeclarationRepository;
     @Autowired
     private ProductionSleeperRepository productionSleeperRepository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
 
   /*  @Override
     public void saveInspection(InspectionSaveRequestDto dto) {
@@ -233,15 +236,26 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     }
 
     @Override
-    public List<BatchTestingListResponseDto> getAllBatchTesting() {
+    public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
 
         List<BatchTestingListResponseDto> list =
                 productionDeclarationRepository.getAllBatchTesting();
 
+        List<BatchTestingListResponseDto> filteredList = new ArrayList<>();
+
         for (BatchTestingListResponseDto dto : list) {
 
+            //  Check workflow completed
+            Long isCompleted =
+                   sleeperWorkflowRepository
+                            .isWorkflowCompleted(dto.getBatchId());
+
+            if (isCompleted!=1) {
+                continue; // skip this batch
+            }
+
             Long testedCount =
-                    resultRepository.countTestedSleepers(dto.getBatchId());
+                    resultRepository.countTestedSleepers(dto.getBatchId(),moduleId);
 
             double percent =
                     (testedCount * 100.0) / dto.getNoOfSleepers();
@@ -254,9 +268,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 dto.setTestingStatus("Completed");
             else
                 dto.setTestingStatus("Under Inspection");
+
+            filteredList.add(dto);
         }
 
-        return list;
+        return filteredList;
     }
 
     @Override

@@ -18,59 +18,73 @@ public interface SleeperWorkflowRepository
     List<SleeperWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
 
     @Query("""
-    SELECT t FROM SleeperWorkflowTransaction t
-    WHERE t.workflowTransitionId = (
-        SELECT MAX(t2.workflowTransitionId)
-        FROM SleeperWorkflowTransaction t2
-        WHERE t2.requestId = t.requestId
-    )
-    AND t.status IN ('CREATED','PENDING')
-    AND t.nextRole = :roleName
-""")
+                SELECT t FROM SleeperWorkflowTransaction t
+                WHERE t.workflowTransitionId = (
+                    SELECT MAX(t2.workflowTransitionId)
+                    FROM SleeperWorkflowTransaction t2
+                    WHERE t2.requestId = t.requestId
+                )
+                AND t.status IN ('CREATED','PENDING')
+                AND t.nextRole = :roleName
+            """)
     List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
 
     @Query("""
-    SELECT t FROM SleeperWorkflowTransaction t
-    WHERE t.workflowTransitionId = (
-        SELECT MAX(t2.workflowTransitionId)
-        FROM SleeperWorkflowTransaction t2
-        WHERE t2.requestId = t.requestId
-    )
-    AND t.status = 'COMPLETED'
-""")
+                SELECT t FROM SleeperWorkflowTransaction t
+                WHERE t.workflowTransitionId = (
+                    SELECT MAX(t2.workflowTransitionId)
+                    FROM SleeperWorkflowTransaction t2
+                    WHERE t2.requestId = t.requestId
+                )
+                AND t.status = 'COMPLETED'
+            """)
     List<SleeperWorkflowTransaction> findLastCompletedRequests();
 
     @Query("""
-SELECT t FROM SleeperWorkflowTransaction t
-WHERE t.workflowTransitionId = (
-    SELECT MAX(t2.workflowTransitionId)
-    FROM SleeperWorkflowTransaction t2
-    WHERE t2.requestId = t.requestId
-)
-AND t.status = 'Completed'
-""")
+            SELECT t FROM SleeperWorkflowTransaction t
+            WHERE t.workflowTransitionId = (
+                SELECT MAX(t2.workflowTransitionId)
+                FROM SleeperWorkflowTransaction t2
+                WHERE t2.requestId = t.requestId
+            )
+            AND t.status = 'Completed'
+            """)
     List<SleeperWorkflowTransaction> findCompletedRequests();
-/*
-    @Query(value = """
-    SELECT status 
-    FROM sleeper_workflow_transaction 
-    WHERE request_id = :requestId 
-    ORDER BY workflow_transition_id DESC 
-    LIMIT 1
-""", nativeQuery = true)
-    Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
 
- */
-@Query(value = """
-    SELECT status 
-    FROM sleeper_workflow_transaction 
-    WHERE request_id = :requestId 
-      AND module_id = :moduleId
-    ORDER BY workflow_transition_id DESC 
-    LIMIT 1
-""", nativeQuery = true)
-Optional<String> findLatestStatusByRequestIdAndModuleId(
-        @Param("requestId") String requestId,
-        @Param("moduleId") Long moduleId
-);
+    /*
+        @Query(value = """
+        SELECT status
+        FROM sleeper_workflow_transaction
+        WHERE request_id = :requestId
+        ORDER BY workflow_transition_id DESC
+        LIMIT 1
+    """, nativeQuery = true)
+        Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
+
+     */
+    @Query(value = """
+                SELECT status 
+                FROM sleeper_workflow_transaction 
+                WHERE request_id = :requestId 
+                  AND module_id = :moduleId
+                ORDER BY workflow_transition_id DESC 
+                LIMIT 1
+            """, nativeQuery = true)
+    Optional<String> findLatestStatusByRequestIdAndModuleId(
+            @Param("requestId") String requestId,
+            @Param("moduleId") Long moduleId
+    );
+
+    @Query(value = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM sleeper_workflow_transaction swt
+                    WHERE swt.request_id = :requestId
+                      AND swt.module_id = 11
+                      AND swt.status = 'COMPLETED'
+                    ORDER BY swt.workflow_transition_id DESC
+                    LIMIT 1
+                )
+            """, nativeQuery = true)
+    Long isWorkflowCompleted(@Param("requestId") Long requestId);
 }

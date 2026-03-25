@@ -1,7 +1,9 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.BenchGroupResponseDTO;
 import com.sarthi.Sleeper.dto.BenchMouldLongStrssDtos.BMRequestDTO;
 import com.sarthi.Sleeper.dto.BenchMouldLongStrssDtos.BMResponseDTO;
+import com.sarthi.Sleeper.dto.BenchQueryRequestDTO;
 import com.sarthi.Sleeper.service.BMService;
 import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.util.ResponseBuilder;
@@ -80,6 +82,18 @@ public class BMController {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse("Deleted successfully"),
+                HttpStatus.OK);
+    }
+
+    @PostMapping("/bench-details")
+    public ResponseEntity<Object> getBenchDetails(
+            @RequestBody BenchQueryRequestDTO request) {
+
+        List<BenchGroupResponseDTO> result =
+                bmService.getBenchDetails(request);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK);
     }
 }

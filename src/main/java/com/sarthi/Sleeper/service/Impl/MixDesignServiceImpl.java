@@ -152,4 +152,15 @@ public class MixDesignServiceImpl implements MixDesignService {
 
         return dto;
     }
+
+
+    @Override
+    public List<MixDesignResponseDto> getApprovedMixDesigns(Long moduleId) {
+
+        List<MixDesign> list = repository.findApprovedMixDesigns(moduleId);
+
+        return list.stream()
+                .map(this::buildResponse)
+                .toList();
+    }
 }

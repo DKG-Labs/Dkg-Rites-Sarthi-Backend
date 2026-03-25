@@ -17,4 +17,6 @@ public interface MixDesignService {
     public List<MixDesignResponseDto> getAll();
 
     void delete(Long id);
+
+    public List<MixDesignResponseDto> getApprovedMixDesigns(Long moduleId);
 }

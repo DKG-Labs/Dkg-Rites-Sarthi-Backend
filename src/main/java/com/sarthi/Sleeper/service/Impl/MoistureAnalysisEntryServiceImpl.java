@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.MoistureAnalysisRequestDTO;
 import com.sarthi.Sleeper.dto.MoistureAnalysisResponseDTO;
 import com.sarthi.Sleeper.dto.MoistureSectionDTO;
 import com.sarthi.Sleeper.dto.MouldPreparationResponseDTO;
+import com.sarthi.Sleeper.entity.FinalInspection.MorSampleDeclaration;
 import com.sarthi.Sleeper.entity.MoistureAnalysisEntry;
 import com.sarthi.Sleeper.entity.MoistureSection;
 import com.sarthi.Sleeper.entity.MouldPreparation;
@@ -279,5 +280,21 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
         dto.setStatus(e.getStatus());
 
         return dto;
+    }
+
+    @Override
+    public void delete(Long id) {
+
+        MoistureAnalysisEntry e =
+                moistureAnalysisEntryRepository.findById(id)
+                        .orElseThrow(() -> new BusinessException(
+                                new ErrorDetails(
+                                        AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        " Moisture Analysis not found for the provided Id.")
+                        ));
+
+       moistureAnalysisEntryRepository.deleteById(e.getId());
     }
 }

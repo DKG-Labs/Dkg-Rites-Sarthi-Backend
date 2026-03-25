@@ -38,9 +38,9 @@ public class FinalProductionInspectionController {
 
         return ResponseEntity.ok("Inspection Saved Successfully");
     }
-    @GetMapping("/inspection/batches")
-    public List<BatchTestingListResponseDto> getAllBatches() {
-        return inspectionService.getAllBatchTesting();
+    @GetMapping("/inspection/batches/{moduleId}")
+    public List<BatchTestingListResponseDto> getAllBatches(  @PathVariable("batchId") Long moduleId) {
+        return inspectionService.getAllBatchTesting(moduleId);
     }
 
     @GetMapping("/inspection/batch/{batchId}")
