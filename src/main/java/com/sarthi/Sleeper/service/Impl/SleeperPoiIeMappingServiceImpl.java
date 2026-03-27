@@ -66,6 +66,7 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
 
         dto.setCompanyName(mappings.get(0).getCompanyName());
 
+        dto.setVendorId(mappings.get(0).getVendorCode());
 
         Optional<UserMaster> userMaster = userMasterRepository.findByUserId(Integer.valueOf(mappings.get(0).getVendorCode()));
 
