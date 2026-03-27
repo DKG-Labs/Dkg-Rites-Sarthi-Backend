@@ -229,27 +229,62 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
 
     /* ================= BUSINESS RULE ================= */
 
-    private void validateDefects(
-            DemouldingInspectionRequestDTO dto) {
+    private void validateDefects(DemouldingInspectionRequestDTO dto) {
 
-        if ("ALL_OK".equalsIgnoreCase(dto.getDimCheck())) {
+        String visual = dto.getVisualCheck();
+        String dim = dto.getDimCheck();
 
-            // No defects allowed
-            if (dto.getDefectiveSleepers() != null
-                    && !dto.getDefectiveSleepers().isEmpty()) {
+        List<DemouldingDefectiveSleeperDTO> defects = dto.getDefectiveSleepers();
 
-                throw new RuntimeException(
-                        "No defective sleepers allowed when ALL_OK");
+        boolean visualOk = "ALL_OK".equalsIgnoreCase(visual);
+        boolean dimOk = "ALL_OK".equalsIgnoreCase(dim);
+
+        //  Case 1: Both ALL_OK → no defects
+        if (visualOk && dimOk) {
+            if (defects != null && !defects.isEmpty()) {
+                throw new RuntimeException("No defects allowed when both are ALL_OK");
+            }
+            return;
+        }
+
+        //  If any one is not OK → defects required
+        if (defects == null || defects.isEmpty()) {
+            throw new RuntimeException("Defective sleeper details required");
+        }
+
+        //  Validate each sleeper
+        for (DemouldingDefectiveSleeperDTO d : defects) {
+
+            // Only DIM issue
+            if (visualOk && !dimOk) {
+
+                if (d.getDimReason() == null) {
+                    throw new RuntimeException(
+                            "Dim reason required for sleeper: " + d.getSleeperNo());
+                }
+
+                // Optional cleanup
+                d.setVisualReason(null);
             }
 
-        } else {
+            // Only VISUAL issue
+            else if (!visualOk && dimOk) {
 
-            // Must have defects
-            if (dto.getDefectiveSleepers() == null
-                    || dto.getDefectiveSleepers().isEmpty()) {
+                if (d.getVisualReason() == null) {
+                    throw new RuntimeException(
+                            "Visual reason required for sleeper: " + d.getSleeperNo());
+                }
 
-                throw new RuntimeException(
-                        "Defective sleeper details required");
+                d.setDimReason(null);
+            }
+
+            // BOTH issues
+            else {
+
+                if (d.getVisualReason() == null || d.getDimReason() == null) {
+                    throw new RuntimeException(
+                            "Both reasons required for sleeper: " + d.getSleeperNo());
+                }
             }
         }
     }

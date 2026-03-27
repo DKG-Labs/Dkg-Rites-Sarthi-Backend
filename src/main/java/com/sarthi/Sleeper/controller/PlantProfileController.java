@@ -95,4 +95,13 @@ public class PlantProfileController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/plant-details")
+    public ResponseEntity<Object> getPlantDetails(@RequestParam String vendorCode) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        service.getPlantDetails(vendorCode)),
+                HttpStatus.OK);
+    }
 }

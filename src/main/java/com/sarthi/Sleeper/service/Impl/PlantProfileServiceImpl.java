@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.service.Impl;
 
+import com.sarthi.Sleeper.dto.PlantDetailsResponseDto;
 import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileRequestDto;
 import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileResponseDto;
 import com.sarthi.Sleeper.entity.PlantProfile;
@@ -141,5 +142,41 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             }
             return dto;
         }
+
+    @Override
+    public List<PlantDetailsResponseDto> getPlantDetails(String vendorCode) {
+
+        List<PlantProfile> plants = repository.findAllByVendorCode(vendorCode);
+
+        if (plants.isEmpty()) {
+            throw new RuntimeException("No plants found");
+        }
+
+        List<PlantDetailsResponseDto> responseList = new ArrayList<>();
+
+        for (PlantProfile plant : plants) {
+
+            PlantDetailsResponseDto response = new PlantDetailsResponseDto();
+
+            response.setPlantType(plant.getPlantType());
+            response.setNumberOfSheds(plant.getNumberOfSheds());
+
+            List<String> units = new ArrayList<>();
+
+            String prefix = plant.getPlantType().equalsIgnoreCase("STRESS")
+                    ? "Shed"
+                    : "Line";
+
+            for (int i = 1; i <= plant.getNumberOfSheds(); i++) {
+                units.add(prefix + " " + i);
+            }
+
+            response.setUnits(units);
+
+            responseList.add(response);
+        }
+
+        return responseList;
+    }
 
 }

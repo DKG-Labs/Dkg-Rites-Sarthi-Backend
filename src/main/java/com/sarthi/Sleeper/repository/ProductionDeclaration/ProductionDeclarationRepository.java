@@ -4,8 +4,10 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -64,4 +66,13 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     List<ProductionDeclaration> findByCreatedBy(Long createdBy);
 
     List<ProductionDeclaration> findByIdIn(List<Long> ids);
+
+    @Query("SELECT DISTINCT p.batchNumber FROM ProductionDeclaration p " +
+            "WHERE p.createdBy = :createdBy AND p.castingDate = :castingDate")
+    List<String> findBatchNumbers(@Param("createdBy") Long createdBy,
+                                  @Param("castingDate") LocalDate castingDate);
+
+    @Query("SELECT DISTINCT b.benchNo FROM ProductionBenchGroup b " +
+            "WHERE b.chamber.declaration.batchNumber = :batchNo")
+    List<String> findBenchNumbers(String batchNo);
 }

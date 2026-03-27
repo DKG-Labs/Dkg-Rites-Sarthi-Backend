@@ -7,12 +7,15 @@ import com.sarthi.Sleeper.entity.SleeperPoiIeMapping;
 import com.sarthi.Sleeper.repository.SleeperPincodePoIMappingRepository;
 import com.sarthi.Sleeper.repository.SleeperPoiIeMappingRepository;
 import com.sarthi.Sleeper.service.SleeperPoiIeMappingService;
+import com.sarthi.entity.UserMaster;
+import com.sarthi.repository.UserMasterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingService {
@@ -21,6 +24,8 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
     private SleeperPoiIeMappingRepository poiIeMappingRepository;
     @Autowired
     private SleeperPincodePoIMappingRepository sleeperPincodePoIMappingRepository;
+    @Autowired
+    private UserMasterRepository userMasterRepository;
     @Override
     public List<SleeperPoiIeMapping> saveMapping(SleeperPoiIeMappingDto dto) {
 
@@ -60,6 +65,14 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
         CompanyUnitResponseDto dto = new CompanyUnitResponseDto();
 
         dto.setCompanyName(mappings.get(0).getCompanyName());
+
+
+        Optional<UserMaster> userMaster = userMasterRepository.findByUserId(Integer.valueOf(mappings.get(0).getVendorCode()));
+
+        if(userMaster.isPresent()){
+            UserMaster um = userMaster.get();
+            dto.setVendorCode(um.getUsername());
+        }
         dto.setCompanyNames(
                 mappings.stream()
                         .map(SleeperPincodePoIMapping::getCompanyName)

@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.service;
 
+import com.sarthi.Sleeper.dto.PlantDetailsResponseDto;
 import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileRequestDto;
 import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileResponseDto;
 import org.springframework.stereotype.Service;
@@ -20,4 +21,6 @@ public interface PlantProfileService {
    public void delete(Long id);
 
    public List<Integer> getDistinctShedsByVendorCode(String vendorCode);
+
+   public List<PlantDetailsResponseDto> getPlantDetails(String vendorCode);
 }

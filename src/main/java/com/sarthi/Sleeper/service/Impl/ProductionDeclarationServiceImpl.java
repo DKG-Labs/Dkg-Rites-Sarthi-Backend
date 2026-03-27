@@ -1,8 +1,11 @@
 package com.sarthi.Sleeper.service.Impl;
 
+import com.sarthi.Sleeper.dto.BenchDetailsResponseDto;
 import com.sarthi.Sleeper.dto.ProductionDeclaration.*;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.*;
+import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
+import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.ProductionDeclarationService;
 import com.sarthi.util.CommonUtils;
@@ -13,7 +16,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ProductionDeclarationServiceImpl implements ProductionDeclarationService {
@@ -22,6 +27,10 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     private ProductionDeclarationRepository repository;
     @Autowired
     private SleeperWorkflowRepository sleeperWorkflowRepository;
+    @Autowired
+    private ProductionBenchGroupRepository productionBenchGroupRepository;
+    @Autowired
+    private ProductionSleeperRepository productionSleeperRepository;
 
     @Override
     public ProductionDeclarationResponseDto create(
@@ -529,5 +538,26 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 .map(v -> v.getPlantType() + "/" + v.getCastingDate() + "/" + v.getBatchNumber() + "(" + v.getCreatedBy() + ")")
                 .toList();
     }
+
+
+    @Override
+    public List<String> getBatchNumbers(Long vendorId, LocalDate castingDate) {
+        return repository.findBatchNumbers(vendorId, castingDate);
+    }
+    @Override
+    public List<String> getBenchNumbers(String batchNo) {
+        return repository.findBenchNumbers(batchNo);
+    }
+
+    @Override
+    public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
+    }
+
+    @Override
+    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType) {
+        return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
+    }
+
 
 }

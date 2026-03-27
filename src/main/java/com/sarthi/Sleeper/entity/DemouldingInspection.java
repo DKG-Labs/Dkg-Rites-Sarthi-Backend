@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -56,5 +57,5 @@ public class DemouldingInspection {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
-    private List<DemouldingDefectiveSleeper> defectiveSleepers;
+    private List<DemouldingDefectiveSleeper> defectiveSleepers = new ArrayList<>();
 }

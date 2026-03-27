@@ -4,12 +4,16 @@ import com.sarthi.Sleeper.dto.ProductionDeclaration.ProductionDeclarationRequest
 import com.sarthi.Sleeper.dto.ProductionDeclaration.ProductionDeclarationResponseDto;
 import com.sarthi.Sleeper.service.ProductionDeclarationService;
 import com.sarthi.Sleeper.service.SleeperWorkflowService;
+import com.sarthi.util.CommonUtils;
 import com.sarthi.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/production-declaration")
@@ -94,4 +98,49 @@ public class productionDeclarationController {
                                 HttpStatus.OK);
         }
 
+
+        @GetMapping("getAll/batches")
+        public ResponseEntity<Object>  getBatchNumbers(
+                @RequestParam Long vendorId,
+                @RequestParam String castingDate) {
+
+                LocalDate date = CommonUtils.convertStringToDateObject(castingDate);
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(service.getBatchNumbers(vendorId, date)),
+                        HttpStatus.OK);
+        }
+
+        @GetMapping("getAll/benches")
+        public ResponseEntity<Object>  getBenchNumbers(
+                @RequestParam String batchNo) {
+
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(service.getBenchNumbers(batchNo)),
+                        HttpStatus.OK);
+        }
+
+        @GetMapping("getAll/sleeper-types")
+        public ResponseEntity<Object> getSleeperTypes(
+                @RequestParam String batchNo,
+                @RequestParam Integer benchNo) {
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                service.getSleeperTypes(batchNo, benchNo)),
+                        HttpStatus.OK);
+        }
+
+        @GetMapping("getAll/sleepers")
+        public ResponseEntity<Object> getSleepers(
+                @RequestParam String batchNo,
+                @RequestParam Integer benchNo,
+                @RequestParam String sleeperType) {
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                service.getSleepers(batchNo, benchNo, sleeperType)),
+                        HttpStatus.OK);
+        }
 }
