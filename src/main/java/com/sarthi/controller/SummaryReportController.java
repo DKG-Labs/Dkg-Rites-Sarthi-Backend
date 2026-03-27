@@ -2,8 +2,9 @@ package com.sarthi.controller;
 
 import com.sarthi.dto.summaryDtos.LotWiseClosedLoopDTO;
 import com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO;
-import com.sarthi.dto.summaryDtos.PageResponseDTO;
+import com.sarthi.dto.summaryDtos.MonthlyAnalysisDTO;
 import com.sarthi.service.SummaryService;
+import com.sarthi.dto.summaryDtos.PageResponseDTO;
 import com.sarthi.util.APIResponse;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -94,6 +95,18 @@ public class SummaryReportController {
 
         return ResponseEntity.ok(
                 summaryService.getRequestIds(startDate, endDate));
+    }
+
+    @GetMapping("/company-month-wise")
+    public APIResponse getCompanyMonthWiseData(
+            @RequestParam int page,
+            @RequestParam int size,
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate,
+            @RequestParam String companyName) {
+
+        return ResponseBuilder.getSuccessResponse(
+                summaryService.getComapanyWiseMonthlyAnalysis(page, size, startDate, endDate, companyName));
     }
 
 }
