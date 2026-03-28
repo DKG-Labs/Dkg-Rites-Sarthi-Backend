@@ -130,7 +130,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
       List<InspectionParameterResult> parameterResults = new ArrayList<>();
 
-      for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+   /*   for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
 
           InspectionTestResult result = new InspectionTestResult();
 
@@ -142,6 +142,49 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
           resultRepository.save(result);
 
+          if (sleeperDto.getParameters() != null) {
+
+              for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+
+                  InspectionParameter parameter =
+                          parameterMap.get(paramDto.getParameterId());
+
+                  InspectionParameterResult paramResult =
+                          new InspectionParameterResult();
+
+                  paramResult.setTestResult(result);
+                  paramResult.setParameter(parameter);
+                  paramResult.setParameterResult(paramDto.getResult());
+
+                  parameterResults.add(paramResult);
+              }
+          }
+      } */
+      for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+
+          //  CHECK if already tested
+          boolean alreadyTested =
+                  resultRepository.existsByBatchIdAndModuleIdAndSleeperId(
+                          dto.getBatchId(),
+                          dto.getModuleId(),
+                          sleeperDto.getSleeperId()
+                  );
+
+          if (alreadyTested) {
+              continue; //  skip already tested sleeper
+          }
+
+          //  Only create if not exists
+          InspectionTestResult result = new InspectionTestResult();
+
+          result.setTestHeader(header);
+          result.setSleeperId(sleeperDto.getSleeperId());
+          result.setSleeperNo(sleeperDto.getSleeperNo());
+          result.setResult(sleeperDto.getResult());
+          result.setRejectionReason(sleeperDto.getRejectionReason());
+
+          resultRepository.save(result);
+          //  parameters logic (no change)
           if (sleeperDto.getParameters() != null) {
 
               for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {

@@ -47,4 +47,13 @@ AND h.module.id = :moduleId
     List<InspectionTestResult> findFinalModuleResults(Long batchId);
 
 
+    @Query("""
+SELECT COUNT(r) > 0
+FROM InspectionTestResult r
+WHERE r.testHeader.batchId = :batchId
+AND r.testHeader.module.id = :moduleId
+AND r.sleeperId = :sleeperId
+""")
+    boolean existsByBatchIdAndModuleIdAndSleeperId(
+            Long batchId, Long moduleId, Long sleeperId);
 }
