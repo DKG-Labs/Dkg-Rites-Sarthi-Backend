@@ -3,6 +3,8 @@ package com.sarthi.dto.finalmaterial;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 /**
  * Response DTO for Final Inspection - Chemical Analysis
@@ -15,6 +17,9 @@ public class FinalChemicalAnalysisResponse {
     private String inspectionCallNo;
     private String lotNo;
     private String heatNo;
+
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate dateOfInspection;
     private Integer sampleNo;
     private BigDecimal carbonPercent;
     private BigDecimal siliconPercent;

@@ -42,7 +42,9 @@ public class FinalInclusionRatingNewServiceImpl implements FinalInclusionRatingN
             test.setLotNo(request.getLotNo());
             test.setUpdatedBy(userId);
             test.setUpdatedAt(LocalDateTime.now());
+            test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             log.info("Updating existing inclusion rating session, id={}", test.getId());
         } else {
             test = new FinalInclusionRatingNew();
@@ -53,6 +55,7 @@ public class FinalInclusionRatingNewServiceImpl implements FinalInclusionRatingN
             test.setSamplingType(request.getSamplingType());
             test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             test.setCreatedBy(userId);
             log.info("Creating new inclusion rating session");
         }
@@ -164,7 +167,9 @@ public class FinalInclusionRatingNewServiceImpl implements FinalInclusionRatingN
         response.setSampleSize(entity.getSampleSize());
         response.setSamplingType(entity.getSamplingType());
         response.setRemarks(entity.getRemarks());
+        response.setDateOfInspection(entity.getDateOfInspection());
         response.setStatus(entity.getStatus());
+        response.setRejected(entity.getRejected());
         response.setCreatedBy(entity.getCreatedBy());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedBy(entity.getUpdatedBy());

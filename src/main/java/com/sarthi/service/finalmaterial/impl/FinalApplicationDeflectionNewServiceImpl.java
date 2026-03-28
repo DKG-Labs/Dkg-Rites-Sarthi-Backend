@@ -48,6 +48,13 @@ public class FinalApplicationDeflectionNewServiceImpl implements FinalApplicatio
             inspection.setUpdatedBy(userId);
             inspection.setUpdatedAt(LocalDateTime.now());
             inspection.setRemarks(request.getRemarks());
+            inspection.setDateOfInspection(request.getDateOfInspection());
+            if (request.getStatus() != null) {
+                inspection.setStatus(request.getStatus());
+            }
+            if (request.getRejected() != null) {
+                inspection.setRejected(request.getRejected());
+            }
             log.info("Updating existing application & deflection test session, id={}", inspection.getId());
         } else {
             // FIRST SAVE: Create new parent row
@@ -56,8 +63,10 @@ public class FinalApplicationDeflectionNewServiceImpl implements FinalApplicatio
             inspection.setLotNo(request.getLotNo());
             inspection.setHeatNo(request.getHeatNo());
             inspection.setSampleSize(request.getSampleSize());
-            inspection.setStatus("PENDING");
+            inspection.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            inspection.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             inspection.setRemarks(request.getRemarks());
+            inspection.setDateOfInspection(request.getDateOfInspection());
             inspection.setCreatedBy(userId);
             inspection.setCreatedAt(LocalDateTime.now());
             log.info("Creating new application & deflection test session");
@@ -123,6 +132,11 @@ public class FinalApplicationDeflectionNewServiceImpl implements FinalApplicatio
                 log.info("Deleted {} orphaned samples for inspection id={}", orphanedSamples.size(), inspection.getId());
             }
         }
+
+        // Backend recalculation as a safety measure
+        long totalRejected = sampleRepository.sumRejectedByTestId(inspection.getId());
+        inspection.setRejected((int) totalRejected);
+        inspection = applicationDeflectionRepository.save(inspection);
 
         return mapToResponse(inspection);
     }
@@ -192,7 +206,9 @@ public class FinalApplicationDeflectionNewServiceImpl implements FinalApplicatio
         response.setHeatNo(inspection.getHeatNo());
         response.setSampleSize(inspection.getSampleSize());
         response.setStatus(inspection.getStatus());
+        response.setRejected(inspection.getRejected());
         response.setRemarks(inspection.getRemarks());
+        response.setDateOfInspection(inspection.getDateOfInspection());
         response.setCreatedBy(inspection.getCreatedBy());
         response.setCreatedAt(inspection.getCreatedAt());
         response.setUpdatedBy(inspection.getUpdatedBy());

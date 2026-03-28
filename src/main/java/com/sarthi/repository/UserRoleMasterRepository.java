@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface UserRoleMasterRepository extends JpaRepository<UserRoleMaster, Integer> {
     List<UserRoleMaster> findByUserId(Integer userId);
+
+    boolean existsByUserIdAndRoleId(Integer userId, Integer roleId);
 }

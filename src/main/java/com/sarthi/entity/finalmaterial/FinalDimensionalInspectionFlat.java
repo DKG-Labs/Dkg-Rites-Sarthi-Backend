@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * Entity for Final Dimensional Inspection - FLAT STRUCTURE
@@ -34,6 +35,9 @@ public class FinalDimensionalInspectionFlat {
 
     @Column(name = "inspection_call_no", nullable = false, length = 50)
     private String inspectionCallNo;
+
+    @Column(name = "date_of_inspection")
+    private LocalDate dateOfInspection;
 
     @Column(name = "lot_no", nullable = false, length = 100)
     private String lotNo;
