@@ -112,6 +112,35 @@ public class PlantProfileServiceImpl implements PlantProfileService {
                                     "Plant Profile not found")));
 
             repository.deleteById(entity.getId());
+
+            Long moduleId = 1L;
+
+            SleeperWorkflowTransaction lastWorkflow =
+                    sleeperWorkflowRepository
+                            .findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+                                    moduleId,
+                                    String.valueOf(entity.getId())
+                            );
+
+            SleeperWorkflowTransaction newWorkflow = new SleeperWorkflowTransaction();
+
+            newWorkflow.setModuleId(moduleId);
+            newWorkflow.setRequestId(String.valueOf(entity.getId()));
+
+            newWorkflow.setAction("DELETE");
+            newWorkflow.setStatus("DELETED");
+
+            if (lastWorkflow != null) {
+                newWorkflow.setWorkflowId(lastWorkflow.getWorkflowId());
+                newWorkflow.setCurrentRole(lastWorkflow.getCurrentRole());
+                newWorkflow.setNextRole(null);
+                newWorkflow.setAssignedToUser(lastWorkflow.getAssignedToUser());
+            }
+
+            newWorkflow.setModifiedBy(Long.valueOf(entity.getCreatedBy()));
+            newWorkflow.setCreatedDate(LocalDateTime.now());
+
+            sleeperWorkflowRepository.save(newWorkflow);
         }
 
         @Override

@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.RawMaterialSourceRequestDto;
 import com.sarthi.Sleeper.dto.RawMaterialSourceResponseDto;
 import com.sarthi.Sleeper.entity.RawMaterialSource;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.repository.RawMaterialSourceRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.RawMaterialSourceService;
@@ -132,6 +133,35 @@ public class RawMaterialSourceServiceImpl implements RawMaterialSourceService {
                                     AppConstant.ERROR_TYPE_VALIDATION,
                                     "Source not found")));
             repository.deleteById(entity.getId());
+
+            Long moduleId = 3L;
+
+            SleeperWorkflowTransaction lastWorkflow =
+                    sleeperWorkflowRepository
+                            .findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+                                    moduleId,
+                                    String.valueOf(entity.getId())
+                            );
+
+            SleeperWorkflowTransaction newWorkflow = new SleeperWorkflowTransaction();
+
+            newWorkflow.setModuleId(moduleId);
+            newWorkflow.setRequestId(String.valueOf(entity.getId()));
+
+            newWorkflow.setAction("DELETE");
+            newWorkflow.setStatus("DELETED");
+
+            if (lastWorkflow != null) {
+                newWorkflow.setWorkflowId(lastWorkflow.getWorkflowId());
+                newWorkflow.setCurrentRole(lastWorkflow.getCurrentRole());
+                newWorkflow.setNextRole(null);
+                newWorkflow.setAssignedToUser(lastWorkflow.getAssignedToUser());
+            }
+
+            newWorkflow.setModifiedBy(Long.valueOf(entity.getCreatedBy()));
+            newWorkflow.setCreatedDate(LocalDateTime.now());
+
+            sleeperWorkflowRepository.save(newWorkflow);
         }
 
 

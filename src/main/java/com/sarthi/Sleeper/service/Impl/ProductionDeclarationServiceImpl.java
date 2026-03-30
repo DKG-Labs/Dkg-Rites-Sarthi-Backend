@@ -2,12 +2,17 @@ package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.BenchDetailsResponseDto;
 import com.sarthi.Sleeper.dto.ProductionDeclaration.*;
+import com.sarthi.Sleeper.entity.PlantProfile;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.*;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.ProductionDeclarationService;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -485,15 +490,43 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
     @Override
     public void delete(Long id) {
-        // PlantProfile entity = repository.findById(id)
-        // .orElseThrow(() -> new BusinessException(
-        // new ErrorDetails(
-        // AppConstant.ERROR_CODE_RESOURCE,
-        // AppConstant.ERROR_TYPE_CODE_RESOURCE,
-        // AppConstant.ERROR_TYPE_VALIDATION,
-        // "Plant Profile not found")));
+        ProductionDeclaration entity = repository.findById(id)
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Production not found")));
 
-        repository.deleteById(id);
+        repository.deleteById(entity.getId());
+        Long moduleId = 11L;
+
+        SleeperWorkflowTransaction lastWorkflow =
+                sleeperWorkflowRepository
+                        .findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+                                moduleId,
+                                String.valueOf(entity.getId())
+                        );
+
+        SleeperWorkflowTransaction newWorkflow = new SleeperWorkflowTransaction();
+
+        newWorkflow.setModuleId(moduleId);
+        newWorkflow.setRequestId(String.valueOf(entity.getId()));
+
+        newWorkflow.setAction("DELETE");
+        newWorkflow.setStatus("DELETED");
+
+        if (lastWorkflow != null) {
+            newWorkflow.setWorkflowId(lastWorkflow.getWorkflowId());
+            newWorkflow.setCurrentRole(lastWorkflow.getCurrentRole());
+            newWorkflow.setNextRole(null);
+            newWorkflow.setAssignedToUser(lastWorkflow.getAssignedToUser());
+        }
+
+        newWorkflow.setModifiedBy(Long.valueOf(entity.getCreatedBy()));
+        newWorkflow.setCreatedDate(LocalDateTime.now());
+
+        sleeperWorkflowRepository.save(newWorkflow);
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.SgciInventory.SgciInsertRequestDto;
 import com.sarthi.Sleeper.dto.SgciInventory.SgciInsertResponseDto;
 import com.sarthi.Sleeper.entity.SgciInsertInventory;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.repository.SgciInsertInventoryRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.SgciInsertInventoryService;
@@ -237,6 +238,35 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
                                     AppConstant.ERROR_TYPE_VALIDATION,
                                     "SGCI Insert not found")));
         repository.deleteById(entity.getId());
+
+            Long moduleId = 9L;
+
+            SleeperWorkflowTransaction lastWorkflow =
+                    sleeperWorkflowRepository
+                            .findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+                                    moduleId,
+                                    String.valueOf(entity.getId())
+                            );
+
+            SleeperWorkflowTransaction newWorkflow = new SleeperWorkflowTransaction();
+
+            newWorkflow.setModuleId(moduleId);
+            newWorkflow.setRequestId(String.valueOf(entity.getId()));
+
+            newWorkflow.setAction("DELETE");
+            newWorkflow.setStatus("DELETED");
+
+            if (lastWorkflow != null) {
+                newWorkflow.setWorkflowId(lastWorkflow.getWorkflowId());
+                newWorkflow.setCurrentRole(lastWorkflow.getCurrentRole());
+                newWorkflow.setNextRole(null);
+                newWorkflow.setAssignedToUser(lastWorkflow.getAssignedToUser());
+            }
+
+            newWorkflow.setModifiedBy(Long.valueOf(entity.getCreatedBy()));
+            newWorkflow.setCreatedDate(LocalDateTime.now());
+
+            sleeperWorkflowRepository.save(newWorkflow);
         }
 
 }

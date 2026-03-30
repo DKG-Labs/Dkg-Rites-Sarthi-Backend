@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.MixDesignRequestDto;
 import com.sarthi.Sleeper.dto.MixDesignResponseDto;
 import com.sarthi.Sleeper.entity.MixDesign;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.repository.MixDesignRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.MixDesignService;
@@ -140,6 +141,35 @@ public class MixDesignServiceImpl implements MixDesignService {
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Mix Design not found")));
         repository.deleteById(entity.getId());
+
+        Long moduleId = 4L;
+
+        SleeperWorkflowTransaction lastWorkflow =
+                sleeperWorkflowRepository
+                        .findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+                                moduleId,
+                                String.valueOf(entity.getId())
+                        );
+
+        SleeperWorkflowTransaction newWorkflow = new SleeperWorkflowTransaction();
+
+        newWorkflow.setModuleId(moduleId);
+        newWorkflow.setRequestId(String.valueOf(entity.getId()));
+
+        newWorkflow.setAction("DELETE");
+        newWorkflow.setStatus("DELETED");
+
+        if (lastWorkflow != null) {
+            newWorkflow.setWorkflowId(lastWorkflow.getWorkflowId());
+            newWorkflow.setCurrentRole(lastWorkflow.getCurrentRole());
+            newWorkflow.setNextRole(null);
+            newWorkflow.setAssignedToUser(lastWorkflow.getAssignedToUser());
+        }
+
+        newWorkflow.setModifiedBy(Long.valueOf(entity.getCreatedBy()));
+        newWorkflow.setCreatedDate(LocalDateTime.now());
+
+        sleeperWorkflowRepository.save(newWorkflow);
     }
 
     // ================= RESPONSE BUILDER =================

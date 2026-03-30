@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.dto.Cement.CementReceiptRequestDto;
 import com.sarthi.Sleeper.dto.Cement.CementReceiptResponseDto;
 import com.sarthi.Sleeper.entity.Cement.CementBatchDetails;
 import com.sarthi.Sleeper.entity.Cement.CementReceipt;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.repository.CementReceiptRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.CementService;
@@ -360,6 +361,35 @@ public class CementServiceImpl implements CementService {
                                     AppConstant.ERROR_TYPE_VALIDATION,
                                     "Cement not found")));
             repository.deleteById(entity.getId());
+
+            Long moduleId = 6L;
+
+            SleeperWorkflowTransaction lastWorkflow =
+                    sleeperWorkflowRepository
+                            .findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+                                    moduleId,
+                                    String.valueOf(entity.getId())
+                            );
+
+            SleeperWorkflowTransaction newWorkflow = new SleeperWorkflowTransaction();
+
+            newWorkflow.setModuleId(moduleId);
+            newWorkflow.setRequestId(String.valueOf(entity.getId()));
+
+            newWorkflow.setAction("DELETE");
+            newWorkflow.setStatus("DELETED");
+
+            if (lastWorkflow != null) {
+                newWorkflow.setWorkflowId(lastWorkflow.getWorkflowId());
+                newWorkflow.setCurrentRole(lastWorkflow.getCurrentRole());
+                newWorkflow.setNextRole(null);
+                newWorkflow.setAssignedToUser(lastWorkflow.getAssignedToUser());
+            }
+
+            newWorkflow.setModifiedBy(Long.valueOf(entity.getCreatedBy()));
+            newWorkflow.setCreatedDate(LocalDateTime.now());
+
+            sleeperWorkflowRepository.save(newWorkflow);
         }
 
 }

@@ -111,4 +111,11 @@ AND t.status = 'Completed'
                 )
             """, nativeQuery = true)
     Long isWorkflowCompleted(@Param("requestId") Long requestId);
+
+    @Query("SELECT s FROM SleeperWorkflowTransaction s " +
+            "WHERE s.moduleId = :moduleId AND s.requestId = :requestId " +
+            "ORDER BY s.workflowTransitionId DESC LIMIT 1")
+    SleeperWorkflowTransaction findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+            @Param("moduleId") Long moduleId,
+            @Param("requestId") String requestId);
 }

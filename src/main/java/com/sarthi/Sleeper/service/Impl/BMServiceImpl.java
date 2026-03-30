@@ -9,14 +9,18 @@ import com.sarthi.Sleeper.dto.BenchQueryRequestDTO;
 import com.sarthi.Sleeper.entity.BenchMouldLongAndStress.BMLongLineDetails;
 import com.sarthi.Sleeper.entity.BenchMouldLongAndStress.BMMaster;
 import com.sarthi.Sleeper.entity.BenchMouldLongAndStress.BMStressDetails;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.entity.StressBenchMaster;
 import com.sarthi.Sleeper.repository.BMLongLineDetailsRepository;
 import com.sarthi.Sleeper.repository.BMMasterRepository;
 import com.sarthi.Sleeper.repository.BMStressDetailsRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.BMService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -27,6 +31,8 @@ public class BMServiceImpl implements BMService {
         private final BMMasterRepository masterRepo;
         private final BMStressDetailsRepository stressRepo;
         private final BMLongLineDetailsRepository longLineRepo;
+        @Autowired
+        private SleeperWorkflowRepository sleeperWorkflowRepository;
 
     @Override
     public BMResponseDTO create(BMRequestDTO request) {
@@ -256,6 +262,34 @@ public class BMServiceImpl implements BMService {
                     .orElseThrow(() -> new RuntimeException("Bench not found with id: " + id));
 
             masterRepo.delete(entity);
+        Long moduleId = 2L;
+
+        SleeperWorkflowTransaction lastWorkflow =
+                sleeperWorkflowRepository
+                        .findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
+                                moduleId,
+                                String.valueOf(entity.getId())
+                        );
+
+        SleeperWorkflowTransaction newWorkflow = new SleeperWorkflowTransaction();
+
+        newWorkflow.setModuleId(moduleId);
+        newWorkflow.setRequestId(String.valueOf(entity.getId()));
+
+        newWorkflow.setAction("DELETE");
+        newWorkflow.setStatus("DELETED");
+
+        if (lastWorkflow != null) {
+            newWorkflow.setWorkflowId(lastWorkflow.getWorkflowId());
+            newWorkflow.setCurrentRole(lastWorkflow.getCurrentRole());
+            newWorkflow.setNextRole(null);
+            newWorkflow.setAssignedToUser(lastWorkflow.getAssignedToUser());
+        }
+
+        newWorkflow.setModifiedBy(Long.valueOf(entity.getCreatedBy()));
+        newWorkflow.setCreatedDate(LocalDateTime.now());
+
+        sleeperWorkflowRepository.save(newWorkflow);
 
     }
 
