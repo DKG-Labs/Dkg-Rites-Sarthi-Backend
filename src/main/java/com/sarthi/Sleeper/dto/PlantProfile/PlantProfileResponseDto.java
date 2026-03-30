@@ -14,6 +14,7 @@ public class PlantProfileResponseDto {
         private String plantType;
         private Integer numberOfSheds;
 
+        private String plantId;
         private Integer createdBy;
         private LocalDateTime createdDate;
 

@@ -43,6 +43,8 @@ public class HtsWireServiceImpl implements HtsWireService {
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
 
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
         mapCoilDetails(entity, dto);
 
         HtsWire saved = repository.save(entity);
@@ -68,7 +70,8 @@ public class HtsWireServiceImpl implements HtsWireService {
 
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
-
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
         // Clear old child records
         entity.getCoilDetails().clear();
 
@@ -165,6 +168,8 @@ public class HtsWireServiceImpl implements HtsWireService {
         entity.setInvoiceNumber(dto.getInvoiceNumber());
         entity.setRitesIcNumber(dto.getRitesIcNumber());
 
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
         entity.setRelaxationTest(dto.getRelaxationTest());
 
         if (dto.getDateOfReceipt() != null) {
@@ -213,6 +218,7 @@ public class HtsWireServiceImpl implements HtsWireService {
                 coil.setLotNo(cDto.getLotNo());
                 coil.setQtyKg(cDto.getQtyKg());
 
+
                 // 🔥 SINGLE
                 if ("SINGLE".equalsIgnoreCase(cDto.getEntryType())) {
 
@@ -257,6 +263,8 @@ public class HtsWireServiceImpl implements HtsWireService {
         dto.setInvoiceNumber(entity.getInvoiceNumber());
         dto.setRitesIcNumber(entity.getRitesIcNumber());
 
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setRelaxationTest(entity.getRelaxationTest());
         dto.setTotalQtyReceived(entity.getTotalQtyReceived());

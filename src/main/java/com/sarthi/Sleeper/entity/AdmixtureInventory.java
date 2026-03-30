@@ -49,4 +49,7 @@ public class AdmixtureInventory {
 
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
+
+    private String vendorCode;
+    private String plantId;
 }

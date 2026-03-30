@@ -16,4 +16,7 @@ public class AggregatesRequestDto {
 
     private Integer createdBy;
     private Integer updatedBy;
+
+    private String vendorCode;
+    private String plantId;
 }

@@ -44,6 +44,9 @@ public class BMServiceImpl implements BMService {
         master.setSubCategory(request.getSubCategory());
         master.setDrawingNo(request.getDrawingNo());
         master.setCreatedBy(request.getCreatedBy());
+
+        master.setVendorCode(request.getVendorCode());
+        master.setPlantId(request.getPlantId());
         master.setCreatedDate(new Date());
 
         master = masterRepo.save(master);
@@ -118,6 +121,8 @@ public class BMServiceImpl implements BMService {
         master.setUpdatedBy(request.getCreatedBy());
         master.setUpdatedDate(new Date());
 
+        master.setVendorCode(request.getVendorCode());
+        master.setPlantId(request.getPlantId());
         masterRepo.save(master);
 
         if ("STRESS".equalsIgnoreCase(master.getPlantType())) {
@@ -325,6 +330,9 @@ public class BMServiceImpl implements BMService {
         response.setDrawingNo(master.getDrawingNo());
         response.setCreatedBy(master.getCreatedBy());
         response.setCreatedDate(master.getCreatedDate());
+
+       response.setVendorCode(master.getVendorCode());
+        response.setPlantId(master.getPlantId());
         //response.setUpdatedBy(master.getUpdatedBy());
       //  response.setUpdatedDate(master.getUpdatedDate());
 
@@ -359,6 +367,7 @@ public class BMServiceImpl implements BMService {
         dto.setSleeperCode(d.getSleeperCode());
         dto.setSleeperDrawingNo(d.getSleeperDrawingNo());
         dto.setDeclarationMode(d.getDeclarationMode());
+
 
         dto.setBenchFrom(d.getBenchFrom());
         dto.setBenchTo(d.getBenchTo());

@@ -41,7 +41,9 @@ public class MixDesignServiceImpl implements MixDesignService {
         entity.setCa2(dto.getCa2());
         entity.setFa(dto.getFa());
         entity.setWater(dto.getWater());
+        entity.setVendorCode(dto.getVendorCode());
 
+        entity.setPlantId(dto.getPlantId());
         entity.setAcRatio(dto.getAcRatio());   // coming from frontend
         entity.setWcRatio(dto.getWcRatio());   // coming from frontend
 
@@ -72,6 +74,9 @@ public class MixDesignServiceImpl implements MixDesignService {
         entity.setCa2(dto.getCa2());
         entity.setFa(dto.getFa());
         entity.setWater(dto.getWater());
+        entity.setVendorCode(dto.getVendorCode());
+
+        entity.setPlantId(dto.getPlantId());
 
         entity.setAcRatio(dto.getAcRatio());   // from frontend
         entity.setWcRatio(dto.getWcRatio());   // from frontend
@@ -172,7 +177,6 @@ public class MixDesignServiceImpl implements MixDesignService {
         sleeperWorkflowRepository.save(newWorkflow);
     }
 
-    // ================= RESPONSE BUILDER =================
     private MixDesignResponseDto buildResponse(MixDesign entity) {
 
         MixDesignResponseDto dto = new MixDesignResponseDto();
@@ -192,6 +196,8 @@ public class MixDesignServiceImpl implements MixDesignService {
         dto.setCreatedDate(entity.getCreatedDate());
         dto.setUpdatedBy(entity.getUpdatedBy());
         dto.setUpdatedDate(entity.getUpdatedDate());
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
         String status = sleeperWorkflowRepository
                 .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 4L )
                 .orElse("NOT_STARTED");

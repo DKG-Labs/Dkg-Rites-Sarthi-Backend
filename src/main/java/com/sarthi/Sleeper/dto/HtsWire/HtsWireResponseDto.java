@@ -27,5 +27,9 @@ public class HtsWireResponseDto {
 
     private String status;
 
+
+    private String vendorCode;
+    private String plantId;
+
     private List<HtsCoilDetailsResponseDto> coilDetails;
 }

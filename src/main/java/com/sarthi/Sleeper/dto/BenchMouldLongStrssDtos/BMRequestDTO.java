@@ -11,6 +11,9 @@ public class BMRequestDTO {
     private String category;
     private String subCategory;
     private String drawingNo;
+    private String vendorCode;
+    private String plantId;
+
 
     private Integer createdBy;
 

@@ -38,6 +38,8 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
             entity.setRitesIcNumber(dto.getRitesIcNumber());
             entity.setTotalQtyReceived(dto.getTotalQtyReceived());
 
+            entity.setPlantId(dto.getPlantId());
+            entity.setVendorCode(dto.getVendorCode());
             if (dto.getDateOfReceipt() != null) {
                 entity.setDateOfReceipt(
                         CommonUtils.convertStringToDateObject(dto.getDateOfReceipt()));
@@ -106,6 +108,9 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
             entity.setRitesIcNumber(dto.getRitesIcNumber());
             entity.setTotalQtyReceived(dto.getTotalQtyReceived());
 
+
+            entity.setPlantId(dto.getPlantId());
+            entity.setVendorCode(dto.getVendorCode());
             if (dto.getDateOfReceipt() != null) {
                 entity.setDateOfReceipt(
                         CommonUtils.convertStringToDateObject(dto.getDateOfReceipt()));
@@ -155,6 +160,9 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
             response.setUpdatedBy(entity.getUpdatedBy());
             response.setUpdatedDate(entity.getUpdatedDate());
 
+            response.setPlantId(entity.getPlantId());
+
+            response.setVendorCode(entity.getVendorCode());
             if (entity.getDateOfReceipt() != null) {
                 response.setDateOfReceipt(
                         CommonUtils.convertDateToString(entity.getDateOfReceipt()));
@@ -196,6 +204,9 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
                 response.setUpdatedBy(entity.getUpdatedBy());
                 response.setUpdatedDate(entity.getUpdatedDate());
 
+                response.setPlantId(entity.getPlantId());
+
+                response.setVendorCode(entity.getVendorCode());
                 String status = sleeperWorkflowRepository
                         .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 9L)
                         .orElse("NOT_STARTED");

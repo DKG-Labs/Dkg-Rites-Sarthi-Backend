@@ -53,6 +53,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         entity.setMixDesignReference(dto.getMixDesignReference());
         LocalTime pTime = CommonUtils.convertStringToTimeObject(dto.getLbcTime());
 
+        entity.setPlantType(dto.getPlantType());
+        entity.setVendorCode(dto.getVendorCode());
+
         entity.setLbcTime(pTime);
 
         entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
@@ -275,6 +278,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         LocalDate cDate = CommonUtils.convertStringToDateObject(dto.getCastingDate());
         entity.setCastingDate(cDate);
 
+        entity.setPlantType(dto.getPlantType());
+        entity.setVendorCode(dto.getVendorCode());
+
         entity.setShift(dto.getShift());
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setMixDesignReference(dto.getMixDesignReference());
@@ -391,6 +397,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         response.setBatchNumber(entity.getBatchNumber());
         response.setMixDesignReference(entity.getMixDesignReference());
         response.setLbcTime(entity.getLbcTime());
+
+        response.setVendorCode(entity.getVendorCode());
+        response.setPlantId(entity.getPlantId());
 
         response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
         response.setTotalSleeperTypes(entity.getTotalSleeperTypes());
@@ -529,17 +538,126 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         sleeperWorkflowRepository.save(newWorkflow);
     }
 
-    @Override
-    public List<ProductionDeclarationResponseDto> getAll() {
+//    @Override
+//    public List<ProductionDeclarationResponseDto> getAll() {
+//
+//        List<ProductionDeclarationResponseDto> list = new ArrayList<>();
+//
+//        for (ProductionDeclaration entity : repository.findAll()) {
+//
+//            list.add(getById(entity.getId()));
+//        }
+//
+//        return list;
+//    }
+@Override
+public List<ProductionDeclarationResponseDto> getAll() {
 
-        List<ProductionDeclarationResponseDto> list = new ArrayList<>();
+    return repository.findAll()
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
+    private ProductionDeclarationResponseDto mapToResponse(ProductionDeclaration entity) {
 
-        for (ProductionDeclaration entity : repository.findAll()) {
+        ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
 
-            list.add(getById(entity.getId()));
+        response.setId(entity.getId());
+        response.setPlantType(entity.getPlantType());
+        response.setProductionUnit(entity.getProductionUnit());
+        response.setCastingDate(CommonUtils.convertDateToString(entity.getCastingDate()));
+        response.setShift(entity.getShift());
+        response.setBatchNumber(entity.getBatchNumber());
+        response.setMixDesignReference(entity.getMixDesignReference());
+        response.setLbcTime(entity.getLbcTime());
+        response.setVendorCode(entity.getVendorCode());
+
+        response.setPlantId(entity.getPlantId());
+
+        response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
+        response.setTotalSleeperTypes(entity.getTotalSleeperTypes());
+        response.setTotalRft(entity.getTotalRft());
+
+        response.setRemarks(entity.getRemarks());
+
+        response.setCreatedBy(entity.getCreatedBy());
+        response.setCreatedDate(entity.getCreatedDate());
+        response.setUpdatedBy(entity.getUpdatedBy());
+        response.setUpdatedDate(entity.getUpdatedDate());
+
+
+        String status = sleeperWorkflowRepository
+                .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 11L)
+                .orElse("NOT_STARTED");
+
+        response.setStatus(status);
+
+        // ================= STRESS BENCH =================
+        if (entity.getChambers() != null) {
+
+            List<ProductionStressChamberResponseDto> chamberList = entity.getChambers().stream().map(chamber -> {
+
+                ProductionStressChamberResponseDto chamberDto = new ProductionStressChamberResponseDto();
+                chamberDto.setId(chamber.getId());
+                chamberDto.setChamberNo(chamber.getChamberNo());
+
+                if (chamber.getBenchGroups() != null) {
+
+                    List<ProductionBenchGroupResponseDto> benchList = chamber.getBenchGroups().stream().map(bench -> {
+
+                        ProductionBenchGroupResponseDto benchDto = new ProductionBenchGroupResponseDto();
+
+                        benchDto.setId(bench.getId());
+                        benchDto.setBenchNo(bench.getBenchNo());
+                        benchDto.setSleeperType(bench.getSleeperType());
+                        benchDto.setMouldPerBench(bench.getMouldPerBench());
+                        benchDto.setRft(bench.getRft());
+
+                        if (bench.getSleepers() != null) {
+                            benchDto.setSleepers(
+                                    bench.getSleepers().stream()
+                                            .map(ProductionSleeper::getSleeperNo)
+                                            .toList()
+                            );
+                        }
+
+                        return benchDto;
+
+                    }).toList();
+
+                    chamberDto.setBenchGroups(benchList);
+                }
+
+                return chamberDto;
+
+            }).toList();
+
+            response.setChambers(chamberList);
         }
 
-        return list;
+        // ================= LONG LINE =================
+        if (entity.getGangs() != null) {
+
+            List<ProductionLongLineGangResponseDto> gangList = entity.getGangs().stream().map(gang -> {
+
+                ProductionLongLineGangResponseDto gangDto = new ProductionLongLineGangResponseDto();
+
+                gangDto.setId(gang.getId());
+                gangDto.setMode(gang.getMode());
+                gangDto.setGangFrom(gang.getGangFrom());
+                gangDto.setGangTo(gang.getGangTo());
+                gangDto.setGangNo(gang.getGangNo());
+                gangDto.setSleeperType(gang.getSleeperType());
+                gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+
+                return gangDto;
+
+            }).toList();
+
+            response.setGangs(gangList);
+        }
+
+        return response;
     }
 
     @Override

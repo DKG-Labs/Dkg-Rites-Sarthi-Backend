@@ -9,6 +9,7 @@ public class PlantProfileRequestDto {
     private String vendorCode;
     private String plantType;
     private Integer numberOfSheds;
+    private String plantId;
 
     private Integer createdBy;
     private Integer updatedBy;

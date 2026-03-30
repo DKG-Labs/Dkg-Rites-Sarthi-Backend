@@ -37,6 +37,8 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             entity.setPlantType(dto.getPlantType());
             entity.setNumberOfSheds(dto.getNumberOfSheds());
 
+            entity.setPlantId(dto.getPlantId());
+
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setCreatedDate(LocalDateTime.now());
 
@@ -63,6 +65,7 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             entity.setPlantType(dto.getPlantType());
             entity.setNumberOfSheds(dto.getNumberOfSheds());
 
+            entity.setPlantId(dto.getPlantId());
             entity.setUpdatedBy(dto.getUpdatedBy());
             entity.setUpdatedDate(LocalDateTime.now());
 
@@ -163,6 +166,7 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             dto.setUpdatedBy(entity.getUpdatedBy());
             dto.setUpdatedDate(entity.getUpdatedDate());
 
+            dto.setPlantId(entity.getPlantId());
             String status = sleeperWorkflowRepository
                     .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 1L)
                     .orElse("NOT_STARTED");
@@ -189,6 +193,7 @@ public class PlantProfileServiceImpl implements PlantProfileService {
 
             response.setPlantType(plant.getPlantType());
             response.setNumberOfSheds(plant.getNumberOfSheds());
+
 
             List<String> units = new ArrayList<>();
 

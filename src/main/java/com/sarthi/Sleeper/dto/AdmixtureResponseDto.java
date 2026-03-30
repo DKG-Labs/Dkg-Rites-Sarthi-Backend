@@ -27,4 +27,8 @@ public class AdmixtureResponseDto {
     private Integer updatedBy;
     private LocalDateTime updatedDate;
     private String status;
+
+
+    private String vendorCode;
+    private String plantId;
 }

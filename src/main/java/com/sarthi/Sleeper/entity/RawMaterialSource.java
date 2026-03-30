@@ -41,4 +41,7 @@ public class RawMaterialSource {
 
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
+
+    private String vendorCode;
+    private String plantId;
 }

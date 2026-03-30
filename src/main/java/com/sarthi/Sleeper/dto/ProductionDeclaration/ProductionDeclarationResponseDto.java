@@ -36,6 +36,8 @@ public class ProductionDeclarationResponseDto {
 
     private String status;
 
+    private String vendorCode;
+    private String plantId;
     private List<ProductionStressChamberResponseDto> chambers;
 
     private List<ProductionLongLineGangResponseDto> gangs;

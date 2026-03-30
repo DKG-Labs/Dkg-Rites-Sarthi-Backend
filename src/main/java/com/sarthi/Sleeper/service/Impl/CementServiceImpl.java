@@ -39,6 +39,8 @@ public class CementServiceImpl implements CementService {
             entity.setGradeSpec(dto.getGradeSpec());
             entity.setManufacturer(dto.getManufacturer());
             entity.setInvoiceNumber(dto.getInvoiceNumber());
+            entity.setPlantId(dto.getPlantId());
+            entity.setVendorCode(dto.getVendorCode());
 
             if (dto.getDateOfReceipt() != null) {
                 entity.setDateOfReceipt(
@@ -141,6 +143,9 @@ public class CementServiceImpl implements CementService {
             entity.setGradeSpec(dto.getGradeSpec());
             entity.setManufacturer(dto.getManufacturer());
             entity.setInvoiceNumber(dto.getInvoiceNumber());
+
+            entity.setPlantId(dto.getPlantId());
+            entity.setVendorCode(dto.getVendorCode());
 
             if (dto.getDateOfReceipt() != null) {
                 entity.setDateOfReceipt(
@@ -250,6 +255,8 @@ public class CementServiceImpl implements CementService {
             response.setCreatedDate(entity.getCreatedDate());
             response.setUpdatedDate(entity.getUpdatedDate());
 
+            response.setPlantId(entity.getPlantId());
+            response.setVendorCode(entity.getVendorCode());
             if (entity.getDateOfReceipt() != null) {
                 response.setDateOfReceipt(
                         CommonUtils.convertDateToString(entity.getDateOfReceipt()));
@@ -299,7 +306,8 @@ public class CementServiceImpl implements CementService {
             response.setManufacturer(entity.getManufacturer());
             response.setInvoiceNumber(entity.getInvoiceNumber());
             response.setTotalQtyReceived(entity.getTotalQtyReceived());
-
+            response.setPlantId(entity.getPlantId());
+            response.setVendorCode(entity.getVendorCode());
             response.setCreatedBy(entity.getCreatedBy());
             response.setUpdatedBy(entity.getUpdatedBy());
             response.setCreatedDate(entity.getCreatedDate());

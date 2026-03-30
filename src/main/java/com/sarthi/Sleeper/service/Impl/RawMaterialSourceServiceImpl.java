@@ -37,6 +37,8 @@ public class RawMaterialSourceServiceImpl implements RawMaterialSourceService {
             entity.setSupplierName(dto.getSupplierName());
             entity.setApprovalReference(dto.getApprovalReference());
 
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setPlantId(dto.getPlantId());
             if (dto.getValidFrom() != null) {
                 entity.setValidFrom(
                         CommonUtils.convertStringToDateObject(dto.getValidFrom()));
@@ -72,6 +74,8 @@ public class RawMaterialSourceServiceImpl implements RawMaterialSourceService {
             entity.setSupplierName(dto.getSupplierName());
             entity.setApprovalReference(dto.getApprovalReference());
 
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setPlantId(dto.getPlantId());
             if (dto.getValidFrom() != null) {
                 entity.setValidFrom(
                         CommonUtils.convertStringToDateObject(dto.getValidFrom()));
@@ -175,6 +179,8 @@ public class RawMaterialSourceServiceImpl implements RawMaterialSourceService {
             dto.setSupplierName(entity.getSupplierName());
             dto.setApprovalReference(entity.getApprovalReference());
 
+            dto.setVendorCode(entity.getVendorCode());
+            dto.setPlantId(entity.getPlantId());
             if (entity.getValidFrom() != null) {
                 dto.setValidFrom(CommonUtils.convertDateToString(entity.getValidFrom()));
             }

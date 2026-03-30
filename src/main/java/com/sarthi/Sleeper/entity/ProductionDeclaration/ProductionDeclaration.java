@@ -50,6 +50,9 @@ public class ProductionDeclaration {
 
         private LocalDateTime updatedDate;
 
+        private String vendorCode;
+        private String plantId;
+
         // STRESS BENCH RELATION
 
         @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)

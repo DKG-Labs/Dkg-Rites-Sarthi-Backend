@@ -40,6 +40,8 @@ public class DowelServiceImpl implements DowelService {
             entity.setRitesIcNumber(dto.getRitesIcNumber());
             entity.setTotalQtyReceived(dto.getTotalQtyReceived());
 
+            entity.setPlantId(dto.getPlantId());
+            entity.setVendorCode(dto.getVendorCode());
             if (dto.getDateOfReceipt() != null) {
                 entity.setDateOfReceipt(
                         CommonUtils.convertStringToDateObject(dto.getDateOfReceipt()));
@@ -83,6 +85,8 @@ public class DowelServiceImpl implements DowelService {
             entity.setRitesIcNumber(dto.getRitesIcNumber());
             entity.setTotalQtyReceived(dto.getTotalQtyReceived());
 
+            entity.setPlantId(dto.getPlantId());
+            entity.setVendorCode(dto.getVendorCode());
             if (dto.getDateOfReceipt() != null) {
                 entity.setDateOfReceipt(
                         CommonUtils.convertStringToDateObject(dto.getDateOfReceipt()));
@@ -197,6 +201,8 @@ public class DowelServiceImpl implements DowelService {
             response.setRitesIcNumber(entity.getRitesIcNumber());
             response.setTotalQtyReceived(entity.getTotalQtyReceived());
             response.setCreatedBy(entity.getCreatedBy());
+            response.setPlantId(entity.getPlantId());
+            response.setVendorCode(entity.getVendorCode());
             response.setCreatedDate(entity.getCreatedDate());
             response.setUpdatedBy(entity.getUpdatedBy());
             response.setUpdatedDate(entity.getUpdatedDate());

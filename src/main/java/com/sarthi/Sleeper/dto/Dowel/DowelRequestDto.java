@@ -20,4 +20,8 @@ public class DowelRequestDto {
 
     private Integer createdBy;
     private Integer updatedBy;
+
+
+    private String vendorCode;
+    private String plantId;
 }

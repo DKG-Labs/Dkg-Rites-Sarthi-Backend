@@ -43,6 +43,9 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
         entity.setMtcNo(dto.getMtcNo());
         entity.setTotalQuantity(dto.getTotalQuantity());
 
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+
         if (dto.getDateOfReceipt() != null) {
             entity.setDateOfReceipt(
                     CommonUtils.convertStringToDateObject(dto.getDateOfReceipt()));
@@ -106,6 +109,8 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
         entity.setMtcNo(dto.getMtcNo());
         entity.setTotalQuantity(dto.getTotalQuantity());
 
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
         if (dto.getDateOfReceipt() != null) {
             entity.setDateOfReceipt(
                     CommonUtils.convertStringToDateObject(dto.getDateOfReceipt()));
@@ -147,7 +152,6 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
     }
 
 
-    // ================= GET BY ID =================
 
     @Override
     public AdmixtureResponseDto getById(Long id) {
@@ -173,7 +177,8 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
         response.setCreatedDate(entity.getCreatedDate());
         response.setUpdatedBy(entity.getUpdatedBy());
         response.setUpdatedDate(entity.getUpdatedDate());
-
+        response.setPlantId(entity.getPlantId());
+        response.setVendorCode(entity.getVendorCode());
         if (entity.getDateOfReceipt() != null) {
             response.setDateOfReceipt(
                     CommonUtils.convertDateToString(entity.getDateOfReceipt()));
@@ -210,6 +215,8 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
             response.setCreatedDate(entity.getCreatedDate());
             response.setUpdatedBy(entity.getUpdatedBy());
             response.setUpdatedDate(entity.getUpdatedDate());
+            response.setPlantId(entity.getPlantId());
+            response.setVendorCode(entity.getVendorCode());
 
             if (entity.getDateOfReceipt() != null) {
                 response.setDateOfReceipt(

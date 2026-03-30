@@ -26,6 +26,8 @@ public class PlantProfile {
     @Column(name = "number_of_sheds")
     private Integer numberOfSheds;
 
+    private String plantId;
+
     @Column(name = "created_by")
     private Integer createdBy;
 

@@ -19,4 +19,8 @@ public class AdmixtureRequestDto {
 
     private Integer createdBy;
     private Integer updatedBy;
+
+
+    private String vendorCode;
+    private String plantId;
 }

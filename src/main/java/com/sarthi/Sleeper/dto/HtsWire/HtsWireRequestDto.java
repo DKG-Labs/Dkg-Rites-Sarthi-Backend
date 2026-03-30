@@ -23,5 +23,9 @@ public class HtsWireRequestDto {
     private Integer createdBy;
     private Integer updatedBy;
 
+
+    private String vendorCode;
+    private String plantId;
+
     private List<HtsCoilDetailsRequestDto> coilDetails;
 }

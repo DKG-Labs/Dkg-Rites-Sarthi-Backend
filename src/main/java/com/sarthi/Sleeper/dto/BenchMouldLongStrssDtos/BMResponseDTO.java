@@ -15,6 +15,8 @@ public class BMResponseDTO {
     private String subCategory;
     private String drawingNo;
 
+    private String vendorCode;
+    private String plantId;
     private List<BMDetailResponseDTO> details;
 
     private Integer createdBy;

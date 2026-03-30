@@ -47,6 +47,9 @@ public class DowelInventory {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
+    private String vendorCode;
+    private String plantId;
+
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
 }

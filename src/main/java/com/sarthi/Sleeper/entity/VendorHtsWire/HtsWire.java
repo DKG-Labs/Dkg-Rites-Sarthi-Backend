@@ -60,6 +60,9 @@ public class HtsWire {
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
 
+    private String vendorCode;
+    private String plantId;
+
 
     // ===== One To Many =====
 

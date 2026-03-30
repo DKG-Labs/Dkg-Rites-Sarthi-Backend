@@ -30,6 +30,8 @@ public class MixDesign {
     @Column(name = "wc_ratio")
     private Double wcRatio;
 
+    private String vendorCode;
+    private String plantId;
     private Integer createdBy;
     private LocalDateTime createdDate;
 

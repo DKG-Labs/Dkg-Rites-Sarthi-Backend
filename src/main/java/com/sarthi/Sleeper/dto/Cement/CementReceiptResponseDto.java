@@ -30,5 +30,8 @@ public class CementReceiptResponseDto {
 
     private String status;
 
+    private String vendorCode;
+    private String plantId;
+
     private List<CementBatchDetailsResponseDto> batchDetails;
 }

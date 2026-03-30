@@ -14,4 +14,8 @@ public class RawMaterialSourceRequestDto {
 
     private Integer createdBy;
     private Integer updatedBy;
+
+
+    private String vendorCode;
+    private String plantId;
 }

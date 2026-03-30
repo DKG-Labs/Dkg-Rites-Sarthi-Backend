@@ -19,6 +19,8 @@ public class MixDesignRequestDto {
     private Integer createdBy;
     private Integer updatedBy;
 
+    private String vendorCode;
+    private String plantId;
     private Double acRatio;
     private Double wcRatio;
 }

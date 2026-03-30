@@ -24,6 +24,10 @@ public class ProductionDeclarationRequestDto {
 
     private String remarks;
 
+
+    private String vendorCode;
+    private String plantId;
+
     private Long createdBy;
     private Long updatedBy;
 

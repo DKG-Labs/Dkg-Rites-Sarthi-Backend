@@ -40,6 +40,8 @@ public class AggregatesServiceImpl implements AggregatesService {
         entity.setChallanNumber(dto.getChallanNumber());
         entity.setTotalQtyReceived(dto.getTotalQtyReceived());
 
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
         if (dto.getDateOfReceipt() != null) {
             entity.setDateOfReceipt(
                     CommonUtils.convertStringToDateObject(dto.getDateOfReceipt()));
@@ -98,6 +100,9 @@ public class AggregatesServiceImpl implements AggregatesService {
         entity.setSource(dto.getSource());
         entity.setChallanNumber(dto.getChallanNumber());
         entity.setTotalQtyReceived(dto.getTotalQtyReceived());
+
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
 
         if (dto.getDateOfReceipt() != null) {
             entity.setDateOfReceipt(
@@ -164,6 +169,9 @@ public class AggregatesServiceImpl implements AggregatesService {
         response.setUpdatedBy(entity.getUpdatedBy());
         response.setUpdatedDate(entity.getUpdatedDate());
 
+    response.setPlantId(entity.getPlantId());
+   response.setVendorCode(entity.getVendorCode());
+
         if (entity.getDateOfReceipt() != null) {
             response.setDateOfReceipt(
                     CommonUtils.convertDateToString(entity.getDateOfReceipt()));
@@ -200,6 +208,8 @@ public class AggregatesServiceImpl implements AggregatesService {
             response.setUpdatedBy(entity.getUpdatedBy());
             response.setUpdatedDate(entity.getUpdatedDate());
 
+            response.setPlantId(entity.getPlantId());
+            response.setVendorCode(entity.getVendorCode());
             String status = sleeperWorkflowRepository
                     .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 8L)
                     .orElse("NOT_STARTED");
