@@ -28,7 +28,7 @@ public class CementTestingStatusService {
 
     public Map<Long, String> getBulkStatus(List<Long> requestIds) {
         Map<Long, String> statusMap = new HashMap<>();
-        
+
         for (Long requestId : requestIds) {
             boolean has7Day = cement7DayStrengthRepository.findByRequestId(requestId).isPresent();
             boolean hasNormalConsistency = cementNormalConsistencyRepository.findByRequestId(requestId).isPresent();

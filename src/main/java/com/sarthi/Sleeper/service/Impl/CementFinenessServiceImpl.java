@@ -26,7 +26,7 @@ public class CementFinenessServiceImpl implements CementFinenessService {
         entity.setCreatedDate(LocalDateTime.now());
         entity.setUpdatedDate(LocalDateTime.now());
         entity.setUpdatedBy(dto.getCreatedBy());
-        
+
         CementFinenessTest saved = repository.save(entity);
         return mapToResponseDto(saved);
     }
@@ -35,11 +35,11 @@ public class CementFinenessServiceImpl implements CementFinenessService {
     public CementFinenessResponseDto update(Long id, CementFinenessRequestDto dto) {
         CementFinenessTest entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found"));
-        
+
         BeanUtils.copyProperties(dto, entity, "id", "createdBy", "createdDate");
         entity.setUpdatedDate(LocalDateTime.now());
         entity.setUpdatedBy(dto.getCreatedBy());
-        
+
         CementFinenessTest saved = repository.save(entity);
         return mapToResponseDto(saved);
     }

@@ -28,7 +28,7 @@ public class AggregateTestingStatusService {
 
     public Map<Long, String> getBulkStatus(List<Long> requestIds) {
         Map<Long, String> statusMap = new HashMap<>();
-        
+
         for (Long requestId : requestIds) {
             boolean has10mm = aggregate10mmQualityRepository.findByRequestId(requestId).isPresent();
             boolean has20mm = aggregate20mmQualityRepository.findByRequestId(requestId).isPresent();

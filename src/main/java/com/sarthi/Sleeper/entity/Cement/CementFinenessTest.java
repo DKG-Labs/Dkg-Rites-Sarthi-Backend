@@ -28,6 +28,15 @@ public class CementFinenessTest {
     @Column(name = "residue_weight_w2")
     private Double residueWeightW2;
 
+    @Column(name = "residue1")
+    private Double residue1;
+
+    @Column(name = "residue2")
+    private Double residue2;
+
+    @Column(name = "residue3")
+    private Double residue3;
+
     @Column(name = "percentage_fineness")
     private Double percentageFineness;
 

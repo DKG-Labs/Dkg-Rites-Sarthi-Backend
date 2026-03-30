@@ -30,7 +30,7 @@ public class Cement7DayStrengthServiceImpl implements Cement7DayStrengthService 
         mapRequestToEntity(dto, entity);
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
-        
+
         Cement7DayStrength saved = repository.save(entity);
         return mapEntityToResponse(saved);
     }

@@ -12,6 +12,9 @@ public class CementFinenessResponseDto {
     private Long requestId;
     private Double sampleWeightW1;
     private Double residueWeightW2;
+    private Double residue1;
+    private Double residue2;
+    private Double residue3;
     private Double percentageFineness;
     private String result;
     private String shift;
