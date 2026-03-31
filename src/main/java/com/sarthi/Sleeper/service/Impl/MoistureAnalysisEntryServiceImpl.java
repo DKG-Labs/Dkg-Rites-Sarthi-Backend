@@ -1,10 +1,7 @@
 package com.sarthi.Sleeper.service.Impl;
 
 
-import com.sarthi.Sleeper.dto.MoistureAnalysisRequestDTO;
-import com.sarthi.Sleeper.dto.MoistureAnalysisResponseDTO;
-import com.sarthi.Sleeper.dto.MoistureSectionDTO;
-import com.sarthi.Sleeper.dto.MouldPreparationResponseDTO;
+import com.sarthi.Sleeper.dto.*;
 import com.sarthi.Sleeper.entity.FinalInspection.MorSampleDeclaration;
 import com.sarthi.Sleeper.entity.MoistureAnalysisEntry;
 import com.sarthi.Sleeper.entity.MoistureSection;
@@ -296,5 +293,20 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
                         ));
 
        moistureAnalysisEntryRepository.deleteById(e.getId());
+    }
+
+
+    @Override
+    public List<MoistureAnalysisListDTO> getLastFiveMoistureRecords() {
+
+        return moistureAnalysisEntryRepository
+                .findTop5ByOrderByIdDesc()
+                .stream()
+                .map(e -> new MoistureAnalysisListDTO(
+                        e.getId(),
+                        e.getBatchNo(),
+                        e.getEntryDate()
+                ))
+                .toList();
     }
 }

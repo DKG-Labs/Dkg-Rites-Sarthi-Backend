@@ -1,6 +1,7 @@
 package com.sarthi.Sleeper.service;
 
 
+import com.sarthi.Sleeper.dto.MoistureAnalysisListDTO;
 import com.sarthi.Sleeper.dto.MoistureAnalysisRequestDTO;
 import com.sarthi.Sleeper.dto.MoistureAnalysisResponseDTO;
 import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileResponseDto;
@@ -20,4 +21,6 @@ public interface MoistureAnalysisEntryService {
    public MoistureAnalysisResponseDTO update(Long id, MoistureAnalysisRequestDTO dto);
 
     void delete(Long id);
+
+    public List<MoistureAnalysisListDTO> getLastFiveMoistureRecords();
 }

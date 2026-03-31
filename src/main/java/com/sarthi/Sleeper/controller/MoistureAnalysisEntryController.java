@@ -1,6 +1,7 @@
 package com.sarthi.Sleeper.controller;
 
 
+import com.sarthi.Sleeper.dto.MoistureAnalysisListDTO;
 import com.sarthi.Sleeper.dto.MoistureAnalysisRequestDTO;
 import com.sarthi.Sleeper.dto.MoistureAnalysisResponseDTO;
 import com.sarthi.Sleeper.dto.MouldPreparationResponseDTO;
@@ -10,6 +11,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/MoistureAnalysis")
 public class MoistureAnalysisEntryController {
@@ -52,6 +56,17 @@ public class MoistureAnalysisEntryController {
 
         MoistureAnalysisResponseDTO response =
                moistureAnalysisEntryService.getById(id);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(response),
+                HttpStatus.OK
+        );
+    }
+    @GetMapping("/lastFiveMoisture")
+    public ResponseEntity<Object> getLastFiveMoisture() {
+
+        List<MoistureAnalysisListDTO> response =
+                 moistureAnalysisEntryService.getLastFiveMoistureRecords();
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(response),
