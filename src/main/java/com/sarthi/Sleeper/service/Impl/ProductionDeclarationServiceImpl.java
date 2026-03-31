@@ -55,7 +55,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         entity.setMixDesignReference(dto.getMixDesignReference());
         LocalTime pTime = CommonUtils.convertStringToTimeObject(dto.getLbcTime());
 
-        entity.setPlantType(dto.getPlantType());
+        entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
 
         entity.setLbcTime(pTime);

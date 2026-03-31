@@ -10,4 +10,5 @@ import java.util.List;
 public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> {
     List<VendorPlant> findByVendorCode(String vendorCode);
 
+    List<VendorPlant> findByVendorId(Long vendorCode);
 }

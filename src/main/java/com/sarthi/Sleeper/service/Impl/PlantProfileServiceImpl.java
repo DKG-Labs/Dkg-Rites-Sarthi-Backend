@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class PlantProfileServiceImpl implements PlantProfileService {
@@ -146,10 +148,25 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             sleeperWorkflowRepository.save(newWorkflow);
         }
 
-        @Override
-        public List<Integer> getDistinctShedsByVendorCode(String vendorCode) {
-            return repository.findDistinctNumberOfShedsByVendorCode(vendorCode);
+    @Override
+    public Map<String, List<Integer>> getShedsByPlantType(Long vendorId, String plantId) {
+
+        List<Object[]> results = repository.findPlantTypeAndSheds(vendorId, plantId);
+
+        Map<String, List<Integer>> plantTypeMap = new HashMap<>();
+
+        for (Object[] row : results) {
+
+            String plantType = (String) row[0];     // STRESS / LONG_LINE
+            Integer shed = (Integer) row[1];
+
+            plantTypeMap
+                    .computeIfAbsent(plantType, k -> new ArrayList<>())
+                    .add(shed);
         }
+
+        return plantTypeMap;
+    }
 
         private PlantProfileResponseDto buildResponse(PlantProfile entity) {
 

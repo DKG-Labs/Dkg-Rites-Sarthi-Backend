@@ -393,6 +393,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
              ));
 
      // Fetch rejected sleepers from demoulding (Optimized Set)
+
+
      Set<String> rejectedSet =
              demouldingDefectiveSleeperRepository
                      .findRejectedSleeperNos(declaration.getBatchNumber());

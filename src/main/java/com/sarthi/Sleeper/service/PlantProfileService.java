@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.dto.PlantProfile.PlantProfileResponseDto;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public interface PlantProfileService {
@@ -20,7 +21,7 @@ public interface PlantProfileService {
 
    public void delete(Long id);
 
-   public List<Integer> getDistinctShedsByVendorCode(String vendorCode);
+   public Map<String, List<Integer>> getShedsByPlantType(Long vendorId, String plantId);
 
    public List<PlantDetailsResponseDto> getPlantDetails(String vendorCode);
 }

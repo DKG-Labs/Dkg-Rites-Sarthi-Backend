@@ -13,6 +13,8 @@ public class VendorPlant {
     private Long id;
 
     private String vendorCode;
+
+    private Long vendorId;
     private String companyName;
     private String plantName;
     private String plantId;

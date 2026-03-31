@@ -63,12 +63,12 @@ public class PlantProfileController {
     }
 
     // ================= GET SHEDS BY VENDOR =================
-    @GetMapping("/vendor/{vendorCode}/sheds")
+    @GetMapping("/vendor/{vendorId}/{plantId}/sheds")
     public ResponseEntity<Object> getDistinctShedsByVendorCode(
-            @PathVariable("vendorCode") String vendorCode) {
+            @RequestParam("vendorId") Long vendorId, @RequestParam("plantId") String plantId) {
 
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.getDistinctShedsByVendorCode(vendorCode)),
+                ResponseBuilder.getSuccessResponse(service.getShedsByPlantType(vendorId, plantId)),
                 HttpStatus.OK
         );
     }

@@ -148,15 +148,18 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
                 .ifPresent(um -> dto.setVendorCode(um.getUsername()));
 
         // Step 3: Fetch plants from vendor_plant
-        List<VendorPlant> plants = vendorPlantRepository.findByVendorCode(vendorCode);
+       // List<VendorPlant> plants = vendorPlantRepository.findByVendorId(vendorCode);
 
+        Long vendorId = Long.valueOf(vendorCode);
+
+        List<VendorPlant> plants = vendorPlantRepository.findByVendorId(vendorId);
         List<String> plantIds = plants.stream()
                 .map(VendorPlant::getPlantId)
                 .distinct()
                 .toList();
 
         dto.setUnitNames(plantIds);
-
+/*
         // Step 4: Fetch lines/sheds from Plant Declaration
         Map<String, List<String>> plantLineMap = new HashMap<>();
 
@@ -173,9 +176,10 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
         Map<String, String> plantVendorMap = new HashMap<>();
         for (String plantId : plantIds) {
             plantVendorMap.put(plantId, vendorCode);
-        }
+        }*/
 
-        dto.setUnitVendorMap(plantVendorMap);
+        dto.setCompanyUnitMap(null);
+        dto.setUnitVendorMap(null);
 
         return dto;
     }

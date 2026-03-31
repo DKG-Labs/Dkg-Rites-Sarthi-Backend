@@ -11,10 +11,12 @@ import java.util.Set;
 
 @Repository
 public interface DemouldingDefectiveSleeperRepository extends JpaRepository<DemouldingDefectiveSleeper, Long> {
-    @Query("""
-    SELECT d.sleeperNo
-    FROM DemouldingDefectiveSleeper d
-    WHERE d.inspection.batchNo = :batchNo
-""")
+    @Query(value = """
+SELECT d.sleeper_no
+FROM demoulding_defective_sleepers d
+JOIN demoulding_inspection i 
+  ON i.id = d.inspection_id
+WHERE i.batch_no = :batchNo
+""", nativeQuery = true)
     Set<String> findRejectedSleeperNos(@Param("batchNo") String batchNo);
 }
