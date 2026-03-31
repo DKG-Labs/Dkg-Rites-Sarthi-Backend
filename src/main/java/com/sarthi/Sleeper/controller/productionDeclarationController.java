@@ -69,6 +69,15 @@ public class productionDeclarationController {
                                                 service.getAll()),
                                 HttpStatus.OK);
         }
+        @GetMapping("/getAllProductions")
+        public ResponseEntity<Object> getAllProductions(  @RequestParam(defaultValue = "0") int page,
+                                                          @RequestParam(defaultValue = "50") int size) {
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                service.getAllProductions(page,size)),
+                        HttpStatus.OK);
+        }
 
         @GetMapping("/getByUser/{userId}")
         public ResponseEntity<Object> getByUser(@PathVariable Long userId) {
@@ -102,12 +111,12 @@ public class productionDeclarationController {
         @GetMapping("getAll/batches")
         public ResponseEntity<Object>  getBatchNumbers(
                 @RequestParam Long vendorId,
-                @RequestParam String castingDate) {
+                @RequestParam String castingDate,  @RequestParam String plantId, @RequestParam String productionUnit) {
 
                 LocalDate date = CommonUtils.convertStringToDateObject(castingDate);
 
                 return new ResponseEntity<>(
-                        ResponseBuilder.getSuccessResponse(service.getBatchNumbers(vendorId, date)),
+                        ResponseBuilder.getSuccessResponse(service.getBatchNumbers(vendorId, date, plantId, productionUnit )),
                         HttpStatus.OK);
         }
 

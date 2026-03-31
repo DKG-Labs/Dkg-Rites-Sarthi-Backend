@@ -15,6 +15,7 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductionDeclarationServiceImpl implements ProductionDeclarationService {
@@ -550,15 +552,65 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 //
 //        return list;
 //    }
+//@Override
+//public List<ProductionDeclarationResponseDto> getAll() {
+//
+//    return repository.findAll()
+//            .stream()
+//            .map(this::mapToResponse)
+//            .toList();
+//}
 @Override
 public List<ProductionDeclarationResponseDto> getAll() {
 
-    return repository.findAll()
+    List<ProductionDeclaration> entities = repository.findAll();
+
+
+    Map<String, String> statusMap = sleeperWorkflowRepository
+            .findAllLatestStatuses(11L)
             .stream()
-            .map(this::mapToResponse)
+            .collect(Collectors.toMap(
+                    obj -> String.valueOf(obj[0]),
+                    obj -> String.valueOf(obj[1])
+            ));
+
+    return entities.stream()
+            .map(entity -> mapToResponse(entity, statusMap))
             .toList();
 }
-    private ProductionDeclarationResponseDto mapToResponse(ProductionDeclaration entity) {
+
+    private ProductionDeclarationResponseDto mapToResponse(
+            ProductionDeclaration entity,
+            Map<String, String> statusMap) {
+
+        ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
+
+        response.setId(entity.getId());
+        response.setPlantType(entity.getPlantType());
+        response.setProductionUnit(entity.getProductionUnit());
+        response.setCastingDate(CommonUtils.convertDateToString(entity.getCastingDate()));
+        response.setShift(entity.getShift());
+        response.setBatchNumber(entity.getBatchNumber());
+        response.setMixDesignReference(entity.getMixDesignReference());
+        response.setLbcTime(entity.getLbcTime());
+        response.setVendorCode(entity.getVendorCode());
+        response.setPlantId(entity.getPlantId());
+        response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
+        response.setTotalSleeperTypes(entity.getTotalSleeperTypes());
+        response.setTotalRft(entity.getTotalRft());
+        response.setRemarks(entity.getRemarks());
+        response.setCreatedBy(entity.getCreatedBy());
+        response.setCreatedDate(entity.getCreatedDate());
+        response.setUpdatedBy(entity.getUpdatedBy());
+        response.setUpdatedDate(entity.getUpdatedDate());
+
+
+        String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
+        response.setStatus(status);
+
+        return response;
+    }
+   /* private ProductionDeclarationResponseDto mapToResponse(ProductionDeclaration entity) {
 
         ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
 
@@ -591,7 +643,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
                 .orElse("NOT_STARTED");
 
         response.setStatus(status);
-
+/*
         // ================= STRESS BENCH =================
         if (entity.getChambers() != null) {
 
@@ -655,6 +707,131 @@ public List<ProductionDeclarationResponseDto> getAll() {
             }).toList();
 
             response.setGangs(gangList);
+        }*/
+/*
+        return response;
+    }*/
+
+    @Override
+    public Page<ProductionDeclarationResponseDto> getAllProductions(int page, int size) {
+
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+
+        Page<ProductionDeclaration> entityPage = repository.findAll(pageable);
+
+        List<ProductionDeclaration> entities = entityPage.getContent();
+
+        // Fetch all statuses in one query
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllStatusesByModuleId(11L)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1])
+                ));
+
+        //  Map to DTO
+        List<ProductionDeclarationResponseDto> responseList = entities.stream()
+                .map(entity -> mapToResp(entity, statusMap))
+                .toList();
+
+        //  Return paginated response
+        return new PageImpl<>(responseList, pageable, entityPage.getTotalElements());
+    }
+    private ProductionDeclarationResponseDto mapToResp(
+            ProductionDeclaration entity,
+            Map<String, String> statusMap) {
+
+        ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
+
+        response.setId(entity.getId());
+        response.setPlantType(entity.getPlantType());
+        response.setProductionUnit(entity.getProductionUnit());
+        response.setCastingDate(CommonUtils.convertDateToString(entity.getCastingDate()));
+        response.setShift(entity.getShift());
+        response.setBatchNumber(entity.getBatchNumber());
+        response.setMixDesignReference(entity.getMixDesignReference());
+        response.setLbcTime(entity.getLbcTime());
+        response.setVendorCode(entity.getVendorCode());
+        response.setPlantId(entity.getPlantId());
+        response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
+        response.setTotalSleeperTypes(entity.getTotalSleeperTypes());
+        response.setTotalRft(entity.getTotalRft());
+        response.setRemarks(entity.getRemarks());
+        response.setCreatedBy(entity.getCreatedBy());
+        response.setCreatedDate(entity.getCreatedDate());
+        response.setUpdatedBy(entity.getUpdatedBy());
+        response.setUpdatedDate(entity.getUpdatedDate());
+
+        // STATUS
+        String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
+        response.setStatus(status);
+
+        // STRESS BENCH
+        if (entity.getChambers() != null) {
+            response.setChambers(
+                    entity.getChambers().stream().map(chamber -> {
+
+                        ProductionStressChamberResponseDto chamberDto =
+                                new ProductionStressChamberResponseDto();
+
+                        chamberDto.setId(chamber.getId());
+                        chamberDto.setChamberNo(chamber.getChamberNo());
+
+                        if (chamber.getBenchGroups() != null) {
+                            chamberDto.setBenchGroups(
+                                    chamber.getBenchGroups().stream().map(bench -> {
+
+                                        ProductionBenchGroupResponseDto benchDto =
+                                                new ProductionBenchGroupResponseDto();
+
+                                        benchDto.setId(bench.getId());
+                                        benchDto.setBenchNo(bench.getBenchNo());
+                                        benchDto.setSleeperType(bench.getSleeperType());
+                                        benchDto.setMouldPerBench(bench.getMouldPerBench());
+                                        benchDto.setRft(bench.getRft());
+
+                                        if (bench.getSleepers() != null) {
+                                            benchDto.setSleepers(
+                                                    bench.getSleepers().stream()
+                                                            .map(ProductionSleeper::getSleeperNo)
+                                                            .toList()
+                                            );
+                                        }
+
+                                        return benchDto;
+
+                                    }).toList()
+                            );
+                        }
+
+                        return chamberDto;
+
+                    }).toList()
+            );
+        }
+
+        // LONG LINE
+        if (entity.getGangs() != null) {
+            response.setGangs(
+                    entity.getGangs().stream().map(gang -> {
+
+                        ProductionLongLineGangResponseDto gangDto =
+                                new ProductionLongLineGangResponseDto();
+
+                        gangDto.setId(gang.getId());
+                        gangDto.setMode(gang.getMode());
+                        gangDto.setGangFrom(gang.getGangFrom());
+                        gangDto.setGangTo(gang.getGangTo());
+                        gangDto.setGangNo(gang.getGangNo());
+                        gangDto.setSleeperType(gang.getSleeperType());
+                        gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+
+                        return gangDto;
+
+                    }).toList()
+            );
         }
 
         return response;
@@ -691,10 +868,20 @@ public List<ProductionDeclarationResponseDto> getAll() {
     }
 
 
-    @Override
-    public List<String> getBatchNumbers(Long vendorId, LocalDate castingDate) {
-        return repository.findBatchNumbers(vendorId, castingDate);
-    }
+//    @Override
+//    public List<String> getBatchNumbers(Long vendorId, LocalDate castingDate) {
+//        return repository.findBatchNumbers(vendorId, castingDate);
+//    }
+@Override
+public List<String> getBatchNumbers(Long vendorId,
+                                    LocalDate castingDate,
+                                    String plantId,
+                                    String productionUnit) {
+
+    return repository.findValidBatchNumbers(
+            vendorId, castingDate, plantId, productionUnit
+    );
+}
     @Override
     public List<String> getBenchNumbers(String batchNo) {
         return repository.findBenchNumbers(batchNo);

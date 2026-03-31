@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -118,4 +119,30 @@ AND t.status = 'Completed'
     SleeperWorkflowTransaction findTopByModuleIdAndRequestIdOrderByWorkflowTransitionIdDesc(
             @Param("moduleId") Long moduleId,
             @Param("requestId") String requestId);
+
+    @Query("""
+SELECT s.requestId, s.status
+FROM SleeperWorkflowTransaction s
+WHERE s.moduleId = :moduleId
+AND s.id IN (
+    SELECT MAX(s2.id)
+    FROM SleeperWorkflowTransaction s2
+    WHERE s2.moduleId = :moduleId
+    GROUP BY s2.requestId
+)
+""")
+    List<Object[]> findAllStatusesByModuleId(@Param("moduleId") Long moduleId);
+
+    @Query("""
+SELECT s.requestId, s.status
+FROM SleeperWorkflowTransaction s
+WHERE s.moduleId = :moduleId
+AND s.id IN (
+    SELECT MAX(s2.id)
+    FROM SleeperWorkflowTransaction s2
+    WHERE s2.moduleId = :moduleId
+    GROUP BY s2.requestId
+)
+""")
+    List<Object[]> findAllLatestStatuses(@Param("moduleId") Long moduleId);
 }

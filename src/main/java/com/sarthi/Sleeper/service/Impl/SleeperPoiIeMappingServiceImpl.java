@@ -4,8 +4,11 @@ import com.sarthi.Sleeper.dto.CompanyUnitResponseDto;
 import com.sarthi.Sleeper.dto.SleeperPoiIeMappingDto;
 import com.sarthi.Sleeper.entity.SleeperPincodePoIMapping;
 import com.sarthi.Sleeper.entity.SleeperPoiIeMapping;
+import com.sarthi.Sleeper.entity.VendorPlant;
+import com.sarthi.Sleeper.repository.PlantProfileRepository;
 import com.sarthi.Sleeper.repository.SleeperPincodePoIMappingRepository;
 import com.sarthi.Sleeper.repository.SleeperPoiIeMappingRepository;
+import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.Sleeper.service.SleeperPoiIeMappingService;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.UserMasterRepository;
@@ -13,9 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingService {
@@ -26,6 +27,10 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
     private SleeperPincodePoIMappingRepository sleeperPincodePoIMappingRepository;
     @Autowired
     private UserMasterRepository userMasterRepository;
+    @Autowired
+    private VendorPlantRepository vendorPlantRepository;
+    @Autowired
+    private PlantProfileRepository plantProfileRepository;
     @Override
     public List<SleeperPoiIeMapping> saveMapping(SleeperPoiIeMappingDto dto) {
 
@@ -44,6 +49,8 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
 
         return savedList;
     }
+
+    /*
 
     public CompanyUnitResponseDto getCompanyUnits(Integer ieUserId) {
 
@@ -111,6 +118,66 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
 
         return dto;
     }
+*/
+    public CompanyUnitResponseDto getCompanyUnits(Integer ieUserId) {
 
+        // Step 1: Get POI codes
+        List<String> poiCodes = poiIeMappingRepository
+                .findByIeUserId(ieUserId)
+                .stream()
+                .map(SleeperPoiIeMapping::getPoiCode)
+                .toList();
+
+        // Step 2: Get mappings
+        List<SleeperPincodePoIMapping> mappings =
+                sleeperPincodePoIMappingRepository.findByPoiCodeIn(poiCodes);
+
+        if (mappings.isEmpty()) {
+            throw new RuntimeException("No company found for IE " + ieUserId);
+        }
+
+        CompanyUnitResponseDto dto = new CompanyUnitResponseDto();
+
+        String vendorCode = mappings.get(0).getVendorCode();
+
+        dto.setCompanyName(mappings.get(0).getCompanyName());
+        dto.setVendorId(vendorCode);
+
+        // Optional: username
+        userMasterRepository.findByUserId(Integer.valueOf(vendorCode))
+                .ifPresent(um -> dto.setVendorCode(um.getUsername()));
+
+        // Step 3: Fetch plants from vendor_plant
+        List<VendorPlant> plants = vendorPlantRepository.findByVendorCode(vendorCode);
+
+        List<String> plantIds = plants.stream()
+                .map(VendorPlant::getPlantId)
+                .distinct()
+                .toList();
+
+        dto.setUnitNames(plantIds);
+
+        // Step 4: Fetch lines/sheds from Plant Declaration
+        Map<String, List<String>> plantLineMap = new HashMap<>();
+
+        for (String plantId : plantIds) {
+
+            List<String> lines = plantProfileRepository
+                    .findLinesByVendorCodeAndPlantId(vendorCode, plantId);
+
+            plantLineMap.put(plantId, lines);
+        }
+
+        dto.setCompanyUnitMap(plantLineMap);
+
+        Map<String, String> plantVendorMap = new HashMap<>();
+        for (String plantId : plantIds) {
+            plantVendorMap.put(plantId, vendorCode);
+        }
+
+        dto.setUnitVendorMap(plantVendorMap);
+
+        return dto;
+    }
 
 }

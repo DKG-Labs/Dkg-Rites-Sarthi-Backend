@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.ProductionDeclaration.ProductionDeclarationRequest
 import com.sarthi.Sleeper.dto.ProductionDeclaration.ProductionDeclarationResponseDto;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionBenchGroup;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper;
+import org.springframework.data.domain.Page;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -20,14 +21,19 @@ public interface ProductionDeclarationService {
 
     List<ProductionDeclarationResponseDto> getAll();
 
+    public Page<ProductionDeclarationResponseDto> getAllProductions(int page, int size);
+
     List<ProductionDeclarationResponseDto> getByUser(Long userId);
 
     void delete(Long id);
 
     List<String> getVerifiedProductionDeclarations();
 
-    public List<String> getBatchNumbers(Long vendorId, LocalDate castingDate);
-
+ //   public List<String> getBatchNumbers(Long vendorId, LocalDate castingDate);
+ public List<String> getBatchNumbers(Long vendorId,
+                                     LocalDate castingDate,
+                                     String plantId,
+                                     String productionUnit);
     public List<String> getBenchNumbers(String batchNo);
 
     public List<String> getSleeperTypes(String batchNo, Integer benchNo);

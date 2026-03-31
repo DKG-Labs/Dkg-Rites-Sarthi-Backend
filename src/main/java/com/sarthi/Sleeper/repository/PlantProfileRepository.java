@@ -14,4 +14,6 @@ public interface PlantProfileRepository extends JpaRepository<PlantProfile, Long
     List<Integer> findDistinctNumberOfShedsByVendorCode(String vendorCode);
 
     List<PlantProfile> findAllByVendorCode(String vendorCode);
+
+    List<String> findLinesByVendorCodeAndPlantId(String vendorCode, String plantId);
 }

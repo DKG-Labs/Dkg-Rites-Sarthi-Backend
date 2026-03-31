@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.*;
 import com.sarthi.Sleeper.entity.FinalInspection.*;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper;
+import com.sarthi.Sleeper.repository.DemouldingDefectiveSleeperRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.*;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
@@ -14,16 +15,15 @@ import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.UserMasterRepository;
-import java.util.Optional;
+
+import java.util.*;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -53,6 +53,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     private ProductionSleeperRepository productionSleeperRepository;
     @Autowired
     private SleeperWorkflowRepository sleeperWorkflowRepository;
+    @Autowired
+    private DemouldingDefectiveSleeperRepository demouldingDefectiveSleeperRepository;
 
   /*  @Override
     public void saveInspection(InspectionSaveRequestDto dto) {
@@ -318,7 +320,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         return filteredList;
     }
 
-    @Override
+ /*   @Override
     public BatchInspectionDetailDto getBatchInspection(Long batchId) {
 
         ProductionDeclaration declaration =
@@ -368,7 +370,65 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         dto.setSleepers(sleeperDtos);
 
         return dto;
-    }
+    } */
+ @Override
+ public BatchInspectionDetailDto getBatchInspection(Long batchId) {
+
+     ProductionDeclaration declaration =
+             productionDeclarationRepository.findBatchById(batchId);
+
+     List<ProductionSleeper> sleepers =
+             productionSleeperRepository.getSleepersByBatch(batchId);
+
+     // Fetch inspection results
+     List<InspectionTestResult> results =
+             resultRepository.findByBatchId(batchId);
+
+     // Map sleeperId -> result
+     Map<Long, String> resultMap = results.stream()
+             .collect(Collectors.toMap(
+                     InspectionTestResult::getSleeperId,
+                     InspectionTestResult::getResult,
+                     (a, b) -> b
+             ));
+
+     // Fetch rejected sleepers from demoulding (Optimized Set)
+     Set<String> rejectedSet =
+             demouldingDefectiveSleeperRepository
+                     .findRejectedSleeperNos(declaration.getBatchNumber());
+
+     BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
+
+     dto.setBatchId(declaration.getId());
+     dto.setBatchNumber(declaration.getBatchNumber());
+     dto.setCastingDate(declaration.getCastingDate());
+     dto.setTotalSleepers((long) sleepers.size());
+
+     List<SleeperDto> sleeperDtos = sleepers.stream()
+             .map(s -> {
+
+                 SleeperDto sd = new SleeperDto();
+
+                 sd.setSleeperId(s.getId());
+                 sd.setSleeperNo(s.getSleeperNo());
+
+
+                 if (rejectedSet.contains(s.getSleeperNo())) {
+                     sd.setStatus("REJECTED");
+                 } else {
+                     // Existing logic
+                     String status = resultMap.get(s.getId());
+                     sd.setStatus(status != null ? status : "PENDING");
+                 }
+
+                 return sd;
+
+             }).toList();
+
+     dto.setSleepers(sleeperDtos);
+
+     return dto;
+ }
 
 
     @Override

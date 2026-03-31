@@ -2,6 +2,9 @@ package com.sarthi.Sleeper.repository.ProductionDeclaration;
 
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -75,4 +78,33 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     @Query("SELECT DISTINCT b.benchNo FROM ProductionBenchGroup b " +
             "WHERE b.chamber.declaration.batchNumber = :batchNo")
     List<String> findBenchNumbers(String batchNo);
+
+    @Query("""
+SELECT DISTINCT p.batchNumber
+FROM ProductionDeclaration p
+WHERE p.createdBy = :vendorId
+  AND p.castingDate = :castingDate
+  AND p.plantId = :plantId
+  AND p.productionUnit = :productionUnit
+  AND EXISTS (
+      SELECT 1 FROM SleeperWorkflowTransaction w
+      WHERE w.requestId = p.batchNumber
+        AND w.moduleId = 11
+        AND w.workflowTransitionId = (
+            SELECT MAX(w2.workflowTransitionId)
+            FROM SleeperWorkflowTransaction w2
+            WHERE w2.requestId = p.batchNumber
+              AND w2.moduleId = 11
+        )
+        AND LOWER(w.status) = 'completed'
+  )
+""")
+    List<String> findValidBatchNumbers(
+            Long vendorId,
+            LocalDate castingDate,
+            String plantId,
+            String productionUnit
+    );
+
+
 }
