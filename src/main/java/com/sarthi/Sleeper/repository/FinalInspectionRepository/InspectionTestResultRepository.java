@@ -46,6 +46,15 @@ AND h.module.id = :moduleId
            """)
     List<InspectionTestResult> findFinalModuleResults(Long batchId);
 
+    @Query("""
+SELECT r
+FROM InspectionTestResult r
+JOIN r.testHeader h
+WHERE h.batchId = :batchId
+AND LOWER(h.status) = 'completed'
+""")
+    List<InspectionTestResult> findAllResultsByBatchId(@Param("batchId") Long batchId);
+
 
     @Query("""
 SELECT COUNT(r) > 0

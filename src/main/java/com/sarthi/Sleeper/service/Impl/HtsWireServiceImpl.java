@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -105,9 +107,18 @@ public class HtsWireServiceImpl implements HtsWireService {
     @Override
     public List<HtsWireResponseDto> getAll() {
 
-        return repository.findAll()
+        List<HtsWire> entities = repository.findAll();
+
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllLatestStatuses(5L)
                 .stream()
-                .map(this::mapToResponse)
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1])
+                ));
+
+        return entities.stream()
+                .map(entity -> mapToResp(entity, statusMap))
                 .toList();
     }
 
@@ -247,6 +258,95 @@ public class HtsWireServiceImpl implements HtsWireService {
 
         entity.setTotalQtyReceived(totalQty);
     }
+    private HtsWireResponseDto mapToResp(HtsWire entity, Map<String, String> statusMap) {
+
+        HtsWireResponseDto dto =
+                new HtsWireResponseDto();
+
+        dto.setId(entity.getId());
+        dto.setGradeSpec(entity.getGradeSpec());
+        dto.setManufacturer(entity.getManufacturer());
+
+        dto.setInvoiceNumber(entity.getInvoiceNumber());
+        dto.setRitesIcNumber(entity.getRitesIcNumber());
+
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
+        // dto.setCreatedBy(entity.getCreatedBy());
+        Integer createdBy = entity.getCreatedBy();
+
+        if (createdBy != null) {
+            dto.setCreatedBy(createdBy);
+        } else {
+            dto.setCreatedBy(0);
+        }
+        dto.setRelaxationTest(entity.getRelaxationTest());
+        dto.setTotalQtyReceived(entity.getTotalQtyReceived());
+
+        if (entity.getDateOfReceipt() != null) {
+            dto.setDateOfReceipt(
+                    CommonUtils.convertDateToString(
+                            entity.getDateOfReceipt()));
+        }
+
+        if (entity.getInvoiceDate() != null) {
+            dto.setInvoiceDate(
+                    CommonUtils.convertDateToString(
+                            entity.getInvoiceDate()));
+        }
+
+        if (entity.getRitesIcDate() != null) {
+            dto.setRitesIcDate(
+                    CommonUtils.convertDateToString(
+                            entity.getRitesIcDate()));
+        }
+
+        if (entity.getRelaxationTestDate() != null) {
+            dto.setRelaxationTestDate(
+                    CommonUtils.convertDateToString(
+                            entity.getRelaxationTestDate()));
+        }
+        String status = statusMap.getOrDefault(
+                String.valueOf(entity.getId()),
+                "NOT_STARTED"
+        );
+
+        if (status != null) {
+            dto.setStatus(status);
+        }
+
+
+        // ===== CHILD COILS =====
+
+        if (entity.getCoilDetails() != null) {
+
+            List<HtsCoilDetailsResponseDto> coilList =
+                    entity.getCoilDetails()
+                            .stream()
+                            .map(c -> {
+
+                                HtsCoilDetailsResponseDto cd =
+                                        new HtsCoilDetailsResponseDto();
+
+                                cd.setId(c.getId());
+                                cd.setEntryType(c.getEntryType());
+                                cd.setLotNo(c.getLotNo());
+                                cd.setQtyKg(c.getQtyKg());
+
+                                cd.setCoilNo(c.getCoilNo());
+                                cd.setCoilFrom(c.getCoilFrom());
+                                cd.setCoilTo(c.getCoilTo());
+
+                                return cd;
+                            })
+                            .toList();
+
+            dto.setCoilDetails(coilList);
+        }
+
+
+        return dto;
+    }
 
 
     // ================= RESPONSE MAPPER =================
@@ -265,7 +365,14 @@ public class HtsWireServiceImpl implements HtsWireService {
 
         dto.setVendorCode(entity.getVendorCode());
         dto.setPlantId(entity.getPlantId());
-        dto.setCreatedBy(entity.getCreatedBy());
+       // dto.setCreatedBy(entity.getCreatedBy());
+        Integer createdBy = entity.getCreatedBy();
+
+        if (createdBy != null) {
+            dto.setCreatedBy(createdBy);
+        } else {
+            dto.setCreatedBy(0);
+        }
         dto.setRelaxationTest(entity.getRelaxationTest());
         dto.setTotalQtyReceived(entity.getTotalQtyReceived());
 

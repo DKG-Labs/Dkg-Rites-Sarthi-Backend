@@ -461,29 +461,43 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         for (Long batchId : batchIds) {
 
             List<InspectionTestResult> results =
-                    resultRepository.findFinalModuleResults(batchId);
+                    resultRepository.findAllResultsByBatchId(batchId);
+
+            Map<Long, List<InspectionTestResult>> grouped =
+                    results.stream().collect(Collectors.groupingBy(InspectionTestResult::getSleeperId));
 
             List<SleeperDto> goodSleepers = new ArrayList<>();
             List<BadSleeperDto> badSleepers = new ArrayList<>();
 
-            for (InspectionTestResult r : results) {
+            for (Map.Entry<Long, List<InspectionTestResult>> entry : grouped.entrySet()) {
 
-                if ("OK".equalsIgnoreCase(r.getResult())) {
+                List<InspectionTestResult> sleeperResults = entry.getValue();
 
-                    SleeperDto dto = new SleeperDto();
-                    dto.setSleeperId(r.getSleeperId());
-                    dto.setSleeperNo(r.getSleeperNo());
+                boolean isRejected = sleeperResults.stream()
+                        .anyMatch(r -> "REJECTED".equalsIgnoreCase(r.getResult()));
 
-                    goodSleepers.add(dto);
+                InspectionTestResult first = sleeperResults.get(0);
 
-                } else if ("REJECTED".equalsIgnoreCase(r.getResult())) {
+                if (isRejected) {
 
                     BadSleeperDto bad = new BadSleeperDto();
-                    bad.setSleeperId(r.getSleeperId());
-                    bad.setSleeperNo(r.getSleeperNo());
-                    bad.setReason(r.getRejectionReason());
+                    bad.setSleeperId(first.getSleeperId());
+                    bad.setSleeperNo(first.getSleeperNo());
+
+                    sleeperResults.stream()
+                            .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
+                            .findFirst()
+                            .ifPresent(r -> bad.setReason(r.getRejectionReason()));
 
                     badSleepers.add(bad);
+
+                } else {
+
+                    SleeperDto dto = new SleeperDto();
+                    dto.setSleeperId(first.getSleeperId());
+                    dto.setSleeperNo(first.getSleeperNo());
+
+                    goodSleepers.add(dto);
                 }
             }
 
@@ -498,7 +512,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 response.setBatchNumber(declaration.getBatchNumber());
                 response.setCastDate(declaration.getCastingDate() != null ? declaration.getCastingDate().toString() : "");
             }
-            response.setTotalSleepers((long) results.size());
+          //  response.setTotalSleepers((long) results.size());
+            response.setTotalSleepers((long) grouped.size());
             response.setGoodCount((long) goodSleepers.size());
             response.setBadCount((long) badSleepers.size());
             response.setGoodSleepers(goodSleepers);
