@@ -71,5 +71,9 @@ public class InspectionCall {
     @ToString.Exclude
     private List<ProcessInspectionDetails> processInspectionDetails = new ArrayList<>();
 
+    @OneToOne(mappedBy = "inspectionCall", cascade = CascadeType.ALL)
+    @ToString.Exclude
+    private com.sarthi.entity.finalmaterial.FinalInspectionDetails finalInspectionDetails;
+
 }
 

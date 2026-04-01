@@ -151,6 +151,19 @@ public class InventoryEntry {
     }
 
     /**
+     * Centralized logic to update status based on quantities.
+     */
+    public void recalculateStatus() {
+        if (this.offeredQuantity == null || this.offeredQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            this.status = InventoryStatus.FRESH_PO;
+        } else if (this.tcQuantity != null && this.offeredQuantity.compareTo(this.tcQuantity) >= 0) {
+            this.status = InventoryStatus.EXHAUSTED;
+        } else {
+            this.status = InventoryStatus.UNDER_INSPECTION;
+        }
+    }
+
+    /**
      * Enum for inventory entry status
      */
     public enum InventoryStatus {
