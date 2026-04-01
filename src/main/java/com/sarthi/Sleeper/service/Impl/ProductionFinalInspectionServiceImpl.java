@@ -243,7 +243,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 completed = true;
             }
 
-            if("RT8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 20){
+            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 20){
                 completed = true;
             }
 
@@ -256,7 +256,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 completed = true;
             }
 
-            if("RT8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 5){
+            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 5){
                 completed = true;
             }
 
@@ -399,13 +399,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
              demouldingDefectiveSleeperRepository
                      .findRejectedSleeperNos(declaration.getBatchNumber());
 
+     String sleeperType =
+             productionSleeperRepository.getSleeperTypeByBatch(batchId);
+
+
+
      BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
 
      dto.setBatchId(declaration.getId());
      dto.setBatchNumber(declaration.getBatchNumber());
      dto.setCastingDate(declaration.getCastingDate());
      dto.setTotalSleepers((long) sleepers.size());
-
+     dto.setSleeperType(sleeperType);
      List<SleeperDto> sleeperDtos = sleepers.stream()
              .map(s -> {
 
@@ -413,6 +418,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                  sd.setSleeperId(s.getId());
                  sd.setSleeperNo(s.getSleeperNo());
+
 
 
                  if (rejectedSet.contains(s.getSleeperNo())) {
