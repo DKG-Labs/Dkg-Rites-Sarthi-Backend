@@ -2,7 +2,6 @@ package com.sarthi.service.finalmaterial;
 
 import com.sarthi.dto.finalmaterial.FinalHardnessTestRequest;
 import com.sarthi.dto.finalmaterial.FinalHardnessTestResponse;
-import com.sarthi.entity.finalmaterial.FinalHardnessTest;
 
 import java.util.List;
 import java.util.Optional;

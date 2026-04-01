@@ -44,7 +44,9 @@ public class FinalDepthOfDecarburizationServiceImpl implements FinalDepthOfDecar
             test.setLotNo(request.getLotNo());
             test.setUpdatedBy(userId);
             test.setUpdatedAt(LocalDateTime.now());
+            test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             log.info("Updating existing depth of decarburization session, id={}", test.getId());
         } else {
             test = new FinalDepthOfDecarburization();
@@ -54,7 +56,10 @@ public class FinalDepthOfDecarburizationServiceImpl implements FinalDepthOfDecar
             test.setSampleSize(request.getSampleSize());
             test.setQty(request.getQty());
             test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             test.setCreatedBy(userId);
             log.info("Creating new depth of decarburization session");
         }
@@ -154,7 +159,9 @@ public class FinalDepthOfDecarburizationServiceImpl implements FinalDepthOfDecar
         response.setSampleSize(entity.getSampleSize());
         response.setQty(entity.getQty());
         response.setRemarks(entity.getRemarks());
+        response.setDateOfInspection(entity.getDateOfInspection());
         response.setStatus(entity.getStatus());
+        response.setRejected(entity.getRejected());
         response.setCreatedBy(entity.getCreatedBy());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedBy(entity.getUpdatedBy());

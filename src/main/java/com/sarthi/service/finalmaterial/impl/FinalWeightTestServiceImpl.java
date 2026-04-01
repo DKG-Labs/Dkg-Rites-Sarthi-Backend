@@ -48,9 +48,16 @@ public class FinalWeightTestServiceImpl implements FinalWeightTestService {
         if (existing.isPresent()) {
             // SUBSEQUENT SAVE: Update existing parent row
             test = existing.get();
+            if (request.getStatus() != null) {
+                test.setStatus(request.getStatus());
+            }
+            if (request.getRejected() != null) {
+                test.setRejected(request.getRejected());
+            }
             test.setUpdatedBy(userId);
             test.setUpdatedAt(LocalDateTime.now());
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             log.info("Updating existing weight test session, id={}", test.getId());
         } else {
             // FIRST SAVE: Create new parent row
@@ -59,8 +66,10 @@ public class FinalWeightTestServiceImpl implements FinalWeightTestService {
             test.setLotNo(request.getLotNo());
             test.setHeatNo(request.getHeatNo());
             test.setQtyNo(request.getQtyNo());
-            test.setStatus("PENDING");
+            test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             test.setCreatedBy(userId);
             test.setUpdatedBy(userId);
             test.setCreatedAt(LocalDateTime.now());
@@ -133,7 +142,7 @@ public class FinalWeightTestServiceImpl implements FinalWeightTestService {
             }
         }
 
-        // Update rejected count
+        // Update rejected count using a separate repository call for accuracy
         long rejectedCount = sampleRepository.countRejectedByTestId(test.getId());
         test.setRejected((int) rejectedCount);
         test = weightTestRepository.save(test);
@@ -200,6 +209,7 @@ public class FinalWeightTestServiceImpl implements FinalWeightTestService {
         response.setStatus(test.getStatus());
         response.setRejected(test.getRejected());
         response.setRemarks(test.getRemarks());
+        response.setDateOfInspection(test.getDateOfInspection());
         response.setCreatedBy(test.getCreatedBy());
         response.setCreatedAt(test.getCreatedAt());
         response.setUpdatedBy(test.getUpdatedBy());
@@ -224,4 +234,3 @@ public class FinalWeightTestServiceImpl implements FinalWeightTestService {
         return response;
     }
 }
-

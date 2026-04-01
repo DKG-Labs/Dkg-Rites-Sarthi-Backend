@@ -3,6 +3,7 @@ package com.sarthi.entity.finalmaterial;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -39,6 +40,9 @@ public class FinalDimensionalInspection {
     @Column(name = "inspection_call_no", nullable = false, length = 50)
     private String inspectionCallNo;
 
+    @Column(name = "date_of_inspection")
+    private LocalDate dateOfInspection;
+
     @Column(name = "lot_no", nullable = false, length = 100)
     private String lotNo;
 
@@ -54,6 +58,12 @@ public class FinalDimensionalInspection {
      */
     @Column(name = "status", nullable = false, length = 50)
     private String status = "PENDING";
+
+    /**
+     * Total number of rejected samples across ALL samplings.
+     */
+    @Column(name = "rejected")
+    private Integer rejected;
 
     /**
      * Final inspector remarks.

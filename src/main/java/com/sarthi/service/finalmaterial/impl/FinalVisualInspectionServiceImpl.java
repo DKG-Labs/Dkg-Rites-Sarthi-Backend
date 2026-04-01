@@ -49,6 +49,7 @@ public class FinalVisualInspectionServiceImpl implements FinalVisualInspectionSe
                 entity.setStatus(dto.getStatus());
             }
             entity.setRemarks(dto.getRemarks());
+            entity.setDateOfInspection(dto.getDateOfInspection());
             entity.setUpdatedBy(userId);
             // updatedAt is set automatically by @PreUpdate
         } else {
@@ -62,6 +63,7 @@ public class FinalVisualInspectionServiceImpl implements FinalVisualInspectionSe
             entity.setTotalRejected(dto.getTotalRejected() != null ? dto.getTotalRejected() : 0);
             entity.setStatus(dto.getStatus() != null ? dto.getStatus() : "PENDING");
             entity.setRemarks(dto.getRemarks());
+            entity.setDateOfInspection(dto.getDateOfInspection());
             entity.setCreatedBy(userId);
             entity.setUpdatedBy(userId);
             log.info("Creating new visual inspection record for call: {} lot: {} heat: {}",
@@ -108,6 +110,7 @@ public class FinalVisualInspectionServiceImpl implements FinalVisualInspectionSe
         entity.setTotalRejected(dto.getTotalRejected());
         entity.setStatus(dto.getStatus());
         entity.setRemarks(dto.getRemarks());
+        entity.setDateOfInspection(dto.getDateOfInspection());
         entity.setUpdatedBy(userId);
         entity.setUpdatedAt(LocalDateTime.now());
 

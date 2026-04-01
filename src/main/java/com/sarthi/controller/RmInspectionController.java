@@ -302,6 +302,14 @@ public class RmInspectionController {
                     dto.put("passedAt", entity.getPassedAt());
                 }
 
+                if (entity.getDefectCount() != null) {
+                    dto.put("defectCount", entity.getDefectCount());
+                }
+
+                if (entity.getWeightRejected() != null) {
+                    dto.put("weightRejected", entity.getWeightRejected());
+                }
+
                 visualDtos.add(dto);
             }
 
@@ -338,6 +346,12 @@ public class RmInspectionController {
 
             @SuppressWarnings("unchecked")
             Map<String, Object> defectLengths = (Map<String, Object>) passData.get("defectLengths");
+
+            Integer defectCount = passData.get("defectCount") != null ? 
+                ((Number) passData.get("defectCount")).intValue() : null;
+                
+            BigDecimal weightRejected = passData.get("weightRejected") != null ? 
+                new BigDecimal(passData.get("weightRejected").toString()) : null;
 
             if (callNo == null || heatNo == null || selectedDefects == null || selectedDefects.isEmpty()) {
                 ErrorDetails errorDetails = new ErrorDetails(
@@ -392,6 +406,14 @@ public class RmInspectionController {
             // Set other remarks if provided
             if (passData.containsKey("otherRemarks")) {
                 record.setOtherRemarks((String) passData.get("otherRemarks"));
+            }
+
+            // Set explicit calculated values
+            if (defectCount != null) {
+                record.setDefectCount(defectCount);
+            }
+            if (weightRejected != null) {
+                record.setWeightRejected(weightRejected);
             }
 
             // Always update passed_at and createdBy on pass

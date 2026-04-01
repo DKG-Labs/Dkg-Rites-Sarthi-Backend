@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * DTO for Final Dimensional Inspection - FLAT STRUCTURE
@@ -21,6 +22,9 @@ public class FinalDimensionalInspectionFlatDto {
     private String inspectionCallNo;
     private String lotNo;
     private String heatNo;
+
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate dateOfInspection;
 
     // 1st Sampling
     private Integer firstSampleGoGaugeFail;

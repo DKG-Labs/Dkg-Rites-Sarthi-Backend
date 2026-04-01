@@ -43,6 +43,9 @@ public class FinalMicrostructureTestServiceImpl implements FinalMicrostructureTe
             test.setUpdatedBy(userId);
             test.setUpdatedAt(LocalDateTime.now());
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
+            test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             log.info("Updating existing microstructure test session, id={}", test.getId());
         } else {
             test = new FinalMicrostructureTest();
@@ -52,7 +55,9 @@ public class FinalMicrostructureTestServiceImpl implements FinalMicrostructureTe
             test.setSampleSize(request.getSampleSize());
             test.setQty(request.getQty());
             test.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+            test.setRejected(request.getRejected() != null ? request.getRejected() : 0);
             test.setRemarks(request.getRemarks());
+            test.setDateOfInspection(request.getDateOfInspection());
             test.setCreatedBy(userId);
             log.info("Creating new microstructure test session");
         }
@@ -170,7 +175,9 @@ public class FinalMicrostructureTestServiceImpl implements FinalMicrostructureTe
         response.setSampleSize(entity.getSampleSize());
         response.setQty(entity.getQty());
         response.setRemarks(entity.getRemarks());
+        response.setDateOfInspection(entity.getDateOfInspection());
         response.setStatus(entity.getStatus());
+        response.setRejected(entity.getRejected());
         response.setCreatedBy(entity.getCreatedBy());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedBy(entity.getUpdatedBy());

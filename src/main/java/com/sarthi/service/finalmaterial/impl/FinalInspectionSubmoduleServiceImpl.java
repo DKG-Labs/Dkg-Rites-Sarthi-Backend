@@ -114,6 +114,7 @@ public class FinalInspectionSubmoduleServiceImpl implements FinalInspectionSubmo
         entity.setSulphurPercent(request.getSulphurPercent());
         entity.setPhosphorusPercent(request.getPhosphorusPercent());
         entity.setRemarks(request.getRemarks());
+        entity.setDateOfInspection(request.getDateOfInspection());
 
         FinalChemicalAnalysis saved = chemicalAnalysisRepository.save(entity);
 
@@ -137,6 +138,7 @@ public class FinalInspectionSubmoduleServiceImpl implements FinalInspectionSubmo
         response.setSulphurPercent(entity.getSulphurPercent());
         response.setPhosphorusPercent(entity.getPhosphorusPercent());
         response.setRemarks(entity.getRemarks());
+        response.setDateOfInspection(entity.getDateOfInspection());
         response.setCreatedBy(entity.getCreatedBy());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedBy(entity.getUpdatedBy());

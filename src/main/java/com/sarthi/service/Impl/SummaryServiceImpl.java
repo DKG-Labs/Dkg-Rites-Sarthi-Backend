@@ -1,5 +1,9 @@
 package com.sarthi.service.Impl;
 
+import com.sarthi.dto.CompanyWiseYearlyData;
+import com.sarthi.dto.QuenchingAllDefectsDto;
+import com.sarthi.dto.TemperingDefectsDto;
+import com.sarthi.dto.reports.*;
 import com.sarthi.dto.summaryDtos.*;
 import com.sarthi.repository.ProcessIeQtyRepository;
 import com.sarthi.repository.RmHeatFinalResultRepository;
@@ -162,7 +166,7 @@ public class SummaryServiceImpl implements SummaryService {
 
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<Object[]> dbPage = inspectionCallRepository.fetchManufacturerSummary(startDate, endDate, rio, zone, vendor,
+        Page<Object[]> dbPage = inspectionCallRepository.fetchManufacturerSummary(startDate, endDate,
                 pageable);
 
         List<MonthlyAnalysisDTO> content = dbPage.getContent()
@@ -179,6 +183,96 @@ public class SummaryServiceImpl implements SummaryService {
         response.setTotalPages(dbPage.getTotalPages());
 
         return response;
+    }
+
+    @Override
+    public PageResponseDTO<CompanyWiseYearlyData> getComapanyWiseMonthlyAnalysis(
+            int page,
+            int size,
+            LocalDate startDate,
+            LocalDate endDate,
+            String companyName) {
+
+        if (startDate == null || endDate == null) {
+            endDate = LocalDate.now();
+            startDate = endDate.minusYears(1);
+        }
+
+        List<Object[]> results =
+                inspectionCallRepository.fetchProcessMonthWiseData(
+                        startDate, endDate, companyName);
+
+        List<CompanyWiseYearlyData> content = results.stream()
+                .map(this::mapProcessRow)
+                .toList();
+
+        PageResponseDTO<CompanyWiseYearlyData> response = new PageResponseDTO<>();
+        response.setContent(content);
+        response.setPage(page);
+        response.setSize(size);
+        response.setTotalElements(content.size());
+        response.setTotalPages(1);
+
+        return response;
+    }
+    private CompanyWiseYearlyData mapProcessRow(Object[] row) {
+
+        CompanyWiseYearlyData dto = new CompanyWiseYearlyData();
+
+        dto.setManufacturer((String) row[0]);
+        dto.setMonth((String) row[1]);
+
+        dto.setInspected(((Number) row[2]).doubleValue());
+        dto.setAccepted(((Number) row[3]).doubleValue());
+        dto.setProcessRejected(((Number) row[4]).doubleValue());
+        dto.setProcessRejPercent(((Number) row[5]).doubleValue());
+
+        // SHEARING (6–9)
+        ShearingDefectsDto shearing = new ShearingDefectsDto();
+        shearing.setLengthOfCutBar(((Number) row[6]).intValue());
+        shearing.setOvalityImproperDiaAtEnd(((Number) row[7]).intValue());
+        shearing.setSharpEdges(((Number) row[8]).intValue());
+        shearing.setCrackedEdges(((Number) row[9]).intValue());
+        dto.setShearingDefects(shearing);
+
+        // TURNING (10–12)
+        TurningDefectsDto turning = new TurningDefectsDto();
+        turning.setParallelLength(((Number) row[10]).intValue());
+        turning.setFullTurningLength(((Number) row[11]).intValue());
+        turning.setTurningDia(((Number) row[12]).intValue());
+        dto.setTurningDefects(turning);
+
+        // FORGING (13–17)
+        ForgingDefectsDto forging = new ForgingDefectsDto();
+        forging.setForgingTemperature(((Number) row[13]).intValue());
+        forging.setForgingStabilisationRejection(((Number) row[14]).intValue());
+        forging.setImproperForging(((Number) row[15]).intValue());
+        forging.setForgingMarksNotches(((Number) row[16]).intValue());
+        dto.setForgingDefects(forging);
+
+        // TEMPERING (18–19)
+        TemperingDefectsDto tempering = new TemperingDefectsDto();
+        tempering.setTemperingTemp(((Number) row[18]).intValue());
+        tempering.setTemperingDuration(((Number) row[19]).intValue());
+        dto.setTemperingDefects(tempering);
+
+        //  QUENCHING (20–24)
+        QuenchingAllDefectsDto quenching = new QuenchingAllDefectsDto();
+        quenching.setQuenchingTemperatureRejected(((Number) row[20]).intValue());
+        quenching.setQuenchingDurationRejected(((Number) row[21]).intValue());
+        quenching.setQuenchingHardnessRejected(((Number) row[22]).intValue());
+        quenching.setBoxGaugeRejected(((Number) row[23]).intValue());
+        quenching.setFlatBearingAreaRejected(((Number) row[24]).intValue());
+        dto.setQuenchingDefects(quenching);
+
+
+        //  FINISHING (26–27)
+        FinishingDefectsDto finishing = new FinishingDefectsDto();
+        finishing.setPaintIdentification(((Number) row[26]).intValue());
+        finishing.setErcCoating(((Number) row[27]).intValue());
+        dto.setFinishingDefects(finishing);
+
+        return dto;
     }
 
     private MonthlyAnalysisDTO mapMonthlyAnalysisRow(Object[] row) {

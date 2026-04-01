@@ -20,5 +20,9 @@ public class RmVisualInspectionDto {
 
     // Defect lengths as a map: defectName -> length
     private Map<String, BigDecimal> defectLengths;
+
+    // Explicitly stored defect properties
+    private Integer defectCount;
+    private BigDecimal weightRejected;
 }
 

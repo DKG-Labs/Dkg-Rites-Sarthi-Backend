@@ -1,6 +1,8 @@
 package com.sarthi.dto.finalmaterial;
 
 import lombok.Data;
+import java.time.LocalDate;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -28,7 +30,12 @@ public class FinalHardnessTestRequest {
     private String lotNo;
     private String heatNo;
     private Integer qtyNo;
+
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate dateOfInspection;
     private String remarks;
+    private String status;
+    private Integer rejected;
     private String createdBy;
     private String updatedBy;
     private List<SampleData> samples;

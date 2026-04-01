@@ -304,6 +304,10 @@ public class RmInspectionServiceImpl implements RmInspectionService {
                 });
             }
 
+            // Set explicitly calculated values
+            entity.setDefectCount(dto.getDefectCount());
+            entity.setWeightRejected(dto.getWeightRejected());
+
             // Set audit fields
             entity.setCreatedBy(getCurrentUser());
             entity.setUpdatedBy(getCurrentUser());
@@ -459,6 +463,9 @@ public class RmInspectionServiceImpl implements RmInspectionService {
                 if (samples.size() > 19)
                     entity.setSample20Diameter(samples.get(19));
             }
+
+            // Set explicitly calculated values
+            entity.setDefectCount(dto.getDefectCount());
 
             // Set audit fields
             entity.setCreatedBy(getCurrentUser());
@@ -746,6 +753,8 @@ public class RmInspectionServiceImpl implements RmInspectionService {
             sampleDiameters.add(entity.getSample20Diameter());
             dimDto.setSampleDiameters(sampleDiameters);
 
+            dimDto.setDefectCount(entity.getDefectCount());
+
             dimensionalDtos.add(dimDto);
         }
         dto.setDimensionalCheckData(dimensionalDtos);
@@ -883,6 +892,10 @@ public class RmInspectionServiceImpl implements RmInspectionService {
         if (entity.getInternalDefectLength() != null)
             defectLengths.put("Internal Defect (Piping, Segregation)", entity.getInternalDefectLength());
         visualDto.setDefectLengths(defectLengths);
+
+        // Explicitly calculated values
+        visualDto.setDefectCount(entity.getDefectCount());
+        visualDto.setWeightRejected(entity.getWeightRejected());
 
         return visualDto;
     }
