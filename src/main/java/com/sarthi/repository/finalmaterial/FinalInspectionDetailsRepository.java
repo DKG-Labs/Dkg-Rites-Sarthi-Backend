@@ -4,6 +4,7 @@ import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
 import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import java.util.List;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -21,6 +22,8 @@ public interface FinalInspectionDetailsRepository extends JpaRepository<FinalIns
      */
     @Query("SELECT fd FROM FinalInspectionDetails fd WHERE fd.inspectionCall.id = :icId")
     Optional<FinalInspectionDetails> findByIcId(@Param("icId") Long icId);
+
+    List<FinalInspectionDetails> findByInspectionCallIdIn(List<Long> icIds);
 
     /**
      * Find Final Inspection Details by RM IC Number

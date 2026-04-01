@@ -17,6 +17,8 @@ public interface FinalInspectionLotDetailsRepository extends JpaRepository<Final
      */
     List<FinalInspectionLotDetails> findByFinalDetailId(Long finalDetailId);
 
+    List<FinalInspectionLotDetails> findByFinalDetailIdIn(List<Long> finalDetailIds);
+
     /**
      * Find lot details by lot number
      */
@@ -26,5 +28,11 @@ public interface FinalInspectionLotDetailsRepository extends JpaRepository<Final
      * Find lot details by heat number
      */
     List<FinalInspectionLotDetails> findByHeatNumber(String heatNumber);
+
+    /**
+     * Sum offered quantity by heat number and lot number
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(f.offeredQty) FROM FinalInspectionLotDetails f WHERE f.heatNumber = :heatNumber AND f.lotNumber = :lotNumber")
+    Integer sumOfferedQtyByHeatNumberAndLotNumber(@org.springframework.data.repository.query.Param("heatNumber") String heatNumber, @org.springframework.data.repository.query.Param("lotNumber") String lotNumber);
 }
 

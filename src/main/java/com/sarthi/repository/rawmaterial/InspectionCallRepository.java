@@ -2,9 +2,9 @@ package com.sarthi.repository.rawmaterial;
 
 import com.sarthi.dto.InspectionDataDto;
 import com.sarthi.entity.rawmaterial.InspectionCall;
-import org.hibernate.query.SelectionQuery;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -53,6 +53,7 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
 
     /* ==================== Find by Vendor ID ==================== */
 
+    @EntityGraph(attributePaths = {"rmInspectionDetails", "processInspectionDetails", "finalInspectionDetails"})
     List<InspectionCall> findByVendorIdOrderByCreatedAtDesc(String vendorId);
 
     /* ==================== Custom Queries ==================== */

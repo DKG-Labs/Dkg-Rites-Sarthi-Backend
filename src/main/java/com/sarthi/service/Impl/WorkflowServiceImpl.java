@@ -16,6 +16,9 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
+import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalProcessIcMappingRepository;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
@@ -101,6 +104,15 @@ public class WorkflowServiceImpl implements WorkflowService {
 
     @Autowired
     private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
+
+    @Autowired
+    private FinalInspectionDetailsRepository finalInspectionDetailsRepository;
+
+    @Autowired
+    private FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
+
+    @Autowired
+    private FinalProcessIcMappingRepository finalProcessIcMappingRepository;
 
     @Autowired
     private PoHeaderRepository poHeaderRepository;
@@ -3704,45 +3716,81 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         InspectionCall inspectionCall = callOpt.get();
 
 
-        Optional<RmInspectionDetails> rmDetails =
-                rmInspectionDetailsRepository.findByIcId(inspectionCall.getId());
-
-        if (rmDetails == null || rmDetails.isEmpty()) {
-            throw new BusinessException(new ErrorDetails(
-                    AppConstant.ERROR_CODE_RESOURCE,
-                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                    AppConstant.ERROR_TYPE_RESOURCE,
-                    "Inspection request not found with ID: " + inspectionCall.getId()
-            ));
+        String typeOfCall = inspectionCall.getTypeOfCall();
+        if (typeOfCall == null) {
+            return "Withdrawn (No call type specified)";
         }
 
+        if ("Raw Material".equalsIgnoreCase(typeOfCall)) {
+            Optional<RmInspectionDetails> rmDetails =
+                    rmInspectionDetailsRepository.findByIcId(inspectionCall.getId());
 
+            rmDetails.ifPresent(rm -> {
+                List<RmHeatQuantity> heats =
+                        rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rm.getId()));
 
-
-        rmDetails.ifPresent(rm -> {
-
-            List<RmHeatQuantity> heats =
-                    rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rm.getId()));
-
-            if (heats.isEmpty()) return;
-
-            for (RmHeatQuantity heat : heats) {
-
-                BigDecimal qty = heat.getOfferedQty();
-
-                if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) continue;
-
-                if (heat.getHeatNumber() == null || heat.getTcNumber() == null) continue;
-
-                restoreInventoryJpa(
-                        heat.getHeatNumber(),
-                        heat.getTcNumber(),
-                        qty
-                );
+                for (RmHeatQuantity heat : heats) {
+                    BigDecimal qty = heat.getOfferedQty();
+                    if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+                    if (heat.getHeatNumber() == null || heat.getTcNumber() == null) continue;
+                    restoreInventoryJpa(heat.getHeatNumber(), heat.getTcNumber(), qty);
+                }
+            });
+            return "Call withdrawn & inventory restored successfully";
+        } else if ("Process".equalsIgnoreCase(typeOfCall)) {
+            // 1. Update ProcessIeQty (Results entered by IE)
+            List<ProcessIeQty> ieQtys = processIeQtyRepository.findByRequestId(icNumber);
+            for (ProcessIeQty qty : ieQtys) {
+                qty.setOfferedQty(0);
+                qty.setManufactureQty(0);
+                qty.setInspectedQty(0);
+                qty.setRejectedQty(BigDecimal.ZERO);
+                processIeQtyRepository.save(qty);
             }
-        });
 
-        return "Call withdrawn & inventory restored successfully";
+            // 2. Update ProcessInspectionDetails (Request details/lots)
+            List<ProcessInspectionDetails> processDetails = processInspectionDetailsRepository.findByIcId(inspectionCall.getId());
+            for (ProcessInspectionDetails detail : processDetails) {
+                detail.setOfferedQty(0);
+                detail.setQtyAccepted(0);
+                detail.setQtyRejected(0);
+                processInspectionDetailsRepository.save(detail);
+            }
+            return "Process call withdrawn successfully. Quantities reset to 0.";
+        } else if ("Final".equalsIgnoreCase(typeOfCall)) {
+            // 1. Update FinalInspectionDetails
+            Optional<com.sarthi.entity.finalmaterial.FinalInspectionDetails> finalDetailsOpt =
+                    finalInspectionDetailsRepository.findByIcId(inspectionCall.getId());
+
+            finalDetailsOpt.ifPresent(details -> {
+                details.setTotalOfferedQty(0);
+                details.setTotalAcceptedQty(0);
+                details.setTotalRejectedQty(0);
+                finalInspectionDetailsRepository.save(details);
+
+                // 2. Update FinalInspectionLotDetails
+                List<com.sarthi.entity.finalmaterial.FinalInspectionLotDetails> lots =
+                        finalInspectionLotDetailsRepository.findByFinalDetailId(details.getId());
+                for (com.sarthi.entity.finalmaterial.FinalInspectionLotDetails lot : lots) {
+                    lot.setOfferedQty(0);
+                    lot.setQtyAccepted(0);
+                    lot.setQtyRejected(0);
+                    finalInspectionLotDetailsRepository.save(lot);
+                }
+
+                // 3. Delete FinalProcessIcMapping records
+                List<com.sarthi.entity.finalmaterial.FinalProcessIcMapping> mappings =
+                        finalProcessIcMappingRepository.findByFinalIcId(inspectionCall.getId());
+                if (!mappings.isEmpty()) {
+                    finalProcessIcMappingRepository.deleteAll(mappings);
+                    log.info("✅ Deleted {} Process IC mappings for withdrawn Final call ID: {}", 
+                            mappings.size(), inspectionCall.getId());
+                }
+            });
+            return "Final call withdrawn successfully. Quantities reset to 0 and mappings cleared.";
+        }
+
+        return "Call withdrawn successfully";
     }
 
     private void restoreInventoryJpa(String heatNumber, String tcNumber, BigDecimal qty) {
@@ -3777,6 +3825,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
 
         inv.setOfferedQuantity(updatedOffered);
         inv.setQtyLeftForInspection(updatedInspection);
+        inv.recalculateStatus();
 
         inventoryEntryRepository.save(inv);
     }

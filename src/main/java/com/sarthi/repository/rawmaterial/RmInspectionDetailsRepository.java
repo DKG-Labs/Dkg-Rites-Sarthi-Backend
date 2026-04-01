@@ -22,6 +22,8 @@ public interface RmInspectionDetailsRepository
         WHERE rd.inspectionCall.id = :icId
     """)
     Optional<RmInspectionDetails> findByIcId(@Param("icId") Long icId);
+    
+    List<RmInspectionDetails> findByInspectionCallIdIn(List<Long> icIds);
 
     /* ==================== Find by TC Number ==================== */
 

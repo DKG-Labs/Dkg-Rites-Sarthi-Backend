@@ -136,9 +136,9 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         // ---- Resolve Process IC numbers (support both single and multi-select) ----
         List<String> processIcList = (finalDetails.getProcessIcNumbers() != null
                 && !finalDetails.getProcessIcNumbers().isEmpty())
-                        ? finalDetails.getProcessIcNumbers()
-                        : (finalDetails.getProcessIcNumber() != null ? List.of(finalDetails.getProcessIcNumber())
-                                : List.of());
+                ? finalDetails.getProcessIcNumbers()
+                : (finalDetails.getProcessIcNumber() != null ? List.of(finalDetails.getProcessIcNumber())
+                : List.of());
 
         String processIcNumbersCsv = processIcList.stream().collect(Collectors.joining(","));
         finalInspectionDetails.setProcessIcNumber(processIcNumbersCsv);
@@ -324,5 +324,12 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                 .findLotNumbersByMultipleRmAndProcessIcNumbers(rmCertificateNos, processCertificateNos);
         logger.info("Found {} lot numbers", lotNumbers.size());
         return lotNumbers;
+    }
+
+    @Override
+    public Integer getOfferedEarlierQuantity(String heatNo, String lotNumber) {
+        logger.info("Fetching offered earlier quantity for heat: {} and lot: {}", heatNo, lotNumber);
+        Integer sum = finalInspectionLotDetailsRepository.sumOfferedQtyByHeatNumberAndLotNumber(heatNo, lotNumber);
+        return sum != null ? sum : 0;
     }
 }
