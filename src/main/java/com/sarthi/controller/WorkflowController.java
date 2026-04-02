@@ -67,7 +67,7 @@ public class WorkflowController {
     }
 
 
-    @PostMapping("/workflow/withdraw")
+    @PostMapping("/api/workflow/withdraw")
     public ResponseEntity<Object> withdrawCall(@RequestBody TransitionActionReqDto dto) {
 
         return ResponseEntity.ok(

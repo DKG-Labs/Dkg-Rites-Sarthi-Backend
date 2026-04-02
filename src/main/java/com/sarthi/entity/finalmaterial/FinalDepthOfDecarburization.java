@@ -3,6 +3,7 @@ package com.sarthi.entity.finalmaterial;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -37,6 +38,9 @@ public class FinalDepthOfDecarburization {
     @Column(name = "inspection_call_no", nullable = false, length = 50)
     private String inspectionCallNo;
 
+    @Column(name = "date_of_inspection")
+    private LocalDate dateOfInspection;
+
     /**
      * Lot number under inspection.
      */
@@ -67,6 +71,12 @@ public class FinalDepthOfDecarburization {
      */
     @Column(name = "status", nullable = false, length = 50)
     private String status;
+
+    /**
+     * Total number of rejected samples.
+     */
+    @Column(name = "rejected")
+    private Integer rejected = 0;
 
     /**
      * Final inspector remarks.

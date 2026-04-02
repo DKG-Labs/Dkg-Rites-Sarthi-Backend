@@ -90,7 +90,7 @@ ORDER BY ppm.company_name, ppm.unit_name
 """, nativeQuery = true)
     List<Object[]> findAllCompanyUnitIe();
 
-    @Query(value = """
+  /*  @Query(value = """
            SELECT
                            ppm.company_name,
                            ppm.unit_name,
@@ -107,7 +107,21 @@ ORDER BY ppm.company_name, ppm.unit_name
                        GROUP BY ppm.company_name, ppm.unit_name
                        ORDER BY ppm.company_name;
 """, nativeQuery = true)
-    List<Object[]> findCompanyUnitEmployees();
+    List<Object[]> findCompanyUnitEmployees();  */
+  @Query(value = """
+    SELECT
+        ppm.company_name,
+        ppm.unit_name,
+        GROUP_CONCAT(DISTINCT um.employee_code ORDER BY um.employee_code) AS employeeCode
+    FROM pincode_poi_mapping ppm
+    JOIN poi_process_ie_mapping ppim
+        ON ppm.poi_code = ppim.poi_code
+    JOIN user_master um
+        ON um.employee_code = ppim.employee_code
+    GROUP BY ppm.company_name, ppm.unit_name
+    ORDER BY ppm.company_name
+""", nativeQuery = true)
+  List<Object[]> findCompanyUnitEmployees();
 
     @Query(value = """
 SELECT DISTINCT ipm.employee_code
@@ -146,7 +160,7 @@ WHERE ppm.poi_code = :poiCode
 """, nativeQuery = true)
     List<String> findIeEmpCodeWithName(@Param("poiCode") String poiCode);
 
-    @Query(value = """
+ /*   @Query(value = """
 SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username)
 FROM pincode_poi_mapping ppm
 JOIN ie_poi_mapping ipm
@@ -160,6 +174,16 @@ JOIN user_master um
 WHERE ppm.poi_code = :poiCode
 """, nativeQuery = true)
     List<String> findProcessIeEmpCodeWithName(@Param("poiCode") String poiCode);
+
+  */
+ @Query(value = """
+SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username)
+FROM poi_process_ie_mapping ppm
+JOIN user_master um
+    ON um.employee_code COLLATE utf8mb4_unicode_ci = ppm.employee_code COLLATE utf8mb4_unicode_ci
+WHERE ppm.poi_code = :poiCode
+""", nativeQuery = true)
+ List<String> findProcessIeEmpCodeWithName(@Param("poiCode") String poiCode);
 
     @Query(value = """
     SELECT poi_code 

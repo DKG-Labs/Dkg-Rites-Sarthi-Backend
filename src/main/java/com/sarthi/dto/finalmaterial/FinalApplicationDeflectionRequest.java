@@ -2,6 +2,8 @@ package com.sarthi.dto.finalmaterial;
 
 import lombok.Data;
 import java.util.List;
+import java.time.LocalDate;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 /**
  * Request DTO for Final Application & Deflection Test
@@ -25,8 +27,13 @@ public class FinalApplicationDeflectionRequest {
     private String inspectionCallNo;
     private String lotNo;
     private String heatNo;
+
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate dateOfInspection;
     private Integer sampleSize;
     private String remarks;
+    private String status;
+    private Integer rejected;
     private String createdBy;
     private String updatedBy;
     private List<SampleData> samples;

@@ -325,4 +325,11 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         logger.info("Found {} lot numbers", lotNumbers.size());
         return lotNumbers;
     }
+
+    @Override
+    public Integer getOfferedEarlierQuantity(String heatNo, String lotNumber) {
+        logger.info("Fetching offered earlier quantity for heat: {} and lot: {}", heatNo, lotNumber);
+        Integer sum = finalInspectionLotDetailsRepository.sumOfferedQtyByHeatNumberAndLotNumber(heatNo, lotNumber);
+        return sum != null ? sum : 0;
+    }
 }

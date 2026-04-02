@@ -2,9 +2,9 @@ package com.sarthi.repository.rawmaterial;
 
 import com.sarthi.dto.InspectionDataDto;
 import com.sarthi.entity.rawmaterial.InspectionCall;
-import org.hibernate.query.SelectionQuery;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -53,6 +53,7 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
 
     /* ==================== Find by Vendor ID ==================== */
 
+    @EntityGraph(attributePaths = {"rmInspectionDetails", "processInspectionDetails", "finalInspectionDetails"})
     List<InspectionCall> findByVendorIdOrderByCreatedAtDesc(String vendorId);
 
     /* ==================== Custom Queries ==================== */
@@ -376,7 +377,7 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
             @Param("zone") String zone,
             @Param("vendor") String vendor,
             Pageable pageable);
-
+/*
     @Query(value = """
             SELECT
                 ic.company_name AS manufacturer,
@@ -438,7 +439,56 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
             @Param("rio") String rio,
             @Param("zone") String zone,
             @Param("vendor") String vendor,
-            Pageable pageable);
+            Pageable pageable);*/
+@Query(value = """
+        SELECT
+            poi.company_name AS manufacturer,
+
+            COALESCE(SUM(
+                CASE
+                    WHEN f.qty_now_offered IS NOT NULL
+                         THEN f.qty_now_offered
+                    ELSE p.manufacture_qty
+                END
+            ),0) AS manufactured,
+
+            COALESCE(SUM(f.qty_now_passed),0) AS inspected,
+            COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
+
+            COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
+            COALESCE(SUM(p.rejected_qty),0) AS processRejected,
+            COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected
+
+        FROM inspection_calls ic
+
+        LEFT JOIN final_cumulative_results f
+               ON f.inspection_call_no = ic.ic_number
+
+        LEFT JOIN rm_heat_final_result r
+               ON r.inspection_call_no = ic.ic_number
+
+        LEFT JOIN process_ie_qty p
+               ON p.REQUEST_ID = ic.ic_number
+
+        JOIN pincode_poi_mapping poi
+               ON poi.poi_code = ic.place_of_inspection
+
+        WHERE ic.created_at BETWEEN :startDate AND :endDate
+
+        GROUP BY poi.company_name
+        """,
+        countQuery = """
+        SELECT COUNT(DISTINCT poi.company_name)
+        FROM inspection_calls ic
+        JOIN pincode_poi_mapping poi
+               ON poi.poi_code = ic.place_of_inspection
+        WHERE ic.created_at BETWEEN :startDate AND :endDate
+        """,
+        nativeQuery = true)
+Page<Object[]> fetchManufacturerSummary(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        Pageable pageable);
 
     @Query(value = """
             SELECT DISTINCT ic.ic_number
@@ -472,4 +522,203 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
     WHERE ic_number = :icNumber
 """, nativeQuery = true)
     String findPlaceOfInspectionByIcNumber(@Param("icNumber") String icNumber);
+
+    @Query(value = """
+        SELECT
+            DATE_FORMAT(ic.created_at, '%Y-%m') AS month,
+
+            COALESCE(SUM(
+                CASE
+                    WHEN f.qty_now_offered IS NOT NULL
+                         THEN f.qty_now_offered
+                    ELSE p.manufacture_qty
+                END
+            ),0) AS manufactured,
+
+            COALESCE(SUM(f.qty_now_passed),0) AS inspected,
+            COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
+
+            COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
+            COALESCE(SUM(p.rejected_qty),0) AS processRejected,
+            COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected
+
+        FROM inspection_calls ic
+
+        LEFT JOIN final_cumulative_results f
+               ON f.inspection_call_no = ic.ic_number
+
+        LEFT JOIN rm_heat_final_result r
+               ON r.inspection_call_no = ic.ic_number
+
+        LEFT JOIN process_ie_qty p
+               ON p.REQUEST_ID = ic.ic_number
+
+        JOIN pincode_poi_mapping poi
+               ON poi.poi_code = ic.place_of_inspection
+
+        WHERE ic.created_at BETWEEN :startDate AND :endDate
+          AND poi.company_name = :companyName
+
+        GROUP BY DATE_FORMAT(ic.created_at, '%Y-%m')
+        ORDER BY month
+        """, nativeQuery = true)
+    List<Object[]> fetchCompanyMonthWiseSummary(
+            LocalDate startDate,
+            LocalDate endDate,
+            String companyName);
+
+    @Query(value = """
+
+SELECT
+    poi.company_name AS manufacturer,
+    DATE_FORMAT(ic.created_at, '%Y-%m') AS month,
+
+    -- PROCESS TOTALS
+    COALESCE(SUM(pl.total_manufactured),0) AS inspected,
+
+    COALESCE(SUM(pl.shearing_accepted),0) AS accepted,
+
+    COALESCE(SUM(pl.total_rejected),0) AS processRejected,
+
+    CASE 
+        WHEN SUM(pl.total_manufactured) = 0 THEN 0
+        ELSE (SUM(pl.total_rejected) * 100.0 / SUM(pl.total_manufactured))
+    END AS processRejPercent,
+
+    -- SHEARING
+    COALESCE(SUM(psd.length_cut_bar_rejected),0),
+    COALESCE(SUM(psd.improper_dia_rejected),0),
+    COALESCE(SUM(psd.sharp_edges_rejected),0),
+    COALESCE(SUM(psd.cracked_edges_rejected),0),
+
+    -- TURNING
+    COALESCE(SUM(ptd.parallel_length_rejected),0),
+    COALESCE(SUM(ptd.full_turning_length_rejected),0),
+    COALESCE(SUM(ptd.turning_dia_rejected),0),
+
+    -- FORGING
+    COALESCE(SUM(pfd.forging_temp_rejected),0),
+    COALESCE(SUM(pfd.forging_stabilisation_rejection_rejected),0),
+    COALESCE(SUM(pfd.improper_forging_rejected),0),
+    COALESCE(SUM(pfd.forging_defect_rejected),0),
+    COALESCE(SUM(pfd.embossing_defect_rejected),0),
+
+    -- TEMPERING
+    COALESCE(SUM(tpd.tempering_temperature_rejected),0),
+    COALESCE(SUM(tpd.tempering_duration_rejected),0),
+
+    -- QUENCHING
+    COALESCE(SUM(qd.quenching_temperature_rejected),0),
+    COALESCE(SUM(qd.quenching_duration_rejected),0),
+    COALESCE(SUM(qd.quenching_hardness_rejected),0),
+    COALESCE(SUM(qd.box_gauge_rejected),0),
+    COALESCE(SUM(qd.flat_bearing_area_rejected),0),
+
+    -- MPI
+    COALESCE(SUM(mpi.mpi_rejected),0),
+
+    -- FINISHING
+    COALESCE(SUM(fd.paint_identification_rejected),0),
+    COALESCE(SUM(fd.erc_coating_rejected),0)
+
+FROM inspection_calls ic
+
+JOIN pincode_poi_mapping poi
+    ON poi.poi_code = ic.place_of_inspection
+
+-- AGGREGATED PL (NO INFLATION)
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(total_manufactured) AS total_manufactured,
+           SUM(total_rejected) AS total_rejected,
+            SUM(shearing_accepted) AS shearing_accepted
+    FROM process_line_final_result
+    GROUP BY inspection_call_no
+) pl ON pl.inspection_call_no = ic.ic_number
+
+-- SHEARING
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(length_cut_bar_rejected) AS length_cut_bar_rejected,
+           SUM(improper_dia_rejected) AS improper_dia_rejected,
+           SUM(sharp_edges_rejected) AS sharp_edges_rejected,
+           SUM(cracked_edges_rejected) AS cracked_edges_rejected
+    FROM process_shearing_data
+    GROUP BY inspection_call_no
+) psd ON psd.inspection_call_no = ic.ic_number
+
+-- TURNING
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(parallel_length_rejected) AS parallel_length_rejected,
+           SUM(full_turning_length_rejected) AS full_turning_length_rejected,
+           SUM(turning_dia_rejected) AS turning_dia_rejected
+    FROM process_turning_data
+    GROUP BY inspection_call_no
+) ptd ON ptd.inspection_call_no = ic.ic_number
+
+-- FORGING
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(forging_temp_rejected) AS forging_temp_rejected,
+           SUM(forging_stabilisation_rejection_rejected) AS forging_stabilisation_rejection_rejected,
+           SUM(improper_forging_rejected) AS improper_forging_rejected,
+           SUM(forging_defect_rejected) AS forging_defect_rejected,
+           SUM(embossing_defect_rejected) AS embossing_defect_rejected
+    FROM process_forging_data
+    GROUP BY inspection_call_no
+) pfd ON pfd.inspection_call_no = ic.ic_number
+
+-- TEMPERING
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(tempering_temperature_rejected) AS tempering_temperature_rejected,
+           SUM(tempering_duration_rejected) AS tempering_duration_rejected
+    FROM process_tempering_data
+    GROUP BY inspection_call_no
+) tpd ON tpd.inspection_call_no = ic.ic_number
+
+-- QUENCHING
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(quenching_temperature_rejected) AS quenching_temperature_rejected,
+           SUM(quenching_duration_rejected) AS quenching_duration_rejected,
+           SUM(quenching_hardness_rejected) AS quenching_hardness_rejected,
+           SUM(box_gauge_rejected) AS box_gauge_rejected,
+           SUM(flat_bearing_area_rejected) AS flat_bearing_area_rejected
+    FROM process_quenching_data
+    GROUP BY inspection_call_no
+) qd ON qd.inspection_call_no = ic.ic_number
+
+-- MPI
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(mpi_rejected) AS mpi_rejected
+    FROM process_mpi_data
+    GROUP BY inspection_call_no
+) mpi ON mpi.inspection_call_no = ic.ic_number
+
+-- FINISHING
+LEFT JOIN (
+    SELECT inspection_call_no,
+           SUM(paint_identification_rejected) AS paint_identification_rejected,
+           SUM(erc_coating_rejected) AS erc_coating_rejected
+    FROM process_testing_finishing_data
+    GROUP BY inspection_call_no
+) fd ON fd.inspection_call_no = ic.ic_number
+
+WHERE ic.created_at BETWEEN :startDate AND :endDate
+  AND poi.company_name = :companyName
+
+GROUP BY 
+    poi.company_name,
+    DATE_FORMAT(ic.created_at, '%Y-%m')
+
+ORDER BY month
+
+""", nativeQuery = true)
+    List<Object[]> fetchProcessMonthWiseData(
+            LocalDate startDate,
+            LocalDate endDate,
+            String companyName);
 }

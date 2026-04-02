@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * DTO for Final Visual Inspection
@@ -22,6 +23,9 @@ public class FinalVisualInspectionDto {
     private String inspectionCallNo;
     private String lotNo;
     private String heatNo;
+
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate dateOfInspection;
 
     // Visual Inspection Data
     private Integer firstSampleRejected;

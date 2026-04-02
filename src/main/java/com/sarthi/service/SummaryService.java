@@ -1,5 +1,6 @@
 package com.sarthi.service;
 
+import com.sarthi.dto.CompanyWiseYearlyData;
 import com.sarthi.dto.summaryDtos.*;
 import org.springframework.stereotype.Service;
 
@@ -29,5 +30,12 @@ public interface SummaryService {
         public List<String> getRequestIds(LocalDate startDate, LocalDate endDate);
 
         public List<String> getLotNumbers(String requestId);
+
+        public PageResponseDTO<CompanyWiseYearlyData> getComapanyWiseMonthlyAnalysis(
+                int page,
+                int size,
+                LocalDate startDate,
+                LocalDate endDate,
+                String companyName);
 
 }

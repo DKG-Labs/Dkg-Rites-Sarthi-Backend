@@ -16,6 +16,9 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
+import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalProcessIcMappingRepository;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
@@ -103,6 +106,15 @@ public class WorkflowServiceImpl implements WorkflowService {
     private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
 
     @Autowired
+    private FinalInspectionDetailsRepository finalInspectionDetailsRepository;
+
+    @Autowired
+    private FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
+
+    @Autowired
+    private FinalProcessIcMappingRepository finalProcessIcMappingRepository;
+
+    @Autowired
     private PoHeaderRepository poHeaderRepository;
     @Autowired
     private VendorMasterRepository vendorMasterRepository;
@@ -113,7 +125,8 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private InventoryEntryRepository inventoryEntryRepository;
 
-
+    @Autowired
+    private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
 
@@ -213,8 +226,12 @@ public class WorkflowServiceImpl implements WorkflowService {
                if(ic.getTypeOfCall().equalsIgnoreCase("PROCESS")){
                   //  && last.getNextRoleName().equalsIgnoreCase("IE")
                  //  validateProcessIeAction(last.getProcessIeUserId(),createdBy);
-                   validateProcessIeAction(
+                 /*  validateProcessIeAction(
+
                            last.getProcessIeUserId().longValue(),
+                           createdBy.longValue(), ic.getPlaceOfInspection()
+                   );*/
+                   validateProcessIeAction(
                            createdBy.longValue(), ic.getPlaceOfInspection()
                    );
 
@@ -440,7 +457,7 @@ public class WorkflowServiceImpl implements WorkflowService {
             );
         }
     }
-
+/*
     private void validateProcessIeAction(Long processIeUserId, Long actionBy,String poicode) {
 
 //        List<ProcessIeUsers> mappings =
@@ -475,6 +492,37 @@ public class WorkflowServiceImpl implements WorkflowService {
                             AppConstant.ERROR_TYPE_VALIDATION,
                             "You are not authorized to perform this action. " +
                                     "User " + actionBy + " is not under Process IE user " + processIeUserId
+                    )
+            );
+        }
+    }*/
+
+    private void validateProcessIeAction(Long actionBy, String poiCode) {
+
+        //  Get all userIds mapped to POI
+        List<Long> userIds =
+                poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
+
+        if (userIds == null || userIds.isEmpty()) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "No Process IE mapped for POI: " + poiCode
+                    )
+            );
+        }
+
+        //  Validate user
+        if (!userIds.contains(actionBy)) {
+            throw new InvalidInputException(
+                    new ErrorDetails(
+                            AppConstant.ACCESS_DENIED,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "You are not authorized for POI " + poiCode +
+                                    ". User " + actionBy + " is not mapped."
                     )
             );
         }
@@ -608,8 +656,11 @@ public class WorkflowServiceImpl implements WorkflowService {
          //   String inspectionType ="Raw Material";
             if(call.getTypeOfCall().equalsIgnoreCase("PROCESS")){
               //  validateProcessIeAction(last.getProcessIeUserId(),req.getActionBy());
-                validateProcessIeAction(
+              /*  validateProcessIeAction(
                         last.getProcessIeUserId().longValue(),
+                        req.getActionBy().longValue(), call.getPlaceOfInspection()
+                );*/
+                validateProcessIeAction(
                         req.getActionBy().longValue(), call.getPlaceOfInspection()
                 );
 
@@ -668,11 +719,10 @@ public class WorkflowServiceImpl implements WorkflowService {
 
                 if ("PROCESS".equalsIgnoreCase(inspectionType)) {
 
-                    Integer processIeUserId =
-                            getProcessIeUserFromPoi(ic.getPlaceOfInspection(), last.getProcessIeUserId());
+                   // Integer processIeUserId = getProcessIeUserFromPoi(ic.getPlaceOfInspection(), last.getProcessIeUserId());
 
-                    next.setAssignedToUser(processIeUserId);
-                    next.setProcessIeUserId(processIeUserId);
+                  //  next.setAssignedToUser(processIeUserId);
+                  //  next.setProcessIeUserId(processIeUserId);
                 }
                 else if ("FINAL".equalsIgnoreCase(inspectionType)) {
 
@@ -978,11 +1028,10 @@ public class WorkflowServiceImpl implements WorkflowService {
 
             if ("PROCESS".equalsIgnoreCase(inspectionType)) {
 
-                Integer processIeUserId =
-                        getProcessIeUserFromPoi(im.getPlaceOfInspection(), last.getProcessIeUserId());
+               // Integer processIeUserId = getProcessIeUserFromPoi(im.getPlaceOfInspection(), last.getProcessIeUserId());
 
-                next.setAssignedToUser(processIeUserId);
-                next.setProcessIeUserId(processIeUserId);
+              //  next.setAssignedToUser(processIeUserId);
+              //  next.setProcessIeUserId(processIeUserId);
             }
             else if ("FINAL".equalsIgnoreCase(inspectionType)) {
 
@@ -1487,10 +1536,10 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
     if ("PROCESS".equalsIgnoreCase(inspectionType)) {
 
         // First time PROCESS IE assignment → use the Process IE user ID
-        Integer processIeUserId = getProcessIeUserFromPoi(insp.getPlaceOfInspection(), 0);
+      //  Integer processIeUserId = getProcessIeUserFromPoi(insp.getPlaceOfInspection(), 0);
 
-        callReg.setAssignedToUser(processIeUserId);
-        callReg.setProcessIeUserId(processIeUserId);
+      //  callReg.setAssignedToUser(processIeUserId);
+      //  callReg.setProcessIeUserId(processIeUserId);
 
     }
 
@@ -2347,8 +2396,9 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
             i = ic.get();
         }
         WorkflowTransitionDto dto = new WorkflowTransitionDto();
-        if(wt.getProcessIeUserId()!= null) {
-            int processIe = wt.getProcessIeUserId();
+      //  if(wt.getProcessIeUserId()!= null) {
+    if(wt.getRequestId() != null && wt.getRequestId().startsWith("EP")){
+            Integer processIe = wt.getProcessIeUserId();
             String poi = i.getPlaceOfInspection();
 
             List<Integer> ieUsers = null;
@@ -2402,7 +2452,7 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
         return dto;
     }
 
-    @Cacheable(
+  /*  @Cacheable(
             value = "ieUsersByProcessPoi",
             key = "#processIeUserId + '_' + #poiCode"
     )
@@ -2436,8 +2486,39 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
         );
 
     }
+*/
+//  @Cacheable(
+//          value = "ieUsersByProcessPoi",
+//          key = "#processIeUserId + '_' + #poiCode"
+//  )
+  private List<Integer> getIeUsersByProcessIeAndPlaceOfInsp(
+          Integer processIeUserId,
+          String poiCode
+  ) {
 
 
+      List<Long> userIds =
+              poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
+
+      if (userIds == null || userIds.isEmpty()) {
+          throw new BusinessException(
+                  new ErrorDetails(
+                          AppConstant.ERROR_CODE_RESOURCE,
+                          AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                          AppConstant.ERROR_TYPE_VALIDATION,
+                          "No Process IE found for POI " + poiCode
+                  )
+          );
+      }
+
+
+      return new ArrayList<>(
+              userIds.stream()
+                      .map(Long::intValue)
+                      .toList()
+      );
+  }
+/*
     private List<Integer> getIeUsersByProcessIeAndPoi(Integer processIeUserId, String poiCode) {
 
         //  Get all IE mappings under Process IE
@@ -2482,7 +2563,50 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
 
         return ieUserIds;
     }
+*/
+private List<Integer> getIeUsersByProcessIeAndPoi(
+        Integer processIeUserId,
+        String poiCode
+) {
 
+
+    List<Long> userIds =
+            poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
+
+    if (userIds == null || userIds.isEmpty()) {
+        throw new BusinessException(
+                new ErrorDetails(
+                        AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "No Process IE found for POI: " + poiCode
+                )
+        );
+    }
+
+
+    if (processIeUserId != null && processIeUserId != 0) {
+        userIds = userIds.stream()
+                .filter(id -> id.equals(Long.valueOf(processIeUserId)))
+                .toList();
+
+        if (userIds.isEmpty()) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Process IE " + processIeUserId + " not mapped to POI " + poiCode
+                    )
+            );
+        }
+    }
+
+
+    return userIds.stream()
+            .map(Long::intValue)
+            .toList();
+}
 
 /*
     private Integer getCmUserFromIeUser(Integer ieUserId) {
@@ -2935,8 +3059,9 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         InspectionDataDto i = inspectionMap.get(wt.getRequestId());
         WorkflowTransitionDto dto = new WorkflowTransitionDto();
 
-        if (wt.getProcessIeUserId() != null && i != null) {
-            int processIe = wt.getProcessIeUserId();
+       // if (wt.getProcessIeUserId() != null && i != null) {
+        if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP")) {
+            Integer processIe = wt.getProcessIeUserId();
             String poi = i.placeOfInspection();
 
          //   List<Integer> ieUsers = processIeIeMap.getOrDefault(processIe + "_" + poi, new ArrayList<>());
@@ -3095,7 +3220,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         );
     }
 */
-
+/*
 private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
 
     // 1. Get latest IE mapped to POI
@@ -3134,7 +3259,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
     // 3. Return Process User ID
     return latestProcessIe.getProcessUserId().intValue();
 }
-
+*/
 
 
 
@@ -3591,45 +3716,81 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         InspectionCall inspectionCall = callOpt.get();
 
 
-        Optional<RmInspectionDetails> rmDetails =
-                rmInspectionDetailsRepository.findByIcId(inspectionCall.getId());
-
-        if (rmDetails == null || rmDetails.isEmpty()) {
-            throw new BusinessException(new ErrorDetails(
-                    AppConstant.ERROR_CODE_RESOURCE,
-                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                    AppConstant.ERROR_TYPE_RESOURCE,
-                    "Inspection request not found with ID: " + inspectionCall.getId()
-            ));
+        String typeOfCall = inspectionCall.getTypeOfCall();
+        if (typeOfCall == null) {
+            return "Withdrawn (No call type specified)";
         }
 
+        if ("Raw Material".equalsIgnoreCase(typeOfCall)) {
+            Optional<RmInspectionDetails> rmDetails =
+                    rmInspectionDetailsRepository.findByIcId(inspectionCall.getId());
 
+            rmDetails.ifPresent(rm -> {
+                List<RmHeatQuantity> heats =
+                        rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rm.getId()));
 
-
-        rmDetails.ifPresent(rm -> {
-
-            List<RmHeatQuantity> heats =
-                    rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rm.getId()));
-
-            if (heats.isEmpty()) return;
-
-            for (RmHeatQuantity heat : heats) {
-
-                BigDecimal qty = heat.getOfferedQty();
-
-                if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) continue;
-
-                if (heat.getHeatNumber() == null || heat.getTcNumber() == null) continue;
-
-                restoreInventoryJpa(
-                        heat.getHeatNumber(),
-                        heat.getTcNumber(),
-                        qty
-                );
+                for (RmHeatQuantity heat : heats) {
+                    BigDecimal qty = heat.getOfferedQty();
+                    if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+                    if (heat.getHeatNumber() == null || heat.getTcNumber() == null) continue;
+                    restoreInventoryJpa(heat.getHeatNumber(), heat.getTcNumber(), qty);
+                }
+            });
+            return "Call withdrawn & inventory restored successfully";
+        } else if ("Process".equalsIgnoreCase(typeOfCall)) {
+            // 1. Update ProcessIeQty (Results entered by IE)
+            List<ProcessIeQty> ieQtys = processIeQtyRepository.findByRequestId(icNumber);
+            for (ProcessIeQty qty : ieQtys) {
+                qty.setOfferedQty(0);
+                qty.setManufactureQty(0);
+                qty.setInspectedQty(0);
+                qty.setRejectedQty(BigDecimal.ZERO);
+                processIeQtyRepository.save(qty);
             }
-        });
 
-        return "Call withdrawn & inventory restored successfully";
+            // 2. Update ProcessInspectionDetails (Request details/lots)
+            List<ProcessInspectionDetails> processDetails = processInspectionDetailsRepository.findByIcId(inspectionCall.getId());
+            for (ProcessInspectionDetails detail : processDetails) {
+                detail.setOfferedQty(0);
+                detail.setQtyAccepted(0);
+                detail.setQtyRejected(0);
+                processInspectionDetailsRepository.save(detail);
+            }
+            return "Process call withdrawn successfully. Quantities reset to 0.";
+        } else if ("Final".equalsIgnoreCase(typeOfCall)) {
+            // 1. Update FinalInspectionDetails
+            Optional<com.sarthi.entity.finalmaterial.FinalInspectionDetails> finalDetailsOpt =
+                    finalInspectionDetailsRepository.findByIcId(inspectionCall.getId());
+
+            finalDetailsOpt.ifPresent(details -> {
+                details.setTotalOfferedQty(0);
+                details.setTotalAcceptedQty(0);
+                details.setTotalRejectedQty(0);
+                finalInspectionDetailsRepository.save(details);
+
+                // 2. Update FinalInspectionLotDetails
+                List<com.sarthi.entity.finalmaterial.FinalInspectionLotDetails> lots =
+                        finalInspectionLotDetailsRepository.findByFinalDetailId(details.getId());
+                for (com.sarthi.entity.finalmaterial.FinalInspectionLotDetails lot : lots) {
+                    lot.setOfferedQty(0);
+                    lot.setQtyAccepted(0);
+                    lot.setQtyRejected(0);
+                    finalInspectionLotDetailsRepository.save(lot);
+                }
+
+                // 3. Delete FinalProcessIcMapping records
+                List<com.sarthi.entity.finalmaterial.FinalProcessIcMapping> mappings =
+                        finalProcessIcMappingRepository.findByFinalIcId(inspectionCall.getId());
+                if (!mappings.isEmpty()) {
+                    finalProcessIcMappingRepository.deleteAll(mappings);
+                    log.info("✅ Deleted {} Process IC mappings for withdrawn Final call ID: {}", 
+                            mappings.size(), inspectionCall.getId());
+                }
+            });
+            return "Final call withdrawn successfully. Quantities reset to 0 and mappings cleared.";
+        }
+
+        return "Call withdrawn successfully";
     }
 
     private void restoreInventoryJpa(String heatNumber, String tcNumber, BigDecimal qty) {
@@ -3664,6 +3825,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
 
         inv.setOfferedQuantity(updatedOffered);
         inv.setQtyLeftForInspection(updatedInspection);
+        inv.recalculateStatus();
 
         inventoryEntryRepository.save(inv);
     }

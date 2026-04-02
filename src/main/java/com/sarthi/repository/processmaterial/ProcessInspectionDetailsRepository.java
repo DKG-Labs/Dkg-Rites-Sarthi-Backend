@@ -18,6 +18,8 @@ public interface ProcessInspectionDetailsRepository extends JpaRepository<Proces
      */
     @Query("SELECT pd FROM ProcessInspectionDetails pd WHERE pd.inspectionCall.id = :icId")
     List<ProcessInspectionDetails> findByIcId(@Param("icId") Long icId);
+    
+    List<ProcessInspectionDetails> findByInspectionCallIdIn(List<Long> icIds);
 
     /**
      * Find Process Inspection Details by RM IC Number

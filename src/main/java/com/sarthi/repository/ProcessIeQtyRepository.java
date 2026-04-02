@@ -23,6 +23,8 @@ public interface ProcessIeQtyRepository
     Optional<ProcessIeQty> findByRequestIdAndSwiftCode(
             String requestId, String swiftCode);
 
+    List<ProcessIeQty> findByRequestId(String requestId);
+
     @Query("SELECT COALESCE(SUM(p.inspectedQty),0) " +
             "FROM ProcessIeQty p WHERE p.requestId = :requestId")
     int sumInspectedQtyByRequestId(@Param("requestId") String requestId);

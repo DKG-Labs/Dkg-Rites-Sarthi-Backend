@@ -18,6 +18,7 @@ public class VendorInspectionCallStatusDto {
 
     /* ==================== Inspection Call Information ==================== */
 
+    private Integer workflowTransitionId; // Latest workflow transition ID
     private String icNumber; // Inspection Call Number
     private String poNo; // Purchase Order Number
     private String poSerialNo; // PO Serial Number

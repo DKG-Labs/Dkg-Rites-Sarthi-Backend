@@ -25,6 +25,14 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
 
 
     WorkflowTransition findTopByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
+    
+    @Query(value = "SELECT * FROM WORKFLOW_TRANSITION WHERE WORKFLOWTRANSITIONID IN (" +
+            "  SELECT MAX(WORKFLOWTRANSITIONID) " +
+            "  FROM WORKFLOW_TRANSITION " +
+            "  WHERE REQUESTID IN (:requestIds) " +
+            "  GROUP BY REQUESTID" +
+            ")", nativeQuery = true)
+    List<WorkflowTransition> findLatestByRequestIds(@Param("requestIds") List<String> requestIds);
 /*
     @Query("SELECT wt FROM WorkflowTransition wt " +
             "WHERE wt.workflowTransitionId IN (" +

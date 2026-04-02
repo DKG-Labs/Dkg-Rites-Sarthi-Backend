@@ -94,6 +94,9 @@ public class RmDimensionalCheck {
     private BigDecimal sample20Diameter;
 
     // Audit Fields
+    @Column(name = "defect_count")
+    private Integer defectCount;
+
     @Column(name = "created_by", length = 100)
     private String createdBy;
 

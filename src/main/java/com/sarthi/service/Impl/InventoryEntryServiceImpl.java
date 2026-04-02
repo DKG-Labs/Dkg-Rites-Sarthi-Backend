@@ -319,13 +319,7 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
         entry.setQtyLeftForInspection(qtyLeft);
 
         // Update status based on remaining quantity
-        if (qtyLeft.compareTo(BigDecimal.ZERO) <= 0) {
-            entry.setStatus(InventoryEntry.InventoryStatus.EXHAUSTED);
-            logger.info("Inventory entry marked as EXHAUSTED (no quantity left)");
-        } else if (entry.getStatus() == InventoryEntry.InventoryStatus.FRESH_PO) {
-            entry.setStatus(InventoryEntry.InventoryStatus.UNDER_INSPECTION);
-            logger.info("Inventory entry status changed to UNDER_INSPECTION");
-        }
+        entry.recalculateStatus();
 
         // Save updated entry
         InventoryEntry updatedEntry = inventoryEntryRepository.save(entry);

@@ -17,5 +17,8 @@ public class RmDimensionalCheckDto {
 
     // Array of 20 sample diameters
     private List<BigDecimal> sampleDiameters;
+    
+    // Explicitly stored defect properties
+    private Integer defectCount;
 }
 

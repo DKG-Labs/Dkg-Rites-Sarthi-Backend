@@ -6,14 +6,10 @@ import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmInspectionDetails;
 import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
 import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
-import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
 import com.sarthi.entity.PoHeader;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.WorkflowTransitionRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
-import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
-import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
-import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.PoHeaderRepository;
 import com.sarthi.repository.UserMasterRepository;
@@ -26,9 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service implementation for Vendor Inspection Call operations.
@@ -44,15 +40,6 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
     @Autowired
     private WorkflowTransitionRepository workflowTransitionRepository;
-
-    @Autowired
-    private RmInspectionDetailsRepository rmInspectionDetailsRepository;
-
-    @Autowired
-    private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
-
-    @Autowired
-    private FinalInspectionDetailsRepository finalInspectionDetailsRepository;
 
     @Autowired
     private PoHeaderRepository poHeaderRepository;
@@ -71,53 +58,138 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
     public List<VendorInspectionCallStatusDto> getVendorInspectionCallsWithStatus(String vendorId) {
         logger.info("Fetching inspection calls with workflow status for vendor: {}", vendorId);
 
-        Long t1 = System.currentTimeMillis();
-        System.out.println(t1);
-        // Fetch all inspection calls for the vendor
+        long startTime = System.currentTimeMillis();
+        
+        // 1. Fetch all inspection calls for the vendor
+        long stepStart = System.currentTimeMillis();
         List<InspectionCall> inspectionCalls = inspectionCallRepository.findByVendorIdOrderByCreatedAtDesc(vendorId);
-        Long t2 = System.currentTimeMillis();
+        logger.info("Step 1: Fetched {} inspection calls in {}ms", inspectionCalls.size(), (System.currentTimeMillis() - stepStart));
+        
+        if (inspectionCalls.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-        System.out.println(t1 - t2);
-        logger.info("Found {} inspection calls for vendor: {}", inspectionCalls.size(), vendorId);
+        // 2. Collect all necessary IDs for bulk fetching
+        List<String> icNumbers = inspectionCalls.stream().map(InspectionCall::getIcNumber).collect(Collectors.toList());
+        List<String> poNos = inspectionCalls.stream().map(InspectionCall::getPoNo).distinct().collect(Collectors.toList());
+        
+        // 3. Perform bulk fetches
+        // Latest Transitions
+        stepStart = System.currentTimeMillis();
+        Map<String, WorkflowTransition> transitionMap = workflowTransitionRepository.findLatestByRequestIds(icNumbers)
+                .stream().collect(Collectors.toMap(WorkflowTransition::getRequestId, wt -> wt, (wt1, wt2) -> wt1));
+        logger.info("Step 3a: Fetched {} latest transitions in {}ms", transitionMap.size(), (System.currentTimeMillis() - stepStart));
 
-        // Map each inspection call to DTO with workflow status
-        return inspectionCalls.stream()
-                .map(this::mapToVendorInspectionCallStatusDto)
+        // PO Headers
+        stepStart = System.currentTimeMillis();
+        Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos)
+                .stream().collect(Collectors.toMap(PoHeader::getPoNo, ph -> ph, (ph1, ph2) -> ph1));
+        logger.info("Step 3b: Fetched {} PO headers in {}ms", poMap.size(), (System.currentTimeMillis() - stepStart));
+
+        // Note: Inspection Details (RM, Process, Final) are already eager-loaded via EntityGraph on findByVendorId
+
+        // User Details (IE Names)
+        stepStart = System.currentTimeMillis();
+        Set<Integer> userIds = transitionMap.values().stream()
+                .flatMap(wt -> Stream.of(wt.getAssignedToUser(), wt.getProcessIeUserId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        
+        Map<Integer, String> userNamesMap = Collections.emptyMap();
+        if (!userIds.isEmpty()) {
+            userNamesMap = userMasterRepository.findByUserIdIn(new ArrayList<>(userIds))
+                    .stream().collect(Collectors.toMap(UserMaster::getUserId, UserMaster::getFullName));
+        }
+        logger.info("Step 3c: Fetched {} user names in {}ms", userNamesMap.size(), (System.currentTimeMillis() - stepStart));
+
+        // Additional nested data
+        // RM Heat Quantities
+        stepStart = System.currentTimeMillis();
+        List<Long> rmDetailIds = inspectionCalls.stream()
+                .map(InspectionCall::getRmInspectionDetails)
+                .filter(Objects::nonNull)
+                .map(RmInspectionDetails::getId)
                 .collect(Collectors.toList());
+        
+        Map<Long, Long> rmHeatCountMap = Collections.emptyMap();
+        if (!rmDetailIds.isEmpty()) {
+            rmHeatCountMap = rmHeatQuantityRepository.findByRmInspectionDetailsIdIn(rmDetailIds)
+                    .stream().collect(Collectors.groupingBy(hq -> hq.getRmInspectionDetails().getId(), Collectors.counting()));
+        }
+
+        // Final Lot Details
+        List<Long> finalDetailIds = inspectionCalls.stream()
+                .map(InspectionCall::getFinalInspectionDetails)
+                .filter(Objects::nonNull)
+                .map(FinalInspectionDetails::getId)
+                .collect(Collectors.toList());
+        
+        Map<Long, String> finalLotNoMap = Collections.emptyMap();
+        if (!finalDetailIds.isEmpty()) {
+            finalLotNoMap = finalInspectionLotDetailsRepository.findByFinalDetailIdIn(finalDetailIds)
+                    .stream().collect(Collectors.toMap(
+                            ld -> ld.getFinalDetailId(),
+                            ld -> ld.getLotNumber(),
+                            (ld1, ld2) -> ld1 // Take first lot
+                    ));
+        }
+        logger.info("Step 3d: Fetched extra details (Heat count/Lots) in {}ms", (System.currentTimeMillis() - stepStart));
+
+        // 4. Map each inspection call to DTO using bulk-fetched data
+        stepStart = System.currentTimeMillis();
+        final Map<Integer, String> finalUserNamesMap = userNamesMap;
+        final Map<Long, Long> finalRmHeatCountMap = rmHeatCountMap;
+        final Map<Long, String> finalFinalLotNoMap = finalLotNoMap;
+
+        List<VendorInspectionCallStatusDto> results = inspectionCalls.stream()
+                .map(ic -> mapToVendorInspectionCallStatusDtoOptimized(
+                        ic, 
+                        transitionMap.get(ic.getIcNumber()),
+                        poMap.get(ic.getPoNo()),
+                        ic.getRmInspectionDetails(),
+                        ic.getProcessInspectionDetails(),
+                        ic.getFinalInspectionDetails(),
+                        finalUserNamesMap,
+                        finalRmHeatCountMap,
+                        finalFinalLotNoMap))
+                .collect(Collectors.toList());
+
+        long endTime = System.currentTimeMillis();
+        logger.info("Successfully fetched {} inspection calls for vendor: {} in {}ms", results.size(), vendorId, (endTime - startTime));
+        
+        return results;
     }
 
     /**
-     * Map InspectionCall entity to VendorInspectionCallStatusDto with workflow
-     * status
+     * Optimized mapping from InspectionCall entity to VendorInspectionCallStatusDto
      */
-    private VendorInspectionCallStatusDto mapToVendorInspectionCallStatusDto(InspectionCall ic) {
-        // Get latest workflow transition for this IC
-        WorkflowTransition latestTransition = workflowTransitionRepository
-                .findTopByRequestIdOrderByWorkflowTransitionIdDesc(ic.getIcNumber());
+    private VendorInspectionCallStatusDto mapToVendorInspectionCallStatusDtoOptimized(
+            InspectionCall ic, 
+            WorkflowTransition latestTransition,
+            PoHeader ph,
+            RmInspectionDetails rmDetails,
+            List<ProcessInspectionDetails> processList,
+            FinalInspectionDetails finalDetails,
+            Map<Integer, String> userNamesMap,
+            Map<Long, Long> rmHeatCountMap,
+            Map<Long, String> finalLotNoMap) {
 
         // Get item name and quantity based on type of call
-        String itemName = getItemName(ic);
-        Integer quantityOffered = getQuantityOffered(ic);
+        String itemName = getItemNameOptimized(ic, rmDetails, processList, finalDetails);
+        Integer quantityOffered = getQuantityOfferedOptimized(ic, rmDetails, processList, finalDetails);
 
-        // Fetch PoHeader for Railway Short Name
-        String rlyShortName = "N/A";
-        String rlyCd = "N/A";
-        Optional<PoHeader> ph = poHeaderRepository.findByPoNo(ic.getPoNo());
-        if (ph.isPresent()) {
-            rlyShortName = ph.get().getRlyShortName();
-            rlyCd = ph.get().getRlyCd();
-        }
+        // Fetch PoHeader details
+        String rlyShortName = ph != null ? ph.getRlyShortName() : "N/A";
+        String rlyCd = ph != null ? ph.getRlyCd() : "N/A";
 
-        // Fetch IE Name from UserMaster
+        // IE Name from Map
         String ieName = "Not Assigned";
-        if (latestTransition != null && latestTransition.getAssignedToUser() != null) {
-            ieName = userMasterRepository.findByUserId(latestTransition.getAssignedToUser())
-                    .map(UserMaster::getFullName)
-                    .orElse("Not Assigned");
-        } else if (latestTransition != null && latestTransition.getProcessIeUserId() != null) {
-            ieName = userMasterRepository.findByUserId(latestTransition.getProcessIeUserId())
-                    .map(UserMaster::getFullName)
-                    .orElse("Not Assigned");
+        if (latestTransition != null) {
+            if (latestTransition.getAssignedToUser() != null) {
+                ieName = userNamesMap.getOrDefault(latestTransition.getAssignedToUser(), "Not Assigned");
+            } else if (latestTransition.getProcessIeUserId() != null) {
+                ieName = userNamesMap.getOrDefault(latestTransition.getProcessIeUserId(), "Not Assigned");
+            }
         }
 
         // Get Heats/Lots count
@@ -126,44 +198,28 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         String lotNoFinal = null;
         String uom = "N/A";
 
-        if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall())) {
-            Optional<RmInspectionDetails> rmDetails = rmInspectionDetailsRepository.findByIcId(ic.getId());
-            if (rmDetails.isPresent()) {
-                noOfHeatsRM = rmHeatQuantityRepository.findByRmDetailId(rmDetails.get().getId().intValue()).size();
-                uom = rmDetails.get().getUnitOfMeasurement();
-            }
-        } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall())) {
-            List<ProcessInspectionDetails> processList = processInspectionDetailsRepository.findByIcId(ic.getId());
-            if (!processList.isEmpty()) {
-                lotNoProcess = processList.get(0).getLotNumber();
-            }
-        } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
-            Optional<FinalInspectionDetails> finalDetails = finalInspectionDetailsRepository.findByIcId(ic.getId());
-            if (finalDetails.isPresent()) {
-                List<FinalInspectionLotDetails> lots = finalInspectionLotDetailsRepository
-                        .findByFinalDetailId(finalDetails.get().getId());
-                if (!lots.isEmpty()) {
-                    lotNoFinal = lots.get(0).getLotNumber();
-                }
-            }
+        if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall()) && rmDetails != null) {
+            Long count = rmHeatCountMap.get(rmDetails.getId());
+            noOfHeatsRM = count != null ? count.intValue() : 0;
+            uom = rmDetails.getUnitOfMeasurement();
+        } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall()) && processList != null && !processList.isEmpty()) {
+            lotNoProcess = processList.get(0).getLotNumber();
+        } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall()) && finalDetails != null) {
+            lotNoFinal = finalLotNoMap.get(finalDetails.getId());
         }
 
         String scheduledDate = null;
         if (latestTransition != null && "SCHEDULED".equalsIgnoreCase(latestTransition.getStatus())) {
-            // Assuming we might have a scheduled date in the transition or IC
-            // For now, let's check actualInspectionDate or something if available
-            scheduledDate = ic.getActualInspectionDate() != null ? ic.getActualInspectionDate().format(DATE_FORMATTER)
-                    : null;
+            scheduledDate = ic.getActualInspectionDate() != null ? ic.getActualInspectionDate().format(DATE_FORMATTER) : null;
         }
 
         return VendorInspectionCallStatusDto.builder()
+                .workflowTransitionId(latestTransition != null ? latestTransition.getWorkflowTransitionId() : null)
                 .icNumber(ic.getIcNumber())
                 .poNo(ic.getPoNo())
                 .poSerialNo(ic.getPoSerialNo())
                 .typeOfCall(ic.getTypeOfCall())
-                .desiredInspectionDate(
-                        ic.getDesiredInspectionDate() != null ? ic.getDesiredInspectionDate().format(DATE_FORMATTER)
-                                : null)
+                .desiredInspectionDate(ic.getDesiredInspectionDate() != null ? ic.getDesiredInspectionDate().format(DATE_FORMATTER) : null)
                 .placeOfInspection(ic.getPlaceOfInspection())
                 .itemName(itemName)
                 .quantityOffered(quantityOffered)
@@ -187,55 +243,27 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                 .build();
     }
 
-    /**
-     * Get item name based on inspection type
-     */
-    private String getItemName(InspectionCall ic) {
-        try {
-            if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall())) {
-                return rmInspectionDetailsRepository.findByIcId(ic.getId())
-                        .map(RmInspectionDetails::getItemDescription)
-                        .orElse("N/A");
-            } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall())) {
-                List<ProcessInspectionDetails> processList = processInspectionDetailsRepository.findByIcId(ic.getId());
-                if (!processList.isEmpty()) {
-                    return "Process Inspection - Lot: " + processList.get(0).getLotNumber();
-                }
-                return "N/A";
-            } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
-                return finalInspectionDetailsRepository.findByIcId(ic.getId())
-                        .map(details -> "Final Inspection - " + details.getTotalLots() + " lots")
-                        .orElse("N/A");
-            }
-        } catch (Exception e) {
-            logger.warn("Error fetching item name for IC: {}", ic.getIcNumber(), e);
+    private String getItemNameOptimized(InspectionCall ic, RmInspectionDetails rmDetails, List<ProcessInspectionDetails> processList, FinalInspectionDetails finalDetails) {
+        if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall()) && rmDetails != null) {
+            return rmDetails.getItemDescription();
+        } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall()) && processList != null && !processList.isEmpty()) {
+            return "Process Inspection - Lot: " + processList.get(0).getLotNumber();
+        } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall()) && finalDetails != null) {
+            return "Final Inspection - " + finalDetails.getTotalLots() + " lots";
         }
         return "N/A";
     }
 
-    /**
-     * Get quantity offered based on inspection type
-     */
-    private Integer getQuantityOffered(InspectionCall ic) {
-        try {
-            if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall())) {
-                return rmInspectionDetailsRepository.findByIcId(ic.getId())
-                        .map(RmInspectionDetails::getOfferedQtyErc)
-                        .orElse(0);
-            } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall())) {
-                List<ProcessInspectionDetails> processList = processInspectionDetailsRepository.findByIcId(ic.getId());
-                if (!processList.isEmpty()) {
-                    return processList.get(0).getOfferedQty();
-                }
-                return 0;
-            } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
-                return finalInspectionDetailsRepository.findByIcId(ic.getId())
-                        .map(FinalInspectionDetails::getTotalOfferedQty)
-                        .orElse(0);
-            }
-        } catch (Exception e) {
-            logger.warn("Error fetching quantity for IC: {}", ic.getIcNumber(), e);
+    private Integer getQuantityOfferedOptimized(InspectionCall ic, RmInspectionDetails rmDetails, List<ProcessInspectionDetails> processList, FinalInspectionDetails finalDetails) {
+        if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall()) && rmDetails != null) {
+            return rmDetails.getOfferedQtyErc();
+        } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall()) && processList != null && !processList.isEmpty()) {
+            return processList.get(0).getOfferedQty();
+        } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall()) && finalDetails != null) {
+            return finalDetails.getTotalOfferedQty();
         }
         return 0;
     }
+
+    // Deprecated methods replaced by optimized versions
 }

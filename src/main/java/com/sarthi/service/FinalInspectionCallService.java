@@ -118,4 +118,14 @@ public interface FinalInspectionCallService {
      */
     List<String> getLotNumbersByMultipleRmAndProcessCertificates(List<String> rmCertificateNos,
             List<String> processCertificateNos);
+
+    /**
+     * Get the total quantity offered in previous Final Inspection Calls for a
+     * specific heat and lot
+     * 
+     * @param heatNo    - Heat number
+     * @param lotNumber - Lot number
+     * @return Sum of offered quantity
+     */
+    Integer getOfferedEarlierQuantity(String heatNo, String lotNumber);
 }
