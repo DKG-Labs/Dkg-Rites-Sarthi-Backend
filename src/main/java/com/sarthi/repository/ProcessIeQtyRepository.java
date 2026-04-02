@@ -173,6 +173,7 @@ public interface ProcessIeQtyRepository
     @Query("SELECT SUM(p.rejectedQty), SUM(p.offeredQty) FROM ProcessIeQty p WHERE p.createdDate >= :date")
     List<Object[]> sumProcessRejectionLast30Days(@Param("date") java.util.Date date);
 /*
+
 @Query(value = """
         SELECT
             p.id,
@@ -303,6 +304,71 @@ GROUP BY
             @Param("zone") String zone,
             @Param("vendor") String vendor,
             Pageable pageable);
+
+/*
+@Query(value = """
+        SELECT
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ip.rio,
+            'PROCESS' AS stage,
+
+            SUM(
+                pl.shearing_accepted + pl.turning_accepted + pl.mpi_accepted +
+                pl.forging_accepted + pl.quenching_accepted + pl.tempering_accepted +
+                pl.shearing_rejected + pl.turning_rejected + pl.mpi_rejected +
+                pl.forging_rejected + pl.quenching_rejected + pl.tempering_rejected
+            ) AS inspected_qty,
+
+            SUM(
+                pl.shearing_accepted + pl.turning_accepted + pl.mpi_accepted +
+                pl.forging_accepted + pl.quenching_accepted + pl.tempering_accepted
+            ) AS accepted_qty,
+
+            SUM(
+                pl.shearing_rejected + pl.turning_rejected + pl.mpi_rejected +
+                pl.forging_rejected + pl.quenching_rejected + pl.tempering_rejected
+            ) AS rejected_qty
+
+        FROM process_line_final_result pl
+        JOIN inspection_calls ic ON ic.ic_number = pl.inspection_call_no
+        JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+        LEFT JOIN ie_pincode_poi_mapping ipm 
+            ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+        LEFT JOIN ie_profile ip 
+            ON ip.employee_code = ipm.employee_code
+        LEFT JOIN po_header ph 
+            ON ph.po_no = ic.po_no
+
+        JOIN user_master u 
+            ON u.userid = pl.created_by
+
+        WHERE (:startDate IS NULL OR DATE(pl.created_at) >= :startDate)
+          AND (:endDate IS NULL OR DATE(pl.created_at) <= :endDate)
+          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+          AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+        GROUP BY
+            p.id,
+            p.company_name,
+            p.poi_code,
+            u.username,
+            ip.rio
+        """,
+        countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping",
+        nativeQuery = true)
+Page<Object[]> fetchProcess(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        @Param("rio") String rio,
+        @Param("zone") String zone,
+        @Param("vendor") String vendor,
+        Pageable pageable);
+
+*/
     @Query(value = """
             SELECT
                 DATE(p.date_of_inspection) AS inspectionDate,
