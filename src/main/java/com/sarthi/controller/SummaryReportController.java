@@ -109,4 +109,15 @@ public class SummaryReportController {
                 summaryService.getComapanyWiseMonthlyAnalysis(page, size, startDate, endDate, companyName));
     }
 
+    @GetMapping("/manufacture-process-analysis")
+    public APIResponse getMpiaReport(
+            @RequestParam int page,
+            @RequestParam int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        return ResponseBuilder.getSuccessResponse(
+                summaryService.getMpiaReport(page, size, startDate, endDate));
+    }
+
 }
