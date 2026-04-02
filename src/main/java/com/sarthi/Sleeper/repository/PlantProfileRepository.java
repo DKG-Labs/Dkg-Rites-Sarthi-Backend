@@ -31,7 +31,7 @@ AND p.plantId = :plantId
     List<String> findLinesByVendorCodeAndPlantId(String vendorCode, String plantId);
 
     @Query("""
-SELECT DISTINCT p.plantType, p.numberOfSheds
+SELECT DISTINCT p.id,p.plantType, p.numberOfSheds
 FROM PlantProfile p
 WHERE p.createdBy = :vendorId
 AND p.plantId = :plantId

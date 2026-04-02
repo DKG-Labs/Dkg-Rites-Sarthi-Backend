@@ -18,17 +18,29 @@ public interface SleeperWorkflowRepository
 
     List<SleeperWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
 
-    @Query("""
-                SELECT t FROM SleeperWorkflowTransaction t
-                WHERE t.workflowTransitionId = (
-                    SELECT MAX(t2.workflowTransitionId)
-                    FROM SleeperWorkflowTransaction t2
-                    WHERE t2.requestId = t.requestId
-                )
-                AND t.status IN ('CREATED','PENDING')
-                AND t.nextRole = :roleName
-            """)
-    List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
+   /* @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId = (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.requestId = t.requestId
+        AND t2.status IN ('Created','PENDING')
+    )
+    AND t.nextRole = :roleName
+""")
+    List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName); */
+   @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId = (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.requestId = t.requestId
+        AND t2.moduleId = t.moduleId
+    )
+    AND t.status IN ('Created','PENDING')
+    AND t.nextRole = :roleName
+""")
+   List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
 
     @Query("""
                 SELECT t FROM SleeperWorkflowTransaction t
@@ -145,4 +157,17 @@ AND s.id IN (
 )
 """)
     List<Object[]> findAllLatestStatuses(@Param("moduleId") Long moduleId);
+
+    @Query("""
+SELECT t FROM SleeperWorkflowTransaction t
+WHERE t.requestId = :plantId
+AND t.moduleId = 1
+AND t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM SleeperWorkflowTransaction t2
+    WHERE t2.requestId = :plantId
+    AND t2.moduleId = 1
+)
+""")
+    Optional<SleeperWorkflowTransaction> findLastRecordByPlantId(String plantId);
 }

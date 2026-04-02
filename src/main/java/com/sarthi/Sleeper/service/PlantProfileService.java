@@ -21,7 +21,7 @@ public interface PlantProfileService {
 
    public void delete(Long id);
 
-   public Map<String, List<Integer>> getShedsByPlantType(Long vendorId, String plantId);
+   public Map<String, List<String>>  getShedsByPlantType(Long vendorId, String plantId);
 
    public List<PlantDetailsResponseDto> getPlantDetails(String vendorCode);
 }
