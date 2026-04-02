@@ -35,8 +35,7 @@ public interface SleeperWorkflowRepository
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
         WHERE t2.requestId = t.requestId
-        AND t2.moduleId = t.moduleId  
-        AND t2.status IN ('Created','PENDING')
+        AND t2.moduleId = t.moduleId
     )
     AND t.status IN ('Created','PENDING')
     AND t.nextRole = :roleName
