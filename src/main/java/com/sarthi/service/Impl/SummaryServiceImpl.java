@@ -8,6 +8,7 @@ import com.sarthi.dto.summaryDtos.*;
 import com.sarthi.repository.ProcessIeQtyRepository;
 import com.sarthi.repository.RmHeatFinalResultRepository;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
+import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.SummaryService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.sql.Date;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -34,6 +36,7 @@ public class SummaryServiceImpl implements SummaryService {
     private final InspectionCallRepository inspectionCallRepository;
 
     private final ProcessIeQtyRepository processIeQtyRepository;
+    private final ProcessLineFinalResultRepository processLineFinalResultRepository;
 
     @Override
     public PageResponseDTO<ManufacturerInspectionSummaryDTO> getDashboard(
@@ -345,6 +348,41 @@ public class SummaryServiceImpl implements SummaryService {
 
     public List<String> getLotNumbers(String requestId) {
         return processRepo.findLotNumbersByRequestId(requestId);
+    }
+
+    @Override
+    public PageResponseDTO<MpiaReportDTO> getMpiaReport(int page, int size, LocalDate startDate, LocalDate endDate) {
+        Pageable pageable = PageRequest.of(page, size);
+        LocalDateTime start = (startDate != null) ? startDate.atStartOfDay() : LocalDate.now().minusMonths(6).atStartOfDay();
+        LocalDateTime end = (endDate != null) ? endDate.atTime(23, 59, 59) : LocalDateTime.now();
+
+        Page<Object[]> dbPage = processLineFinalResultRepository.fetchMpiaReport(start, end, pageable);
+
+        List<MpiaReportDTO> content = dbPage.getContent()
+                .stream()
+                .map(row -> {
+                    MpiaReportDTO dto = new MpiaReportDTO();
+                    dto.setManufacture((String) row[0]);
+                    dto.setTotalInspected(getDouble(row[1]));
+                    dto.setTotalAccepted(getDouble(row[2]));
+                    dto.setTotalRejected(getDouble(row[3]));
+                    if (dto.getTotalInspected() > 0) {
+                        dto.setRejectionPercent((dto.getTotalRejected() * 100.0) / dto.getTotalInspected());
+                    } else {
+                        dto.setRejectionPercent(0.0);
+                    }
+                    return dto;
+                })
+                .toList();
+
+        PageResponseDTO<MpiaReportDTO> response = new PageResponseDTO<>();
+        response.setContent(content);
+        response.setPage(page);
+        response.setSize(size);
+        response.setTotalElements(dbPage.getTotalElements());
+        response.setTotalPages(dbPage.getTotalPages());
+
+        return response;
     }
 
 }

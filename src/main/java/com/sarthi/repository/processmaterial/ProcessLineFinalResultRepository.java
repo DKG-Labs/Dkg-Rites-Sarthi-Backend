@@ -1,8 +1,11 @@
 package com.sarthi.repository.processmaterial;
 
 import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -402,4 +405,24 @@ GROUP BY p.inspectionCallNo
     """, nativeQuery = true)
     List<Object[]> findMpiRejectionBySupplier(
         @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate);
+    @Query(value = """
+        SELECT 
+            ic.company_name AS manufacture,
+            SUM(COALESCE(p.shearing_manufactured, 0)) AS totalInspected,
+            SUM(COALESCE(p.tempering_accepted, 0)) AS totalAccepted,
+            SUM(COALESCE(p.total_rejected, 0)) AS totalRejected
+        FROM process_line_final_result p
+        JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+        WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN p.date_of_inspection ELSE p.created_at END) BETWEEN :startDate AND :endDate
+        GROUP BY ic.company_name
+    """, countQuery = """
+        SELECT COUNT(DISTINCT ic.company_name)
+        FROM process_line_final_result p
+        JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+        WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN p.date_of_inspection ELSE p.created_at END) BETWEEN :startDate AND :endDate
+    """, nativeQuery = true)
+    Page<Object[]> fetchMpiaReport(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate,
+            Pageable pageable);
 }

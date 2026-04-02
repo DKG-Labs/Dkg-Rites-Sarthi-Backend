@@ -38,4 +38,6 @@ public interface SummaryService {
                 LocalDate endDate,
                 String companyName);
 
+        public PageResponseDTO<MpiaReportDTO> getMpiaReport(int page, int size, LocalDate startDate, LocalDate endDate);
+
 }
