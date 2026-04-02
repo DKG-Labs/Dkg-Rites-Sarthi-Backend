@@ -184,7 +184,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
           result.setSleeperNo(sleeperDto.getSleeperNo());
           result.setResult(sleeperDto.getResult());
           result.setRejectionReason(sleeperDto.getRejectionReason());
-
+          result.setModuleId(module.getId());
           resultRepository.save(result);
           //  parameters logic (no change)
           if (sleeperDto.getParameters() != null) {

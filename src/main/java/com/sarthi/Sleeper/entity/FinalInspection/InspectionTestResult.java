@@ -19,6 +19,7 @@ public class InspectionTestResult {
     private String result;
 
     private String rejectionReason;
+    private Long moduleId;
 
     @ManyToOne
     @JoinColumn(name = "test_header_id")
