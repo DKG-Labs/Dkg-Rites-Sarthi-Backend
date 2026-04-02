@@ -15,10 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class PlantProfileServiceImpl implements PlantProfileService {
@@ -148,13 +145,13 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             sleeperWorkflowRepository.save(newWorkflow);
         }
 
-    @Override
+ /*   @Override
     public Map<String, List<Integer>> getShedsByPlantType(Long vendorId, String plantId) {
 
         List<Object[]> results = repository.findPlantTypeAndSheds(vendorId, plantId);
 
         Map<String, List<Integer>> plantTypeMap = new HashMap<>();
-
+/*
         for (Object[] row : results) {
 
             String plantType = (String) row[0];     // STRESS / LONG_LINE
@@ -163,10 +160,60 @@ public class PlantProfileServiceImpl implements PlantProfileService {
             plantTypeMap
                     .computeIfAbsent(plantType, k -> new ArrayList<>())
                     .add(shed);
+        }*/  /*
+        for (Object[] row : results) {
+
+            Long id = (Long) row[0];
+            String plantType = (String) row[1];
+            Integer shed = (Integer) row[2];
+
+            boolean isCompleted = isPlantCompleted(String.valueOf(id));
+
+            if (isCompleted) {
+                plantTypeMap
+                        .computeIfAbsent(plantType, k -> new ArrayList<>())
+                        .add(shed);
+            }
         }
 
         return plantTypeMap;
-    }
+    } */
+ @Override
+ public Map<String, List<String>> getShedsByPlantType(Long vendorId, String plantId) {
+
+     List<Object[]> results = repository.findPlantTypeAndSheds(vendorId, plantId);
+
+     Map<String, List<String>> plantTypeMap = new HashMap<>();
+
+     int shedCounter = 1;
+     int lineCounter = 1;
+
+     for (Object[] row : results) {
+
+         Long id = (Long) row[0];
+         String plantType = (String) row[1];
+         Integer count = (Integer) row[2];
+
+         boolean isCompleted = isPlantCompleted(String.valueOf(id));
+
+         if (isCompleted && count != null) {
+
+             List<String> list = plantTypeMap
+                     .computeIfAbsent(plantType, k -> new ArrayList<>());
+
+             for (int i = 0; i < count; i++) {
+
+                 if ("Stress Bench".equalsIgnoreCase(plantType)) {
+                     list.add("Shed " + shedCounter++);
+                 } else if ("Longline".equalsIgnoreCase(plantType)) {
+                     list.add("Line " + lineCounter++);
+                 }
+             }
+         }
+     }
+
+     return plantTypeMap;
+ }
 
         private PlantProfileResponseDto buildResponse(PlantProfile entity) {
 
@@ -228,6 +275,16 @@ public class PlantProfileServiceImpl implements PlantProfileService {
         }
 
         return responseList;
+    }
+
+    public boolean isPlantCompleted(String plantId) {
+
+        Optional<SleeperWorkflowTransaction> lastRecord =
+                sleeperWorkflowRepository.findLastRecordByPlantId(plantId);
+
+        return lastRecord
+                .map(r -> "Completed".equalsIgnoreCase(r.getStatus()))
+                .orElse(false);
     }
 
 }

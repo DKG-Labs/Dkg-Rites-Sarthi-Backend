@@ -145,4 +145,17 @@ AND s.id IN (
 )
 """)
     List<Object[]> findAllLatestStatuses(@Param("moduleId") Long moduleId);
+
+    @Query("""
+SELECT t FROM SleeperWorkflowTransaction t
+WHERE t.requestId = :plantId
+AND t.moduleId = 1
+AND t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM SleeperWorkflowTransaction t2
+    WHERE t2.requestId = :plantId
+    AND t2.moduleId = 1
+)
+""")
+    Optional<SleeperWorkflowTransaction> findLastRecordByPlantId(String plantId);
 }
