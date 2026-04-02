@@ -229,15 +229,20 @@ public class CertificateServiceImpl implements CertificateService {
     private String buildPlaceOfInspection(InspectionCall inspectionCall) {
         if (inspectionCall == null) return "";
         
-        // 1. Priority: Direct place of inspection from call
-        if (inspectionCall.getPlaceOfInspection() != null && !inspectionCall.getPlaceOfInspection().isBlank()) {
-            return inspectionCall.getPlaceOfInspection();
-        }
-
-        // 2. Fallback: Company Name + Unit Address
+        // Construct the fallback address from company and unit details
         String companyName = inspectionCall.getCompanyName() != null ? inspectionCall.getCompanyName() : "";
         String unitAddress = inspectionCall.getUnitAddress() != null ? inspectionCall.getUnitAddress() : "";
-        return companyName + (unitAddress.isBlank() ? "" : ", " + unitAddress);
+        String constructedAddress = companyName + (unitAddress.isBlank() ? "" : ", " + unitAddress);
+
+        String directPlace = inspectionCall.getPlaceOfInspection();
+        
+        // If direct place is present AND is not a POI code, use it.
+        // Otherwise, use the constructed address.
+        if (directPlace != null && !directPlace.isBlank() && !directPlace.toUpperCase().startsWith("POI")) {
+            return directPlace;
+        }
+
+        return constructedAddress;
     }
 
     /**
