@@ -3131,6 +3131,27 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             dto.setDesiredInspectionDate(
                     String.valueOf(i.desiredInspectionDate())
             );
+
+            // Resolving Place of Inspection Address (Consistency with Certificate logic)
+            String directPlace = i.placeOfInspection();
+            String companyName = i.companyName() != null ? i.companyName() : "";
+            String unitAddress = i.unitAddress() != null ? i.unitAddress() : "";
+            String constructedAddress = companyName + (unitAddress == null || unitAddress.isBlank() ? "" : ", " + unitAddress);
+
+            if (directPlace != null && !directPlace.isBlank() && !directPlace.toUpperCase().startsWith("POI")) {
+                dto.setPlaceOfInspection(directPlace);
+            } else {
+                dto.setPlaceOfInspection(constructedAddress.isBlank() ? "-" : constructedAddress);
+            }
+
+            // Formatting DP Dates (Consistent with UI expectation)
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+            if (i.deliveryDate() != null) {
+                dto.setDpDate(i.deliveryDate().format(formatter));
+            }
+            if (i.extendedDeliveryDate() != null) {
+                dto.setExtDpDate(i.extendedDeliveryDate().format(formatter));
+            }
         }
 
         return dto;

@@ -9,5 +9,9 @@ public record InspectionDataDto(
     String vendorId,
     String typeOfCall,
     LocalDate desiredInspectionDate,
-    String placeOfInspection
+    String placeOfInspection,
+    String unitAddress,
+    String companyName,
+    java.time.LocalDateTime deliveryDate,
+    java.time.LocalDateTime extendedDeliveryDate
 ) {}
