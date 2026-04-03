@@ -21,10 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -940,18 +937,75 @@ public List<String> getBatchNumbers(Long vendorId,
 }
     @Override
     public List<String> getBenchNumbers(String batchNo) {
-        return repository.findBenchNumbers(batchNo);
-    }
+       // return repository.findBenchNumbers(batchNo);
 
-    @Override
-    public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+
+            List<Object[]> results = repository.findBenchAndGangRaw(batchNo);
+
+            Set<String> finalSet = new LinkedHashSet<>();
+
+            for (Object[] row : results) {
+
+                String bench = row[0] != null ? String.valueOf(row[0]) : null;
+
+                Integer gangFrom = row[1] != null ? ((Number) row[1]).intValue() : null;
+                Integer gangTo = row[2] != null ? ((Number) row[2]).intValue() : null;
+
+                // STRESS
+                if (bench != null) {
+                    finalSet.add(bench);
+                }
+
+                // LONG_LINE
+                else if (gangFrom != null && gangTo != null) {
+                    for (int i = gangFrom; i <= gangTo; i++) {
+                        finalSet.add(String.valueOf(i));
+                    }
+                }
+            }
+
+            return new ArrayList<>(finalSet);
+        }
+
+//    @Override
+//    public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+//        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
+//    }
+@Override
+public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+
+    ProductionDeclaration declaration =
+           repository.findByBatchNumber(batchNo);
+
+    if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
         return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
+
+    } else { // LONG_LINE
+
+        return repository.findSleeperTypes(batchNo, benchNo);
     }
+}
+
+//    @Override
+//    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType) {
+//        return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
+//    }
 
     @Override
     public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType) {
-        return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
-    }
 
+        ProductionDeclaration declaration =
+                repository.findByBatchNumber(batchNo);
+
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
+            return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
+
+        } else { // LONG_LINE
+
+            return productionSleeperRepository.findLongLineSleepers(batchNo, benchNo, sleeperType);
+        }
+    }
 
 }

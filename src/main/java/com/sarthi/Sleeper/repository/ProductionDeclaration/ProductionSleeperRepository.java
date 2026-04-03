@@ -46,4 +46,22 @@ WHERE d.id = :batchId
     List<String> findSleepers(@Param("batchNo") String batchNo,
                               @Param("benchNo") Integer benchNo,
                               @Param("sleeperType") String sleeperType);
+
+   /* @Query("""
+SELECT s.sleeperNo 
+FROM ProductionSleeper s
+WHERE s.gang.declaration.batchNumber = :batchNo
+AND :benchNo BETWEEN s.gang.gangFrom AND s.gang.gangTo
+AND s.gang.sleeperType = :sleeperType
+""")
+    List<String> findLongLineSleepers(String batchNo, Integer benchNo, String sleeperType); */
+   @Query("""
+SELECT s.sleeperNo 
+FROM ProductionSleeper s
+WHERE s.gang.declaration.batchNumber = :batchNo
+AND :benchNo BETWEEN s.gang.gangFrom AND s.gang.gangTo
+AND s.gang.sleeperType = :sleeperType
+AND s.sleeperNo LIKE CONCAT(:benchNo, '%')
+""")
+   List<String> findLongLineSleepers(String batchNo, Integer benchNo, String sleeperType);
 }
