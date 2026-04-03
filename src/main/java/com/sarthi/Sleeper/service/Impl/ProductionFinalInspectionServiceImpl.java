@@ -396,7 +396,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         //  Completion logic unchanged
         checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
     }
-
+/*
     @Override
     public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
 
@@ -435,7 +435,50 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         }
 
         return filteredList;
+    } */
+@Override
+public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
+
+    List<BatchTestingListResponseDto> list = new ArrayList<>();
+
+    // STRESS (existing)
+    list.addAll(productionDeclarationRepository.getAllBatchTesting());
+
+    // LONG_LINE (new)
+    list.addAll(productionDeclarationRepository.getLongLineBatchTesting());
+
+    List<BatchTestingListResponseDto> filteredList = new ArrayList<>();
+
+    for (BatchTestingListResponseDto dto : list) {
+
+        // Check workflow completed
+        Long isCompleted =
+                sleeperWorkflowRepository.isWorkflowCompleted(dto.getBatchId());
+
+        if (isCompleted != 1) {
+            continue;
+        }
+
+        Long testedCount =
+                resultRepository.countTestedSleepers(dto.getBatchId(), moduleId);
+
+        double percent =
+                (testedCount * 100.0) / dto.getNoOfSleepers();
+
+        dto.setTestedPercentage(percent);
+
+        if (percent == 0)
+            dto.setTestingStatus("Pending");
+        else if (percent == 100)
+            dto.setTestingStatus("Completed");
+        else
+            dto.setTestingStatus("Under Inspection");
+
+        filteredList.add(dto);
     }
+
+    return filteredList;
+}
 
  /*   @Override
     public BatchInspectionDetailDto getBatchInspection(Long batchId) {
@@ -571,8 +614,17 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         ProductionDeclaration declaration =
                 productionDeclarationRepository.findBatchById(batchId);
 
-        List<ProductionSleeper> sleepers =
-                productionSleeperRepository.getSleepersByBatch(batchId);
+      //  List<ProductionSleeper> sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
+        List<ProductionSleeper> sleepers;
+
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
+            sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
+
+        } else { // LONG_LINE
+
+            sleepers = productionSleeperRepository.getSleepersFromGang(batchId);
+        }
 
         // Fetch ALL inspection results
      //   List<InspectionTestResult> results =resultRepository.findByBatchId(batchId);
@@ -628,9 +680,17 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 demouldingDefectiveSleeperRepository
                         .findRejectedSleeperNos(declaration.getBatchNumber());
 
-        String sleeperType =
-                productionSleeperRepository.getSleeperTypeByBatch(batchId);
+      //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
+        String sleeperType;
 
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
+            sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
+
+        } else {
+
+            sleeperType = productionSleeperRepository.getLongLineSleeperType(batchId);
+        }
         BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
 
         dto.setBatchId(declaration.getId());

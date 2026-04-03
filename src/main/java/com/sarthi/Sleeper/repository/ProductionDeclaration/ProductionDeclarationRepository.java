@@ -60,6 +60,26 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     List<BatchTestingListResponseDto> getAllBatchTesting();
 
     @Query("""
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+g.sleeperType,
+d.totalCastedSleepers,
+COUNT(s.id),
+0.0,
+'Pending',
+null
+)
+FROM ProductionDeclaration d
+JOIN d.gangs g
+JOIN g.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON w.requestId = CAST(d.id as string)
+WHERE w.status = 'Completed'
+GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers
+""")
+    List<BatchTestingListResponseDto> getLongLineBatchTesting();
+    @Query("""
             SELECT d
             FROM ProductionDeclaration d
             WHERE d.id = :batchId
