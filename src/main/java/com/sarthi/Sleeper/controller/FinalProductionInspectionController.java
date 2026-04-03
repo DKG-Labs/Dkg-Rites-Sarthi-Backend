@@ -38,16 +38,25 @@ public class FinalProductionInspectionController {
 
         return ResponseEntity.ok("Inspection Saved Successfully");
     }
+
+    @PutMapping("/updateInspectionSleepers")
+    public ResponseEntity<String> updateInspectionSleeper(
+            @RequestBody InspectionSaveRequestDto dto) {
+
+        inspectionService.updateInspection(dto);
+
+        return ResponseEntity.ok("Inspection Saved Successfully");
+    }
     @GetMapping("/inspection/batches/{moduleId}")
     public List<BatchTestingListResponseDto> getAllBatches(  @PathVariable("moduleId") Long moduleId) {
         return inspectionService.getAllBatchTesting(moduleId);
     }
 
-    @GetMapping("/inspection/batch/{batchId}")
+    @GetMapping("/inspection/batch")
     public BatchInspectionDetailDto getBatchInspection(
-            @PathVariable("batchId") Long batchId) {
+            @RequestParam("batchId") Long batchId,  @RequestParam("moduleId") Long moduleId) {
 
-        return inspectionService.getBatchInspection(batchId);
+        return inspectionService.getBatchInspection(batchId, moduleId);
     }
 
 

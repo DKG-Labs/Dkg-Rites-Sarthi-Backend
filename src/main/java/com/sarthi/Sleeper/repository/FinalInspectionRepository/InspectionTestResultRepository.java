@@ -65,4 +65,12 @@ AND r.sleeperId = :sleeperId
 """)
     boolean existsByBatchIdAndModuleIdAndSleeperId(
             Long batchId, Long moduleId, Long sleeperId);
+
+    List<InspectionTestResult> findByTestHeader_BatchIdAndModuleId(Long batchId, Long moduleId);
+
+    List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdAndActiveTrue(Long batchId, Long moduleId);
+
+    List<InspectionTestResult> findByTestHeader_BatchIdAndResultAndActiveTrue(Long batchId, String rejected);
+
+    List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(Long batchId);
 }

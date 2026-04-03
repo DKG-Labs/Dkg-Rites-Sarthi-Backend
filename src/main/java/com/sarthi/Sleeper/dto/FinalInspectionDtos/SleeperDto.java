@@ -9,4 +9,5 @@ public class SleeperDto {
     private String sleeperNo;
     private String status;
 
+    public Long moduleId;
 }

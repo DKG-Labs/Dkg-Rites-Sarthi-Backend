@@ -280,6 +280,122 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         headerRepository.save(header);
     }
 
+    @Transactional
+    @Override
+    public void updateInspection(InspectionSaveRequestDto dto) {
+
+        InspectionModule module = moduleRepository
+                .findById(dto.getModuleId())
+                .orElseThrow();
+
+        // Get existing header (no new header)
+        InspectionTestHeader header =
+                headerRepository.findTopByBatchIdAndModuleIdOrderByIdDesc(
+                        dto.getBatchId(), dto.getModuleId()
+                );
+
+        if (header == null) {
+            throw new RuntimeException("No existing inspection found for update");
+        }
+
+        // get ALL active results (any module, any status)
+        List<InspectionTestResult> allResults =
+                resultRepository.findByTestHeader_BatchIdAndActiveTrue(
+                        dto.getBatchId()
+                );
+
+        //  map sleeperId → moduleId
+        Map<Long, Long> sleeperModuleMap = allResults.stream()
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        InspectionTestResult::getModuleId,
+                        (a, b) -> b
+                ));
+
+        //  Existing records for current module
+        List<InspectionTestResult> existing =
+                resultRepository.findByTestHeader_BatchIdAndModuleIdAndActiveTrue(
+                        dto.getBatchId(), dto.getModuleId()
+                );
+
+        //  Incoming sleeperIds
+        Set<Long> incomingIds = dto.getSleepers().stream()
+                .map(SleeperInspectionDto::getSleeperId)
+                .collect(Collectors.toSet());
+
+        //  Deactivate only updating sleepers (NOT all)
+        List<InspectionTestResult> toDeactivate = existing.stream()
+                .filter(r -> incomingIds.contains(r.getSleeperId()))
+                .toList();
+
+        for (InspectionTestResult r : toDeactivate) {
+            r.setActive(false);
+            r.setUpdatedBy(dto.getCreatedBy());
+            r.setUpdatedDate(LocalDateTime.now());
+        }
+
+        resultRepository.saveAll(toDeactivate);
+
+        //  Parameter map
+        Map<Long, InspectionParameter> parameterMap =
+                parameterRepository.findAll()
+                        .stream()
+                        .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
+
+        List<InspectionParameterResult> parameterResults = new ArrayList<>();
+
+        //  INSERT new records
+        for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+
+            //  BLOCK if sleeper already exists in OTHER module
+            Long existingModuleId = sleeperModuleMap.get(sleeperDto.getSleeperId());
+
+            if (existingModuleId != null && !existingModuleId.equals(dto.getModuleId())) {
+                throw new RuntimeException(
+                        "Sleeper " + sleeperDto.getSleeperNo() +
+                                " is already inspected in another module"
+                );
+            }
+
+            //  Create new record
+            InspectionTestResult result = new InspectionTestResult();
+
+            result.setTestHeader(header);
+            result.setSleeperId(sleeperDto.getSleeperId());
+            result.setSleeperNo(sleeperDto.getSleeperNo());
+            result.setModuleId(module.getId());
+            result.setResult(sleeperDto.getResult());
+            result.setRejectionReason(sleeperDto.getRejectionReason());
+            result.setActive(true);
+
+            resultRepository.save(result);
+
+            //  parameters
+            if (sleeperDto.getParameters() != null) {
+
+                for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+
+                    InspectionParameter parameter =
+                            parameterMap.get(paramDto.getParameterId());
+
+                    InspectionParameterResult paramResult =
+                            new InspectionParameterResult();
+
+                    paramResult.setTestResult(result);
+                    paramResult.setParameter(parameter);
+                    paramResult.setParameterResult(paramDto.getResult());
+
+                    parameterResults.add(paramResult);
+                }
+            }
+        }
+
+        parameterResultRepository.saveAll(parameterResults);
+
+        //  Completion logic unchanged
+        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
+    }
+
     @Override
     public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
 
@@ -371,6 +487,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         return dto;
     } */
+
+    /*
  @Override
  public BatchInspectionDetailDto getBatchInspection(Long batchId) {
 
@@ -392,6 +510,13 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                      (a, b) -> b
              ));
 
+     Map<Long, Long> moduleMap = results.stream()
+             .filter(r -> r.getSleeperId() != null && r.getModuleId() != null)
+             .collect(Collectors.toMap(
+                     InspectionTestResult::getSleeperId,
+                     InspectionTestResult::getModuleId,
+                     (a, b) -> b
+             ));
      // Fetch rejected sleepers from demoulding (Optimized Set)
 
 
@@ -423,10 +548,12 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                  if (rejectedSet.contains(s.getSleeperNo())) {
                      sd.setStatus("REJECTED");
+                     sd.setModuleId(4L);
                  } else {
                      // Existing logic
                      String status = resultMap.get(s.getId());
                      sd.setStatus(status != null ? status : "PENDING");
+                     sd.setModuleId(moduleMap.get(s.getId()));
                  }
 
                  return sd;
@@ -436,7 +563,118 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
      dto.setSleepers(sleeperDtos);
 
      return dto;
- }
+ }*/
+    @Override
+    public BatchInspectionDetailDto getBatchInspection(Long batchId, Long moduleId) {
+
+        ProductionDeclaration declaration =
+                productionDeclarationRepository.findBatchById(batchId);
+
+        List<ProductionSleeper> sleepers =
+                productionSleeperRepository.getSleepersByBatch(batchId);
+
+        // Fetch ALL inspection results
+        List<InspectionTestResult> results =
+                resultRepository.findByBatchId(batchId);
+
+        // Existing map (NO CHANGE)
+        Map<Long, String> resultMap = results.stream()
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        InspectionTestResult::getResult,
+                        (a, b) -> b
+                ));
+
+        // Existing module map (NO CHANGE)
+        Map<Long, Long> moduleMap = results.stream()
+                .filter(r -> r.getSleeperId() != null && r.getModuleId() != null)
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        InspectionTestResult::getModuleId,
+                        (a, b) -> b
+                ));
+
+        //  rejected map (store moduleId)
+        Map<Long, Long> rejectedMap = results.stream()
+                .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
+                .filter(r -> r.getSleeperId() != null && r.getModuleId() != null)
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        InspectionTestResult::getModuleId,
+                        (a, b) -> b
+                ));
+
+        //  NEW: fetch only selected module results
+        List<InspectionTestResult> moduleResults =
+                resultRepository.findByTestHeader_BatchIdAndModuleId(batchId, moduleId);
+
+        Map<Long, InspectionTestResult> moduleResultMap = moduleResults.stream()
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        r -> r,
+                        (a, b) -> b
+                ));
+
+        // Demoulding rejected
+        Set<String> rejectedSet =
+                demouldingDefectiveSleeperRepository
+                        .findRejectedSleeperNos(declaration.getBatchNumber());
+
+        String sleeperType =
+                productionSleeperRepository.getSleeperTypeByBatch(batchId);
+
+        BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
+
+        dto.setBatchId(declaration.getId());
+        dto.setBatchNumber(declaration.getBatchNumber());
+        dto.setCastingDate(declaration.getCastingDate());
+        dto.setTotalSleepers((long) sleepers.size());
+        dto.setSleeperType(sleeperType);
+
+        List<SleeperDto> sleeperDtos = sleepers.stream()
+                .map(s -> {
+
+                    SleeperDto sd = new SleeperDto();
+
+                    sd.setSleeperId(s.getId());
+                    sd.setSleeperNo(s.getSleeperNo());
+
+                    //  DEMOULDING rejection
+                    if (rejectedSet.contains(s.getSleeperNo())) {
+
+                        sd.setStatus("REJECTED");
+                        sd.setModuleId(4L);
+
+                    }
+                    // REJECTED in ANY inspection module
+                    else if (rejectedMap.containsKey(s.getId())) {
+
+                        sd.setStatus("REJECTED");
+                        sd.setModuleId(rejectedMap.get(s.getId()));
+
+                    }
+                    // Selected module result
+                    else {
+
+                        InspectionTestResult result = moduleResultMap.get(s.getId());
+
+                        if (result != null) {
+                            sd.setStatus(result.getResult());
+                            sd.setModuleId(result.getModuleId());
+                        } else {
+                            sd.setStatus("PENDING");
+                            sd.setModuleId(moduleId);
+                        }
+                    }
+
+                    return sd;
+
+                }).toList();
+
+        dto.setSleepers(sleeperDtos);
+
+        return dto;
+    }
 
 
     @Override
