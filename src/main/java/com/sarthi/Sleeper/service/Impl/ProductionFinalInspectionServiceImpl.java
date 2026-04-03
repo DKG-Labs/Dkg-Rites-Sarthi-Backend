@@ -574,8 +574,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 productionSleeperRepository.getSleepersByBatch(batchId);
 
         // Fetch ALL inspection results
+     //   List<InspectionTestResult> results =resultRepository.findByBatchId(batchId);
+
+        //ONLY ACTIVE RECORDS
         List<InspectionTestResult> results =
-                resultRepository.findByBatchId(batchId);
+                resultRepository.findByTestHeader_BatchIdAndActiveTrue(batchId);
 
         // Existing map (NO CHANGE)
         Map<Long, String> resultMap = results.stream()
@@ -604,9 +607,13 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         (a, b) -> b
                 ));
 
-        //  NEW: fetch only selected module results
+        //   fetch only selected module results
+     //   List<InspectionTestResult> moduleResults =resultRepository.findByTestHeader_BatchIdAndModuleId(batchId, moduleId);
+
+        // ONLY ACTIVE RECORDS FOR MODULE
         List<InspectionTestResult> moduleResults =
-                resultRepository.findByTestHeader_BatchIdAndModuleId(batchId, moduleId);
+                resultRepository.findByTestHeader_BatchIdAndModuleIdAndActiveTrue(batchId, moduleId);
+
 
         Map<Long, InspectionTestResult> moduleResultMap = moduleResults.stream()
                 .collect(Collectors.toMap(
