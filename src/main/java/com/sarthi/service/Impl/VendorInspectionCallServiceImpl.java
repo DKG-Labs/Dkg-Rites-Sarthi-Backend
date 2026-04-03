@@ -98,7 +98,10 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         Map<Integer, String> userNamesMap = Collections.emptyMap();
         if (!userIds.isEmpty()) {
             userNamesMap = userMasterRepository.findByUserIdIn(new ArrayList<>(userIds))
-                    .stream().collect(Collectors.toMap(UserMaster::getUserId, UserMaster::getFullName));
+                    .stream().collect(Collectors.toMap(
+                            UserMaster::getUserId,
+                            u -> Optional.ofNullable(u.getFullName()).orElse("Unknown")
+                    ));
         }
         logger.info("Step 3c: Fetched {} user names in {}ms", userNamesMap.size(), (System.currentTimeMillis() - stepStart));
 
@@ -129,7 +132,7 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
             finalLotNoMap = finalInspectionLotDetailsRepository.findByFinalDetailIdIn(finalDetailIds)
                     .stream().collect(Collectors.toMap(
                             ld -> ld.getFinalDetailId(),
-                            ld -> ld.getLotNumber(),
+                            ld -> Optional.ofNullable(ld.getLotNumber()).orElse("N/A"),
                             (ld1, ld2) -> ld1 // Take first lot
                     ));
         }

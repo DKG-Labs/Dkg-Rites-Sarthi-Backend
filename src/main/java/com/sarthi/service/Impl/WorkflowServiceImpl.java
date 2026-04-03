@@ -1636,6 +1636,7 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
                 workflowTransitionRepository.findByStatusRequestIdAndCurrentRoleName("Created", req.getRequestId(), "Vendor");
         next.setAssignedToUser(vendorCreated.getCreatedBy());
 
+        workflowTransitionRepository.save(next);
         return mapWorkflowTransition(next);
     }
 
@@ -1653,6 +1654,8 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
         next.setAssignedToUser(req.getAssignUserId());
         next.setRio(req.getRioRouteChange());
         next.setWorkflowSequence(last.getWorkflowSequence()+1);
+
+        workflowTransitionRepository.save(next);
         return mapWorkflowTransition(next);
     }
 
