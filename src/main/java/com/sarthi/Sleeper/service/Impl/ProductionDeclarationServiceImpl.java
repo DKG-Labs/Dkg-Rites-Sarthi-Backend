@@ -122,6 +122,21 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         if (dto.getGangs() != null) {
 
+           /* for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
+
+                ProductionLongLineGang gang = new ProductionLongLineGang();
+
+                gang.setMode(gangDto.getMode());
+                gang.setGangFrom(gangDto.getGangFrom());
+                gang.setGangTo(gangDto.getGangTo());
+                gang.setGangNo(gangDto.getGangNo());
+                gang.setSleeperType(gangDto.getSleeperType());
+                gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+
+                gang.setDeclaration(entity);
+
+                gangList.add(gang);
+            } */
             for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
 
                 ProductionLongLineGang gang = new ProductionLongLineGang();
@@ -134,6 +149,25 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 gang.setMouldsPerGang(gangDto.getMouldsPerGang());
 
                 gang.setDeclaration(entity);
+
+                // ADD THIS (same like bench logic)
+                List<ProductionSleeper> sleepers = new ArrayList<>();
+
+                if (gangDto.getSleepers() != null) {
+
+                    for (String sleeperNo : gangDto.getSleepers()) {
+
+                        ProductionSleeper sleeper = new ProductionSleeper();
+
+                        sleeper.setSleeperNo(sleeperNo);
+
+                        sleeper.setGang(gang);
+
+                        sleepers.add(sleeper);
+                    }
+                }
+
+                gang.setSleepers(sleepers);
 
                 gangList.add(gang);
             }

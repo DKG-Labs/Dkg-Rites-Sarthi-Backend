@@ -17,5 +17,7 @@ public class ProductionSleeper {
     @ManyToOne
     @JoinColumn(name="bench_group_id")
     private ProductionBenchGroup benchGroup;
-
+    @ManyToOne
+    @JoinColumn(name = "gang_id")
+    private ProductionLongLineGang gang;
 }

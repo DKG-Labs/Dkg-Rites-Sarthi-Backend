@@ -3,6 +3,8 @@ package com.sarthi.Sleeper.entity.ProductionDeclaration;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.List;
+
 @Entity
 @Table(name="production_longline_gang")
 @Data
@@ -28,4 +30,6 @@ public class ProductionLongLineGang {
     @JoinColumn(name="declaration_id")
     private ProductionDeclaration declaration;
 
+    @OneToMany(mappedBy = "gang", cascade = CascadeType.ALL)
+    private List<ProductionSleeper> sleepers;
 }

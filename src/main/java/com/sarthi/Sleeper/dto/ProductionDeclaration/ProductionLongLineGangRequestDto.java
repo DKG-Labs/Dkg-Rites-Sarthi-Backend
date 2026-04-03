@@ -17,4 +17,5 @@ public class ProductionLongLineGangRequestDto {
 
     private Integer mouldsPerGang;
 
+    private List<String> sleepers;
 }
