@@ -37,6 +37,9 @@ public class SleeperWorkflowTransaction {
 
     private Long assignedToUser;
 
+    private String vendorCode;
+    private String plantId;
+
     private Long createdBy;
 
     private Long modifiedBy;

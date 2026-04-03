@@ -26,4 +26,8 @@ public class StressBenchResponseDto {
     private LocalDateTime updatedDate;
 
     private String status;
+
+    private String vendorCode;
+    private String plantId;
+
 }

@@ -91,7 +91,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
              String requestId,
              Long moduleId,
              Long workflowId,
-             Long createdBy) {
+             Long createdBy, String vendorCode, String plantId) {
 
          validateUser(Math.toIntExact(createdBy));
          if (workflowId == 1) {
@@ -105,6 +105,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
          tx.setRequestId(requestId);
          tx.setModuleId(moduleId);
          tx.setWorkflowId(workflowId);
+         tx.setVendorCode(vendorCode);
+         tx.setPlantId(plantId);
 
          // workflowId = 2 use TRANSITION_MASTER
          if (workflowId == 2) {
@@ -190,6 +192,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         dto.setNextRole(tx.getNextRole());
         dto.setShift(tx.getShift());
 
+        dto.setVendorCode(tx.getVendorCode());
+        dto.setPlantId(tx.getPlantId());
         dto.setPoiCode(tx.getPoiCode());
 
         dto.setAssignedToUser(tx.getAssignedToUser());
@@ -383,6 +387,8 @@ public SleeperWorkflowTransactionDto performTransitionAction(
 
     tx.setShift(current.getShift());
     tx.setPoiCode(current.getPoiCode());
+    tx.setPlantId(current.getPlantId());
+    tx.setVendorCode(current.getVendorCode());
 
     // Workflow 2 → Use TRANSITION_MASTER
     if (current.getWorkflowId().equals(2L)) {

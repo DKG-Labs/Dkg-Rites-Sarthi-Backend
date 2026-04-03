@@ -33,4 +33,6 @@ public class LonglineResponseDTO {
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
     private List<String> sleepers;
+    private String vendorCode;
+    private String plantId;
 }

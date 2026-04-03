@@ -22,8 +22,8 @@ public class SleeperWorkflow {
 
 
     @PostMapping("/initiateWorkflow")
-    public ResponseEntity<Object> initiateWorkflow(@RequestParam String requestId, @RequestParam Long moduleId, @RequestParam Long workflowId, @RequestParam Long createdBy)  {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.initiateWorkflow(requestId, moduleId, workflowId, createdBy)), HttpStatus.OK);
+    public ResponseEntity<Object> initiateWorkflow(@RequestParam String requestId, @RequestParam Long moduleId, @RequestParam Long workflowId, @RequestParam Long createdBy,@RequestParam String vendorCode,@RequestParam String plantId)  {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.initiateWorkflow(requestId, moduleId, workflowId, createdBy, vendorCode, plantId)), HttpStatus.OK);
     }
 
     @PostMapping("/performTransitionAction")

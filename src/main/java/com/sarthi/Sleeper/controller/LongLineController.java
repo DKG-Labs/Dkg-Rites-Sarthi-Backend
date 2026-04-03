@@ -29,7 +29,7 @@ public class LongLineController {
         Long md= 12L;
         Long wid = 1L;
 
-        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()));
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(result.getCreatedBy()), result.getVendorCode(),result.getPlantId());
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(result),
