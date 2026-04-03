@@ -2,6 +2,8 @@ package com.sarthi.Sleeper.dto.ProductionDeclaration;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ProductionLongLineGangResponseDto {
 
@@ -17,5 +19,7 @@ public class ProductionLongLineGangResponseDto {
     private String sleeperType;
 
     private Integer mouldsPerGang;
+
+    private List<String> sleepers;
 
 }

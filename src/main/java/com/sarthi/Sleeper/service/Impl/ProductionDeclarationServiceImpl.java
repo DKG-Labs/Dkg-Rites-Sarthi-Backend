@@ -508,27 +508,40 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         // ================= LONG LINE =================
 
-        if (entity.getGangs() != null) {
+            if (entity.getGangs() != null) {
 
-            List<ProductionLongLineGangResponseDto> gangList = new ArrayList<>();
+                List<ProductionLongLineGangResponseDto> gangList = new ArrayList<>();
 
-            for (ProductionLongLineGang gang : entity.getGangs()) {
+                for (ProductionLongLineGang gang : entity.getGangs()) {
 
-                ProductionLongLineGangResponseDto gangDto = new ProductionLongLineGangResponseDto();
+                    ProductionLongLineGangResponseDto gangDto = new ProductionLongLineGangResponseDto();
 
-                gangDto.setId(gang.getId());
-                gangDto.setMode(gang.getMode());
-                gangDto.setGangFrom(gang.getGangFrom());
-                gangDto.setGangTo(gang.getGangTo());
-                gangDto.setGangNo(gang.getGangNo());
-                gangDto.setSleeperType(gang.getSleeperType());
-                gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+                    gangDto.setId(gang.getId());
+                    gangDto.setMode(gang.getMode());
+                    gangDto.setGangFrom(gang.getGangFrom());
+                    gangDto.setGangTo(gang.getGangTo());
+                    gangDto.setGangNo(gang.getGangNo());
+                    gangDto.setSleeperType(gang.getSleeperType());
+                    gangDto.setMouldsPerGang(gang.getMouldsPerGang());
 
-                gangList.add(gangDto);
+
+                    List<String> sleeperNumbers = new ArrayList<>();
+
+                    if (gang.getSleepers() != null) {
+
+                        for (ProductionSleeper sleeper : gang.getSleepers()) {
+                            sleeperNumbers.add(sleeper.getSleeperNo());
+                        }
+                    }
+
+                    gangDto.setSleepers(sleeperNumbers);
+
+                    gangList.add(gangDto);
+                }
+
+                response.setGangs(gangList);
             }
 
-            response.setGangs(gangList);
-        }
 
         return response;
     }
@@ -861,6 +874,15 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         gangDto.setGangNo(gang.getGangNo());
                         gangDto.setSleeperType(gang.getSleeperType());
                         gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+
+                        //ADD THIS (IMPORTANT)
+                        if (gang.getSleepers() != null) {
+                            gangDto.setSleepers(
+                                    gang.getSleepers().stream()
+                                            .map(ProductionSleeper::getSleeperNo)
+                                            .toList()
+                            );
+                        }
 
                         return gangDto;
 
