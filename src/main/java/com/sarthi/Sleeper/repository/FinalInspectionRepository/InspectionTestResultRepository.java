@@ -26,7 +26,7 @@ WHERE h.batchId = :batchId
 """)
     List<InspectionTestResult> findByBatchId(Long batchId);
 
-    @Query("""
+  /*  @Query("""
 SELECT COUNT(DISTINCT r.sleeperId)
 FROM InspectionTestResult r
 JOIN r.testHeader h
@@ -34,7 +34,17 @@ WHERE h.batchId = :batchId
 AND h.module.id = :moduleId
 """)
     Long countTestedSleepers(Long batchId, Long moduleId);
-
+*/
+  @Query("""
+SELECT COUNT(DISTINCT r.sleeperId)
+FROM InspectionTestResult r
+JOIN r.testHeader h
+WHERE h.batchId = :batchId
+AND h.module.id = :moduleId
+AND r.active = true              -- only active records
+AND r.result <> 'PENDING'        -- exclude pending
+""")
+  Long countTestedSleepers(Long batchId, Long moduleId);
 
     @Query("""
            SELECT r
@@ -73,4 +83,6 @@ AND r.sleeperId = :sleeperId
     List<InspectionTestResult> findByTestHeader_BatchIdAndResultAndActiveTrue(Long batchId, String rejected);
 
     List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(Long batchId);
+
+    List<InspectionTestResult> findByBatchIdAndModuleIdAndSleeperIdAndActiveTrue(Long batchId, Long moduleId, Long sleeperId);
 }

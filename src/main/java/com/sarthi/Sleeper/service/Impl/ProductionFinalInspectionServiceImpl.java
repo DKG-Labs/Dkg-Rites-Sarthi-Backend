@@ -131,37 +131,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                       .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
 
       List<InspectionParameterResult> parameterResults = new ArrayList<>();
-
-   /*   for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
-
-          InspectionTestResult result = new InspectionTestResult();
-
-          result.setTestHeader(header);
-          result.setSleeperId(sleeperDto.getSleeperId());
-          result.setSleeperNo(sleeperDto.getSleeperNo());
-          result.setResult(sleeperDto.getResult());
-          result.setRejectionReason(sleeperDto.getRejectionReason());
-
-          resultRepository.save(result);
-
-          if (sleeperDto.getParameters() != null) {
-
-              for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
-
-                  InspectionParameter parameter =
-                          parameterMap.get(paramDto.getParameterId());
-
-                  InspectionParameterResult paramResult =
-                          new InspectionParameterResult();
-
-                  paramResult.setTestResult(result);
-                  paramResult.setParameter(parameter);
-                  paramResult.setParameterResult(paramDto.getResult());
-
-                  parameterResults.add(paramResult);
-              }
-          }
-      } */
+/*
       for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
 
           //  CHECK if already tested
@@ -188,6 +158,62 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
           result.setActive(true);
           resultRepository.save(result);
           //  parameters logic (no change)
+          if (sleeperDto.getParameters() != null) {
+
+              for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+
+                  InspectionParameter parameter =
+                          parameterMap.get(paramDto.getParameterId());
+
+                  InspectionParameterResult paramResult =
+                          new InspectionParameterResult();
+
+                  paramResult.setTestResult(result);
+                  paramResult.setParameter(parameter);
+                  paramResult.setParameterResult(paramDto.getResult());
+
+                  parameterResults.add(paramResult);
+              }
+          }
+      }*/
+      for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+
+
+
+          // STEP 1: Fetch existing active record
+          List<InspectionTestResult> existing =
+                  resultRepository.findByBatchIdAndModuleIdAndSleeperIdAndActiveTrue(
+                          dto.getBatchId(),
+                          dto.getModuleId(),
+                          sleeperDto.getSleeperId()
+                  );
+
+          // STEP 2: Deactivate old record
+          for (InspectionTestResult old : existing) {
+              old.setActive(false);
+              old.setUpdatedBy(dto.getCreatedBy());
+              old.setUpdatedDate(LocalDateTime.now());
+          }
+
+          resultRepository.saveAll(existing);
+
+
+
+
+          // STEP 3: Always insert new record
+          InspectionTestResult result = new InspectionTestResult();
+
+          result.setTestHeader(header);
+          result.setSleeperId(sleeperDto.getSleeperId());
+          result.setSleeperNo(sleeperDto.getSleeperNo());
+          result.setResult(sleeperDto.getResult());
+          result.setRejectionReason(sleeperDto.getRejectionReason());
+          result.setModuleId(module.getId());
+          result.setActive(true);
+
+          resultRepository.save(result);
+
+          // parameters (same as your code)
           if (sleeperDto.getParameters() != null) {
 
               for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
