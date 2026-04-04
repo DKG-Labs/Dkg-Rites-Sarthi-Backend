@@ -182,7 +182,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
           // STEP 1: Fetch existing active record
           List<InspectionTestResult> existing =
-                  resultRepository.findByBatchIdAndModuleIdAndSleeperIdAndActiveTrue(
+                  resultRepository.findByTestHeader_BatchIdAndModuleIdAndSleeperIdAndActiveTrue(
                           dto.getBatchId(),
                           dto.getModuleId(),
                           sleeperDto.getSleeperId()

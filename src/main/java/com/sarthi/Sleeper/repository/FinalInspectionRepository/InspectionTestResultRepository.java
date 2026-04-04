@@ -84,5 +84,11 @@ AND r.sleeperId = :sleeperId
 
     List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(Long batchId);
 
-    List<InspectionTestResult> findByBatchIdAndModuleIdAndSleeperIdAndActiveTrue(Long batchId, Long moduleId, Long sleeperId);
+   // List<InspectionTestResult> findByBatchIdAndModuleIdAndSleeperIdAndActiveTrue(Long batchId, Long moduleId, Long sleeperId);
+
+    List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdAndSleeperIdAndActiveTrue(
+            Long batchId,
+            Long moduleId,
+            Long sleeperId
+    );
 }
