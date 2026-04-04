@@ -41,8 +41,8 @@ FROM InspectionTestResult r
 JOIN r.testHeader h
 WHERE h.batchId = :batchId
 AND h.module.id = :moduleId
-AND r.active = true              -- only active records
-AND r.result <> 'PENDING'        -- exclude pending
+AND r.active = true            
+AND r.result <> 'PENDING'      
 """)
   Long countTestedSleepers(Long batchId, Long moduleId);
 
