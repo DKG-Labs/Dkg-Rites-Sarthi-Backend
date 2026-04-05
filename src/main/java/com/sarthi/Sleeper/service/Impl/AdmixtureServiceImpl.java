@@ -72,6 +72,8 @@ public class AdmixtureServiceImpl implements AdmixtureInventoryService {
         response.setTotalQuantity(saved.getTotalQuantity());
         response.setCreatedBy(saved.getCreatedBy());
         response.setCreatedDate(saved.getCreatedDate());
+        response.setPlantId(saved.getPlantId());
+        response.setVendorCode(saved.getVendorCode());
 
         if (saved.getDateOfReceipt() != null) {
             response.setDateOfReceipt(

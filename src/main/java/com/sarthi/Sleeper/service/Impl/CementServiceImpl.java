@@ -92,6 +92,8 @@ public class CementServiceImpl implements CementService {
             response.setTotalQtyReceived(saved.getTotalQtyReceived());
             response.setCreatedBy(saved.getCreatedBy());
             response.setCreatedDate(saved.getCreatedDate());
+            response.setVendorCode(saved.getVendorCode());
+            response.setPlantId(saved.getPlantId());
 
             if (saved.getDateOfReceipt() != null) {
                 response.setDateOfReceipt(

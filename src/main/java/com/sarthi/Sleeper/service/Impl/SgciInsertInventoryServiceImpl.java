@@ -71,6 +71,8 @@ public class SgciInsertInventoryServiceImpl implements SgciInsertInventoryServic
             response.setCreatedBy(saved.getCreatedBy());
             response.setCreatedDate(saved.getCreatedDate());
 
+            response.setVendorCode(saved.getVendorCode());
+            response.setPlantId(saved.getPlantId());
             if (saved.getDateOfReceipt() != null) {
                 response.setDateOfReceipt(
                         CommonUtils.convertDateToString(saved.getDateOfReceipt()));
