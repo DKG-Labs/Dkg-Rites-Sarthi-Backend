@@ -11,5 +11,8 @@ public class SleeperInspectionCallSubmitDto {
     private Integer totalOffered;
     private Integer totalRejected;
     private Long createdBy;
+
+    private String vendorCode;
+    private String plantId;
     private List<SleeperInspectionCallBatchDto> batchesSelected;
 }

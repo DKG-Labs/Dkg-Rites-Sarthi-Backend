@@ -34,6 +34,9 @@ public class SleeperWorkflowTransactionDto {
     private String nextRole;
     private String shift;
 
+    private String vendorCode;
+    private String plantId;
+
     private String poiCode;
 
     private List<Integer> accessibleUserIds;

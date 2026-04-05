@@ -33,7 +33,7 @@ public class productionDeclarationController {
                 String requestId = String.valueOf(result.getId());
                 Long md = 11L;
                 Long wid = 1L;
-                sleeperWorkflowService.initiateWorkflow(requestId, md, wid, Long.valueOf(result.getCreatedBy()));
+                sleeperWorkflowService.initiateWorkflow(requestId, md, wid, Long.valueOf(result.getCreatedBy()), result.getVendorCode(),result.getPlantId());
 
                 return new ResponseEntity<>(
                                 ResponseBuilder.getSuccessResponse(),

@@ -21,10 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -122,6 +119,21 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         if (dto.getGangs() != null) {
 
+           /* for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
+
+                ProductionLongLineGang gang = new ProductionLongLineGang();
+
+                gang.setMode(gangDto.getMode());
+                gang.setGangFrom(gangDto.getGangFrom());
+                gang.setGangTo(gangDto.getGangTo());
+                gang.setGangNo(gangDto.getGangNo());
+                gang.setSleeperType(gangDto.getSleeperType());
+                gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+
+                gang.setDeclaration(entity);
+
+                gangList.add(gang);
+            } */
             for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
 
                 ProductionLongLineGang gang = new ProductionLongLineGang();
@@ -134,6 +146,25 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 gang.setMouldsPerGang(gangDto.getMouldsPerGang());
 
                 gang.setDeclaration(entity);
+
+                // ADD THIS (same like bench logic)
+                List<ProductionSleeper> sleepers = new ArrayList<>();
+
+                if (gangDto.getSleepers() != null) {
+
+                    for (String sleeperNo : gangDto.getSleepers()) {
+
+                        ProductionSleeper sleeper = new ProductionSleeper();
+
+                        sleeper.setSleeperNo(sleeperNo);
+
+                        sleeper.setGang(gang);
+
+                        sleepers.add(sleeper);
+                    }
+                }
+
+                gang.setSleepers(sleepers);
 
                 gangList.add(gang);
             }
@@ -474,27 +505,40 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         // ================= LONG LINE =================
 
-        if (entity.getGangs() != null) {
+            if (entity.getGangs() != null) {
 
-            List<ProductionLongLineGangResponseDto> gangList = new ArrayList<>();
+                List<ProductionLongLineGangResponseDto> gangList = new ArrayList<>();
 
-            for (ProductionLongLineGang gang : entity.getGangs()) {
+                for (ProductionLongLineGang gang : entity.getGangs()) {
 
-                ProductionLongLineGangResponseDto gangDto = new ProductionLongLineGangResponseDto();
+                    ProductionLongLineGangResponseDto gangDto = new ProductionLongLineGangResponseDto();
 
-                gangDto.setId(gang.getId());
-                gangDto.setMode(gang.getMode());
-                gangDto.setGangFrom(gang.getGangFrom());
-                gangDto.setGangTo(gang.getGangTo());
-                gangDto.setGangNo(gang.getGangNo());
-                gangDto.setSleeperType(gang.getSleeperType());
-                gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+                    gangDto.setId(gang.getId());
+                    gangDto.setMode(gang.getMode());
+                    gangDto.setGangFrom(gang.getGangFrom());
+                    gangDto.setGangTo(gang.getGangTo());
+                    gangDto.setGangNo(gang.getGangNo());
+                    gangDto.setSleeperType(gang.getSleeperType());
+                    gangDto.setMouldsPerGang(gang.getMouldsPerGang());
 
-                gangList.add(gangDto);
+
+                    List<String> sleeperNumbers = new ArrayList<>();
+
+                    if (gang.getSleepers() != null) {
+
+                        for (ProductionSleeper sleeper : gang.getSleepers()) {
+                            sleeperNumbers.add(sleeper.getSleeperNo());
+                        }
+                    }
+
+                    gangDto.setSleepers(sleeperNumbers);
+
+                    gangList.add(gangDto);
+                }
+
+                response.setGangs(gangList);
             }
 
-            response.setGangs(gangList);
-        }
 
         return response;
     }
@@ -828,6 +872,15 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         gangDto.setSleeperType(gang.getSleeperType());
                         gangDto.setMouldsPerGang(gang.getMouldsPerGang());
 
+                        //ADD THIS (IMPORTANT)
+                        if (gang.getSleepers() != null) {
+                            gangDto.setSleepers(
+                                    gang.getSleepers().stream()
+                                            .map(ProductionSleeper::getSleeperNo)
+                                            .toList()
+                            );
+                        }
+
                         return gangDto;
 
                     }).toList()
@@ -884,18 +937,75 @@ public List<String> getBatchNumbers(Long vendorId,
 }
     @Override
     public List<String> getBenchNumbers(String batchNo) {
-        return repository.findBenchNumbers(batchNo);
-    }
+       // return repository.findBenchNumbers(batchNo);
 
-    @Override
-    public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+
+            List<Object[]> results = repository.findBenchAndGangRaw(batchNo);
+
+            Set<String> finalSet = new LinkedHashSet<>();
+
+            for (Object[] row : results) {
+
+                String bench = row[0] != null ? String.valueOf(row[0]) : null;
+
+                Integer gangFrom = row[1] != null ? ((Number) row[1]).intValue() : null;
+                Integer gangTo = row[2] != null ? ((Number) row[2]).intValue() : null;
+
+                // STRESS
+                if (bench != null) {
+                    finalSet.add(bench);
+                }
+
+                // LONG_LINE
+                else if (gangFrom != null && gangTo != null) {
+                    for (int i = gangFrom; i <= gangTo; i++) {
+                        finalSet.add(String.valueOf(i));
+                    }
+                }
+            }
+
+            return new ArrayList<>(finalSet);
+        }
+
+//    @Override
+//    public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+//        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
+//    }
+@Override
+public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+
+    ProductionDeclaration declaration =
+           repository.findByBatchNumber(batchNo);
+
+    if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
         return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
+
+    } else { // LONG_LINE
+
+        return repository.findSleeperTypes(batchNo, benchNo);
     }
+}
+
+//    @Override
+//    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType) {
+//        return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
+//    }
 
     @Override
     public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType) {
-        return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
-    }
 
+        ProductionDeclaration declaration =
+                repository.findByBatchNumber(batchNo);
+
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
+            return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
+
+        } else { // LONG_LINE
+
+            return productionSleeperRepository.findLongLineSleepers(batchNo, benchNo, sleeperType);
+        }
+    }
 
 }

@@ -18,7 +18,7 @@ JOIN b.chamber c
 JOIN c.declaration d
 WHERE d.id = :batchId
 """)
-    List<ProductionSleeper> getSleepersByBatch(Long batchId);
+    List<ProductionSleeper> getSleepersByBatch(Long batchId); 
 
     @Query("""
 SELECT COUNT(s.id)
@@ -30,7 +30,7 @@ WHERE d.id = :batchId
 """)
     Long countByBatchId(Long batchId);
 
-    @Query("""
+   @Query("""
 SELECT DISTINCT b.sleeperType
 FROM ProductionBenchGroup b
 JOIN b.chamber c
@@ -46,4 +46,37 @@ WHERE d.id = :batchId
     List<String> findSleepers(@Param("batchNo") String batchNo,
                               @Param("benchNo") Integer benchNo,
                               @Param("sleeperType") String sleeperType);
+
+   /* @Query("""
+SELECT s.sleeperNo 
+FROM ProductionSleeper s
+WHERE s.gang.declaration.batchNumber = :batchNo
+AND :benchNo BETWEEN s.gang.gangFrom AND s.gang.gangTo
+AND s.gang.sleeperType = :sleeperType
+""")
+    List<String> findLongLineSleepers(String batchNo, Integer benchNo, String sleeperType); */
+   @Query("""
+SELECT s.sleeperNo 
+FROM ProductionSleeper s
+WHERE s.gang.declaration.batchNumber = :batchNo
+AND :benchNo BETWEEN s.gang.gangFrom AND s.gang.gangTo
+AND s.gang.sleeperType = :sleeperType
+AND s.sleeperNo LIKE CONCAT(:benchNo, '%')
+""")
+   List<String> findLongLineSleepers(String batchNo, Integer benchNo, String sleeperType);
+
+    @Query("""
+SELECT s
+FROM ProductionSleeper s
+JOIN s.gang g
+WHERE g.declaration.id = :batchId
+""")
+    List<ProductionSleeper> getSleepersFromGang(Long batchId);
+
+    @Query("""
+SELECT DISTINCT g.sleeperType
+FROM ProductionLongLineGang g
+WHERE g.declaration.id = :batchId
+""")
+    String getLongLineSleeperType(Long batchId);
 }

@@ -60,6 +60,26 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     List<BatchTestingListResponseDto> getAllBatchTesting();
 
     @Query("""
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+g.sleeperType,
+d.totalCastedSleepers,
+COUNT(s.id),
+0.0,
+'Pending',
+null
+)
+FROM ProductionDeclaration d
+JOIN d.gangs g
+JOIN g.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON w.requestId = CAST(d.id as string)
+WHERE w.status = 'Completed'
+GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers
+""")
+    List<BatchTestingListResponseDto> getLongLineBatchTesting();
+    @Query("""
             SELECT d
             FROM ProductionDeclaration d
             WHERE d.id = :batchId
@@ -105,4 +125,30 @@ WHERE p.created_by = :vendorId
     );
 
 
+    ProductionDeclaration findByBatchNumber(String batchNo);
+
+
+    @Query(value = """
+SELECT DISTINCT b.bench_no AS value, NULL AS gang_from, NULL AS gang_to
+FROM production_bench_group b
+JOIN production_stress_chamber c ON b.chamber_id = c.id
+JOIN production_declaration d ON c.declaration_id = d.id
+WHERE d.batch_number = :batchNo
+
+UNION
+
+SELECT DISTINCT NULL AS value, g.gang_from, g.gang_to
+FROM production_longline_gang g
+JOIN production_declaration d ON g.declaration_id = d.id
+WHERE d.batch_number = :batchNo
+""", nativeQuery = true)
+    List<Object[]> findBenchAndGangRaw(String batchNo);
+
+    @Query("""
+SELECT DISTINCT g.sleeperType 
+FROM ProductionLongLineGang g
+WHERE g.declaration.batchNumber = :batchNo
+AND :benchNo BETWEEN g.gangFrom AND g.gangTo
+""")
+    List<String> findSleeperTypes(String batchNo, Integer benchNo);
 }
