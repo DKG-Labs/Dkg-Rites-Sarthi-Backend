@@ -45,5 +45,8 @@ public class WorkflowTransitionDto {
     private List<Integer> processIes;
 
     private List<Integer> finalIes;
+    private String placeOfInspection;
+    private String dpDate;
+    private String extDpDate;
 
 }

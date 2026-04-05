@@ -111,9 +111,15 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 ic.vendorId,
                 ic.typeOfCall,
                 ic.desiredInspectionDate,
-                ic.placeOfInspection
+                ic.placeOfInspection,
+                ic.unitAddress,
+                ic.companyName,
+                pi.deliveryDate,
+                pi.extendedDeliveryDate
             )
             FROM InspectionCall ic
+            JOIN PoHeader ph ON ic.poNo = ph.poNo
+            JOIN ph.items pi ON ic.poSerialNo LIKE CONCAT('%/', pi.itemSrNo)
             WHERE ic.icNumber IN :icNumbers
             """)
     List<InspectionDataDto> findLiteByIcNumberIn(
