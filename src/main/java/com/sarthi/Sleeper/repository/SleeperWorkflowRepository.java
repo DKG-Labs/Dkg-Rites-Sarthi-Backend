@@ -53,7 +53,7 @@ public interface SleeperWorkflowRepository
             """)
     List<SleeperWorkflowTransaction> findLastCompletedRequests();
 
-    @Query("""
+   /* @Query("""
             SELECT t FROM SleeperWorkflowTransaction t
             WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
@@ -63,7 +63,18 @@ public interface SleeperWorkflowRepository
             AND t.status = 'Completed'
             """)
     List<SleeperWorkflowTransaction> findCompletedRequests();
-
+*/
+   @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId = (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.requestId = t.requestId
+        AND t2.moduleId = t.moduleId   
+    )
+    AND t.status = 'Completed'
+""")
+   List<SleeperWorkflowTransaction> findCompletedRequests();
 
     @Query("""
 SELECT t.requestId FROM SleeperWorkflowTransaction t
