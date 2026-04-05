@@ -860,7 +860,6 @@ CREATE TABLE `dowel_inventory` (
    `plant_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
    PRIMARY KEY (`id`)
  );
-
 CREATE TABLE `production_declaration` (
    `id` bigint NOT NULL AUTO_INCREMENT,
    `plant_type` varchar(30) DEFAULT NULL,
@@ -881,49 +880,534 @@ CREATE TABLE `production_declaration` (
    `vendor_code` varchar(50) DEFAULT NULL,
    `plant_id` varchar(50) DEFAULT NULL,
    PRIMARY KEY (`id`)
+ )
+CREATE TABLE `production_stress_chamber` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `declaration_id` bigint DEFAULT NULL,
+   `chamber_no` int DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `declaration_id` (`declaration_id`),
+   CONSTRAINT `production_stress_chamber_ibfk_1` FOREIGN KEY (`declaration_id`) REFERENCES `production_declaration` (`id`) ON DELETE CASCADE
+ )
+
+CREATE TABLE `production_bench_group` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `chamber_id` bigint DEFAULT NULL,
+   `bench_no` int DEFAULT NULL,
+   `sleeper_type` varchar(100) DEFAULT NULL,
+   `mould_per_bench` int DEFAULT NULL,
+   `rft` double DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `chamber_id` (`chamber_id`),
+   CONSTRAINT `production_bench_group_ibfk_1` FOREIGN KEY (`chamber_id`) REFERENCES `production_stress_chamber` (`id`) ON DELETE CASCADE
  );
 
- CREATE TABLE `production_stress_chamber` (
-    `id` bigint NOT NULL AUTO_INCREMENT,
-    `declaration_id` bigint DEFAULT NULL,
-    `chamber_no` int DEFAULT NULL,
-    PRIMARY KEY (`id`),
-    KEY `declaration_id` (`declaration_id`),
-    CONSTRAINT `production_stress_chamber_ibfk_1` FOREIGN KEY (`declaration_id`) REFERENCES `production_declaration` (`id`) ON DELETE CASCADE
-  );
-
-  CREATE TABLE `production_bench_group` (
-     `id` bigint NOT NULL AUTO_INCREMENT,
-     `chamber_id` bigint DEFAULT NULL,
-     `bench_no` int DEFAULT NULL,
-     `sleeper_type` varchar(100) DEFAULT NULL,
-     `mould_per_bench` int DEFAULT NULL,
-     `rft` double DEFAULT NULL,
-     PRIMARY KEY (`id`),
-     KEY `chamber_id` (`chamber_id`),
-     CONSTRAINT `production_bench_group_ibfk_1` FOREIGN KEY (`chamber_id`) REFERENCES `production_stress_chamber` (`id`) ON DELETE CASCADE
-   );
-
-   CREATE TABLE `production_longline_gang` (
-      `id` bigint NOT NULL AUTO_INCREMENT,
-      `declaration_id` bigint DEFAULT NULL,
-      `mode` varchar(20) DEFAULT NULL,
-      `gang_from` int DEFAULT NULL,
-      `gang_to` int DEFAULT NULL,
-      `gang_no` int DEFAULT NULL,
-      `sleeper_type` varchar(100) DEFAULT NULL,
-      `moulds_per_gang` int DEFAULT NULL,
-      PRIMARY KEY (`id`),
-      KEY `declaration_id` (`declaration_id`),
-      CONSTRAINT `production_longline_gang_ibfk_1` FOREIGN KEY (`declaration_id`) REFERENCES `production_declaration` (`id`) ON DELETE CASCADE
-    );
+CREATE TABLE `production_longline_gang` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `declaration_id` bigint DEFAULT NULL,
+   `mode` varchar(20) DEFAULT NULL,
+   `gang_from` int DEFAULT NULL,
+   `gang_to` int DEFAULT NULL,
+   `gang_no` int DEFAULT NULL,
+   `sleeper_type` varchar(100) DEFAULT NULL,
+   `moulds_per_gang` int DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `declaration_id` (`declaration_id`),
+   CONSTRAINT `production_longline_gang_ibfk_1` FOREIGN KEY (`declaration_id`) REFERENCES `production_declaration` (`id`) ON DELETE CASCADE
+ );
 
     CREATE TABLE `production_sleeper` (
        `id` bigint NOT NULL AUTO_INCREMENT,
        `bench_group_id` bigint DEFAULT NULL,
        `sleeper_no` varchar(20) DEFAULT NULL,
+       `gang_id` bigint DEFAULT NULL,
        PRIMARY KEY (`id`),
        KEY `bench_group_id` (`bench_group_id`),
        CONSTRAINT `production_sleeper_ibfk_1` FOREIGN KEY (`bench_group_id`) REFERENCES `production_bench_group` (`id`) ON DELETE CASCADE
      );
+
+CREATE TABLE `inspection_module` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `module_name` varchar(100) DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );---->
+
+
+CREATE TABLE `inspection_test_header` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `batch_id` bigint DEFAULT NULL,
+   `sleeper_type` varchar(100) DEFAULT NULL,
+   `shift` varchar(20) DEFAULT NULL,
+   `test_date` date DEFAULT NULL,
+   `created_by` bigint DEFAULT NULL,
+   `created_date` datetime DEFAULT NULL,
+   `module_id` bigint DEFAULT NULL,
+   `status` varchar(30) DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_test_header_module` (`module_id`),
+   CONSTRAINT `fk_test_header_module` FOREIGN KEY (`module_id`) REFERENCES `inspection_module` (`id`)
+ );
+
+CREATE TABLE `inspection_parameter` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `parameter_name` varchar(200) DEFAULT NULL,
+   `module_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_parameter_module` (`module_id`),
+   CONSTRAINT `fk_parameter_module` FOREIGN KEY (`module_id`) REFERENCES `inspection_module` (`id`)
+)  --->
+
+
+CREATE TABLE `inspection_parameter_result` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `parameter_result` varchar(20) DEFAULT NULL,
+   `parameter_id` bigint DEFAULT NULL,
+   `test_result_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_parameter_result_parameter` (`parameter_id`),
+   KEY `fk_parameter_result_test` (`test_result_id`),
+   CONSTRAINT `fk_parameter_result_parameter` FOREIGN KEY (`parameter_id`) REFERENCES `inspection_parameter` (`id`),
+   CONSTRAINT `fk_parameter_result_test` FOREIGN KEY (`test_result_id`) REFERENCES `inspection_test_result` (`id`)
+ )
+
+CREATE TABLE `inspection_test_result` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `sleeper_id` bigint DEFAULT NULL,
+   `sleeper_no` varchar(50) DEFAULT NULL,
+   `result` varchar(20) DEFAULT NULL,
+   `rejection_reason` varchar(255) DEFAULT NULL,
+   `test_header_id` bigint DEFAULT NULL,
+   `module_id` bigint DEFAULT NULL,
+   `active` tinyint(1) DEFAULT '1',
+   `updated_date` datetime DEFAULT NULL,
+   `updated_by` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_test_result_header` (`test_header_id`),
+   CONSTRAINT `fk_test_result_header` FOREIGN KEY (`test_header_id`) REFERENCES `inspection_test_header` (`id`)
+ );
+
+CREATE TABLE `mould_preparation` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `line_shed_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `preparation_date` date DEFAULT NULL,
+   `preparation_time` time DEFAULT NULL,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `bench_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `mould_cleaned` tinyint(1) DEFAULT NULL,
+   `oil_applied` tinyint(1) DEFAULT NULL,
+   `remarks` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_by` int DEFAULT NULL,
+   `updated_by` int DEFAULT NULL,
+   `created_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+   `updated_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+   `status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+CREATE TABLE `hts_wire_placement` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `line_shed_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `placement_date` date DEFAULT NULL,
+   `placement_time` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `bench_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sleeper_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `no_of_wires_used` int DEFAULT NULL,
+   `hts_wire_dia_mm` decimal(6,2) DEFAULT NULL,
+   `lay_length_mm` decimal(8,2) DEFAULT NULL,
+   `arrangement_ok` tinyint(1) DEFAULT NULL,
+   `overall_status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `remarks` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_by` int DEFAULT NULL,
+   `updated_by` int DEFAULT NULL,
+   `created_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+   `updated_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+   `status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+CREATE TABLE `demoulding_inspection` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `line_shed_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `inspection_date` date DEFAULT NULL,
+   `inspection_time` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `casting_date` date DEFAULT NULL,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `bench_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sleeper_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `process_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `visual_check` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `dim_check` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `overall_remarks` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_by` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `updated_by` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_date` timestamp NULL DEFAULT NULL,
+   `updated_date` timestamp NULL DEFAULT NULL,
+   `status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+
+CREATE TABLE `demoulding_defective_sleepers` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `inspection_id` bigint DEFAULT NULL,
+   `bench_gang_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sequence_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sleeper_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `visual_reason` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `dim_reason` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_date` timestamp NULL DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `inspection_id` (`inspection_id`),
+   CONSTRAINT `demoulding_defective_sleepers_ibfk_1` FOREIGN KEY (`inspection_id`) REFERENCES `demoulding_inspection` (`id`)
+ );
+
+
+CREATE TABLE `moisture_analysis_entry` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `entry_date` date DEFAULT NULL,
+   `shift` varchar(10) DEFAULT NULL,
+   `entry_time` varchar(20) DEFAULT NULL,
+   `batch_no` varchar(50) DEFAULT NULL,
+   `approved_mix_design` varchar(100) DEFAULT NULL,
+   `design_ac` double DEFAULT NULL,
+   `design_wc` double DEFAULT NULL,
+   `design_cement` double DEFAULT NULL,
+   `design_ca1` double DEFAULT NULL,
+   `design_ca2` double DEFAULT NULL,
+   `design_fa` double DEFAULT NULL,
+   `design_water` double DEFAULT NULL,
+   `design_admix` double DEFAULT NULL,
+   `actual_cement` double DEFAULT NULL,
+   `actual_ca1` double DEFAULT NULL,
+   `actual_ca2` double DEFAULT NULL,
+   `actual_fa` double DEFAULT NULL,
+   `actual_water` double DEFAULT NULL,
+   `actual_admix` double DEFAULT NULL,
+   `wt_adopted_ca1` double DEFAULT NULL,
+   `wt_adopted_ca2` double DEFAULT NULL,
+   `wt_adopted_fa` double DEFAULT NULL,
+   `total_free_moisture` double DEFAULT NULL,
+   `adjusted_water_wt` double DEFAULT NULL,
+   `wc_ratio` double DEFAULT NULL,
+   `ac_ratio` double DEFAULT NULL,
+   `created_by` int DEFAULT NULL,
+   `updated_by` int DEFAULT NULL,
+   `created_date` datetime DEFAULT NULL,
+   `updated_date` datetime DEFAULT NULL,
+   `status` varchar(20) DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+ CREATE TABLE `moisture_section` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `section_type` varchar(10) DEFAULT NULL,
+    `wt_wet_sample` double DEFAULT NULL,
+    `wt_dried_sample` double DEFAULT NULL,
+    `wt_moisture_sample` double DEFAULT NULL,
+    `moisture_percent` double DEFAULT NULL,
+    `absorption_percent` double DEFAULT NULL,
+    `free_moisture_percent` double DEFAULT NULL,
+    `batch_wt_dry` double DEFAULT NULL,
+    `free_moisture_kg` double DEFAULT NULL,
+    `adjusted_weight` double DEFAULT NULL,
+    `adopted_weight` double DEFAULT NULL,
+    `entry_id` bigint DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_moisture_entry` (`entry_id`),
+    CONSTRAINT `fk_moisture_entry` FOREIGN KEY (`entry_id`) REFERENCES `moisture_analysis_entry` (`id`) ON DELETE CASCADE
+  );
+
+CREATE TABLE `batch_weighment` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `line_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `entry_date` date DEFAULT NULL,
+   `sand_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `moisture_sensor_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `verified_by` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `remarks` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `entry_mode` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_date` timestamp NULL DEFAULT NULL,
+   `updated_date` timestamp NULL DEFAULT NULL,
+   `created_by` int DEFAULT NULL,
+   `updated_by` int DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+
+CREATE TABLE `batch_details` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `proportion_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `ca1_ref` double DEFAULT NULL,
+   `ca2_ref` double DEFAULT NULL,
+   `fa_ref` double DEFAULT NULL,
+   `cement_ref` double DEFAULT NULL,
+   `water_ref` double DEFAULT NULL,
+   `admixture_ref` double DEFAULT NULL,
+   `ca1_set` double DEFAULT NULL,
+   `ca2_set` double DEFAULT NULL,
+   `fa_set` double DEFAULT NULL,
+   `cement_set` double DEFAULT NULL,
+   `water_set` double DEFAULT NULL,
+   `admixture_set` double DEFAULT NULL,
+   `batch_weighment_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_batch_details_weighment` (`batch_weighment_id`),
+   CONSTRAINT `fk_batch_details_weighment` FOREIGN KEY (`batch_weighment_id`) REFERENCES `batch_weighment` (`id`)
+ );
+
+ CREATE TABLE `scada_weighment` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `date` date DEFAULT NULL,
+    `time` time DEFAULT NULL,
+    `ca1_set` double DEFAULT NULL,
+    `ca1_actual` double DEFAULT NULL,
+    `ca2_set` double DEFAULT NULL,
+    `ca2_actual` double DEFAULT NULL,
+    `fa_set` double DEFAULT NULL,
+    `fa_actual` double DEFAULT NULL,
+    `cement_set` double DEFAULT NULL,
+    `cement_actual` double DEFAULT NULL,
+    `water_set` double DEFAULT NULL,
+    `water_actual` double DEFAULT NULL,
+    `admixture_set` double DEFAULT NULL,
+    `admixture_actual` double DEFAULT NULL,
+    `total` double DEFAULT NULL,
+    `source` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `batch_weighment_id` bigint DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_scada_weighment_batch` (`batch_weighment_id`),
+    CONSTRAINT `fk_scada_weighment_batch` FOREIGN KEY (`batch_weighment_id`) REFERENCES `batch_weighment` (`id`)
+  );
+
+CREATE TABLE `manual_weighment` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `date` date DEFAULT NULL,
+   `time` time DEFAULT NULL,
+   `ca1_actual` double DEFAULT NULL,
+   `ca2_actual` double DEFAULT NULL,
+   `fa_actual` double DEFAULT NULL,
+   `cement_actual` double DEFAULT NULL,
+   `water_actual` double DEFAULT NULL,
+   `admixture_actual` double DEFAULT NULL,
+   `source` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `batch_weighment_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_manual_weighment_batch` (`batch_weighment_id`),
+   CONSTRAINT `fk_manual_weighment_batch` FOREIGN KEY (`batch_weighment_id`) REFERENCES `batch_weighment` (`id`)
+ );
+
+CREATE TABLE `wire_tensioning` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sleeper_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `wires_per_sleeper` int DEFAULT NULL,
+   `target_load_kn` double DEFAULT NULL,
+   `created_by` int DEFAULT NULL,
+   `updated_by` int DEFAULT NULL,
+   `created_date` timestamp NULL DEFAULT NULL,
+   `updated_date` timestamp NULL DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+
+ CREATE TABLE `wire_tensioning_scada` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `plc_time` time DEFAULT NULL,
+    `bench_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `wire_length` double DEFAULT NULL,
+    `cross_section` double DEFAULT NULL,
+    `youngs_modulus` double DEFAULT NULL,
+    `measured_elongation` double DEFAULT NULL,
+    `force_elongation` double DEFAULT NULL,
+    `total_load` double DEFAULT NULL,
+    `final_load` double DEFAULT NULL,
+    `source` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `wire_tensioning_id` bigint DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_wire_scada` (`wire_tensioning_id`),
+    CONSTRAINT `fk_wire_scada` FOREIGN KEY (`wire_tensioning_id`) REFERENCES `wire_tensioning` (`id`)
+  );
+
+
+CREATE TABLE `wire_tensioning_manual` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `bench_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `time` time DEFAULT NULL,
+   `wire_length` double DEFAULT NULL,
+   `cross_section` double DEFAULT NULL,
+   `youngs_modulus` double DEFAULT NULL,
+   `measured_elongation` double DEFAULT NULL,
+   `force_elongation` double DEFAULT NULL,
+   `total_load` double DEFAULT NULL,
+   `final_load` double DEFAULT NULL,
+   `source` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `wire_tensioning_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_wire_manual` (`wire_tensioning_id`),
+   CONSTRAINT `fk_wire_manual` FOREIGN KEY (`wire_tensioning_id`) REFERENCES `wire_tensioning` (`id`)
+ ) ;
+
+
+CREATE TABLE `compaction` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sleeper_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `entry_date` date DEFAULT NULL,
+   `created_by` int DEFAULT NULL,
+   `updated_by` int DEFAULT NULL,
+   `created_date` timestamp NULL DEFAULT NULL,
+   `updated_date` timestamp NULL DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+
+CREATE TABLE `compaction_scada` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `time` time DEFAULT NULL,
+   `bench_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `v1_v4_rpm` double DEFAULT NULL,
+   `duration` double DEFAULT NULL,
+   `source` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `compaction_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_compaction_scada` (`compaction_id`),
+   CONSTRAINT `fk_compaction_scada` FOREIGN KEY (`compaction_id`) REFERENCES `compaction` (`id`)
+ );
+
+
+
+ CREATE TABLE `compaction_manual` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `bench_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `min_rpm` double DEFAULT NULL,
+    `max_rpm` double DEFAULT NULL,
+    `source` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `compaction_id` bigint DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_compaction_manual` (`compaction_id`),
+    CONSTRAINT `fk_compaction_manual` FOREIGN KEY (`compaction_id`) REFERENCES `compaction` (`id`)
+  );
+
+
+CREATE TABLE `steam_curing` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `chamber` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `grade` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `entry_date` date DEFAULT NULL,
+   `created_by` int DEFAULT NULL,
+   `updated_by` int DEFAULT NULL,
+   `created_date` datetime DEFAULT NULL,
+   `updated_date` datetime DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+
+CREATE TABLE `steam_curing_scada` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `date` date DEFAULT NULL,
+   `time` time DEFAULT NULL,
+   `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `ca1_set` double DEFAULT NULL,
+   `ca1_actual` double DEFAULT NULL,
+   `ca2_set` double DEFAULT NULL,
+   `ca2_actual` double DEFAULT NULL,
+   `fa_set` double DEFAULT NULL,
+   `fa_actual` double DEFAULT NULL,
+   `cement_set` double DEFAULT NULL,
+   `cement_actual` double DEFAULT NULL,
+   `water_set` double DEFAULT NULL,
+   `water_actual` double DEFAULT NULL,
+   `admixture_set` double DEFAULT NULL,
+   `admixture_actual` double DEFAULT NULL,
+   `total_set` double DEFAULT NULL,
+   `total_actual` double DEFAULT NULL,
+   `source` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `steam_curing_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_steam_scada` (`steam_curing_id`),
+   CONSTRAINT `fk_steam_scada` FOREIGN KEY (`steam_curing_id`) REFERENCES `steam_curing` (`id`)
+ );
+
+
+ CREATE TABLE `steam_curing_manual` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `batch_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `chamber` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `min_temp` double DEFAULT NULL,
+    `max_temp` double DEFAULT NULL,
+    `source` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `steam_curing_id` bigint DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_steam_manual` (`steam_curing_id`),
+    CONSTRAINT `fk_steam_manual` FOREIGN KEY (`steam_curing_id`) REFERENCES `steam_curing` (`id`)
+  );
+
+CREATE TABLE `bench_mould_inspection` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `line_shed_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `checking_date` date DEFAULT NULL,
+   `bench_gang_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sleeper_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `latest_casting_date` date DEFAULT NULL,
+   `bench_visual_result` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `bench_dimensional_result` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `mould_visual_result` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `mould_dimensional_result` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `combined_remarks` text COLLATE utf8mb4_unicode_ci,
+   `created_by` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `updated_by` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_date` datetime DEFAULT NULL,
+   `updated_date` datetime DEFAULT NULL,
+   `status` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+
+CREATE TABLE `steam_cube_sample_declaration` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `shed_no` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `line_no` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `casting_date` date DEFAULT NULL,
+   `lbc_time` time DEFAULT NULL,
+   `batch_no` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `concrete_grade` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `chamber_no` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `created_at` datetime DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ );
+
+
+CREATE TABLE `sample_cube` (
+   `id` bigint NOT NULL AUTO_INCREMENT,
+   `bench_no` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+   `sample_id` bigint DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   KEY `fk_sample_cube_sample` (`sample_id`),
+   CONSTRAINT `fk_sample_cube_sample` FOREIGN KEY (`sample_id`) REFERENCES `steam_cube_sample_declaration` (`id`) ON DELETE CASCADE
+ );
+
+
+ CREATE TABLE `sample_other_bench` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `bench_no` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `sleeper_sequence` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `cube_code` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `sample_id` bigint DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_other_bench_sample` (`sample_id`),
+    CONSTRAINT `fk_other_bench_sample` FOREIGN KEY (`sample_id`) REFERENCES `steam_cube_sample_declaration` (`id`) ON DELETE CASCADE
+  )
+
+
+
+
+
+
+
 
