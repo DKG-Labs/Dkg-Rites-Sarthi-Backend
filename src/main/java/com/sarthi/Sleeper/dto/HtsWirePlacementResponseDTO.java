@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.dto;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -42,5 +43,6 @@ public class HtsWirePlacementResponseDTO {
 
     private LocalDateTime updatedDate;
 
+    private BigDecimal observedWeightKgM;
     private String status;
 }

@@ -27,6 +27,8 @@ public class HtsWirePlacementRequestDTO {
 
     private String overallStatus;
 
+    private Double observedWeightKgM;
+
     private String remarks;
 
     private int createdBy;

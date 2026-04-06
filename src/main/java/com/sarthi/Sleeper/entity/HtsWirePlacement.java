@@ -36,6 +36,8 @@ public class HtsWirePlacement {
 
     @Column(name = "no_of_wires_used")
     private Integer noOfWiresUsed;
+    @Column(name = "observed_weight_kg_m")
+    private BigDecimal observedWeightKgM;
 
     @Column(name = "hts_wire_dia_mm")
     private BigDecimal htsWireDiaMm;

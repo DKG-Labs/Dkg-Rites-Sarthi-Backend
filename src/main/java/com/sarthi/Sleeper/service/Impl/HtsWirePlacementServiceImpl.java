@@ -43,6 +43,8 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
         entity.setBenchNo(dto.getBenchNo());
         entity.setSleeperType(dto.getSleeperType());
         entity.setNoOfWiresUsed(dto.getNoOfWiresUsed());
+        entity.setObservedWeightKgM(dto.getObservedWeightKgM()!= null ?
+                BigDecimal.valueOf(dto.getObservedWeightKgM()) : null);
         entity.setHtsWireDiaMm(
                 dto.getHtsWireDiaMm() != null ?
                         BigDecimal.valueOf(dto.getHtsWireDiaMm()) : null
@@ -114,6 +116,8 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
 
         entity.setPlacementTime(dto.getPlacementTime());
 
+        entity.setObservedWeightKgM(dto.getObservedWeightKgM()!= null ?
+                BigDecimal.valueOf(dto.getObservedWeightKgM()) : null);
         entity.setBatchNo(dto.getBatchNo());
         entity.setBenchNo(dto.getBenchNo());
         entity.setSleeperType(dto.getSleeperType());
@@ -174,6 +178,7 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
 
         dto.setPlacementTime(entity.getPlacementTime());
 
+        dto.setObservedWeightKgM(entity.getObservedWeightKgM());
         dto.setBatchNo(entity.getBatchNo());
         dto.setBenchNo(entity.getBenchNo());
         dto.setSleeperType(entity.getSleeperType());
