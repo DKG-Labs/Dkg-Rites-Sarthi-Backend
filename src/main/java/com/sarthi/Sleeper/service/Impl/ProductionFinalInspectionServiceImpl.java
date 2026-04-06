@@ -122,6 +122,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
       header.setCreatedBy(dto.getCreatedBy());
       header.setTestDate(LocalDate.now());
       header.setCreatedDate(LocalDateTime.now());
+      header.setSleeperType(dto.getSleeperType());
 
       headerRepository.save(header);
 
@@ -775,13 +776,14 @@ public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId) {
 
         String parsedUserId = userId.replace(":", "");
-        Long vendorId = Long.parseLong(parsedUserId);
+      //  Long vendorId = Long.parseLong(parsedUserId);
 
         Optional<UserMaster> userOpt = userMasterRepository.findByUserName(userId);
         if (userOpt.isEmpty()) {
             userOpt = userMasterRepository.findByUserName(parsedUserId);
         }
 
+        Long vendorId = 0L;
         if (userOpt.isPresent()) {
             vendorId = userOpt.get().getUserId().longValue();
         }

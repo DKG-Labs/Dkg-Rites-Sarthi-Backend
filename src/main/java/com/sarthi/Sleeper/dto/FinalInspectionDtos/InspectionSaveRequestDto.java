@@ -12,6 +12,7 @@ public class InspectionSaveRequestDto {
     private String shift;
     private Long createdBy;
 
+    private String sleeperType;
     private List<SleeperInspectionDto> sleepers;
 
 }
