@@ -23,4 +23,11 @@ public interface DemouldingInspectionService {
    public List<DemouldingInspectionResponseDTO> getAll();
 
    public void delete(Long id);
+
+
+   public List<DemouldingInspectionResponseDTO> getTodayRecords(
+           String plantId,
+           String vendorCode,
+           String shift,
+           String createdBy);
 }

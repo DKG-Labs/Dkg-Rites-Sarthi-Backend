@@ -34,5 +34,9 @@ public class HtsWirePlacementRequestDTO {
     private int createdBy;
 
     private int updatedBy;
+
+    private String vendorCode;
+    private String plantId;
+    private String shift;
 }
 

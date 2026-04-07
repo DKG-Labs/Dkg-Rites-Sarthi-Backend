@@ -29,6 +29,10 @@ public class MouldPreparationResponseDTO {
 
     private int createdBy;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private int updatedBy;
 
     private LocalDateTime createdDate;

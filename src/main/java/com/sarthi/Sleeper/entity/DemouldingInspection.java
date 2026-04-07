@@ -49,6 +49,9 @@ public class DemouldingInspection {
 
     private String status;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
 
     /* One Inspection → Many Defects */
 

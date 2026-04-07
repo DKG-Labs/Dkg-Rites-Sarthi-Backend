@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -45,6 +47,9 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
         entity.setOilApplied(dto.getOilApplied());
         entity.setRemarks(dto.getRemarks());
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
         entity.setCreatedBy(dto.getCreatedBy());
 
         entity.setCreatedDate(LocalDateTime.now());
@@ -105,7 +110,9 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
         entity.setMouldCleaned(dto.getMouldCleaned());
         entity.setOilApplied(dto.getOilApplied());
         entity.setRemarks(dto.getRemarks());
-
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
         entity.setUpdatedBy(dto.getUpdateBy());
         entity.setUpdatedDate(LocalDateTime.now());
 
@@ -131,7 +138,9 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
 
         LocalTime pTime = entity.getPreparationTime();
         dto.setPreparationTime(pTime);
-
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
+        dto.setShift(entity.getShift());
 
         dto.setBatchNo(entity.getBatchNo());
         dto.setBenchNo(entity.getBenchNo());
@@ -174,6 +183,32 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
                                        "Mould Preparation not found for the provided Id.")
                        ));
         mouldPreparationRepository.delete(entity);
+    }
+
+    @Override
+    public List<MouldPreparationResponseDTO> getTodayRecords(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy) {
+        LocalDate today = LocalDate.now();
+
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+
+
+        List<MouldPreparation> list = mouldPreparationRepository.findTodayData(
+                plantId,
+                vendorCode,
+                shift,
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
 

@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.DemouldingInspectionRequestDTO;
 import com.sarthi.Sleeper.dto.DemouldingInspectionResponseDTO;
+import com.sarthi.Sleeper.dto.HtsWirePlacementResponseDTO;
 import com.sarthi.Sleeper.service.DemouldingInspectionService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,5 +74,20 @@ public class DemouldingInspectionController {
                 HttpStatus.OK);
     }
 
+
+    @GetMapping("/demouldingTodayRecord")
+    public ResponseEntity<Object> demouldingTodayRecord(  @RequestParam String plantId,
+                                                        @RequestParam String vendorCode,
+                                                        @RequestParam String shift,
+                                                        @RequestParam String createdBy) {
+
+        List<DemouldingInspectionResponseDTO> list =
+                demouldingInspectionService.getTodayRecords(plantId,vendorCode, shift, createdBy);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
+                HttpStatus.OK
+        );
+    }
 
 }

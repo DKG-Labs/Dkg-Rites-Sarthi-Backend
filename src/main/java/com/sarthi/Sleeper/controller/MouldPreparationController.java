@@ -74,6 +74,21 @@ public class MouldPreparationController {
         );
     }
 
+    @GetMapping("/mouldPreparationTodayRecord")
+    public ResponseEntity<Object> mouldPreparationTodayRecord(  @RequestParam String plantId,
+                                                                @RequestParam String vendorCode,
+                                                                @RequestParam String shift,
+                                                                @RequestParam int createdBy) {
+
+        List<MouldPreparationResponseDTO> list =
+                mouldPreparationService.getTodayRecords(plantId,vendorCode, shift, createdBy);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
+                HttpStatus.OK
+        );
+    }
+
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Object> delete(
             @PathVariable Long id) {

@@ -20,4 +20,10 @@ public interface HtsWirePlacementService {
    public HtsWirePlacementResponseDTO update(Long id, HtsWirePlacementRequestDTO dto);
 
     void delete(Long id);
+
+    public List<HtsWirePlacementResponseDTO> getTodayRecords(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy);
 }

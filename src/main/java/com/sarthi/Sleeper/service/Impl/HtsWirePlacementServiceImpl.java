@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,6 +41,9 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
 
         entity.setPlacementTime(dto.getPlacementTime());
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
         entity.setBatchNo(dto.getBatchNo());
         entity.setBenchNo(dto.getBenchNo());
         entity.setSleeperType(dto.getSleeperType());
@@ -116,6 +121,9 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
 
         entity.setPlacementTime(dto.getPlacementTime());
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
         entity.setObservedWeightKgM(dto.getObservedWeightKgM()!= null ?
                 BigDecimal.valueOf(dto.getObservedWeightKgM()) : null);
         entity.setBatchNo(dto.getBatchNo());
@@ -178,6 +186,10 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
 
         dto.setPlacementTime(entity.getPlacementTime());
 
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
+        dto.setShift(entity.getShift());
+
         dto.setObservedWeightKgM(entity.getObservedWeightKgM());
         dto.setBatchNo(entity.getBatchNo());
         dto.setBenchNo(entity.getBenchNo());
@@ -206,6 +218,32 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
         dto.setStatus(entity.getStatus());
 
         return dto;
+    }
+
+    @Override
+    public List<HtsWirePlacementResponseDTO> getTodayRecords(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy) {
+
+        LocalDate today = LocalDate.now();
+
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+
+        List<HtsWirePlacement> list = htsWirePlacementRepository.findTodayData(
+                plantId,
+                vendorCode,
+                shift,
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapEntityToDto)
+                .collect(Collectors.toList());
     }
 
 }
