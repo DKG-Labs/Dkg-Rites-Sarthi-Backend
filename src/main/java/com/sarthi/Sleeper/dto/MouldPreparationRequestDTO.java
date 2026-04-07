@@ -21,6 +21,9 @@ public class MouldPreparationRequestDTO {
 
     private String remarks;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
     private int createdBy;
     private int updateBy;
 }

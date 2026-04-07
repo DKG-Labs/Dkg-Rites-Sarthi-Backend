@@ -26,6 +26,9 @@ public class RawMaterialCertificateDto {
      */
     private String certificateDate;
     
+    private String bookNo;
+    private String setNo;
+    
     /* ==================== Installment Information ==================== */
     
     /**

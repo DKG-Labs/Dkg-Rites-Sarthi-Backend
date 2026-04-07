@@ -22,14 +22,15 @@ public class WorkflowTransitionDto {
     private String currentRole;
     private String nextRole;
 
-    private Integer createdBy;
+    private String createdBy;
     private Date createdDate;
 
     private Integer transitionOrder;
     private Integer workflowSequence;
     private Integer assignedToUser;
+    private String assignedToUserName;
 
-    private Integer modifiedBy;
+    private String modifiedBy;
 
     private String poNo;
     private String rawPoNo;

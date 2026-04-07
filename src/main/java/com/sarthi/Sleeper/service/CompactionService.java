@@ -19,4 +19,11 @@ public interface CompactionService {
 
    public void delete(Long id);
 
+   public List<CompactionResponseDto> getRecordsByDate(
+           String plantId,
+           String vendorCode,
+           String shift,
+           int createdBy,
+           String date);
+
 }

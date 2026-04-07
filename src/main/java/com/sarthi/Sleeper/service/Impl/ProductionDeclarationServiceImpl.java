@@ -935,9 +935,9 @@ public List<String> getBatchNumbers(Long vendorId,
             vendorId, castingDate, plantId, productionUnit
     );
 }
-    @Override
+  /*  @Override
     public List<String> getBenchNumbers(String batchNo) {
-       // return repository.findBenchNumbers(batchNo);
+        //return repository.findBenchNumbers(batchNo);
 
 
             List<Object[]> results = repository.findBenchAndGangRaw(batchNo);
@@ -965,7 +965,33 @@ public List<String> getBatchNumbers(Long vendorId,
             }
 
             return new ArrayList<>(finalSet);
-        }
+        }*/
+  @Override
+  public List<String> getBenchNumbers(String batchNo) {
+
+      Set<String> finalSet = new LinkedHashSet<>();
+
+      //  Bench Numbers (STRESS)
+      List<String> benches = repository.findBenchNumbers(batchNo);
+      finalSet.addAll(benches);
+
+      //  Gang Ranges (LONG LINE)
+      List<Object[]> gangResults = repository.findGangRanges(batchNo);
+
+      for (Object[] row : gangResults) {
+
+          Integer gangFrom = row[0] != null ? ((Number) row[0]).intValue() : null;
+          Integer gangTo = row[1] != null ? ((Number) row[1]).intValue() : null;
+
+          if (gangFrom != null && gangTo != null) {
+              for (int i = gangFrom; i <= gangTo; i++) {
+                  finalSet.add(String.valueOf(i));
+              }
+          }
+      }
+
+      return new ArrayList<>(finalSet);
+  }
 
 //    @Override
 //    public List<String> getSleeperTypes(String batchNo, Integer benchNo) {

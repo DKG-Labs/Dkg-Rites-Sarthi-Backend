@@ -45,6 +45,11 @@ public class WireTensioning {
     private LocalDateTime updatedDate;
 
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
+
 
     @OneToMany(mappedBy = "wireTensioning",
             cascade = CascadeType.ALL,

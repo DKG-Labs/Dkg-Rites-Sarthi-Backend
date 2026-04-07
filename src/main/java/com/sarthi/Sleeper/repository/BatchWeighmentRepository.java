@@ -2,8 +2,28 @@ package com.sarthi.Sleeper.repository;
 
 import com.sarthi.Sleeper.entity.BatchWeighment.BatchWeighment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Repository
 public interface BatchWeighmentRepository extends JpaRepository<BatchWeighment, Long> {
+    @Query("""
+    SELECT b FROM BatchWeighment b
+    WHERE b.plantId = :plantId
+    AND b.vendorCode = :vendorCode
+    AND b.shift = :shift
+    AND b.createdBy = :createdBy
+    AND b.createdDate BETWEEN :startOfDay AND :endOfDay
+""")
+    List<BatchWeighment> findByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            LocalDateTime startOfDay,
+            LocalDateTime endOfDay
+    );
 }

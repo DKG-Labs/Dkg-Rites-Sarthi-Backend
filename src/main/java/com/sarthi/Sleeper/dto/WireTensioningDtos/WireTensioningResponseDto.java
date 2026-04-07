@@ -14,6 +14,10 @@ public class WireTensioningResponseDto {
     private Integer wiresPerSleeper;
     private Double targetLoadKn;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private List<WireTensioningScadaDto> scadaRecords;
     private List<WireTensioningManualDto> manualRecords;
 }

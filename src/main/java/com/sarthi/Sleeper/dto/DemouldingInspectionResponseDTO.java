@@ -40,6 +40,10 @@ public class DemouldingInspectionResponseDTO {
 
     private LocalDateTime updatedDate;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private String status;
 
     private List<DemouldingDefectiveSleeperDTO> defectiveSleepers;

@@ -13,7 +13,6 @@ public class InspectionSaveRequestDto {
     private Long createdBy;
     private String sleeperType;
 
-
     private List<SleeperInspectionDto> sleepers;
 
 }

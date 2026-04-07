@@ -16,7 +16,9 @@ import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -43,6 +45,9 @@ public class CompactionServiceImpl implements CompactionService {
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setCreatedDate(LocalDateTime.now());
 
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setShift(dto.getShift());
+            entity.setPlantId(dto.getPlantId());
 
             // ===== SCADA =====
 
@@ -123,6 +128,11 @@ public class CompactionServiceImpl implements CompactionService {
 
             entity.setBatchNo(dto.getBatchNo());
             entity.setSleeperType(dto.getSleeperType());
+
+
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setShift(dto.getShift());
+            entity.setPlantId(dto.getPlantId());
 
             if (dto.getEntryDate() != null) {
                 entity.setEntryDate(
@@ -251,6 +261,11 @@ public class CompactionServiceImpl implements CompactionService {
             dto.setBatchNo(entity.getBatchNo());
             dto.setSleeperType(entity.getSleeperType());
 
+
+            dto.setVendorCode(entity.getVendorCode());
+            dto.setShift(entity.getShift());
+            dto.setPlantId(entity.getPlantId());
+
             if (entity.getEntryDate() != null) {
                 dto.setEntryDate(
                         CommonUtils.convertDateToString(entity.getEntryDate()));
@@ -312,5 +327,57 @@ public class CompactionServiceImpl implements CompactionService {
 
             return dto;
         }
+    @Override
+    public List<CompactionResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<Compaction> list = compactionRepository.findByDate(
+                plantId.trim(),
+                vendorCode.trim(),
+                shift.trim(),
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResp)
+                .collect(Collectors.toList());
+    }
+
+    private CompactionResponseDto mapToResp(Compaction entity) {
+
+        CompactionResponseDto dto = new CompactionResponseDto();
+
+        dto.setId(entity.getId());
+        dto.setBatchNo(entity.getBatchNo());
+        dto.setSleeperType(entity.getSleeperType());
+
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+
+        if (entity.getEntryDate() != null) {
+            dto.setEntryDate(
+                    CommonUtils.convertDateToString(entity.getEntryDate()));
+        }
+
+        //  REMOVE CHILD DATA
+        dto.setScadaRecords(null);
+        dto.setManualRecords(null);
+
+        return dto;
+    }
 
 }

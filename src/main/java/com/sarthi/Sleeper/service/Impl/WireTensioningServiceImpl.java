@@ -17,7 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,6 +44,9 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
 
         // ===== SCADA =====
 
@@ -153,6 +158,9 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         entity.getScadaRecords().clear();
         entity.getManualRecords().clear();
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
 
         // ===== SCADA =====
 
@@ -293,6 +301,9 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         dto.setWiresPerSleeper(entity.getWiresPerSleeper());
         dto.setTargetLoadKn(entity.getTargetLoadKn());
 
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
 
         // ================= SCADA =================
 
@@ -367,6 +378,56 @@ public class WireTensioningServiceImpl implements wireTensioningService {
             dto.setManualRecords(manualDtos);
         }
 
+
+        return dto;
+    }
+
+    @Override
+    public List<WireTensioningResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<WireTensioning> list = repository.findByDate(
+                plantId.trim(),
+                vendorCode.trim(),
+                shift.trim(),
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResp)
+                .collect(Collectors.toList());
+    }
+
+    private WireTensioningResponseDto mapToResp(WireTensioning entity) {
+
+        WireTensioningResponseDto dto = new WireTensioningResponseDto();
+
+        dto.setId(entity.getId());
+        dto.setBatchNo(entity.getBatchNo());
+        dto.setSleeperType(entity.getSleeperType());
+        dto.setWiresPerSleeper(entity.getWiresPerSleeper());
+        dto.setTargetLoadKn(entity.getTargetLoadKn());
+
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
+
+        // REMOVE CHILD DATA
+        dto.setScadaRecords(null);
+        dto.setManualRecords(null);
 
         return dto;
     }

@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.HtsWirePlacementRequestDTO;
 import com.sarthi.Sleeper.dto.HtsWirePlacementResponseDTO;
+import com.sarthi.Sleeper.dto.MouldPreparationResponseDTO;
 import com.sarthi.Sleeper.service.HtsWirePlacementService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +86,21 @@ public class HtsWirePlacementController {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
                         "Record deleted successfully"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/htsTodayRecord")
+    public ResponseEntity<Object> mouldHtsTodayRecord(  @RequestParam String plantId,
+                                                                @RequestParam String vendorCode,
+                                                                @RequestParam String shift,
+                                                                @RequestParam int createdBy, String date) {
+
+        List< HtsWirePlacementResponseDTO> list =
+               htsWirePlacementService.getRecordsByDate(plantId,vendorCode, shift, createdBy, date);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
                 HttpStatus.OK
         );
     }

@@ -14,6 +14,10 @@ public class CompactionRequestDto {
     private Integer createdBy;
     private Integer updatedBy;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private List<CompactionScadaDto> scadaRecords;
     private List<CompactionManualDto> manualRecords;
 }

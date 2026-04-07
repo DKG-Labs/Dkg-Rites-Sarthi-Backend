@@ -56,5 +56,10 @@ public class MouldPreparation {
     private String status;
 
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
+
 
 }

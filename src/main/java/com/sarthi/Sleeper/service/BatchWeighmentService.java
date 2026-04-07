@@ -18,4 +18,11 @@ public interface BatchWeighmentService {
     List<BatchWeighmentResponseDto> getAll();
 
     void delete(Long id);
+
+    public List<BatchWeighmentResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date);
 }
