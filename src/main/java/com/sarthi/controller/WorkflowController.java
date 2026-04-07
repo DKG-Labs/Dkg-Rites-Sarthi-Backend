@@ -75,7 +75,14 @@ public class WorkflowController {
         );
     }
 
+    @GetMapping("/dashboardKPIs")
+    public ResponseEntity<Object> getDashboardKPIs(@RequestParam(required = false) String rio) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getDashboardKPIs(rio)), HttpStatus.OK);
+    }
 
-
+    @GetMapping("/allVerifiedWorkflowTransitions")
+    public ResponseEntity<Object> allVerifiedWorkflowTransitions(@RequestParam(required = false) String rio) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allVerifiedWorkflowTransitions(rio)), HttpStatus.OK);
+    }
 
 }

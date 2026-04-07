@@ -3,6 +3,7 @@ package com.sarthi.service.certificate.impl;
 import com.sarthi.dto.certificate.RawMaterialCertificateDto;
 import com.sarthi.dto.certificate.ProcessMaterialCertificateDto;
 import com.sarthi.dto.certificate.FinalCertificateDto;
+import com.sarthi.dto.certificate.IcReportDataResponse;
 import com.sarthi.entity.InspectionCompleteDetails;
 import com.sarthi.entity.MainPoInformation;
 import com.sarthi.entity.PoHeader;
@@ -1177,5 +1178,42 @@ public class CertificateServiceImpl implements CertificateService {
             return "";
         }
     }
+    @Override
+    public IcReportDataResponse generateReportData(Map<String, String> params) {
+        String caseNo = params.get("CaseNO");
+        String callSNo = params.get("CallSNo");
+        String bkNo = params.get("BkNo");
+        String setNo = params.get("SetNo");
+        boolean isDigitallySign = Boolean.parseBoolean(params.get("isDigitallySign"));
+        String type = params.get("type"); // Expecting RM, PM, or FM
+
+        logger.info("Generating Report Data for CaseNO: {}, CallSNo: {}, Type: {}, isDigitallySign: {}", 
+                caseNo, callSNo, type, isDigitallySign);
+
+        try {
+            // Logic to fetch report data based on params
+            // In a real scenario, this would involve complex queries or PDF generation
+            // For now, we return a mock response that indicates if digital signature is configured
+            
+            // Assume digital signature is enabled if the flag is true
+            boolean isConfigured = isDigitallySign; 
+            
+            // Capricon PKI client (abc.js) robust XML format with <txn> and <fileData>.
+            String responseText = "<request><command>signPdf</command><txn>SARTHI" + System.currentTimeMillis() + "</txn><fileData>MockData</fileData><data>Mock Report Data for " + type + " - IC: " + caseNo + "/" + callSNo + "</data></request>";
+            
+            return IcReportDataResponse.builder()
+                    .status("1")
+                    .isDigitalSignatureConfig(isConfigured)
+                    .responseText(responseText)
+                    .build();
+        } catch (Exception e) {
+            logger.error("Error generating report data", e);
+            return IcReportDataResponse.builder()
+                    .status("0")
+                    .responseText("Error: " + e.getMessage())
+                    .build();
+        }
+    }
 }
+
 

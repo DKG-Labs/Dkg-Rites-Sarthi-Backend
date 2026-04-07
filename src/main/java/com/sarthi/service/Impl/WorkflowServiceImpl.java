@@ -3,6 +3,7 @@ package com.sarthi.service.Impl;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.IcWorkflowTransitionDto;
 import com.sarthi.dto.InspectionDataDto;
+import com.sarthi.dto.DashboardKPIsDto;
 import com.sarthi.dto.WorkflowDto;
 import com.sarthi.dto.WorkflowDtos.TransitionActionReqDto;
 import com.sarthi.dto.WorkflowDtos.TransitionDto;
@@ -1932,6 +1933,7 @@ System.out.print(last);
      //   next.setCreatedBy(req.getActionBy());
         next.setCreatedBy(current.getCreatedBy());
         next.setModifiedBy(req.getActionBy());
+        next.setRio(current.getRio());
       //  String inspectionType = "PROCESS";
      //   String inspectionType ="Raw Material";
 
@@ -2435,13 +2437,13 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
         dto.setAction(wt.getAction());
         //dto.setAction(wt.getStatus());
         dto.setRemarks(wt.getRemarks());
-        dto.setCreatedBy(wt.getCreatedBy());
+        dto.setCreatedBy(wt.getCreatedBy() != null ? String.valueOf(wt.getCreatedBy()) : null);
         dto.setCreatedDate(wt.getCreatedDate());
         dto.setCurrentRole(wt.getCurrentRole());
         dto.setNextRole(wt.getNextRole());
         dto.setAssignedToUser(wt.getAssignedToUser());
         dto.setWorkflowSequence(wt.getWorkflowSequence());
-        dto.setModifiedBy(wt.getModifiedBy());
+        dto.setModifiedBy(wt.getModifiedBy() != null ? String.valueOf(wt.getModifiedBy()) : null);
         dto.setRio(wt.getRio());
 
 
@@ -3021,30 +3023,47 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                             )
                     ));
 
-    // Bulk fetch Process IE users
-    Set<Long> processIeUserIds = pending.stream()
-            .map(WorkflowTransition::getProcessIeUserId)
-            .filter(Objects::nonNull)
-            .map(Integer::longValue)
-            .collect(Collectors.toSet());
+    log.info("Workflow bulk processing data fetch time = {} ms", System.currentTimeMillis() - t2);
 
-    Map<String, List<Integer>> processIeIeMap = new HashMap<>();
-    if (!processIeUserIds.isEmpty()) {
-        List<Object[]> rows = processIeUsersRepository.findIeUsersByProcessIeBulk(processIeUserIds);
-        for (Object[] row : rows) {
-            Long pId = (Long) row[0];
-            String poi = (String) row[1];
-            Long ieId = (Long) row[2];
-            String key = pId + "_" + poi;
-            processIeIeMap.computeIfAbsent(key, k -> new ArrayList<>()).add(ieId.intValue());
+    // Pass 1: Resolve all IE IDs for each transition and collect all User IDs for name resolution
+    Map<Integer, List<Integer>> wtProcessIeMap = new HashMap<>();
+    Set<Integer> allTargetUserIds = new HashSet<>();
+
+    for (WorkflowTransition wt : pending) {
+        if (wt.getAssignedToUser() != null) allTargetUserIds.add(wt.getAssignedToUser());
+        
+        if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP")) {
+            Integer processIe = wt.getProcessIeUserId();
+            InspectionDataDto i = inspectionMap.get(wt.getRequestId());
+            if (i != null) {
+                String poi = i.placeOfInspection();
+                // We use the direct repo call here as it contains the complex UNION logic
+                List<Integer> ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+                List<Integer> finalIeUsers = new ArrayList<>(ieUsers);
+                if (processIe != null) {
+                    finalIeUsers.add(processIe);
+                }
+                wtProcessIeMap.put(wt.getWorkflowTransitionId(), finalIeUsers);
+                allTargetUserIds.addAll(finalIeUsers);
+            }
         }
+        
+        // Final IEs
+        List<Integer> finalIes = finalIeMap.getOrDefault(wt.getWorkflowTransitionId(), Collections.emptyList());
+        allTargetUserIds.addAll(finalIes);
     }
 
-    log.info("Workflow bulk processing time = {} ms",
-            System.currentTimeMillis() - t2);
+    // Pass 2: Bulk fetch UserMaster names for all collected IDs
+    Map<Integer, UserMaster> userMap = Collections.emptyMap();
+    if (!allTargetUserIds.isEmpty()) {
+        userMap = userMasterRepository.findByUserIdIn(new ArrayList<>(allTargetUserIds)).stream()
+                .collect(Collectors.toMap(UserMaster::getUserId, Function.identity(), (a, b) -> a));
+    }
 
+    // Pass 3: Assemble DTOs
+    final Map<Integer, UserMaster> finalUserMap = userMap;
     return pending.stream()
-            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, processIeIeMap))
+            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
             .collect(Collectors.toList());
 }
 
@@ -3054,35 +3073,14 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             Map<Integer, List<Integer>> finalIeMap,
             Map<String, PoHeader> poMap,
             Map<String, VendorMaster> vendorMap,
-            Map<String, List<Integer>> processIeIeMap
+            List<Integer> preResolvedProcessIes,
+            Map<Integer, UserMaster> userMap
     ) {
-        long t3 = System.currentTimeMillis();
-
-
         InspectionDataDto i = inspectionMap.get(wt.getRequestId());
         WorkflowTransitionDto dto = new WorkflowTransitionDto();
 
-       // if (wt.getProcessIeUserId() != null && i != null) {
-        if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP")) {
-            Integer processIe = wt.getProcessIeUserId();
-            String poi = i.placeOfInspection();
-
-         //   List<Integer> ieUsers = processIeIeMap.getOrDefault(processIe + "_" + poi, new ArrayList<>());
-            List<Integer>   ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
-
-            // Replicate original exception logic if empty
-            if (ieUsers.isEmpty()) {
-                // We'll log a warning instead of failing the entire batch,
-                // but let's see if we should strictly follow original.
-                // Logically, if it was throwing exception before, it should probably continue to do so.
-                // However, throwing BusinessException here would stop the map loop.
-                // Let's just use the processIe itself as fallback or throw if required.
-                log.warn("No IE found for POI {} under Process IE {}", poi, processIe);
-            }
-
-            List<Integer> finalIeUsers = new ArrayList<>(ieUsers);
-            finalIeUsers.add(processIe);
-            dto.setProcessIes(finalIeUsers);
+        if (preResolvedProcessIes != null) {
+            dto.setProcessIes(preResolvedProcessIes);
         }
 
         if (i != null && "Final".equalsIgnoreCase(i.typeOfCall())) {
@@ -3101,13 +3099,39 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         dto.setStatus(wt.getStatus());
         dto.setAction(wt.getAction());
         dto.setRemarks(wt.getRemarks());
-        dto.setCreatedBy(wt.getCreatedBy());
+        dto.setCreatedBy(formatUserName(wt.getCreatedBy(), userMap));
         dto.setCreatedDate(wt.getCreatedDate());
         dto.setCurrentRole(wt.getCurrentRole());
         dto.setNextRole(wt.getNextRole());
         dto.setAssignedToUser(wt.getAssignedToUser());
+        
+        // Resolve IE Names (Assigned User + Process IEs for EP requests)
+        Set<Integer> ieIdsToResolve = new LinkedHashSet<>();
+        if (wt.getAssignedToUser() != null) {
+            ieIdsToResolve.add(wt.getAssignedToUser());
+        }
+        if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP") && dto.getProcessIes() != null) {
+            ieIdsToResolve.addAll(dto.getProcessIes());
+        }
+
+        if (dto.getFinalIes() != null) {
+            ieIdsToResolve.addAll(dto.getFinalIes());
+        }
+
+        if (!ieIdsToResolve.isEmpty() && userMap != null) {
+            String combinedNames = ieIdsToResolve.stream()
+                    .map(id -> formatUserName(id, userMap))
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.joining(", "));
+
+            if (!combinedNames.isEmpty()) {
+                dto.setAssignedToUserName(combinedNames);
+            }
+        }
+        
         dto.setWorkflowSequence(wt.getWorkflowSequence());
-        dto.setModifiedBy(wt.getModifiedBy());
+        dto.setModifiedBy(formatUserName(wt.getModifiedBy(), userMap));
         dto.setRio(wt.getRio());
 
         if (i != null) {
@@ -3289,17 +3313,52 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
 
     @Override
     public List<WorkflowTransitionDto> workflowTransitionHistory(String requestId) {
-
-        List<WorkflowTransitionDto> workflowTransitionDtoList = new ArrayList<>();
-        List<WorkflowTransition> workflowTransitionList = null;
-        workflowTransitionList = workflowTransitionRepository.findByRequestId(requestId);
-        if (Objects.nonNull(workflowTransitionList) && !workflowTransitionList.isEmpty()) {
-            workflowTransitionDtoList = workflowTransitionList.stream().sorted(Comparator.comparing(WorkflowTransition::getWorkflowSequence).reversed()).map(e -> {
-                return mapWorkflowTransition(e);
-            }).collect(Collectors.toList());
+        log.info("🔍 Fetching Workflow Transition History for Request: {}", requestId);
+        List<WorkflowTransition> workflowTransitionList = workflowTransitionRepository.findByRequestId(requestId);
+        
+        if (workflowTransitionList == null || workflowTransitionList.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        return workflowTransitionDtoList;
+        // 1. Collect all unique user IDs that need resolution
+        Set<Integer> userIds = new HashSet<>();
+        for (WorkflowTransition wt : workflowTransitionList) {
+            if (wt.getCreatedBy() != null) userIds.add(wt.getCreatedBy());
+            if (wt.getModifiedBy() != null) userIds.add(wt.getModifiedBy());
+            if (wt.getAssignedToUser() != null) userIds.add(wt.getAssignedToUser());
+        }
+
+        // 2. Bulk fetch UserMasters
+        Map<Integer, UserMaster> userMap = Collections.emptyMap();
+        if (!userIds.isEmpty()) {
+            userMap = userMasterRepository.findByUserIdIn(new ArrayList<>(userIds)).stream()
+                    .collect(Collectors.toMap(UserMaster::getUserId, Function.identity(), (a, b) -> a));
+        }
+
+        // 3. Prepare other bulk data for mapping
+        List<Integer> wtIds = workflowTransitionList.stream()
+                .map(WorkflowTransition::getWorkflowTransitionId)
+                .collect(Collectors.toList());
+
+        Map<Integer, List<Integer>> finalIeMap = finalIeMappingRepository.findByWorkflowTransitionIdIn(wtIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        FinalIeMapping::getWorkflowTransitionId,
+                        Collectors.mapping(FinalIeMapping::getIeUserId, Collectors.toList())
+                ));
+
+        // 4. Assemble DTOs
+        final Map<Integer, UserMaster> finalUserMap = userMap;
+        return workflowTransitionList.stream()
+                .sorted(Comparator.comparing(WorkflowTransition::getWorkflowSequence).reversed())
+                .map(wt -> {
+                    WorkflowTransitionDto dto = mapWorkflowTransition(wt);
+                    // Resolve names using the fetched userMap
+                    dto.setCreatedBy(formatUserName(wt.getCreatedBy(), finalUserMap));
+                    dto.setModifiedBy(formatUserName(wt.getModifiedBy(), finalUserMap));
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
 
@@ -3854,5 +3913,224 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         inventoryEntryRepository.save(inv);
     }
 
+    @Override
+    public List<WorkflowTransitionDto> allVerifiedWorkflowTransitions(String rio) {
+        log.info("🔍 Fetching All Verified & Open Transitions for RIO: {}", rio);
+        
+        // 1. Fetch latest transitions for the RIO
+        List<WorkflowTransition> latest = workflowTransitionRepository.findLatestByRio(rio);
+        
+        // 2. Filter for "Verified & Open" calls
+        // These are calls that are NOT 'Created' (pending verification) 
+        // and NOT 'Disposed' (to be implemented)
+        List<WorkflowTransition> verified = latest.stream()
+                .filter(wt -> {
+                    String status = wt.getStatus() != null ? wt.getStatus().toUpperCase() : "";
+                    String nextRole = wt.getNextRoleName() != null ? wt.getNextRoleName().toUpperCase() : "";
+                    
+                    // Exclude calls still waiting for initial verification
+                    if ("RIO HELP DESK".equals(nextRole) && ("CREATED".equals(status) || "RESUBMITTED".equals(status))) {
+                        return false;
+                    }
+                    
+                    // Include calls in active stages: VERIFIED, SCHEDULED, INITIATED, etc.
+                    return status.contains("VERIFIED") || 
+                           status.contains("REGISTERED") || 
+                           status.contains("SCHEDULE") || 
+                           status.contains("INITIATE") || 
+                           status.contains("PROGRESS") || 
+                           status.contains("COMPLETE") || 
+                           status.contains("CONFIRM") ||
+                           status.contains("LAB") ||
+                           status.contains("BILLING") ||
+                           status.contains("PAYMENT") ||
+                           status.contains("BLOCKED");
+                })
+                .collect(Collectors.toList());
 
+        if (verified.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 3. Map to DTOs using bulk-fetching logic (same as allPendingWorkflowTransition)
+        List<String> requestIds = verified.stream()
+                .map(WorkflowTransition::getRequestId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<Integer> wtIds = verified.stream()
+                .map(WorkflowTransition::getWorkflowTransitionId)
+                .collect(Collectors.toList());
+
+        Map<String, InspectionDataDto> inspectionMap =
+                inspectionCallRepository.findLiteByIcNumberIn(requestIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                InspectionDataDto::icNumber,
+                                Function.identity(),
+                                (a, b) -> a
+                        ));
+
+        long t2 = System.currentTimeMillis();
+
+        List<String> poNos = inspectionMap.values().stream()
+                .map(InspectionDataDto::poNo)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos).stream()
+                .collect(Collectors.toMap(PoHeader::getPoNo, Function.identity(), (a, b) -> a));
+
+        List<String> vendorCodes = inspectionMap.values().stream()
+                .map(InspectionDataDto::vendorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<String, VendorMaster> vendorMap = vendorMasterRepository.findByVendorCodeIn(vendorCodes).stream()
+                .collect(Collectors.toMap(VendorMaster::getVendorCode, Function.identity(), (a, b) -> a));
+
+        Map<Integer, List<Integer>> finalIeMap =
+                finalIeMappingRepository.findByWorkflowTransitionIdIn(wtIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                FinalIeMapping::getWorkflowTransitionId,
+                                Collectors.mapping(
+                                        FinalIeMapping::getIeUserId,
+                                        Collectors.toList()
+                                )
+                        ));
+
+    log.info("Verified Workflow bulk processing data fetch time = {} ms", System.currentTimeMillis() - t2);
+
+    // Pass 1: Resolve all IE IDs for each transition and collect all User IDs for name resolution
+    Map<Integer, List<Integer>> wtProcessIeMap = new HashMap<>();
+    Set<Integer> allTargetUserIds = new HashSet<>();
+
+    for (WorkflowTransition wt : verified) {
+        if (wt.getAssignedToUser() != null) allTargetUserIds.add(wt.getAssignedToUser());
+        
+        if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP")) {
+            Integer processIe = wt.getProcessIeUserId();
+            InspectionDataDto i = inspectionMap.get(wt.getRequestId());
+            if (i != null) {
+                String poi = i.placeOfInspection();
+                List<Integer> ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+                List<Integer> finalIeUsers = new ArrayList<>(ieUsers);
+                if (processIe != null) {
+                    finalIeUsers.add(processIe);
+                }
+                wtProcessIeMap.put(wt.getWorkflowTransitionId(), finalIeUsers);
+                allTargetUserIds.addAll(finalIeUsers);
+            }
+        }
+        
+        // Final IEs
+        List<Integer> finalIes = finalIeMap.getOrDefault(wt.getWorkflowTransitionId(), Collections.emptyList());
+        allTargetUserIds.addAll(finalIes);
+    }
+
+    // Pass 2: Bulk fetch UserMaster names for all collected IDs
+    Map<Integer, UserMaster> userMap = Collections.emptyMap();
+    if (!allTargetUserIds.isEmpty()) {
+        userMap = userMasterRepository.findByUserIdIn(new ArrayList<>(allTargetUserIds)).stream()
+                .collect(Collectors.toMap(UserMaster::getUserId, Function.identity(), (a, b) -> a));
+    }
+
+    // Pass 3: Assemble DTOs
+    final Map<Integer, UserMaster> finalUserMap = userMap;
+    return verified.stream()
+            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
+            .collect(Collectors.toList());
+}
+
+    @Override
+    public DashboardKPIsDto getDashboardKPIs(String rio) {
+        log.info("📊 Fetching Dashboard KPIs for RIO: {}", rio);
+        List<WorkflowTransition> latestTransitions = workflowTransitionRepository.findLatestByRio(rio);
+
+        long fresh = 0, resub = 0, returned = 0;
+        long vReg = 0, iePend = 0, assigned = 0, scheduled = 0, underInsp = 0, lab = 0, icPend = 0;
+        long billing = 0, payment = 0;
+
+        for (WorkflowTransition wt : latestTransitions) {
+            String status = wt.getStatus() != null ? wt.getStatus() : "";
+            String action = wt.getAction() != null ? wt.getAction() : "";
+            String nextRole = wt.getNextRoleName() != null ? wt.getNextRoleName() : "";
+
+            // Pending Verification Section
+            // These are always identified by nextRoleName = 'RIO Help Desk'
+            if ("RIO Help Desk".equalsIgnoreCase(nextRole)) {
+                if (status.equalsIgnoreCase("Created") || status.equalsIgnoreCase("FRESH")) {
+                    fresh++;
+                } else if (status.equalsIgnoreCase("ReSubmitted") || status.equalsIgnoreCase("RESUBMISSION")) {
+                    resub++;
+                } else if (status.toUpperCase().contains("RETURNED") || action.toUpperCase().contains("RETURNED")) {
+                    returned++;
+                }
+            } else {
+                // Verified & Open Section
+                // We use keywords to match various workflow stages
+                String statusUpper = status.toUpperCase();
+                String actionUpper = action.toUpperCase();
+
+                if (statusUpper.contains("VERIFIED") || statusUpper.contains("REGISTERED")) {
+                    // Distinction between Registered and Assigned
+                    if (wt.getAssignedToUser() != null || wt.getProcessIeUserId() != null) {
+                        assigned++;
+                    } else {
+                        vReg++;
+                        iePend++; // Usually these are treated together in frontend boxes
+                    }
+                } else if (statusUpper.contains("SCHEDULE")) {
+                    scheduled++;
+                } else if (statusUpper.contains("INITIATE") || actionUpper.contains("INITIATE") || statusUpper.contains("PROGRESS")) {
+                    underInsp++;
+                } else if (statusUpper.contains("COMPLETE") || statusUpper.contains("CONFIRM")) {
+                    icPend++;
+                } else if (statusUpper.contains("LAB")) {
+                    lab++;
+                } else if (statusUpper.contains("BILLING")) {
+                    billing++;
+                } else if (statusUpper.contains("PAYMENT") || statusUpper.contains("BLOCKED")) {
+                    payment++;
+                }
+            }
+        }
+
+        return DashboardKPIsDto.builder()
+                .rio(rio)
+                .pendingVerification(DashboardKPIsDto.PendingVerificationKPIs.builder()
+                        .total(fresh + resub + returned)
+                        .fresh(fresh)
+                        .resubmissions(resub)
+                        .returned(returned)
+                        .build())
+                .verifiedOpen(DashboardKPIsDto.VerifiedOpenKPIs.builder()
+                        .total(vReg + iePend + assigned + scheduled + underInsp + lab + icPend + billing + payment)
+                        .verifiedRegistered(vReg)
+                        .ieAssignmentPending(iePend)
+                        .assignedToIE(assigned)
+                        .scheduled(scheduled)
+                        .underInspection(underInsp)
+                        .underLabTesting(lab)
+                        .icPending(icPend)
+                        .billingPending(billing)
+                        .paymentPending(payment)
+                        .build())
+                .disposed(DashboardKPIsDto.DisposedKPIs.builder().total(0).build()) // To be implemented
+                .build();
+    }
+
+    private String formatUserName(Integer userId, Map<Integer, UserMaster> userMap) {
+        if (userId == null) return null;
+        if (userMap != null && userMap.containsKey(userId)) {
+            UserMaster um = userMap.get(userId);
+            String name = um.getFullName();
+            if (um.getEmployeeCode() != null && !um.getEmployeeCode().trim().isEmpty()) {
+                name += " (" + um.getEmployeeCode().trim() + ")";
+            }
+            return name;
+        }
+        return String.valueOf(userId);
+    }
 }

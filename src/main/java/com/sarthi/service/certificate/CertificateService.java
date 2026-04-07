@@ -3,6 +3,9 @@ package com.sarthi.service.certificate;
 import com.sarthi.dto.certificate.RawMaterialCertificateDto;
 import com.sarthi.dto.certificate.ProcessMaterialCertificateDto;
 import com.sarthi.dto.certificate.FinalCertificateDto;
+import com.sarthi.dto.certificate.IcReportDataResponse;
+import java.util.Map;
+
 
 /**
  * Service interface for generating Inspection Certificates.
@@ -51,5 +54,14 @@ public interface CertificateService {
      * @return FinalCertificateDto with all certificate data
      */
     FinalCertificateDto generateFinalCertificateById(Long callId);
+
+    /**
+     * Generate IC Report Data for E-Sign workflow.
+     * 
+     * @param params - Map of all report parameters (CaseNo, CallSNo, BkNo, SetNo, isDigitallySign, etc.)
+     * @return IcReportDataResponse with status and response text (PDF/Data)
+     */
+    IcReportDataResponse generateReportData(Map<String, String> params);
 }
+
 

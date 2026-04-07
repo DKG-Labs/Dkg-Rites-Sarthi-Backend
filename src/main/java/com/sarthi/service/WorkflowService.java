@@ -1,5 +1,6 @@
 package com.sarthi.service;
 
+import com.sarthi.dto.DashboardKPIsDto;
 import com.sarthi.dto.IcWorkflowTransitionDto;
 import com.sarthi.dto.WorkflowDto;
 import com.sarthi.dto.WorkflowDtos.TransitionActionReqDto;
@@ -24,6 +25,10 @@ public interface WorkflowService {
     public List<WorkflowTransitionDto> allPendingQtyEditTransitions(String roleName);
 
     public List<WorkflowTransitionDto> allBlockedWorkflowTransitions();
+
+    public DashboardKPIsDto getDashboardKPIs(String rio);
+    
+    public List<WorkflowTransitionDto> allVerifiedWorkflowTransitions(String rio);
 
     public WorkflowDto workflowByWorkflowName(String workflowName);
 
