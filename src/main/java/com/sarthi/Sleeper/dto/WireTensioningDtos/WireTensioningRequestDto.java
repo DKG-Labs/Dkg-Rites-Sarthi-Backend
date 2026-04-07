@@ -15,6 +15,11 @@ public class WireTensioningRequestDto {
     private Integer createdBy;
     private Integer updatedBy;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
+
     private List<WireTensioningScadaDto> scadaRecords;
     private List<WireTensioningManualDto> manualRecords;
 }

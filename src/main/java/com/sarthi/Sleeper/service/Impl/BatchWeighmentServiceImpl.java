@@ -16,8 +16,10 @@ import com.sarthi.util.CommonUtils;
 import lombok.RequiredArgsConstructor;
 
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,6 +51,9 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setCreatedDate(LocalDateTime.now());
 
+            entity.setShift(dto.getShift());
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setPlantId(dto.getPlantId());
 
             // ========= Batch Details =========
 
@@ -210,6 +215,10 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         entity.setVerifiedBy(dto.getVerifiedBy());
         entity.setRemarks(dto.getRemarks());
         entity.setEntryMode(dto.getEntryMode());
+
+        entity.setShift(dto.getShift());
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
 
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
@@ -417,7 +426,10 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         dto.setRemarks(entity.getRemarks());
         dto.setEntryMode(entity.getEntryMode());
 
+        dto.setVendorCode(entity.getVendorCode());
 
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
         // ================= Batch Details =================
 
         if (entity.getBatchDetailsList() != null) {
@@ -544,6 +556,34 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         }
 
         return dto;
+    }
+    @Override
+    public List<BatchWeighmentResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<BatchWeighment> list = repository.findByDate(
+                plantId.trim(),
+                vendorCode.trim(),
+                shift.trim(),
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
 }

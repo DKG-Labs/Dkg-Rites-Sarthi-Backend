@@ -40,6 +40,9 @@ public class BatchWeighment {
 
     private int updatedBy;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
     // ================= Relations =================
 
     @OneToMany(mappedBy = "batchWeighment", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -41,6 +41,10 @@ public class Compaction {
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
 
     // ===== Relations =====
 

@@ -16,6 +16,10 @@ public class BatchWeighmentResponseDto {
     private String remarks;
     private String entryMode;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private List<BatchDetailsDto> batchDetails;
     private List<ScadaWeighmentDto> scadaRecords;
     private List<ManualWeighmentDto> manualRecords;

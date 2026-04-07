@@ -2,9 +2,11 @@ package com.sarthi.Sleeper.controller;
 
 
 
+import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentResponseDto;
 import com.sarthi.Sleeper.dto.WireTensioningDtos.WireTensioningRequestDto;
 
 
+import com.sarthi.Sleeper.dto.WireTensioningDtos.WireTensioningResponseDto;
 import com.sarthi.Sleeper.service.wireTensioningService;
 import com.sarthi.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +15,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/wire-tensioning")
@@ -88,4 +92,21 @@ public class WireTensioningController {
                         "Deleted Successfully"),
                 HttpStatus.OK);
     }
+
+
+    @GetMapping("/wireTensioningData")
+    public ResponseEntity<Object> wireTensioningData(  @RequestParam String plantId,
+                                                         @RequestParam String vendorCode,
+                                                         @RequestParam String shift,
+                                                         @RequestParam int createdBy, @RequestParam String date) {
+
+        List<WireTensioningResponseDto> list =
+                wiretensioningService.getRecordsByDate(plantId,vendorCode, shift, createdBy, date);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
+                HttpStatus.OK
+        );
+    }
+
 }

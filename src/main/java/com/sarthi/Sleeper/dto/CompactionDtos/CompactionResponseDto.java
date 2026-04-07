@@ -13,6 +13,10 @@ public class CompactionResponseDto {
     private String sleeperType;
     private String entryDate;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private List<CompactionScadaDto> scadaRecords;
     private List<CompactionManualDto> manualRecords;
 }

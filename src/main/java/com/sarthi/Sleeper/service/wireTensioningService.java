@@ -17,4 +17,11 @@ public interface wireTensioningService {
     List<WireTensioningResponseDto> getAll();
 
     void delete(Long id);
+
+    public List<WireTensioningResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date);
 }

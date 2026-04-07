@@ -19,6 +19,10 @@ public class BatchWeighmentRequestDto {
     private int createdBy;
     private int updatedBy;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private List<BatchDetailsDto> batchDetails;
     private List<ScadaWeighmentDto> scadaRecords;
     private List<ManualWeighmentDto> manualRecords;
