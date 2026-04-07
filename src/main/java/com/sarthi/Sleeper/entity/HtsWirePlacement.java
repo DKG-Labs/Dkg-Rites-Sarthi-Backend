@@ -69,4 +69,8 @@ public class HtsWirePlacement {
     @Column(name = "status")
     private String status;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
 }

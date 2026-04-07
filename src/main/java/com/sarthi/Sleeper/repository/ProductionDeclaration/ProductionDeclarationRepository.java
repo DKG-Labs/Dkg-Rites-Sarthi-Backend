@@ -95,8 +95,19 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers
     List<String> findBatchNumbers(@Param("createdBy") Long createdBy,
                                   @Param("castingDate") LocalDate castingDate);
 
-    @Query("SELECT DISTINCT b.benchNo FROM ProductionBenchGroup b " +
-            "WHERE b.chamber.declaration.batchNumber = :batchNo")
+//    @Query("SELECT DISTINCT b.benchNo FROM ProductionBenchGroup b " +
+//            "WHERE b.chamber.declaration.batchNumber = :batchNo")
+//    List<String> findBenchNumbers(String batchNo);
+
+    @Query(value = """
+SELECT DISTINCT b.bench_no
+FROM production_bench_group b
+JOIN production_stress_chamber c 
+    ON b.chamber_id = c.chamber_no
+JOIN production_declaration d 
+    ON c.declaration_id = d.id
+WHERE d.batch_number = :batchNo
+""", nativeQuery = true)
     List<String> findBenchNumbers(String batchNo);
 
     @Query(value = """
@@ -128,7 +139,7 @@ WHERE p.created_by = :vendorId
     ProductionDeclaration findByBatchNumber(String batchNo);
 
 
-    @Query(value = """
+   @Query(value = """
 SELECT DISTINCT b.bench_no AS value, NULL AS gang_from, NULL AS gang_to
 FROM production_bench_group b
 JOIN production_stress_chamber c ON b.chamber_id = c.id
@@ -151,4 +162,13 @@ WHERE g.declaration.batchNumber = :batchNo
 AND :benchNo BETWEEN g.gangFrom AND g.gangTo
 """)
     List<String> findSleeperTypes(String batchNo, Integer benchNo);
+
+    @Query(value = """
+SELECT DISTINCT g.gang_from, g.gang_to
+FROM production_longline_gang g
+JOIN production_declaration d 
+    ON g.declaration_id = d.id
+WHERE d.batch_number = :batchNo
+""", nativeQuery = true)
+    List<Object[]> findGangRanges(String batchNo);
 }

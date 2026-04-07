@@ -45,4 +45,9 @@ public class HtsWirePlacementResponseDTO {
 
     private BigDecimal observedWeightKgM;
     private String status;
+
+
+    private String vendorCode;
+    private String plantId;
+    private String shift;
 }

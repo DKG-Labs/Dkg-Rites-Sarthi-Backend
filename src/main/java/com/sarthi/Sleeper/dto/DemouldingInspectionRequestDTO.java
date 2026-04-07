@@ -34,5 +34,9 @@ public class DemouldingInspectionRequestDTO {
 
     private String updatedBy;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
     private List<DemouldingDefectiveSleeperDTO> defectiveSleepers;
 }

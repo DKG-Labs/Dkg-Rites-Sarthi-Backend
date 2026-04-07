@@ -22,5 +22,11 @@ public interface MouldPreparationService {
 
   public void delete(Long id);
 
+    public List<MouldPreparationResponseDTO> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy, String date);
+
 
 }

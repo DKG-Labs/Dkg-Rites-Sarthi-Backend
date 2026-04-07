@@ -16,6 +16,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -45,6 +48,9 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
         entity.setOilApplied(dto.getOilApplied());
         entity.setRemarks(dto.getRemarks());
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
         entity.setCreatedBy(dto.getCreatedBy());
 
         entity.setCreatedDate(LocalDateTime.now());
@@ -105,7 +111,9 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
         entity.setMouldCleaned(dto.getMouldCleaned());
         entity.setOilApplied(dto.getOilApplied());
         entity.setRemarks(dto.getRemarks());
-
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
         entity.setUpdatedBy(dto.getUpdateBy());
         entity.setUpdatedDate(LocalDateTime.now());
 
@@ -131,7 +139,9 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
 
         LocalTime pTime = entity.getPreparationTime();
         dto.setPreparationTime(pTime);
-
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
+        dto.setShift(entity.getShift());
 
         dto.setBatchNo(entity.getBatchNo());
         dto.setBenchNo(entity.getBenchNo());
@@ -174,6 +184,35 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
                                        "Mould Preparation not found for the provided Id.")
                        ));
         mouldPreparationRepository.delete(entity);
+    }
+
+    @Override
+    public List<MouldPreparationResponseDTO> getRecordsByDate(
+          String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<MouldPreparation> list = mouldPreparationRepository.findByDate(
+                plantId,
+                vendorCode,
+                shift,
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
 

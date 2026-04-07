@@ -18,7 +18,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -60,6 +63,9 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
 
         entity.setCreatedBy(dto.getCreatedBy());
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
 
 
         /* Clear old defects */
@@ -141,6 +147,11 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         entity.setVisualCheck(dto.getVisualCheck());
         entity.setDimCheck(dto.getDimCheck());
         entity.setOverallRemarks(dto.getOverallRemarks());
+
+
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
 
         entity.setUpdatedBy(dto.getUpdatedBy());
 
@@ -319,6 +330,10 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         dto.setDimCheck(entity.getDimCheck());
         dto.setOverallRemarks(entity.getOverallRemarks());
 
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
+        dto.setShift(entity.getShift());
+
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setUpdatedBy(entity.getUpdatedBy());
         dto.setCreatedDate(entity.getCreatedDate());
@@ -347,5 +362,35 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         }
 
         return dto;
+    }
+
+
+    @Override
+    public List<DemouldingInspectionResponseDTO> getTodayRecords(
+            String plantId,
+            String vendorCode,
+            String shift,
+            String createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<DemouldingInspection> list = demouldingInspectionRepository.findByDate(
+                plantId,
+                vendorCode,
+                shift,
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 }
