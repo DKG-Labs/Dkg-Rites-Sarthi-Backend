@@ -32,7 +32,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     @Autowired
     private InspectionModuleRepository moduleRepository;
-    
+
     @Autowired
     private UserMasterRepository userMasterRepository;
 
@@ -56,15 +56,66 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Autowired
     private DemouldingDefectiveSleeperRepository demouldingDefectiveSleeperRepository;
 
-  /*  @Override
+    /*  @Override
+      public void saveInspection(InspectionSaveRequestDto dto) {
+
+          InspectionModule module =
+                  moduleRepository.findById(dto.getModuleId())
+                          .orElseThrow();
+
+          InspectionTestHeader header = new InspectionTestHeader();
+
+          header.setBatchId(dto.getBatchId());
+          header.setModule(module);
+          header.setShift(dto.getShift());
+          header.setCreatedBy(dto.getCreatedBy());
+          header.setTestDate(LocalDate.now());
+          header.setCreatedDate(LocalDateTime.now());
+
+          headerRepository.save(header);
+
+          for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+
+              InspectionTestResult result = new InspectionTestResult();
+
+              result.setTestHeader(header);
+              result.setSleeperId(sleeperDto.getSleeperId());
+              result.setSleeperNo(sleeperDto.getSleeperNo());
+              result.setResult(sleeperDto.getResult());
+              result.setRejectionReason(sleeperDto.getRejectionReason());
+
+              resultRepository.save(result);
+
+              if (sleeperDto.getParameters() != null) {
+
+                  for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+
+                      InspectionParameter parameter =
+                              parameterRepository.findById(paramDto.getParameterId())
+                                      .orElseThrow();
+
+                      InspectionParameterResult paramResult =
+                              new InspectionParameterResult();
+
+                      paramResult.setTestResult(result);
+                      paramResult.setParameter(parameter);
+                      paramResult.setParameterResult(paramDto.getResult());
+
+                      parameterResultRepository.save(paramResult);
+                  }
+              }
+          }
+          checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
+      }*/
+    @Transactional
+    @Override
     public void saveInspection(InspectionSaveRequestDto dto) {
 
-        InspectionModule module =
-                moduleRepository.findById(dto.getModuleId())
-                        .orElseThrow();
+        InspectionModule module = moduleRepository
+                .findById(dto.getModuleId())
+                .orElseThrow();
 
         InspectionTestHeader header = new InspectionTestHeader();
-
         header.setBatchId(dto.getBatchId());
         header.setModule(module);
         header.setShift(dto.getShift());
@@ -72,66 +123,15 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         header.setTestDate(LocalDate.now());
         header.setCreatedDate(LocalDateTime.now());
 
+        header.setSleeperType(dto.getSleeperType());
         headerRepository.save(header);
 
-        for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+        Map<Long, InspectionParameter> parameterMap =
+                parameterRepository.findAll()
+                        .stream()
+                        .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
 
-            InspectionTestResult result = new InspectionTestResult();
-
-            result.setTestHeader(header);
-            result.setSleeperId(sleeperDto.getSleeperId());
-            result.setSleeperNo(sleeperDto.getSleeperNo());
-            result.setResult(sleeperDto.getResult());
-            result.setRejectionReason(sleeperDto.getRejectionReason());
-
-            resultRepository.save(result);
-
-            if (sleeperDto.getParameters() != null) {
-
-                for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
-
-                    InspectionParameter parameter =
-                            parameterRepository.findById(paramDto.getParameterId())
-                                    .orElseThrow();
-
-                    InspectionParameterResult paramResult =
-                            new InspectionParameterResult();
-
-                    paramResult.setTestResult(result);
-                    paramResult.setParameter(parameter);
-                    paramResult.setParameterResult(paramDto.getResult());
-
-                    parameterResultRepository.save(paramResult);
-                }
-            }
-        }
-        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
-    }*/
-  @Transactional
-  @Override
-  public void saveInspection(InspectionSaveRequestDto dto) {
-
-      InspectionModule module = moduleRepository
-              .findById(dto.getModuleId())
-              .orElseThrow();
-
-      InspectionTestHeader header = new InspectionTestHeader();
-      header.setBatchId(dto.getBatchId());
-      header.setModule(module);
-      header.setShift(dto.getShift());
-      header.setCreatedBy(dto.getCreatedBy());
-      header.setTestDate(LocalDate.now());
-      header.setCreatedDate(LocalDateTime.now());
-      header.setSleeperType(dto.getSleeperType());
-
-      headerRepository.save(header);
-
-      Map<Long, InspectionParameter> parameterMap =
-              parameterRepository.findAll()
-                      .stream()
-                      .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
-
-      List<InspectionParameterResult> parameterResults = new ArrayList<>();
+        List<InspectionParameterResult> parameterResults = new ArrayList<>();
 /*
       for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
 
@@ -177,67 +177,67 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
               }
           }
       }*/
-      for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+        for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
 
 
 
-          // STEP 1: Fetch existing active record
-          List<InspectionTestResult> existing =
-                  resultRepository.findByTestHeader_BatchIdAndModuleIdAndSleeperIdAndActiveTrue(
-                          dto.getBatchId(),
-                          dto.getModuleId(),
-                          sleeperDto.getSleeperId()
-                  );
+            // STEP 1: Fetch existing active record
+            List<InspectionTestResult> existing =
+                    resultRepository.findByTestHeader_BatchIdAndModuleIdAndSleeperIdAndActiveTrue(
+                            dto.getBatchId(),
+                            dto.getModuleId(),
+                            sleeperDto.getSleeperId()
+                    );
 
-          // STEP 2: Deactivate old record
-          for (InspectionTestResult old : existing) {
-              old.setActive(false);
-              old.setUpdatedBy(dto.getCreatedBy());
-              old.setUpdatedDate(LocalDateTime.now());
-          }
+            // STEP 2: Deactivate old record
+            for (InspectionTestResult old : existing) {
+                old.setActive(false);
+                old.setUpdatedBy(dto.getCreatedBy());
+                old.setUpdatedDate(LocalDateTime.now());
+            }
 
-          resultRepository.saveAll(existing);
-
-
+            resultRepository.saveAll(existing);
 
 
-          // STEP 3: Always insert new record
-          InspectionTestResult result = new InspectionTestResult();
 
-          result.setTestHeader(header);
-          result.setSleeperId(sleeperDto.getSleeperId());
-          result.setSleeperNo(sleeperDto.getSleeperNo());
-          result.setResult(sleeperDto.getResult());
-          result.setRejectionReason(sleeperDto.getRejectionReason());
-          result.setModuleId(module.getId());
-          result.setActive(true);
 
-          resultRepository.save(result);
+            // STEP 3: Always insert new record
+            InspectionTestResult result = new InspectionTestResult();
 
-          // parameters (same as your code)
-          if (sleeperDto.getParameters() != null) {
+            result.setTestHeader(header);
+            result.setSleeperId(sleeperDto.getSleeperId());
+            result.setSleeperNo(sleeperDto.getSleeperNo());
+            result.setResult(sleeperDto.getResult());
+            result.setRejectionReason(sleeperDto.getRejectionReason());
+            result.setModuleId(module.getId());
+            result.setActive(true);
 
-              for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+            resultRepository.save(result);
 
-                  InspectionParameter parameter =
-                          parameterMap.get(paramDto.getParameterId());
+            // parameters (same as your code)
+            if (sleeperDto.getParameters() != null) {
 
-                  InspectionParameterResult paramResult =
-                          new InspectionParameterResult();
+                for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
 
-                  paramResult.setTestResult(result);
-                  paramResult.setParameter(parameter);
-                  paramResult.setParameterResult(paramDto.getResult());
+                    InspectionParameter parameter =
+                            parameterMap.get(paramDto.getParameterId());
 
-                  parameterResults.add(paramResult);
-              }
-          }
-      }
+                    InspectionParameterResult paramResult =
+                            new InspectionParameterResult();
 
-      parameterResultRepository.saveAll(parameterResults);
+                    paramResult.setTestResult(result);
+                    paramResult.setParameter(parameter);
+                    paramResult.setParameterResult(paramDto.getResult());
 
-      checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
-  }
+                    parameterResults.add(paramResult);
+                }
+            }
+        }
+
+        parameterResultRepository.saveAll(parameterResults);
+
+        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
+    }
 
     private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId) {
 
@@ -423,28 +423,71 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         //  Completion logic unchanged
         checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
     }
-/*
+    /*
+        @Override
+        public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
+
+            List<BatchTestingListResponseDto> list =
+                    productionDeclarationRepository.getAllBatchTesting();
+
+            List<BatchTestingListResponseDto> filteredList = new ArrayList<>();
+
+            for (BatchTestingListResponseDto dto : list) {
+
+                //  Check workflow completed
+                Long isCompleted =
+                       sleeperWorkflowRepository
+                                .isWorkflowCompleted(dto.getBatchId());
+
+                if (isCompleted!=1) {
+                    continue; // skip this batch
+                }
+
+                Long testedCount =
+                        resultRepository.countTestedSleepers(dto.getBatchId(),moduleId);
+
+                double percent =
+                        (testedCount * 100.0) / dto.getNoOfSleepers();
+
+                dto.setTestedPercentage(percent);
+
+                if (percent == 0)
+                    dto.setTestingStatus("Pending");
+                else if (percent == 100)
+                    dto.setTestingStatus("Completed");
+                else
+                    dto.setTestingStatus("Under Inspection");
+
+                filteredList.add(dto);
+            }
+
+            return filteredList;
+        } */
     @Override
     public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
 
-        List<BatchTestingListResponseDto> list =
-                productionDeclarationRepository.getAllBatchTesting();
+        List<BatchTestingListResponseDto> list = new ArrayList<>();
+
+        // STRESS (existing)
+        list.addAll(productionDeclarationRepository.getAllBatchTesting());
+
+        // LONG_LINE (new)
+        list.addAll(productionDeclarationRepository.getLongLineBatchTesting());
 
         List<BatchTestingListResponseDto> filteredList = new ArrayList<>();
 
         for (BatchTestingListResponseDto dto : list) {
 
-            //  Check workflow completed
+            // Check workflow completed
             Long isCompleted =
-                   sleeperWorkflowRepository
-                            .isWorkflowCompleted(dto.getBatchId());
+                    sleeperWorkflowRepository.isWorkflowCompleted(dto.getBatchId());
 
-            if (isCompleted!=1) {
-                continue; // skip this batch
+            if (isCompleted != 1) {
+                continue;
             }
 
             Long testedCount =
-                    resultRepository.countTestedSleepers(dto.getBatchId(),moduleId);
+                    resultRepository.countTestedSleepers(dto.getBatchId(), moduleId);
 
             double percent =
                     (testedCount * 100.0) / dto.getNoOfSleepers();
@@ -462,50 +505,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         }
 
         return filteredList;
-    } */
-@Override
-public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
-
-    List<BatchTestingListResponseDto> list = new ArrayList<>();
-
-    // STRESS (existing)
-    list.addAll(productionDeclarationRepository.getAllBatchTesting());
-
-    // LONG_LINE (new)
-    list.addAll(productionDeclarationRepository.getLongLineBatchTesting());
-
-    List<BatchTestingListResponseDto> filteredList = new ArrayList<>();
-
-    for (BatchTestingListResponseDto dto : list) {
-
-        // Check workflow completed
-        Long isCompleted =
-                sleeperWorkflowRepository.isWorkflowCompleted(dto.getBatchId());
-
-        if (isCompleted != 1) {
-            continue;
-        }
-
-        Long testedCount =
-                resultRepository.countTestedSleepers(dto.getBatchId(), moduleId);
-
-        double percent =
-                (testedCount * 100.0) / dto.getNoOfSleepers();
-
-        dto.setTestedPercentage(percent);
-
-        if (percent == 0)
-            dto.setTestingStatus("Pending");
-        else if (percent == 100)
-            dto.setTestingStatus("Completed");
-        else
-            dto.setTestingStatus("Under Inspection");
-
-        filteredList.add(dto);
     }
-
-    return filteredList;
-}
 
  /*   @Override
     public BatchInspectionDetailDto getBatchInspection(Long batchId) {
@@ -641,7 +641,7 @@ public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
         ProductionDeclaration declaration =
                 productionDeclarationRepository.findBatchById(batchId);
 
-      //  List<ProductionSleeper> sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
+        //  List<ProductionSleeper> sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
         List<ProductionSleeper> sleepers;
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
@@ -654,7 +654,7 @@ public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
         }
 
         // Fetch ALL inspection results
-     //   List<InspectionTestResult> results =resultRepository.findByBatchId(batchId);
+        //   List<InspectionTestResult> results =resultRepository.findByBatchId(batchId);
 
         //ONLY ACTIVE RECORDS
         List<InspectionTestResult> results =
@@ -688,7 +688,7 @@ public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
                 ));
 
         //   fetch only selected module results
-     //   List<InspectionTestResult> moduleResults =resultRepository.findByTestHeader_BatchIdAndModuleId(batchId, moduleId);
+        //   List<InspectionTestResult> moduleResults =resultRepository.findByTestHeader_BatchIdAndModuleId(batchId, moduleId);
 
         // ONLY ACTIVE RECORDS FOR MODULE
         List<InspectionTestResult> moduleResults =
@@ -707,7 +707,7 @@ public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
                 demouldingDefectiveSleeperRepository
                         .findRejectedSleeperNos(declaration.getBatchNumber());
 
-      //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
+        //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
         String sleeperType;
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
@@ -776,14 +776,14 @@ public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId) {
 
         String parsedUserId = userId.replace(":", "");
-      //  Long vendorId = Long.parseLong(parsedUserId);
+        //  Long vendorId = Long.parseLong(parsedUserId);
 
         Optional<UserMaster> userOpt = userMasterRepository.findByUserName(userId);
         if (userOpt.isEmpty()) {
             userOpt = userMasterRepository.findByUserName(parsedUserId);
         }
 
-        Long vendorId = 0L;
+        Long vendorId =0L;
         if (userOpt.isPresent()) {
             vendorId = userOpt.get().getUserId().longValue();
         }
@@ -846,7 +846,7 @@ public List<BatchTestingListResponseDto> getAllBatchTesting(Long moduleId) {
                 response.setBatchNumber(declaration.getBatchNumber());
                 response.setCastDate(declaration.getCastingDate() != null ? declaration.getCastingDate().toString() : "");
             }
-          //  response.setTotalSleepers((long) results.size());
+            //  response.setTotalSleepers((long) results.size());
             response.setTotalSleepers((long) grouped.size());
             response.setGoodCount((long) goodSleepers.size());
             response.setBadCount((long) badSleepers.size());
