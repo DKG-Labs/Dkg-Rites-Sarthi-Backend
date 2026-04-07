@@ -25,6 +25,9 @@ public class FinalCertificateDto {
      */
     private String certificateDate;
     
+    private String bookNo;
+    private String setNo;
+    
     /* ==================== Installment Information ==================== */
     
     /**
@@ -68,9 +71,11 @@ public class FinalCertificateDto {
     private String billPayingOfficer;
     
     /**
-     * Consignee (Railway): From po_item table in consignee_detail column
+     * Consignee: From po_item table in consignee_detail column
      */
+    private String consignee;
     private String consigneeRailway;
+    private String consigneeManufacturer;
     
     /**
      * Purchasing Authority: Same as RM IC (for now display blank)
@@ -160,6 +165,7 @@ public class FinalCertificateDto {
      * Date(s) of inspection: From WorkflowTransitions
      */
     private String inspectionDates;
+    private String datesOfInspection;
 
     /**
      * Quantity now passed in words and details
@@ -170,6 +176,9 @@ public class FinalCertificateDto {
      * Sealing Pattern: Dynamic text generated from hologram details
      */
     private String sealingPattern;
+    private String facsimileText;
+    private String reasonsForRejection;
+    private String inspectingEngineer;
     
     /* ==================== Lot Details ==================== */
     

@@ -25,6 +25,10 @@ public class ProcessMaterialCertificateDto {
      */
     private String certificateDate;
     
+    private String bookNo;
+    private String setNo;
+    private String placeOfInspection;
+    
     /* ==================== Installment Information ==================== */
     
     /**
@@ -81,6 +85,11 @@ public class ProcessMaterialCertificateDto {
      * Purchasing Authority (Railway/Non Railway): For now keep it blank
      */
     private String purchasingAuthority;
+    
+    private String facsimileText;
+    private String reasonsForRejection;
+    private String inspectingEngineer;
+    private String datesOfInspection;
     
     /* ==================== Product Information ==================== */
     
@@ -162,12 +171,6 @@ public class ProcessMaterialCertificateDto {
      * Pattern of sealing/stamping or identification
      */
     private String sealingPattern;
-    
-    /**
-     * Inspecting Engineer: DSC Signature of that particular inspection engineer
-     * For now keep it blank
-     */
-    private String inspectingEngineer;
 
     /**
      * Inner class for Lot-wise details
