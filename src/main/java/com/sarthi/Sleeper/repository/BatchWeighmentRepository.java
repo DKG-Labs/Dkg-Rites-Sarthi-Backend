@@ -11,10 +11,7 @@ import java.util.List;
 @Repository
 public interface BatchWeighmentRepository extends JpaRepository<BatchWeighment, Long> {
     @Query("""
-    SELECT DISTINCT b FROM BatchWeighment b
-    LEFT JOIN FETCH b.batchDetailsList
-    LEFT JOIN FETCH b.scadaRecords
-    LEFT JOIN FETCH b.manualRecords
+    SELECT b FROM BatchWeighment b
     WHERE b.plantId = :plantId
     AND b.vendorCode = :vendorCode
     AND b.shift = :shift

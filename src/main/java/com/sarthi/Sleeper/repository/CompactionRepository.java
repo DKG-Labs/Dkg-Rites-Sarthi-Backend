@@ -13,9 +13,7 @@ public interface CompactionRepository extends JpaRepository<Compaction , Long> {
 
 
     @Query("""
-    SELECT DISTINCT c FROM Compaction c
-    LEFT JOIN FETCH c.scadaRecords
-    LEFT JOIN FETCH c.manualRecords
+    SELECT c FROM Compaction c
     WHERE c.plantId = :plantId
     AND c.vendorCode = :vendorCode
     AND c.shift = :shift

@@ -407,7 +407,28 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         );
 
         return list.stream()
-                .map(this::mapToResponse)
+                .map(this::mapToResp)
                 .collect(Collectors.toList());
+    }
+
+    private WireTensioningResponseDto mapToResp(WireTensioning entity) {
+
+        WireTensioningResponseDto dto = new WireTensioningResponseDto();
+
+        dto.setId(entity.getId());
+        dto.setBatchNo(entity.getBatchNo());
+        dto.setSleeperType(entity.getSleeperType());
+        dto.setWiresPerSleeper(entity.getWiresPerSleeper());
+        dto.setTargetLoadKn(entity.getTargetLoadKn());
+
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
+
+        // REMOVE CHILD DATA
+        dto.setScadaRecords(null);
+        dto.setManualRecords(null);
+
+        return dto;
     }
 }

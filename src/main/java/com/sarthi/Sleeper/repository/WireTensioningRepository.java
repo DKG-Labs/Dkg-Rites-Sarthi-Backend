@@ -12,9 +12,7 @@ import java.util.List;
 public interface WireTensioningRepository extends JpaRepository<WireTensioning, Long> {
 
     @Query("""
-    SELECT DISTINCT w FROM WireTensioning w
-    LEFT JOIN FETCH w.scadaRecords
-    LEFT JOIN FETCH w.manualRecords
+    SELECT w FROM WireTensioning w
     WHERE w.plantId = :plantId
     AND w.vendorCode = :vendorCode
     AND w.shift = :shift

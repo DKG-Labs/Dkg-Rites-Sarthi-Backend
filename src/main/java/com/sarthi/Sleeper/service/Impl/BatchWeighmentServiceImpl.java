@@ -582,8 +582,38 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         );
 
         return list.stream()
-                .map(this::mapToResponse)
+                .map(this::mapToResp)
                 .collect(Collectors.toList());
+    }
+
+
+    private BatchWeighmentResponseDto mapToResp(BatchWeighment entity) {
+
+        BatchWeighmentResponseDto dto = new BatchWeighmentResponseDto();
+
+        dto.setId(entity.getId());
+        dto.setLineNo(entity.getLineNo());
+
+        if (entity.getEntryDate() != null) {
+            dto.setEntryDate(CommonUtils.convertDateToString(entity.getEntryDate()));
+        }
+
+        dto.setSandType(entity.getSandType());
+        dto.setMoistureSensorStatus(entity.getMoistureSensorStatus());
+        dto.setVerifiedBy(entity.getVerifiedBy());
+        dto.setRemarks(entity.getRemarks());
+        dto.setEntryMode(entity.getEntryMode());
+
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
+        dto.setShift(entity.getShift());
+
+        //REMOVE CHILD DATA
+        dto.setBatchDetails(null);
+        dto.setScadaRecords(null);
+        dto.setManualRecords(null);
+
+        return dto;
     }
 
 }

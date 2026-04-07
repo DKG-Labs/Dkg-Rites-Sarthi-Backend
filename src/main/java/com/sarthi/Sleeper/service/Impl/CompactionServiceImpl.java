@@ -352,8 +352,32 @@ public class CompactionServiceImpl implements CompactionService {
         );
 
         return list.stream()
-                .map(this::mapToResponse)
+                .map(this::mapToResp)
                 .collect(Collectors.toList());
+    }
+
+    private CompactionResponseDto mapToResp(Compaction entity) {
+
+        CompactionResponseDto dto = new CompactionResponseDto();
+
+        dto.setId(entity.getId());
+        dto.setBatchNo(entity.getBatchNo());
+        dto.setSleeperType(entity.getSleeperType());
+
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+
+        if (entity.getEntryDate() != null) {
+            dto.setEntryDate(
+                    CommonUtils.convertDateToString(entity.getEntryDate()));
+        }
+
+        //  REMOVE CHILD DATA
+        dto.setScadaRecords(null);
+        dto.setManualRecords(null);
+
+        return dto;
     }
 
 }
