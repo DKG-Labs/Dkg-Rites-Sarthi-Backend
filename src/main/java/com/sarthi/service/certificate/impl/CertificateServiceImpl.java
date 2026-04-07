@@ -1,5 +1,11 @@
 package com.sarthi.service.certificate.impl;
 
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.*;
+import java.io.ByteArrayOutputStream;
+import java.util.Base64;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import com.sarthi.dto.certificate.RawMaterialCertificateDto;
 import com.sarthi.dto.certificate.ProcessMaterialCertificateDto;
 import com.sarthi.dto.certificate.FinalCertificateDto;
@@ -780,6 +786,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .passedInstNo(calculatePassedInstallment(inspectionCall.getPoNo()))
                 .contractor(buildContractorInfo(poHeader))
                 .manufacturer(buildContractorInfo(poHeader))
+                .placeOfInspection(inspectionCall.getPlaceOfInspection() != null ? inspectionCall.getPlaceOfInspection() : "")
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .poDetails(inspectionCall.getPoNo() + " dated " + (poHeader != null && poHeader.getPoDate() != null ? formatDate(poHeader.getPoDate().toLocalDate()) : ""))
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
@@ -788,7 +795,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .description(buildProcessDescription(inspectionCall))
                 .ercType(inspectionCall.getErcType())
-                .drgNo("")
+                .drgNo(getDrgNoForErc(inspectionCall))
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No. of QAP")
                 .chpClause("Clause No. of QAP")
@@ -800,7 +807,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .manDays(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
                 .sealingPattern(buildProcessSealingPattern())
-                .inspectingEngineer("")
+                .inspectingEngineer(inspectionCall.getCreatedBy() != null ? inspectionCall.getCreatedBy() : "")
                 .build();
     }
 
@@ -1193,39 +1200,432 @@ public class CertificateServiceImpl implements CertificateService {
     }
     @Override
     public IcReportDataResponse generateReportData(Map<String, String> params) {
-        String caseNo = params.get("CaseNO");
-        String callSNo = params.get("CallSNo");
-        String bkNo = params.get("BkNo");
-        String setNo = params.get("SetNo");
+        String rawCaseNo = params.get("CaseNO");
         boolean isDigitallySign = Boolean.parseBoolean(params.get("isDigitallySign"));
-        String type = params.get("type"); // Expecting RM, PM, or FM
+        String type = params.get("type");
 
-        logger.info("Generating Report Data for CaseNO: {}, CallSNo: {}, Type: {}, isDigitallySign: {}", 
-                caseNo, callSNo, type, isDigitallySign);
+        logger.info("Generating REAL IC PDF for CaseNo: {}, Type: {}, SignMode: {}", rawCaseNo, type, isDigitallySign);
 
         try {
-            // Logic to fetch report data based on params
-            // In a real scenario, this would involve complex queries or PDF generation
-            // For now, we return a mock response that indicates if digital signature is configured
-            
-            // Assume digital signature is enabled if the flag is true
-            boolean isConfigured = isDigitallySign; 
-            
-            // Capricon PKI client (abc.js) robust XML format with <txn> and <fileData>.
-            String responseText = "<request><command>signPdf</command><txn>SARTHI" + System.currentTimeMillis() + "</txn><fileData>MockData</fileData><data>Mock Report Data for " + type + " - IC: " + caseNo + "/" + callSNo + "</data></request>";
-            
-            return IcReportDataResponse.builder()
-                    .status("1")
-                    .isDigitalSignatureConfig(isConfigured)
-                    .responseText(responseText)
-                    .build();
+            byte[] pdfBytes;
+            String pdfBase64Input = params.get("pdfBase64");
+
+            if (pdfBase64Input != null && !pdfBase64Input.isEmpty()) {
+                logger.info("Using frontend-provided PDF for E-Sign. Input size: {} chars", pdfBase64Input.length());
+                pdfBytes = Base64.getDecoder().decode(pdfBase64Input);
+            } else {
+                // 1. Generate Unified IC PDF (Fallback)
+                pdfBytes = generateICReport(params);
+                logger.info("PDF generated successfully by backend. Size: {} bytes", pdfBytes.length);
+            }
+
+            // 2. Base64 Encode
+            String base64Pdf = Base64.getEncoder().encodeToString(pdfBytes);
+
+            if (isDigitallySign) {
+                // 3. Construct signing XML with precise Coordinates (sigX=380, sigY=100)
+                String responseText = "<request>" +
+                        "<command>signPdf</command>" +
+                        "<txn>SARTHI" + System.currentTimeMillis() + "</txn>" +
+                        "<fileData><![CDATA[" + base64Pdf + "]]></fileData>" +
+                        "<sigX>380</sigX>" +
+                        "<sigY>100</sigY>" +
+                        "<sigPage>1</sigPage>" +
+                        "</request>";
+
+                return IcReportDataResponse.builder()
+                        .status("1")
+                        .isDigitalSignatureConfig(true)
+                        .responseText(responseText)
+                        .build();
+            } else {
+                // Return raw Base64 for viewing
+                return IcReportDataResponse.builder()
+                        .status("1")
+                        .isDigitalSignatureConfig(false)
+                        .responseText(base64Pdf)
+                        .build();
+            }
         } catch (Exception e) {
-            logger.error("Error generating report data", e);
+            logger.error("Error generating unified IC PDF", e);
             return IcReportDataResponse.builder()
                     .status("0")
                     .responseText("Error: " + e.getMessage())
                     .build();
         }
+    }
+
+    /**
+     * Unified entry point for generating the real Inspection Certificate PDF.
+     * Routes to specific DTO generation and then to the PDF builder.
+     */
+    private byte[] generateICReport(Map<String, String> params) throws Exception {
+        String rawCaseNo = params.get("CaseNO");
+        String type = params.get("type"); // RM, PM, FM
+        
+        // Sanitize CaseNO to extract internal IC Number (e.g. EP-02260001)
+        String icNumber = extractIcNumber(rawCaseNo);
+        logger.info("Extracted IC Number: '{}' from raw CaseNO: '{}'", icNumber, rawCaseNo);
+
+        Object dto;
+        if ("RM".equalsIgnoreCase(type)) {
+            dto = generateRawMaterialCertificate(icNumber);
+        } else if ("PM".equalsIgnoreCase(type)) {
+            dto = generateProcessMaterialCertificate(icNumber);
+        } else if ("FM".equalsIgnoreCase(type)) {
+            dto = generateFinalCertificate(icNumber);
+        } else {
+            throw new IllegalArgumentException("Unknown certificate type: " + type);
+        }
+
+        return buildPdfFromDto(dto, type);
+    }
+
+    /**
+     * Universal Pixel-Perfect PDF Engine.
+     * Replicates the exact grid structures for RM, PM, and FM certificate types.
+     */
+    private byte[] buildPdfFromDto(Object dto, String type) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Document document = new Document(PageSize.A4, 20, 20, 20, 20);
+        PdfWriter.getInstance(document, baos);
+        document.open();
+
+        // Standard RITES Fonts
+        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
+        Font boldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9);
+        Font normalFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
+        Font smallFont = FontFactory.getFont(FontFactory.HELVETICA, 8);
+        Font tinyBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7);
+        Font tinyNormal = FontFactory.getFont(FontFactory.HELVETICA, 7);
+        Font italicFont = FontFactory.getFont(FontFactory.HELVETICA_BOLDOBLIQUE, 9);
+
+        // --- SECTION 1: COMMON HEADER ---
+        addCommonHeader(document, dto, titleFont, boldFont, tinyBold, smallFont);
+
+        // --- SECTION 2: COMMON CERTIFICATE INFO ---
+        addCertificateInfoRow(document, dto, boldFont, tinyBold);
+
+        // --- SECTION 3: TYPE-SPECIFIC BODY ---
+        if ("RM".equalsIgnoreCase(type)) {
+            buildRmLayout(document, dto, normalFont, boldFont, tinyBold, smallFont, italicFont);
+        } else if ("PM".equalsIgnoreCase(type)) {
+            buildPmLayout(document, dto, normalFont, boldFont, tinyBold, smallFont, italicFont);
+        } else if ("FM".equalsIgnoreCase(type)) {
+            buildFmLayout(document, dto, normalFont, boldFont, tinyBold, smallFont, italicFont);
+        }
+
+        document.close();
+        return baos.toByteArray();
+    }
+
+    private void addCommonHeader(Document document, Object dto, Font titleFont, Font boldFont, Font tinyBold, Font smallFont) throws Exception {
+        PdfPTable outerHeader = new PdfPTable(1);
+        outerHeader.setWidthPercentage(100);
+        
+        PdfPTable bookSetBox = new PdfPTable(2);
+        bookSetBox.setTotalWidth(150f);
+        bookSetBox.setLockedWidth(true);
+        bookSetBox.setHorizontalAlignment(Element.ALIGN_CENTER);
+
+        bookSetBox.addCell(createLabelValueCell("बुक सं. Book No.", getDtoValue(dto, "bookNo"), boldFont, tinyBold));
+        bookSetBox.addCell(createLabelValueCell("सेट सं. Set No.", getDtoValue(dto, "setNo"), boldFont, tinyBold));
+        
+        PdfPCell boxWrapper = new PdfPCell(bookSetBox);
+        boxWrapper.setBorder(Rectangle.NO_BORDER);
+        boxWrapper.setPaddingBottom(5);
+        outerHeader.addCell(boxWrapper);
+        document.add(outerHeader);
+
+        PdfPTable branding = new PdfPTable(3);
+        branding.setWidthPercentage(100);
+        branding.setWidths(new float[]{1, 3, 1.5f});
+
+        branding.addCell(createEmptyCell());
+        PdfPCell rTitle = new PdfPCell(new Phrase("RITES LTD, NORTHERN REGION, DELHI", titleFont));
+        rTitle.setBorder(Rectangle.NO_BORDER);
+        rTitle.setHorizontalAlignment(Element.ALIGN_CENTER);
+        branding.addCell(rTitle);
+        
+        PdfPCell contCell = new PdfPCell();
+        contCell.addElement(new Phrase("निरंतरता पत्रक शामिल", tinyBold));
+        contCell.addElement(new Phrase("Contains 0 Continuation Sheets", tinyBold));
+        contCell.setBorder(Rectangle.NO_BORDER);
+        contCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        branding.addCell(contCell);
+        document.add(branding);
+        document.add(new Paragraph("\n"));
+    }
+
+    private void addCertificateInfoRow(Document document, Object dto, Font boldFont, Font tinyBold) throws Exception {
+        PdfPTable certInfoRow = new PdfPTable(1);
+        certInfoRow.setWidthPercentage(100);
+        
+        PdfPTable certInfoBox = new PdfPTable(3);
+        certInfoBox.setWidthPercentage(75);
+        certInfoBox.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        certInfoBox.setWidths(new float[]{1.8f, 1f, 2.7f});
+
+        certInfoBox.addCell(createLabelValueCell("प्रमाणपत्र पत्र सं. Certificate No.", getDtoValue(dto, "certificateNo").toUpperCase(), boldFont, tinyBold));
+        certInfoBox.addCell(createLabelValueCell("दिनांक Date", getDtoValue(dto, "certificateDate"), boldFont, tinyBold));
+        
+        PdfPCell instCell = new PdfPCell();
+        instCell.setPadding(3);
+        instCell.addElement(new Phrase("प्रस्तावित किस्त सं. Offered Instt. No. " + getDtoValue(dto, "offeredInstNo"), tinyBold));
+        instCell.addElement(new Phrase("किस्त स. पारित Passed Instt. No. " + getDtoValue(dto, "passedInstNo"), tinyBold));
+        certInfoBox.addCell(instCell);
+        
+        PdfPCell certWrapper = new PdfPCell(certInfoBox);
+        certWrapper.setBorder(Rectangle.NO_BORDER);
+        certWrapper.setPaddingBottom(5);
+        certInfoRow.addCell(certWrapper);
+        document.add(certInfoRow);
+    }
+
+    private void buildPmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold, Font smallFont, Font italicFont) throws Exception {
+        PdfPTable mainGrid = new PdfPTable(1);
+        mainGrid.setWidthPercentage(100);
+
+        mainGrid.addCell(createTwoColRow("ठेकेदार / Contractor", getDtoValue(dto, "contractor"), "उत्पादक / Manufacturer", getDtoValue(dto, "manufacturer"), normalFont, tinyBold));
+        
+        // Contract Ref Row
+        PdfPTable rowCB = new PdfPTable(2);
+        PdfPCell cRefCell = new PdfPCell();
+        cRefCell.addElement(new Phrase("संविदा संदर्भ एवं दिनांक (रेलवे) / Contract Ref. & Date (Rly.)", tinyBold));
+        cRefCell.addElement(new Phrase(getDtoValue(dto, "contractRef"), normalFont));
+        cRefCell.addElement(new Phrase("खरीद आदेश सं. एवं दिनांक (ठेकेदार) / PO No. & Date (Contractor)", tinyBold));
+        cRefCell.addElement(new Phrase(getDtoValue(dto, "poDetails"), normalFont));
+        rowCB.addCell(cRefCell);
+        rowCB.addCell(createLabelValueCell("बिल अदायगी अधिकारी / Bill Paying Officer", getDtoValue(dto, "billPayingOfficer"), normalFont, tinyBold));
+        mainGrid.addCell(rowCB);
+
+        mainGrid.addCell(createThreeColRow("विवरण / Description", getDtoValue(dto, "description"), "ड्रॉइंग सं. / Drg. No.", getDtoValue(dto, "drgNo"), "Spec No.", getDtoValue(dto, "specNo"), normalFont, tinyBold));
+        document.add(mainGrid);
+
+        // Body Table
+        PdfPTable lotTable = new PdfPTable(5);
+        lotTable.setWidthPercentage(100);
+        lotTable.setWidths(new float[]{2, 1, 1, 1, 1});
+        addTableHeader(lotTable, new String[]{"CHP CL. NO.", "HEAT No. / Lot No.", "Total Nos.", "Accepted Nos.", "Rejected Nos."}, tinyBold);
+        
+        java.util.List<?> lots = (java.util.List<?>) getDtoObject(dto, "lots");
+        if (lots != null) {
+            for (Object lot : lots) {
+                lotTable.addCell(new Phrase(getDtoValue(dto, "chpClause"), smallFont));
+                lotTable.addCell(new Phrase(getDtoValue(lot, "heatNo"), smallFont));
+                lotTable.addCell(new Phrase(getDtoValue(lot, "totalProcessed"), smallFont));
+                lotTable.addCell(new Phrase(getDtoValue(lot, "acceptedQty"), smallFont));
+                lotTable.addCell(new Phrase(getDtoValue(lot, "rejectedQty"), smallFont));
+            }
+        }
+        document.add(lotTable);
+
+        // Footer
+        PdfPTable footer = new PdfPTable(1);
+        footer.setWidthPercentage(100);
+        footer.addCell(createLabelValueCell("संदर्भ / Reference", getDtoValue(dto, "reference"), normalFont, tinyBold));
+        
+        PdfPTable sigRow = new PdfPTable(2);
+        sigRow.addCell(createLabelValueCell("सील/स्टैंपिंग Seal Pattern", getDtoValue(dto, "sealingPattern"), normalFont, tinyBold));
+        sigRow.addCell(createSignatureCell("Inspecting Engineer", boldFont));
+        footer.addCell(sigRow);
+        
+        addFinalCertification(footer, "It is certified that Process Inspection of ERCs carried out satisfactorily.", italicFont, smallFont);
+        document.add(footer);
+    }
+
+    private void buildRmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold, Font smallFont, Font italicFont) throws Exception {
+        PdfPTable mainGrid = new PdfPTable(1);
+        mainGrid.setWidthPercentage(100);
+        
+        mainGrid.addCell(createTwoColRow("ठेकेदार / Contractor", getDtoValue(dto, "contractor"), "उत्पादक / Manufacturer & Place", getDtoValue(dto, "manufacturer") + "\n" + getDtoValue(dto, "placeOfInspection"), normalFont, tinyBold));
+        mainGrid.addCell(createLabelValueCell("निरीक्षण का प्रकार / Type of inspection", getDtoValue(dto, "inspectionType"), normalFont, tinyBold));
+        document.add(mainGrid);
+
+        // CHP Table (6 Columns)
+        PdfPTable chpTable = new PdfPTable(6);
+        chpTable.setWidthPercentage(100);
+        chpTable.setWidths(new float[]{1.2f, 1f, 1.2f, 0.8f, 1f, 0.8f});
+        addTableHeader(chpTable, new String[]{"CHP CL. NO.", "Requirement", "Details", "Result", "Cleared Qty", "Rejected Qty"}, tinyBold);
+        
+        chpTable.addCell(createNestedCell(getDtoValue(dto, "chpClause"), smallFont));
+        chpTable.addCell(createNestedCell(getDtoValue(dto, "contractChpReq"), smallFont));
+        chpTable.addCell(createNestedCell(getDtoValue(dto, "inspectionDetails"), smallFont));
+        chpTable.addCell(createNestedCell(getDtoValue(dto, "result"), smallFont));
+        chpTable.addCell(createNestedCell(getDtoValue(dto, "clearedQty"), smallFont));
+        chpTable.addCell(createNestedCell(getDtoValue(dto, "qtyRejected"), smallFont));
+        document.add(chpTable);
+
+        // Footer with 3-column signature
+        PdfPTable footer = new PdfPTable(1);
+        footer.setWidthPercentage(100);
+        
+        PdfPTable sigRow = new PdfPTable(3);
+        sigRow.addCell(createLabelValueCell("Seal Pattern", getDtoValue(dto, "sealingPattern"), normalFont, tinyBold));
+        sigRow.addCell(createLabelValueCell("Facsimile of seal", getDtoValue(dto, "sealFacsimile"), normalFont, tinyBold));
+        sigRow.addCell(createSignatureCell("Inspecting Engineer", boldFont));
+        footer.addCell(sigRow);
+        
+        addFinalCertification(footer, "It is certified that material is cleared for the next stage.", italicFont, smallFont);
+        document.add(footer);
+    }
+
+    private void buildFmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold, Font smallFont, Font italicFont) throws Exception {
+        PdfPTable mainGrid = new PdfPTable(1);
+        mainGrid.setWidthPercentage(100);
+        
+        mainGrid.addCell(createTwoColRow("Contractor", getDtoValue(dto, "contractor"), "Place of Inspection", getDtoValue(dto, "placeOfInspection"), normalFont, tinyBold));
+        mainGrid.addCell(createTwoColRow("Consignee", getDtoValue(dto, "consigneeRailway"), "Purchasing Authority", getDtoValue(dto, "purchasingAuthority"), normalFont, tinyBold));
+        document.add(mainGrid);
+
+        // Store Details (9 Columns)
+        PdfPTable storeTable = new PdfPTable(9);
+        storeTable.setWidthPercentage(100);
+        storeTable.setWidths(new float[]{0.5f, 2f, 1f, 1f, 1f, 1f, 1f, 1f, 1f});
+        
+        addTableHeader(storeTable, new String[]{"Item No.", "Description", "Order Qty", "Prev Offd", "Prev Pass", "Now Offd", "Now Pass", "Now Rej", "Still Due"}, tinyBold);
+        
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "itemNo"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "description"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyOnOrder"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyOfferedPreviously"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyPassedPreviously"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyNowOffered"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyNowPassed"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyNowRejected"), smallFont));
+        storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyStillDue"), smallFont));
+        document.add(storeTable);
+
+        // Quantity in Words
+        PdfPTable wordsTable = new PdfPTable(1);
+        wordsTable.setWidthPercentage(100);
+        wordsTable.addCell(createLabelValueCell("QUANTITY NOW PASSED IN WORDS:", getDtoValue(dto, "quantityNowPassedText"), italicFont, tinyBold));
+        document.add(wordsTable);
+
+        // Inspection Grid (5 Columns)
+        PdfPTable grid = new PdfPTable(5);
+        grid.setWidthPercentage(100);
+        grid.addCell(createLabelValueCell("No. Checked", getDtoValue(dto, "noOfItemsChecked"), normalFont, tinyBold));
+        grid.addCell(createLabelValueCell("Date of Call", getDtoValue(dto, "dateOfCall"), normalFont, tinyBold));
+        grid.addCell(createLabelValueCell("No. of Visits", getDtoValue(dto, "noOfVisits"), normalFont, tinyBold));
+        grid.addCell(createLabelValueCell("Dates of Insp", getDtoValue(dto, "datesOfInspection"), normalFont, tinyBold));
+        grid.addCell(createLabelValueCell("TR Rec. Dt", getDtoValue(dto, "trRecDate"), normalFont, tinyBold));
+        document.add(grid);
+
+        // Signature
+        PdfPTable sigRow = new PdfPTable(3);
+        sigRow.addCell(createLabelValueCell("Seal Pattern", getDtoValue(dto, "sealingPattern"), normalFont, tinyBold));
+        sigRow.addCell(createLabelValueCell("Facsimile of seal", getDtoValue(dto, "facsimileText"), normalFont, tinyBold));
+        sigRow.addCell(createSignatureCell("Inspecting Engineer", boldFont));
+        document.add(sigRow);
+
+        document.add(createLabelValueCell("Reasons for Rejection", getDtoValue(dto, "reasonsForRejection"), normalFont, tinyBold));
+    }
+
+    // --- HELPER METHODS ---
+
+    private PdfPCell createLabelValueCell(String label, String value, Font font, Font labelFont) {
+        PdfPCell cell = new PdfPCell();
+        cell.setPadding(3);
+        cell.addElement(new Phrase(label, labelFont));
+        cell.addElement(new Phrase(value != null ? value : "", font));
+        return cell;
+    }
+
+    private PdfPCell createTwoColRow(String l1, String v1, String l2, String v2, Font font, Font lFont) {
+        PdfPTable table = new PdfPTable(2);
+        table.setWidthPercentage(100);
+        table.addCell(createLabelValueCell(l1, v1, font, lFont));
+        table.addCell(createLabelValueCell(l2, v2, font, lFont));
+        PdfPCell wrap = new PdfPCell(table);
+        wrap.setPadding(0);
+        return wrap;
+    }
+
+    private PdfPCell createThreeColRow(String l1, String v1, String l2, String v2, String l3, String v3, Font font, Font lFont) {
+        PdfPTable table = new PdfPTable(3);
+        table.setWidthPercentage(100);
+        table.addCell(createLabelValueCell(l1, v1, font, lFont));
+        table.addCell(createLabelValueCell(l2, v2, font, lFont));
+        table.addCell(createLabelValueCell(l3, v3, font, lFont));
+        PdfPCell wrap = new PdfPCell(table);
+        wrap.setPadding(0);
+        return wrap;
+    }
+
+    private void addTableHeader(PdfPTable table, String[] headers, Font font) {
+        for (String h : headers) {
+            PdfPCell c = new PdfPCell(new Phrase(h, font));
+            c.setBackgroundColor(java.awt.Color.LIGHT_GRAY);
+            c.setHorizontalAlignment(Element.ALIGN_CENTER);
+            table.addCell(c);
+        }
+    }
+
+    private PdfPCell createSignatureCell(String label, Font font) {
+        PdfPCell cell = new PdfPCell();
+        cell.setFixedHeight(80f);
+        cell.addElement(new Phrase(label, font));
+        cell.setVerticalAlignment(Element.ALIGN_TOP);
+        return cell;
+    }
+
+    private void addFinalCertification(PdfPTable table, String text, Font itFont, Font smFont) {
+        PdfPCell cell = new PdfPCell();
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cell.addElement(new Phrase(text, itFont));
+        cell.addElement(new Phrase("Distribution: Manufacturer Office copy, RITES Bill Copy, Contractor, Purchaser (Railway)", smFont));
+        table.addCell(cell);
+    }
+
+    private PdfPCell createNestedCell(String text, Font font) {
+        PdfPCell c = new PdfPCell(new Phrase(text != null ? text : "", font));
+        c.setPadding(3);
+        return c;
+    }
+
+    private PdfPCell createEmptyCell() {
+        PdfPCell cell = new PdfPCell(new Phrase(""));
+        cell.setBorder(Rectangle.NO_BORDER);
+        return cell;
+    }
+
+    private Object getDtoObject(Object dto, String fieldName) {
+        try {
+            java.lang.reflect.Method method = dto.getClass().getMethod("get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1));
+            return method.invoke(dto);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String getDtoValue(Object dto, String fieldName) {
+        try {
+            java.lang.reflect.Method method = dto.getClass().getMethod("get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1));
+            Object result = method.invoke(dto);
+            return result != null ? result.toString() : "";
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * Extracts the internal IC Number (e.g., EP-01060001) from a decorated 
+     * certificate number (e.g., W/EP-01060001/nitish).
+     */
+    private String extractIcNumber(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        
+        // Regex to find the pattern: [ER/EP/EF]-[8 digits]
+        Pattern pattern = Pattern.compile("(E[RPF]-\\d{8})");
+        Matcher matcher = pattern.matcher(raw);
+        
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        
+        // Fallback to original string if no pattern found (standard IC format)
+        return raw;
     }
 }
 
