@@ -79,10 +79,10 @@ public class DemouldingInspectionController {
     public ResponseEntity<Object> demouldingTodayRecord(  @RequestParam String plantId,
                                                         @RequestParam String vendorCode,
                                                         @RequestParam String shift,
-                                                        @RequestParam String createdBy) {
+                                                        @RequestParam String createdBy, @RequestParam String date) {
 
         List<DemouldingInspectionResponseDTO> list =
-                demouldingInspectionService.getTodayRecords(plantId,vendorCode, shift, createdBy);
+                demouldingInspectionService.getTodayRecords(plantId,vendorCode, shift, createdBy, date);
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(list),

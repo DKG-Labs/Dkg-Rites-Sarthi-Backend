@@ -21,9 +21,10 @@ public interface HtsWirePlacementService {
 
     void delete(Long id);
 
-    public List<HtsWirePlacementResponseDTO> getTodayRecords(
+    public List<HtsWirePlacementResponseDTO> getRecordsByDate(
             String plantId,
             String vendorCode,
             String shift,
-            int createdBy);
+            int createdBy,
+            String date);
 }

@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -221,18 +222,21 @@ public class HtsWirePlacementServiceImpl implements HtsWirePlacementService {
     }
 
     @Override
-    public List<HtsWirePlacementResponseDTO> getTodayRecords(
-            String plantId,
+    public List<HtsWirePlacementResponseDTO> getRecordsByDate(
+      String plantId,
             String vendorCode,
             String shift,
-            int createdBy) {
+            int createdBy,
+            String date) {
 
-        LocalDate today = LocalDate.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        LocalDateTime startOfDay = today.atStartOfDay();
-        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
 
-        List<HtsWirePlacement> list = htsWirePlacementRepository.findTodayData(
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<HtsWirePlacement> list = htsWirePlacementRepository.findByDate(
                 plantId,
                 vendorCode,
                 shift,

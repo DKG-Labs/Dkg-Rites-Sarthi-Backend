@@ -94,10 +94,10 @@ public class HtsWirePlacementController {
     public ResponseEntity<Object> mouldHtsTodayRecord(  @RequestParam String plantId,
                                                                 @RequestParam String vendorCode,
                                                                 @RequestParam String shift,
-                                                                @RequestParam int createdBy) {
+                                                                @RequestParam int createdBy, String date) {
 
         List< HtsWirePlacementResponseDTO> list =
-               htsWirePlacementService.getTodayRecords(plantId,vendorCode, shift, createdBy);
+               htsWirePlacementService.getRecordsByDate(plantId,vendorCode, shift, createdBy, date);
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(list),

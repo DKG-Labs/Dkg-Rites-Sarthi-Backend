@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -186,18 +187,21 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
     }
 
     @Override
-    public List<MouldPreparationResponseDTO> getTodayRecords(
-            String plantId,
+    public List<MouldPreparationResponseDTO> getRecordsByDate(
+          String plantId,
             String vendorCode,
             String shift,
-            int createdBy) {
-        LocalDate today = LocalDate.now();
+            int createdBy,
+            String date) {
 
-        LocalDateTime startOfDay = today.atStartOfDay();
-        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
 
-        List<MouldPreparation> list = mouldPreparationRepository.findTodayData(
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<MouldPreparation> list = mouldPreparationRepository.findByDate(
                 plantId,
                 vendorCode,
                 shift,

@@ -29,5 +29,5 @@ public interface DemouldingInspectionService {
            String plantId,
            String vendorCode,
            String shift,
-           String createdBy);
+           String createdBy, String date);
 }

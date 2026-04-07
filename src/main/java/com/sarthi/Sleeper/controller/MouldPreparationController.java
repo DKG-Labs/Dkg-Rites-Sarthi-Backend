@@ -78,10 +78,10 @@ public class MouldPreparationController {
     public ResponseEntity<Object> mouldPreparationTodayRecord(  @RequestParam String plantId,
                                                                 @RequestParam String vendorCode,
                                                                 @RequestParam String shift,
-                                                                @RequestParam int createdBy) {
+                                                                @RequestParam int createdBy, @RequestParam String date) {
 
         List<MouldPreparationResponseDTO> list =
-                mouldPreparationService.getTodayRecords(plantId,vendorCode, shift, createdBy);
+                mouldPreparationService.getRecordsByDate(plantId,vendorCode, shift, createdBy, date);
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(list),

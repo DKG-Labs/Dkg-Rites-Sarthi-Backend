@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -369,14 +370,17 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
             String plantId,
             String vendorCode,
             String shift,
-            String createdBy) {
+            String createdBy,
+            String date) {
 
-        LocalDate today = LocalDate.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        LocalDateTime startOfDay = today.atStartOfDay();
-        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
 
-        List<DemouldingInspection> list = demouldingInspectionRepository.findTodayData(
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<DemouldingInspection> list = demouldingInspectionRepository.findByDate(
                 plantId,
                 vendorCode,
                 shift,
