@@ -13,6 +13,14 @@ import java.util.List;
 public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTransition, Integer> {
   WorkflowTransition findByWorkflowIdAndRequestId(Integer workflowId, String requestId);
 
+  @Query(value = "SELECT * FROM WORKFLOW_TRANSITION WHERE WORKFLOWTRANSITIONID IN (" +
+          "  SELECT MAX(WORKFLOWTRANSITIONID) " +
+          "  FROM WORKFLOW_TRANSITION " +
+          "  WHERE (:rio IS NULL OR RIO = :rio) " +
+          "  GROUP BY REQUESTID" +
+          ")", nativeQuery = true)
+  List<WorkflowTransition> findLatestByRio(@Param("rio") String rio);
+
   //    @Query("SELECT COUNT(w) FROM WorkflowTransition w " +
 //            "WHERE w.assignedToUser = :ieUserId AND w.status IN ('VERIFIED','ASSIGNED','INITIATED')")
 //    int countActiveCallsForIE(@Param("ieUserId") Integer ieUserId);

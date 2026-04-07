@@ -3,7 +3,10 @@ package com.sarthi.controller.certificate;
 import com.sarthi.dto.certificate.RawMaterialCertificateDto;
 import com.sarthi.dto.certificate.ProcessMaterialCertificateDto;
 import com.sarthi.dto.certificate.FinalCertificateDto;
+import com.sarthi.dto.certificate.IcReportDataResponse;
 import com.sarthi.service.certificate.CertificateService;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,10 +31,8 @@ public class CertificateController {
     /**
      * Generate Raw Material Inspection Certificate by IC Number (Query Parameter)
      *
-     * @param icNumber - Inspection Call Number (e.g., RM-IC-1767772023499 or N/RM-IC-1767618858167/RAJK)
+     * @param icNumber - Inspection Call Number (e.g., RM-IC-1767772023499)
      * @return RawMaterialCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/raw-material?icNumber=N/RM-IC-1767618858167/RAJK
      */
     @GetMapping("/raw-material")
     public ResponseEntity<?> generateRawMaterialCertificateByQuery(@RequestParam String icNumber) {
@@ -41,22 +42,15 @@ public class CertificateController {
             return ResponseEntity.ok(certificate);
         } catch (IllegalArgumentException e) {
             logger.error("Error generating certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Error: " + e.getMessage());
         } catch (Exception e) {
             logger.error("Unexpected error generating certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating certificate: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error generating certificate: " + e.getMessage());
         }
     }
 
     /**
-     * Generate Raw Material Inspection Certificate by IC Number (Path Variable - for simple IC numbers without slashes)
-     *
-     * @param icNumber - Inspection Call Number (e.g., RM-IC-1767772023499)
-     * @return RawMaterialCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/raw-material/RM-IC-1767772023499
+     * Generate Raw Material Inspection Certificate by IC Number (Path Variable)
      */
     @GetMapping("/raw-material/{icNumber}")
     public ResponseEntity<?> generateRawMaterialCertificate(@PathVariable String icNumber) {
@@ -66,22 +60,15 @@ public class CertificateController {
             return ResponseEntity.ok(certificate);
         } catch (IllegalArgumentException e) {
             logger.error("Error generating certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Error: " + e.getMessage());
         } catch (Exception e) {
             logger.error("Unexpected error generating certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating certificate: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error generating certificate: " + e.getMessage());
         }
     }
 
     /**
      * Generate Raw Material Inspection Certificate by Call ID
-     * 
-     * @param callId - Inspection Call ID
-     * @return RawMaterialCertificateDto with all certificate data
-     * 
-     * Example: GET /api/certificate/raw-material/by-id/1
      */
     @GetMapping("/raw-material/by-id/{callId}")
     public ResponseEntity<?> generateRawMaterialCertificateById(@PathVariable Long callId) {
@@ -91,72 +78,30 @@ public class CertificateController {
             return ResponseEntity.ok(certificate);
         } catch (IllegalArgumentException e) {
             logger.error("Error generating certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Error: " + e.getMessage());
         } catch (Exception e) {
             logger.error("Unexpected error generating certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating certificate: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error generating certificate: " + e.getMessage());
         }
     }
 
     /**
-     * Generate Process Material Inspection Certificate by IC Number (Query Parameter)
-     *
-     * @param icNumber - Inspection Call Number (e.g., EP-01090004)
-     * @return ProcessMaterialCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/process-material?icNumber=EP-01090004
+     * Generate Process Material Inspection Certificate by IC Number
      */
     @GetMapping("/process-material")
     public ResponseEntity<?> generateProcessMaterialCertificateByQuery(@RequestParam String icNumber) {
         try {
-            logger.info("Generating Process Material Certificate for IC Number (query param): {}", icNumber);
+            logger.info("Generating Process Material Certificate for IC Number: {}", icNumber);
             ProcessMaterialCertificateDto certificate = certificateService.generateProcessMaterialCertificate(icNumber);
             return ResponseEntity.ok(certificate);
-        } catch (IllegalArgumentException e) {
-            logger.error("Error generating process material certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
         } catch (Exception e) {
-            logger.error("Unexpected error generating process material certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating process material certificate: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Generate Process Material Inspection Certificate by IC Number (Path Variable)
-     *
-     * @param icNumber - Inspection Call Number (e.g., EP-01090004)
-     * @return ProcessMaterialCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/process-material/EP-01090004
-     */
-    @GetMapping("/process-material/{icNumber}")
-    public ResponseEntity<?> generateProcessMaterialCertificate(@PathVariable String icNumber) {
-        try {
-            logger.info("Generating Process Material Certificate for IC Number (path variable): {}", icNumber);
-            ProcessMaterialCertificateDto certificate = certificateService.generateProcessMaterialCertificate(icNumber);
-            return ResponseEntity.ok(certificate);
-        } catch (IllegalArgumentException e) {
-            logger.error("Error generating process material certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
-        } catch (Exception e) {
-            logger.error("Unexpected error generating process material certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating process material certificate: " + e.getMessage());
+            logger.error("Error generating process certificate", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
         }
     }
 
     /**
      * Generate Process Material Inspection Certificate by Call ID
-     *
-     * @param callId - Inspection Call ID
-     * @return ProcessMaterialCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/process-material/by-id/1
      */
     @GetMapping("/process-material/by-id/{callId}")
     public ResponseEntity<?> generateProcessMaterialCertificateById(@PathVariable Long callId) {
@@ -164,100 +109,70 @@ public class CertificateController {
             logger.info("Generating Process Material Certificate for Call ID: {}", callId);
             ProcessMaterialCertificateDto certificate = certificateService.generateProcessMaterialCertificateById(callId);
             return ResponseEntity.ok(certificate);
-        } catch (IllegalArgumentException e) {
-            logger.error("Error generating process material certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
         } catch (Exception e) {
-            logger.error("Unexpected error generating process material certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating process material certificate: " + e.getMessage());
+            logger.error("Error generating process certificate", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
         }
     }
 
     /**
-     * Generate Final Material Inspection Certificate by IC Number (Query Parameter)
-     *
-     * @param icNumber - Inspection Call Number (e.g., FM-IC-1767772023499)
-     * @return FinalCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/final-material?icNumber=FM-IC-1767772023499
+     * Generate Final Material Inspection Certificate by IC Number
      */
-    @GetMapping("/final-material")
+    @GetMapping("/final-product")
     public ResponseEntity<?> generateFinalCertificateByQuery(@RequestParam String icNumber) {
         try {
-            logger.info("Generating Final Material Certificate for IC Number (query param): {}", icNumber);
+            logger.info("Generating Final Material Certificate for IC Number: {}", icNumber);
             FinalCertificateDto certificate = certificateService.generateFinalCertificate(icNumber);
             return ResponseEntity.ok(certificate);
-        } catch (IllegalArgumentException e) {
-            logger.error("Error generating final material certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
         } catch (Exception e) {
-            logger.error("Unexpected error generating final material certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating final material certificate: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Generate Final Material Inspection Certificate by IC Number (Path Variable)
-     *
-     * @param icNumber - Inspection Call Number (e.g., FM-IC-1767772023499)
-     * @return FinalCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/final-material/FM-IC-1767772023499
-     */
-    @GetMapping("/final-material/{icNumber}")
-    public ResponseEntity<?> generateFinalCertificate(@PathVariable String icNumber) {
-        try {
-            logger.info("Generating Final Material Certificate for IC Number (path variable): {}", icNumber);
-            FinalCertificateDto certificate = certificateService.generateFinalCertificate(icNumber);
-            return ResponseEntity.ok(certificate);
-        } catch (IllegalArgumentException e) {
-            logger.error("Error generating final material certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
-        } catch (Exception e) {
-            logger.error("Unexpected error generating final material certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating final material certificate: " + e.getMessage());
+            logger.error("Error generating final certificate", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
         }
     }
 
     /**
      * Generate Final Material Inspection Certificate by Call ID
-     *
-     * @param callId - Inspection Call ID
-     * @return FinalCertificateDto with all certificate data
-     *
-     * Example: GET /api/certificate/final-material/by-id/1
      */
-    @GetMapping("/final-material/by-id/{callId}")
+    @GetMapping("/final-product/by-id/{callId}")
     public ResponseEntity<?> generateFinalCertificateById(@PathVariable Long callId) {
         try {
             logger.info("Generating Final Material Certificate for Call ID: {}", callId);
             FinalCertificateDto certificate = certificateService.generateFinalCertificateById(callId);
             return ResponseEntity.ok(certificate);
-        } catch (IllegalArgumentException e) {
-            logger.error("Error generating final material certificate: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Error: " + e.getMessage());
         } catch (Exception e) {
-            logger.error("Unexpected error generating final material certificate", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error generating final material certificate: " + e.getMessage());
+            logger.error("Error generating final certificate", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Generate IC Report Data with optional digital signature flag.
+     * Used for E-Sign workflow.
+     * 
+     * @param payload - Map of request body parameters
+     * @return IcReportDataResponse with status and report data
+     */
+    @PostMapping("/report-data")
+    public ResponseEntity<IcReportDataResponse> getReportData(@RequestBody Map<String, String> payload) {
+        try {
+            logger.info("Generating report data for E-Sign with payload: {}", payload);
+            IcReportDataResponse response = certificateService.generateReportData(payload);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error generating report data for e-sign", e);
+            IcReportDataResponse errorResponse = IcReportDataResponse.builder()
+                    .status("0")
+                    .responseText("Error generating report data: " + e.getMessage())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
     /**
      * Health check endpoint
-     *
-     * Example: GET /api/certificate/health
      */
     @GetMapping("/health")
-    public ResponseEntity<String> health() {
-        return ResponseEntity.ok("Certificate Service is running");
+    public ResponseEntity<String> healthCheck() {
+        return ResponseEntity.ok("Certificate Service is UP");
     }
 }
-
