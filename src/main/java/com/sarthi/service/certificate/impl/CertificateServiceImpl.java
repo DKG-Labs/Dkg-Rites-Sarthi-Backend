@@ -18,11 +18,9 @@ import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmHeatQuantity;
 import com.sarthi.entity.rawmaterial.RmInspectionDetails;
 import com.sarthi.entity.RmHeatFinalResult;
-import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
 import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
 import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
-import com.sarthi.repository.InspectionCompleteDetailsRepository;
 import com.sarthi.repository.MainPoInformationRepository;
 import com.sarthi.repository.PoHeaderRepository;
 import com.sarthi.repository.PoItemRepository;
@@ -51,12 +49,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -92,7 +88,7 @@ public class CertificateServiceImpl implements CertificateService {
     private MainPoInformationRepository mainPoInformationRepository;
 
     @Autowired
-    private InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
+    private com.sarthi.repository.InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
 
     @Autowired
     private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
@@ -184,9 +180,8 @@ public class CertificateServiceImpl implements CertificateService {
         }
 
         // 7. Load Sections Pre-calculated
-        String poNo = inspectionCall.getPoNo();
-        String offeredInst = calculateOfferedInstallment(poNo);
-        String passedInst = calculatePassedInstallment(poNo);
+        calculateOfferedInstallment(inspectionCall.getPoNo());
+        calculatePassedInstallment(inspectionCall.getPoNo());
 
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
         
@@ -338,15 +333,6 @@ public class CertificateServiceImpl implements CertificateService {
         return basePoDetails + " dated " + dateStr;
     }
 
-    /**
-     * Build Contractor's PO Number & Date
-     */
-    private String buildContractorPo(RmInspectionDetails rmDetails) {
-        if (rmDetails == null) return "";
-        return (rmDetails.getSubPoNumber() != null ? rmDetails.getSubPoNumber() : "") +
-               " dated " +
-               (rmDetails.getSubPoDate() != null ? formatDate(rmDetails.getSubPoDate()) : "");
-    }
 
     /**
      * Build Consignee Railway from PO Items
@@ -531,14 +517,6 @@ public class CertificateServiceImpl implements CertificateService {
         }
     }
 
-    /**
-     * Build inspection type for raw material certificate
-     */
-    private String buildInspectionType(RmInspectionDetails rmDetails) {
-        // This method was not part of the original code, but is called in the instruction.
-        // Providing a placeholder implementation.
-        return "Visual/Physical/Chemical/Metallurgical/Dimensional";
-    }
 
     /**
      * Build Sealing Pattern
@@ -675,26 +653,6 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
-     * Build Date of Inspection
-     * Use created_at from rm_heat_final_result table (earliest date if multiple heats)
-     */
-    private String buildDateOfInspection(List<RmHeatFinalResult> heatResults) {
-        if (heatResults == null || heatResults.isEmpty()) {
-            return "";
-        }
-
-        // Find the earliest created_at from heat results
-        LocalDate earliestDate = heatResults.stream()
-                .map(RmHeatFinalResult::getCreatedAt)
-                .filter(dateTime -> dateTime != null)
-                .map(LocalDateTime::toLocalDate)
-                .min(LocalDate::compareTo)
-                .orElse(null);
-
-        return formatDate(earliestDate);
-    }
-
-    /**
      * Format LocalDate to dd/MM/yyyy
      */
     private String formatDate(LocalDate date) {
@@ -732,24 +690,21 @@ public class CertificateServiceImpl implements CertificateService {
         logger.info("Building Process Material certificate DTO for IC: {}", inspectionCall.getIcNumber());
 
         // 2. Fetch Process Inspection Details (get first lot if multiple lots exist)
-        List<ProcessInspectionDetails> processDetailsList = processInspectionDetailsRepository.findByIcId(
+        processInspectionDetailsRepository.findByIcId(
                 Long.valueOf(inspectionCall.getId()));
-        ProcessInspectionDetails processDetails = processDetailsList.isEmpty() ? null : processDetailsList.get(0);
 
         // 3. Fetch PO Information
         PoHeader poHeader = poHeaderRepository.findByPoNo(inspectionCall.getPoNo()).orElse(null);
         List<PoItem> poItems = new ArrayList<>();
         if (poHeader != null) {
-            poItems = poItemRepository.findByPoHeader_Id(poHeader.getId());
+            poItemRepository.findByPoHeader_Id(poHeader.getId());
         }
-        PoItem poItem = poItems.isEmpty() ? null : poItems.get(0);
         List<MainPoInformation> mainPoInfos = mainPoInformationRepository.findByPoNo(inspectionCall.getPoNo());
         MainPoInformation mainPoInfo = mainPoInfos.isEmpty() ? null : mainPoInfos.get(0);
 
         // 4. Fetch Inspection Complete Details (for certificate number)
-        InspectionCompleteDetails completeDetails = inspectionCompleteDetailsRepository
-                .findByCallNo(inspectionCall.getIcNumber())
-                .orElse(null);
+        inspectionCompleteDetailsRepository
+                .findByCallNo(inspectionCall.getIcNumber());
 
         // 5. Fetch Process Line Final Results (for lot details)
         List<ProcessLineFinalResult> lineFinalResults = processLineFinalResultRepository
@@ -759,9 +714,8 @@ public class CertificateServiceImpl implements CertificateService {
         List<ProcessMaterialCertificateDto.LotDetailDto> lots = buildProcessLotDetails(lineFinalResults);
 
         // 6. Load Sections Pre-calculated
-        String poNo = inspectionCall.getPoNo();
-        String offeredInst = calculateOfferedInstallment(poNo);
-        String passedInst = calculatePassedInstallment(poNo);
+        calculateOfferedInstallment(inspectionCall.getPoNo());
+        calculatePassedInstallment(inspectionCall.getPoNo());
 
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
 
@@ -901,22 +855,6 @@ public class CertificateServiceImpl implements CertificateService {
             return "RT-3701";
         }
         return "";
-    }
-
-    /**
-     * Build PO details for process certificate
-     */
-    private String buildPoDetails(PoHeader poHeader) {
-        if (poHeader == null) return "";
-        return poHeader.getPoNo() + " dated " + formatDate(poHeader.getPoDate() != null ? poHeader.getPoDate().toLocalDate() : null);
-    }
-
-    /**
-     * Build inspection date range for process certificate
-     */
-    private String buildInspectionDateRange(InspectionCall inspectionCall) {
-        // For now, return the desired inspection date
-        return formatDate(inspectionCall.getDesiredInspectionDate());
     }
 
     /**
@@ -1207,18 +1145,29 @@ public class CertificateServiceImpl implements CertificateService {
             }
 
             // 2. Base64 Encode
-            String base64Pdf = Base64.getEncoder().encodeToString(pdfBytes);
+            String base64Pdf = Base64.getEncoder().encodeToString(pdfBytes).trim();
 
             if (isDigitallySign) {
-                // 3. Construct signing XML with precise Coordinates (sigX=380, sigY=100)
-                String responseText = "<request>" +
-                        "<command>signPdf</command>" +
-                        "<txn>SARTHI" + System.currentTimeMillis() + "</txn>" +
-                        "<fileData><![CDATA[" + base64Pdf + "]]></fileData>" +
-                        "<sigX>380</sigX>" +
-                        "<sigY>100</sigY>" +
-                        "<sigPage>1</sigPage>" +
-                        "</request>";
+                // --- MANDATORY VALIDATIONS ---
+                if (base64Pdf.isEmpty()) {
+                    throw new Exception("Generated PDF Base64 is empty");
+                }
+                // 1. Validate PDF Base64 (MANDATORY: must start with JVBER)
+                if (base64Pdf == null || !base64Pdf.startsWith("JVBER")) {
+                    throw new Exception("Invalid PDF data: Missing JVBER header.");
+                }
+
+                // 2. Mandatory Logging
+                logger.info("PKI Payload - Length: {}", base64Pdf.length());
+                logger.info("PKI Payload - First 20 chars: {}", base64Pdf.substring(0, Math.min(20, base64Pdf.length())));
+
+                // 3. Generate unique Transaction ID (Format: SARTHI{timestamp})
+                String txnId = "SARTHI" + System.currentTimeMillis();
+
+                // 4. Construct signing XML (MANDATORY: PDF_SIGN | data | Single Line | No XML Declaration)
+                String responseText = "<request><command>PDF_SIGN</command><txn>" + txnId + "</txn><data>" + base64Pdf + "</data><sigX>380</sigX><sigY>100</sigY><sigPage>1</sigPage></request>";
+
+                logger.info("PKI XML Request (Masked): <request><command>PDF_SIGN</command><txn>{}</txn><data>[{} bytes]</data><sigX>380</sigX><sigY>100</sigY><sigPage>1</sigPage></request>", txnId, base64Pdf.length());
 
                 return IcReportDataResponse.builder()
                         .status("1")
