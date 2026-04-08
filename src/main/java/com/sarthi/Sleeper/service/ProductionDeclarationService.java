@@ -34,6 +34,12 @@ public interface ProductionDeclarationService {
                                      LocalDate castingDate,
                                      String plantId,
                                      String productionUnit);
+
+    public List<Map<String, Object>> getBatchWithId(
+            Long vendorId,
+            LocalDate castingDate,
+            String plantId,
+            String productionUnit);
     public List<String> getBenchNumbers(String batchNo);
 
     public List<String> getSleeperTypes(String batchNo, Integer benchNo);

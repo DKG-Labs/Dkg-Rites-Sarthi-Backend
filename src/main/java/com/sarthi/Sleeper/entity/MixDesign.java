@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,6 +24,8 @@ public class MixDesign {
     private Double ca2;
     private Double fa;
     private Double water;
+    private BigDecimal admixtureKg;
+    private BigDecimal admixturePercentage;
 
     @Column(name = "ac_ratio")
     private Double acRatio;

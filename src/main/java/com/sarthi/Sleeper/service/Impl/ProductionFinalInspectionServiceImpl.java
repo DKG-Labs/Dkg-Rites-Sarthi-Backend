@@ -7,11 +7,13 @@ import com.sarthi.Sleeper.entity.FinalInspection.*;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper;
 import com.sarthi.Sleeper.repository.DemouldingDefectiveSleeperRepository;
+import com.sarthi.Sleeper.repository.DemouldingInspectionRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.*;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
+import com.sarthi.Sleeper.repository.SteamCubeSampleDeclarationRepository;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.UserMasterRepository;
@@ -55,6 +57,13 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     private SleeperWorkflowRepository sleeperWorkflowRepository;
     @Autowired
     private DemouldingDefectiveSleeperRepository demouldingDefectiveSleeperRepository;
+
+    @Autowired
+    private SteamCubeSampleDeclarationRepository steamCubeSampleDeclarationRepository;
+    @Autowired
+    private DemouldingInspectionRepository demouldingInspectionRepository;
+    @Autowired
+    private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
 
     /*  @Override
       public void saveInspection(InspectionSaveRequestDto dto) {
@@ -271,7 +280,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 completed = true;
             }
 
-            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 20){
+            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 10){
                 completed = true;
             }
 
@@ -284,7 +293,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 completed = true;
             }
 
-            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 5){
+            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 1){
                 completed = true;
             }
 
@@ -841,11 +850,36 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             ProductionDeclaration declaration =
                     productionDeclarationRepository.findBatchById(batchId);
 
-            response.setBatchId(batchId);
-            if (declaration != null) {
-                response.setBatchNumber(declaration.getBatchNumber());
-                response.setCastDate(declaration.getCastingDate() != null ? declaration.getCastingDate().toString() : "");
+//            response.setBatchId(batchId);
+//            if (declaration != null) {
+//                response.setBatchNumber(declaration.getBatchNumber());
+//                response.setCastDate(declaration.getCastingDate() != null ? declaration.getCastingDate().toString() : "");
+//            }
+
+
+            if (declaration == null) continue;
+
+            String batchNo = declaration.getBatchNumber();
+
+            boolean steamDone = steamCubeSampleDeclarationRepository.existsSteamCube(batchNo);
+            boolean demouldingDone = demouldingInspectionRepository.existsDemoulding(batchNo);
+            boolean waterDone = waterCubeStrengthTestRepository.existsWaterCube(batchNo);
+           // boolean modulusDone = modulusRepo.existsModulus(batchNo);
+
+//  If any missing → skip batch
+            if (!steamDone || !demouldingDone || !waterDone ) {
+                continue;
             }
+
+
+            response.setBatchId(batchId);
+            response.setBatchNumber(batchNo);
+            response.setCastDate(
+                    declaration.getCastingDate() != null
+                            ? declaration.getCastingDate().toString()
+                            : ""
+            );
+
             //  response.setTotalSleepers((long) results.size());
             response.setTotalSleepers((long) grouped.size());
             response.setGoodCount((long) goodSleepers.size());

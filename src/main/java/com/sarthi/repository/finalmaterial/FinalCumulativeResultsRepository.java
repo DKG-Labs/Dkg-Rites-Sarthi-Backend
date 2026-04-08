@@ -79,7 +79,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 Pageable pageable);
 
      */
-    @Query(value = """
+  /*  @Query(value = """
 SELECT
     p.id,
     p.company_name,
@@ -130,6 +130,69 @@ GROUP BY
     ip.rio,
     f.accepted_qty,
     f.rejected_qty
+""",
+            countQuery = "SELECT COUNT(*) FROM final_cumulative_results",
+            nativeQuery = true)
+    Page<Object[]> fetchFinal(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("rio") String rio,
+            @Param("zone") String zone,
+            @Param("vendor") String vendor,
+            Pageable pageable); */
+    @Query(value = """
+SELECT
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    'FINAL' AS stage,
+
+    (SUM(f.accepted_qty) + SUM(f.rejected_qty)) AS inspected_qty,
+    SUM(f.accepted_qty) AS accepted_qty,
+    SUM(f.rejected_qty) AS rejected_qty
+
+FROM (
+    SELECT
+        inspection_call_no,
+        SUM(COALESCE(qty_now_passed,0)) AS accepted_qty,
+        SUM(COALESCE(qty_now_rejected,0)) AS rejected_qty
+    FROM final_cumulative_results
+    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
+    GROUP BY inspection_call_no
+) f
+
+JOIN inspection_calls ic 
+    ON ic.ic_number = f.inspection_call_no
+
+JOIN pincode_poi_mapping p 
+    ON p.poi_code = ic.place_of_inspection
+
+JOIN ie_pincode_poi_mapping ipm 
+    ON ipm.poi_code = p.poi_code 
+    AND ipm.ie_type = 'PRIMARY'
+
+JOIN ie_profile ip 
+    ON ip.employee_code = ipm.employee_code
+
+JOIN user_master u 
+    ON u.employee_code = ip.employee_code
+
+LEFT JOIN po_header ph 
+    ON ph.po_no = ic.po_no
+
+WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+GROUP BY
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio
 """,
             countQuery = "SELECT COUNT(*) FROM final_cumulative_results",
             nativeQuery = true)

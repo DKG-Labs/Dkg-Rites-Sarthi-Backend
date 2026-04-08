@@ -119,6 +119,17 @@ public class productionDeclarationController {
                         ResponseBuilder.getSuccessResponse(service.getBatchNumbers(vendorId, date, plantId, productionUnit )),
                         HttpStatus.OK);
         }
+        @GetMapping("getAll/batchesWithId")
+        public ResponseEntity<Object>  getBatchNumbersWithId(
+                @RequestParam Long vendorId,
+                @RequestParam String castingDate,  @RequestParam String plantId, @RequestParam String productionUnit) {
+
+                LocalDate date = CommonUtils.convertStringToDateObject(castingDate);
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(service.getBatchWithId(vendorId, date, plantId, productionUnit )),
+                        HttpStatus.OK);
+        }
 
         @GetMapping("getAll/benches")
         public ResponseEntity<Object>  getBenchNumbers(

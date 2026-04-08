@@ -47,6 +47,9 @@ public class MixDesignServiceImpl implements MixDesignService {
         entity.setAcRatio(dto.getAcRatio());   // coming from frontend
         entity.setWcRatio(dto.getWcRatio());   // coming from frontend
 
+        entity.setAdmixtureKg(dto.getAdmixtureKg());
+        entity.setAdmixturePercentage(dto.getAdmixturePercentage());
+
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
 
@@ -75,6 +78,10 @@ public class MixDesignServiceImpl implements MixDesignService {
         entity.setFa(dto.getFa());
         entity.setWater(dto.getWater());
         entity.setVendorCode(dto.getVendorCode());
+
+        entity.setAdmixtureKg(dto.getAdmixtureKg());
+        entity.setAdmixturePercentage(dto.getAdmixturePercentage());
+
 
         entity.setPlantId(dto.getPlantId());
 
@@ -190,6 +197,10 @@ public class MixDesignServiceImpl implements MixDesignService {
         dto.setCa2(entity.getCa2());
         dto.setFa(entity.getFa());
         dto.setWater(entity.getWater());
+
+        dto.setAdmixtureKg(entity.getAdmixtureKg());
+        dto.setAdmixturePercentage(entity.getAdmixturePercentage());
+
         dto.setAcRatio(entity.getAcRatio());
         dto.setWcRatio(entity.getWcRatio());
         dto.setCreatedBy(entity.getCreatedBy());

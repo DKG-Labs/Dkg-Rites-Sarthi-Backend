@@ -48,4 +48,11 @@ public interface DemouldingInspectionRepository extends JpaRepository<Demoulding
             LocalDateTime startOfDay,
             LocalDateTime endOfDay
     );
+
+    @Query("""
+SELECT COUNT(d) > 0 
+FROM DemouldingInspection d 
+WHERE d.batchNo = :batchNo
+""")
+    boolean existsDemoulding(String batchNo);
 }
