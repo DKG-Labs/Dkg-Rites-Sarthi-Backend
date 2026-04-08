@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.dto;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -32,4 +33,7 @@ public class MixDesignResponseDto {
 
     private String vendorCode;
     private String plantId;
+
+    private BigDecimal admixtureKg;
+    private BigDecimal admixturePresentage;
 }

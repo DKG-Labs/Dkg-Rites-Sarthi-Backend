@@ -3,6 +3,8 @@ package com.sarthi.Sleeper.dto;
 import jakarta.persistence.Column;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class MixDesignRequestDto {
 
@@ -23,4 +25,7 @@ public class MixDesignRequestDto {
     private String plantId;
     private Double acRatio;
     private Double wcRatio;
+
+    private BigDecimal admixtureKg;
+    private BigDecimal admixturePresentage;
 }
