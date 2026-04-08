@@ -238,7 +238,7 @@ Page<Object[]> fetchProcess(
 
  */
 
-    @Query(value = """
+  /*  @Query(value = """
 SELECT
     p.id,
     p.company_name,
@@ -303,7 +303,84 @@ GROUP BY
             @Param("rio") String rio,
             @Param("zone") String zone,
             @Param("vendor") String vendor,
-            Pageable pageable);
+            Pageable pageable);*/
+  @Query(value = """
+SELECT
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    'PROCESS' AS stage,
+
+    (SUM(pl.accepted_qty) + SUM(pl.rejected_qty)) AS inspected_qty,
+    SUM(pl.accepted_qty) AS accepted_qty,
+    SUM(pl.rejected_qty) AS rejected_qty
+
+FROM (
+    SELECT
+        inspection_call_no,
+        created_by,
+
+        LEAST(
+            SUM(COALESCE(shearing_accepted,0)),
+            SUM(COALESCE(turning_accepted,0)),
+            SUM(COALESCE(mpi_accepted,0)),
+            SUM(COALESCE(forging_accepted,0)),
+            SUM(COALESCE(quenching_accepted,0)),
+            SUM(COALESCE(tempering_accepted,0))
+        ) AS accepted_qty,
+
+        SUM(COALESCE(total_rejected,0)) AS rejected_qty
+
+    FROM process_line_final_result
+    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
+
+    GROUP BY inspection_call_no, created_by
+) pl
+
+JOIN inspection_calls ic 
+    ON ic.ic_number = pl.inspection_call_no
+
+JOIN pincode_poi_mapping p 
+    ON p.poi_code = ic.place_of_inspection
+
+
+JOIN poi_process_ie_mapping ppm 
+    ON ppm.poi_code = p.poi_code
+
+-
+JOIN user_master u 
+    ON u.userid = pl.created_by
+    AND u.employee_code = ppm.employee_code   
+
+LEFT JOIN ie_profile ip 
+    ON ip.employee_code = u.employee_code
+
+LEFT JOIN po_header ph 
+    ON ph.po_no = ic.po_no
+
+WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+GROUP BY
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio
+""",
+          countQuery = "SELECT COUNT(*) FROM process_line_final_result",
+          nativeQuery = true)
+  Page<Object[]> fetchProcess(
+          @Param("startDate") LocalDate startDate,
+          @Param("endDate") LocalDate endDate,
+          @Param("rio") String rio,
+          @Param("zone") String zone,
+          @Param("vendor") String vendor,
+          Pageable pageable);
 
     /*
     @Query(value = """

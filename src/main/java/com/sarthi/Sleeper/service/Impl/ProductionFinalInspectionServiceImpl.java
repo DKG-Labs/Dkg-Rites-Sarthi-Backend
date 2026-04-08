@@ -271,7 +271,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 completed = true;
             }
 
-            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 20){
+            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 10){
                 completed = true;
             }
 
@@ -284,7 +284,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 completed = true;
             }
 
-            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 5){
+            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 1){
                 completed = true;
             }
 
