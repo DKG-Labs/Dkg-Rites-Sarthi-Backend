@@ -43,6 +43,7 @@ public class SteamCuringServiceImpl implements SteamCuringService {
 
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setCreatedDate(LocalDateTime.now());
+            entity.setLocation(dto.getLocation());
 
 
             // ===== SCADA =====
@@ -151,6 +152,8 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             entity.setBatchNo(dto.getBatchNo());
             entity.setChamber(dto.getChamber());
             entity.setGrade(dto.getGrade());
+
+            entity.setLocation(dto.getLocation());
 
             if (dto.getEntryDate() != null) {
                 entity.setEntryDate(
@@ -306,6 +309,7 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             dto.setBatchNo(entity.getBatchNo());
             dto.setChamber(entity.getChamber());
             dto.setGrade(entity.getGrade());
+            dto.setLocation(entity.getLocation());
 
             if (entity.getEntryDate() != null) {
                 dto.setEntryDate(

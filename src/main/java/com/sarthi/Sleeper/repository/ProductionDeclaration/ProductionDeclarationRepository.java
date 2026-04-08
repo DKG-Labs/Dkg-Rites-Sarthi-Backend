@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.repository.ProductionDeclaration;
 
+import com.sarthi.Sleeper.dto.BatchWithIdProjection;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import org.springframework.data.domain.Page;
@@ -171,4 +172,32 @@ JOIN production_declaration d
 WHERE d.batch_number = :batchNo
 """, nativeQuery = true)
     List<Object[]> findGangRanges(String batchNo);
+
+    @Query(value = """
+SELECT DISTINCT 
+    p.batch_number AS batchNumber,
+    p.id AS id
+FROM production_declaration p
+JOIN sleeper_workflow_transaction w 
+  ON w.request_id = p.id
+WHERE p.created_by = :vendorId
+  AND p.casting_date = :castingDate
+  AND p.plant_id = :plantId
+  AND p.production_unit = :productionUnit
+  AND w.module_id = 11
+  AND LOWER(w.status) = 'completed'
+  AND w.workflow_transition_id = (
+      SELECT MAX(w2.workflow_transition_id)
+      FROM sleeper_workflow_transaction w2
+      WHERE w2.request_id = p.id
+        AND w2.module_id = 11
+  )
+""", nativeQuery = true)
+    List<BatchWithIdProjection> findBatchWithId(
+            Long vendorId,
+            LocalDate castingDate,
+            String plantId,
+            String productionUnit
+    );
+
 }

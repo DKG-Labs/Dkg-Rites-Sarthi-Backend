@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.service.Impl;
 
+import com.sarthi.Sleeper.dto.BatchWithIdProjection;
 import com.sarthi.Sleeper.dto.BenchDetailsResponseDto;
 import com.sarthi.Sleeper.dto.ProductionDeclaration.*;
 import com.sarthi.Sleeper.entity.PlantProfile;
@@ -1032,6 +1033,31 @@ public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
 
             return productionSleeperRepository.findLongLineSleepers(batchNo, benchNo, sleeperType);
         }
+    }
+
+
+    @Override
+    public List<Map<String, Object>> getBatchWithId(
+            Long vendorId,
+            LocalDate castingDate,
+            String plantId,
+            String productionUnit) {
+
+        List<BatchWithIdProjection> list =
+                repository.findBatchWithId(
+                        vendorId, castingDate, plantId, productionUnit
+                );
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (BatchWithIdProjection p : list) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("batchNumber", p.getBatchNumber());
+            map.put("id", p.getId());
+            result.add(map);
+        }
+
+        return result;
     }
 
 }

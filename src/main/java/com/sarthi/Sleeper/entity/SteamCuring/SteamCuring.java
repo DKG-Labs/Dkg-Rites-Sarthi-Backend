@@ -43,6 +43,8 @@ public class SteamCuring {
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
 
+    private String location;
+
 
     @OneToMany(mappedBy = "steamCuring",
             cascade = CascadeType.ALL,

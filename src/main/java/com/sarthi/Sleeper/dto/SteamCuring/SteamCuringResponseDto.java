@@ -14,6 +14,8 @@ public class SteamCuringResponseDto {
     private String grade;
     private String entryDate;
 
+    private String location;
+
     private List<SteamCuringScadaDto> scadaRecords;
     private List<SteamCuringManualDto> manualRecords;
 }

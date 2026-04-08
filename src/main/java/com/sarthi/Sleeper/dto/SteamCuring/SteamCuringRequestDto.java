@@ -12,6 +12,7 @@ public class SteamCuringRequestDto {
     private String grade;
     private String entryDate;
 
+    private String location;
     private Integer createdBy;
     private Integer updatedBy;
 
