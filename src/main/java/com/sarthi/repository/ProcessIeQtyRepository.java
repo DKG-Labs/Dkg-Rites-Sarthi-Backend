@@ -350,7 +350,6 @@ JOIN pincode_poi_mapping p
 JOIN poi_process_ie_mapping ppm 
     ON ppm.poi_code = p.poi_code
 
--
 JOIN user_master u 
     ON u.userid = pl.created_by
     AND u.employee_code = ppm.employee_code   
