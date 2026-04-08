@@ -27,5 +27,5 @@ public class MixDesignRequestDto {
     private Double wcRatio;
 
     private BigDecimal admixtureKg;
-    private BigDecimal admixturePresentage;
+    private BigDecimal admixturePercentage;
 }

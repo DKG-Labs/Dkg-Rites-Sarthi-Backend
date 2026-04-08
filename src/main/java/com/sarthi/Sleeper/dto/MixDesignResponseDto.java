@@ -35,5 +35,5 @@ public class MixDesignResponseDto {
     private String plantId;
 
     private BigDecimal admixtureKg;
-    private BigDecimal admixturePresentage;
+    private BigDecimal admixturePercentage;
 }

@@ -25,7 +25,7 @@ public class MixDesign {
     private Double fa;
     private Double water;
     private BigDecimal admixtureKg;
-    private BigDecimal admixturePresentage;
+    private BigDecimal admixturePercentage;
 
     @Column(name = "ac_ratio")
     private Double acRatio;
