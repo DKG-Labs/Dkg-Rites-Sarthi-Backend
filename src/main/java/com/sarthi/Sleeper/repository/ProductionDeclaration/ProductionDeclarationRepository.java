@@ -104,7 +104,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers
 SELECT DISTINCT b.bench_no
 FROM production_bench_group b
 JOIN production_stress_chamber c 
-    ON b.chamber_id = c.chamber_no
+    ON b.chamber_id = c.id
 JOIN production_declaration d 
     ON c.declaration_id = d.id
 WHERE d.batch_number = :batchNo
