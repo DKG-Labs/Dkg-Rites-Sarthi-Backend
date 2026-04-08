@@ -1,7 +1,9 @@
 package com.sarthi.Sleeper.controller;
 
 
+import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentResponseDto;
 import com.sarthi.Sleeper.dto.SteamCuring.SteamCuringRequestDto;
+import com.sarthi.Sleeper.dto.SteamCuring.SteamCuringResponseDto;
 import com.sarthi.Sleeper.service.SteamCuringService;
 
 import com.sarthi.util.ResponseBuilder;
@@ -10,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/steam-curing")
@@ -84,5 +88,20 @@ public class SteamCuringController {
                 ResponseBuilder.getSuccessResponse(
                         "Deleted Successfully"),
                 HttpStatus.OK);
+    }
+
+    @GetMapping("/steamCuringData")
+    public ResponseEntity<Object> steamCuringByDate(  @RequestParam String plantId,
+                                                         @RequestParam String vendorCode,
+                                                         @RequestParam String shift,
+                                                         @RequestParam int createdBy, @RequestParam String date) {
+
+        List<SteamCuringResponseDto> list =
+                steamCuringService.getRecordsByDate(plantId,vendorCode, shift, createdBy, date);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
+                HttpStatus.OK
+        );
     }
 }

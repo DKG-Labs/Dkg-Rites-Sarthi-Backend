@@ -46,6 +46,12 @@ public class SteamCuring {
     private String location;
 
 
+    private String vendorCode;
+    private String plantId;
+
+    private String shift;
+
+
     @OneToMany(mappedBy = "steamCuring",
             cascade = CascadeType.ALL,
             orphanRemoval = true)

@@ -17,7 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,6 +37,10 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             entity.setBatchNo(dto.getBatchNo());
             entity.setChamber(dto.getChamber());
             entity.setGrade(dto.getGrade());
+
+            entity.setShift(dto.getShift());
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setPlantId(dto.getPlantId());
 
             if (dto.getEntryDate() != null) {
                 entity.setEntryDate(
@@ -152,6 +158,10 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             entity.setBatchNo(dto.getBatchNo());
             entity.setChamber(dto.getChamber());
             entity.setGrade(dto.getGrade());
+
+            entity.setShift(dto.getShift());
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setPlantId(dto.getPlantId());
 
             entity.setLocation(dto.getLocation());
 
@@ -311,6 +321,10 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             dto.setGrade(entity.getGrade());
             dto.setLocation(entity.getLocation());
 
+            dto.setShift(entity.getShift());
+            dto.setVendorCode(entity.getVendorCode());
+            dto.setPlantId(entity.getPlantId());
+
             if (entity.getEntryDate() != null) {
                 dto.setEntryDate(
                         CommonUtils.convertDateToString(entity.getEntryDate()));
@@ -390,5 +404,35 @@ public class SteamCuringServiceImpl implements SteamCuringService {
 
             return dto;
         }
+
+
+    @Override
+    public List<SteamCuringResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<SteamCuring> list = steamCuringRepository.findByDate(
+                plantId.trim(),
+                vendorCode.trim(),
+                shift.trim(),
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
 
 }

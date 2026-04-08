@@ -16,6 +16,12 @@ public class SteamCuringResponseDto {
 
     private String location;
 
+
+    private String vendorCode;
+    private String plantId;
+
+    private String shift;
+
     private List<SteamCuringScadaDto> scadaRecords;
     private List<SteamCuringManualDto> manualRecords;
 }

@@ -19,4 +19,11 @@ public interface SteamCuringService {
    public List<SteamCuringResponseDto> getAll();
 
    public void delete(Long id);
+
+   public List<SteamCuringResponseDto> getRecordsByDate(
+           String plantId,
+           String vendorCode,
+           String shift,
+           int createdBy,
+           String date);
 }

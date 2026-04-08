@@ -16,6 +16,12 @@ public class SteamCuringRequestDto {
     private Integer createdBy;
     private Integer updatedBy;
 
+    private String vendorCode;
+    private String plantId;
+
+    private String shift;
+
+
     private List<SteamCuringScadaDto> scadaRecords;
     private List<SteamCuringManualDto> manualRecords;
 }
