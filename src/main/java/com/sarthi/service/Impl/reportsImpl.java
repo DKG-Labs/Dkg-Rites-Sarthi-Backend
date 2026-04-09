@@ -1719,26 +1719,26 @@ public class reportsImpl implements reports {
 
         @Override
         public DashboardSummaryDto getDashboardSummary() {
-                long poIssued = poHeaderRepository.countTotalPo();
-
-                Long qtyNos = poItemRepository.sumQtyByUomNos();
-                Double qtyMt = poItemRepository.sumQtyByUomMt();
+                // Modified Logic: Filter PO Issued and PO Quantity specifically for 'Elastic Rail Clips'
+                // Implementation specifically placed at the bottom of this file as requested.
+                long poIssued = getFilteredPoIssuedCount();
+                Long qtyNos = getFilteredPoQuantityNos();
+                Double qtyMt = getFilteredPoQuantityMt();
 
                 Long finalQtyPassed = finalCumulativeResultsRepository.sumTotalQtyNowPassed();
 
-                // New calculations for last 30 days
+                // New calculations
                 LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-                java.util.Date thirtyDaysAgoDate = java.util.Date
-                        .from(thirtyDaysAgo.atZone(java.time.ZoneId.systemDefault()).toInstant());
+                LocalDateTime wholeDataStart = LocalDateTime.of(2000, 1, 1, 0, 0);
 
-                // 1. Avg Production / Day (based on last 30 days)
+                // 1. Avg Production / Day (based on last 30 days) - No change here
 
-                // 2. Process Rejection (Revised Logic)
-                double processRejectionPctValue = calculateProcessRejectionPercentageRevisedLogic(thirtyDaysAgo);
+                // 2. Process Rejection (Revised Logic) - Updated to Whole Data
+                double processRejectionPctValue = calculateProcessRejectionPercentageRevisedLogic(wholeDataStart);
 
-                // 3. Final Rejection %
+                // 3. Final Rejection % - Updated to Whole Data
                 List<Object[]> finalRejResults = finalCumulativeResultsRepository
-                        .sumFinalRejectionLast30Days(thirtyDaysAgo);
+                        .sumFinalRejectionLast30Days(wholeDataStart);
                 double finalRejectionPctValue = 0.0;
                 if (finalRejResults != null && !finalRejResults.isEmpty() && finalRejResults.get(0) != null) {
                         Object[] row = finalRejResults.get(0);
@@ -1749,8 +1749,8 @@ public class reportsImpl implements reports {
                         }
                 }
 
-                // 4. Raw Material Rejection %
-                List<Object[]> rmRejResults = rmHeatFinalResultRepository.sumRmRejectionLast30Days(thirtyDaysAgo);
+                // 4. Raw Material Rejection % - Updated to Whole Data
+                List<Object[]> rmRejResults = rmHeatFinalResultRepository.sumRmRejectionLast30Days(wholeDataStart);
                 double rmRejectionPctValue = 0.0;
                 if (rmRejResults != null && !rmRejResults.isEmpty() && rmRejResults.get(0) != null) {
                         Object[] row = rmRejResults.get(0);
@@ -2205,5 +2205,30 @@ public class reportsImpl implements reports {
                         e.printStackTrace();
                 }
                 return trend;
+        }
+
+        // =========================================================================
+        // FILTERED METRICS LOGIC (Calculated at the bottom for easy reference)
+        // =========================================================================
+
+        /**
+         * Returns total PO count filtered by 'Elastic Rail Clips' category.
+         */
+        private long getFilteredPoIssuedCount() {
+                return poHeaderRepository.countPoByItemCatDescr("Elastic Rail Clips");
+        }
+
+        /**
+         * Returns total sum of quantity (Nos.) filtered by 'Elastic Rail Clips' category.
+         */
+        private Long getFilteredPoQuantityNos() {
+                return poItemRepository.sumQtyByItemCatDescrAndUomNos("Elastic Rail Clips");
+        }
+
+        /**
+         * Returns total sum of quantity (MT) filtered by 'Elastic Rail Clips' category.
+         */
+        private Double getFilteredPoQuantityMt() {
+                return poItemRepository.sumQtyByItemCatDescrAndUomMt("Elastic Rail Clips");
         }
 }

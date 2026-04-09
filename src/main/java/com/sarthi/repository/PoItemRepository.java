@@ -52,4 +52,10 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
 
     @Query("SELECT SUM(pi.qty) FROM PoItem pi WHERE pi.uom = 'Mt'")
     Double sumQtyByUomMt();
+
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Nos.'")
+    Long sumQtyByItemCatDescrAndUomNos(@Param("itemCatDescr") String itemCatDescr);
+
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Mt'")
+    Double sumQtyByItemCatDescrAndUomMt(@Param("itemCatDescr") String itemCatDescr);
 }
