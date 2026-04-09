@@ -313,22 +313,25 @@ SELECT
     ip.rio,
     'PROCESS' AS stage,
 
-    (SUM(pl.accepted_qty) + SUM(pl.rejected_qty)) AS inspected_qty,
+    SUM(pl.accepted_qty + pl.rejected_qty) AS inspected_qty,
     SUM(pl.accepted_qty) AS accepted_qty,
     SUM(pl.rejected_qty) AS rejected_qty
 
 FROM (
+   
     SELECT
         inspection_call_no,
         created_by,
 
-        LEAST(
-            SUM(COALESCE(shearing_accepted,0)),
-            SUM(COALESCE(turning_accepted,0)),
-            SUM(COALESCE(mpi_accepted,0)),
-            SUM(COALESCE(forging_accepted,0)),
-            SUM(COALESCE(quenching_accepted,0)),
-            SUM(COALESCE(tempering_accepted,0))
+        SUM(
+            LEAST(
+                COALESCE(shearing_accepted,0),
+                COALESCE(turning_accepted,0),
+                COALESCE(mpi_accepted,0),
+                COALESCE(forging_accepted,0),
+                COALESCE(quenching_accepted,0),
+                COALESCE(tempering_accepted,0)
+            )
         ) AS accepted_qty,
 
         SUM(COALESCE(total_rejected,0)) AS rejected_qty
@@ -346,13 +349,8 @@ JOIN inspection_calls ic
 JOIN pincode_poi_mapping p 
     ON p.poi_code = ic.place_of_inspection
 
-
-JOIN poi_process_ie_mapping ppm 
-    ON ppm.poi_code = p.poi_code
-
 JOIN user_master u 
     ON u.userid = pl.created_by
-    AND u.employee_code = ppm.employee_code   
 
 LEFT JOIN ie_profile ip 
     ON ip.employee_code = u.employee_code
@@ -371,7 +369,10 @@ GROUP BY
     u.username,
     ip.rio
 """,
-          countQuery = "SELECT COUNT(*) FROM process_line_final_result",
+          countQuery = """
+SELECT COUNT(DISTINCT inspection_call_no, created_by)
+FROM process_line_final_result
+""",
           nativeQuery = true)
   Page<Object[]> fetchProcess(
           @Param("startDate") LocalDate startDate,

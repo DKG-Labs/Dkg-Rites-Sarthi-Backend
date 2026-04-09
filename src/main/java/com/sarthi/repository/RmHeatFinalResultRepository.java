@@ -212,7 +212,7 @@ GROUP BY
             @Param("zone") String zone,
             @Param("vendor") String vendor,
             Pageable pageable); */
-    @Query(value = """
+   /* @Query(value = """
 SELECT
     p.id,
     p.company_name,
@@ -270,6 +270,73 @@ GROUP BY
     ip.rio
 """,
             countQuery = "SELECT COUNT(*) FROM rm_heat_final_result",
+            nativeQuery = true)
+    Page<Object[]> fetchRaw(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("rio") String rio,
+            @Param("zone") String zone,
+            @Param("vendor") String vendor,
+            Pageable pageable);*/
+    @Query(value = """
+SELECT
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio,
+    'Raw Material' AS stage,
+
+    SUM(r.accepted_qty + r.rejected_qty) AS inspected_qty,
+    SUM(r.accepted_qty) AS accepted_qty,
+    SUM(r.rejected_qty) AS rejected_qty
+
+FROM (
+   
+    SELECT
+        inspection_call_no,
+        created_by,
+        SUM(COALESCE(accepted_qty_mt,0)) AS accepted_qty,
+        SUM(COALESCE(weight_rejected_mt,0)) AS rejected_qty
+    FROM rm_heat_final_result
+    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
+    GROUP BY inspection_call_no, created_by
+) r
+
+
+JOIN inspection_calls ic 
+    ON ic.ic_number = r.inspection_call_no
+
+JOIN pincode_poi_mapping p 
+    ON p.poi_code = ic.place_of_inspection
+
+
+JOIN user_master u 
+    ON u.userid = r.created_by
+
+JOIN ie_profile ip 
+    ON ip.employee_code = u.employee_code
+
+LEFT JOIN po_header ph 
+    ON ph.po_no = ic.po_no
+
+WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+
+GROUP BY
+    p.id,
+    p.company_name,
+    p.poi_code,
+    u.username,
+    ip.rio
+""",
+            countQuery = """
+SELECT COUNT(DISTINCT inspection_call_no, created_by)
+FROM rm_heat_final_result
+""",
             nativeQuery = true)
     Page<Object[]> fetchRaw(
             @Param("startDate") LocalDate startDate,
