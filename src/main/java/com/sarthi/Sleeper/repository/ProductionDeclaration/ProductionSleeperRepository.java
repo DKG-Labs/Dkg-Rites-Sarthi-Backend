@@ -42,7 +42,7 @@ AND s.sleeper_no NOT IN (
     FROM demoulding_defective_sleepers ds
     JOIN demoulding_inspection di 
         ON ds.inspection_id = di.id
-    WHERE di.batch_no = d.batch_number
+    WHERE di.batch_no COLLATE utf8mb4_unicode_ci = d.batch_number COLLATE utf8mb4_unicode_ci
 )
 """, nativeQuery = true)
   Long countByBatchId(Long batchId);
