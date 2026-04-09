@@ -316,16 +316,16 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                     )
                 ),0) AS monthlyRm,
 
-                COALESCE((
-                    SELECT SUM(pq.INSPECTED_QTY)
-                    FROM process_ie_qty pq
-                    WHERE pq.REQUEST_ID IN (
-                        SELECT ic2.ic_number
-                        FROM inspection_calls ic2
-                        WHERE ic2.po_no = ic.po_no
-                          AND ic2.created_at BETWEEN :startDate AND :endDate
-                    )
-                ),0) AS monthlyProcess,
+              COALESCE((
+                                           SELECT SUM(pl.total_manufactured - pl.total_rejected)
+                                           FROM process_line_final_result pl
+                                           WHERE pl.inspection_call_no IN (
+                                               SELECT ic2.ic_number
+                                               FROM inspection_calls ic2
+                                               WHERE ic2.po_no = ic.po_no
+                                                 AND ic2.created_at BETWEEN :startDate AND :endDate
+                                           )
+                                       ),0) AS monthlyProcess,
 
                 COALESCE((
                     SELECT SUM(f.qty_now_passed)
