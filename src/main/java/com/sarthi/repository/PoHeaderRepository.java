@@ -158,4 +158,7 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
     @Query("SELECT COUNT(ph.poNo) FROM PoHeader ph")
     long countTotalPo();
+
+    @Query("SELECT COUNT(ph.poNo) FROM PoHeader ph WHERE ph.itemCatDescr = :itemCatDescr")
+    long countPoByItemCatDescr(@Param("itemCatDescr") String itemCatDescr);
 }
