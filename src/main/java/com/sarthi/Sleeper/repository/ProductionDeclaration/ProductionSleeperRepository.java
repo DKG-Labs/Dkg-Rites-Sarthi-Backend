@@ -20,7 +20,7 @@ WHERE d.id = :batchId
 """)
     List<ProductionSleeper> getSleepersByBatch(Long batchId); 
 
-  /*  @Query("""
+    @Query("""
 SELECT COUNT(s.id)
 FROM ProductionSleeper s
 JOIN s.benchGroup b
@@ -29,8 +29,8 @@ JOIN c.declaration d
 WHERE d.id = :batchId
 """)
     Long countByBatchId(Long batchId);
-*/
-  @Query(value = """
+
+/*  @Query(value = """
 SELECT COUNT(*)
 FROM production_sleeper s
 JOIN production_bench_group b ON s.bench_group_id = b.id
@@ -42,10 +42,10 @@ AND s.sleeper_no NOT IN (
     FROM demoulding_defective_sleepers ds
     JOIN demoulding_inspection di 
         ON ds.inspection_id = di.id
-    WHERE di.batch_no = d.batch_number
+    WHERE di.batch_no COLLATE utf8mb4_unicode_ci = d.batch_number COLLATE utf8mb4_unicode_ci
 )
 """, nativeQuery = true)
-  Long countByBatchId(Long batchId);
+  Long countByBatchId(Long batchId);*/
    @Query("""
 SELECT DISTINCT b.sleeperType
 FROM ProductionBenchGroup b
