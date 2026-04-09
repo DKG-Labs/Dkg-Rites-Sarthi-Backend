@@ -218,6 +218,8 @@ public class SummaryServiceImpl implements SummaryService {
 
         return response;
     }
+
+    /*
     private CompanyWiseYearlyData mapProcessRow(Object[] row) {
 
         CompanyWiseYearlyData dto = new CompanyWiseYearlyData();
@@ -276,6 +278,70 @@ public class SummaryServiceImpl implements SummaryService {
         dto.setFinishingDefects(finishing);
 
         return dto;
+    }*/
+    private CompanyWiseYearlyData mapProcessRow(Object[] row) {
+
+        CompanyWiseYearlyData dto = new CompanyWiseYearlyData();
+
+        dto.setManufacturer((String) row[0]);
+        dto.setMonth((String) row[1]);
+
+        dto.setInspected(getDouble(row[2]));
+        dto.setAccepted(getDouble(row[3]));
+        dto.setProcessRejected(getDouble(row[4]));
+        dto.setProcessRejPercent(getDouble(row[5]));
+
+        // SHEARING
+        ShearingDefectsDto shearing = new ShearingDefectsDto();
+        shearing.setLengthOfCutBar(getInt(row[6]));
+        shearing.setOvalityImproperDiaAtEnd(getInt(row[7]));
+        shearing.setSharpEdges(getInt(row[8]));
+        shearing.setCrackedEdges(getInt(row[9]));
+        dto.setShearingDefects(shearing);
+
+        // TURNING
+        TurningDefectsDto turning = new TurningDefectsDto();
+        turning.setParallelLength(getInt(row[10]));
+        turning.setFullTurningLength(getInt(row[11]));
+        turning.setTurningDia(getInt(row[12]));
+        dto.setTurningDefects(turning);
+
+        // FORGING
+        ForgingDefectsDto forging = new ForgingDefectsDto();
+        forging.setForgingTemperature(getInt(row[13]));
+        forging.setForgingStabilisationRejection(getInt(row[14]));
+        forging.setImproperForging(getInt(row[15]));
+        forging.setForgingMarksNotches(getInt(row[16]));
+        dto.setForgingDefects(forging);
+
+        // TEMPERING
+        TemperingDefectsDto tempering = new TemperingDefectsDto();
+        tempering.setTemperingTemp(getInt(row[18]));
+        tempering.setTemperingDuration(getInt(row[19]));
+        dto.setTemperingDefects(tempering);
+
+        // QUENCHING
+        QuenchingAllDefectsDto quenching = new QuenchingAllDefectsDto();
+        quenching.setQuenchingTemperatureRejected(getInt(row[20]));
+        quenching.setQuenchingDurationRejected(getInt(row[21]));
+        quenching.setQuenchingHardnessRejected(getInt(row[22]));
+        quenching.setBoxGaugeRejected(getInt(row[23]));
+        quenching.setFlatBearingAreaRejected(getInt(row[24]));
+        dto.setQuenchingDefects(quenching);
+
+        // FINISHING
+        FinishingDefectsDto finishing = new FinishingDefectsDto();
+        finishing.setPaintIdentification(getInt(row[26]));
+        finishing.setErcCoating(getInt(row[27]));
+        dto.setFinishingDefects(finishing);
+
+        return dto;
+    }
+
+
+
+    private int getInt(Object val) {
+        return val == null ? 0 : ((Number) val).intValue();
     }
 
     private MonthlyAnalysisDTO mapMonthlyAnalysisRow(Object[] row) {
