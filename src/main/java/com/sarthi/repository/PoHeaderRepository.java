@@ -133,7 +133,8 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
                 null,
                 null,
                 null,
-                ph.poStatus
+                ph.poStatus,
+                ph.itemCatDescr
             )
             FROM PoHeader ph
             JOIN ph.items pi
@@ -150,7 +151,8 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
                 ph.poDate,
                 ph.vendorDetails,
                 COALESCE(ie.rio, ph.inspectingAgency),
-                ph.poStatus
+                ph.poStatus,
+                ph.itemCatDescr
             """)
     List<PoInspection1stLevelStatusDto> fetchPoInspectionStatus();
 

@@ -25,6 +25,8 @@ public class PoInspection1stLevelStatusDto {
 
     private String poStatus;
 
+    private String itemCatDescr;
+
 
     public PoInspection1stLevelStatusDto(
             Integer slNo,
@@ -39,7 +41,8 @@ public class PoInspection1stLevelStatusDto {
             Double rawMaterialRejectionPercentage,
             Double processInspectionRejectionPercentage,
             Double finalInspectionRejectionPercentage,
-            String poStatus
+            String poStatus,
+            String itemCatDescr
     ) {
         this.slNo = slNo;
         this.railway = railway;
@@ -54,5 +57,6 @@ public class PoInspection1stLevelStatusDto {
         this.processInspectionRejectionPercentage = processInspectionRejectionPercentage;
         this.finalInspectionRejectionPercentage = finalInspectionRejectionPercentage;
         this.poStatus = poStatus;
+        this.itemCatDescr =itemCatDescr;
     }
 }

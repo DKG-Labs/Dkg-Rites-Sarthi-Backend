@@ -140,6 +140,7 @@ GROUP BY
             @Param("zone") String zone,
             @Param("vendor") String vendor,
             Pageable pageable); */
+
     @Query(value = """
 SELECT
     p.id,
@@ -149,20 +150,23 @@ SELECT
     ip.rio,
     'FINAL' AS stage,
 
-    (SUM(f.accepted_qty) + SUM(f.rejected_qty)) AS inspected_qty,
+    SUM(f.accepted_qty + f.rejected_qty) AS inspected_qty,
     SUM(f.accepted_qty) AS accepted_qty,
     SUM(f.rejected_qty) AS rejected_qty
 
 FROM (
+
     SELECT
         inspection_call_no,
+        created_by,
         SUM(COALESCE(qty_now_passed,0)) AS accepted_qty,
         SUM(COALESCE(qty_now_rejected,0)) AS rejected_qty
     FROM final_cumulative_results
     WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
       AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
-    GROUP BY inspection_call_no
+    GROUP BY inspection_call_no, created_by
 ) f
+
 
 JOIN inspection_calls ic 
     ON ic.ic_number = f.inspection_call_no
@@ -170,15 +174,12 @@ JOIN inspection_calls ic
 JOIN pincode_poi_mapping p 
     ON p.poi_code = ic.place_of_inspection
 
-JOIN ie_pincode_poi_mapping ipm 
-    ON ipm.poi_code = p.poi_code 
-    AND ipm.ie_type = 'PRIMARY'
-
-JOIN ie_profile ip 
-    ON ip.employee_code = ipm.employee_code
 
 JOIN user_master u 
-    ON u.employee_code = ip.employee_code
+    ON u.userid = f.created_by
+
+JOIN ie_profile ip 
+    ON ip.employee_code = u.employee_code
 
 LEFT JOIN po_header ph 
     ON ph.po_no = ic.po_no
@@ -194,7 +195,10 @@ GROUP BY
     u.username,
     ip.rio
 """,
-            countQuery = "SELECT COUNT(*) FROM final_cumulative_results",
+            countQuery = """
+SELECT COUNT(DISTINCT inspection_call_no, created_by)
+FROM final_cumulative_results
+""",
             nativeQuery = true)
     Page<Object[]> fetchFinal(
             @Param("startDate") LocalDate startDate,
