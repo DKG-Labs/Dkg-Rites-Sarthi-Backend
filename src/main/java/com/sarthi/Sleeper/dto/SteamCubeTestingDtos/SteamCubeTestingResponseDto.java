@@ -15,6 +15,10 @@ public class SteamCubeTestingResponseDto {
     private String lbcTime;
     private String concreteGrade;
 
+
+    private String vendorCode;
+    private String plantId;
+    private String shift;
     private Double avgStrength;
     private String result;
 

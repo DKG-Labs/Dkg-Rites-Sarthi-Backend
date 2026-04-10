@@ -21,4 +21,11 @@ public interface SteamCubeService {
    public List<SteamCubeSampleDeclarationResponseDto> getAll();
 
     void delete(Long id);
+
+    public List<SteamCubeSampleDeclarationResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date);
 }

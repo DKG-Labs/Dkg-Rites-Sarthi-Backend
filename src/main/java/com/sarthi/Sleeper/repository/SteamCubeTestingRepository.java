@@ -13,13 +13,17 @@ public interface SteamCubeTestingRepository extends JpaRepository<SteamCubeTesti
 
     @Query("""
     SELECT s FROM SteamCubeTesting s
-    WHERE s.location = :location
-    AND s.batchNo = :batchNo
+    WHERE s.plantId = :plantId
+    AND s.vendorCode = :vendorCode
+    AND s.shift = :shift
+    AND s.createdBy = :createdBy
     AND s.createdDate BETWEEN :start AND :end
 """)
     List<SteamCubeTesting> findByDate(
-            String location,
-            String batchNo,
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
             LocalDateTime start,
             LocalDateTime end
     );

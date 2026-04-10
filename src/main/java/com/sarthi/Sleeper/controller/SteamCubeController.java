@@ -2,12 +2,16 @@ package com.sarthi.Sleeper.controller;
 
 
 import com.sarthi.Sleeper.dto.SteamCubeDtos.SteamCubeSampleDeclarationRequestDto;
+import com.sarthi.Sleeper.dto.SteamCubeDtos.SteamCubeSampleDeclarationResponseDto;
+import com.sarthi.Sleeper.dto.SteamCubeTestingDtos.SteamCubeTestingResponseDto;
 import com.sarthi.Sleeper.service.SteamCubeService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/SteamCube")
@@ -66,6 +70,22 @@ public class SteamCubeController {
                 HttpStatus.OK);
     }
 
+
+    @GetMapping("/steamCubeData")
+    public ResponseEntity<Object> getByDate(
+            @RequestParam String plantId,
+            @RequestParam String vendorCode,
+            @RequestParam String shift,
+            @RequestParam int createdBy, @RequestParam String date)  {
+
+        List<SteamCubeSampleDeclarationResponseDto> list =
+                steamCubeService.getRecordsByDate(plantId,vendorCode, shift, createdBy, date);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
+                HttpStatus.OK
+        );
+    }
 
 
 

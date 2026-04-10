@@ -16,6 +16,11 @@ public class SteamCubeTestingRequestDto {
     private String result;
 
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
+
     private Integer createdBy;
 
     private List<SteamCubeTestingDetailsDto> cubeDetails;

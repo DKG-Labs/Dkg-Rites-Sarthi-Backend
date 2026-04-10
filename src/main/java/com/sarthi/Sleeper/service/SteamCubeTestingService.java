@@ -19,9 +19,10 @@ public interface SteamCubeTestingService {
 
     void delete(Long id);
 
-    List<SteamCubeTestingResponseDto> getByDate(
-            String location,
-            String batchNo,
-            String date
-    );
+    public List<SteamCubeTestingResponseDto> getByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date);
 }

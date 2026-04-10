@@ -41,6 +41,10 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         entity.setBatchNo(dto.getBatchNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
 
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+
         if (dto.getDateOfCasting() != null) {
             entity.setDateOfCasting(
                     CommonUtils.convertStringToDateObject(dto.getDateOfCasting()));
@@ -51,7 +55,7 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         }
 
         entity.setCreatedBy(dto.getCreatedBy());
-        entity.setCreatedDate(LocalDate.now());
+        entity.setCreatedDate(LocalDateTime.now());
 
         entity.setAvgStrength(dto.getAvgStrength());
         entity.setResult(dto.getResult());
@@ -102,6 +106,11 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         entity.setLocation(dto.getLocation());
         entity.setBatchNo(dto.getBatchNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
+
+
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
 
         if (dto.getDateOfCasting() != null) {
             entity.setDateOfCasting(
@@ -174,8 +183,10 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
 
     @Override
     public List<SteamCubeTestingResponseDto> getByDate(
-            String location,
-            String batchNo,
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
             String date) {
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -185,10 +196,12 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         LocalDateTime startOfDay = selectedDate.atStartOfDay();
         LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
 
-        // Fetch parent only (REMOVE JOIN FETCH)
+
         List<SteamCubeTesting> list = steamCubeTestingRepository.findByDate(
-                location.trim(),
-                batchNo.trim(),
+                plantId.trim(),
+                vendorCode.trim(),
+                shift.trim(),
+                createdBy,
                 startOfDay,
                 endOfDay
         );
@@ -197,15 +210,12 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
             return Collections.emptyList();
         }
 
-        // Collect IDs
         List<Long> ids = list.stream()
                 .map(SteamCubeTesting::getId)
                 .toList();
 
-        //  Fetch child separately
         List<SteamCubeTestingDetails> detailsList =
                 steamCubeTestingDetailsRepository.findBySteamIds(ids);
-
 
         Map<Long, List<SteamCubeTestingDetails>> detailsMap =
                 detailsList.stream()
@@ -234,6 +244,11 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         dto.setLocation(entity.getLocation());
         dto.setBatchNo(entity.getBatchNo());
         dto.setConcreteGrade(entity.getConcreteGrade());
+
+
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
 
         if (entity.getDateOfCasting() != null) {
             dto.setDateOfCasting(

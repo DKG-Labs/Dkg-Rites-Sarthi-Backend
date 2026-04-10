@@ -81,12 +81,13 @@ public class SteamCubeTestingController {
 
     @GetMapping("/steamCubeTestingData")
     public ResponseEntity<Object> getByDate(
-            @RequestParam String location,
-            @RequestParam String batchNo,
-            @RequestParam String date) {
+            @RequestParam String plantId,
+            @RequestParam String vendorCode,
+            @RequestParam String shift,
+            @RequestParam int createdBy, @RequestParam String date)  {
 
         List<SteamCubeTestingResponseDto> list =
-                steamCubeTestingService.getByDate(location, batchNo, date);
+                steamCubeTestingService.getByDate(plantId,vendorCode, shift, createdBy, date);
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(list),

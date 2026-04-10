@@ -33,6 +33,11 @@ public class SteamCubeSampleDeclaration {
 
     private LocalDateTime createdAt;
 
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+
+    private Integer createdBy;
     // Relations
 
     @OneToMany(mappedBy = "sample", cascade = CascadeType.ALL, orphanRemoval = true)
