@@ -21,6 +21,12 @@ public class SteamCubeSampleDeclarationRequestDto {
 
     private String chamberNo;
 
+
+    private String vendorCode;
+    private String plantId;
+    private String shift;
+    private Integer createdBy;
+
     private List<SampleCubeDto> cubes;
 
     private List<SampleOtherBenchDto> otherBenches;

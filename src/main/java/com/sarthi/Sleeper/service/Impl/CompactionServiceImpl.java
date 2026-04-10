@@ -7,7 +7,9 @@ import com.sarthi.Sleeper.dto.CompactionDtos.CompactionScadaDto;
 import com.sarthi.Sleeper.entity.Compaction.Compaction;
 import com.sarthi.Sleeper.entity.Compaction.CompactionManual;
 import com.sarthi.Sleeper.entity.Compaction.CompactionScada;
+import com.sarthi.Sleeper.repository.CompactionManualRepository;
 import com.sarthi.Sleeper.repository.CompactionRepository;
+import com.sarthi.Sleeper.repository.CompactionScadaRepository;
 import com.sarthi.Sleeper.service.CompactionService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -19,13 +21,20 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class CompactionServiceImpl implements CompactionService {
     @Autowired
     private CompactionRepository compactionRepository;
+    @Autowired
+    private CompactionScadaRepository compactionScadaRepository;
+    @Autowired
+    private CompactionManualRepository compactionManualRepository;
 
         // ================= CREATE =================
 
@@ -351,9 +360,48 @@ public class CompactionServiceImpl implements CompactionService {
                 endOfDay
         );
 
+        if (list.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> ids = list.stream()
+                .map(Compaction::getId)
+                .toList();
+
+
+        List<CompactionScada> scadaList =
+                compactionScadaRepository.findByCompactionIds(ids);
+
+        List<CompactionManual> manualList =
+                compactionManualRepository.findByCompactionIds(ids);
+
+
+        Map<Long, List<CompactionScada>> scadaMap =
+                scadaList.stream()
+                        .collect(Collectors.groupingBy(
+                                s -> s.getCompaction().getId()
+                        ));
+
+        Map<Long, List<CompactionManual>> manualMap =
+                manualList.stream()
+                        .collect(Collectors.groupingBy(
+                                m -> m.getCompaction().getId()
+                        ));
+
+
+        for (Compaction c : list) {
+            c.setScadaRecords(
+                    scadaMap.getOrDefault(c.getId(), new ArrayList<>())
+            );
+            c.setManualRecords(
+                    manualMap.getOrDefault(c.getId(), new ArrayList<>())
+            );
+        }
+
+
         return list.stream()
-                .map(this::mapToResp)
-                .collect(Collectors.toList());
+                .map(this::mapToResponse)
+                .toList();
     }
 
     private CompactionResponseDto mapToResp(Compaction entity) {

@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.entity.BatchWeighment;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,6 +17,12 @@ public class BatchWeighment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    private String location;
+
+    private  String batchNumber;
+
+    private String moistureAnalysis;
 
     private String lineNo;
 
@@ -46,11 +53,14 @@ public class BatchWeighment {
     // ================= Relations =================
 
     @OneToMany(mappedBy = "batchWeighment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 20)
     private List<BatchDetails> batchDetailsList = new ArrayList<>();;
 
     @OneToMany(mappedBy = "batchWeighment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 20)
     private List<ScadaWeighment> scadaRecords= new ArrayList<>();;
 
     @OneToMany(mappedBy = "batchWeighment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 20)
     private List<ManualWeighment> manualRecords = new ArrayList<>();;
 }

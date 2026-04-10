@@ -8,6 +8,8 @@ import com.sarthi.Sleeper.dto.SteamCubeDtos.SteamCubeSampleDeclarationResponseDt
 import com.sarthi.Sleeper.entity.SampleCube;
 import com.sarthi.Sleeper.entity.SampleOtherBench;
 import com.sarthi.Sleeper.entity.SteamCubeSampleDeclaration;
+import com.sarthi.Sleeper.repository.SampleCubeRepository;
+import com.sarthi.Sleeper.repository.SampleOtherBenchRepository;
 import com.sarthi.Sleeper.repository.SteamCubeSampleDeclarationRepository;
 import com.sarthi.Sleeper.service.SteamCubeService;
 import com.sarthi.constant.AppConstant;
@@ -20,13 +22,22 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class SteamCubeImpl implements SteamCubeService {
     @Autowired
     private SteamCubeSampleDeclarationRepository steamCubeSampleDeclarationRepository;
+
+    @Autowired
+    private SampleCubeRepository sampleCubeRepository;
+    @Autowired
+    private SampleOtherBenchRepository sampleOtherBenchRepository;
         @Override
         public SteamCubeSampleDeclarationResponseDto create(
                 SteamCubeSampleDeclarationRequestDto dto) {
@@ -38,6 +49,12 @@ public class SteamCubeImpl implements SteamCubeService {
             entity.setShedNo(dto.getShedNo());
             entity.setLineNo(dto.getLineNo());
 
+
+            entity.setShift(dto.getShift());
+            entity.setVendorCode(dto.getVendorCode());
+            entity.setPlantId(dto.getPlantId());
+
+            entity.setCreatedBy(dto.getCreatedBy());
             // Casting Date
             if (dto.getCastingDate() != null) {
                 LocalDate cDate =
@@ -127,6 +144,12 @@ public class SteamCubeImpl implements SteamCubeService {
 
         entity.setShedNo(dto.getShedNo());
         entity.setLineNo(dto.getLineNo());
+
+        entity.setCreatedBy(dto.getCreatedBy());
+
+        entity.setShift(dto.getShift());
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
 
         // Casting Date
         if (dto.getCastingDate() != null) {
@@ -251,6 +274,11 @@ public class SteamCubeImpl implements SteamCubeService {
         dto.setShedNo(entity.getShedNo());
         dto.setLineNo(entity.getLineNo());
 
+        dto.setCreatedBy(entity.getCreatedBy());
+
+        dto.setShift(entity.getShift());
+        dto.setVendorCode(entity.getVendorCode());
+        dto.setPlantId(entity.getPlantId());
         // Casting Date
         if (entity.getCastingDate() != null) {
             dto.setCastingDate(
@@ -312,6 +340,74 @@ public class SteamCubeImpl implements SteamCubeService {
         }
 
         return dto;
+    }
+
+    @Override
+    public List<SteamCubeSampleDeclarationResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<SteamCubeSampleDeclaration> list =
+                steamCubeSampleDeclarationRepository.findByDate(
+                        plantId.trim(),
+                        vendorCode.trim(),
+                        shift.trim(),
+                        createdBy,
+                        startOfDay,
+                        endOfDay
+                );
+
+        if (list.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> ids = list.stream()
+                .map(SteamCubeSampleDeclaration::getId)
+                .toList();
+
+        List<SampleCube> cubes =
+                sampleCubeRepository.findBySampleIds(ids);
+
+        List<SampleOtherBench> benches =
+                sampleOtherBenchRepository.findBySampleIds(ids);
+
+        Map<Long, List<SampleCube>> cubeMap =
+                cubes.stream()
+                        .collect(Collectors.groupingBy(
+                                c -> c.getSample().getId()
+                        ));
+
+        Map<Long, List<SampleOtherBench>> benchMap =
+                benches.stream()
+                        .collect(Collectors.groupingBy(
+                                b -> b.getSample().getId()
+                        ));
+
+
+        for (SteamCubeSampleDeclaration s : list) {
+
+            s.setCubes(
+                    cubeMap.getOrDefault(s.getId(), new ArrayList<>())
+            );
+
+            s.setOtherBenches(
+                    benchMap.getOrDefault(s.getId(), new ArrayList<>())
+            );
+        }
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
 }
