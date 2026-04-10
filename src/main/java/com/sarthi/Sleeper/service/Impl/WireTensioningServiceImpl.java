@@ -7,7 +7,9 @@ import com.sarthi.Sleeper.dto.WireTensioningDtos.WireTensioningScadaDto;
 import com.sarthi.Sleeper.entity.WireTensioning.WireTensioning;
 import com.sarthi.Sleeper.entity.WireTensioning.WireTensioningManual;
 import com.sarthi.Sleeper.entity.WireTensioning.WireTensioningScada;
+import com.sarthi.Sleeper.repository.WireTensioningManualRepository;
 import com.sarthi.Sleeper.repository.WireTensioningRepository;
+import com.sarthi.Sleeper.repository.WireTensioningScadaRepository;
 import com.sarthi.Sleeper.service.wireTensioningService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -20,13 +22,20 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class WireTensioningServiceImpl implements wireTensioningService {
     @Autowired
     private WireTensioningRepository repository;
+    @Autowired
+    private WireTensioningManualRepository wireTensioningManualRepository;
+    @Autowired
+    private WireTensioningScadaRepository wireTensioningScadaRepository;
 
 
     // ================= CREATE =================
@@ -397,6 +406,7 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         LocalDateTime startOfDay = selectedDate.atStartOfDay();
         LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
 
+        // Fetch parent only
         List<WireTensioning> list = repository.findByDate(
                 plantId.trim(),
                 vendorCode.trim(),
@@ -406,9 +416,49 @@ public class WireTensioningServiceImpl implements wireTensioningService {
                 endOfDay
         );
 
+        if (list.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        //  Collect IDs
+        List<Long> ids = list.stream()
+                .map(WireTensioning::getId)
+                .toList();
+
+        //  Fetch children separately
+        List<WireTensioningScada> scadaList =
+                wireTensioningScadaRepository.findByWireIds(ids);
+
+        List<WireTensioningManual> manualList =
+                wireTensioningManualRepository.findByWireIds(ids);
+
+        // Group by parent ID
+        Map<Long, List<WireTensioningScada>> scadaMap =
+                scadaList.stream()
+                        .collect(Collectors.groupingBy(
+                                s -> s.getWireTensioning().getId()
+                        ));
+
+        Map<Long, List<WireTensioningManual>> manualMap =
+                manualList.stream()
+                        .collect(Collectors.groupingBy(
+                                m -> m.getWireTensioning().getId()
+                        ));
+
+        //  Set children manually
+        for (WireTensioning w : list) {
+            w.setScadaRecords(
+                    scadaMap.getOrDefault(w.getId(), new ArrayList<>())
+            );
+            w.setManualRecords(
+                    manualMap.getOrDefault(w.getId(), new ArrayList<>())
+            );
+        }
+
+        //Map to DTO
         return list.stream()
-                .map(this::mapToResp)
-                .collect(Collectors.toList());
+                .map(this::mapToResponse)
+                .toList();
     }
 
     private WireTensioningResponseDto mapToResp(WireTensioning entity) {

@@ -7,7 +7,9 @@ import com.sarthi.Sleeper.dto.SteamCuring.SteamCuringScadaDto;
 import com.sarthi.Sleeper.entity.SteamCuring.SteamCuring;
 import com.sarthi.Sleeper.entity.SteamCuring.SteamCuringManual;
 import com.sarthi.Sleeper.entity.SteamCuring.SteamCuringScada;
+import com.sarthi.Sleeper.repository.SteamCuringManualRepository;
 import com.sarthi.Sleeper.repository.SteamCuringRepository;
+import com.sarthi.Sleeper.repository.SteamCuringScadaRepository;
 import com.sarthi.Sleeper.service.SteamCuringService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -20,13 +22,20 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class SteamCuringServiceImpl implements SteamCuringService {
     @Autowired
     private SteamCuringRepository steamCuringRepository;
+    @Autowired
+    private SteamCuringScadaRepository steamCuringScadaRepository;
+    @Autowired
+    private SteamCuringManualRepository steamCuringManualRepository;
 
 
         @Override
@@ -430,9 +439,45 @@ public class SteamCuringServiceImpl implements SteamCuringService {
                 endOfDay
         );
 
+        if (list.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> ids = list.stream()
+                .map(SteamCuring::getId)
+                .toList();
+
+        List<SteamCuringScada> scadaList =
+                steamCuringScadaRepository.findBySteamIds(ids);
+
+        List<SteamCuringManual> manualList =
+                steamCuringManualRepository.findBySteamIds(ids);
+
+        Map<Long, List<SteamCuringScada>> scadaMap =
+                scadaList.stream()
+                        .collect(Collectors.groupingBy(
+                                s -> s.getSteamCuring().getId()
+                        ));
+
+        Map<Long, List<SteamCuringManual>> manualMap =
+                manualList.stream()
+                        .collect(Collectors.groupingBy(
+                                m -> m.getSteamCuring().getId()
+                        ));
+
+
+        for (SteamCuring s : list) {
+            s.setScadaRecords(
+                    scadaMap.getOrDefault(s.getId(), new ArrayList<>())
+            );
+            s.setManualRecords(
+                    manualMap.getOrDefault(s.getId(), new ArrayList<>())
+            );
+        }
+
         return list.stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
 }

@@ -5,11 +5,15 @@ import com.sarthi.Sleeper.entity.BatchWeighment.BatchDetails;
 import com.sarthi.Sleeper.entity.BatchWeighment.BatchWeighment;
 import com.sarthi.Sleeper.entity.BatchWeighment.ManualWeighment;
 import com.sarthi.Sleeper.entity.BatchWeighment.ScadaWeighment;
+import com.sarthi.Sleeper.repository.BatchDetailsRepository;
 import com.sarthi.Sleeper.repository.BatchWeighmentRepository;
+import com.sarthi.Sleeper.repository.ManualWeighmentRepository;
+import com.sarthi.Sleeper.repository.ScadaWeighmentRepository;
 import com.sarthi.Sleeper.service.BatchWeighmentService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.sarthi.util.CommonUtils;
@@ -20,7 +24,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +35,12 @@ import java.util.stream.Collectors;
 public class BatchWeighmentServiceImpl implements BatchWeighmentService {
 
     private final BatchWeighmentRepository repository;
+    @Autowired
+    private BatchDetailsRepository batchDetailsRepository;
+    @Autowired
+    private ManualWeighmentRepository manualWeighmentRepository;
+    @Autowired
+    private ScadaWeighmentRepository scadaWeighmentRepository;
 
 
         @Override
@@ -48,6 +61,9 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
             entity.setRemarks(dto.getRemarks());
             entity.setEntryMode(dto.getEntryMode());
 
+            entity.setBatchNumber(dto.getBatchNumber());
+            entity.setLocation(dto.getLocation());
+            entity.setMoistureAnalysis(dto.getMoistureAnalysis());
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setCreatedDate(LocalDateTime.now());
 
@@ -215,6 +231,10 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         entity.setVerifiedBy(dto.getVerifiedBy());
         entity.setRemarks(dto.getRemarks());
         entity.setEntryMode(dto.getEntryMode());
+
+        entity.setBatchNumber(dto.getBatchNumber());
+        entity.setLocation(dto.getLocation());
+        entity.setMoistureAnalysis(dto.getMoistureAnalysis());
 
         entity.setShift(dto.getShift());
         entity.setVendorCode(dto.getVendorCode());
@@ -426,6 +446,11 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         dto.setRemarks(entity.getRemarks());
         dto.setEntryMode(entity.getEntryMode());
 
+
+        dto.setBatchNumber(entity.getBatchNumber());
+        dto.setLocation(entity.getLocation());
+        dto.setMoistureAnalysis(entity.getMoistureAnalysis());
+
         dto.setVendorCode(entity.getVendorCode());
 
         dto.setShift(entity.getShift());
@@ -557,6 +582,8 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
 
         return dto;
     }
+
+    /*
     @Override
     public List<BatchWeighmentResponseDto> getRecordsByDate(
             String plantId,
@@ -582,8 +609,72 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         );
 
         return list.stream()
-                .map(this::mapToResp)
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }  */
+    @Override
+    public List<BatchWeighmentResponseDto> getRecordsByDate(
+            String plantId,
+            String vendorCode,
+            String shift,
+            int createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay = selectedDate.atStartOfDay();
+        LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        // Fetch parent only
+        List<BatchWeighment> batches = repository.findByDate(
+                plantId.trim(),
+                vendorCode.trim(),
+                shift.trim(),
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        if (batches.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Collect IDs
+        List<Long> ids = batches.stream()
+                .map(BatchWeighment::getId)
+                .toList();
+
+        //  Fetch children separately
+        List<BatchDetails> batchDetailsList = batchDetailsRepository.findByBatchIds(ids);
+        List<ManualWeighment> manualList = manualWeighmentRepository.findByBatchIds(ids);
+        List<ScadaWeighment> scadaList = scadaWeighmentRepository.findByBatchIds(ids);
+
+        // Group by parent ID
+        Map<Long, List<BatchDetails>> batchDetailsMap =
+                batchDetailsList.stream()
+                        .collect(Collectors.groupingBy(b -> b.getBatchWeighment().getId()));
+
+        Map<Long, List<ManualWeighment>> manualMap =
+                manualList.stream()
+                        .collect(Collectors.groupingBy(m -> m.getBatchWeighment().getId()));
+
+        Map<Long, List<ScadaWeighment>> scadaMap =
+                scadaList.stream()
+                        .collect(Collectors.groupingBy(s -> s.getBatchWeighment().getId()));
+
+        //  Set children manually (VERY IMPORTANT)
+        for (BatchWeighment b : batches) {
+            b.setBatchDetailsList(batchDetailsMap.getOrDefault(b.getId(), new ArrayList<>()));
+            b.setManualRecords(manualMap.getOrDefault(b.getId(), new ArrayList<>()));
+            b.setScadaRecords(scadaMap.getOrDefault(b.getId(), new ArrayList<>()));
+        }
+
+        //  Map to DTO (your existing mapper)
+        return batches.stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
 
