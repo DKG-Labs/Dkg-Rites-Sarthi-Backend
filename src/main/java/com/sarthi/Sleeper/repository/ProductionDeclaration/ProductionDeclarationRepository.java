@@ -47,7 +47,8 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
             COUNT(s.id),
             0.0,
             'Pending',
-            null
+            null,
+            d.plantId
             )
             FROM ProductionDeclaration d
             JOIN d.chambers c
@@ -56,7 +57,7 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
             JOIN SleeperWorkflowTransaction w
                  ON w.requestId = CAST(d.id as string)
             WHERE w.status = 'Completed'
-            GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers
+            GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId
             """)
     List<BatchTestingListResponseDto> getAllBatchTesting();
 
@@ -69,7 +70,8 @@ d.totalCastedSleepers,
 COUNT(s.id),
 0.0,
 'Pending',
-null
+null,
+d.plantId
 )
 FROM ProductionDeclaration d
 JOIN d.gangs g
@@ -77,7 +79,7 @@ JOIN g.sleepers s
 JOIN SleeperWorkflowTransaction w
      ON w.requestId = CAST(d.id as string)
 WHERE w.status = 'Completed'
-GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers
+GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers, d.plantId
 """)
     List<BatchTestingListResponseDto> getLongLineBatchTesting();
     @Query("""
