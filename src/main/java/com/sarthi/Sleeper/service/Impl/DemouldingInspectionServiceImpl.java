@@ -364,6 +364,7 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         return dto;
     }
 
+    /*
 
     @Override
     public List<DemouldingInspectionResponseDTO> getTodayRecords(
@@ -379,6 +380,47 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
 
         LocalDateTime startOfDay = selectedDate.atStartOfDay();
         LocalDateTime endOfDay = selectedDate.atTime(23, 59, 59);
+
+        List<DemouldingInspection> list = demouldingInspectionRepository.findByDate(
+                plantId,
+                vendorCode,
+                shift,
+                createdBy,
+                startOfDay,
+                endOfDay
+        );
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+
+     */
+
+    @Override
+    public List<DemouldingInspectionResponseDTO> getTodayRecords(
+            String plantId,
+            String vendorCode,
+            String shift,
+            String createdBy,
+            String date) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+        LocalDateTime startOfDay;
+        LocalDateTime endOfDay;
+
+        if ("C".equalsIgnoreCase(shift)) {
+            // Shift C: 10 PM (selectedDate) → next day 6 AM
+            startOfDay = selectedDate.atTime(22, 0, 0); // 10 PM
+            endOfDay = selectedDate.plusDays(1).atTime(6, 0, 0); // next day 6 AM
+        } else {
+            // Normal shifts A & B
+            startOfDay = selectedDate.atStartOfDay();
+            endOfDay = selectedDate.atTime(23, 59, 59);
+        }
 
         List<DemouldingInspection> list = demouldingInspectionRepository.findByDate(
                 plantId,
