@@ -19,7 +19,7 @@ WHERE s.batchNo = :batchNo
 
 
 
-    @Query("""
+  /*  @Query("""
     SELECT s FROM SteamCubeSampleDeclaration s
     WHERE s.plantId = :plantId
     AND s.vendorCode = :vendorCode
@@ -34,6 +34,23 @@ WHERE s.batchNo = :batchNo
             int createdBy,
             LocalDateTime start,
             LocalDateTime end
-    );
+    );*/
+  @Query("""
+    SELECT s FROM SteamCubeSampleDeclaration s
+    WHERE s.plantId = :plantId
+    AND s.vendorCode = :vendorCode
+    AND s.shift = :shift
+    AND s.createdBy = :createdBy
+    AND s.createdAt BETWEEN :start AND :end
+    AND (s.status IS NULL OR s.status <> 'COMPLETED')
+""")
+  List<SteamCubeSampleDeclaration> findByDate(
+          String plantId,
+          String vendorCode,
+          String shift,
+          int createdBy,
+          LocalDateTime start,
+          LocalDateTime end
+  );
 
 }

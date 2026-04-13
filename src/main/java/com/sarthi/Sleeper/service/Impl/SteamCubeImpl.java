@@ -49,6 +49,7 @@ public class SteamCubeImpl implements SteamCubeService {
             entity.setShedNo(dto.getShedNo());
             entity.setLineNo(dto.getLineNo());
 
+            entity.setStatus("Created");
 
             entity.setShift(dto.getShift());
             entity.setVendorCode(dto.getVendorCode());
@@ -146,6 +147,9 @@ public class SteamCubeImpl implements SteamCubeService {
         entity.setLineNo(dto.getLineNo());
 
         entity.setCreatedBy(dto.getCreatedBy());
+
+
+        entity.setStatus("Updated");
 
         entity.setShift(dto.getShift());
         entity.setVendorCode(dto.getVendorCode());
@@ -273,6 +277,8 @@ public class SteamCubeImpl implements SteamCubeService {
         dto.setId(entity.getId());
         dto.setShedNo(entity.getShedNo());
         dto.setLineNo(entity.getLineNo());
+
+        dto.setStatus(entity.getStatus());
 
         dto.setCreatedBy(entity.getCreatedBy());
 
