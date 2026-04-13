@@ -999,10 +999,11 @@ public List<String> getBatchNumbers(Long vendorId,
 //        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
 //    }
 @Override
-public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
+public List<String> getSleeperTypes(String batchNo, Integer benchNo, String productionUnit) {
 
-    ProductionDeclaration declaration =
-           repository.findByBatchNumber(batchNo);
+   // ProductionDeclaration declaration =repository.findByBatchNumber(batchNo);
+
+    ProductionDeclaration declaration =repository.findByBatchNumberAndProductionUnit(batchNo,productionUnit);;
 
     if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
 
