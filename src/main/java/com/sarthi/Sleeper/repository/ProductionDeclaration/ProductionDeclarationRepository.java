@@ -158,11 +158,22 @@ WHERE d.batch_number = :batchNo
 """, nativeQuery = true)
     List<Object[]> findBenchAndGangRaw(String batchNo);
 
-    @Query("""
+  /*  @Query("""
 SELECT DISTINCT g.sleeperType 
 FROM ProductionLongLineGang g
 WHERE g.declaration.batchNumber = :batchNo
 AND :benchNo BETWEEN g.gangFrom AND g.gangTo
+""")
+    List<String> findSleeperTypes(String batchNo, Integer benchNo);  */
+
+    @Query("""
+SELECT DISTINCT g.sleeperType 
+FROM ProductionLongLineGang g
+WHERE g.declaration.batchNumber = :batchNo
+AND (
+                   (g.gangFrom IS NOT NULL AND g.gangTo IS NOT NULL AND :benchNo BETWEEN g.gangFrom AND g.gangTo)
+                   OR (g.gangNo IS NOT NULL AND g.gangNo = :benchNo)
+)
 """)
     List<String> findSleeperTypes(String batchNo, Integer benchNo);
  /*  @Query("""
@@ -177,14 +188,22 @@ AND (
 """)
    List<String> findSleeperTypes(String batchNo, Integer benchNo);
 */
-    @Query(value = """
+ /*   @Query(value = """
 SELECT DISTINCT g.gang_from, g.gang_to
 FROM production_longline_gang g
 JOIN production_declaration d 
     ON g.declaration_id = d.id
 WHERE d.batch_number = :batchNo
 """, nativeQuery = true)
-    List<Object[]> findGangRanges(String batchNo);
+    List<Object[]> findGangRanges(String batchNo);  */
+ @Query(value = """
+SELECT DISTINCT g.mode, g.gang_from, g.gang_to, g.gang_no
+FROM production_longline_gang g
+JOIN production_declaration d 
+    ON g.declaration_id = d.id
+WHERE d.batch_number = :batchNo
+""", nativeQuery = true)
+ List<Object[]> findGangRanges(String batchNo);
 
     @Query(value = """
 SELECT DISTINCT 

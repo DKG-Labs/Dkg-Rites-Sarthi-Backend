@@ -979,7 +979,7 @@ public List<String> getBatchNumbers(Long vendorId,
       //  Gang Ranges (LONG LINE)
       List<Object[]> gangResults = repository.findGangRanges(batchNo);
 
-      for (Object[] row : gangResults) {
+     /* for (Object[] row : gangResults) {
 
           Integer gangFrom = row[0] != null ? ((Number) row[0]).intValue() : null;
           Integer gangTo = row[1] != null ? ((Number) row[1]).intValue() : null;
@@ -987,6 +987,29 @@ public List<String> getBatchNumbers(Long vendorId,
           if (gangFrom != null && gangTo != null) {
               for (int i = gangFrom; i <= gangTo; i++) {
                   finalSet.add(String.valueOf(i));
+              }
+          }
+      }
+      */
+      for (Object[] row : gangResults) {
+
+          String mode = row[0] != null ? row[0].toString() : null;
+          Integer gangFrom = row[1] != null ? ((Number) row[1]).intValue() : null;
+          Integer gangTo = row[2] != null ? ((Number) row[2]).intValue() : null;
+          Integer gangNo = row[3] != null ? ((Number) row[3]).intValue() : null;
+
+          if ("RANGE".equalsIgnoreCase(mode)) {
+
+              if (gangFrom != null && gangTo != null) {
+                  for (int i = gangFrom; i <= gangTo; i++) {
+                      finalSet.add(String.valueOf(i));
+                  }
+              }
+
+          } else if ("SINGLE".equalsIgnoreCase(mode)) {
+
+              if (gangNo != null) {
+                  finalSet.add(String.valueOf(gangNo));
               }
           }
       }
