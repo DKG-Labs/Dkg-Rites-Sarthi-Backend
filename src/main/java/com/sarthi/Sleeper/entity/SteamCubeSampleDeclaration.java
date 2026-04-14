@@ -36,6 +36,8 @@ public class SteamCubeSampleDeclaration {
     private String vendorCode;
     private String plantId;
     private String shift;
+    private String status;
+
 
     private Integer createdBy;
     // Relations

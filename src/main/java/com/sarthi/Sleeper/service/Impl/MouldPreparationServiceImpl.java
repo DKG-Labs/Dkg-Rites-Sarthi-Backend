@@ -185,7 +185,7 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
                        ));
         mouldPreparationRepository.delete(entity);
     }
-
+/*
     @Override
     public List<MouldPreparationResponseDTO> getRecordsByDate(
           String plantId,
@@ -214,6 +214,43 @@ public class MouldPreparationServiceImpl implements MouldPreparationService {
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
+*/
+@Override
+public List<MouldPreparationResponseDTO> getRecordsByDate(
+        String plantId,
+        String vendorCode,
+        String shift,
+        int createdBy,
+        String date) {
 
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    LocalDate selectedDate = LocalDate.parse(date, formatter);
+
+    LocalDateTime startOfDay;
+    LocalDateTime endOfDay;
+
+    if ("C".equalsIgnoreCase(shift)) {
+        // Shift C → 10 PM (today) to 6 AM (next day)
+        startOfDay = selectedDate.atTime(22, 0, 0);
+        endOfDay = selectedDate.plusDays(1).atTime(6, 0, 0);
+    } else {
+        // Shift A & B → normal day
+        startOfDay = selectedDate.atStartOfDay();
+        endOfDay = selectedDate.atTime(23, 59, 59);
+    }
+
+    List<MouldPreparation> list = mouldPreparationRepository.findByDate(
+            plantId,
+            vendorCode,
+            shift,
+            createdBy,
+            startOfDay,
+            endOfDay
+    );
+
+    return list.stream()
+            .map(this::mapToResponse)
+            .collect(Collectors.toList());
+}
 
 }

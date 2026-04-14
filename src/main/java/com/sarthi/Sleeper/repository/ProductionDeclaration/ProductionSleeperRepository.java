@@ -71,8 +71,8 @@ AND :benchNo BETWEEN s.gang.gangFrom AND s.gang.gangTo
 AND s.gang.sleeperType = :sleeperType
 """)
     List<String> findLongLineSleepers(String batchNo, Integer benchNo, String sleeperType); */
-   @Query("""
-SELECT s.sleeperNo 
+  /* @Query("""
+SELECT s.sleeperNo
 FROM ProductionSleeper s
 WHERE s.gang.declaration.batchNumber = :batchNo
 AND :benchNo BETWEEN s.gang.gangFrom AND s.gang.gangTo
@@ -80,7 +80,21 @@ AND s.gang.sleeperType = :sleeperType
 AND s.sleeperNo LIKE CONCAT(:benchNo, '%')
 """)
    List<String> findLongLineSleepers(String batchNo, Integer benchNo, String sleeperType);
-
+*/
+   @Query("""
+SELECT s.sleeperNo 
+FROM ProductionSleeper s
+WHERE s.gang.declaration.batchNumber = :batchNo
+           AND (
+               (s.gang.gangFrom IS NOT NULL AND s.gang.gangTo IS NOT NULL
+                   AND :benchNo BETWEEN s.gang.gangFrom AND s.gang.gangTo)
+               OR
+               (s.gang.gangNo IS NOT NULL AND s.gang.gangNo = :benchNo)
+           )
+AND s.gang.sleeperType = :sleeperType
+AND s.sleeperNo LIKE CONCAT(:benchNo, '%')
+""")
+   List<String> findLongLineSleepers(String batchNo, Integer benchNo, String sleeperType);
     @Query("""
 SELECT s
 FROM ProductionSleeper s

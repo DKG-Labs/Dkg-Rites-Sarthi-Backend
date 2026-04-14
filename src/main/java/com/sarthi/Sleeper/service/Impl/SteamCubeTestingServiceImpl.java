@@ -3,8 +3,10 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.SteamCubeTestingDtos.SteamCubeTestingDetailsDto;
 import com.sarthi.Sleeper.dto.SteamCubeTestingDtos.SteamCubeTestingRequestDto;
 import com.sarthi.Sleeper.dto.SteamCubeTestingDtos.SteamCubeTestingResponseDto;
+import com.sarthi.Sleeper.entity.SteamCubeSampleDeclaration;
 import com.sarthi.Sleeper.entity.SteamCubeT.SteamCubeTesting;
 import com.sarthi.Sleeper.entity.SteamCubeT.SteamCubeTestingDetails;
+import com.sarthi.Sleeper.repository.SteamCubeSampleDeclarationRepository;
 import com.sarthi.Sleeper.repository.SteamCubeTestingDetailsRepository;
 import com.sarthi.Sleeper.repository.SteamCubeTestingRepository;
 import com.sarthi.Sleeper.service.SteamCubeTestingService;
@@ -16,10 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +26,8 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
 
     @Autowired
     private SteamCubeTestingRepository steamCubeTestingRepository;
+    @Autowired
+    private SteamCubeSampleDeclarationRepository steamCubeSampleDeclarationRepository;
 
     @Autowired
     private SteamCubeTestingDetailsRepository steamCubeTestingDetailsRepository;
@@ -36,6 +37,14 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
             SteamCubeTestingRequestDto dto) {
 
         SteamCubeTesting entity = new SteamCubeTesting();
+
+       Optional<SteamCubeSampleDeclaration> steam = steamCubeSampleDeclarationRepository.findById(dto.getSteamCubeId());
+
+       SteamCubeSampleDeclaration s = null;
+        if(steam.isPresent()){
+            s= steam.get();
+        }
+        s.setStatus("COMPLETED");
 
         entity.setLocation(dto.getLocation());
         entity.setBatchNo(dto.getBatchNo());
@@ -92,6 +101,7 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
 
         entity.setCubeDetails(detailsList);
 
+        steamCubeSampleDeclarationRepository.save(s);
         return mapToResponse(steamCubeTestingRepository.save(entity));
     }
 

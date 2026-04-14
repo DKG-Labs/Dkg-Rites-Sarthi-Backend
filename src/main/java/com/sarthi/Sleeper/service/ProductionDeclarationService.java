@@ -42,6 +42,6 @@ public interface ProductionDeclarationService {
             String productionUnit);
     public List<String> getBenchNumbers(String batchNo);
 
-    public List<String> getSleeperTypes(String batchNo, Integer benchNo);
+    public List<String> getSleeperTypes(String batchNo, Integer benchNo, String productionUnit);
     public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType);
 }

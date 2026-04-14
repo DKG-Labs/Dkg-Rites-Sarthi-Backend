@@ -144,11 +144,12 @@ public class productionDeclarationController {
         @GetMapping("getAll/sleeper-types")
         public ResponseEntity<Object> getSleeperTypes(
                 @RequestParam String batchNo,
-                @RequestParam Integer benchNo) {
+                @RequestParam Integer benchNo,
+                @RequestParam  String productionUnit) {
 
                 return new ResponseEntity<>(
                         ResponseBuilder.getSuccessResponse(
-                                service.getSleeperTypes(batchNo, benchNo)),
+                                service.getSleeperTypes(batchNo, benchNo,productionUnit)),
                         HttpStatus.OK);
         }
 

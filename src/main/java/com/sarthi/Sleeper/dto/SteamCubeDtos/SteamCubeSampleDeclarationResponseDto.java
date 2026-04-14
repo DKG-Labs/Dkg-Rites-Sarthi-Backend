@@ -29,6 +29,8 @@ public class SteamCubeSampleDeclarationResponseDto {
     private String shift;
     private Integer createdBy;
 
+    private String status;
+
     private List<SampleCubeDto> cubes;
 
     private List<SampleOtherBenchDto> otherBenches;

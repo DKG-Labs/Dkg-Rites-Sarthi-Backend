@@ -7,6 +7,8 @@ import java.util.List;
 @Data
 public class SteamCubeTestingRequestDto {
 
+    private Long SteamCubeId;
+
     private String location;
     private String dateOfCasting; // dd/MM/yyyy
     private String batchNo;
