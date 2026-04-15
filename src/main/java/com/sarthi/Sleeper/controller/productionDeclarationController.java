@@ -69,6 +69,17 @@ public class productionDeclarationController {
                                                 service.getAll()),
                                 HttpStatus.OK);
         }
+
+
+
+        @GetMapping("/getAllVerifedWaterBatchs")
+        public ResponseEntity<Object> getAllWithWaterCubeStatus() {
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                service.getAllWithWaterCubeStatus()),
+                        HttpStatus.OK);
+        }
         @GetMapping("/getAllProductions")
         public ResponseEntity<Object> getAllProductions(  @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "50") int size) {

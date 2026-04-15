@@ -44,4 +44,6 @@ public interface ProductionDeclarationService {
 
     public List<String> getSleeperTypes(String batchNo, Integer benchNo, String productionUnit);
     public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType);
+
+    public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatus();
 }

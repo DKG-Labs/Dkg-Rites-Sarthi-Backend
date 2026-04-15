@@ -3,9 +3,11 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.BatchWithIdProjection;
 import com.sarthi.Sleeper.dto.BenchDetailsResponseDto;
 import com.sarthi.Sleeper.dto.ProductionDeclaration.*;
+import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest;
 import com.sarthi.Sleeper.entity.PlantProfile;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.*;
 import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeStrengthTestRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
@@ -36,6 +38,8 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     private ProductionBenchGroupRepository productionBenchGroupRepository;
     @Autowired
     private ProductionSleeperRepository productionSleeperRepository;
+    @Autowired
+    private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
 
     @Override
     public ProductionDeclarationResponseDto create(
@@ -652,6 +656,67 @@ public List<ProductionDeclarationResponseDto> getAll() {
 
         String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
         response.setStatus(status);
+
+        return response;
+    }
+
+
+    @Override
+    public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatus() {
+
+       // List<ProductionDeclaration> entities = repository.findAll();
+        List<ProductionDeclaration> entities = repository.findAllExcludingMR();
+        // Existing status map
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllLatestStatuses(11L)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1])
+                ));
+
+        // Get all batch numbers from water cube test
+        Set<String> waterCubeBatchSet = new HashSet<>(
+                waterCubeStrengthTestRepository.findAllBatchNumbers()
+        );
+
+        return entities.stream()
+                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeBatchSet))
+                .toList();
+    }
+
+    private ProductionDeclarationResponseDto mapToResponseWithWaterCube(
+            ProductionDeclaration entity,
+            Map<String, String> statusMap,
+            Set<String> waterCubeBatchSet) {
+
+        ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
+
+        response.setId(entity.getId());
+        response.setPlantType(entity.getPlantType());
+        response.setProductionUnit(entity.getProductionUnit());
+        response.setCastingDate(CommonUtils.convertDateToString(entity.getCastingDate()));
+        response.setShift(entity.getShift());
+        response.setBatchNumber(entity.getBatchNumber());
+        response.setMixDesignReference(entity.getMixDesignReference());
+        response.setLbcTime(entity.getLbcTime());
+        response.setVendorCode(entity.getVendorCode());
+        response.setPlantId(entity.getPlantId());
+        response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
+        response.setTotalSleeperTypes(entity.getTotalSleeperTypes());
+        response.setTotalRft(entity.getTotalRft());
+        response.setRemarks(entity.getRemarks());
+        response.setCreatedBy(entity.getCreatedBy());
+        response.setCreatedDate(entity.getCreatedDate());
+        response.setUpdatedBy(entity.getUpdatedBy());
+        response.setUpdatedDate(entity.getUpdatedDate());
+
+
+        String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
+        response.setStatus(status);
+
+        boolean exists = waterCubeBatchSet.contains(entity.getBatchNumber());
+        response.setWaterCubeTestStatus(exists);
 
         return response;
     }
