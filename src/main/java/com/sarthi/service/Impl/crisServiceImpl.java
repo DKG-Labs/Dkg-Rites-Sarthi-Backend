@@ -149,6 +149,7 @@ public class crisServiceImpl implements crisService {
         h.setPurchaserDetail(m.getIMMS_PURCHASER_DETAIL());
 
        // h.setVendorCode(m.getIMMS_VENDOR_CODE());
+
         String vendor = m.getIMMS_VENDOR_CODE();
 
         if (vendor != null && !vendor.startsWith(":")) {
