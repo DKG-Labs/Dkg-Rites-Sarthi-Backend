@@ -35,4 +35,34 @@ public class VendorPlantServiceImpl implements VendorPlantService {
 
         return response;
     }
+
+    public VendorResponseDTO getPlantsByVendorCodeAndUser(String vendorCode, Integer userId) {
+
+        List<VendorPlant> list = vendorPlantRepository.findByVendorCode(vendorCode);
+
+        if (list.isEmpty()) {
+            throw new RuntimeException("No plants found for vendor: " + vendorCode);
+        }
+
+        List<String> userPlantIds = vendorPlantRepository.findPlantIdsByUserId(userId);
+
+        List<PlantDTO> plants = list.stream()
+                .filter(p -> userPlantIds.contains(p.getPlantId()))
+                .map(p -> new PlantDTO(p.getPlantName(), p.getPlantId()))
+                .toList();
+
+        if (plants.isEmpty()) {
+            throw new RuntimeException("No plants mapped for this user");
+        }
+
+        // Step 4: Build response
+        VendorResponseDTO response = new VendorResponseDTO();
+        response.setVendorCode(vendorCode);
+        response.setCompanyName(list.get(0).getCompanyName());
+        response.setPlants(plants);
+
+        return response;
+    }
+
+
 }

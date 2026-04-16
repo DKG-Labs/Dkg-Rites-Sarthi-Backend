@@ -7,4 +7,6 @@ import org.springframework.stereotype.Service;
 public interface VendorPlantService {
 
     public VendorResponseDTO getPlantsByVendorCode(String vendorCode);
+
+    public VendorResponseDTO getPlantsByVendorCodeAndUser(String vendorCode, Integer userId);
 }

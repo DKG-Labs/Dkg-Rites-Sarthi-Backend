@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.service;
 
+import com.sarthi.Sleeper.dto.BatchIdNumberDto;
 import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentRequestDto;
 import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentResponseDto;
 import org.springframework.stereotype.Service;
@@ -25,4 +26,6 @@ public interface BatchWeighmentService {
             String shift,
             int createdBy,
             String date);
+
+    public List<BatchIdNumberDto> getAllBatchIdsAndNumbers();
 }

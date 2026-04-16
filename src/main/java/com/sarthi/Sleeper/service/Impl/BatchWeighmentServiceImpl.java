@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.service.Impl;
 
+import com.sarthi.Sleeper.dto.BatchIdNumberDto;
 import com.sarthi.Sleeper.dto.BatchWeighmentDtos.*;
 import com.sarthi.Sleeper.entity.BatchWeighment.BatchDetails;
 import com.sarthi.Sleeper.entity.BatchWeighment.BatchWeighment;
@@ -705,6 +706,11 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         dto.setManualRecords(null);
 
         return dto;
+    }
+
+
+    public List<BatchIdNumberDto> getAllBatchIdsAndNumbers() {
+        return repository.findAllBatchIdsAndNumbers();
     }
 
 }

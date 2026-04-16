@@ -94,4 +94,13 @@ public class BatchWeighmentController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/batchNosForCompaction")
+    public ResponseEntity<Object> getAllBatchs() {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        batchWeighmentService.getAllBatchIdsAndNumbers()),
+                HttpStatus.OK);
+    }
 }

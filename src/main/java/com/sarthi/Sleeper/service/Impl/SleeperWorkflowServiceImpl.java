@@ -99,8 +99,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
          }
          SleeperWorkflowTransaction tx = new SleeperWorkflowTransaction();
 
-         SleeperPincodePoIMapping mapping =
-                 sleeperPincodePoIMappingRepository.findByVendorCode(String.valueOf(createdBy));
+         SleeperPincodePoIMapping mapping = sleeperPincodePoIMappingRepository.findByVendorCode(String.valueOf(createdBy));
 
          tx.setRequestId(requestId);
          tx.setModuleId(moduleId);
@@ -213,8 +212,14 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         List<Integer> userIds = new ArrayList<>();
         if (tx.getWorkflowId().equals(2L)) {
             // Only Main IE for workflow 2
+           // mappings = poiIeMappingRepository.findByPoiCodeAndIeType(tx.getPoiCode(), "Main IE");
+
             mappings = poiIeMappingRepository
-                    .findByPoiCodeAndIeType(tx.getPoiCode(), "Main IE");
+                    .findByPoiCodeAndPlantIdAndIeType(
+                            tx.getPoiCode(),
+                            tx.getPlantId(),
+                            "Main IE"
+                    );
         } else {
             if("Vendor".equalsIgnoreCase(tx.getNextRole())){
               vendorId = sleeperPincodePoIMappingRepository
@@ -222,8 +227,13 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                        .orElseThrow(() -> new RuntimeException("Vendor not found for POI " ));
            }else{
                // Existing logic
-               mappings = poiIeMappingRepository
-                       .findByPoiCode(tx.getPoiCode());
+             //  mappings = poiIeMappingRepository.findByPoiCode(tx.getPoiCode());
+
+                mappings = poiIeMappingRepository
+                        .findByPoiCodeAndPlantId(
+                                tx.getPoiCode(),
+                                tx.getPlantId()
+                        );
            }
         }
         if (mappings != null) {
@@ -314,7 +324,8 @@ public SleeperWorkflowTransactionDto performTransitionAction(
             ));
 
     if(current.getWorkflowId()==1 && current.getNextRole().equalsIgnoreCase("IE")){
-        validateUserForPoi(current.getPoiCode(), req.getActionBy());
+      //  validateUserForPoi(current.getPoiCode(), req.getActionBy());
+        validateUserForPoi(current.getPoiCode(),current.getPlantId(), req.getActionBy());
     }else if(current.getWorkflowId() == 2
             && current.getNextRole().equalsIgnoreCase("RIO Help Desk")) {
 
@@ -334,8 +345,7 @@ public SleeperWorkflowTransactionDto performTransitionAction(
         }
 
         // Validate RIO mapping
-        boolean exists = rioUserRepository
-                .existsByRioAndEmployeeCode(current.getRio(), employeeCode);
+        boolean exists = rioUserRepository.existsByRioAndEmployeeCode(current.getRio(), employeeCode);
 
         if(!exists){
             throw new BusinessException(
@@ -350,11 +360,19 @@ public SleeperWorkflowTransactionDto performTransitionAction(
     }else if(current.getWorkflowId()==2
             && current.getNextRole().equalsIgnoreCase("Main IE")){
 
-        boolean exists = poiIeMappingRepository
+       /* boolean exists = poiIeMappingRepository
                 .existsByPoiCodeAndIeUserIdAndIeType(
                         current.getPoiCode(),
                         Math.toIntExact(req.getActionBy()),
-                        "Main IE");
+                        "Main IE");*/
+
+        boolean exists = poiIeMappingRepository
+                .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                        current.getPoiCode(),
+                        current.getPlantId(),
+                        Math.toIntExact(req.getActionBy()),
+                        "Main IE"
+                );
 
         if(!exists){
             throw new BusinessException(
@@ -537,7 +555,7 @@ public SleeperWorkflowTransactionDto performTransitionAction(
         }
     }
 
-    private void validateUserForPoi(String poiCode, Long actionBy) {
+  /*  private void validateUserForPoi(String poiCode, Long actionBy) {
 
         boolean exists = poiIeMappingRepository
                 .existsByPoiCodeAndIeUserId(poiCode, Math.toIntExact(actionBy));
@@ -552,7 +570,28 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                     )
             );
         }
-    }
+    } */
+
+  private void validateUserForPoi(String poiCode, String plantId, Long actionBy) {
+
+      boolean exists = poiIeMappingRepository
+              .existsByPoiCodeAndPlantIdAndIeUserId(
+                      poiCode,
+                      plantId,
+                      Math.toIntExact(actionBy)
+              );
+
+      if (!exists) {
+          throw new BusinessException(
+                  new ErrorDetails(
+                          AppConstant.ERROR_CODE_RESOURCE,
+                          AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                          AppConstant.ERROR_TYPE_VALIDATION,
+                          "User is not mapped to this POI + Plant"
+                  )
+          );
+      }
+  }
 
 
     @Override
