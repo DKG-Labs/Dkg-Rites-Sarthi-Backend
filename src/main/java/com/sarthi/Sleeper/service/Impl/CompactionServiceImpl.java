@@ -54,6 +54,9 @@ public class CompactionServiceImpl implements CompactionService {
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setCreatedDate(LocalDateTime.now());
 
+            entity.setTime(dto.getTime());
+            entity.setLocation(dto.getLocation());
+
             entity.setVendorCode(dto.getVendorCode());
             entity.setShift(dto.getShift());
             entity.setPlantId(dto.getPlantId());
@@ -138,6 +141,10 @@ public class CompactionServiceImpl implements CompactionService {
             entity.setBatchNo(dto.getBatchNo());
             entity.setSleeperType(dto.getSleeperType());
 
+
+
+            entity.setTime(dto.getTime());
+            entity.setLocation(dto.getLocation());
 
             entity.setVendorCode(dto.getVendorCode());
             entity.setShift(dto.getShift());
@@ -270,6 +277,9 @@ public class CompactionServiceImpl implements CompactionService {
             dto.setBatchNo(entity.getBatchNo());
             dto.setSleeperType(entity.getSleeperType());
 
+
+            dto.setTime(entity.getTime());
+            dto.setLocation(entity.getLocation());
 
             dto.setVendorCode(entity.getVendorCode());
             dto.setShift(entity.getShift());
@@ -412,6 +422,8 @@ public class CompactionServiceImpl implements CompactionService {
         dto.setBatchNo(entity.getBatchNo());
         dto.setSleeperType(entity.getSleeperType());
 
+        dto.setLocation(entity.getLocation());
+        dto.setTime(entity.getTime());
         dto.setVendorCode(entity.getVendorCode());
         dto.setShift(entity.getShift());
         dto.setPlantId(entity.getPlantId());

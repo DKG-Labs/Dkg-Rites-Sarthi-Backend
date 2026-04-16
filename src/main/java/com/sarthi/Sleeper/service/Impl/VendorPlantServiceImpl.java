@@ -1,10 +1,12 @@
 package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.PlantDTO;
+import com.sarthi.Sleeper.dto.RlyProjection;
 import com.sarthi.Sleeper.dto.VendorResponseDTO;
 import com.sarthi.Sleeper.entity.VendorPlant;
 import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.Sleeper.service.VendorPlantService;
+import com.sarthi.repository.PoHeaderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +16,8 @@ import java.util.List;
 public class VendorPlantServiceImpl implements VendorPlantService {
     @Autowired
     private VendorPlantRepository vendorPlantRepository;
+    @Autowired
+    private PoHeaderRepository poHeaderRepository;
 
     public VendorResponseDTO getPlantsByVendorCode(String vendorCode) {
 
@@ -35,4 +39,40 @@ public class VendorPlantServiceImpl implements VendorPlantService {
 
         return response;
     }
+
+    public VendorResponseDTO getPlantsByVendorCodeAndUser(String vendorCode, Integer userId) {
+
+        List<VendorPlant> list = vendorPlantRepository.findByVendorCode(vendorCode);
+
+        if (list.isEmpty()) {
+            throw new RuntimeException("No plants found for vendor: " + vendorCode);
+        }
+
+        List<String> userPlantIds = vendorPlantRepository.findPlantIdsByUserId(userId);
+
+        List<PlantDTO> plants = list.stream()
+                .filter(p -> userPlantIds.contains(p.getPlantId()))
+                .map(p -> new PlantDTO(p.getPlantName(), p.getPlantId()))
+                .toList();
+
+        if (plants.isEmpty()) {
+            throw new RuntimeException("No plants mapped for this user");
+        }
+
+        // Step 4: Build response
+        VendorResponseDTO response = new VendorResponseDTO();
+        response.setVendorCode(vendorCode);
+        response.setCompanyName(list.get(0).getCompanyName());
+        response.setPlants(plants);
+
+        return response;
+    }
+
+
+    public List<RlyProjection> getUniqueRlyList() {
+        return poHeaderRepository.getUniqueRlyList();
+    }
+
+
+
 }

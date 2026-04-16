@@ -8,6 +8,7 @@ public class SleeperPoiIeMappingDto {
 
     private String poiCode;
     private String ieType;
+    private String plantId;
     private List<Integer> ieUserIds;
 
 }

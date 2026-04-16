@@ -26,7 +26,7 @@ public class CrisPoScheduler {
 
       //   asyncService.syncPos("2025-12-23");
 
-       //  asyncService.syncMa("2019-06-19");
+         asyncService.syncMa("2019-06-19");
 
        //  asyncService.syncAmendedPo("2019-06-13");
 

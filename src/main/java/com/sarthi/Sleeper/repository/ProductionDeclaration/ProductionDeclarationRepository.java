@@ -233,4 +233,12 @@ WHERE p.created_by = :vendorId
     );
 
     ProductionDeclaration findByBatchNumberAndProductionUnit(String batchNo, String productionUnit);
+
+    @Query("""
+    SELECT p FROM ProductionDeclaration p
+    WHERE p.batchNumber NOT IN (
+        SELECT m.batchNumber FROM MomentOfResistance m
+    )
+""")
+    List<ProductionDeclaration> findAllExcludingMR();
 }

@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +13,7 @@ import java.util.List;
 @Table(name = "compaction")
 @Data
 public class Compaction {
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -44,6 +46,9 @@ public class Compaction {
     private String vendorCode;
     private String plantId;
     private String shift;
+
+    private String location;
+    private LocalTime time;
 
 
     // ===== Relations =====

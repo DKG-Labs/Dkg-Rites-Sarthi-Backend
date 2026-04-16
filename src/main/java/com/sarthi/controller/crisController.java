@@ -1,5 +1,6 @@
 package com.sarthi.controller;
 
+import com.sarthi.dto.crisDtos.MaRequestDto;
 import com.sarthi.dto.crisDtos.PoRequestDto;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.service.crisService;
@@ -31,6 +32,33 @@ public class crisController {
 
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse("PO saved successfully"),
+                    HttpStatus.OK
+            );
+
+        } catch (Exception e) {
+
+            ErrorDetails error = new ErrorDetails(
+                    1001,                      // errorCode
+                    400,                       // errorTypeCode (HTTP)
+                    "BAD_REQUEST",             // errorType
+                    e.getMessage()             // message
+            );
+
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(error),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @PostMapping("/savePoMa")
+    public ResponseEntity<Object> savePoMa(@RequestBody MaRequestDto request) {
+
+        try {
+            crisService.saveMaFromFrontend(request);
+
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse("PO Ma saved successfully"),
                     HttpStatus.OK
             );
 

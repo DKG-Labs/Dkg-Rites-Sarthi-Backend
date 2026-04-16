@@ -23,4 +23,23 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
 
     List<SleeperPoiIeMapping> findByIeUserId(Integer ieUserId);
 
+
+
+    List<SleeperPoiIeMapping> findByPoiCodeAndPlantId(String poiCode, String plantId);
+
+
+    List<SleeperPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(String poiCode, String plantId, String ieType);
+
+
+    boolean existsByPoiCodeAndPlantIdAndIeUserId(String poiCode, String plantId, Integer userId);
+
+    boolean existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+            String poiCode,
+            String plantId,
+            Integer userId,
+            String ieType
+    );
+
+
+
 }

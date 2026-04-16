@@ -38,6 +38,7 @@ public class BatchTestingListResponseDto {
         this.testingStatus = testingStatus;
         this.testingDate = testingDate;
         this.plantId = plantId;
+
     }
 
 }

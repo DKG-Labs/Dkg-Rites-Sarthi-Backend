@@ -44,6 +44,7 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
             entity.setIeUserId(userId);
             entity.setIeType(dto.getIeType());
 
+            entity.setPlantId(dto.getPlantId());
             savedList.add(poiIeMappingRepository.save(entity));
         }
 
@@ -119,6 +120,7 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
         return dto;
     }
 */
+    /*
     public CompanyUnitResponseDto getCompanyUnits(Integer ieUserId) {
 
         // Step 1: Get POI codes
@@ -178,10 +180,74 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
             plantVendorMap.put(plantId, vendorCode);
         }*/
 
-        dto.setCompanyUnitMap(null);
+       /* dto.setCompanyUnitMap(null);
         dto.setUnitVendorMap(null);
 
         return dto;
-    }
+    } */
+       public CompanyUnitResponseDto getCompanyUnits(Integer ieUserId) {
+
+           List<SleeperPoiIeMapping> mappingList =
+                   poiIeMappingRepository.findByIeUserId(ieUserId);
+
+           if (mappingList.isEmpty()) {
+               throw new RuntimeException("No mapping found for IE " + ieUserId);
+           }
+
+           List<String> poiCodes = mappingList.stream()
+                   .map(SleeperPoiIeMapping::getPoiCode)
+                   .distinct()
+                   .toList();
+
+           List<String> userPlantIds = mappingList.stream()
+                   .map(SleeperPoiIeMapping::getPlantId)
+                   .filter(Objects::nonNull)
+                   .distinct()
+                   .toList();
+
+
+           // STEP 2: Get company mapping using POI
+           List<SleeperPincodePoIMapping> mappings =
+                   sleeperPincodePoIMappingRepository.findByPoiCodeIn(poiCodes);
+
+           if (mappings.isEmpty()) {
+               throw new RuntimeException("No company found for IE " + ieUserId);
+           }
+
+           CompanyUnitResponseDto dto = new CompanyUnitResponseDto();
+
+           String vendorCode = mappings.get(0).getVendorCode();
+
+           dto.setCompanyName(mappings.get(0).getCompanyName());
+           dto.setVendorId(vendorCode);
+
+           userMasterRepository.findByUserId(Integer.valueOf(vendorCode))
+                   .ifPresent(um -> dto.setVendorCode(um.getUsername()));
+
+
+           Long vendorId = Long.valueOf(vendorCode);
+
+           List<VendorPlant> plants = vendorPlantRepository.findByVendorId(vendorId);
+
+           List<String> plantIds = plants.stream()
+                   .map(VendorPlant::getPlantId)
+                   .filter(userPlantIds::contains)
+                   .distinct()
+                   .toList();
+
+
+           if (plantIds.isEmpty()) {
+               throw new RuntimeException("No plants mapped for this user");
+           }
+
+           dto.setUnitNames(plantIds);
+
+
+           // (Optional future logic remains same)
+           dto.setCompanyUnitMap(null);
+           dto.setUnitVendorMap(null);
+
+           return dto;
+       }
 
 }

@@ -42,4 +42,7 @@ public class ProductionDeclarationResponseDto {
 
     private List<ProductionLongLineGangResponseDto> gangs;
 
+
+    private Boolean waterCubeTestStatus;
+
 }

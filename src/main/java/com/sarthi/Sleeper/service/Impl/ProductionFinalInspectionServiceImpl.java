@@ -503,12 +503,57 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             dto.setTestedPercentage(percent);
 
-            if (percent == 0)
+         /*   if (percent == 0)
                 dto.setTestingStatus("Pending");
             else if (percent == 100)
                 dto.setTestingStatus("Completed");
             else
+                dto.setTestingStatus("Under Inspection");*/
+            boolean completed = false;
+
+// MODULE 1 → VISUAL
+            if (moduleId == 1) {
+
+                if (testedCount.equals(dto.getNoOfSleepers())) {
+                    completed = true;
+                }
+
+            }
+
+// MODULE 2 → CRITICAL DIMENSION
+            if (moduleId == 2) {
+
+                if ("RT-8521".equalsIgnoreCase(dto.getSleeperType()) && percent >= 10) {
+                    completed = true;
+                }
+
+                if ("RT-8746".equalsIgnoreCase(dto.getSleeperType()) && percent >= 10) {
+                    completed = true;
+                }
+
+            }
+
+// MODULE 3 → NON CRITICAL
+            if (moduleId == 3) {
+
+                if ("RT-8521".equalsIgnoreCase(dto.getSleeperType()) && percent >= 1) {
+                    completed = true;
+                }
+
+                if ("RT-8746".equalsIgnoreCase(dto.getSleeperType()) && percent >= 1) {
+                    completed = true;
+                }
+
+            }
+
+
+            if (percent == 0) {
+                dto.setTestingStatus("Pending");
+            } else if (completed) {
+                dto.setTestingStatus("Completed");
+            } else {
                 dto.setTestingStatus("Under Inspection");
+            }
 
             filteredList.add(dto);
         }

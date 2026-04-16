@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.repository;
 
+import com.sarthi.Sleeper.dto.BatchIdNumberDto;
 import com.sarthi.Sleeper.entity.BatchWeighment.BatchWeighment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -26,4 +27,7 @@ public interface BatchWeighmentRepository extends JpaRepository<BatchWeighment, 
             LocalDateTime startOfDay,
             LocalDateTime endOfDay
     );
+
+    @Query("SELECT new com.sarthi.Sleeper.dto.BatchIdNumberDto(b.id, b.batchNumber) FROM BatchWeighment b")
+    List<BatchIdNumberDto> findAllBatchIdsAndNumbers();
 }

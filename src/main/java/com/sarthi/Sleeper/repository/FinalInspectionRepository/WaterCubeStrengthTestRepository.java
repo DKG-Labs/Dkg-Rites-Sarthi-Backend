@@ -20,4 +20,7 @@ FROM WaterCubeStrengthTest w
 WHERE w.batchNumber = :batchNo
 """)
     boolean existsWaterCube(String batchNo);
+
+    @Query("SELECT DISTINCT w.batchNumber FROM WaterCubeStrengthTest w")
+    List<String> findAllBatchNumbers();
 }

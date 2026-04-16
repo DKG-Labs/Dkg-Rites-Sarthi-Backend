@@ -26,4 +26,8 @@ public class SleeperPoiIeMapping {
 
     @Column(name = "created_date")
     private LocalDateTime createdDate = LocalDateTime.now();
+
+
+    @Column(name = "plant_id")
+    private String plantId;
 }
