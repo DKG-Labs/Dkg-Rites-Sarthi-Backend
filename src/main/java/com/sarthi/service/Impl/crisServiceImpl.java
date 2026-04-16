@@ -1,11 +1,11 @@
 package com.sarthi.service.Impl;
 
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
-import com.sarthi.dto.crisDtos.PoHeaderDto;
-import com.sarthi.dto.crisDtos.PoItemDto;
-import com.sarthi.dto.crisDtos.PoRequestDto;
+import com.sarthi.dto.crisDtos.*;
 import com.sarthi.entity.*;
 import com.sarthi.entity.CricsPos.CrisSyncStatus;
+import com.sarthi.entity.CricsPos.PoMaDetail;
+import com.sarthi.entity.CricsPos.PoMaHeader;
 import com.sarthi.repository.*;
 import com.sarthi.service.UserService;
 import com.sarthi.service.crisService;
@@ -38,6 +38,10 @@ public class crisServiceImpl implements crisService {
     private RoleMasterRepository roleMasterRepository;
     @Autowired
     private UserRoleMasterRepository userRoleMasterRepository;
+    @Autowired
+    private PoMaHeaderRepository  poMaHeaderRepository;
+    @Autowired
+    private PoMaDetailRepository poMaDetailRepository;
 
     @Autowired
     private CrisSyncStatusRepository statusRepo;
@@ -367,6 +371,92 @@ public class crisServiceImpl implements crisService {
         }
     }
 
+
+
+    @Transactional
+    public void saveMaFromFrontend(MaRequestDto request) {
+
+        MaHeaderDto hdr = request.getMaHdr();
+        List<MaDetailDto> dtls = request.getMaDtl();
+
+        if (hdr == null) {
+            throw new RuntimeException("MaHdr missing");
+        }
+
+        if (hdr.getMAKEY() == null || hdr.getMAKEY().isBlank()) {
+            throw new RuntimeException("MAKEY is mandatory");
+        }
+
+        String maKey = hdr.getMAKEY();
+        String rly = hdr.getRLY();
+
+        if (statusRepo.existsByRefTypeAndRefKey("MA", maKey)) {
+            throw new RuntimeException("MA already processed: " + maKey);
+        }
+
+        CrisSyncStatus status = new CrisSyncStatus();
+        status.setRefType("MA");
+        status.setRefKey(maKey);
+        status.setRly(rly);
+        status.setStatus("FETCHED");
+        status.setFetchedAt(LocalDateTime.now());
+
+        statusRepo.save(status);
+
+        try {
+
+            if (poMaHeaderRepository.existsByMaKey(maKey)) {
+                throw new RuntimeException("MA already exists in DB: " + maKey);
+            }
+
+            PoMaHeader h = new PoMaHeader();
+            h.setMaKey(maKey);
+            h.setRly(rly);
+            h.setPoKey(hdr.getPOKEY());
+            h.setPoNo(hdr.getPO_NO());
+            h.setMaNo(hdr.getMA_NO());
+            h.setSubject(hdr.getSUBJECT());
+
+            if (hdr.getOLD_PO_VALUE() != null)
+                h.setOldPoValue(new BigDecimal(hdr.getOLD_PO_VALUE()));
+
+            if (hdr.getNEW_PO_VALUE() != null)
+                h.setNewPoValue(new BigDecimal(hdr.getNEW_PO_VALUE()));
+
+            poMaHeaderRepository.save(h);
+
+            if (dtls == null || dtls.isEmpty()) {
+                throw new RuntimeException("MaDtl cannot be empty");
+            }
+
+            for (MaDetailDto m : dtls) {
+
+                PoMaDetail d = new PoMaDetail();
+                d.setMaHeader(h);
+                d.setRly(m.getRLY());
+                d.setSlno(m.getSLNO());
+                d.setMaFld(m.getMA_FLD());
+                d.setMaFldDescr(m.getMA_FLD_DESCR());
+                d.setOldValue(m.getOLD_VALUE());
+                d.setNewValue(m.getNEW_VALUE());
+                d.setPoSr(m.getPO_SR());
+
+                poMaDetailRepository.save(d);
+            }
+
+            status.setStatus("SAVED");
+            status.setProcessedAt(LocalDateTime.now());
+            statusRepo.save(status);
+
+        } catch (Exception e) {
+
+            status.setStatus("FAILED");
+            status.setErrorMessage(e.getMessage());
+            statusRepo.save(status);
+
+            throw e;
+        }
+    }
 
 
 
