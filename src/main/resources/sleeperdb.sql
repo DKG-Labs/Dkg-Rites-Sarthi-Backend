@@ -1405,6 +1405,17 @@ CREATE TABLE `sample_cube` (
   )
 
 
+/////////////
+
+
+ALTER TABLE compaction
+    ADD COLUMN location VARCHAR(255),
+    ADD COLUMN time TIME;
+
+
+   // plant id in the vendor plant
+
+
 
 
 

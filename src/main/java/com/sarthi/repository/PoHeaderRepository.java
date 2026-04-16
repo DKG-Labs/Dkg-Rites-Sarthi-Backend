@@ -1,5 +1,6 @@
 package com.sarthi.repository;
 
+import com.sarthi.Sleeper.dto.RlyProjection;
 import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
 import com.sarthi.entity.PoHeader;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -161,4 +162,11 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
     @Query("SELECT COUNT(ph.poNo) FROM PoHeader ph WHERE ph.itemCatDescr = :itemCatDescr")
     long countPoByItemCatDescr(@Param("itemCatDescr") String itemCatDescr);
+
+    @Query("""
+    SELECT DISTINCT p.rlyCd AS rlyCd, p.rlyShortName AS rlyShortName
+    FROM PoHeader p
+    WHERE p.rlyCd IS NOT NULL
+""")
+    List<RlyProjection> getUniqueRlyList();
 }

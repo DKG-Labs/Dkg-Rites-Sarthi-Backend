@@ -1,10 +1,12 @@
 package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.PlantDTO;
+import com.sarthi.Sleeper.dto.RlyProjection;
 import com.sarthi.Sleeper.dto.VendorResponseDTO;
 import com.sarthi.Sleeper.entity.VendorPlant;
 import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.Sleeper.service.VendorPlantService;
+import com.sarthi.repository.PoHeaderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +16,8 @@ import java.util.List;
 public class VendorPlantServiceImpl implements VendorPlantService {
     @Autowired
     private VendorPlantRepository vendorPlantRepository;
+    @Autowired
+    private PoHeaderRepository poHeaderRepository;
 
     public VendorResponseDTO getPlantsByVendorCode(String vendorCode) {
 
@@ -63,6 +67,12 @@ public class VendorPlantServiceImpl implements VendorPlantService {
 
         return response;
     }
+
+
+    public List<RlyProjection> getUniqueRlyList() {
+        return poHeaderRepository.getUniqueRlyList();
+    }
+
 
 
 }
