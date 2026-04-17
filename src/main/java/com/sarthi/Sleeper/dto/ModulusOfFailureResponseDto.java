@@ -32,4 +32,10 @@ public class ModulusOfFailureResponseDto {
 
     private String sampleType;
 
+    private Long createdBy;
+
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
 }

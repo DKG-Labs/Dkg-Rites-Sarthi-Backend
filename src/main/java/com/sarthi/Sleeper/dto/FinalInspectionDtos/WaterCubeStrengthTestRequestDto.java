@@ -35,5 +35,8 @@ public class WaterCubeStrengthTestRequestDto {
     
     private Long createdBy;
 
+    private String vendorCode;
+    private String plantId;
+
     private List<WaterCubeStrengthDetailRequestDto> details;
 }

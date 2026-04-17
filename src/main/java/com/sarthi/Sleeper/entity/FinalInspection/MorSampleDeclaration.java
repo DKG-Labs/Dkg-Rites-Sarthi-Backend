@@ -33,4 +33,8 @@ public class MorSampleDeclaration {
     private Long updatedBy;
 
     private LocalDateTime updatedDate;
+
+    private String shift;
+    private String plantId;
+    private String vendorCode;
 }

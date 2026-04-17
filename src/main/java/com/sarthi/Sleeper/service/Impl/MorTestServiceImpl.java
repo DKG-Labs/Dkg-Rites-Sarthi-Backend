@@ -40,6 +40,10 @@ public class MorTestServiceImpl implements MorTestService {
         entity.setStrength(dto.getStrength());
         entity.setRemarks(dto.getRemarks());
 
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+
         MorSampleDeclaration sample =
                 morSampleRepository.findById(dto.getMorSampleId()).orElseThrow();
 
@@ -78,6 +82,11 @@ public class MorTestServiceImpl implements MorTestService {
         entity.setLoadKn(dto.getLoadKn());
         entity.setStrength(dto.getStrength());
         entity.setRemarks(dto.getRemarks());
+
+
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
 
         if(dto.getStrength() >= 60){
             entity.setResult("PASS");
@@ -151,6 +160,10 @@ public class MorTestServiceImpl implements MorTestService {
         dto.setResult(entity.getResult());
         dto.setRemarks(entity.getRemarks());
         dto.setCreatedBy(entity.getCreatedBy());
+
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
 
         return dto;
     }

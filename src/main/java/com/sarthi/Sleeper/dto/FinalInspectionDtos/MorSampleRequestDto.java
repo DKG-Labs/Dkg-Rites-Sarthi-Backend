@@ -19,4 +19,8 @@ public class MorSampleRequestDto {
 
     private Long updatedBy;
 
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
 }

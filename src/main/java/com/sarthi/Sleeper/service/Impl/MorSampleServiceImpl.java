@@ -37,6 +37,10 @@ public class MorSampleServiceImpl implements MorSampleService {
         entity.setShedLine(dto.getShedLine());
         entity.setSampleIdentificationNumber(dto.getSampleIdentificationNumber());
 
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
 
@@ -63,6 +67,11 @@ public class MorSampleServiceImpl implements MorSampleService {
         entity.setShedLine(dto.getShedLine());
         entity.setSampleIdentificationNumber(dto.getSampleIdentificationNumber());
 
+
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
 
@@ -87,12 +96,23 @@ public class MorSampleServiceImpl implements MorSampleService {
     }
 
     // ================= GET ALL =================
-    @Override
+  /*  @Override
     public List<MorSampleResponseDto> getAll() {
 
         List<MorSampleResponseDto> list = new ArrayList<>();
 
         for (MorSampleDeclaration entity : repository.findAll()) {
+            list.add(buildResponse(entity));
+        }
+
+        return list;
+    } */
+    @Override
+    public List<MorSampleResponseDto> getAll() {
+
+        List<MorSampleResponseDto> list = new ArrayList<>();
+
+        for (MorSampleDeclaration entity : repository.findAllNotTested()) {
             list.add(buildResponse(entity));
         }
 
@@ -129,6 +149,10 @@ public class MorSampleServiceImpl implements MorSampleService {
         dto.setCreatedDate(entity.getCreatedDate());
         dto.setUpdatedBy(entity.getUpdatedBy());
         dto.setUpdatedDate(entity.getUpdatedDate());
+
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
 
         return dto;
     }

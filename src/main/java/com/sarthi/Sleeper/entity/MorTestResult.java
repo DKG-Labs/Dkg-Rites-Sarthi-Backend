@@ -34,6 +34,10 @@ public class MorTestResult {
     private Long updatedBy;
     private LocalDateTime updatedDate;
 
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
     @ManyToOne
     @JoinColumn(name = "mor_sample_id")
     private MorSampleDeclaration morSample;

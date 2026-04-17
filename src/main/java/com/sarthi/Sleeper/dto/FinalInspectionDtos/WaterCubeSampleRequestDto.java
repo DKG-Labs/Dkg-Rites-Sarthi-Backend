@@ -21,5 +21,8 @@ public class WaterCubeSampleRequestDto {
 
     private Long createdBy;
 
+    private String vendorCode;
+    private String plantId;
+
     private List<WaterCubeSampleDetailDto> details;
 }

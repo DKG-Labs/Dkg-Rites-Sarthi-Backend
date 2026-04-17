@@ -32,6 +32,13 @@ public class MfTestDetails {
     private Long updatedBy;
     private LocalDateTime updatedDate;
 
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
+
+
+
     @ManyToOne
     @JoinColumn(name = "modulus_of_failure_id")
     private ModulusOfFailure modulusOfFailure;

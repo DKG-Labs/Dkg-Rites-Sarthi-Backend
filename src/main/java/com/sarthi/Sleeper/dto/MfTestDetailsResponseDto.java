@@ -21,4 +21,12 @@ public class MfTestDetailsResponseDto {
     private String result;
 
     private String remarks;
+
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
+    private Long createdBy;
+
+
 }

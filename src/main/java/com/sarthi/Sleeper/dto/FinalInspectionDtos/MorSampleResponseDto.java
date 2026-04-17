@@ -26,4 +26,8 @@ public class MorSampleResponseDto {
 
     private LocalDateTime updatedDate;
 
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
 }

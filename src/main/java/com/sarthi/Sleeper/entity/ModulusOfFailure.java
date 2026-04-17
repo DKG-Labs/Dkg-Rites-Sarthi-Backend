@@ -37,6 +37,10 @@ public class ModulusOfFailure {
 
     private String sampleType;
 
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
     private Long createdBy;
     private LocalDateTime createdDate;
 

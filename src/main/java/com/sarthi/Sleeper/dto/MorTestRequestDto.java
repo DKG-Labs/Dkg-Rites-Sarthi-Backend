@@ -19,4 +19,8 @@ public class MorTestRequestDto {
 
         private Long createdBy;
 
+        private String shift;
+        private String vendorCode;
+        private String plantId;
+
 }

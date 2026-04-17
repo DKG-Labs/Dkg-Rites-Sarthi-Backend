@@ -36,6 +36,9 @@ public class WaterCubeSampleDeclaration {
 
     private LocalDateTime updatedDate;
 
+    private String vendorCode;
+    private String plantId;
+
     @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<WaterCubeSampleDetail> details;
 }

@@ -38,6 +38,10 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         entity.setBenchGangNumber(dto.getBenchGangNumber());
         entity.setMouldNo(dto.getMouldNo());
 
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+
         // Auto generate Sample Identification
         entity.setSampleIdentification(
                 dto.getShedLineNumber() + " + "
@@ -79,6 +83,11 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         entity.setBenchGangNumber(dto.getBenchGangNumber());
         entity.setMouldNo(dto.getMouldNo());
 
+
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+
         // regenerate identification
         entity.setSampleIdentification(
                 dto.getShedLineNumber() + " + "
@@ -117,7 +126,7 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
 
     // ================= GET ALL =================
 
-    @Override
+ /*   @Override
     public List<ModulusOfFailureResponseDto> getAll() {
 
         List<ModulusOfFailureResponseDto> list = new ArrayList<>();
@@ -129,6 +138,19 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         return list;
     }
 
+  */
+
+    @Override
+    public List<ModulusOfFailureResponseDto> getAll() {
+
+        List<ModulusOfFailureResponseDto> list = new ArrayList<>();
+
+        for (ModulusOfFailure entity : repository.findAllNotTested()) {
+            list.add(buildResponse(entity));
+        }
+
+        return list;
+    }
 
     // ================= DELETE =================
 
@@ -165,6 +187,11 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         dto.setSampleIdentification(entity.getSampleIdentification());
         dto.setMrResult(entity.getMrResult());
         dto.setSampleType(entity.getSampleType());
+
+        dto.setCreatedBy(entity.getCreatedBy());
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
 
         return dto;
     }

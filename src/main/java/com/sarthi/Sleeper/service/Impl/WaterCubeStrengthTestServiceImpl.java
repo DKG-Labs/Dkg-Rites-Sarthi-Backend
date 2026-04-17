@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -47,6 +48,9 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
             test.setLineNo(requestDto.getLineNo());
             test.setFckTarget(requestDto.getFckTarget());
             test.setAgeDays(requestDto.getAgeDays());
+
+            test.setVendorCode(requestDto.getVendorCode());
+            test.setPlantId(requestDto.getPlantId());
             
             test.setS1Avg(requestDto.getS1Avg());
             test.setS2Avg(requestDto.getS2Avg());
@@ -126,6 +130,106 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
         }
     }
 
+    @Override
+    public ResponseEntity<?> updateTestResult(Long id, WaterCubeStrengthTestRequestDto requestDto) {
+        try {
+            Optional<WaterCubeStrengthTest> optional = waterCubeStrengthTestRepository.findById(id);
+
+            if (optional.isEmpty()) {
+                return new ResponseEntity<>("Record not found", HttpStatus.NOT_FOUND);
+            }
+
+            WaterCubeStrengthTest test = optional.get();
+
+            // Update fields
+            test.setBatchNumber(requestDto.getBatchNumber());
+            test.setConcreteGrade(requestDto.getConcreteGrade());
+            test.setCastingDate(requestDto.getCastingDate());
+            test.setShift(requestDto.getShift());
+            test.setLineNo(requestDto.getLineNo());
+            test.setFckTarget(requestDto.getFckTarget());
+            test.setAgeDays(requestDto.getAgeDays());
+
+            test.setVendorCode(requestDto.getVendorCode());
+            test.setPlantId(requestDto.getPlantId());
+            test.setS1Avg(requestDto.getS1Avg());
+            test.setS2Avg(requestDto.getS2Avg());
+            test.setAvgX(requestDto.getAvgX());
+            test.setMinY(requestDto.getMinY());
+            test.setS1Variation(requestDto.getS1Variation());
+            test.setS2Variation(requestDto.getS2Variation());
+
+            test.setCondition1(requestDto.getCondition1());
+            test.setCondition2(requestDto.getCondition2());
+            test.setCondition3(requestDto.getCondition3());
+            test.setMrSamplesRequired(requestDto.getMrSamplesRequired());
+            test.setFinalTestResult(requestDto.getFinalTestResult());
+
+          //  test.setUpdatedBy(requestDto.getUpdatedBy());
+            test.setUpdatedDate(LocalDateTime.now());
+
+
+            test.getDetails().clear();
+
+            // Add new details
+            List<WaterCubeStrengthDetail> detailsList = new ArrayList<>();
+            if (requestDto.getDetails() != null) {
+                for (WaterCubeStrengthDetailRequestDto dto : requestDto.getDetails()) {
+                    WaterCubeStrengthDetail detail = new WaterCubeStrengthDetail();
+
+                    detail.setSampleNumber(dto.getSampleNumber());
+                    detail.setCubeIndex(dto.getCubeIndex());
+                    detail.setCubeId(dto.getCubeId());
+                    detail.setWeightKg(dto.getWeightKg());
+                    detail.setLoadKn(dto.getLoadKn());
+                    detail.setStrengthNmm2(dto.getStrengthNmm2());
+                    detail.setTestingDate(dto.getTestingDate());
+                    detail.setTestingTime(dto.getTestingTime());
+
+                    detail.setStrengthTest(test);
+                    detailsList.add(detail);
+                }
+            }
+
+            test.setDetails(detailsList);
+
+            waterCubeStrengthTestRepository.save(test);
+
+            return new ResponseEntity<>("Updated successfully", HttpStatus.OK);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>("Error updating: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    public ResponseEntity<?> deleteTestResult(Long id) {
+        try {
+            if (!waterCubeStrengthTestRepository.existsById(id)) {
+                return new ResponseEntity<>("Record not found", HttpStatus.NOT_FOUND);
+            }
+
+            waterCubeStrengthTestRepository.deleteById(id);
+
+            return new ResponseEntity<>("Deleted successfully", HttpStatus.OK);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>("Error deleting: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    public List<Map<String, Object>> getAll() {
+      //  return waterCubeStrengthTestRepository.findAll();
+
+        return waterCubeStrengthTestRepository.findAll()
+                .stream()
+                .map(this::mapTestToDto)
+                .toList();
+    }
+
     private java.util.Map<String, Object> mapTestToDto(WaterCubeStrengthTest test) {
         java.util.Map<String, Object> map = new java.util.HashMap<>();
         map.put("id", test.getId());
@@ -137,6 +241,9 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
         map.put("lineNo", test.getLineNo());
         map.put("fckTarget", test.getFckTarget());
         map.put("ageDays", test.getAgeDays());
+
+        map.put("vendorCode", test.getVendorCode());
+        map.put("plantId", test.getPlantId());
         
         map.put("s1Avg", test.getS1Avg());
         map.put("s2Avg", test.getS2Avg());

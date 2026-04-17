@@ -11,9 +11,14 @@ public class MfTestDetailsRequestDto {
 
     private Double strength;
 
+
     private String remarks;
 
     private Long createdBy;
 
     private Long updatedBy;
+
+    private String shift;
+    private String vendorCode;
+    private String plantId;
 }

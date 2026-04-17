@@ -25,4 +25,8 @@ public class MorTestResponseDto {
     private String remarks;
 
     private Long createdBy;
+
+    private String shift;
+    private String vendorCode;
+    private String plantId;
 }
