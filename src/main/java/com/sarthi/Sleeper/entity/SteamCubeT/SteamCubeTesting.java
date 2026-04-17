@@ -36,6 +36,8 @@ public class SteamCubeTesting {
     private Integer createdBy;
     private LocalDateTime createdDate;
 
+    private Long sampleId;
+
     // ===== CHILD =====
     @OneToMany(mappedBy = "steamCubeTesting", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<SteamCubeTestingDetails> cubeDetails;
