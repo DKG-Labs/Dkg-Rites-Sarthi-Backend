@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.BatchIdNumberDto;
 import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentRequestDto;
 import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentResponseDto;
 import com.sarthi.Sleeper.dto.DemouldingInspectionResponseDTO;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -96,11 +98,13 @@ public class BatchWeighmentController {
     }
 
     @GetMapping("/batchNosForCompaction")
-    public ResponseEntity<Object> getAllBatchs() {
+    public ResponseEntity<Object> getAllBatchs(@RequestParam LocalDate
+                                                           entryDate,@RequestParam String location) {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        batchWeighmentService.getAllBatchIdsAndNumbers()),
+                        batchWeighmentService.getBatchIdsAndNumbers(
+        entryDate,location)),
                 HttpStatus.OK);
     }
 }

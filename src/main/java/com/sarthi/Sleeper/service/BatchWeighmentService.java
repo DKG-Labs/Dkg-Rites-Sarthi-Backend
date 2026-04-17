@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentRequestDto;
 import com.sarthi.Sleeper.dto.BatchWeighmentDtos.BatchWeighmentResponseDto;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -27,5 +28,5 @@ public interface BatchWeighmentService {
             int createdBy,
             String date);
 
-    public List<BatchIdNumberDto> getAllBatchIdsAndNumbers();
+    public List<BatchIdNumberDto> getBatchIdsAndNumbers(LocalDate entryDate, String location);
 }

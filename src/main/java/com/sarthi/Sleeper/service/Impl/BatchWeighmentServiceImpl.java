@@ -709,8 +709,9 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
     }
 
 
-    public List<BatchIdNumberDto> getAllBatchIdsAndNumbers() {
-        return repository.findAllBatchIdsAndNumbers();
+    @Override
+    public List<BatchIdNumberDto> getBatchIdsAndNumbers(LocalDate entryDate, String location) {
+        return repository.findBatchIdsAndNumbersByDateAndLocation(entryDate, location);
     }
 
 }
