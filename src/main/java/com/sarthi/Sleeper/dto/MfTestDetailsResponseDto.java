@@ -28,5 +28,12 @@ public class MfTestDetailsResponseDto {
 
     private Long createdBy;
 
+    private String batchNo;
+
+    private LocalDate castingDate;
+    private String sampleIdentification;
+
+    private String concreteGrade;
+
 
 }

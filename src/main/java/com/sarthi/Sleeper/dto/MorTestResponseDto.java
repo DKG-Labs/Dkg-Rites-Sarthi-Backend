@@ -29,4 +29,10 @@ public class MorTestResponseDto {
     private String shift;
     private String vendorCode;
     private String plantId;
+
+    private LocalDate samplingDate;
+
+    private String concreteGrade;
+
+    private String sampleIdentificationNumber;
 }

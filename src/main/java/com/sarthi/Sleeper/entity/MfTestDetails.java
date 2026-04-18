@@ -36,6 +36,12 @@ public class MfTestDetails {
     private String vendorCode;
     private String plantId;
 
+    private String batchNo;
+
+    private LocalDate castingDate;
+    private String sampleIdentification;
+
+    private String concreteGrade;
 
 
 

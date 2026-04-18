@@ -38,6 +38,13 @@ public class MorTestResult {
     private String vendorCode;
     private String plantId;
 
+    private LocalDate samplingDate;
+
+    private String concreteGrade;
+
+    private String sampleIdentificationNumber;
+
+
     @ManyToOne
     @JoinColumn(name = "mor_sample_id")
     private MorSampleDeclaration morSample;

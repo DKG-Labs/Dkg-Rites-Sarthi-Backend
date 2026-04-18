@@ -40,9 +40,14 @@ public class MorTestServiceImpl implements MorTestService {
         entity.setStrength(dto.getStrength());
         entity.setRemarks(dto.getRemarks());
 
+        entity.setSampleIdentificationNumber(dto.getSampleIdentificationNumber());
+        entity.setConcreteGrade(dto.getConcreteGrade());
+        entity.setSamplingDate(dto.getSamplingDate());
+
         entity.setShift(dto.getShift());
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
+
 
         MorSampleDeclaration sample =
                 morSampleRepository.findById(dto.getMorSampleId()).orElseThrow();
@@ -83,6 +88,10 @@ public class MorTestServiceImpl implements MorTestService {
         entity.setStrength(dto.getStrength());
         entity.setRemarks(dto.getRemarks());
 
+
+        entity.setSampleIdentificationNumber(dto.getSampleIdentificationNumber());
+        entity.setConcreteGrade(dto.getConcreteGrade());
+        entity.setSamplingDate(dto.getSamplingDate());
 
         entity.setShift(dto.getShift());
         entity.setPlantId(dto.getPlantId());
@@ -160,6 +169,11 @@ public class MorTestServiceImpl implements MorTestService {
         dto.setResult(entity.getResult());
         dto.setRemarks(entity.getRemarks());
         dto.setCreatedBy(entity.getCreatedBy());
+
+
+       dto.setSampleIdentificationNumber(entity.getSampleIdentificationNumber());
+       dto.setConcreteGrade(entity.getConcreteGrade());
+        dto.setSamplingDate(entity.getSamplingDate());
 
         dto.setShift(entity.getShift());
         dto.setPlantId(entity.getPlantId());
