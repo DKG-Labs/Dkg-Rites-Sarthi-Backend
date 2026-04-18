@@ -78,6 +78,25 @@ public class crisController {
         }
     }
 
+    @PostMapping("/authenticate")
+    public ResponseEntity<Object> authenticate() {
+        try {
+            String token = crisService.getImmsToken();
+            java.util.Map<String, String> response = new java.util.HashMap<>();
+            response.put("token", token);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
 
-
+    @PostMapping("/fetch-po")
+    public ResponseEntity<Object> fetchPo(@RequestBody java.util.Map<String, String> request) {
+        try {
+            Object data = crisService.fetchPoData(request);
+            return ResponseEntity.ok(data);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
 }
