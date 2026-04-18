@@ -48,6 +48,14 @@ public class Cement7DayStrengthController {
         );
     }
 
+    @GetMapping("/periodic")
+    public ResponseEntity<Object> getPeriodic() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getPeriodic()),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping
     public ResponseEntity<Object> getAll() {
         return new ResponseEntity<>(

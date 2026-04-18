@@ -9,6 +9,7 @@ public interface AggregateSoundnessService {
     AggregateSoundnessResponseDto update(Long id, AggregateSoundnessRequestDto dto);
     AggregateSoundnessResponseDto getById(Long id);
     List<AggregateSoundnessResponseDto> getAll();
+    List<AggregateSoundnessResponseDto> getPeriodic();
     void delete(Long id);
     AggregateSoundnessResponseDto getByRequestId(Long requestId);
 }

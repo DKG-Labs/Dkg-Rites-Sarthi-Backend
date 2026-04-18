@@ -5,8 +5,9 @@ import java.time.LocalDate;
 
 @Data
 public class AggregateSoundnessRequestDto {
-    private LocalDate testDate;
     private Long requestId;
+    private LocalDate testDate;
+    private String typeOfTesting;
     private String consignmentNo;
     private String method;
     private Integer cycles;

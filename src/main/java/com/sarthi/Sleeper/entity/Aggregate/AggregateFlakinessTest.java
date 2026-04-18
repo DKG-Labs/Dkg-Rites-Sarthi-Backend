@@ -14,6 +14,9 @@ public class AggregateFlakinessTest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "type_of_testing")
+    private String typeOfTesting;
     
     @Column(name="request_id")
     private Long requestId;

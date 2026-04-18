@@ -9,6 +9,7 @@ public interface CementFinenessService {
     CementFinenessResponseDto update(Long id, CementFinenessRequestDto dto);
     CementFinenessResponseDto getById(Long id);
     List<CementFinenessResponseDto> getAll();
+    List<CementFinenessResponseDto> getPeriodic();
     void delete(Long id);
     CementFinenessResponseDto getByRequestId(Long requestId);
 }

@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 @Data
 public class CementFinenessResponseDto {
     private Long id;
+    private String typeOfTesting;
     private LocalDate testDate;
     private String consignmentNo;
     private Long requestId;

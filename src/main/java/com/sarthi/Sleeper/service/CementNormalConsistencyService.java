@@ -9,6 +9,7 @@ public interface CementNormalConsistencyService {
     CementNormalConsistencyResponseDto update(Long id, CementNormalConsistencyRequestDto dto);
     CementNormalConsistencyResponseDto getById(Long id);
     List<CementNormalConsistencyResponseDto> getAll();
+    List<CementNormalConsistencyResponseDto> getPeriodic();
     void delete(Long id);
     CementNormalConsistencyResponseDto getByRequestId(Long requestId);
 }

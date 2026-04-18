@@ -8,8 +8,9 @@ import java.util.List;
 @Data
 public class AggregateFlakinessResponseDto {
     private Long id;
-    private LocalDate testDate;
     private Long requestId;
+    private LocalDate testDate;
+    private String typeOfTesting;
     private String consignmentNo;
     private Double combinedIndex20mm;
     private String result20mm;

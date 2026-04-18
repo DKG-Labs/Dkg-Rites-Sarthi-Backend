@@ -9,6 +9,7 @@ public interface AggregateGranulometricService {
     AggregateGranulometricResponseDto update(Long id, AggregateGranulometricRequestDto dto);
     AggregateGranulometricResponseDto getById(Long id);
     List<AggregateGranulometricResponseDto> getAll();
+    List<AggregateGranulometricResponseDto> getPeriodic();
     void delete(Long id);
     AggregateGranulometricResponseDto getByRequestId(Long requestId);
 }

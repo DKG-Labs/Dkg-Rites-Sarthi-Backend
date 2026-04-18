@@ -10,6 +10,7 @@ public interface Cement7DayStrengthService {
     Cement7DayStrengthResponseDto update(Long id, Cement7DayStrengthRequestDto dto);
     Cement7DayStrengthResponseDto getById(Long id);
     List<Cement7DayStrengthResponseDto> getAll();
+    List<Cement7DayStrengthResponseDto> getPeriodic();
     void delete(Long id);
     Cement7DayStrengthResponseDto getByRequestId(Long requestId);
 }

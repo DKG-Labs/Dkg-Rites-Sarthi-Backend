@@ -9,6 +9,7 @@ public interface CementSpecificSurfaceService {
     CementSpecificSurfaceResponseDto update(Long id, CementSpecificSurfaceRequestDto dto);
     CementSpecificSurfaceResponseDto getById(Long id);
     List<CementSpecificSurfaceResponseDto> getAll();
+    List<CementSpecificSurfaceResponseDto> getPeriodic();
     void delete(Long id);
     CementSpecificSurfaceResponseDto getByRequestId(Long requestId);
 }

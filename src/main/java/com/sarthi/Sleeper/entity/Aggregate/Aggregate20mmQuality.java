@@ -13,12 +13,14 @@ public class Aggregate20mmQuality {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "type_of_testing")
+    private String typeOfTesting;
     
     @Column(name="request_id")
     private Long requestId;
 
     private LocalDate testDate;
-    private String typeOfTesting;
     private String consignmentNo;
 
     // Section 1: Crushing

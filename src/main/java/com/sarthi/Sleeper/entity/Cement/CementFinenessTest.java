@@ -13,6 +13,9 @@ public class CementFinenessTest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "type_of_testing")
+    private String typeOfTesting;
+
     @Column(name = "test_date")
     private LocalDate testDate;
 

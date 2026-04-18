@@ -6,11 +6,22 @@ import java.util.List;
 
 @Data
 public class AggregateGranulometricRequestDto {
-    private LocalDate testDate;
     private Long requestId;
+    private LocalDate testDate;
+    private String typeOfTesting;
     private String consignmentNo;
     
     private List<AggregateGranulometricRowDto> observations;
+    
+    // Mix Proportions
+    private Double mixCa1;
+    private Double mixCa2;
+    private Double mixFa;
+
+    // Sample Weights
+    private Double wtCa1;
+    private Double wtCa2;
+    private Double wtFa;
 
     // Session Context
     private String shift;

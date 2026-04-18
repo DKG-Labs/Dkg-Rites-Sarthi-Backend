@@ -9,6 +9,7 @@ public interface AggregateFlakinessService {
     AggregateFlakinessResponseDto update(Long id, AggregateFlakinessRequestDto dto);
     AggregateFlakinessResponseDto getById(Long id);
     List<AggregateFlakinessResponseDto> getAll();
+    List<AggregateFlakinessResponseDto> getPeriodic();
     void delete(Long id);
     AggregateFlakinessResponseDto getByRequestId(Long requestId);
 }

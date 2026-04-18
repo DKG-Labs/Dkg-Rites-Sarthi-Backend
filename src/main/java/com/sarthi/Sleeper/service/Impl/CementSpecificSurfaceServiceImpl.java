@@ -59,6 +59,13 @@ public class CementSpecificSurfaceServiceImpl implements CementSpecificSurfaceSe
     }
 
     @Override
+    public List<CementSpecificSurfaceResponseDto> getPeriodic() {
+        return repository.findAllByTypeOfTesting("Periodic").stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public CementSpecificSurfaceResponseDto getByRequestId(Long requestId) {
         return repository.findByRequestId(requestId)
                 .map(this::mapToResponseDto)

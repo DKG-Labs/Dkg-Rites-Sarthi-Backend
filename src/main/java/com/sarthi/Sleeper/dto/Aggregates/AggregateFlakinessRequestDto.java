@@ -6,8 +6,9 @@ import java.util.List;
 
 @Data
 public class AggregateFlakinessRequestDto {
-    private LocalDate testDate;
     private Long requestId;
+    private LocalDate testDate;
+    private String typeOfTesting;
     private String consignmentNo;
     private Double combinedIndex20mm;
     private String result20mm;

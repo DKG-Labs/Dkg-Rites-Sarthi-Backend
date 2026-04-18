@@ -9,6 +9,7 @@ public interface Aggregate10mmQualityService {
     Aggregate10mmQualityResponseDto update(Long id, Aggregate10mmQualityRequestDto dto);
     Aggregate10mmQualityResponseDto getById(Long id);
     List<Aggregate10mmQualityResponseDto> getAll();
+    List<Aggregate10mmQualityResponseDto> getPeriodic();
     void delete(Long id);
     Aggregate10mmQualityResponseDto getByRequestId(Long requestId);
 }

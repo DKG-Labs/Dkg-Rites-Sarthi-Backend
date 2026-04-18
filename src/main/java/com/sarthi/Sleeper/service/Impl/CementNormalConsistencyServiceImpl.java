@@ -60,6 +60,13 @@ public class CementNormalConsistencyServiceImpl implements CementNormalConsisten
     }
 
     @Override
+    public List<CementNormalConsistencyResponseDto> getPeriodic() {
+        return repository.findAllByTypeOfTesting("Periodic").stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public CementNormalConsistencyResponseDto getByRequestId(Long requestId) {
         return repository.findByRequestId(requestId)
                 .map(this::mapToResponseDto)

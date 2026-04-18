@@ -71,6 +71,13 @@ public class Cement7DayStrengthServiceImpl implements Cement7DayStrengthService 
     }
 
     @Override
+    public List<Cement7DayStrengthResponseDto> getPeriodic() {
+        return repository.findAllByTypeOfTesting("Periodic").stream()
+                .map(this::mapEntityToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Cement7DayStrengthResponseDto getByRequestId(Long requestId) {
         return repository.findByRequestId(requestId)
                 .map(this::mapEntityToResponse)

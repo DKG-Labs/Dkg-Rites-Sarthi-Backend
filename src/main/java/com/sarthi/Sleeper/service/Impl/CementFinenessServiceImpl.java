@@ -59,6 +59,13 @@ public class CementFinenessServiceImpl implements CementFinenessService {
     }
 
     @Override
+    public List<CementFinenessResponseDto> getPeriodic() {
+        return repository.findAllByTypeOfTesting("Periodic").stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public CementFinenessResponseDto getByRequestId(Long requestId) {
         return repository.findByRequestId(requestId)
                 .map(this::mapToResponseDto)

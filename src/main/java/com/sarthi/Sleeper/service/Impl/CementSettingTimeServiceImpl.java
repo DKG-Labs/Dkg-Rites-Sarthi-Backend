@@ -88,6 +88,13 @@ public class CementSettingTimeServiceImpl implements CementSettingTimeService {
     }
 
     @Override
+    public List<CementSettingTimeResponseDto> getPeriodic() {
+        return repository.findAllByTypeOfTesting("Periodic").stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public CementSettingTimeResponseDto getByRequestId(Long requestId) {
         return repository.findByRequestId(requestId)
                 .map(this::mapToResponseDto)

@@ -59,6 +59,13 @@ public class Aggregate10mmQualityServiceImpl implements Aggregate10mmQualityServ
     }
 
     @Override
+    public List<Aggregate10mmQualityResponseDto> getPeriodic() {
+        return repository.findAllByTypeOfTesting("Periodic").stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void delete(Long id) {
         repository.deleteById(id);
     }

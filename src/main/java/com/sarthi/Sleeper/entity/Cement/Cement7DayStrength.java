@@ -17,11 +17,11 @@ public class Cement7DayStrength {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "test_date")
-    private LocalDate testDate;
-
     @Column(name = "type_of_testing")
     private String typeOfTesting;
+
+    @Column(name = "test_date")
+    private LocalDate testDate;
 
     @Column(name = "request_id")
     private Long requestId;

@@ -9,6 +9,7 @@ public interface CementSettingTimeService {
     CementSettingTimeResponseDto update(Long id, CementSettingTimeRequestDto dto);
     CementSettingTimeResponseDto getById(Long id);
     List<CementSettingTimeResponseDto> getAll();
+    List<CementSettingTimeResponseDto> getPeriodic();
     void delete(Long id);
     CementSettingTimeResponseDto getByRequestId(Long requestId);
 }

@@ -8,8 +8,8 @@ import java.util.List;
 @Data
 public class CementNormalConsistencyResponseDto {
     private Long id;
-    private LocalDate testDate;
     private String typeOfTesting;
+    private LocalDate testDate;
     private Long requestId;
     private String consignmentNo;
     private Double roomTemp;

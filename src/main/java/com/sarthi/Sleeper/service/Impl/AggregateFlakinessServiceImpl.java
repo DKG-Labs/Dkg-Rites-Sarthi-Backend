@@ -87,6 +87,13 @@ public class AggregateFlakinessServiceImpl implements AggregateFlakinessService 
     }
 
     @Override
+    public List<AggregateFlakinessResponseDto> getPeriodic() {
+        return repository.findAllByTypeOfTesting("Periodic").stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void delete(Long id) {
         repository.deleteById(id);
     }
