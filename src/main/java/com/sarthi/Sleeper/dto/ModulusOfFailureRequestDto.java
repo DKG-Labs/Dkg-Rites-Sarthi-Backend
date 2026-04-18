@@ -30,5 +30,10 @@ public class ModulusOfFailureRequestDto {
 
     private Long createdBy;
 
+
+    private String shift;
+    private String vendorCode;
+    private String plantId;
+
     private Long updatedBy;
 }

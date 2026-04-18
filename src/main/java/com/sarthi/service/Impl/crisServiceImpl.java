@@ -25,6 +25,15 @@ import java.util.Optional;
 public class crisServiceImpl implements crisService {
 
     @Autowired
+    private CrisAuthServic authService;
+
+    @Autowired
+    private org.springframework.web.client.RestTemplate crisRestTemplate;
+
+    @org.springframework.beans.factory.annotation.Value("${cris.base-url}")
+    private String crisBaseUrl;
+
+    @Autowired
     private PoHeaderRepository headerRepo;
     @Autowired
     private PoItemRepository itemRepo;
@@ -458,6 +467,30 @@ public class crisServiceImpl implements crisService {
         }
     }
 
+    @Override
+    public String getImmsToken() {
+        return authService.getToken();
+    }
 
+    @Override
+    public Object fetchPoData(java.util.Map<String, String> requestValues) {
+        String token = getImmsToken();
+        String url = crisBaseUrl + "/purchase/getPOData";
+
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(token);
+
+        org.springframework.http.HttpEntity<java.util.Map<String, String>> entity = 
+            new org.springframework.http.HttpEntity<>(requestValues, headers);
+
+        try {
+            org.springframework.http.ResponseEntity<Object> response = 
+                crisRestTemplate.postForEntity(url, entity, Object.class);
+            return response.getBody();
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching data from CRIS: " + e.getMessage());
+        }
+    }
 
 }

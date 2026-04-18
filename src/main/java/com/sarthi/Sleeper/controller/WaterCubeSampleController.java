@@ -73,6 +73,29 @@ public class WaterCubeSampleController {
     public ResponseEntity<?> getTestResultsByUser(@PathVariable Long userId) {
         return waterCubeStrengthTestService.getTestResultsByUser(userId);
     }
+    @DeleteMapping("/testDelete/{id}")
+    public ResponseEntity<Object> deleteTest(@PathVariable Long id) {
+        waterCubeStrengthTestService.deleteTestResult(id);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse("Water Cube Sample Declaration Deleted Successfully"),
+                HttpStatus.OK);
+    }
+    @GetMapping("/getAllTests")
+    public ResponseEntity<Object> getAllTests() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(waterCubeStrengthTestService.getAll()),
+                HttpStatus.OK);
+    }
+
+    @PutMapping("/updateTest/{id}")
+    public ResponseEntity<Object> updateTest(
+            @PathVariable Long id,
+            @RequestBody  WaterCubeStrengthTestRequestDto dto) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(waterCubeStrengthTestService.updateTestResult(id, dto)),
+                HttpStatus.OK);
+    }
+
 
     // ================= DELETE =================
     @DeleteMapping("/delete/{id}")

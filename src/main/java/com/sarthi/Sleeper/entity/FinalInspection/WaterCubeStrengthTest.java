@@ -82,6 +82,10 @@ public class WaterCubeStrengthTest {
     @Column(name = "updated_by")
     private Long updatedBy;
 
+
+    private String vendorCode;
+    private String plantId;
+
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
 

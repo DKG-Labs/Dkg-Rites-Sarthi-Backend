@@ -1414,6 +1414,52 @@ ALTER TABLE compaction
 
 
    // plant id in the vendor plant
+/////////////
+
+
+SELECT * FROM steam_cube_sample_declaration
+
+select *from steam_cube_testing
+
+update steam_cube_sample_declaration set status = "Deleted" where id = 44
+
+
+
+ALTER TABLE steam_cube_testing
+ADD COLUMN sample_id BIGINT;
+
+
+ALTER TABLE mf_test_details
+ADD COLUMN shift VARCHAR(20),
+ADD COLUMN vendor_code VARCHAR(50),
+ADD COLUMN plant_id VARCHAR(50);
+
+
+
+ALTER TABLE modulus_of_failure
+ADD COLUMN shift VARCHAR(20),
+ADD COLUMN vendor_code VARCHAR(50),
+ADD COLUMN plant_id VARCHAR(50);
+
+
+
+ALTER TABLE mor_sample_declaration
+ADD COLUMN vendor_code VARCHAR(50),
+ADD COLUMN plant_id VARCHAR(50);
+
+select *from mor_sample_declaration
+ALTER TABLE mor_test_result
+ADD COLUMN shift VARCHAR(20),
+ADD COLUMN vendor_code VARCHAR(50),
+ADD COLUMN plant_id VARCHAR(50);
+
+ALTER TABLE water_cube_sample_declaration
+ADD COLUMN vendor_code VARCHAR(50),
+ADD COLUMN plant_id VARCHAR(50);
+
+ALTER TABLE water_cube_strength_test
+ADD COLUMN vendor_code VARCHAR(50),
+ADD COLUMN plant_id VARCHAR(50);
 
 
 
@@ -1421,4 +1467,15 @@ ALTER TABLE compaction
 
 
 
+ALTER TABLE mf_test_details
+ADD COLUMN batch_no VARCHAR(50),
+ADD COLUMN casting_date DATE,
+ADD COLUMN sample_identification VARCHAR(100),
+ADD COLUMN concrete_grade VARCHAR(50);
+
+
+ALTER TABLE mor_test_result
+ADD COLUMN sampling_date DATE,
+ADD COLUMN concrete_grade VARCHAR(50),
+ADD COLUMN sample_identification_number VARCHAR(100);
 

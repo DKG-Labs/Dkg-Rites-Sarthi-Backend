@@ -40,6 +40,10 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
 
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+
+
         List<WaterCubeSampleDetail> detailList = new ArrayList<>();
 
         if (dto.getDetails() != null) {
@@ -83,6 +87,10 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
         entity.setUpdatedBy(dto.getCreatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
 
+
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+
         entity.getDetails().clear();
 
         if (dto.getDetails() != null) {
@@ -120,7 +128,7 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
 
     // ================= GET ALL =================
 
-    @Override
+  /*  @Override
     public List<WaterCubeSampleResponseDto> getAll() {
 
         List<WaterCubeSampleResponseDto> list = new ArrayList<>();
@@ -130,7 +138,18 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
         }
 
         return list;
-    }
+    } */
+  @Override
+  public List<WaterCubeSampleResponseDto> getAll() {
+
+      List<WaterCubeSampleResponseDto> list = new ArrayList<>();
+
+      for (WaterCubeSampleDeclaration entity : repository.findAllNotTested()) {
+          list.add(buildResponse(entity));
+      }
+
+      return list;
+  }
 
     // ================= GET BY USER =================
 
@@ -179,6 +198,10 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
         dto.setCreatedDate(entity.getCreatedDate());
         dto.setUpdatedBy(entity.getUpdatedBy());
         dto.setUpdatedDate(entity.getUpdatedDate());
+
+        dto.setVendorCode(entity.getVendorCode());
+
+        dto.setPlantId(entity.getPlantId());
 
         List<WaterCubeSampleDetailDto> detailDtos = new ArrayList<>();
 

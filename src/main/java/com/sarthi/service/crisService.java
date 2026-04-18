@@ -10,4 +10,8 @@ public interface crisService {
     public void savePoFromFrontend(PoRequestDto request);
 
     public void saveMaFromFrontend(MaRequestDto request);
+
+    public String getImmsToken();
+
+    public Object fetchPoData(java.util.Map<String, String> requestValues);
 }

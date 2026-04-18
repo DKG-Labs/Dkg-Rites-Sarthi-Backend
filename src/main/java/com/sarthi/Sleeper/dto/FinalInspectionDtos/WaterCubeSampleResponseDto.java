@@ -30,5 +30,8 @@ public class WaterCubeSampleResponseDto {
 
     private LocalDateTime updatedDate;
 
+    private String vendorCode;
+    private String plantId;
+
     private List<WaterCubeSampleDetailDto> details;
 }

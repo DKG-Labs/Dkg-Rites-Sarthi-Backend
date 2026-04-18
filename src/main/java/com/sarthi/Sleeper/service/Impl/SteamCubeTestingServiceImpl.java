@@ -50,6 +50,7 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         entity.setBatchNo(dto.getBatchNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
 
+        entity.setSampleId(dto.getSteamCubeId());
         entity.setShift(dto.getShift());
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
@@ -117,6 +118,7 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         entity.setBatchNo(dto.getBatchNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
 
+        entity.setSampleId(dto.getSteamCubeId());
 
         entity.setShift(dto.getShift());
         entity.setPlantId(dto.getPlantId());
@@ -186,6 +188,15 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
 
         SteamCubeTesting entity = steamCubeTestingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Steam Cube Testing not found"));
+
+        Optional<SteamCubeSampleDeclaration> steam = steamCubeSampleDeclarationRepository.findById(entity.getSampleId());
+
+        SteamCubeSampleDeclaration s = null;
+        if(steam.isPresent()){
+            s= steam.get();
+        }
+        s.setStatus("Deleted");
+        steamCubeSampleDeclarationRepository.save(s);
 
         steamCubeTestingRepository.delete(entity);
     }

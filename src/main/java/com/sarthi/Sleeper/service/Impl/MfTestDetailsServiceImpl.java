@@ -36,6 +36,15 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
 
         entity.setFinalStrength(dto.getStrength());
 
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setShift(dto.getShift());
+        entity.setSampleIdentification(dto.getSampleIdentification());
+        entity.setConcreteGrade(dto.getConcreteGrade());
+        entity.setBatchNo(dto.getBatchNo());
+        entity.setCastingDate(dto.getCastingDate());
+
+
         // Result Auto Calculation
         if(dto.getStrength() >= 4500){
             entity.setResult("PASS");
@@ -71,6 +80,16 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         entity.setStrength(dto.getStrength());
 
         entity.setFinalStrength(dto.getStrength());
+
+
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setShift(dto.getShift());
+
+        entity.setSampleIdentification(dto.getSampleIdentification());
+        entity.setConcreteGrade(dto.getConcreteGrade());
+        entity.setBatchNo(dto.getBatchNo());
+        entity.setCastingDate(dto.getCastingDate());
 
         if(dto.getStrength() >= 4500){
             entity.setResult("PASS");
@@ -139,6 +158,17 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         dto.setFinalStrength(entity.getFinalStrength());
         dto.setResult(entity.getResult());
         dto.setRemarks(entity.getRemarks());
+
+        dto.setSampleIdentification(entity.getSampleIdentification());
+        dto.setConcreteGrade(entity.getConcreteGrade());
+        dto.setBatchNo(entity.getBatchNo());
+        dto.setCastingDate(entity.getCastingDate());
+
+        dto.setCreatedBy(entity.getCreatedBy());
+
+       dto.setPlantId(entity.getPlantId());
+       dto.setVendorCode(entity.getVendorCode());
+       dto.setShift(entity.getShift());
 
         return dto;
     }
