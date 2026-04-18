@@ -22,5 +22,6 @@ public class SteamCubeTestingResponseDto {
     private Double avgStrength;
     private String result;
 
+    private String chamberNo;
     private List<SteamCubeTestingDetailsDto> cubeDetails;
 }

@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class SteamCubeTestingDetailsDto {
+    private Long id;
 
     private String cubeNo;
     private String dateOfTesting;

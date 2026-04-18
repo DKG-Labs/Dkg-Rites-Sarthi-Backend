@@ -24,6 +24,7 @@ public class SteamCubeTestingRequestDto {
 
 
     private Integer createdBy;
+    private String chamberNo;
 
     private List<SteamCubeTestingDetailsDto> cubeDetails;
 }

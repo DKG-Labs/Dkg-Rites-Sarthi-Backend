@@ -28,6 +28,8 @@ public class SteamCubeTesting {
     private String plantId;
     private String shift;
 
+    private String chamberNo;
+
     // ===== RESULT =====
     private Double avgStrength;
     private String result; // OK / Not OK
@@ -39,6 +41,6 @@ public class SteamCubeTesting {
     private Long sampleId;
 
     // ===== CHILD =====
-    @OneToMany(mappedBy = "steamCubeTesting", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "steamCubeTesting", cascade = CascadeType.ALL, orphanRemoval = true,fetch = FetchType.LAZY)
     private List<SteamCubeTestingDetails> cubeDetails;
 }

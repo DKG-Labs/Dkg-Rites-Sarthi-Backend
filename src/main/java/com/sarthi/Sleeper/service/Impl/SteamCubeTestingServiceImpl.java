@@ -50,6 +50,7 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         entity.setBatchNo(dto.getBatchNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
 
+        entity.setChamberNo(dto.getChamberNo());
         entity.setSampleId(dto.getSteamCubeId());
         entity.setShift(dto.getShift());
         entity.setPlantId(dto.getPlantId());
@@ -114,12 +115,13 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         SteamCubeTesting entity = steamCubeTestingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Steam Cube Testing not found"));
 
+
         entity.setLocation(dto.getLocation());
         entity.setBatchNo(dto.getBatchNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
-
         entity.setSampleId(dto.getSteamCubeId());
 
+        entity.setChamberNo(dto.getChamberNo());
         entity.setShift(dto.getShift());
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
@@ -133,21 +135,34 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
             entity.setLbcTime(LocalTime.parse(dto.getLbcTime()));
         }
 
-        // FROM FRONTEND
         entity.setAvgStrength(dto.getAvgStrength());
         entity.setResult(dto.getResult());
 
-        // CLEAR CHILD
-        if (entity.getCubeDetails() == null) {
-            entity.setCubeDetails(new ArrayList<>());
-        }
-        entity.getCubeDetails().clear();
+        // ===== CHILD FIX =====
 
-        // ADD AGAIN
+        // existing children
+        List<SteamCubeTestingDetails> existingList =
+                entity.getCubeDetails() != null ? entity.getCubeDetails() : new ArrayList<>();
+
+        Map<Long, SteamCubeTestingDetails> existingMap = new HashMap<>();
+        for (SteamCubeTestingDetails e : existingList) {
+            existingMap.put(e.getId(), e);
+        }
+
+        List<SteamCubeTestingDetails> newList = new ArrayList<>();
+
         if (dto.getCubeDetails() != null) {
             for (SteamCubeTestingDetailsDto d : dto.getCubeDetails()) {
 
-                SteamCubeTestingDetails child = new SteamCubeTestingDetails();
+                SteamCubeTestingDetails child;
+
+                if (d.getId() != null && existingMap.containsKey(d.getId())) {
+                    child = existingMap.get(d.getId());
+                } else {
+
+                    child = new SteamCubeTestingDetails();
+                    child.setSteamCubeTesting(entity);
+                }
 
                 child.setCubeNo(d.getCubeNo());
                 child.setAgeHours(d.getAgeHours());
@@ -155,11 +170,23 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
                 child.setLoadKn(d.getLoadKn());
                 child.setStrength(d.getStrength());
 
-                child.setSteamCubeTesting(entity);
+                // optional fields
+                if (d.getDateOfTesting() != null) {
+                    child.setDateOfTesting(
+                            CommonUtils.convertStringToDateObject(d.getDateOfTesting()));
+                }
 
-                entity.getCubeDetails().add(child);
+                if (d.getTime() != null) {
+                    child.setTime(LocalTime.parse(d.getTime()));
+                }
+
+                newList.add(child);
             }
         }
+
+
+        entity.getCubeDetails().clear();
+        entity.getCubeDetails().addAll(newList);
 
         return mapToResponse(steamCubeTestingRepository.save(entity));
     }
@@ -266,6 +293,7 @@ public class SteamCubeTestingServiceImpl implements SteamCubeTestingService {
         dto.setBatchNo(entity.getBatchNo());
         dto.setConcreteGrade(entity.getConcreteGrade());
 
+        dto.setChamberNo(entity.getChamberNo());
 
         dto.setShift(entity.getShift());
         dto.setPlantId(entity.getPlantId());

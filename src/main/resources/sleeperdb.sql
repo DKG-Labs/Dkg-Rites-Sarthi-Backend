@@ -1479,3 +1479,8 @@ ADD COLUMN sampling_date DATE,
 ADD COLUMN concrete_grade VARCHAR(50),
 ADD COLUMN sample_identification_number VARCHAR(100);
 
+done
+///
+
+ALTER TABLE steam_cube_testing
+ADD COLUMN chamber_no varchar(50);
