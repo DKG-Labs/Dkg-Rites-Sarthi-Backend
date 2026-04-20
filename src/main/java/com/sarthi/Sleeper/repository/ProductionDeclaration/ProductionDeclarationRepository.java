@@ -242,5 +242,10 @@ WHERE p.created_by = :vendorId
 """)
     List<ProductionDeclaration> findAllExcludingMR();
 
+    @Query("""
+SELECT d.batchNumber
+FROM ProductionDeclaration d
+WHERE d.id = :batchId
+""")
     String getBatchNoById(Long batchId);
 }
