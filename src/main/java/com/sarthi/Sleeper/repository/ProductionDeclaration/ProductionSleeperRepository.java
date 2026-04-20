@@ -109,4 +109,6 @@ FROM ProductionLongLineGang g
 WHERE g.declaration.id = :batchId
 """)
     String getLongLineSleeperType(Long batchId);
+
+    Long countBy();
 }

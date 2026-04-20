@@ -33,4 +33,6 @@ AND (
 )
 """, nativeQuery = true)
     Set<String> findRejectedSleeperNos(@Param("batchNo") String batchNo);
+
+    Long countBy();
 }

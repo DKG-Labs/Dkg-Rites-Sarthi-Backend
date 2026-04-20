@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -248,4 +249,86 @@ FROM ProductionDeclaration d
 WHERE d.id = :batchId
 """)
     String getBatchNoById(Long batchId);
+
+    @Query(value = """
+            SELECT
+                                              vp.plant_name,
+                                              vp.company_name,
+                                          
+                                              COALESCE(SUM(pd.total_casted_sleepers), 0) AS production,
+                                          
+                                              COALESCE(COUNT(DISTINCT d.id), 0) AS process_rejection,
+                                          
+                                              COALESCE(COUNT(DISTINCT r.id), 0) AS final_rejection,
+                                          
+                                              (
+                                                  COALESCE(SUM(pd.total_casted_sleepers), 0)
+                                                  - COALESCE(COUNT(DISTINCT d.id), 0)
+                                                  - COALESCE(COUNT(DISTINCT r.id), 0)
+                                              ) AS acceptance,
+                                          
+                                              CASE
+                                                  WHEN SUM(pd.total_casted_sleepers) = 0 THEN 0
+                                                  ELSE (
+                                                      (COALESCE(COUNT(DISTINCT d.id), 0)
+                                                      + COALESCE(COUNT(DISTINCT r.id), 0)) * 100.0
+                                                      / SUM(pd.total_casted_sleepers)
+                                                  )
+                                              END AS rejection_percentage
+                                          
+                                          FROM vendor_plant vp
+                                          
+                                          LEFT JOIN production_declaration pd
+                                              ON pd.plant_id = vp.plant_id
+                                              AND DATE(pd.casting_date) BETWEEN :startDate AND :endDate
+                                          
+                                          LEFT JOIN demoulding_defective_sleepers d
+                                              ON d.plant_id = vp.plant_id
+                                          
+                                          LEFT JOIN inspection_test_result r
+                                              ON r.plant_id = vp.plant_id
+                                              AND r.result = 'REJECTED'
+                                              AND r.active = true
+                                          
+                                          GROUP BY vp.plant_name, vp.company_name
+                                          ORDER BY vp.plant_name;
+""", nativeQuery = true)
+    List<Object[]> getMonthlyAnalysis(
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate);
+
+    @Query(value = """
+SELECT vp.plant_id, vp.plant_name, vp.company_name,
+       COALESCE(SUM(pd.total_casted_sleepers), 0)
+FROM vendor_plant vp
+LEFT JOIN production_declaration pd 
+    ON pd.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
+    AND pd.created_date BETWEEN :startDate AND :endDate
+GROUP BY vp.plant_id, vp.plant_name, vp.company_name
+""", nativeQuery = true)
+    List<Object[]> getProduction(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = """
+SELECT 
+    vp.plant_id,
+
+    CONCAT(sp.company_name, ' - ', vp.plant_id) AS plant_name,
+
+    im.rio AS inspected_by
+
+FROM sleeper_pincode_poi_mapping sp
+
+JOIN vendor_plant vp
+    ON vp.vendor_id COLLATE utf8mb4_unicode_ci 
+       = sp.vendor_code COLLATE utf8mb4_unicode_ci
+
+LEFT JOIN ie_fields_mapping im
+    ON im.pin_code COLLATE utf8mb4_unicode_ci 
+       = sp.pin_code COLLATE utf8mb4_unicode_ci
+
+GROUP BY vp.plant_id, sp.company_name, im.rio
+""", nativeQuery = true)
+    List<Object[]> getPlantMasterData();
 }

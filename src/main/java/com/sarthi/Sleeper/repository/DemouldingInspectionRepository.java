@@ -62,4 +62,6 @@ FROM DemouldingDefectiveSleeper d
 WHERE d.inspection.batchNo = :batchNo
 """)
     Long countDemouldingRejected(String batchNo);
+
+
 }
