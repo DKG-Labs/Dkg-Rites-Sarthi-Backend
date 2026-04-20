@@ -113,19 +113,21 @@ GROUP BY vp.plant_id
           @Param("endDate") LocalDateTime endDate);
 
   @Query(value = """
-SELECT vp.plant_id,
-       COALESCE(COUNT(DISTINCT CONCAT(h.batch_id, '-', r.sleeper_id)), 0)
-FROM vendor_plant vp
-LEFT JOIN production_declaration pd 
-    ON pd.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
-LEFT JOIN inspection_test_header h 
+SELECT 
+    pd.plant_id,
+    COUNT(DISTINCT CONCAT(h.batch_id, '-', r.sleeper_id)) AS final_rejection
+FROM production_declaration pd
+
+JOIN inspection_test_header h 
     ON h.batch_id = pd.id
     AND h.created_date BETWEEN :startDate AND :endDate
-LEFT JOIN inspection_test_result r 
+
+JOIN inspection_test_result r 
     ON r.test_header_id = h.id
     AND r.result = 'REJECTED'
     AND r.active = true
-GROUP BY vp.plant_id
+
+GROUP BY pd.plant_id
 """, nativeQuery = true)
   List<Object[]> getFinalRejection(
           @Param("startDate") LocalDateTime startDate,

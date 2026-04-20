@@ -67,21 +67,20 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<MonthlyAnalysisDto> getMonthlyAnalysis(String startDate, String endDate) {
 
-        // ✅ 1. Date parsing
+
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         LocalDateTime start = LocalDate.parse(startDate, formatter).atStartOfDay();
         LocalDateTime end = LocalDate.parse(endDate, formatter).atTime(23, 59, 59);
 
-        // ✅ 2. Fetch data
+
         List<Object[]> prodList = productionDeclarationRepository.getProduction(start, end);
         List<Object[]> procList = inspectionTestResultRepository.getProcessRejection(start, end);
         List<Object[]> finalList = inspectionTestResultRepository.getFinalRejection(start, end);
 
-        // ✅ 3. Master data (plant + RIO)
         List<Object[]> masterList = productionDeclarationRepository.getPlantMasterData();
 
-        // ✅ 4. Maps
+
         Map<String, Long> productionMap = new HashMap<>();
         Map<String, Long> processMap = new HashMap<>();
         Map<String, Long> finalMap = new HashMap<>();
@@ -89,30 +88,25 @@ public class DashboardServiceImpl implements DashboardService {
         Map<String, String> plantNameMap = new HashMap<>();
         Map<String, String> rioMap = new HashMap<>();
 
-        // 🔹 production
         for (Object[] o : prodList) {
             String plantId = (String) o[0];
             productionMap.put(plantId, ((Number) o[3]).longValue());
         }
 
-        // 🔹 process rejection
         for (Object[] o : procList) {
             processMap.put((String) o[0], ((Number) o[1]).longValue());
         }
 
-        // 🔹 final rejection
         for (Object[] o : finalList) {
             finalMap.put((String) o[0], ((Number) o[1]).longValue());
         }
 
-        // 🔹 plant name + RIO
         for (Object[] o : masterList) {
             String plantId = (String) o[0];
             plantNameMap.put(plantId, (String) o[1]); // company - plantId
             rioMap.put(plantId, (String) o[2]);       // RIO
         }
 
-        // ✅ 5. Build response
         List<MonthlyAnalysisDto> result = new ArrayList<>();
         int i = 1;
 
