@@ -538,9 +538,14 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 // MODULE 1 → VISUAL
             if (moduleId == 1) {
 
-                if (testedCount.equals(denominator)) {
+//                if (testedCount.equals(denominator)) {
+//                    completed = true;
+//                }
+
+                if (percent >= 99.99) {
                     completed = true;
                 }
+
 
             }
 
