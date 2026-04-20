@@ -55,4 +55,11 @@ FROM DemouldingInspection d
 WHERE d.batchNo = :batchNo
 """)
     boolean existsDemoulding(String batchNo);
+
+    @Query("""
+SELECT COUNT(d.id)
+FROM DemouldingDefectiveSleeper d
+WHERE d.inspection.batchNo = :batchNo
+""")
+    Long countDemouldingRejected(String batchNo);
 }

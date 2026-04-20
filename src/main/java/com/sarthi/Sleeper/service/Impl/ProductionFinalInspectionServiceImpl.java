@@ -65,6 +65,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Autowired
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
 
+
+
     /*  @Override
       public void saveInspection(InspectionSaveRequestDto dto) {
 
@@ -259,9 +261,21 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         String sleeperType =
                 productionSleeperRepository.getSleeperTypeByBatch(batchId);
 
-        double testedPercentage =
-                ((double) testedSleepers / totalSleepers) * 100;
+        String batchNo =
+                productionDeclarationRepository.getBatchNoById(batchId);
 
+        Long demouldRejected =
+                demouldingInspectionRepository.countDemouldingRejected(batchNo);
+
+      //  double validSleepers = totalSleepers - demouldRejected;
+      //  double testedPercentage = ((double) testedSleepers / totalSleepers) * 100;
+        double validSleepers = totalSleepers - demouldRejected;
+
+        double testedPercentage = 0;
+
+        if (validSleepers > 0) {
+            testedPercentage = (testedSleepers * 100.0) / validSleepers;
+        }
         boolean completed = false;
 
         // MODULE 1 → VISUAL
@@ -498,8 +512,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             Long testedCount =
                     resultRepository.countTestedSleepers(dto.getBatchId(), moduleId);
 
-            double percent =
-                    (testedCount * 100.0) / dto.getNoOfSleepers();
+            Long demouldRejected =
+                    demouldingInspectionRepository.countDemouldingRejected(dto.getBatchNumber());
+
+           // double percent = (testedCount * 100.0) / dto.getNoOfSleepers();
+            double denominator = dto.getNoOfSleepers() - demouldRejected;
+
+            double percent = 0;
+
+            if (denominator > 0) {
+                percent = (testedCount * 100.0) / denominator;
+            }
+
 
             dto.setTestedPercentage(percent);
 

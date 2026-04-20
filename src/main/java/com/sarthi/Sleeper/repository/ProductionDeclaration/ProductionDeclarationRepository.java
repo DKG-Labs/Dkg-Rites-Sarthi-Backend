@@ -241,4 +241,6 @@ WHERE p.created_by = :vendorId
     )
 """)
     List<ProductionDeclaration> findAllExcludingMR();
+
+    String getBatchNoById(Long batchId);
 }
