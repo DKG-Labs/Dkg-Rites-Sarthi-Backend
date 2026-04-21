@@ -52,6 +52,31 @@ public class PoMaHeader {
 
     private String sourceSystem = "CRIS";
 
+    private String refNo;
+    private LocalDate refDate;
+
+    private String requestId;
+
+    private String authSeq;
+    private String authSeqFin;
+
+  //  private String curUser;
+  //  private String curUserInd;
+
+    @Column(name = "curuser")
+    private String curUser;
+
+    @Column(name = "curuser_ind")
+    private String curUserInd;
+
+    private String signId;
+    private String reqId;
+
+    private String recInd;
+    private String flag;
+
+    private String reqFlag;
+
     @OneToMany(mappedBy = "maHeader", cascade = CascadeType.ALL)
     private List<PoMaDetail> details;
 }

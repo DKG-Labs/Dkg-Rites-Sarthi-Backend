@@ -3,9 +3,7 @@ package com.sarthi.service.Impl;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.dto.crisDtos.*;
 import com.sarthi.entity.*;
-import com.sarthi.entity.CricsPos.CrisSyncStatus;
-import com.sarthi.entity.CricsPos.PoMaDetail;
-import com.sarthi.entity.CricsPos.PoMaHeader;
+import com.sarthi.entity.CricsPos.*;
 import com.sarthi.repository.*;
 import com.sarthi.service.UserService;
 import com.sarthi.service.crisService;
@@ -14,9 +12,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.util.ArrayList;
 import java.util.List;
 
 import java.util.Optional;
@@ -51,6 +51,11 @@ public class crisServiceImpl implements crisService {
     private PoMaHeaderRepository  poMaHeaderRepository;
     @Autowired
     private PoMaDetailRepository poMaDetailRepository;
+    @Autowired
+    private PoCancellationHeaderRepository poCancellationHeaderRepo;
+
+    @Autowired
+    private PoCancellationDetailRepository poCancellationDetailRepo;
 
     @Autowired
     private CrisSyncStatusRepository statusRepo;
@@ -380,33 +385,27 @@ public class crisServiceImpl implements crisService {
         }
     }
 
-
-
     @Transactional
     public void saveMaFromFrontend(MaRequestDto request) {
 
-        MaHeaderDto hdr = request.getMaHdr();
-        List<MaDetailDto> dtls = request.getMaDtl();
+        MaHeaderDto hdr = request.getMMP_POMA_HDR();
+        List<MaDetailDto> dtls = request.getMMP_POMA_DTL();
 
-        if (hdr == null) {
-            throw new RuntimeException("MaHdr missing");
-        }
-
-        if (hdr.getMAKEY() == null || hdr.getMAKEY().isBlank()) {
-            throw new RuntimeException("MAKEY is mandatory");
-        }
+        if (hdr == null) throw new RuntimeException("Header missing");
+        if (dtls == null || dtls.isEmpty()) throw new RuntimeException("Details missing");
 
         String maKey = hdr.getMAKEY();
-        String rly = hdr.getRLY();
+        if (maKey == null || maKey.isBlank())
+            throw new RuntimeException("MAKEY is mandatory");
 
         if (statusRepo.existsByRefTypeAndRefKey("MA", maKey)) {
-            throw new RuntimeException("MA already processed: " + maKey);
+            throw new RuntimeException("Already processed");
         }
 
         CrisSyncStatus status = new CrisSyncStatus();
         status.setRefType("MA");
         status.setRefKey(maKey);
-        status.setRly(rly);
+        status.setRly(hdr.getRLY());
         status.setStatus("FETCHED");
         status.setFetchedAt(LocalDateTime.now());
 
@@ -415,49 +414,263 @@ public class crisServiceImpl implements crisService {
         try {
 
             if (poMaHeaderRepository.existsByMaKey(maKey)) {
-                throw new RuntimeException("MA already exists in DB: " + maKey);
+                throw new RuntimeException("Already exists in DB");
             }
 
             PoMaHeader h = new PoMaHeader();
+
+
             h.setMaKey(maKey);
-            h.setRly(rly);
+            h.setRly(hdr.getRLY());
             h.setPoKey(hdr.getPOKEY());
             h.setPoNo(hdr.getPO_NO());
             h.setMaNo(hdr.getMA_NO());
             h.setSubject(hdr.getSUBJECT());
 
-            if (hdr.getOLD_PO_VALUE() != null)
+
+            h.setMaType(hdr.getMA_TYPE());
+            h.setVcode(hdr.getVCODE());
+            h.setRemarks(hdr.getREMARKS());
+            h.setMaSignOff(hdr.getMA_SIGN_OFF());
+            h.setStatus(hdr.getSTATUS());
+            h.setPurDiv(hdr.getPUR_DIV());
+            h.setPurSec(hdr.getPUR_SEC());
+            h.setPoMaSrno(hdr.getPO_MA_SRNO());
+            h.setPublishFlag(hdr.getPUBLISH_FLAG());
+
+
+            h.setRefNo(hdr.getREF_NO());
+            h.setRequestId(hdr.getREQUEST_ID());
+
+            h.setAuthSeq(hdr.getAUTH_SEQ());
+            h.setAuthSeqFin(hdr.getAUTH_SEQ_FIN());
+
+            h.setCurUser(hdr.getCURUSER());
+            h.setCurUserInd(hdr.getCURUSER_IND());
+
+            h.setSignId(hdr.getSIGN_ID());
+            h.setReqId(hdr.getREQ_ID());
+
+            h.setRecInd(hdr.getREC_IND());
+            h.setFlag(hdr.getFLAG());
+            h.setReqFlag(hdr.getREQ_FLAG());
+
+
+            if (hdr.getMA_DATE() != null && !hdr.getMA_DATE().isBlank())
+                h.setMaDate(LocalDate.parse(hdr.getMA_DATE()));
+
+            if (hdr.getMAKEY_DATE() != null && !hdr.getMAKEY_DATE().isBlank())
+                h.setMaKeyDate(LocalDate.parse(hdr.getMAKEY_DATE()));
+
+            if (hdr.getREF_DATE() != null && !hdr.getREF_DATE().isBlank())
+                h.setRefDate(LocalDate.parse(hdr.getREF_DATE()));
+
+
+            if (hdr.getOLD_PO_VALUE() != null && !hdr.getOLD_PO_VALUE().isBlank())
                 h.setOldPoValue(new BigDecimal(hdr.getOLD_PO_VALUE()));
 
-            if (hdr.getNEW_PO_VALUE() != null)
+            if (hdr.getNEW_PO_VALUE() != null && !hdr.getNEW_PO_VALUE().isBlank())
                 h.setNewPoValue(new BigDecimal(hdr.getNEW_PO_VALUE()));
 
+            // SAVE HEADER
             poMaHeaderRepository.save(h);
 
-            if (dtls == null || dtls.isEmpty()) {
-                throw new RuntimeException("MaDtl cannot be empty");
-            }
+
+            List<PoMaDetail> detailList = new ArrayList<>();
 
             for (MaDetailDto m : dtls) {
 
                 PoMaDetail d = new PoMaDetail();
+
                 d.setMaHeader(h);
+                d.setMaKey(m.getMAKEY());
                 d.setRly(m.getRLY());
                 d.setSlno(m.getSLNO());
                 d.setMaFld(m.getMA_FLD());
                 d.setMaFldDescr(m.getMA_FLD_DESCR());
                 d.setOldValue(m.getOLD_VALUE());
                 d.setNewValue(m.getNEW_VALUE());
+
+                d.setNewValueInd(m.getNEW_VALUE_IND());
+                d.setNewValueFlag(m.getNEW_VALUE_FLAG());
+                d.setPlNo(m.getPL_NO());
                 d.setPoSr(m.getPO_SR());
 
-                poMaDetailRepository.save(d);
+                d.setCondSlno(m.getCOND_SLNO());
+                d.setCondCode(m.getCOND_CODE());
+                d.setMaSrNo(m.getMA_SR_NO());
+                d.setStatus(m.getSTATUS());
+
+                d.setExpSr(m.getEXP_SR());
+                d.setExpCode(m.getEXP_CODE());
+                d.setCondNo(m.getCOND_NO());
+
+                if (m.getORIG_DP() != null && !m.getORIG_DP().isBlank())
+                    d.setOrigDp(LocalDate.parse(m.getORIG_DP()));
+
+                d.setPaymentYear(m.getPAYMENT_YEAR());
+                d.setNewPosrData(m.getNEW_POSR_DATA());
+                d.setRefPono(m.getREF_PONO());
+                d.setConsigneeRly(m.getCONSIGNEE_RLY());
+
+                detailList.add(d);
             }
+
+            poMaDetailRepository.saveAll(detailList);
 
             status.setStatus("SAVED");
             status.setProcessedAt(LocalDateTime.now());
             statusRepo.save(status);
 
         } catch (Exception e) {
+
+            status.setStatus("FAILED");
+            status.setErrorMessage(e.getMessage());
+            statusRepo.save(status);
+
+            throw e;
+        }
+    }
+
+    @Transactional
+    public void savePoCancellationFromFrontend(PoCancellationRequestDto request) {
+
+        PoCancellationHeaderDto hdr = request.getHeader();
+        List<PoCancellationDetailDto> dtls = request.getDetails();
+
+
+        if (hdr == null) throw new RuntimeException("Header missing");
+        if (dtls == null || dtls.isEmpty()) throw new RuntimeException("Details missing");
+
+        String caKey = hdr.getCakey();
+        if (caKey == null || caKey.isBlank())
+            throw new RuntimeException("CAKEY is mandatory");
+
+
+        if (statusRepo.existsByRefTypeAndRefKey("PO_CA", caKey)) {
+            throw new RuntimeException("Already processed");
+        }
+
+        CrisSyncStatus status = new CrisSyncStatus();
+        status.setRefType("PO_CA");
+        status.setRefKey(caKey);
+        status.setRly(hdr.getRly());
+        status.setStatus("FETCHED");
+        status.setFetchedAt(LocalDateTime.now());
+
+        statusRepo.save(status);
+
+        try {
+
+
+            if (poCancellationHeaderRepo.existsByCakey(caKey)) {
+                throw new RuntimeException("Already exists in DB");
+            }
+
+            PoCancellationHeader h = new PoCancellationHeader();
+
+
+            h.setCakey(caKey);
+            h.setRly(hdr.getRly());
+            h.setPokey(hdr.getPokey());
+            h.setPoNo(hdr.getPoNo());
+            h.setCaNo(hdr.getCaNo());
+            h.setCaType(hdr.getCaType());
+            h.setVcode(hdr.getVcode());
+
+            h.setRefNo(hdr.getRefNo());
+            h.setRemarks(hdr.getRemarks());
+            h.setCaSignOff(hdr.getCaSignOff());
+            h.setStatus(hdr.getStatus());
+
+            h.setPurDiv(hdr.getPurDiv());
+            h.setPurSec(hdr.getPurSec());
+
+            h.setRequestId(hdr.getRequestId());
+            h.setAuthSeq(hdr.getAuthSeq());
+            h.setAuthSeqFin(hdr.getAuthSeqFin());
+
+            h.setCuruser(hdr.getCuruser());
+            h.setCuruserInd(hdr.getCuruserInd());
+
+            h.setSignId(hdr.getSignId());
+            h.setReqId(hdr.getReqId());
+
+            h.setFinStatus(hdr.getFinStatus());
+            h.setRecInd(hdr.getRecInd());
+            h.setFlag(hdr.getFlag());
+
+            h.setRecadvNo(hdr.getRecadvNo());
+            h.setPoMaSrno(hdr.getPoMaSrno());
+            h.setCaReason(hdr.getCaReason());
+
+            h.setPublishFlag(hdr.getPublishFlag());
+            h.setVetBy(hdr.getVetBy());
+
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+            if (hdr.getCakeyDate() != null && !hdr.getCakeyDate().isBlank())
+                h.setCakeyDate(LocalDate.parse(hdr.getCakeyDate(), formatter));
+
+            if (hdr.getCaDate() != null && !hdr.getCaDate().isBlank())
+                h.setCaDate(LocalDate.parse(hdr.getCaDate(), formatter));
+
+            if (hdr.getRefDate() != null && !hdr.getRefDate().isBlank())
+                h.setRefDate(LocalDate.parse(hdr.getRefDate(), formatter));
+
+            if (hdr.getReinstDate() != null && !hdr.getReinstDate().isBlank())
+                h.setReinstDate(LocalDate.parse(hdr.getReinstDate(), formatter));
+
+            if (hdr.getVetDate() != null && !hdr.getVetDate().isBlank())
+                h.setVetDate(LocalDate.parse(hdr.getVetDate(), formatter));
+
+
+            if (hdr.getOldPoValue() != null && !hdr.getOldPoValue().isBlank())
+                h.setOldPoValue(new BigDecimal(hdr.getOldPoValue()));
+
+            if (hdr.getNewPoValue() != null && !hdr.getNewPoValue().isBlank())
+                h.setNewPoValue(new BigDecimal(hdr.getNewPoValue()));
+
+            if (hdr.getRecoveryAmt() != null && !hdr.getRecoveryAmt().isBlank())
+                h.setRecoveryAmt(new BigDecimal(hdr.getRecoveryAmt()));
+
+            poCancellationHeaderRepo.save(h);
+
+
+            List<PoCancellationDetail> detailList = new ArrayList<>();
+
+            for (PoCancellationDetailDto d : dtls) {
+
+                PoCancellationDetail entity = new PoCancellationDetail();
+
+                entity.setHeader(h);
+                entity.setRly(d.getRly());
+                entity.setCakey(d.getCakey());
+                entity.setSlno(d.getSlno());
+                entity.setPlNo(d.getPlNo());
+                entity.setPoSr(d.getPoSr());
+                entity.setStatus(d.getStatus());
+                entity.setDemStatus(d.getDemStatus());
+
+                if (d.getPoBalQty() != null && !d.getPoBalQty().isBlank())
+                    entity.setPoBalQty(new BigDecimal(d.getPoBalQty()));
+
+                if (d.getCancQty() != null && !d.getCancQty().isBlank())
+                    entity.setCancQty(new BigDecimal(d.getCancQty()));
+
+                detailList.add(entity);
+            }
+
+            poCancellationDetailRepo.saveAll(detailList);
+
+
+            status.setStatus("SAVED");
+            status.setProcessedAt(LocalDateTime.now());
+            statusRepo.save(status);
+
+        } catch (Exception e) {
+
 
             status.setStatus("FAILED");
             status.setErrorMessage(e.getMessage());

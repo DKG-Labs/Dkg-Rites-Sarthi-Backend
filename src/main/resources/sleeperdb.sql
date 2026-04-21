@@ -1484,3 +1484,65 @@ done
 
 ALTER TABLE steam_cube_testing
 ADD COLUMN chamber_no varchar(50);
+
+
+
+//
+show create table po_ma_header
+
+  ALTER TABLE po_ma_header
+ADD COLUMN ref_no VARCHAR(100),
+ADD COLUMN ref_date DATE,
+ADD COLUMN request_id VARCHAR(50),
+ADD COLUMN auth_seq VARCHAR(50),
+ADD COLUMN auth_seq_fin VARCHAR(50),
+ADD COLUMN curuser VARCHAR(50),
+ADD COLUMN curuser_ind VARCHAR(50),
+ADD COLUMN sign_id VARCHAR(50),
+ADD COLUMN req_id VARCHAR(50),
+ADD COLUMN rec_ind VARCHAR(10),
+ADD COLUMN flag VARCHAR(10),
+ADD COLUMN req_flag VARCHAR(10);
+
+
+ALTER TABLE po_ma_detail
+DROP FOREIGN KEY fk_ma_dtl_hdr;
+
+ALTER TABLE po_ma_detail
+ADD COLUMN ma_header_id BIGINT;
+
+ALTER TABLE po_ma_detail
+ADD CONSTRAINT fk_ma_dtl_hdr
+FOREIGN KEY (ma_header_id) REFERENCES po_ma_header(id);
+
+ALTER TABLE po_ma_detail
+ADD COLUMN exp_sr VARCHAR(20),
+ADD COLUMN exp_code VARCHAR(20),
+ADD COLUMN cond_no VARCHAR(20),
+ADD COLUMN orig_dp DATE,
+ADD COLUMN payment_year VARCHAR(10),
+ADD COLUMN new_posr_data VARCHAR(50),
+ADD COLUMN ref_pono VARCHAR(50),
+ADD COLUMN consignee_rly VARCHAR(20);
+
+
+ALTER TABLE po_ma_header
+ADD COLUMN auth_seq VARCHAR(50),
+ADD COLUMN auth_seq_fin VARCHAR(50),
+ADD COLUMN cur_user VARCHAR(50),
+ADD COLUMN cur_user_ind VARCHAR(50),
+ADD COLUMN sign_id VARCHAR(50),
+ADD COLUMN req_id VARCHAR(50),
+ADD COLUMN rec_ind VARCHAR(10),
+ADD COLUMN flag VARCHAR(10),
+ADD COLUMN req_flag VARCHAR(10),
+ADD COLUMN request_id VARCHAR(50),
+ADD COLUMN ref_no VARCHAR(100),
+ADD COLUMN ref_date DATE;
+
+ALTER TABLE po_ma_detail
+DROP INDEX fk_ma_dtl_hdr;
+
+ALTER TABLE po_ma_detail
+ADD CONSTRAINT fk_ma_dtl_hdr
+FOREIGN KEY (ma_header_id) REFERENCES po_ma_header(id);
