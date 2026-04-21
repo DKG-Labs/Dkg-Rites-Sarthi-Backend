@@ -16,4 +16,6 @@ public class DashboardSummaryDto {
     private double processRejectionPercentage;
     private double finalRejectionPercentage;
     private double rmRejectionPercentage;
+    private long sleeperPoIssued;
+    private long sleeperPoQuantityNos;
 }

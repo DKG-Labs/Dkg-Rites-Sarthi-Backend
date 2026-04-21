@@ -139,4 +139,10 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getMonthlyRejectionTrend(startDate, endDate)),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/sleeperPoIssuedCount")
+    public ResponseEntity<Object> getSleeperPoIssuedCount() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getSleeperPoCount()),
+                HttpStatus.OK);
+    }
 }
