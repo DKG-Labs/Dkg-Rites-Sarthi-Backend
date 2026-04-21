@@ -1771,6 +1771,10 @@ public class reportsImpl implements reports {
                 dto.setProcessRejectionPercentage(processRejectionPctValue);
                 dto.setFinalRejectionPercentage(finalRejectionPctValue);
                 dto.setRmRejectionPercentage(rmRejectionPctValue);
+                
+                dto.setSleeperPoIssued(poHeaderRepository.countPoByItemCatDescr("PSC Mainline Sleeper"));
+                Long sleeperQty = getSleeperPoQuantityNos();
+                dto.setSleeperPoQuantityNos(sleeperQty != null ? sleeperQty : 0L);
 
                 return dto;
         }
@@ -2230,5 +2234,14 @@ public class reportsImpl implements reports {
          */
         private Double getFilteredPoQuantityMt() {
                 return poItemRepository.sumQtyByItemCatDescrAndUomMt("Elastic Rail Clips");
+        }
+
+        @Override
+        public long getSleeperPoCount() {
+                return poHeaderRepository.countPoByItemCatDescr("PSC Mainline Sleeper");
+        }
+
+        private Long getSleeperPoQuantityNos() {
+                return poItemRepository.sumQtyByItemCatDescrAndUomNos("PSC Mainline Sleeper");
         }
 }

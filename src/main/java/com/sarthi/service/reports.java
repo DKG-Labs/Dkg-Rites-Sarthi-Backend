@@ -55,4 +55,6 @@ public interface reports {
     public List<InspectionDetailsDto> getInspectionDetails();
 
     public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate);
+    
+    public long getSleeperPoCount();
 }
