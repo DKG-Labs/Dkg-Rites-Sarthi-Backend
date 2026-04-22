@@ -29,7 +29,7 @@ public interface RmHeatQuantityRepository extends JpaRepository<RmHeatQuantity, 
 
     /* ==================== Find by Heat Number ==================== */
 
-    Optional<RmHeatQuantity> findByHeatNumber(String heatNumber);
+    List<RmHeatQuantity> findByHeatNumber(String heatNumber);
 
     List<RmHeatQuantity> findByHeatNumberContainingIgnoreCase(String heatNumber);
 

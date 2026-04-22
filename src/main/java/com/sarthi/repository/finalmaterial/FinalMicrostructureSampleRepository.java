@@ -16,6 +16,11 @@ public interface FinalMicrostructureSampleRepository extends JpaRepository<Final
      * Find all samples for a given parent inspection.
      */
     List<FinalMicrostructureSample> findByFinalMicrostructureTestId(Long parentId);
+    
+    /**
+     * Find samples for multiple parent inspections (Batch).
+     */
+    List<FinalMicrostructureSample> findByFinalMicrostructureTestIdIn(List<Long> parentIds);
 
     /**
      * Delete all samples for a given parent inspection.

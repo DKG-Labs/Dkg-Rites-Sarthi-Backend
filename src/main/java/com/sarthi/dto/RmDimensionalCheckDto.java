@@ -20,5 +20,8 @@ public class RmDimensionalCheckDto {
     
     // Explicitly stored defect properties
     private Integer defectCount;
+    
+    // Acceptance status (from RMHeatFinalResult.dimensionalStatus)
+    private String status;
 }
 

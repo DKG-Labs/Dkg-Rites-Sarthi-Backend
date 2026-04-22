@@ -24,6 +24,11 @@ public interface FinalInclusionRatingSampleRepository extends JpaRepository<Fina
             Long parentId, Integer samplingNo);
 
     /**
+     * Find samples for multiple parent inspections (Batch).
+     */
+    List<FinalInclusionRatingSample> findByFinalInclusionRatingIdIn(List<Long> parentIds);
+
+    /**
      * Delete all samples for a given parent inspection.
      */
     void deleteByFinalInclusionRatingId(Long parentId);
