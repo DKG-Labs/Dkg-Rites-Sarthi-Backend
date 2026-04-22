@@ -80,7 +80,8 @@ AND h.module.id = :moduleId
   List<InspectionTestResult> findByTestHeader_BatchIdAndModuleId(Long batchId, Long moduleId);
 
   List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdAndActiveTrue(Long batchId, Long moduleId);
-
+ List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdInAndActiveTrue(
+         Long batchId, List<Long> moduleIds);
   List<InspectionTestResult> findByTestHeader_BatchIdAndResultAndActiveTrue(Long batchId, String rejected);
 
   List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(Long batchId);

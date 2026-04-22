@@ -1546,3 +1546,46 @@ DROP INDEX fk_ma_dtl_hdr;
 ALTER TABLE po_ma_detail
 ADD CONSTRAINT fk_ma_dtl_hdr
 FOREIGN KEY (ma_header_id) REFERENCES po_ma_header(id);
+
+
+CREATE TABLE et_epoxy_treated_sleeper (
+
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    location VARCHAR(100),
+    date_of_casting DATE,
+    batch_number VARCHAR(100),
+    sleeper_type VARCHAR(100),
+
+    remark TEXT,
+    is_confirmed BOOLEAN,
+
+    shift VARCHAR(10),
+
+    vendor_code VARCHAR(50),
+    plant_id VARCHAR(50),
+
+    created_by BIGINT,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_by BIGINT,
+    updated_date TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP
+
+);
+
+
+CREATE TABLE et_sleeper_details (
+
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    sleeper_id BIGINT,
+    sleeper_no VARCHAR(50),
+
+    et_id BIGINT,
+
+    CONSTRAINT fk_et
+    FOREIGN KEY (et_id)
+    REFERENCES et_epoxy_treated_sleeper(id)
+    ON DELETE CASCADE
+
+);

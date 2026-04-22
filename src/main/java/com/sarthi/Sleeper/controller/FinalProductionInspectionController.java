@@ -60,6 +60,14 @@ public class FinalProductionInspectionController {
     }
 
 
+    @GetMapping("/inspection/Etbatch")
+    public BatchInspectionDetailDto getEtBatchInspection(
+            @RequestParam("batchId") Long batchId) {
+
+        return inspectionService.getBatchaForET(batchId);
+    }
+
+
 
 
 

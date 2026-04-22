@@ -17,4 +17,7 @@ public interface ProductionFinalInspectionService {
   //  public BatchInspectionDetailDto getBatchInspection(Long batchId);
   public BatchInspectionDetailDto getBatchInspection(Long batchId, Long moduleId);
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId);
-}
+
+    public BatchInspectionDetailDto getBatchaForET(Long batchId);
+
+    }

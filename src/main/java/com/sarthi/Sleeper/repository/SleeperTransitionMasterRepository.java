@@ -11,4 +11,6 @@ public interface SleeperTransitionMasterRepository extends JpaRepository<Sleeper
     Optional<SleeperTransitionMaster> findFirstByWorkflowIdAndCurrentActionOrderByTransitionOrderAsc(int i, String createdType);
 
     Optional<SleeperTransitionMaster> findByWorkflowIdAndCurrentRoleIdAndCurrentAction(int i, Integer roleId, String action);
+
+    Optional<SleeperTransitionMaster> findByWorkflowIdAndCurrentRoleIdAndCurrentActionAndNextAction(int i, Integer roleId, String action, String action1);
 }

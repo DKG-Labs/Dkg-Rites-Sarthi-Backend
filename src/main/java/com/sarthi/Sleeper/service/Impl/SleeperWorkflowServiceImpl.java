@@ -411,14 +411,23 @@ public SleeperWorkflowTransactionDto performTransitionAction(
     // Workflow 2 → Use TRANSITION_MASTER
     if (current.getWorkflowId().equals(2L)) {
 
-        SleeperTransitionMaster transition =
+      /*  SleeperTransitionMaster transition =
                 sleeperTransitionMasterRepository
                         .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
                                 current.getWorkflowId().intValue(),
                                 getRoleId(current.getNextRole()),
                                 req.getAction())
                         .orElseThrow(() -> new RuntimeException("Transition not configured"));
-
+*/
+        SleeperTransitionMaster transition =
+                sleeperTransitionMasterRepository
+                        .findByWorkflowIdAndCurrentRoleIdAndCurrentActionAndNextAction(
+                                current.getWorkflowId().intValue(),
+                                getRoleId(current.getNextRole()),   //  correct role
+                                current.getAction(),                   // current state
+                                req.getAction()                        // user action
+                        )
+                        .orElseThrow(() -> new RuntimeException("Transition not configured"));
 
         tx.setCurrentRole(current.getNextRole());
 

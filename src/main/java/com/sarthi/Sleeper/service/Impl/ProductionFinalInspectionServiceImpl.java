@@ -967,4 +967,159 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         return responseList;
     }
 
+
+    @Override
+    // REMOVE moduleId (no longer needed)
+    public BatchInspectionDetailDto getBatchaForET(Long batchId){
+
+         ProductionDeclaration declaration =
+                productionDeclarationRepository.findBatchById(batchId);
+
+        //  List<ProductionSleeper> sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
+        List<ProductionSleeper> sleepers;
+
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
+            sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
+
+        } else { // LONG_LINE
+
+            sleepers = productionSleeperRepository.getSleepersFromGang(batchId);
+        }
+
+        // Fetch ALL inspection results
+        //   List<InspectionTestResult> results =resultRepository.findByBatchId(batchId);
+
+        //ONLY ACTIVE RECORDS
+        List<InspectionTestResult> results =
+                resultRepository.findByTestHeader_BatchIdAndActiveTrue(batchId);
+
+        // Existing map (NO CHANGE)
+        Map<Long, String> resultMap = results.stream()
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        InspectionTestResult::getResult,
+                        (a, b) -> b
+                ));
+
+        // Existing module map (NO CHANGE)
+        Map<Long, Long> moduleMap = results.stream()
+                .filter(r -> r.getSleeperId() != null && r.getModuleId() != null)
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        InspectionTestResult::getModuleId,
+                        (a, b) -> b
+                ));
+
+        //  rejected map (store moduleId)
+        Map<Long, Long> rejectedMap = results.stream()
+                .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
+                .filter(r -> r.getSleeperId() != null && r.getModuleId() != null)
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        InspectionTestResult::getModuleId,
+                        (a, b) -> b
+                ));
+
+        //   fetch only selected module results
+        //   List<InspectionTestResult> moduleResults =resultRepository.findByTestHeader_BatchIdAndModuleId(batchId, moduleId);
+
+        // ONLY ACTIVE RECORDS FOR MODULE
+      //  List<InspectionTestResult> moduleResults = resultRepository.findByTestHeader_BatchIdAndModuleIdAndActiveTrue(batchId, moduleId);
+        List<InspectionTestResult> moduleResults =
+                resultRepository.findByTestHeader_BatchIdAndModuleIdInAndActiveTrue(
+                        batchId, List.of(1L, 2L, 3L)
+                );
+
+     /*   Map<Long, InspectionTestResult> moduleResultMap = moduleResults.stream()
+                .collect(Collectors.toMap(
+                        InspectionTestResult::getSleeperId,
+                        r -> r,
+                        (a, b) -> b
+                ));*/
+
+        Map<Long, List<InspectionTestResult>> moduleResultMap =
+                moduleResults.stream()
+                        .collect(Collectors.groupingBy(InspectionTestResult::getSleeperId));
+
+        // Demoulding rejected
+        Set<String> rejectedSet =
+                demouldingDefectiveSleeperRepository
+                        .findRejectedSleeperNos(declaration.getBatchNumber());
+
+        //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
+        String sleeperType;
+
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
+            sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
+
+        } else {
+
+            sleeperType = productionSleeperRepository.getLongLineSleeperType(batchId);
+        }
+        BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
+
+        dto.setBatchId(declaration.getId());
+        dto.setBatchNumber(declaration.getBatchNumber());
+        dto.setCastingDate(declaration.getCastingDate());
+        dto.setTotalSleepers((long) sleepers.size());
+        dto.setSleeperType(sleeperType);
+
+        List<SleeperDto> sleeperDtos = sleepers.stream()
+                .map(s -> {
+
+                    SleeperDto sd = new SleeperDto();
+
+                    sd.setSleeperId(s.getId());
+                    sd.setSleeperNo(s.getSleeperNo());
+
+                    //  DEMOULDING rejection
+                    if (rejectedSet.contains(s.getSleeperNo())) {
+
+                        sd.setStatus("REJECTED");
+                        sd.setModuleId(4L);
+
+                    }
+                    // REJECTED in ANY inspection module
+                    else if (rejectedMap.containsKey(s.getId())) {
+
+                        sd.setStatus("REJECTED");
+                        sd.setModuleId(rejectedMap.get(s.getId()));
+
+                    }
+                    // Selected module result
+                    else {
+
+                        List<InspectionTestResult> resultsList = moduleResultMap.get(s.getId());
+
+                        if (resultsList != null) {
+
+
+                            InspectionTestResult selected = resultsList.stream()
+                                    .sorted(Comparator.comparing(InspectionTestResult::getModuleId).reversed())
+                                    .findFirst()
+                                    .orElse(null);
+
+                            if (selected != null) {
+                                sd.setStatus(selected.getResult());
+                                sd.setModuleId(selected.getModuleId());
+                            }
+
+                        } else {
+                            sd.setStatus("PENDING");
+                            sd.setModuleId(null); // CHANGE: no moduleId now
+                        }
+                    }
+
+                    return sd;
+
+                }).toList();
+
+        dto.setSleepers(sleeperDtos);
+
+        return dto;
+    }
+
+
 }
