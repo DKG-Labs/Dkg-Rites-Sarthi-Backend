@@ -688,7 +688,15 @@ public class crisServiceImpl implements crisService {
     @Override
     public Object fetchPoData(java.util.Map<String, String> requestValues) {
         String token = getImmsToken();
-        String url = crisBaseUrl + "/purchase/getPOData";
+        
+        String urlEnding = "/purchase/getPOData";
+        if (requestValues.containsKey("maNo")) {
+            urlEnding = "/purchase/getPoMaData";
+        } else if (requestValues.containsKey("caNo")) {
+            urlEnding = "/purchase/getPoCaData";
+        }
+        
+        String url = crisBaseUrl + urlEnding;
 
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
