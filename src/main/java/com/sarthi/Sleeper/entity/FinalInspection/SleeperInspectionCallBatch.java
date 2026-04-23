@@ -22,11 +22,9 @@ public class SleeperInspectionCallBatch {
 
     @ElementCollection
     @CollectionTable(name = "sleeper_ic_good_sleepers", joinColumns = @JoinColumn(name = "batch_id"))
-    @Column(name = "sleeper_no")
-    private List<String> goodSleepers;
+    private List<SleeperDetail> goodSleepers;
 
     @ElementCollection
     @CollectionTable(name = "sleeper_ic_bad_sleepers", joinColumns = @JoinColumn(name = "batch_id"))
-    @Column(name = "sleeper_no")
-    private List<String> badSleepers;
+    private List<SleeperDetail> badSleepers;
 }

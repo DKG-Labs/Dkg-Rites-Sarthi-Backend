@@ -8,4 +8,6 @@ public class SleeperInspectionCallBatchDto {
     private String batchNo;
     private List<String> goodSleepers;
     private List<String> badSleepers;
+    private List<Long> goodSleeperIds;
+    private List<Long> badSleeperIds;
 }

@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallBatchDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallListDto;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.service.SleeperInspectionCallService;
 import lombok.RequiredArgsConstructor;
@@ -53,8 +54,27 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                 SleeperInspectionCallBatch batchEntity = new SleeperInspectionCallBatch();
                 batchEntity.setInspectionCall(call);
                 batchEntity.setBatchNo(batchDto.getBatchNo());
-                batchEntity.setGoodSleepers(batchDto.getGoodSleepers() != null ? new ArrayList<>(batchDto.getGoodSleepers()) : new ArrayList<>());
-                batchEntity.setBadSleepers(batchDto.getBadSleepers() != null ? new ArrayList<>(batchDto.getBadSleepers()) : new ArrayList<>());
+                
+                List<SleeperDetail> goodDetails = new ArrayList<>();
+                if (batchDto.getGoodSleepers() != null && batchDto.getGoodSleeperIds() != null) {
+                    for (int i = 0; i < batchDto.getGoodSleepers().size(); i++) {
+                        String sno = batchDto.getGoodSleepers().get(i);
+                        Long sid = (i < batchDto.getGoodSleeperIds().size()) ? batchDto.getGoodSleeperIds().get(i) : null;
+                        goodDetails.add(new SleeperDetail(sno, sid));
+                    }
+                }
+                batchEntity.setGoodSleepers(goodDetails);
+
+                List<SleeperDetail> badDetails = new ArrayList<>();
+                if (batchDto.getBadSleepers() != null && batchDto.getBadSleeperIds() != null) {
+                    for (int i = 0; i < batchDto.getBadSleepers().size(); i++) {
+                        String sno = batchDto.getBadSleepers().get(i);
+                        Long sid = (i < batchDto.getBadSleeperIds().size()) ? batchDto.getBadSleeperIds().get(i) : null;
+                        badDetails.add(new SleeperDetail(sno, sid));
+                    }
+                }
+                batchEntity.setBadSleepers(badDetails);
+                
                 batchEntities.add(batchEntity);
             }
         }

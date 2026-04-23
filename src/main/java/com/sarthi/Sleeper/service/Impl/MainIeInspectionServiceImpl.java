@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.MainIeInspectionDtos.SleeperInspectionBatchDetailD
 import com.sarthi.Sleeper.dto.MainIeInspectionDtos.SleeperInspectionCallSummaryDTO;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class MainIeInspectionServiceImpl implements MainIeInspectionService {
@@ -104,11 +106,11 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             dto.setTotalSleepersCasted(totalCasted);
 
             List<String> accepted = batch.getGoodSleepers() != null
-                    ? batch.getGoodSleepers()
+                    ? batch.getGoodSleepers().stream().map(SleeperDetail::getSleeperNo).collect(Collectors.toList())
                     : new ArrayList<>();
 
             List<String> rejected = batch.getBadSleepers() != null
-                    ? batch.getBadSleepers()
+                    ? batch.getBadSleepers().stream().map(SleeperDetail::getSleeperNo).collect(Collectors.toList())
                     : new ArrayList<>();
 
             dto.setAcceptedSleepers(accepted);
