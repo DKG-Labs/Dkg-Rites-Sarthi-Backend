@@ -64,4 +64,5 @@ public class ProductionDeclaration {
         private List<ProductionLongLineGang> gangs;
 
 
+
 }

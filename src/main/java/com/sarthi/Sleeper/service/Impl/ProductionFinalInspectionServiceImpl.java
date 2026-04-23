@@ -3,17 +3,15 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.BadSleeperDto;
 import com.sarthi.Sleeper.dto.BatchInspectionResponseDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.*;
+import com.sarthi.Sleeper.entity.EtSleeperDetails;
 import com.sarthi.Sleeper.entity.FinalInspection.*;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper;
-import com.sarthi.Sleeper.repository.DemouldingDefectiveSleeperRepository;
-import com.sarthi.Sleeper.repository.DemouldingInspectionRepository;
+import com.sarthi.Sleeper.repository.*;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.*;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionBenchGroupRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
-import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
-import com.sarthi.Sleeper.repository.SteamCubeSampleDeclarationRepository;
 import com.sarthi.Sleeper.service.ProductionFinalInspectionService;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.UserMasterRepository;
@@ -65,6 +63,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Autowired
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
 
+    @Autowired
+    private EtSleeperDetailsRepository etSleeperDetailsRepository;
 
 
     /*  @Override
@@ -886,6 +886,16 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             List<SleeperDto> goodSleepers = new ArrayList<>();
             List<BadSleeperDto> badSleepers = new ArrayList<>();
 
+            ProductionDeclaration declaration =
+                    productionDeclarationRepository.findBatchById(batchId);
+
+            List<EtSleeperDetails> etSleepersList =
+                    etSleeperDetailsRepository.findByEt_BatchNumber(declaration.getBatchNumber());
+
+            Set<Long> etSleeperIds = etSleepersList.stream()
+                    .map(EtSleeperDetails::getSleeperId)
+                    .collect(Collectors.toSet());
+
             for (Map.Entry<Long, List<InspectionTestResult>> entry : grouped.entrySet()) {
 
                 List<InspectionTestResult> sleeperResults = entry.getValue();
@@ -910,9 +920,19 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                 } else {
 
+                   // SleeperDto dto = new SleeperDto();
+                   // dto.setSleeperId(first.getSleeperId());
+                  //  dto.setSleeperNo(first.getSleeperNo());
+
+                   // goodSleepers.add(dto);
+
                     SleeperDto dto = new SleeperDto();
                     dto.setSleeperId(first.getSleeperId());
                     dto.setSleeperNo(first.getSleeperNo());
+
+                    if (etSleeperIds.contains(first.getSleeperId())) {
+                        dto.setModuleId(5L);   // ET sleeper
+                    }
 
                     goodSleepers.add(dto);
                 }
@@ -921,8 +941,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             BatchInspectionResponseDto response =
                     new BatchInspectionResponseDto();
 
-            ProductionDeclaration declaration =
-                    productionDeclarationRepository.findBatchById(batchId);
+          //  ProductionDeclaration declaration = productionDeclarationRepository.findBatchById(batchId);
+
 
 //            response.setBatchId(batchId);
 //            if (declaration != null) {
