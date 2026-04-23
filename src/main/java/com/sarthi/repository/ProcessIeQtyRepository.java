@@ -310,7 +310,7 @@ SELECT
     p.company_name,
     p.poi_code,
     u.username,
-    ip.rio,
+    u.Region,
     'PROCESS' AS stage,
 
     SUM(pl.accepted_qty + pl.rejected_qty) AS inspected_qty,
@@ -352,13 +352,11 @@ JOIN pincode_poi_mapping p
 JOIN user_master u 
     ON u.userid = pl.created_by
 
-LEFT JOIN ie_profile ip 
-    ON ip.employee_code = u.employee_code
 
 LEFT JOIN po_header ph 
     ON ph.po_no = ic.po_no
 
-WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+WHERE (:rio IS NULL OR :rio = '' OR UPPER(u.Region) = UPPER(:rio))
   AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
   AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
 
@@ -367,7 +365,7 @@ GROUP BY
     p.company_name,
     p.poi_code,
     u.username,
-    ip.rio
+    u.Region
 """,
           countQuery = """
 SELECT COUNT(DISTINCT inspection_call_no, created_by)
