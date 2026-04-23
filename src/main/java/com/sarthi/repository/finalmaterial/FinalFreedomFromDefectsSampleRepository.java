@@ -16,6 +16,11 @@ public interface FinalFreedomFromDefectsSampleRepository extends JpaRepository<F
      * Find all samples for a given parent inspection.
      */
     List<FinalFreedomFromDefectsSample> findByFinalFreedomFromDefectsTestId(Long parentId);
+    
+    /**
+     * Find samples for multiple parent inspections (Batch).
+     */
+    List<FinalFreedomFromDefectsSample> findByFinalFreedomFromDefectsTestIdIn(List<Long> parentIds);
 
     /**
      * Delete all samples for a given parent inspection.

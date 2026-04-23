@@ -12,7 +12,8 @@ import java.util.Optional;
 /**
  * Repository for Final Inspection - Toe Load Test
  *
- * Supports one inspection session per (inspectionCallNo, lotNo, heatNo) combination.
+ * Supports one inspection session per (inspectionCallNo, lotNo, heatNo)
+ * combination.
  */
 @Repository
 public interface FinalToeLoadTestRepository extends JpaRepository<FinalToeLoadTest, Long> {
@@ -55,4 +56,3 @@ public interface FinalToeLoadTestRepository extends JpaRepository<FinalToeLoadTe
     @Query("SELECT COUNT(f) FROM FinalToeLoadTest f WHERE f.status = :status")
     long countByStatus(@Param("status") String status);
 }
-

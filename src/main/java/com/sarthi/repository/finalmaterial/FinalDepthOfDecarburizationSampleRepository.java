@@ -24,6 +24,11 @@ public interface FinalDepthOfDecarburizationSampleRepository extends JpaReposito
             Long parentId, Integer samplingNo);
 
     /**
+     * Find samples for multiple parent inspections (Batch).
+     */
+    List<FinalDepthOfDecarburizationSample> findByFinalDepthOfDecarburizationIdIn(List<Long> parentIds);
+
+    /**
      * Delete all samples for a given parent inspection.
      */
     void deleteByFinalDepthOfDecarburizationId(Long parentId);
