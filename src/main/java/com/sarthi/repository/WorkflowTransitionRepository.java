@@ -121,7 +121,12 @@ SELECT DISTINCT wt
 FROM WorkflowTransition wt
 LEFT JOIN ProcessIeUsers pm
        ON wt.processIeUserId = pm.processUserId
-WHERE wt.status = 'INSPECTION_COMPLETE_CONFIRM'
+WHERE wt.workflowTransitionId IN (
+    SELECT MAX(wt2.workflowTransitionId)
+    FROM WorkflowTransition wt2
+    GROUP BY wt2.requestId
+)
+AND wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
   AND (
        (wt.requestId LIKE 'EP%' AND
            (pm.ieUserId = :userId
@@ -140,6 +145,33 @@ WHERE wt.status = 'INSPECTION_COMPLETE_CONFIRM'
 
 
 
+
+  @Query("""
+SELECT DISTINCT wt
+FROM WorkflowTransition wt
+LEFT JOIN ProcessIeUsers pm
+       ON wt.processIeUserId = pm.processUserId
+WHERE wt.workflowTransitionId IN (
+    SELECT MAX(wt2.workflowTransitionId)
+    FROM WorkflowTransition wt2
+    GROUP BY wt2.requestId
+)
+AND wt.status = 'DSC_SIGN_IC'
+  AND (
+       (wt.requestId LIKE 'EP%' AND
+           (pm.ieUserId = :userId
+            OR wt.processIeUserId = :userId
+            OR wt.createdBy = :userId)
+       )
+       OR
+       (wt.requestId NOT LIKE 'EP%'
+            AND wt.createdBy = :userId
+       )
+  )
+""")
+  List<WorkflowTransition> findSignedByUserRule(
+          @Param("userId") Long userId
+  );
 
   @Query("""
     SELECT

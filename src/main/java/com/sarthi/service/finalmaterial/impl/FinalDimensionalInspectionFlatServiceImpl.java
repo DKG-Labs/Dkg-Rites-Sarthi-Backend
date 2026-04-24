@@ -39,12 +39,30 @@ public class FinalDimensionalInspectionFlatServiceImpl implements FinalDimension
         FinalDimensionalInspectionFlat entity;
         if (existing.isPresent()) {
             entity = existing.get();
+            // Summary Fields (for backward compatibility)
             entity.setFirstSampleGoGaugeFail(dto.getFirstSampleGoGaugeFail() != null ? dto.getFirstSampleGoGaugeFail() : 0);
             entity.setSecondSampleGoGaugeFail(dto.getSecondSampleGoGaugeFail() != null ? dto.getSecondSampleGoGaugeFail() : 0);
             entity.setFirstSampleNoGoFail(dto.getFirstSampleNoGoFail() != null ? dto.getFirstSampleNoGoFail() : 0);
             entity.setSecondSampleNoGoFail(dto.getSecondSampleNoGoFail() != null ? dto.getSecondSampleNoGoFail() : 0);
             entity.setFirstSampleFlatBearingFail(dto.getFirstSampleFlatBearingFail() != null ? dto.getFirstSampleFlatBearingFail() : 0);
             entity.setSecondSampleFlatBearingFail(dto.getSecondSampleFlatBearingFail() != null ? dto.getSecondSampleFlatBearingFail() : 0);
+            
+            // Detailed Fields - 1st Sampling
+            entity.setFirstSampleMainBoxGo(dto.getFirstSampleMainBoxGo() != null ? dto.getFirstSampleMainBoxGo() : 0);
+            entity.setFirstSampleMainBoxNoGo(dto.getFirstSampleMainBoxNoGo() != null ? dto.getFirstSampleMainBoxNoGo() : 0);
+            entity.setFirstSampleFallingGo(dto.getFirstSampleFallingGo() != null ? dto.getFirstSampleFallingGo() : 0);
+            entity.setFirstSampleFallingNoGo(dto.getFirstSampleFallingNoGo() != null ? dto.getFirstSampleFallingNoGo() : 0);
+            entity.setFirstSampleFlatBearingGo(dto.getFirstSampleFlatBearingGo() != null ? dto.getFirstSampleFlatBearingGo() : 0);
+            entity.setFirstSampleFlatBearingNoGo(dto.getFirstSampleFlatBearingNoGo() != null ? dto.getFirstSampleFlatBearingNoGo() : 0);
+            
+            // Detailed Fields - 2nd Sampling
+            entity.setSecondSampleMainBoxGo(dto.getSecondSampleMainBoxGo() != null ? dto.getSecondSampleMainBoxGo() : 0);
+            entity.setSecondSampleMainBoxNoGo(dto.getSecondSampleMainBoxNoGo() != null ? dto.getSecondSampleMainBoxNoGo() : 0);
+            entity.setSecondSampleFallingGo(dto.getSecondSampleFallingGo() != null ? dto.getSecondSampleFallingGo() : 0);
+            entity.setSecondSampleFallingNoGo(dto.getSecondSampleFallingNoGo() != null ? dto.getSecondSampleFallingNoGo() : 0);
+            entity.setSecondSampleFlatBearingGo(dto.getSecondSampleFlatBearingGo() != null ? dto.getSecondSampleFlatBearingGo() : 0);
+            entity.setSecondSampleFlatBearingNoGo(dto.getSecondSampleFlatBearingNoGo() != null ? dto.getSecondSampleFlatBearingNoGo() : 0);
+
             entity.setTotalRejected(dto.getTotalRejected() != null ? dto.getTotalRejected() : 0);
             if (dto.getStatus() != null) {
                 entity.setStatus(dto.getStatus());
@@ -58,12 +76,31 @@ public class FinalDimensionalInspectionFlatServiceImpl implements FinalDimension
             entity.setInspectionCallNo(dto.getInspectionCallNo());
             entity.setLotNo(dto.getLotNo());
             entity.setHeatNo(dto.getHeatNo());
+            
+            // Summary Fields
             entity.setFirstSampleGoGaugeFail(dto.getFirstSampleGoGaugeFail() != null ? dto.getFirstSampleGoGaugeFail() : 0);
             entity.setSecondSampleGoGaugeFail(dto.getSecondSampleGoGaugeFail() != null ? dto.getSecondSampleGoGaugeFail() : 0);
             entity.setFirstSampleNoGoFail(dto.getFirstSampleNoGoFail() != null ? dto.getFirstSampleNoGoFail() : 0);
             entity.setSecondSampleNoGoFail(dto.getSecondSampleNoGoFail() != null ? dto.getSecondSampleNoGoFail() : 0);
             entity.setFirstSampleFlatBearingFail(dto.getFirstSampleFlatBearingFail() != null ? dto.getFirstSampleFlatBearingFail() : 0);
             entity.setSecondSampleFlatBearingFail(dto.getSecondSampleFlatBearingFail() != null ? dto.getSecondSampleFlatBearingFail() : 0);
+            
+            // Detailed Fields - 1st Sampling
+            entity.setFirstSampleMainBoxGo(dto.getFirstSampleMainBoxGo() != null ? dto.getFirstSampleMainBoxGo() : 0);
+            entity.setFirstSampleMainBoxNoGo(dto.getFirstSampleMainBoxNoGo() != null ? dto.getFirstSampleMainBoxNoGo() : 0);
+            entity.setFirstSampleFallingGo(dto.getFirstSampleFallingGo() != null ? dto.getFirstSampleFallingGo() : 0);
+            entity.setFirstSampleFallingNoGo(dto.getFirstSampleFallingNoGo() != null ? dto.getFirstSampleFallingNoGo() : 0);
+            entity.setFirstSampleFlatBearingGo(dto.getFirstSampleFlatBearingGo() != null ? dto.getFirstSampleFlatBearingGo() : 0);
+            entity.setFirstSampleFlatBearingNoGo(dto.getFirstSampleFlatBearingNoGo() != null ? dto.getFirstSampleFlatBearingNoGo() : 0);
+            
+            // Detailed Fields - 2nd Sampling
+            entity.setSecondSampleMainBoxGo(dto.getSecondSampleMainBoxGo() != null ? dto.getSecondSampleMainBoxGo() : 0);
+            entity.setSecondSampleMainBoxNoGo(dto.getSecondSampleMainBoxNoGo() != null ? dto.getSecondSampleMainBoxNoGo() : 0);
+            entity.setSecondSampleFallingGo(dto.getSecondSampleFallingGo() != null ? dto.getSecondSampleFallingGo() : 0);
+            entity.setSecondSampleFallingNoGo(dto.getSecondSampleFallingNoGo() != null ? dto.getSecondSampleFallingNoGo() : 0);
+            entity.setSecondSampleFlatBearingGo(dto.getSecondSampleFlatBearingGo() != null ? dto.getSecondSampleFlatBearingGo() : 0);
+            entity.setSecondSampleFlatBearingNoGo(dto.getSecondSampleFlatBearingNoGo() != null ? dto.getSecondSampleFlatBearingNoGo() : 0);
+            
             entity.setTotalRejected(dto.getTotalRejected() != null ? dto.getTotalRejected() : 0);
             entity.setStatus(dto.getStatus() != null ? dto.getStatus() : "PENDING");
             entity.setRemarks(dto.getRemarks());
@@ -117,6 +154,22 @@ public class FinalDimensionalInspectionFlatServiceImpl implements FinalDimension
         entity.setSecondSampleNoGoFail(dto.getSecondSampleNoGoFail());
         entity.setFirstSampleFlatBearingFail(dto.getFirstSampleFlatBearingFail());
         entity.setSecondSampleFlatBearingFail(dto.getSecondSampleFlatBearingFail());
+        
+        // Detailed Fields
+        entity.setFirstSampleMainBoxGo(dto.getFirstSampleMainBoxGo());
+        entity.setFirstSampleMainBoxNoGo(dto.getFirstSampleMainBoxNoGo());
+        entity.setFirstSampleFallingGo(dto.getFirstSampleFallingGo());
+        entity.setFirstSampleFallingNoGo(dto.getFirstSampleFallingNoGo());
+        entity.setFirstSampleFlatBearingGo(dto.getFirstSampleFlatBearingGo());
+        entity.setFirstSampleFlatBearingNoGo(dto.getFirstSampleFlatBearingNoGo());
+
+        entity.setSecondSampleMainBoxGo(dto.getSecondSampleMainBoxGo());
+        entity.setSecondSampleMainBoxNoGo(dto.getSecondSampleMainBoxNoGo());
+        entity.setSecondSampleFallingGo(dto.getSecondSampleFallingGo());
+        entity.setSecondSampleFallingNoGo(dto.getSecondSampleFallingNoGo());
+        entity.setSecondSampleFlatBearingGo(dto.getSecondSampleFlatBearingGo());
+        entity.setSecondSampleFlatBearingNoGo(dto.getSecondSampleFlatBearingNoGo());
+
         entity.setTotalRejected(dto.getTotalRejected());
         entity.setStatus(dto.getStatus());
         entity.setRemarks(dto.getRemarks());

@@ -1399,7 +1399,9 @@ public class FinalInspectionSubmoduleController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             Principal principal) {
         try {
-            String userIdToUse = userId != null ? userId : (principal != null ? principal.getName() : "SYSTEM");
+            String userIdToUse = (dto.getCreatedBy() != null && !dto.getCreatedBy().isEmpty()) 
+                    ? dto.getCreatedBy() 
+                    : (userId != null ? userId : (principal != null ? principal.getName() : "SYSTEM"));
             FinalDimensionalInspectionFlat response = dimensionalInspectionFlatService
                     .saveDimensionalInspection(dto, userIdToUse);
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(response), HttpStatus.CREATED);

@@ -157,4 +157,22 @@ public class AnnexureController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    /**
+     * Endpoint to fetch data for Final Dimensional Inspection Annexure (Annexure-IX).
+     *
+     * @param callNo The inspection call number
+     * @return Final dimensional inspection report data
+     */
+    @GetMapping("/final-dimensional-inspection/{callNo}")
+    public ResponseEntity<FinalDimensionalAnnexureResponseDTO> getFinalDimensionalAnnexureData(@PathVariable String callNo) {
+        log.info("REST request to get Final Dimensional Inspection data for call no: {}", callNo);
+        try {
+            FinalDimensionalAnnexureResponseDTO data = annexureService.getFinalDimensionalAnnexureData(callNo);
+            return ResponseEntity.ok(data);
+        } catch (Exception e) {
+            log.error("Error fetching final dimensional inspection data: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }

@@ -622,8 +622,13 @@ public class WorkflowServiceImpl implements WorkflowService {
                       .findTopByRequestIdOrderByWorkflowTransitionIdDesc(current.getRequestId());
 
           }
-            //  Stop if inspection already completed
-            if (last != null &&
+            // Check if this action is defined in the transition master for this workflow
+            boolean isTransitionDefined = transitionMasterRepository.findByWorkflowId(current.getWorkflowId())
+                    .stream()
+                    .anyMatch(t -> t.getCurrentAction() != null && t.getCurrentAction().equalsIgnoreCase(req.getAction()));
+
+            //  Stop if inspection already completed, but allow defined transitions (like IC generation/signing) to proceed
+            if (last != null && !isTransitionDefined &&
                     ("INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(last.getStatus())
                             || "INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(last.getAction()))) {
                 ProcessIeQty qty = new ProcessIeQty();
@@ -686,6 +691,7 @@ public class WorkflowServiceImpl implements WorkflowService {
             if (req.getAction().equalsIgnoreCase("CANCEL_CALL")) {
                 return cancelCallByIE(current, req);
             }
+
 
             if (req.getAction().startsWith("IE_REQUEST_RESCHEDULE")
                     || req.getAction().startsWith("CM_APPROVE_RESCHEDULE")
@@ -3633,6 +3639,127 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
     public List<IcWorkflowTransitionDto> getInspectionCompletedByCreatedUser(Integer createdBy) {
         List<WorkflowTransition> entities = workflowTransitionRepository
                 .findCompletedByUserRule(Long.valueOf(createdBy));
+
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> requestIds = entities.stream()
+                .map(WorkflowTransition::getRequestId)
+                .distinct()
+                .toList();
+
+        Map<String, InspectionDataDto> icMap = inspectionCallRepository.findLiteByIcNumberIn(requestIds).stream()
+                .collect(Collectors.toMap(InspectionDataDto::icNumber, Function.identity(), (a, b) -> a));
+
+        List<String> poNos = icMap.values().stream()
+                .map(InspectionDataDto::poNo)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos).stream()
+                .collect(Collectors.toMap(PoHeader::getPoNo, Function.identity(), (a, b) -> a));
+
+        List<String> vendorCodes = icMap.values().stream()
+                .map(InspectionDataDto::vendorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, VendorMaster> vendorMap = vendorMasterRepository.findByVendorCodeIn(vendorCodes).stream()
+                .collect(Collectors.toMap(VendorMaster::getVendorCode, Function.identity(), (a, b) -> a));
+
+        List<String> poiCodes = icMap.values().stream()
+                .map(InspectionDataDto::placeOfInspection)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, PincodePoIMapping> poiMap = pincodePoIMappingRepository.findByPoiCodeIn(poiCodes).stream()
+                .collect(Collectors.toMap(PincodePoIMapping::getPoiCode, Function.identity(), (a, b) -> a));
+
+        List<String> pinCodes = poiMap.values().stream()
+                .map(PincodePoIMapping::getPinCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<IEFieldsMapping> allIeMappings = ieFieldsMappingRepository.findByPinCodeInAndProduct(pinCodes, "ERC");
+
+        // Optimize: Group IE mappings by PinCode for faster lookup
+        Map<String, List<IEFieldsMapping>> ieGroupedByPin = allIeMappings.stream()
+                .collect(Collectors.groupingBy(IEFieldsMapping::getPinCode));
+
+        return entities.stream().map(wt -> {
+            IcWorkflowTransitionDto dto = new IcWorkflowTransitionDto();
+            dto.setWorkflowTransitionId(wt.getWorkflowTransitionId());
+            dto.setWorkflowId(wt.getWorkflowId());
+            dto.setTransitionId(wt.getTransitionId());
+            dto.setRequestId(wt.getRequestId());
+            dto.setCurrentRole(wt.getCurrentRole());
+            dto.setNextRole(wt.getNextRole());
+            dto.setCurrentRoleName(wt.getCurrentRoleName());
+            dto.setNextRoleName(wt.getNextRoleName());
+            dto.setStatus(wt.getStatus());
+            dto.setAction(wt.getAction());
+            dto.setRemarks(wt.getRemarks());
+            dto.setCreatedBy(wt.getCreatedBy());
+            dto.setModifiedBy(wt.getModifiedBy());
+            dto.setAssignedToUser(wt.getAssignedToUser());
+            dto.setJobStatus(wt.getJobStatus());
+            dto.setProcessIeUserId(wt.getProcessIeUserId());
+            dto.setCreatedDate(wt.getCreatedDate());
+            dto.setWorkflowSequence(wt.getWorkflowSequence());
+
+            InspectionDataDto ic = icMap.get(wt.getRequestId());
+            if (ic != null) {
+                // PO No Formatting: Railway / PoNo / PoSrNo
+                PoHeader ph = poMap.get(ic.poNo());
+                String poNo = ic.poNo() != null ? ic.poNo() : "";
+                String srNo = ic.poSerialNo() != null ? ic.poSerialNo() : "";
+
+                // Strip redundant PO prefix from serial number (e.g., "123/001" -> "001")
+                if (!poNo.isEmpty() && srNo.startsWith(poNo + "/")) {
+                    srNo = srNo.substring(poNo.length() + 1);
+                }
+
+                String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " +
+                                     poNo + " / " + srNo;
+                dto.setPoNo(formattedPo);
+
+                // Vendor Name from Master
+                VendorMaster vm = vendorMap.get(ic.vendorId());
+                dto.setVendorName(vm != null ? vm.getVendorName() : ic.vendorId());
+
+                dto.setProductType("ERC-" + ic.typeOfCall());
+                dto.setStage(ic.typeOfCall());
+
+                // IE Mapping (RIO)
+                PincodePoIMapping poi = poiMap.get(ic.placeOfInspection());
+                if (poi != null) {
+                    final String pin = poi.getPinCode();
+                    final String stageCode = ic.typeOfCall().equalsIgnoreCase("Raw Material") ? "R" :
+                                       ic.typeOfCall().equalsIgnoreCase("Process") ? "P" : "F";
+
+                    List<IEFieldsMapping> pinMappings = ieGroupedByPin.get(pin);
+                    if (pinMappings != null) {
+                        Optional<IEFieldsMapping> mapping = pinMappings.stream()
+                                .filter(m -> m.getStage().equals(stageCode) || m.getStage().contains(stageCode))
+                                .findFirst();
+                        mapping.ifPresent(m -> dto.setRio(m.getRio()));
+                    }
+                }
+            }
+
+            return dto;
+        }).toList();
+    }
+
+    @Override
+    public List<IcWorkflowTransitionDto> getSignedInspectionByCreatedUser(Integer createdBy) {
+        List<WorkflowTransition> entities = workflowTransitionRepository
+                .findSignedByUserRule(Long.valueOf(createdBy));
 
         if (entities.isEmpty()) {
             return Collections.emptyList();

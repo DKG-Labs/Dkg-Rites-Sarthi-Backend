@@ -30,11 +30,27 @@ public class FinalDimensionalInspectionFlatDto {
     private Integer firstSampleGoGaugeFail;
     private Integer firstSampleNoGoFail;
     private Integer firstSampleFlatBearingFail;
+    
+    // Detailed 1st Sampling
+    private Integer firstSampleMainBoxGo;
+    private Integer firstSampleMainBoxNoGo;
+    private Integer firstSampleFallingGo;
+    private Integer firstSampleFallingNoGo;
+    private Integer firstSampleFlatBearingGo;
+    private Integer firstSampleFlatBearingNoGo;
 
     // 2nd Sampling
     private Integer secondSampleGoGaugeFail;
     private Integer secondSampleNoGoFail;
     private Integer secondSampleFlatBearingFail;
+
+    // Detailed 2nd Sampling
+    private Integer secondSampleMainBoxGo;
+    private Integer secondSampleMainBoxNoGo;
+    private Integer secondSampleFallingGo;
+    private Integer secondSampleFallingNoGo;
+    private Integer secondSampleFlatBearingGo;
+    private Integer secondSampleFlatBearingNoGo;
 
     // Total and Status
     private Integer totalRejected;

@@ -55,6 +55,25 @@ public class FinalDimensionalInspectionFlat {
     @Column(name = "first_sample_flat_bearing_fail")
     private Integer firstSampleFlatBearingFail;
 
+    // Detailed 1st Sampling
+    @Column(name = "first_sample_main_box_go")
+    private Integer firstSampleMainBoxGo;
+
+    @Column(name = "first_sample_main_box_no_go")
+    private Integer firstSampleMainBoxNoGo;
+
+    @Column(name = "first_sample_falling_go")
+    private Integer firstSampleFallingGo;
+
+    @Column(name = "first_sample_falling_no_go")
+    private Integer firstSampleFallingNoGo;
+
+    @Column(name = "first_sample_flat_bearing_go")
+    private Integer firstSampleFlatBearingGo;
+
+    @Column(name = "first_sample_flat_bearing_no_go")
+    private Integer firstSampleFlatBearingNoGo;
+
     // 2nd Sampling
     @Column(name = "second_sample_go_gauge_fail")
     private Integer secondSampleGoGaugeFail;
@@ -64,6 +83,25 @@ public class FinalDimensionalInspectionFlat {
 
     @Column(name = "second_sample_flat_bearing_fail")
     private Integer secondSampleFlatBearingFail;
+
+    // Detailed 2nd Sampling
+    @Column(name = "second_sample_main_box_go")
+    private Integer secondSampleMainBoxGo;
+
+    @Column(name = "second_sample_main_box_no_go")
+    private Integer secondSampleMainBoxNoGo;
+
+    @Column(name = "second_sample_falling_go")
+    private Integer secondSampleFallingGo;
+
+    @Column(name = "second_sample_falling_no_go")
+    private Integer secondSampleFallingNoGo;
+
+    @Column(name = "second_sample_flat_bearing_go")
+    private Integer secondSampleFlatBearingGo;
+
+    @Column(name = "second_sample_flat_bearing_no_go")
+    private Integer secondSampleFlatBearingNoGo;
 
     // Total and Status
     @Column(name = "total_rejected")

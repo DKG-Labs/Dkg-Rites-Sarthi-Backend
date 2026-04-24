@@ -45,6 +45,7 @@ import com.sarthi.repository.finalmaterial.FinalInclusionRatingNewRepository;
 import com.sarthi.repository.finalmaterial.FinalInclusionRatingSampleRepository;
 import com.sarthi.repository.finalmaterial.FinalApplicationDeflectionRepository;
 import com.sarthi.repository.finalmaterial.FinalApplicationDeflectionSampleRepository;
+import com.sarthi.repository.finalmaterial.FinalDimensionalInspectionFlatRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -63,6 +64,7 @@ import com.sarthi.entity.finalmaterial.FinalFreedomFromDefectsTest;
 import com.sarthi.entity.finalmaterial.FinalFreedomFromDefectsSample;
 import com.sarthi.entity.finalmaterial.FinalDepthOfDecarburization;
 import com.sarthi.entity.finalmaterial.FinalDepthOfDecarburizationSample;
+import com.sarthi.entity.finalmaterial.FinalDimensionalInspectionFlat;
 
 @Service
 @RequiredArgsConstructor
@@ -96,6 +98,7 @@ public class AnnexureService {
     private final FinalDepthOfDecarburizationSampleRepository finalDepthOfDecarburizationSampleRepository;
     private final FinalApplicationDeflectionRepository finalApplicationDeflectionRepository;
     private final FinalApplicationDeflectionSampleRepository finalApplicationDeflectionSampleRepository;
+    private final FinalDimensionalInspectionFlatRepository finalDimensionalInspectionFlatRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -321,6 +324,7 @@ public class AnnexureService {
 
         // 2. Fetch Chemical Analysis technical data rows
         List<FinalChemicalAnalysis> testResults = finalChemicalAnalysisRepository.findByInspectionCallNo(callNo);
+        List<FinalInspectionLotResults> lotResults = finalInspectionLotResultsRepository.findByInspectionCallNo(callNo);
         List<FinalChemicalAnalysisRowDTO> rows = new ArrayList<>();
 
         Long finalDetailId = finalDetailsOpt.map(FinalInspectionDetails::getId).orElse(null);
@@ -332,6 +336,19 @@ public class AnnexureService {
             if (finalDetailId != null) {
                 lotOpt = finalInspectionLotDetailsRepository
                         .findByFinalDetailIdAndLotNumber(finalDetailId, result.getLotNo());
+            }
+
+            // Determine status from lot results
+            String status = "Accepted";
+            Optional<FinalInspectionLotResults> matchStatus = lotResults.stream()
+                .filter(lr -> lr.getLotNo().equals(result.getLotNo()))
+                .findFirst();
+            
+            if (matchStatus.isPresent()) {
+                String subStatus = matchStatus.get().getChemicalStatus();
+                if ("NOT OK".equalsIgnoreCase(subStatus)) {
+                    status = "Rejected";
+                }
             }
 
             rows.add(FinalChemicalAnalysisRowDTO.builder()
@@ -347,7 +364,7 @@ public class AnnexureService {
                     .sulphurPercent(result.getSulphurPercent())
                     .phosphorusPercent(result.getPhosphorusPercent())
                     .remarks(result.getRemarks())
-                    .acceptedOrRejected("Accepted") // Default or derive from status
+                    .acceptedOrRejected(status)
                     .signOfSupervisor("")
                     .build());
         }
@@ -420,21 +437,24 @@ public class AnnexureService {
                 Integer samplingNo = entry.getKey();
                 List<FinalHardnessTestSample> samplingSamples = entry.getValue();
 
-                // Calculate defectives for this sampling
-                long defectives = samplingSamples.stream().filter(s -> Boolean.TRUE.equals(s.getIsRejected())).count();
-                runningCumulative += (int) defectives;
+                // Calculate defectives for this sampling based on 40-44 HRC range
+                int currentDefectives = (int) samplingSamples.stream()
+                    .filter(s -> isHardnessRejected(s.getSampleValue()))
+                    .count();
+                
+                runningCumulative += currentDefectives;
+                
+                // Rule: 1st sampling cumulative is always 0. 2nd is 1st + 2nd.
+                int displayCumulative = (samplingNo == 1) ? 0 : runningCumulative;
 
                 // Determine status for this sampling page
                 String statusText;
                 if (samplingNo == 1 && hasSecondSampling) {
                     statusText = "Second sampling required";
                 } else {
-                    // Use the status from the parent record for the final decision sampling
-                    // Or calculate based on standard: 
-                    // Actually, mappedStatus comes from lotResults which is the final decision.
+                    // Logic from user base: if cumulative <= 6 Accepted, else Rejected
                     statusText = (runningCumulative <= 6) ? "Accepted" : "Rejected";
                     
-                    // If we have mappedStatus from DB, and it's NOT OK, override to Rejected
                     if ("Not Accepted".equals(mappedStatus)) statusText = "Rejected";
                     else if ("Accepted".equals(mappedStatus)) statusText = "Accepted";
                 }
@@ -460,8 +480,8 @@ public class AnnexureService {
                         .qty(test.getQtyNo())
                         .sampleSize(samplingSamples.size())
                         .readings(readingsTable)
-                        .defectives((int) defectives)
-                        .cumulativeDefectives(runningCumulative)
+                        .defectives(currentDefectives)
+                        .cumulativeDefectives(displayCumulative)
                         .status(statusText)
                         .build());
 
@@ -523,9 +543,24 @@ public class AnnexureService {
             Map<Integer, List<FinalToeLoadTestSample>> samplingGroups = allSamples.stream()
                 .collect(Collectors.groupingBy(FinalToeLoadTestSample::getSamplingNo));
 
-            for (Map.Entry<Integer, List<FinalToeLoadTestSample>> entry : samplingGroups.entrySet()) {
-                Integer samplingNo = entry.getKey();
-                List<FinalToeLoadTestSample> samplingSamples = entry.getValue();
+            // Sort sampling rounds to calculate cumulative values correctly
+            List<Integer> sortedSamplingNos = new ArrayList<>(samplingGroups.keySet());
+            java.util.Collections.sort(sortedSamplingNos);
+
+            int runningTotal = 0;
+            int round1Defectives = 0;
+
+            for (Integer samplingNo : sortedSamplingNos) {
+                List<FinalToeLoadTestSample> samplingSamples = samplingGroups.get(samplingNo);
+
+                // Calculate defectives for this specific round based on ERC Type range
+                int currentDefectives = (int) samplingSamples.stream().filter(s -> isToeLoadRejected(productName, s.getSampleValue())).count();
+                
+                runningTotal += currentDefectives;
+                if (samplingNo == 1) round1Defectives = currentDefectives;
+                
+                // Rule: 1st sampling cumulative is always 0. 2nd is 1st + 2nd.
+                int displayCumulative = (samplingNo == 1) ? 0 : runningTotal;
 
                 List<ToeLoadBatchDTO> rows = new ArrayList<>();
                 List<List<BigDecimal>> readingsTable = new ArrayList<>();
@@ -548,8 +583,8 @@ public class AnnexureService {
                         .qty(test.getQtyNo())
                         .sampleSize(samplingSamples.size())
                         .readings(readingsTable)
-                        .defectives(test.getRejected())
-                        .cumulativeDefectives(test.getRejected())
+                        .defectives(currentDefectives)
+                        .cumulativeDefectives(displayCumulative)
                         .status(mappedStatus)
                         .build());
 
@@ -610,9 +645,24 @@ public class AnnexureService {
             Map<Integer, List<FinalWeightTestSample>> samplingGroups = allSamples.stream()
                 .collect(Collectors.groupingBy(FinalWeightTestSample::getSamplingNo));
 
-            for (Map.Entry<Integer, List<FinalWeightTestSample>> entry : samplingGroups.entrySet()) {
-                Integer samplingNo = entry.getKey();
-                List<FinalWeightTestSample> samplingSamples = entry.getValue();
+            // Sort sampling rounds to calculate cumulative values correctly
+            List<Integer> sortedSamplingNos = new ArrayList<>(samplingGroups.keySet());
+            java.util.Collections.sort(sortedSamplingNos);
+
+            int runningTotal = 0;
+            int round1Defectives = 0;
+
+            for (Integer samplingNo : sortedSamplingNos) {
+                List<FinalWeightTestSample> samplingSamples = samplingGroups.get(samplingNo);
+
+                // Calculate defectives for this specific round based on ERC Type range
+                int currentDefectives = (int) samplingSamples.stream().filter(s -> isWeightRejected(productName, s.getSampleValue())).count();
+                
+                runningTotal += currentDefectives;
+                if (samplingNo == 1) round1Defectives = currentDefectives;
+
+                // Rule: 1st sampling cumulative is always 0. 2nd is 1st + 2nd.
+                int displayCumulative = (samplingNo == 1) ? 0 : runningTotal;
 
                 List<WeightBatchDTO> rows = new ArrayList<>();
                 List<List<BigDecimal>> readingsTable = new ArrayList<>();
@@ -635,8 +685,8 @@ public class AnnexureService {
                         .qty(test.getQtyNo())
                         .sampleSize(samplingSamples.size())
                         .readings(readingsTable)
-                        .defectives(test.getRejected())
-                        .cumulativeDefectives(test.getRejected())
+                        .defectives(currentDefectives)
+                        .cumulativeDefectives(displayCumulative)
                         .status(mappedStatus)
                         .build());
 
@@ -657,6 +707,146 @@ public class AnnexureService {
                 .productName(productName)
                 .dateOfInspection(inspectionDate)
                 .pages(pages)
+                .build();
+    }
+
+    /**
+     * Fetches and aggregates data for the Final Dimensional Inspection Annexure (Annexure-IX).
+     *
+     * @param callNo The inspection call number
+     * @return Aggregated dimensional inspection report data
+     */
+    public FinalDimensionalAnnexureResponseDTO getFinalDimensionalAnnexureData(String callNo) {
+        log.info("Fetching Final Dimensional Inspection data for call no: {}", callNo);
+
+        // 1. Fetch Metadata
+        Optional<com.sarthi.entity.rawmaterial.InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
+        Optional<InspectionCompleteDetails> completeDetailsOpt = inspectionCompleteDetailsRepository.findByCallNo(callNo);
+        Optional<FinalInspectionDetails> finalDetailsOpt = callOpt.flatMap(c -> finalInspectionDetailsRepository.findByIcId(c.getId()));
+
+        String manufacturer = callOpt.map(com.sarthi.entity.rawmaterial.InspectionCall::getCompanyName).orElse("RITES LTD");
+        String vendor = manufacturer;
+        String certificateNo = completeDetailsOpt.map(InspectionCompleteDetails::getCertificateNo).orElse("N/A");
+        String productName = callOpt.map(InspectionCall::getErcType).orElse("ELASTIC RAIL CLIP");
+        String inspectionDate = callOpt.map(c -> c.getActualInspectionDate() != null ? c.getActualInspectionDate().format(DATE_FORMATTER) : "N/A").orElse("N/A");
+
+        Long finalDetailId = finalDetailsOpt.map(FinalInspectionDetails::getId).orElse(null);
+
+        // 2. Fetch technical data from FLAT table
+        List<FinalDimensionalInspectionFlat> dimTests = finalDimensionalInspectionFlatRepository.findByInspectionCallNo(callNo);
+        List<FinalDimensionalAnnexurePageDTO> pages = new ArrayList<>();
+
+        for (FinalDimensionalInspectionFlat test : dimTests) {
+            boolean hasSecond = (test.getSecondSampleGoGaugeFail() != null || test.getSecondSampleNoGoFail() != null);
+            
+            // Check if 1st sampling has data
+            if (test.getFirstSampleGoGaugeFail() != null || test.getFirstSampleNoGoFail() != null) {
+                // Rule: 1st sampling cumulative is always 0
+                pages.add(createDimensionalPage(test, 1, finalDetailId, inspectionDate, 0));
+            }
+            
+            // Check if 2nd sampling has data
+            if (hasSecond) {
+                int d1 = (test.getFirstSampleGoGaugeFail() != null ? test.getFirstSampleGoGaugeFail() : 0) +
+                         (test.getFirstSampleNoGoFail() != null ? test.getFirstSampleNoGoFail() : 0) +
+                         (test.getFirstSampleFlatBearingFail() != null ? test.getFirstSampleFlatBearingFail() : 0);
+                int d2 = (test.getSecondSampleGoGaugeFail() != null ? test.getSecondSampleGoGaugeFail() : 0) +
+                         (test.getSecondSampleNoGoFail() != null ? test.getSecondSampleNoGoFail() : 0) +
+                         (test.getSecondSampleFlatBearingFail() != null ? test.getSecondSampleFlatBearingFail() : 0);
+                
+                int cumulative2 = d1 + d2;
+                pages.add(createDimensionalPage(test, 2, finalDetailId, inspectionDate, cumulative2));
+            }
+        }
+
+        return FinalDimensionalAnnexureResponseDTO.builder()
+                .inspectionCallNo(callNo)
+                .manufacturer(manufacturer)
+                .vendor(vendor)
+                .certificateNo(certificateNo)
+                .productName(productName)
+                .dateOfInspection(inspectionDate)
+                .pages(pages)
+                .build();
+    }
+
+    private FinalDimensionalAnnexurePageDTO createDimensionalPage(FinalDimensionalInspectionFlat test, int samplingNo, Long finalDetailId, String defaultDate, int cumulativeDefectives) {
+        // Fetch lot details for quantity
+        String qty = "0";
+        if (finalDetailId != null) {
+            Optional<FinalInspectionLotDetails> lotOpt = finalInspectionLotDetailsRepository.findByFinalDetailIdAndLotNumber(finalDetailId, test.getLotNo());
+            if (lotOpt.isPresent()) {
+                qty = lotOpt.get().getOfferedQty() != null ? lotOpt.get().getOfferedQty().toString() : "0";
+            }
+        }
+
+        // Map values based on sampling round
+        String mainBoxGo = "OK";
+        String mainBoxNoGo = "OK";
+        String fallingGo = "OK";
+        String fallingNoGo = "OK";
+        String flatBearingGo = "OK";
+        String flatBearingNoGo = "OK";
+        Integer defectives = 0;
+        Integer sampleSize = 0; // In this flat structure, sample size is usually fixed or derived from AQL
+
+        if (samplingNo == 1) {
+            mainBoxGo = test.getFirstSampleMainBoxGo() != null && test.getFirstSampleMainBoxGo() > 0 ? String.valueOf(test.getFirstSampleMainBoxGo()) : "OK";
+            mainBoxNoGo = test.getFirstSampleMainBoxNoGo() != null && test.getFirstSampleMainBoxNoGo() > 0 ? String.valueOf(test.getFirstSampleMainBoxNoGo()) : "OK";
+            fallingGo = test.getFirstSampleFallingGo() != null && test.getFirstSampleFallingGo() > 0 ? String.valueOf(test.getFirstSampleFallingGo()) : "OK";
+            fallingNoGo = test.getFirstSampleFallingNoGo() != null && test.getFirstSampleFallingNoGo() > 0 ? String.valueOf(test.getFirstSampleFallingNoGo()) : "OK";
+            flatBearingGo = test.getFirstSampleFlatBearingGo() != null && test.getFirstSampleFlatBearingGo() > 0 ? String.valueOf(test.getFirstSampleFlatBearingGo()) : "OK";
+            flatBearingNoGo = test.getFirstSampleFlatBearingNoGo() != null && test.getFirstSampleFlatBearingNoGo() > 0 ? String.valueOf(test.getFirstSampleFlatBearingNoGo()) : "OK";
+            
+            defectives = (test.getFirstSampleGoGaugeFail() != null ? test.getFirstSampleGoGaugeFail() : 0) +
+                         (test.getFirstSampleNoGoFail() != null ? test.getFirstSampleNoGoFail() : 0) +
+                         (test.getFirstSampleFlatBearingFail() != null ? test.getFirstSampleFlatBearingFail() : 0);
+        } else {
+            mainBoxGo = test.getSecondSampleMainBoxGo() != null && test.getSecondSampleMainBoxGo() > 0 ? String.valueOf(test.getSecondSampleMainBoxGo()) : "OK";
+            mainBoxNoGo = test.getSecondSampleMainBoxNoGo() != null && test.getSecondSampleMainBoxNoGo() > 0 ? String.valueOf(test.getSecondSampleMainBoxNoGo()) : "OK";
+            fallingGo = test.getSecondSampleFallingGo() != null && test.getSecondSampleFallingGo() > 0 ? String.valueOf(test.getSecondSampleFallingGo()) : "OK";
+            fallingNoGo = test.getSecondSampleFallingNoGo() != null && test.getSecondSampleFallingNoGo() > 0 ? String.valueOf(test.getSecondSampleFallingNoGo()) : "OK";
+            flatBearingGo = test.getSecondSampleFlatBearingGo() != null && test.getSecondSampleFlatBearingGo() > 0 ? String.valueOf(test.getSecondSampleFlatBearingGo()) : "OK";
+            flatBearingNoGo = test.getSecondSampleFlatBearingNoGo() != null && test.getSecondSampleFlatBearingNoGo() > 0 ? String.valueOf(test.getSecondSampleFlatBearingNoGo()) : "OK";
+            
+            defectives = (test.getSecondSampleGoGaugeFail() != null ? test.getSecondSampleGoGaugeFail() : 0) +
+                         (test.getSecondSampleNoGoFail() != null ? test.getSecondSampleNoGoFail() : 0) +
+                         (test.getSecondSampleFlatBearingFail() != null ? test.getSecondSampleFlatBearingFail() : 0);
+        }
+
+        String pageStatus = "Accepted";
+        if ("NOT OK".equalsIgnoreCase(test.getStatus())) {
+            pageStatus = "Rejected";
+        }
+
+        List<FinalDimensionalAnnexurePageDTO.DimensionalRowDTO> rows = new ArrayList<>();
+        rows.add(FinalDimensionalAnnexurePageDTO.DimensionalRowDTO.builder()
+                .sNo(1)
+                .heatNo(test.getHeatNo())
+                .lotNo(test.getLotNo())
+                .colourCode("-")
+                .qty(qty)
+                .sampleSize(sampleSize)
+                .mainBoxGo(mainBoxGo)
+                .mainBoxNoGo(mainBoxNoGo)
+                .fallingGo(fallingGo)
+                .fallingNoGo(fallingNoGo)
+                .flatBearingGo(flatBearingGo)
+                .flatBearingNoGo(flatBearingNoGo)
+                .defectives(defectives)
+                .cumulativeDefectives(cumulativeDefectives)
+                .status(pageStatus)
+                .build());
+
+        return FinalDimensionalAnnexurePageDTO.builder()
+                .heatNo(test.getHeatNo())
+                .lotNo(test.getLotNo())
+                .samplingNo(samplingNo)
+                .sampleSize(sampleSize)
+                .colourCode("-")
+                .quantity(qty)
+                .status(pageStatus)
+                .rows(rows)
                 .build();
     }
 
@@ -1020,5 +1210,59 @@ public class AnnexureService {
                 .dateOfInspection(call.getActualInspectionDate() != null ? call.getActualInspectionDate().format(DATE_FORMATTER) : "")
                 .pages(pages)
                 .build();
+    }
+    /**
+     * Helper method to determine if a weight reading is rejected based on ERC Type.
+     * MK-V: 1068g - 1108g
+     * MK-III: 904g - 944g
+     * ERC-J: 904g - 944g
+     */
+    private boolean isWeightRejected(String ercType, BigDecimal weight) {
+        if (weight == null) return true;
+        
+        double val = weight.doubleValue();
+        if (ercType != null && ercType.contains("MK-V")) {
+            return val < 1068.0 || val > 1108.0;
+        } else if (ercType != null && ercType.contains("MK-III")) {
+            return val < 904.0 || val > 944.0;
+        } else if (ercType != null && ercType.contains("ERC-J")) {
+            return val < 904.0 || val > 944.0;
+        }
+        
+        // Default tolerance check (from user's code base of 904/1068)
+        double min = (ercType != null && ercType.contains("MK-V")) ? 1068.0 : 904.0;
+        return val < min;
+    }
+
+    /**
+     * Helper method to determine if a toe load reading is rejected based on ERC Type.
+     * MK-III: 850 - 1100
+     * MK-V: 1200 - 1500
+     * ERC-J: > 650
+     */
+    private boolean isToeLoadRejected(String ercType, BigDecimal value) {
+        if (value == null) return true;
+        
+        double val = value.doubleValue();
+        if (ercType != null && ercType.contains("MK-III")) {
+            return val < 850.0 || val > 1100.0;
+        } else if (ercType != null && ercType.contains("MK-V")) {
+            return val < 1200.0 || val > 1500.0;
+        } else if (ercType != null && ercType.contains("ERC-J")) {
+            return val < 650.0;
+        }
+        
+        // Default check (MK-III)
+        return val < 850.0 || val > 1100.0;
+    }
+
+    /**
+     * Helper method to determine if a hardness reading is rejected.
+     * Range: 40 - 44 HRC
+     */
+    private boolean isHardnessRejected(BigDecimal value) {
+        if (value == null) return true;
+        double val = value.doubleValue();
+        return val < 40.0 || val > 44.0;
     }
 }
