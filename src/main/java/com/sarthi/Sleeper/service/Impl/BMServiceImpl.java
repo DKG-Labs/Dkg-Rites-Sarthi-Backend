@@ -51,7 +51,7 @@ public class BMServiceImpl implements BMService {
 
         master = masterRepo.save(master);
 
-        if ("STRESS".equalsIgnoreCase(request.getPlantType())) {
+        if (isStressBench(request.getPlantType())) {
 
             List<BMStressDetails> list = new ArrayList<>();
 
@@ -114,7 +114,10 @@ public class BMServiceImpl implements BMService {
         BMMaster master = masterRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found with id: " + id));
 
+        String oldType = master.getPlantType();
+        String newType = request.getPlantType();
 
+        master.setPlantType(newType);
         master.setCategory(request.getCategory());
         master.setSubCategory(request.getSubCategory());
         master.setDrawingNo(request.getDrawingNo());
@@ -125,7 +128,15 @@ public class BMServiceImpl implements BMService {
         master.setPlantId(request.getPlantId());
         masterRepo.save(master);
 
-        if ("STRESS".equalsIgnoreCase(master.getPlantType())) {
+        if (isStressBench(newType)) {
+
+            // If we've switched from Longline to Stress, clear any old longline details
+            if (!isStressBench(oldType)) {
+                List<BMLongLineDetails> oldDetails = longLineRepo.findByBmMasterId(id);
+                if (!oldDetails.isEmpty()) {
+                    longLineRepo.deleteAll(oldDetails);
+                }
+            }
 
             List<BMStressDetails> existing = stressRepo.findByBmMasterId(id);
 
@@ -139,7 +150,7 @@ public class BMServiceImpl implements BMService {
 
             for (BMDetailRequestDTO d : request.getDetails()) {
 
-                if (d.getId() != null && existingMap.containsKey(d.getId())) {
+                if (d.getId() != null && d.getId() != 0 && existingMap.containsKey(d.getId())) {
 
 
                     BMStressDetails e = existingMap.get(d.getId());
@@ -192,6 +203,14 @@ public class BMServiceImpl implements BMService {
 
         } else {
 
+            // If we've switched from Stress to Longline, clear any old stress details
+            if (isStressBench(oldType)) {
+                List<BMStressDetails> oldDetails = stressRepo.findByBmMasterId(id);
+                if (!oldDetails.isEmpty()) {
+                    stressRepo.deleteAll(oldDetails);
+                }
+            }
+
             List<BMLongLineDetails> existing = longLineRepo.findByBmMasterId(id);
 
             Map<Long, BMLongLineDetails> existingMap = new HashMap<>();
@@ -204,7 +223,7 @@ public class BMServiceImpl implements BMService {
 
             for (BMDetailRequestDTO d : request.getDetails()) {
 
-                if (d.getId() != null && existingMap.containsKey(d.getId())) {
+                if (d.getId() != null && d.getId() != 0 && existingMap.containsKey(d.getId())) {
 
 
                     BMLongLineDetails e = existingMap.get(d.getId());
@@ -338,7 +357,7 @@ public class BMServiceImpl implements BMService {
 
         List<BMDetailResponseDTO> detailList = new ArrayList<>();
 
-        if ("STRESS".equalsIgnoreCase(master.getPlantType())) {
+        if (isStressBench(master.getPlantType())) {
 
             List<BMStressDetails> list = stressRepo.findByBmMasterId(master.getId());
 
@@ -395,6 +414,11 @@ public class BMServiceImpl implements BMService {
         return dto;
     }
 
+    private boolean isStressBench(String plantType) {
+        if (plantType == null) return false;
+        String type = plantType.toUpperCase();
+        return type.contains("STRESS") || type.equals("STRESS_BENCH");
+    }
 
     @Override
     public List<BenchGroupResponseDTO> getBenchDetails(BenchQueryRequestDTO request) {
