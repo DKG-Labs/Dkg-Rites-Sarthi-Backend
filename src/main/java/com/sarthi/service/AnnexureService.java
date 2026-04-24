@@ -46,6 +46,7 @@ import com.sarthi.repository.finalmaterial.FinalInclusionRatingSampleRepository;
 import com.sarthi.repository.finalmaterial.FinalApplicationDeflectionRepository;
 import com.sarthi.repository.finalmaterial.FinalApplicationDeflectionSampleRepository;
 import com.sarthi.repository.finalmaterial.FinalDimensionalInspectionFlatRepository;
+import com.sarthi.repository.finalmaterial.FinalDimensionalInspectionRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -64,6 +65,7 @@ import com.sarthi.entity.finalmaterial.FinalFreedomFromDefectsTest;
 import com.sarthi.entity.finalmaterial.FinalFreedomFromDefectsSample;
 import com.sarthi.entity.finalmaterial.FinalDepthOfDecarburization;
 import com.sarthi.entity.finalmaterial.FinalDepthOfDecarburizationSample;
+import com.sarthi.entity.finalmaterial.FinalDimensionalInspection;
 import com.sarthi.entity.finalmaterial.FinalDimensionalInspectionFlat;
 
 @Service
@@ -99,6 +101,7 @@ public class AnnexureService {
     private final FinalApplicationDeflectionRepository finalApplicationDeflectionRepository;
     private final FinalApplicationDeflectionSampleRepository finalApplicationDeflectionSampleRepository;
     private final FinalDimensionalInspectionFlatRepository finalDimensionalInspectionFlatRepository;
+    private final FinalDimensionalInspectionRepository finalDimensionalInspectionRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -737,15 +740,18 @@ public class AnnexureService {
         List<FinalDimensionalAnnexurePageDTO> pages = new ArrayList<>();
 
         for (FinalDimensionalInspectionFlat test : dimTests) {
-            boolean hasSecond = (test.getSecondSampleGoGaugeFail() != null || test.getSecondSampleNoGoFail() != null);
-            
-            // Check if 1st sampling has data
+            // Fetch parent to get sample size
+            Optional<FinalDimensionalInspection> parentOpt = finalDimensionalInspectionRepository
+                    .findByInspectionCallNoAndLotNoAndHeatNo(callNo, test.getLotNo(), test.getHeatNo());
+            Integer sampleSize = parentOpt.map(FinalDimensionalInspection::getSampleSize).orElse(0);
+
+            // 1st Sampling Page
             if (test.getFirstSampleGoGaugeFail() != null || test.getFirstSampleNoGoFail() != null) {
-                // Rule: 1st sampling cumulative is always 0
-                pages.add(createDimensionalPage(test, 1, finalDetailId, inspectionDate, 0));
+                pages.add(createDimensionalPage(test, 1, finalDetailId, sampleSize, 0));
             }
             
-            // Check if 2nd sampling has data
+            // 2nd Sampling Page (if exists)
+            boolean hasSecond = (test.getSecondSampleGoGaugeFail() != null || test.getSecondSampleNoGoFail() != null);
             if (hasSecond) {
                 int d1 = (test.getFirstSampleGoGaugeFail() != null ? test.getFirstSampleGoGaugeFail() : 0) +
                          (test.getFirstSampleNoGoFail() != null ? test.getFirstSampleNoGoFail() : 0) +
@@ -755,7 +761,7 @@ public class AnnexureService {
                          (test.getSecondSampleFlatBearingFail() != null ? test.getSecondSampleFlatBearingFail() : 0);
                 
                 int cumulative2 = d1 + d2;
-                pages.add(createDimensionalPage(test, 2, finalDetailId, inspectionDate, cumulative2));
+                pages.add(createDimensionalPage(test, 2, finalDetailId, sampleSize, cumulative2));
             }
         }
 
@@ -770,7 +776,7 @@ public class AnnexureService {
                 .build();
     }
 
-    private FinalDimensionalAnnexurePageDTO createDimensionalPage(FinalDimensionalInspectionFlat test, int samplingNo, Long finalDetailId, String defaultDate, int cumulativeDefectives) {
+    private FinalDimensionalAnnexurePageDTO createDimensionalPage(FinalDimensionalInspectionFlat test, int samplingNo, Long finalDetailId, Integer sampleSize, int cumulativeDefectives) {
         // Fetch lot details for quantity
         String qty = "0";
         if (finalDetailId != null) {
@@ -781,33 +787,32 @@ public class AnnexureService {
         }
 
         // Map values based on sampling round
-        String mainBoxGo = "OK";
-        String mainBoxNoGo = "OK";
-        String fallingGo = "OK";
-        String fallingNoGo = "OK";
-        String flatBearingGo = "OK";
-        String flatBearingNoGo = "OK";
+        String mainBoxGo = null;
+        String mainBoxNoGo = null;
+        String fallingGo = null;
+        String fallingNoGo = null;
+        String flatBearingGo = null;
+        String flatBearingNoGo = null;
         Integer defectives = 0;
-        Integer sampleSize = 0; // In this flat structure, sample size is usually fixed or derived from AQL
 
         if (samplingNo == 1) {
-            mainBoxGo = test.getFirstSampleMainBoxGo() != null && test.getFirstSampleMainBoxGo() > 0 ? String.valueOf(test.getFirstSampleMainBoxGo()) : "OK";
-            mainBoxNoGo = test.getFirstSampleMainBoxNoGo() != null && test.getFirstSampleMainBoxNoGo() > 0 ? String.valueOf(test.getFirstSampleMainBoxNoGo()) : "OK";
-            fallingGo = test.getFirstSampleFallingGo() != null && test.getFirstSampleFallingGo() > 0 ? String.valueOf(test.getFirstSampleFallingGo()) : "OK";
-            fallingNoGo = test.getFirstSampleFallingNoGo() != null && test.getFirstSampleFallingNoGo() > 0 ? String.valueOf(test.getFirstSampleFallingNoGo()) : "OK";
-            flatBearingGo = test.getFirstSampleFlatBearingGo() != null && test.getFirstSampleFlatBearingGo() > 0 ? String.valueOf(test.getFirstSampleFlatBearingGo()) : "OK";
-            flatBearingNoGo = test.getFirstSampleFlatBearingNoGo() != null && test.getFirstSampleFlatBearingNoGo() > 0 ? String.valueOf(test.getFirstSampleFlatBearingNoGo()) : "OK";
+            mainBoxGo = test.getFirstSampleMainBoxGo() != null ? String.valueOf(test.getFirstSampleMainBoxGo()) : null;
+            mainBoxNoGo = test.getFirstSampleMainBoxNoGo() != null ? String.valueOf(test.getFirstSampleMainBoxNoGo()) : null;
+            fallingGo = test.getFirstSampleFallingGo() != null ? String.valueOf(test.getFirstSampleFallingGo()) : null;
+            fallingNoGo = test.getFirstSampleFallingNoGo() != null ? String.valueOf(test.getFirstSampleFallingNoGo()) : null;
+            flatBearingGo = test.getFirstSampleFlatBearingGo() != null ? String.valueOf(test.getFirstSampleFlatBearingGo()) : null;
+            flatBearingNoGo = test.getFirstSampleFlatBearingNoGo() != null ? String.valueOf(test.getFirstSampleFlatBearingNoGo()) : null;
             
             defectives = (test.getFirstSampleGoGaugeFail() != null ? test.getFirstSampleGoGaugeFail() : 0) +
                          (test.getFirstSampleNoGoFail() != null ? test.getFirstSampleNoGoFail() : 0) +
                          (test.getFirstSampleFlatBearingFail() != null ? test.getFirstSampleFlatBearingFail() : 0);
         } else {
-            mainBoxGo = test.getSecondSampleMainBoxGo() != null && test.getSecondSampleMainBoxGo() > 0 ? String.valueOf(test.getSecondSampleMainBoxGo()) : "OK";
-            mainBoxNoGo = test.getSecondSampleMainBoxNoGo() != null && test.getSecondSampleMainBoxNoGo() > 0 ? String.valueOf(test.getSecondSampleMainBoxNoGo()) : "OK";
-            fallingGo = test.getSecondSampleFallingGo() != null && test.getSecondSampleFallingGo() > 0 ? String.valueOf(test.getSecondSampleFallingGo()) : "OK";
-            fallingNoGo = test.getSecondSampleFallingNoGo() != null && test.getSecondSampleFallingNoGo() > 0 ? String.valueOf(test.getSecondSampleFallingNoGo()) : "OK";
-            flatBearingGo = test.getSecondSampleFlatBearingGo() != null && test.getSecondSampleFlatBearingGo() > 0 ? String.valueOf(test.getSecondSampleFlatBearingGo()) : "OK";
-            flatBearingNoGo = test.getSecondSampleFlatBearingNoGo() != null && test.getSecondSampleFlatBearingNoGo() > 0 ? String.valueOf(test.getSecondSampleFlatBearingNoGo()) : "OK";
+            mainBoxGo = test.getSecondSampleMainBoxGo() != null ? String.valueOf(test.getSecondSampleMainBoxGo()) : null;
+            mainBoxNoGo = test.getSecondSampleMainBoxNoGo() != null ? String.valueOf(test.getSecondSampleMainBoxNoGo()) : null;
+            fallingGo = test.getSecondSampleFallingGo() != null ? String.valueOf(test.getSecondSampleFallingGo()) : null;
+            fallingNoGo = test.getSecondSampleFallingNoGo() != null ? String.valueOf(test.getSecondSampleFallingNoGo()) : null;
+            flatBearingGo = test.getSecondSampleFlatBearingGo() != null ? String.valueOf(test.getSecondSampleFlatBearingGo()) : null;
+            flatBearingNoGo = test.getSecondSampleFlatBearingNoGo() != null ? String.valueOf(test.getSecondSampleFlatBearingNoGo()) : null;
             
             defectives = (test.getSecondSampleGoGaugeFail() != null ? test.getSecondSampleGoGaugeFail() : 0) +
                          (test.getSecondSampleNoGoFail() != null ? test.getSecondSampleNoGoFail() : 0) +
