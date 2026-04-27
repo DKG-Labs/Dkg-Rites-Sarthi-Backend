@@ -235,10 +235,10 @@ public class crisServiceImpl implements crisService {
         i.setUom(m.getUOM());
 
         if (m.getQTY() != null)
-            i.setQty(Integer.parseInt(m.getQTY()));
+            i.setQty(new BigDecimal(m.getQTY()).setScale(0, java.math.RoundingMode.HALF_UP).intValue());
 
         if (m.getQTY_CANCELLED() != null)
-            i.setQtyCancelled(Integer.parseInt(m.getQTY_CANCELLED()));
+            i.setQtyCancelled(new BigDecimal(m.getQTY_CANCELLED()).setScale(0, java.math.RoundingMode.HALF_UP).intValue());
 
         i.setRate(bd(m.getRATE()));
         i.setBasicValue(bd(m.getBASIC_VALUE()));

@@ -2,7 +2,6 @@ package com.sarthi.dto.reports;
 
 import lombok.Data;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -50,13 +49,13 @@ public class PoInspection1stLevelStatusDto {
         this.poDate = poDate;
         this.vendor = vendor;
         this.inspectionRegion = inspectionRegion;
-        this.poQty = Math.toIntExact(poQty);
+        this.poQty = (poQty != null) ? Math.toIntExact(poQty) : null;
         this.finalQuantityAcceptedByRites = finalQuantityAcceptedByRites;
         this.balancePoQty = balancePoQty;
         this.rawMaterialRejectionPercentage = rawMaterialRejectionPercentage;
         this.processInspectionRejectionPercentage = processInspectionRejectionPercentage;
         this.finalInspectionRejectionPercentage = finalInspectionRejectionPercentage;
         this.poStatus = poStatus;
-        this.itemCatDescr =itemCatDescr;
+        this.itemCatDescr = itemCatDescr;
     }
 }
