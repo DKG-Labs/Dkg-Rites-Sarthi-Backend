@@ -10,13 +10,30 @@ import java.util.List;
 @Repository
 public interface EpoxyTreatedSleeperRepository extends JpaRepository<EpoxyTreatedSleeper, Long> {
 
-    @Query("""
+   /* @Query("""
 SELECT 
     et.batchNumber,
     et.location,
     pd.castingDate,
     pd.totalCastedSleepers,
     COUNT(DISTINCT esd.sleeperId)
+FROM EpoxyTreatedSleeper et
+JOIN ProductionDeclaration pd 
+    ON pd.batchNumber = et.batchNumber 
+    AND pd.productionUnit = et.location   
+JOIN EtSleeperDetails esd 
+    ON esd.et.id = et.id
+GROUP BY et.batchNumber, et.location, pd.castingDate, pd.totalCastedSleepers
+""")
+    List<Object[]> getBatchWiseEtSummary();  */
+
+    @Query("""
+SELECT 
+    et.batchNumber,
+    et.location,
+    pd.castingDate,
+    pd.totalCastedSleepers,
+    COUNT(esd.id)
 FROM EpoxyTreatedSleeper et
 JOIN ProductionDeclaration pd 
     ON pd.batchNumber = et.batchNumber 

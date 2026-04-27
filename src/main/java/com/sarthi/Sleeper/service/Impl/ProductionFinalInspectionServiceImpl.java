@@ -66,6 +66,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Autowired
     private EtSleeperDetailsRepository etSleeperDetailsRepository;
 
+    @Autowired
+    private SleeperInspectionCallRepository inspectionCallRepository;
+
 
     /*  @Override
       public void saveInspection(InspectionSaveRequestDto dto) {
@@ -875,6 +878,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         List<BatchInspectionResponseDto> responseList = new ArrayList<>();
 
+        Set<Long> raisedSleeperIds = new HashSet<>();
+
+        raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds());
+        raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds());
+
         for (Long batchId : batchIds) {
 
             List<InspectionTestResult> results =
@@ -910,6 +918,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     BadSleeperDto bad = new BadSleeperDto();
                     bad.setSleeperId(first.getSleeperId());
                     bad.setSleeperNo(first.getSleeperNo());
+                    bad.setCallRaised(raisedSleeperIds.contains(first.getSleeperId()));
 
                     sleeperResults.stream()
                             .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
@@ -929,6 +938,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     SleeperDto dto = new SleeperDto();
                     dto.setSleeperId(first.getSleeperId());
                     dto.setSleeperNo(first.getSleeperNo());
+                    dto.setCallRaised(raisedSleeperIds.contains(first.getSleeperId()));
 
                     if (etSleeperIds.contains(first.getSleeperId())) {
                         dto.setModuleId(5L);   // ET sleeper
@@ -1014,7 +1024,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         List<InspectionTestResult> results =
                 resultRepository.findByTestHeader_BatchIdAndActiveTrue(batchId);
 
-        // Existing map (NO CHANGE)
         Map<Long, String> resultMap = results.stream()
                 .collect(Collectors.toMap(
                         InspectionTestResult::getSleeperId,

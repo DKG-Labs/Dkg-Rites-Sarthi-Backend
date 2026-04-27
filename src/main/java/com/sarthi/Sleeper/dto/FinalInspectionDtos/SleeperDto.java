@@ -10,4 +10,6 @@ public class SleeperDto {
     private String status;
 
     public Long moduleId;
+
+    private Boolean callRaised = false;
 }

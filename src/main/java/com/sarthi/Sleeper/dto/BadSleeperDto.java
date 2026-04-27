@@ -8,4 +8,5 @@ public class BadSleeperDto {
     private Long sleeperId;
     private String sleeperNo;
     private String reason;
+    private Boolean callRaised = false;
 }
