@@ -11,6 +11,7 @@ public class LoginResponseDto {
 
     private Integer userId;
     private String userName;
+    private String vendorName;
     private List<String> roleName;
     private String token;
 
