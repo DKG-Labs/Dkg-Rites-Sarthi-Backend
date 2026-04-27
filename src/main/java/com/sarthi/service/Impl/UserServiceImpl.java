@@ -69,6 +69,9 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
 
+    @Autowired
+    private VendorMasterRepository vendorMasterRepository;
+
 
 
     /*
@@ -458,9 +461,21 @@ public class UserServiceImpl implements UserService {
 
         String token = jwtService.generateToken(user);
 
+        String vendorName = null;
+        if (roleNames.contains("Vendor") || roleNames.contains("Sleeper Vendor")) {
+            Optional<VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername());
+            if (vendorOpt.isEmpty() && user.getUsername().startsWith(":")) {
+                vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername().substring(1));
+            }
+            if (vendorOpt.isPresent()) {
+                vendorName = vendorOpt.get().getVendorName();
+            }
+        }
+
         return new LoginResponseDto(
                 user.getUserId(),
                 user.getUsername(),
+                vendorName,
                 roleNames,
                 token,
                 rio,
@@ -543,10 +558,22 @@ public class UserServiceImpl implements UserService {
         // ================= TOKEN =================
         String token = jwtService.generateToken(user);
 
+        String vendorName = null;
+        if ("VENDOR".equalsIgnoreCase(loginType)) {
+            Optional<VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername());
+            if (vendorOpt.isEmpty() && user.getUsername().startsWith(":")) {
+                vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername().substring(1));
+            }
+            if (vendorOpt.isPresent()) {
+                vendorName = vendorOpt.get().getVendorName();
+            }
+        }
+
         // ================= RESPONSE =================
         return new LoginResponseDto(
                 user.getUserId(),
                 user.getUsername(),
+                vendorName,
                roleNames,
                 token,
                 rio,
