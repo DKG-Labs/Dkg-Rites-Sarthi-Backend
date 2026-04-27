@@ -47,7 +47,9 @@ public class VendorPoServiceImpl implements VendorPoService {
                         ? poHeader.getPoDate().toLocalDate().toString()
                         : null);
         dto.setPoDes(poHeader.getFirmDetails());
-        dto.setUnit("Nos");
+        dto.setUnit(poHeader.getItems() != null && !poHeader.getItems().isEmpty() 
+                && poHeader.getItems().get(0).getUom() != null 
+                ? poHeader.getItems().get(0).getUom() : "Nos");
         dto.setRlyShortName(poHeader.getRlyShortName());
         dto.setRlyCd(poHeader.getRlyCd());
         dto.setItemCategory(poHeader.getItemCatDescr());
