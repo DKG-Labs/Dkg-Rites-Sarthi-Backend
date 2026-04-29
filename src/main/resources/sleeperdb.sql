@@ -1589,3 +1589,90 @@ CREATE TABLE et_sleeper_details (
     ON DELETE CASCADE
 
 );
+
+
+CREATE TABLE final_call_inspection_section_a (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    call_no VARCHAR(100) UNIQUE,
+
+    rly_po_no VARCHAR(200),
+    po_date DATETIME,
+
+    po_qty INT,
+    vendor_name VARCHAR(255),
+
+    ma_no VARCHAR(100),
+    ma_date DATE,
+
+    purchasing_authority VARCHAR(255),
+    bill_paying_officer VARCHAR(255),
+
+    plant_id VARCHAR(100),
+    vendor_code VARCHAR(100),
+    shift VARCHAR(50),
+
+    created_by BIGINT,
+    updated_by BIGINT,
+
+    created_date DATETIME,
+    updated_date DATETIME
+);
+
+CREATE TABLE final_call_inspection_section_b (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    call_no VARCHAR(100),
+
+    inspection_call_date DATETIME,
+    inspection_desired_date DATE,
+
+    rly_po_sr VARCHAR(200),
+    item_desc TEXT,
+
+    product_type VARCHAR(100),
+    type_of_erc VARCHAR(100),
+
+    po_sr_qty_unit VARCHAR(100),
+    consignee VARCHAR(255),
+
+    orig_dp DATETIME,
+    ext_dp DATETIME,
+    orig_dp_start DATE,
+
+    stage_of_inspection VARCHAR(100),
+    call_qty_mt INT,
+
+    place_of_inspection VARCHAR(255),
+
+    process_ic_numbers VARCHAR(255),
+    remarks TEXT,
+
+    plant_id VARCHAR(100),
+    vendor_code VARCHAR(100),
+    shift VARCHAR(50),
+
+    created_by BIGINT,
+    updated_by BIGINT,
+
+    created_date DATETIME,
+    updated_date DATETIME
+);
+
+CREATE TABLE sleeper_schedule (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    call_no VARCHAR(100) NOT NULL,
+    schedule_date DATE NOT NULL,
+    reason VARCHAR(500),
+
+    plant_id VARCHAR(100),
+    vendor_code VARCHAR(100),
+    shift VARCHAR(50),
+
+    created_by BIGINT,
+    updated_by BIGINT,
+
+    created_date DATETIME,
+    updated_date DATETIME
+);

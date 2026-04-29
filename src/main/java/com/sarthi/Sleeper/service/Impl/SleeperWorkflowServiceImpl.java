@@ -419,7 +419,7 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                                 req.getAction())
                         .orElseThrow(() -> new RuntimeException("Transition not configured"));
 */
-        SleeperTransitionMaster transition =
+      /*  SleeperTransitionMaster transition =
                 sleeperTransitionMasterRepository
                         .findByWorkflowIdAndCurrentRoleIdAndCurrentActionAndNextAction(
                                 current.getWorkflowId().intValue(),
@@ -428,7 +428,16 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                                 req.getAction()                        // user action
                         )
                         .orElseThrow(() -> new RuntimeException("Transition not configured"));
-
+*/
+        SleeperTransitionMaster transition =
+                sleeperTransitionMasterRepository
+                        .findByWorkflowIdAndCurrentRoleIdAndCurrentActionAndNextAction(
+                                current.getWorkflowId().intValue(),
+                                getRoleId(current.getCurrentRole()),
+                                current.getStatus(),
+                                req.getAction()
+                        )
+                        .orElseThrow(() -> new RuntimeException("Transition not configured"));
         tx.setCurrentRole(current.getNextRole());
 
         if (transition.getNextRoleId() != null) {
