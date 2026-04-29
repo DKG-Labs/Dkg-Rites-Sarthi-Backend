@@ -55,8 +55,17 @@ public class CertificateStorageController {
         }
     }
 
+    @GetMapping("/view")
+    public ResponseEntity<?> viewCertificateByParam(@RequestParam("icNumber") String icNumber) {
+        return getCertificateResponse(icNumber);
+    }
+
     @GetMapping("/view/{icNumber}")
     public ResponseEntity<?> viewCertificate(@PathVariable String icNumber) {
+        return getCertificateResponse(icNumber);
+    }
+
+    private ResponseEntity<?> getCertificateResponse(String icNumber) {
         log.info("Fetching certificate from Azure for IC: {}", icNumber);
         
         Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(icNumber);
@@ -79,8 +88,17 @@ public class CertificateStorageController {
         }
     }
 
+    @GetMapping("/check")
+    public ResponseEntity<?> checkIfExistsByParam(@RequestParam("icNumber") String icNumber) {
+        return getCheckResponse(icNumber);
+    }
+
     @GetMapping("/check/{icNumber}")
     public ResponseEntity<?> checkIfExists(@PathVariable String icNumber) {
+        return getCheckResponse(icNumber);
+    }
+
+    private ResponseEntity<?> getCheckResponse(String icNumber) {
         boolean exists = certificateStorageRepository.findByIcNumber(icNumber).isPresent();
         return ResponseEntity.ok(Map.of("exists", exists));
     }
