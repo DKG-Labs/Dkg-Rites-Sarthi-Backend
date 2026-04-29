@@ -60,8 +60,11 @@ public class CertificateStorageController {
         return getCertificateResponse(icNumber);
     }
 
-    @GetMapping("/view/{icNumber}")
+    @GetMapping("/view/{*icNumber}")
     public ResponseEntity<?> viewCertificate(@PathVariable String icNumber) {
+        if (icNumber != null && icNumber.startsWith("/")) {
+            icNumber = icNumber.substring(1);
+        }
         return getCertificateResponse(icNumber);
     }
 
@@ -93,8 +96,11 @@ public class CertificateStorageController {
         return getCheckResponse(icNumber);
     }
 
-    @GetMapping("/check/{icNumber}")
+    @GetMapping("/check/{*icNumber}")
     public ResponseEntity<?> checkIfExists(@PathVariable String icNumber) {
+        if (icNumber != null && icNumber.startsWith("/")) {
+            icNumber = icNumber.substring(1);
+        }
         return getCheckResponse(icNumber);
     }
 
