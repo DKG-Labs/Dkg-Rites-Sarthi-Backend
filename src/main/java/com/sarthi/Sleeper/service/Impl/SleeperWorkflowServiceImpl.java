@@ -186,6 +186,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         dto.setAction(tx.getAction());
         dto.setStatus(tx.getStatus());
         dto.setRemarks(tx.getRemarks());
+        dto.setJobStatus(tx.getJobStatus());
 
         dto.setCurrentRole(tx.getCurrentRole());
         dto.setNextRole(tx.getNextRole());
@@ -411,35 +412,37 @@ public SleeperWorkflowTransactionDto performTransitionAction(
     // Workflow 2 → Use TRANSITION_MASTER
     if (current.getWorkflowId().equals(2L)) {
 
-      /*  SleeperTransitionMaster transition =
+       List<SleeperTransitionMaster> transitions =
                 sleeperTransitionMasterRepository
                         .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
                                 current.getWorkflowId().intValue(),
                                 getRoleId(current.getNextRole()),
-                                req.getAction())
-                        .orElseThrow(() -> new RuntimeException("Transition not configured"));
-*/
-      /*  SleeperTransitionMaster transition =
-                sleeperTransitionMasterRepository
-                        .findByWorkflowIdAndCurrentRoleIdAndCurrentActionAndNextAction(
-                                current.getWorkflowId().intValue(),
-                                getRoleId(current.getNextRole()),   //  correct role
-                                current.getAction(),                   // current state
-                                req.getAction()                        // user action
-                        )
-                        .orElseThrow(() -> new RuntimeException("Transition not configured"));
-*/
-        SleeperTransitionMaster transition =
-                sleeperTransitionMasterRepository
-                        .findByWorkflowIdAndCurrentRoleIdAndCurrentActionAndNextAction(
-                                current.getWorkflowId().intValue(),
-                                getRoleId(current.getCurrentRole()),
-                                current.getStatus(),
-                                req.getAction()
-                        )
-                        .orElseThrow(() -> new RuntimeException("Transition not configured"));
-        tx.setCurrentRole(current.getNextRole());
+                                req.getAction());
 
+        SleeperTransitionMaster transition;
+
+        if (transitions.size() == 1) {
+            // ✔ normal case
+            transition = transitions.get(0);
+        } else {
+            List<SleeperTransitionMaster> trans = null;
+            if (req.getAction().equalsIgnoreCase("PO_VERIFICATION")) {
+                trans =
+                        sleeperTransitionMasterRepository
+                                .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                        current.getWorkflowId().intValue(),
+                                        getRoleId(current.getCurrentRole()),   // ✅ FIX
+                                        current.getAction()
+                                );
+            }
+
+            transition = trans.stream()
+                    .filter(t -> t.getNextAction().equalsIgnoreCase(req.getAction())) // ✅ FIX
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Transition not configured"));
+            tx.setCurrentRole(current.getNextRole());
+        }
+        tx.setJobStatus(determineJobStatus(req.getAction()));
         if (transition.getNextRoleId() != null) {
             tx.setNextRole(getRoleName(transition.getNextRoleId()));
         }
@@ -505,6 +508,48 @@ public SleeperWorkflowTransactionDto performTransitionAction(
 
     return mapToResponse(saved);
 }
+
+    private String determineJobStatus(String action) {
+
+        switch (action.toUpperCase()) {
+
+            case "CREATED":
+                return "CREATED";
+
+            case "VERIFY":
+                return "RIO_VERIFIED";
+
+            case "MAIN_IE_SCHEDULE_CALL":
+                return "SCHEDULED";
+
+            case "INITIATE_CALL":
+                return "INITIATED";
+
+            case "PO_VERIFICATION":
+                return "PO_VERIFICATION";
+
+            case "FINISH":
+            case "COMPLETED":
+                return "COMPLETED";
+
+            case "PAUSE":
+                return "PAUSED";
+
+            case "WITHHELD":
+                return "WITHHELD";
+            case "RESUME":
+                return  "RESUME";
+
+            case "IC_ISSUE":
+                return "IC_ISSUE";
+
+            case "IC_GENERATION":
+                return "GENERATED";
+
+            default:
+                return "PENDING";
+        }
+    }
 
     private Integer getRoleId(String roleName) {
 
@@ -615,10 +660,13 @@ public SleeperWorkflowTransactionDto performTransitionAction(
     @Override
     public List<SleeperWorkflowTransactionDto> allPendingWorkflowTransitions(String roleName) {
 
+        List<SleeperWorkflowTransaction> list = null;
+        if(roleName.equalsIgnoreCase("Main IE")){
+          list = repository.findLatestByRole(roleName);
+      }else {
 
-        List<SleeperWorkflowTransaction> list =
-                repository.findLastPendingRequestsByRole(roleName);
-
+       list = repository.findLastPendingRequestsByRole(roleName);
+      }
         return list.stream()
                 .map(this::mapToResponse)
                 .toList();

@@ -46,6 +46,7 @@ public class SleeperWorkflowTransactionDto {
     private String rio;
     private Long modifiedBy;
 
+    private String jobStatus;
 
 
     private LocalDateTime updatedDate;

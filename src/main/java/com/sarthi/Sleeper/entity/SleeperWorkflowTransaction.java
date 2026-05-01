@@ -48,4 +48,6 @@ public class SleeperWorkflowTransaction {
 
     private LocalDateTime updatedDate;
 
+    private String jobStatus;
+
 }

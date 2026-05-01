@@ -1676,3 +1676,6 @@ CREATE TABLE sleeper_schedule (
     created_date DATETIME,
     updated_date DATETIME
 );
+ALTER TABLE sleeper_workflow_transaction
+ADD COLUMN job_status VARCHAR(50);
+
