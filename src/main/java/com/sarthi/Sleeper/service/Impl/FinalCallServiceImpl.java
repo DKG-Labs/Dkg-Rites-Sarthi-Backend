@@ -1,11 +1,9 @@
 package com.sarthi.Sleeper.service.Impl;
 
-import com.sarthi.Sleeper.dto.FinalCalDtos.FinalCallRequestDto;
-import com.sarthi.Sleeper.dto.FinalCalDtos.FinalCallResponseDto;
-import com.sarthi.Sleeper.dto.FinalCalDtos.RejectedDto;
+import com.sarthi.Sleeper.dto.FinalCalDtos.*;
 
-import com.sarthi.Sleeper.dto.FinalCalDtos.SleeperDto;
 import com.sarthi.Sleeper.entity.FInalCall.*;
+import com.sarthi.Sleeper.repository.FInalCallRepo.FinalCallInspectionHeaderRepository;
 import com.sarthi.Sleeper.repository.FInalCallRepo.IEBatchSummaryRepository;
 import com.sarthi.Sleeper.service.FinalCallService;
 import com.sarthi.util.CommonUtils;
@@ -26,6 +24,8 @@ public class FinalCallServiceImpl implements FinalCallService {
 
 
         private final IEBatchSummaryRepository repository;
+
+    private final FinalCallInspectionHeaderRepository finalCallInspectionHeaderRepository;
 
         // ================= CREATE =================
         public FinalCallResponseDto create(FinalCallRequestDto dto) {
@@ -379,4 +379,112 @@ public class FinalCallServiceImpl implements FinalCallService {
             return dto;
         }).toList();
     }
+
+    public FinalCallInspectionHeaderResponse create(FinalCallInspectionHeaderRequest dto) {
+
+        FinalCallInspectionHeader entity = new FinalCallInspectionHeader();
+
+        mapFields(entity, dto);
+
+        entity.setCreatedBy(dto.getCreatedBy());
+        entity.setCreatedDate(LocalDateTime.now());
+
+        FinalCallInspectionHeader saved = finalCallInspectionHeaderRepository.save(entity);
+
+        return mapToResponse(saved);
+    }
+
+    // ================= UPDATE (BY CALL NO) =================
+    public FinalCallInspectionHeaderResponse update(FinalCallInspectionHeaderRequest dto) {
+
+        FinalCallInspectionHeader entity = finalCallInspectionHeaderRepository.findByCallNo(dto.getCallNo())
+                .orElseThrow(() -> new RuntimeException(
+                        "Data not found for callNo: " + dto.getCallNo()));
+
+        mapFields(entity, dto);
+
+        entity.setUpdatedBy(dto.getUpdatedBy());
+        entity.setUpdatedDate(LocalDateTime.now());
+
+        finalCallInspectionHeaderRepository.save(entity);
+
+        return mapToResponse(entity);
+    }
+
+    // ================= GET BY CALL NO =================
+    public FinalCallInspectionHeaderResponse getHeaderByCallNo(String callNo) {
+
+        FinalCallInspectionHeader entity = finalCallInspectionHeaderRepository.findByCallNo(callNo)
+                .orElseThrow(() -> new RuntimeException(
+                        "Data not found for callNo: " + callNo));
+
+        return mapToResponse(entity);
+    }
+
+    private void mapFields(FinalCallInspectionHeader entity,
+                           FinalCallInspectionHeaderRequest dto) {
+
+        entity.setCallNo(dto.getCallNo());
+
+        entity.setRlyPoNo(dto.getRlyPoNo());
+
+        if (dto.getPoDate() != null) {
+            entity.setPoDate(CommonUtils.convertStringToDateObject(dto.getPoDate()));
+        }
+
+        entity.setVendorName(dto.getVendorName());
+        entity.setPoQty(dto.getPoQty());
+
+        entity.setMaNo(dto.getMaNo());
+
+        if (dto.getMaDate() != null) {
+            entity.setMaDate(CommonUtils.convertStringToDateObject(dto.getMaDate()));
+        }
+
+        entity.setQtyOfferedNow(dto.getQtyOfferedNow());
+        entity.setAcceptedQty(dto.getAcceptedQty());
+        entity.setRejectedQty(dto.getRejectedQty());
+
+        entity.setEtSleepers(dto.getEtSleepers());
+
+        if (dto.getCallDate() != null) {
+            entity.setCallDate(CommonUtils.convertStringToDateObject(dto.getCallDate()));
+        }
+
+        entity.setNoOfBatches(dto.getNoOfBatches());
+
+        entity.setShift(dto.getShift());
+        entity.setPlantId(dto.getPlantId());
+        entity.setVendorCode(dto.getVendorCode());
+    }
+
+    private FinalCallInspectionHeaderResponse mapToResponse(FinalCallInspectionHeader e) {
+
+        return FinalCallInspectionHeaderResponse.builder()
+                .id(e.getId())
+                .callNo(e.getCallNo())
+
+                .rlyPoNo(e.getRlyPoNo())
+                .poDate(e.getPoDate())
+                .vendorName(e.getVendorName())
+
+                .poQty(e.getPoQty())
+                .maNo(e.getMaNo())
+                .maDate(e.getMaDate())
+
+                .qtyOfferedNow(e.getQtyOfferedNow())
+                .acceptedQty(e.getAcceptedQty())
+                .rejectedQty(e.getRejectedQty())
+
+                .etSleepers(e.getEtSleepers())
+                .callDate(e.getCallDate())
+                .noOfBatches(e.getNoOfBatches())
+
+                .shift(e.getShift())
+                .plantId(e.getPlantId())
+                .vendorCode(e.getVendorCode())
+
+                .build();
+    }
+
 }

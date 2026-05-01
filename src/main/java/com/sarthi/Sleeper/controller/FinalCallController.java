@@ -1,5 +1,7 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.FinalCalDtos.FinalCallInspectionHeaderRequest;
+import com.sarthi.Sleeper.dto.FinalCalDtos.FinalCallInspectionHeaderResponse;
 import com.sarthi.Sleeper.dto.FinalCalDtos.FinalCallRequestDto;
 import com.sarthi.Sleeper.dto.FinalCalDtos.FinalCallResponseDto;
 import com.sarthi.Sleeper.service.FinalCallService;
@@ -12,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/finalcall-sleeperInspection")
+@RequestMapping("/api/MainIe-finalcallsleeperInspection")
 @RequiredArgsConstructor
 public class FinalCallController {
 
@@ -54,5 +56,46 @@ public class FinalCallController {
                 HttpStatus.OK
         );
     }
+
+    @PostMapping("/finalCallHeader/save")
+    public ResponseEntity<Object> createHeader(
+            @RequestBody FinalCallInspectionHeaderRequest request) {
+
+        FinalCallInspectionHeaderResponse result = service.create(request);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.CREATED
+        );
+    }
+
+    // ================= UPDATE (BY CALL NO) =================
+    @PutMapping("/finalCallHeader/update")
+    public ResponseEntity<Object> updateHeader(
+            @RequestBody FinalCallInspectionHeaderRequest request) {
+
+        FinalCallInspectionHeaderResponse result = service.update(request);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK
+        );
+    }
+
+    // ================= GET BY CALL NO =================
+    @GetMapping("/finalCallHeader/{callNo}")
+    public ResponseEntity<Object> getHeaderByCallNo(@PathVariable String callNo) {
+
+        FinalCallInspectionHeaderResponse result = service.getHeaderByCallNo(callNo);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK
+        );
+    }
+
+
+
+
 
 }
