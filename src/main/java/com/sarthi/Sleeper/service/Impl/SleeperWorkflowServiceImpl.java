@@ -419,7 +419,7 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                                 getRoleId(current.getNextRole()),
                                 req.getAction());
 
-        SleeperTransitionMaster transition;
+        SleeperTransitionMaster transition = null;
 
         if (transitions.size() == 1) {
             // ✔ normal case
@@ -434,14 +434,16 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                                         getRoleId(current.getCurrentRole()),   // ✅ FIX
                                         current.getAction()
                                 );
+                transition = trans.stream()
+                        .filter(t -> t.getNextAction().equalsIgnoreCase(req.getAction())) // ✅ FIX
+                        .findFirst()
+                        .orElseThrow(() -> new RuntimeException("Transition not configured"));
+                tx.setCurrentRole(current.getNextRole());
             }
 
-            transition = trans.stream()
-                    .filter(t -> t.getNextAction().equalsIgnoreCase(req.getAction())) // ✅ FIX
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Transition not configured"));
-            tx.setCurrentRole(current.getNextRole());
+
         }
+        tx.setCurrentRole(current.getNextRole());
         tx.setJobStatus(determineJobStatus(req.getAction()));
         if (transition.getNextRoleId() != null) {
             tx.setNextRole(getRoleName(transition.getNextRoleId()));

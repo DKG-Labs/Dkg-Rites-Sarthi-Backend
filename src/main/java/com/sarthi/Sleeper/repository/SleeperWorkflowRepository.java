@@ -48,7 +48,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM SleeperWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-      AND UPPER(t2.status) IN ('CREATED','PENDING')
+      AND UPPER(t2.status) IN ('CREATED','PENDING','Created')
       AND t2.nextRole = :roleName
 )
 """)
