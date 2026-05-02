@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.repository.FinalInspectionRepository;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.FinalInspectionProjection;
 import com.sarthi.Sleeper.entity.FinalInspection.InspectionTestHeader;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -57,4 +58,12 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
       AND itr.active = 1
 """, nativeQuery = true)
     FinalInspectionProjection getFinalInspectionData(Long batchId);
+
+    @Query("""
+    SELECT b 
+    FROM SleeperInspectionCallBatch b
+    JOIN b.inspectionCall c
+    WHERE c.callNo = :callNo
+""")
+    List<SleeperInspectionCallBatch> getBatchesByCallNo(String callNo);
 }

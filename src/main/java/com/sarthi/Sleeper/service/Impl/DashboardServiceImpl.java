@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
 import com.sarthi.Sleeper.entity.DemouldingInspection;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.entity.SleeperPincodePoIMapping;
@@ -9,6 +10,7 @@ import com.sarthi.Sleeper.entity.VendorPlant;
 import com.sarthi.Sleeper.repository.*;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.InspectionTestHeaderRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.InspectionTestResultRepository;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeStrengthTestRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
@@ -56,6 +58,8 @@ public class DashboardServiceImpl implements DashboardService {
     private EpoxyTreatedSleeperRepository epoxyTreatedSleeperRepository;
     @Autowired
     private SleeperPincodePoIMappingRepository sleeperPincodePoIMappingRepository;
+    @Autowired
+    private SleeperInspectionCallRepository inspectionCallRepository;
     @Override
     public Long getRejectedSleepersCount() {
         return demouldingDefectiveSleeperRepository.countBy();
@@ -348,5 +352,37 @@ public class DashboardServiceImpl implements DashboardService {
         return map.values().stream()
                 .peek(dto -> dto.setSno(counter.getAndIncrement()))
                 .toList();
+    }
+
+
+    @Override
+    public List<Level4BatchDTO> getLevel4Report(String callNo) {
+
+        List<SleeperInspectionCallBatch> batches =
+                inspectionTestHeaderRepository.getBatchesByCallNo(callNo);
+
+        AtomicInteger counter = new AtomicInteger(1);
+
+        return batches.stream().map(b -> {
+
+            ProductionDeclaration pd =
+                    productionDeclarationRepository.getProductionByBatch(b.getBatchNo());
+
+            int total = pd != null ? pd.getTotalCastedSleepers() : 0;
+
+            int rejected = b.getBadSleepers() != null ? b.getBadSleepers().size() : 0;
+            int passed = b.getGoodSleepers() != null ? b.getGoodSleepers().size() : 0;
+
+            return new Level4BatchDTO(
+                    counter.getAndIncrement(),
+                    b.getBatchNo(),
+                    pd != null ? pd.getCastingDate() : null,
+                    total,
+                    total,
+                    rejected,
+                    passed
+            );
+
+        }).toList();
     }
 }

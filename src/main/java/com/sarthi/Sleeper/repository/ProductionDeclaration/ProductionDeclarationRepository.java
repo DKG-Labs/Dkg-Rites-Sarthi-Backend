@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.BatchWithIdProjection;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchProjection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.ProductionProjection;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -431,4 +432,11 @@ ORDER BY 1
 
 """, nativeQuery = true)
     List<Object[]> getBatchCheckingReport(String batchNo, Long batchId);
+
+    @Query("""
+    SELECT p 
+    FROM ProductionDeclaration p
+    WHERE p.batchNumber = :batchNo
+""")
+    ProductionDeclaration getProductionByBatch(String batchNo);
 }

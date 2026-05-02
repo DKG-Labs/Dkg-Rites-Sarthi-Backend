@@ -25,4 +25,7 @@ public interface DashboardService {
     public List<PlantDTO> getPlants(String vendorCode);
 
     public List<Level5BatchDTO> getBatchChecking(String batchNo, Long batchId);
-    }
+
+    public List<Level4BatchDTO> getLevel4Report(String callNo);
+
+}

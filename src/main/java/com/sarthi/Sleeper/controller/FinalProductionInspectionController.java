@@ -153,7 +153,7 @@ public class FinalProductionInspectionController {
         String requestId = callNo;
         Long md = 0L;
         Long wid = 2L;
-        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(submitDto.getCreatedBy()), ":41647", ":41647/waidiyaram");
+        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(submitDto.getCreatedBy()), submitDto.getVendorCode(), submitDto.getPlantId());
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(callNo),

@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchDTO;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.CompanyDTO;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level4BatchDTO;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO;
 import com.sarthi.Sleeper.service.DashboardService;
 import com.sarthi.util.ResponseBuilder;
@@ -117,6 +118,15 @@ public class SleeperDashboard {
     }
 
 
+    @GetMapping("/level4")
+    public  ResponseEntity<Object> getLevel4(@RequestParam String callNo) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getLevel4Report(callNo)
+                ),
+                HttpStatus.OK
+        );
+    }
 
 
 
