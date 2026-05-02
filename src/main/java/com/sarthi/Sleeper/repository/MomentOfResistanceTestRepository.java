@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.repository;
 
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.DateOnlyProjection;
 import com.sarthi.Sleeper.entity.MomentOfResistance;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -27,4 +28,14 @@ public interface MomentOfResistanceTestRepository extends JpaRepository<MomentOf
             LocalDateTime startOfDay,
             LocalDateTime endOfDay
     );
+
+    @Query(value = """
+    SELECT created_date AS createdDate
+    FROM moment_of_resistance_test
+    WHERE batch_number = :batchNo
+    ORDER BY id DESC LIMIT 1
+""", nativeQuery = true)
+    DateOnlyProjection getMRData(String batchNo);
+
+
 }

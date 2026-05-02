@@ -1,27 +1,30 @@
 package com.sarthi.Sleeper.service.Impl;
 
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.MonthlyAnalysisDto;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
 import com.sarthi.Sleeper.entity.DemouldingInspection;
+import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
+import com.sarthi.Sleeper.entity.SleeperPincodePoIMapping;
 import com.sarthi.Sleeper.entity.VendorPlant;
-import com.sarthi.Sleeper.repository.DemouldingDefectiveSleeperRepository;
-import com.sarthi.Sleeper.repository.DemouldingInspectionRepository;
+import com.sarthi.Sleeper.repository.*;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.InspectionTestHeaderRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.InspectionTestResultRepository;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeStrengthTestRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
-import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.Sleeper.service.DashboardService;
 import jakarta.persistence.Access;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class DashboardServiceImpl implements DashboardService {
@@ -36,7 +39,23 @@ public class DashboardServiceImpl implements DashboardService {
     private ProductionDeclarationRepository productionDeclarationRepository;
     @Autowired
     private VendorPlantRepository vendorPlantRepository;
+    @Autowired
+    private SteamCuringRepository steamCuringRepository;
+    @Autowired
+    private DemouldingInspectionRepository demouldingInspectionRepository;
+    @Autowired
+    private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
+    @Autowired
+    private InspectionTestHeaderRepository inspectionTestHeaderRepository;
+    @Autowired
+    private MomentOfResistanceTestRepository momentOfResistanceTestRepository;
 
+    @Autowired
+    private ModulusOfFailureRepository modulusOfFailureRepository;
+    @Autowired
+    private EpoxyTreatedSleeperRepository epoxyTreatedSleeperRepository;
+    @Autowired
+    private SleeperPincodePoIMappingRepository sleeperPincodePoIMappingRepository;
     @Override
     public Long getRejectedSleepersCount() {
         return demouldingDefectiveSleeperRepository.countBy();
@@ -135,5 +154,199 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         return result;
+    }
+
+
+
+    @Override
+    public List<LifecycleReportDTO> getLifecycleReport(Long id, String batchNo) {
+
+        List<LifecycleReportDTO> report = new ArrayList<>();
+
+        // Production
+        ProductionProjection prod = productionDeclarationRepository.getProductionData(id, batchNo);
+
+        int productionQty = 0;
+        if (prod != null) {
+            productionQty = prod.getTotalCastedSleepers();
+
+            report.add(new LifecycleReportDTO(
+                    "Production Phase",
+                    productionQty,
+                    prod.getCastingDate(),
+                    String.valueOf(prod.getTotalSleeperTypes())
+            ));
+        }
+
+        // Steam
+        SteamProjection steam = steamCuringRepository.getSteamData(batchNo);
+        if (steam != null) {
+            report.add(new LifecycleReportDTO(
+                    "Steam Curing",
+                    productionQty,
+                    steam.getEntryDate(),
+                    String.format("Avg Temp: %.2f°C", steam.getAvgTemp())
+            ));
+        }
+
+        //Demoulding
+        DemouldingProjection demo = demouldingInspectionRepository.getDemouldingData(batchNo);
+
+        int rejectedQty = 0;
+        if (demo != null) {
+            rejectedQty = demo.getRejectedCount();
+
+            report.add(new LifecycleReportDTO(
+                    "Demoulding",
+                    productionQty,
+                    demo.getInspectionDate(),
+                    rejectedQty + " Rejected"
+            ));
+        }
+
+        int finalQty = productionQty - rejectedQty;
+
+        // Water Cube
+        WaterProjection water = waterCubeStrengthTestRepository.getWaterData(batchNo);
+        if (water != null) {
+            report.add(new LifecycleReportDTO(
+                    "Water Cube Testing",
+                    finalQty,
+                    water.getCreatedDate().toLocalDate(),
+                    String.format("Avg Strength: %.2f N/mm²", water.getAvgStrength())
+            ));
+        }
+
+        // Final Inspection
+        FinalInspectionProjection fi = inspectionTestHeaderRepository.getFinalInspectionData(id);
+        if (fi != null) {
+            report.add(new LifecycleReportDTO(
+                    "Final Inspection",
+                    finalQty,
+                    fi.getTestDate(),
+                    fi.getRejectedCount() + " Rejected"
+            ));
+        }
+
+        // MR
+        DateOnlyProjection mr = momentOfResistanceTestRepository.getMRData(batchNo);
+        if (mr != null) {
+            report.add(new LifecycleReportDTO(
+                    "MR Test",
+                    finalQty,
+                    mr.getCreatedDate().toLocalDate(),
+                    null
+            ));
+        }
+
+        // MF
+        DateOnlyProjection mf = modulusOfFailureRepository.getMFData(batchNo);
+        if (mf != null) {
+            report.add(new LifecycleReportDTO(
+                    "MF Test",
+                    finalQty,
+                    mf.getCreatedDate().toLocalDate(),
+                    null
+            ));
+        }
+
+        // ET
+        EtProjection et = epoxyTreatedSleeperRepository.getETData(batchNo);
+        if (et != null) {
+            report.add(new LifecycleReportDTO(
+                    "Epoxy Treatment",
+                    finalQty,
+                    et.getCreatedDate().toLocalDate(),
+                    et.getSleeperCount() + " Treated"
+            ));
+        }
+
+        report.sort(Comparator.comparing(LifecycleReportDTO::getDate));
+
+        return report;
+    }
+
+
+    @Override
+    public List<BatchDTO> getBatches(String plantId) {
+        return productionDeclarationRepository.getBatches(plantId)
+                .stream()
+                .map(b -> new BatchDTO(
+                        b.getId(),
+                        b.getBatchNumber()))
+                .toList();
+    }
+
+    @Override
+    public List<CompanyDTO> getCompanies() {
+        return sleeperPincodePoIMappingRepository.getCompanies()
+                .stream()
+                .map(c -> new CompanyDTO(
+                        c.getCompanyName(),
+                        c.getVendorCode()))
+                .toList();
+    }
+@Override
+    public List<PlantDTO> getPlants(String vendorCode) {
+        return vendorPlantRepository.getPlants(vendorCode)
+                .stream()
+                .map(p -> new PlantDTO(
+                        p.getPlantName(),
+                        p.getPlantId()))
+                .toList();
+    }
+
+    private LocalDate convertToLocalDate(Object dateObj) {
+        if (dateObj == null) return null;
+
+        if (dateObj instanceof java.sql.Date sqlDate) {
+            return sqlDate.toLocalDate();
+        } else if (dateObj instanceof java.util.Date utilDate) {
+            return utilDate.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate();
+        } else if (dateObj instanceof Timestamp ts) {
+            return ts.toLocalDateTime().toLocalDate();
+        }
+
+        throw new IllegalArgumentException("Unsupported date type: " + dateObj.getClass());
+    }
+
+
+
+    @Override
+    public List<Level5BatchDTO> getBatchChecking(String batchNo, Long batchId) {
+
+        List<Object[]> rows = productionDeclarationRepository.getBatchCheckingReport(batchNo, batchId);
+
+        Map<String, Level5BatchDTO> map = new LinkedHashMap<>();
+
+        for (Object[] r : rows) {
+
+            String dateShift = (String) r[0];
+
+            Level5BatchDTO dto = map.getOrDefault(dateShift,
+                    new Level5BatchDTO(
+                            null,
+                            dateShift,
+                            null, null, null, null, null, null, null
+                    ));
+
+            if (r[1] != null) dto.setSteamCubeStrength(((Number) r[1]).doubleValue());
+            if (r[2] != null) dto.setRejectedDemoulding(((Number) r[2]).intValue());
+            if (r[3] != null) dto.setRejectedVisual(((Number) r[3]).intValue());
+            if (r[4] != null) dto.setRejectedCritical(((Number) r[4]).intValue());
+            if (r[5] != null) dto.setRejectedNonCritical(((Number) r[5]).intValue());
+            if (r[6] != null) dto.setWaterCubeStrength(((Number) r[6]).doubleValue());
+            if (r[7] != null) dto.setMrValue(((Number) r[7]).doubleValue());
+
+            map.put(dateShift, dto);
+        }
+
+        AtomicInteger counter = new AtomicInteger(1);
+
+        return map.values().stream()
+                .peek(dto -> dto.setSno(counter.getAndIncrement()))
+                .toList();
     }
 }

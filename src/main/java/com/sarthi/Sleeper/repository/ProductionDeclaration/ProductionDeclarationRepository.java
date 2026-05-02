@@ -2,6 +2,8 @@ package com.sarthi.Sleeper.repository.ProductionDeclaration;
 
 import com.sarthi.Sleeper.dto.BatchWithIdProjection;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchProjection;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.ProductionProjection;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -63,26 +66,27 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     List<BatchTestingListResponseDto> getAllBatchTesting();
 
     @Query("""
-SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
-d.id,
-d.batchNumber,
-g.sleeperType,
-d.totalCastedSleepers,
-COUNT(s.id),
-0.0,
-'Pending',
-null,
-d.plantId
-)
-FROM ProductionDeclaration d
-JOIN d.gangs g
-JOIN g.sleepers s
-JOIN SleeperWorkflowTransaction w
-     ON w.requestId = CAST(d.id as string)
-WHERE w.status = 'Completed'
-GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers, d.plantId
-""")
+            SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+            d.id,
+            d.batchNumber,
+            g.sleeperType,
+            d.totalCastedSleepers,
+            COUNT(s.id),
+            0.0,
+            'Pending',
+            null,
+            d.plantId
+            )
+            FROM ProductionDeclaration d
+            JOIN d.gangs g
+            JOIN g.sleepers s
+            JOIN SleeperWorkflowTransaction w
+                 ON w.requestId = CAST(d.id as string)
+            WHERE w.status = 'Completed'
+            GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers, d.plantId
+            """)
     List<BatchTestingListResponseDto> getLongLineBatchTesting();
+
     @Query("""
             SELECT d
             FROM ProductionDeclaration d
@@ -104,34 +108,34 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers, d.plantId
 //    List<String> findBenchNumbers(String batchNo);
 
     @Query(value = """
-SELECT DISTINCT b.bench_no
-FROM production_bench_group b
-JOIN production_stress_chamber c 
-    ON b.chamber_id = c.id
-JOIN production_declaration d 
-    ON c.declaration_id = d.id
-WHERE d.batch_number = :batchNo
-""", nativeQuery = true)
+            SELECT DISTINCT b.bench_no
+            FROM production_bench_group b
+            JOIN production_stress_chamber c 
+                ON b.chamber_id = c.id
+            JOIN production_declaration d 
+                ON c.declaration_id = d.id
+            WHERE d.batch_number = :batchNo
+            """, nativeQuery = true)
     List<String> findBenchNumbers(String batchNo);
 
     @Query(value = """
-SELECT DISTINCT p.batch_number
-FROM production_declaration p
-JOIN sleeper_workflow_transaction w 
-  ON w.request_id = p.id
-WHERE p.created_by = :vendorId
-  AND p.casting_date = :castingDate
-  AND p.plant_id = :plantId
-  AND p.production_unit = :productionUnit
-  AND w.module_id = 11
-  AND LOWER(w.status) = 'completed'
-  AND w.workflow_transition_id = (
-      SELECT MAX(w2.workflow_transition_id)
-      FROM sleeper_workflow_transaction w2
-      WHERE w2.request_id = p.id
-        AND w2.module_id = 11
-  )
-""", nativeQuery = true)
+            SELECT DISTINCT p.batch_number
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.created_by = :vendorId
+              AND p.casting_date = :castingDate
+              AND p.plant_id = :plantId
+              AND p.production_unit = :productionUnit
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            """, nativeQuery = true)
     List<String> findValidBatchNumbers(
             Long vendorId,
             LocalDate castingDate,
@@ -143,20 +147,20 @@ WHERE p.created_by = :vendorId
     ProductionDeclaration findByBatchNumber(String batchNo);
 
 
-   @Query(value = """
-SELECT DISTINCT b.bench_no AS value, NULL AS gang_from, NULL AS gang_to
-FROM production_bench_group b
-JOIN production_stress_chamber c ON b.chamber_id = c.id
-JOIN production_declaration d ON c.declaration_id = d.id
-WHERE d.batch_number = :batchNo
+    @Query(value = """
+            SELECT DISTINCT b.bench_no AS value, NULL AS gang_from, NULL AS gang_to
+            FROM production_bench_group b
+            JOIN production_stress_chamber c ON b.chamber_id = c.id
+            JOIN production_declaration d ON c.declaration_id = d.id
+            WHERE d.batch_number = :batchNo
 
-UNION
+            UNION
 
-SELECT DISTINCT NULL AS value, g.gang_from, g.gang_to
-FROM production_longline_gang g
-JOIN production_declaration d ON g.declaration_id = d.id
-WHERE d.batch_number = :batchNo
-""", nativeQuery = true)
+            SELECT DISTINCT NULL AS value, g.gang_from, g.gang_to
+            FROM production_longline_gang g
+            JOIN production_declaration d ON g.declaration_id = d.id
+            WHERE d.batch_number = :batchNo
+            """, nativeQuery = true)
     List<Object[]> findBenchAndGangRaw(String batchNo);
 
   /*  @Query("""
@@ -168,27 +172,28 @@ AND :benchNo BETWEEN g.gangFrom AND g.gangTo
     List<String> findSleeperTypes(String batchNo, Integer benchNo);  */
 
     @Query("""
-SELECT DISTINCT g.sleeperType 
-FROM ProductionLongLineGang g
-WHERE g.declaration.batchNumber = :batchNo
-AND (
-                   (g.gangFrom IS NOT NULL AND g.gangTo IS NOT NULL AND :benchNo BETWEEN g.gangFrom AND g.gangTo)
-                   OR (g.gangNo IS NOT NULL AND g.gangNo = :benchNo)
-)
-""")
+            SELECT DISTINCT g.sleeperType 
+            FROM ProductionLongLineGang g
+            WHERE g.declaration.batchNumber = :batchNo
+            AND (
+                               (g.gangFrom IS NOT NULL AND g.gangTo IS NOT NULL AND :benchNo BETWEEN g.gangFrom AND g.gangTo)
+                               OR (g.gangNo IS NOT NULL AND g.gangNo = :benchNo)
+            )
+            """)
     List<String> findSleeperTypes(String batchNo, Integer benchNo);
- /*  @Query("""
-SELECT DISTINCT g.sleeperType 
-FROM ProductionLongLineGang g
-WHERE g.declaration.batchNumber = :batchNo
-AND (
-        (g.mode = 'RANGE' AND g.gangFrom IS NOT NULL AND g.gangTo IS NOT NULL 
-             AND :benchNo BETWEEN g.gangFrom AND g.gangTo)
-     OR (g.mode = 'SINGLE' AND g.gangNo IS NOT NULL AND g.gangNo = :benchNo)
-)
-""")
-   List<String> findSleeperTypes(String batchNo, Integer benchNo);
-*/
+
+    /*  @Query("""
+   SELECT DISTINCT g.sleeperType
+   FROM ProductionLongLineGang g
+   WHERE g.declaration.batchNumber = :batchNo
+   AND (
+           (g.mode = 'RANGE' AND g.gangFrom IS NOT NULL AND g.gangTo IS NOT NULL
+                AND :benchNo BETWEEN g.gangFrom AND g.gangTo)
+        OR (g.mode = 'SINGLE' AND g.gangNo IS NOT NULL AND g.gangNo = :benchNo)
+   )
+   """)
+      List<String> findSleeperTypes(String batchNo, Integer benchNo);
+   */
  /*   @Query(value = """
 SELECT DISTINCT g.gang_from, g.gang_to
 FROM production_longline_gang g
@@ -197,35 +202,35 @@ JOIN production_declaration d
 WHERE d.batch_number = :batchNo
 """, nativeQuery = true)
     List<Object[]> findGangRanges(String batchNo);  */
- @Query(value = """
-SELECT DISTINCT g.mode, g.gang_from, g.gang_to, g.gang_no
-FROM production_longline_gang g
-JOIN production_declaration d 
-    ON g.declaration_id = d.id
-WHERE d.batch_number = :batchNo
-""", nativeQuery = true)
- List<Object[]> findGangRanges(String batchNo);
+    @Query(value = """
+            SELECT DISTINCT g.mode, g.gang_from, g.gang_to, g.gang_no
+            FROM production_longline_gang g
+            JOIN production_declaration d 
+                ON g.declaration_id = d.id
+            WHERE d.batch_number = :batchNo
+            """, nativeQuery = true)
+    List<Object[]> findGangRanges(String batchNo);
 
     @Query(value = """
-SELECT DISTINCT 
-    p.batch_number AS batchNumber,
-    p.id AS id
-FROM production_declaration p
-JOIN sleeper_workflow_transaction w 
-  ON w.request_id = p.id
-WHERE p.created_by = :vendorId
-  AND p.casting_date = :castingDate
-  AND p.plant_id = :plantId
-  AND p.production_unit = :productionUnit
-  AND w.module_id = 11
-  AND LOWER(w.status) = 'completed'
-  AND w.workflow_transition_id = (
-      SELECT MAX(w2.workflow_transition_id)
-      FROM sleeper_workflow_transaction w2
-      WHERE w2.request_id = p.id
-        AND w2.module_id = 11
-  )
-""", nativeQuery = true)
+            SELECT DISTINCT 
+                p.batch_number AS batchNumber,
+                p.id AS id
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.created_by = :vendorId
+              AND p.casting_date = :castingDate
+              AND p.plant_id = :plantId
+              AND p.production_unit = :productionUnit
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            """, nativeQuery = true)
     List<BatchWithIdProjection> findBatchWithId(
             Long vendorId,
             LocalDate castingDate,
@@ -236,99 +241,194 @@ WHERE p.created_by = :vendorId
     ProductionDeclaration findByBatchNumberAndProductionUnit(String batchNo, String productionUnit);
 
     @Query("""
-    SELECT p FROM ProductionDeclaration p
-    WHERE p.batchNumber NOT IN (
-        SELECT m.batchNumber FROM MomentOfResistance m
-    )
-""")
+                SELECT p FROM ProductionDeclaration p
+                WHERE p.batchNumber NOT IN (
+                    SELECT m.batchNumber FROM MomentOfResistance m
+                )
+            """)
     List<ProductionDeclaration> findAllExcludingMR();
 
     @Query("""
-SELECT d.batchNumber
-FROM ProductionDeclaration d
-WHERE d.id = :batchId
-""")
+            SELECT d.batchNumber
+            FROM ProductionDeclaration d
+            WHERE d.id = :batchId
+            """)
     String getBatchNoById(Long batchId);
 
     @Query(value = """
-            SELECT
-                                              vp.plant_name,
-                                              vp.company_name,
-                                          
-                                              COALESCE(SUM(pd.total_casted_sleepers), 0) AS production,
-                                          
-                                              COALESCE(COUNT(DISTINCT d.id), 0) AS process_rejection,
-                                          
-                                              COALESCE(COUNT(DISTINCT r.id), 0) AS final_rejection,
-                                          
-                                              (
-                                                  COALESCE(SUM(pd.total_casted_sleepers), 0)
-                                                  - COALESCE(COUNT(DISTINCT d.id), 0)
-                                                  - COALESCE(COUNT(DISTINCT r.id), 0)
-                                              ) AS acceptance,
-                                          
-                                              CASE
-                                                  WHEN SUM(pd.total_casted_sleepers) = 0 THEN 0
-                                                  ELSE (
-                                                      (COALESCE(COUNT(DISTINCT d.id), 0)
-                                                      + COALESCE(COUNT(DISTINCT r.id), 0)) * 100.0
-                                                      / SUM(pd.total_casted_sleepers)
-                                                  )
-                                              END AS rejection_percentage
-                                          
-                                          FROM vendor_plant vp
-                                          
-                                          LEFT JOIN production_declaration pd
-                                              ON pd.plant_id = vp.plant_id
-                                              AND DATE(pd.casting_date) BETWEEN :startDate AND :endDate
-                                          
-                                          LEFT JOIN demoulding_defective_sleepers d
-                                              ON d.plant_id = vp.plant_id
-                                          
-                                          LEFT JOIN inspection_test_result r
-                                              ON r.plant_id = vp.plant_id
-                                              AND r.result = 'REJECTED'
-                                              AND r.active = true
-                                          
-                                          GROUP BY vp.plant_name, vp.company_name
-                                          ORDER BY vp.plant_name;
-""", nativeQuery = true)
+                        SELECT
+                                                          vp.plant_name,
+                                                          vp.company_name,
+                                                      
+                                                          COALESCE(SUM(pd.total_casted_sleepers), 0) AS production,
+                                                      
+                                                          COALESCE(COUNT(DISTINCT d.id), 0) AS process_rejection,
+                                                      
+                                                          COALESCE(COUNT(DISTINCT r.id), 0) AS final_rejection,
+                                                      
+                                                          (
+                                                              COALESCE(SUM(pd.total_casted_sleepers), 0)
+                                                              - COALESCE(COUNT(DISTINCT d.id), 0)
+                                                              - COALESCE(COUNT(DISTINCT r.id), 0)
+                                                          ) AS acceptance,
+                                                      
+                                                          CASE
+                                                              WHEN SUM(pd.total_casted_sleepers) = 0 THEN 0
+                                                              ELSE (
+                                                                  (COALESCE(COUNT(DISTINCT d.id), 0)
+                                                                  + COALESCE(COUNT(DISTINCT r.id), 0)) * 100.0
+                                                                  / SUM(pd.total_casted_sleepers)
+                                                              )
+                                                          END AS rejection_percentage
+                                                      
+                                                      FROM vendor_plant vp
+                                                      
+                                                      LEFT JOIN production_declaration pd
+                                                          ON pd.plant_id = vp.plant_id
+                                                          AND DATE(pd.casting_date) BETWEEN :startDate AND :endDate
+                                                      
+                                                      LEFT JOIN demoulding_defective_sleepers d
+                                                          ON d.plant_id = vp.plant_id
+                                                      
+                                                      LEFT JOIN inspection_test_result r
+                                                          ON r.plant_id = vp.plant_id
+                                                          AND r.result = 'REJECTED'
+                                                          AND r.active = true
+                                                      
+                                                      GROUP BY vp.plant_name, vp.company_name
+                                                      ORDER BY vp.plant_name;
+            """, nativeQuery = true)
     List<Object[]> getMonthlyAnalysis(
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);
 
     @Query(value = """
-SELECT vp.plant_id, vp.plant_name, vp.company_name,
-       COALESCE(SUM(pd.total_casted_sleepers), 0)
-FROM vendor_plant vp
-LEFT JOIN production_declaration pd 
-    ON pd.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
-    AND pd.created_date BETWEEN :startDate AND :endDate
-GROUP BY vp.plant_id, vp.plant_name, vp.company_name
-""", nativeQuery = true)
+            SELECT vp.plant_id, vp.plant_name, vp.company_name,
+                   COALESCE(SUM(pd.total_casted_sleepers), 0)
+            FROM vendor_plant vp
+            LEFT JOIN production_declaration pd 
+                ON pd.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
+                AND pd.created_date BETWEEN :startDate AND :endDate
+            GROUP BY vp.plant_id, vp.plant_name, vp.company_name
+            """, nativeQuery = true)
     List<Object[]> getProduction(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
 
     @Query(value = """
-SELECT 
-    vp.plant_id,
+            SELECT 
+                vp.plant_id,
 
-    CONCAT(sp.company_name, ' - ', vp.plant_id) AS plant_name,
+                CONCAT(sp.company_name, ' - ', vp.plant_id) AS plant_name,
 
-    im.rio AS inspected_by
+                im.rio AS inspected_by
 
-FROM sleeper_pincode_poi_mapping sp
+            FROM sleeper_pincode_poi_mapping sp
 
-JOIN vendor_plant vp
-    ON vp.vendor_id COLLATE utf8mb4_unicode_ci 
-       = sp.vendor_code COLLATE utf8mb4_unicode_ci
+            JOIN vendor_plant vp
+                ON vp.vendor_id COLLATE utf8mb4_unicode_ci 
+                   = sp.vendor_code COLLATE utf8mb4_unicode_ci
 
-LEFT JOIN ie_fields_mapping im
-    ON im.pin_code COLLATE utf8mb4_unicode_ci 
-       = sp.pin_code COLLATE utf8mb4_unicode_ci
+            LEFT JOIN ie_fields_mapping im
+                ON im.pin_code COLLATE utf8mb4_unicode_ci 
+                   = sp.pin_code COLLATE utf8mb4_unicode_ci
 
-GROUP BY vp.plant_id, sp.company_name, im.rio
-""", nativeQuery = true)
+            GROUP BY vp.plant_id, sp.company_name, im.rio
+            """, nativeQuery = true)
     List<Object[]> getPlantMasterData();
+
+
+    @Query(value = """
+                SELECT pd.total_casted_sleepers AS totalCastedSleepers,
+                       pd.casting_date AS castingDate,
+                       pd.total_sleeper_types AS totalSleeperTypes
+                FROM production_declaration pd
+                WHERE pd.id = :id AND pd.batch_number = :batchNo
+            """, nativeQuery = true)
+    ProductionProjection getProductionData(Long id, String batchNo);
+
+    @Query(value = """
+                SELECT id,
+                       batch_number AS batchNumber
+                FROM production_declaration
+                WHERE plant_id = :plantId
+            """, nativeQuery = true)
+    List<BatchProjection> getBatches(String plantId);
+
+    @Query(value = """
+
+-- DEMOULDING
+SELECT 
+    CAST(CONCAT(di.inspection_date, ' (', di.shift, ')') AS CHAR),
+    NULL,
+    COUNT(dds.id),
+    NULL,NULL,NULL,NULL,NULL
+FROM demoulding_inspection di
+LEFT JOIN demoulding_defective_sleepers dds 
+       ON di.id = dds.inspection_id
+WHERE di.batch_no = :batchNo
+GROUP BY di.inspection_date, di.shift
+
+UNION ALL
+
+SELECT 
+    CAST(CONCAT(scd.date_of_testing, ' (', sct.shift, ')') AS CHAR),
+    ROUND(AVG(scd.strength), 2),
+    NULL,NULL,NULL,NULL,NULL,NULL
+FROM steam_cube_testing sct
+JOIN steam_cube_testing_details scd 
+     ON sct.id = scd.steam_cube_testing_id
+WHERE sct.batch_no = :batchNo
+GROUP BY scd.date_of_testing, sct.shift
+
+UNION ALL
+
+-- WATER CUBE
+SELECT 
+    CAST(CONCAT(DATE(wc.created_date), ' (', wc.shift, ')') AS CHAR),
+    NULL,NULL,NULL,NULL,NULL,
+    ROUND(AVG(wcd.strength_nmm2),2),
+    NULL
+FROM water_cube_strength_test wc
+JOIN water_cube_strength_detail wcd 
+     ON wc.id = wcd.strength_test_id
+WHERE wc.batch_number = :batchNo
+GROUP BY wc.created_date, wc.shift
+
+UNION ALL
+
+-- FINAL INSPECTION
+SELECT 
+    CAST(CONCAT(ith.test_date, ' (', ith.shift, ')') AS CHAR),
+    NULL,
+    NULL,
+    COUNT(CASE WHEN itr.module_id = 1 AND itr.result = 'REJECTED' THEN 1 END),
+    COUNT(CASE WHEN itr.module_id = 2 AND itr.result = 'REJECTED' THEN 1 END),
+    COUNT(CASE WHEN itr.module_id = 3 AND itr.result = 'REJECTED' THEN 1 END),
+    NULL,
+    NULL
+FROM inspection_test_header ith
+JOIN inspection_test_result itr 
+     ON ith.id = itr.test_header_id 
+     AND itr.active = 1
+WHERE ith.batch_id = :batchId
+GROUP BY ith.test_date, ith.shift
+
+UNION ALL
+
+--  MR
+SELECT 
+    CAST(CONCAT(DATE(mrt.created_date), ' (', mrt.shift, ')') AS CHAR),
+    NULL,NULL,NULL,NULL,NULL,NULL,
+    ROUND(AVG(mrd.ct),2)
+FROM moment_of_resistance_test mrt
+JOIN moment_of_resistance_detail mrd 
+     ON mrt.id = mrd.mr_test_id
+WHERE mrt.batch_number = :batchNo
+GROUP BY mrt.created_date, mrt.shift
+
+ORDER BY 1
+
+""", nativeQuery = true)
+    List<Object[]> getBatchCheckingReport(String batchNo, Long batchId);
 }

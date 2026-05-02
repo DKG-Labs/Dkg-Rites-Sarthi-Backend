@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.repository;
 
 
 
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.DemouldingProjection;
 import com.sarthi.Sleeper.entity.DemouldingInspection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -64,4 +65,15 @@ WHERE d.inspection.batchNo = :batchNo
     Long countDemouldingRejected(String batchNo);
 
 
+    @Query(value = """
+    SELECT di.inspection_date AS inspectionDate,
+           COUNT(dds.id) AS rejectedCount
+    FROM demoulding_inspection di
+    LEFT JOIN demoulding_defective_sleepers dds 
+           ON di.id = dds.inspection_id
+    WHERE di.batch_no = :batchNo
+    GROUP BY di.inspection_date
+    LIMIT 1
+""", nativeQuery = true)
+    DemouldingProjection getDemouldingData(String batchNo);
 }

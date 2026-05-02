@@ -1679,3 +1679,143 @@ CREATE TABLE sleeper_schedule (
 ALTER TABLE sleeper_workflow_transaction
 ADD COLUMN job_status VARCHAR(50);
 
+
+CREATE TABLE final_call_inspection_header (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    call_no VARCHAR(100) ,
+
+    rly_po_no VARCHAR(100),
+    po_date DATE,
+    vendor_name VARCHAR(200),
+
+    po_qty INT,
+    ma_no VARCHAR(100),
+    ma_date DATE,
+
+    qty_offered_now INT,
+    accepted_qty INT,
+    rejected_qty INT,
+
+    et_sleepers INT,
+    call_date DATE,
+    no_of_batches INT,
+
+    shift VARCHAR(50),
+    plant_id VARCHAR(100),
+    vendor_code VARCHAR(100),
+
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+
+    created_date TIMESTAMP,
+    updated_date TIMESTAMP
+);
+
+CREATE TABLE ie_batch_summary (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    batch_no VARCHAR(100),
+    call_no VARCHAR(100),
+
+    date_casted DATE,
+
+    casted DECIMAL(18,2),
+    offered_prev DECIMAL(18,2),
+    offered_now DECIMAL(18,2),
+
+    passed DECIMAL(18,2),
+    rejected DECIMAL(18,2),
+
+    total_offered DECIMAL(18,2),
+    total_accepted DECIMAL(18,2),
+    total_rejected DECIMAL(18,2),
+
+    shift VARCHAR(50),
+    plant_id VARCHAR(100),
+    vendor_code VARCHAR(100),
+
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+
+    created_date TIMESTAMP,
+    updated_date TIMESTAMP
+);
+
+CREATE TABLE final_good_sleepers (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    sleeper_id BIGINT,
+    sleeper_code VARCHAR(100),
+
+    batch_id BIGINT,
+
+    CONSTRAINT fk_good_batch
+        FOREIGN KEY (batch_id)
+        REFERENCES ie_batch_summary(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE final_call_rejected_sleepers (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    sleeper_id BIGINT,
+    sleeper_code VARCHAR(100),
+
+    reason VARCHAR(255),
+    type VARCHAR(100),
+
+    batch_id BIGINT,
+
+    CONSTRAINT fk_rejected_batch
+        FOREIGN KEY (batch_id)
+        REFERENCES ie_batch_summary(id)
+        ON DELETE CASCADE
+);
+
+
+CREATE TABLE final_call_et_sleeper (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    sleeper_id BIGINT,
+    sleeper_code VARCHAR(100),
+
+    batch_id BIGINT,
+
+    CONSTRAINT fk_et_batch
+        FOREIGN KEY (batch_id)
+        REFERENCES ie_batch_summary(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE ie_mf_sleepers (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    sleeper_id BIGINT,
+    sleeper_code VARCHAR(100),
+
+    batch_id BIGINT,
+
+    CONSTRAINT fk_mf_batch
+        FOREIGN KEY (batch_id)
+        REFERENCES ie_batch_summary(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE final_inspection_rejections (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    sleeper_id BIGINT,
+    sleeper_code VARCHAR(100),
+
+    reason VARCHAR(255),
+
+    batch_id BIGINT,
+
+    CONSTRAINT fk_final_rejection_batch
+        FOREIGN KEY (batch_id)
+        REFERENCES ie_batch_summary(id)
+        ON DELETE CASCADE
+);
+
+

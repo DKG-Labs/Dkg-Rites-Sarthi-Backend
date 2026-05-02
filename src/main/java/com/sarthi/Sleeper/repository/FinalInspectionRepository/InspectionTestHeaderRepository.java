@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.repository.FinalInspectionRepository;
 
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.FinalInspectionProjection;
 import com.sarthi.Sleeper.entity.FinalInspection.InspectionTestHeader;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -43,4 +44,17 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             HAVING COUNT(DISTINCT h.module.id)=3
            """)
     List<Long> findCompletedBatchIdsBySleeperTypeAndUserId(String sleeperType, Long userId);
+
+    @Query(value = """
+    SELECT 
+        MAX(ith.test_date) AS testDate,
+        COUNT(itr.id) AS rejectedCount
+    FROM inspection_test_header ith
+    JOIN inspection_test_result itr 
+         ON ith.id = itr.test_header_id
+    WHERE ith.batch_id = :batchId
+      AND itr.result = 'REJECTED'
+      AND itr.active = 1
+""", nativeQuery = true)
+    FinalInspectionProjection getFinalInspectionData(Long batchId);
 }

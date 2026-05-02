@@ -1,5 +1,8 @@
 package com.sarthi.Sleeper.controller;
 
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchDTO;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.CompanyDTO;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO;
 import com.sarthi.Sleeper.service.DashboardService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +12,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/sleeper-dashboard")
@@ -57,5 +62,62 @@ public class SleeperDashboard {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/LifeCycle/LotWise")
+    public ResponseEntity<Object> getLifeCycleLotWise(
+            @RequestParam Long id,
+            @RequestParam String batchId) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getLifecycleReport(id, batchId)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/companies")
+    public ResponseEntity<Object> getCompanies() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getCompanies()
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/plants")
+    public ResponseEntity<Object> getPlants(@RequestParam String vendorCode) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getPlants(vendorCode)
+                ),
+                HttpStatus.OK
+        );
+    }
+    @GetMapping("/batches")
+    public ResponseEntity<Object> getBatches(@RequestParam String plantId) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getBatches(plantId)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/level5BatchInspectionData")
+    public ResponseEntity<Object> getLevel5api(   @RequestParam Long id,
+                                                  @RequestParam String batchId) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getBatchChecking(batchId, id)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+
+
+
 
 }
