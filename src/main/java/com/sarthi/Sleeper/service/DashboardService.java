@@ -28,4 +28,8 @@ public interface DashboardService {
 
     public List<Level4BatchDTO> getLevel4Report(String callNo);
 
+    public List<Level3CallDTO> getLevel3Report(String poNo, String srNo);
+
+    public List<Level2DTO> getLevel2(String poNo);
+
 }

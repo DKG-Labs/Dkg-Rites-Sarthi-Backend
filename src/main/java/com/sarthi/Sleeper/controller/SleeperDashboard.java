@@ -128,6 +128,26 @@ public class SleeperDashboard {
         );
     }
 
+    @GetMapping("/level3")
+    public  ResponseEntity<Object> getLevel3(@RequestParam String poNo,
+                                                @RequestParam String srNo) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getLevel3Report(poNo,srNo)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+  /*  @GetMapping("/")
+    public  ResponseEntity<Object> getLevel2(@RequestParam String poNo) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getLevel2(poNo)
+                ),
+                HttpStatus.OK
+        );
+    }*/
 
 
 }

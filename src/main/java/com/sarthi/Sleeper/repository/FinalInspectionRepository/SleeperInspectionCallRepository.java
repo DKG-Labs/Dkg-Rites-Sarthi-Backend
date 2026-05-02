@@ -30,4 +30,14 @@ FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 """)
     List<Long> findAllBadSleeperIds();
+
+    @Query("""
+    SELECT c 
+    FROM SleeperInspectionCall c
+    WHERE c.poNo = :poNo
+      AND c.srNo = :srNo
+""")
+    List<SleeperInspectionCall> getCalls(String poNo, String srNo);
+
+
 }

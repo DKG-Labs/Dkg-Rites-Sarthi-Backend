@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.service.Impl;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
 import com.sarthi.Sleeper.entity.DemouldingInspection;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
@@ -385,4 +386,104 @@ public class DashboardServiceImpl implements DashboardService {
 
         }).toList();
     }
+
+    @Override
+    public List<Level3CallDTO> getLevel3Report(String poNo, String srNo) {
+
+        List<SleeperInspectionCall> calls = inspectionCallRepository.getCalls(poNo, srNo);
+
+        AtomicInteger counter = new AtomicInteger(1);
+
+        return calls.stream().map(call -> {
+
+            int offered = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
+
+            int accepted = 0;
+            int rejected = 0;
+
+            if (call.getBatchesSelected() != null) {
+                for (SleeperInspectionCallBatch batch : call.getBatchesSelected()) {
+
+                    if (batch.getGoodSleepers() != null)
+                        accepted += batch.getGoodSleepers().size();
+
+                    if (batch.getBadSleepers() != null)
+                        rejected += batch.getBadSleepers().size();
+                }
+            }
+
+            double rejectionPercent = offered > 0
+                    ? (rejected * 100.0) / offered
+                    : 0.0;
+
+            return new Level3CallDTO(
+                    counter.getAndIncrement(),
+                    call.getCallNo(),
+                    null, // Des Date
+                    offered,
+                    accepted,
+                    rejected,
+                    Math.round(rejectionPercent * 100.0) / 100.0,
+                    null // IC No
+            );
+
+        }).toList();
+    }
+
+    public List<Level2DTO> getLevel2(String poNo) {
+
+        List<Level2Projection> data = productionDeclarationRepository.getLevel2Data(poNo);
+
+        AtomicInteger counter = new AtomicInteger(1);
+
+        return data.stream().map(d -> {
+
+            int qty = d.getQty() != null ? d.getQty() : 0;
+
+            int accepted = d.getTotalAccepted() != null ? d.getTotalAccepted() : 0;
+            int processRejected = d.getProcessRejected() != null ? d.getProcessRejected() : 0;
+            int finalRejected = d.getFinalRejected() != null ? d.getFinalRejected() : 0;
+
+            // 🔹 Balance (confirm logic)
+            int balance = accepted - qty;   // OR qty - accepted (depends on your business)
+
+            // 🔹 Percent calculations
+            double procRejPercent = accepted > 0
+                    ? (processRejected * 100.0) / accepted
+                    : 0.0;
+
+            double finalRejPercent = accepted > 0
+                    ? (finalRejected * 100.0) / accepted
+                    : 0.0;
+
+            double totalRejPercent = procRejPercent + finalRejPercent;
+
+            return new Level2DTO(
+                    counter.getAndIncrement(),
+                    d.getPoNo(),
+                    d.getSrNo(),
+                    null, // sleeper type (as per requirement)
+                    d.getConsignee(),
+
+                    d.getDeliveryDate() != null ? d.getDeliveryDate().toLocalDate() : null,
+                    d.getExtendedDeliveryDate() != null ? d.getExtendedDeliveryDate().toLocalDate() : null,
+
+                    qty + " " + (d.getUom() != null ? d.getUom() : ""),
+
+                    balance,
+                    null, // ICS
+                    null, // Last IC
+
+                    round(procRejPercent),
+                    round(finalRejPercent),
+                    round(totalRejPercent)
+            );
+
+        }).toList();
+    }
+
+    private double round(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
 }

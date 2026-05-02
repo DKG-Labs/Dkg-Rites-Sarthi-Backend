@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.repository.ProductionDeclaration;
 import com.sarthi.Sleeper.dto.BatchWithIdProjection;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchProjection;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level2Projection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.ProductionProjection;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
@@ -439,4 +440,77 @@ ORDER BY 1
     WHERE p.batchNumber = :batchNo
 """)
     ProductionDeclaration getProductionByBatch(String batchNo);
+
+    @Query(value = """
+
+SELECT 
+    ph.po_no AS poNo,
+    pi.item_sr_no AS srNo,
+    pi.consignee_detail AS consignee,
+
+    pi.qty AS qty,
+    pi.uom AS uom,
+
+    pi.delivery_date AS deliveryDate,
+    pi.extended_delivery_date AS extendedDeliveryDate,
+
+    -- 🔹 TOTAL ACCEPTED (GOOD SLEEPERS FROM ALL CALLS)
+    (
+        SELECT COUNT(gs.batch_id)
+        FROM sleeper_inspection_call sic
+        JOIN sleeper_inspection_call_batch b 
+             ON sic.id = b.inspection_call_id
+        JOIN sleeper_ic_good_sleepers gs 
+             ON gs.batch_id = b.id
+        WHERE sic.po_no = ph.po_no
+          AND sic.sr_no = pi.item_sr_no
+    ) AS totalAccepted,
+
+    -- 🔹 PROCESS REJECTION (DEMOULDING DEFECTS)
+    (
+        SELECT COUNT(dds.id)
+        FROM demoulding_inspection di
+        JOIN demoulding_defective_sleepers dds 
+             ON di.id = dds.inspection_id
+        WHERE di.batch_no IN (
+            SELECT b.batch_no
+            FROM sleeper_inspection_call_batch b
+            JOIN sleeper_inspection_call sic 
+                 ON sic.id = b.inspection_call_id
+            WHERE sic.po_no = ph.po_no
+              AND sic.sr_no = pi.item_sr_no
+        )
+    ) AS processRejected,
+
+    -- 🔹 FINAL REJECTION (INSPECTION RESULTS)
+    (
+        SELECT COUNT(itr.id)
+        FROM inspection_test_header ith
+        JOIN inspection_test_result itr 
+             ON ith.id = itr.test_header_id
+        WHERE itr.result = 'REJECTED'
+          AND itr.active = 1
+          AND itr.module_id IN (1,2,3)
+          AND ith.batch_id IN (
+              SELECT pd.id
+              FROM production_declaration pd
+              WHERE pd.batch_number IN (
+                  SELECT b.batch_no
+                  FROM sleeper_inspection_call_batch b
+                  JOIN sleeper_inspection_call sic 
+                       ON sic.id = b.inspection_call_id
+                  WHERE sic.po_no = ph.po_no
+                    AND sic.sr_no = pi.item_sr_no
+              )
+          )
+    ) AS finalRejected
+
+FROM po_header ph
+JOIN po_item pi 
+     ON ph.id = pi.po_header_id
+
+WHERE ph.po_no = :poNo
+
+""", nativeQuery = true)
+    List<Level2Projection> getLevel2Data(String poNo);
 }
