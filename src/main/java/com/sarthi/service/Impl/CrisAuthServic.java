@@ -24,10 +24,11 @@ public class CrisAuthServic {
     private final RestTemplate restTemplate = new RestTemplate();
 
     private String token; // cache in memory
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     public synchronized String getToken() {
 
-        if (token != null) {
+        if (token != null && !isTokenExpired(token)) {
             return token;
         }
 
@@ -42,9 +43,28 @@ public class CrisAuthServic {
 
         // CRIS returns JWT in "token"
         token = (String) response.getBody().get("token");
-        System.out.print(token);
+        System.out.println("Fetched new CRIS token.");
 
         return token;
+    }
+
+    private boolean isTokenExpired(String encodedToken) {
+        try {
+            String[] parts = encodedToken.split("\\.");
+            if (parts.length < 2) return false; // not a standard JWT
+
+            String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+            Map<String, Object> map = objectMapper.readValue(payload, Map.class);
+
+            if (map.containsKey("exp")) {
+                long exp = ((Number) map.get("exp")).longValue();
+                // Expired if within 5 minutes of expiration
+                return (exp * 1000) < (System.currentTimeMillis() + 300000);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to parse CRIS token expiration: " + e.getMessage());
+        }
+        return false;
     }
 }
 
