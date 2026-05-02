@@ -44,6 +44,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         call.setTotalOffered(dto.getTotalOffered());
         call.setTotalRejected(dto.getTotalRejected());
         call.setCreatedBy(dto.getCreatedBy());
+        call.setPlantId(dto.getPlantId());
         call.setCreatedAt(LocalDateTime.now());
         call.setStatus("Pending for verification");
 
@@ -100,6 +101,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setQtyOffered(call.getTotalOffered());
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
             dto.setStatus(call.getStatus());
+            dto.setPlantId(call.getPlantId());
             return dto;
         }).collect(Collectors.toList());
     }

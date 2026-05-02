@@ -17,4 +17,5 @@ public class BatchInspectionResponseDto {
 
     private List<SleeperDto> goodSleepers;
     private List<BadSleeperDto> badSleepers;
+    private String plantId;
 }

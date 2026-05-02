@@ -990,6 +990,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             response.setBadCount((long) badSleepers.size());
             response.setGoodSleepers(goodSleepers);
             response.setBadSleepers(badSleepers);
+            response.setPlantId(declaration.getPlantId());
 
             responseList.add(response);
         }

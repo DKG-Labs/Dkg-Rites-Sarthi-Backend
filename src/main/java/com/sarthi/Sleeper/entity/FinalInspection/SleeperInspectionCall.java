@@ -41,6 +41,9 @@ public class SleeperInspectionCall {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "plant_id")
+    private String plantId;
+
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SleeperInspectionCallBatch> batchesSelected;
 }

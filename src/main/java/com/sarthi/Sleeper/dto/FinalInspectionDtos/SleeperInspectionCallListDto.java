@@ -13,4 +13,5 @@ public class SleeperInspectionCallListDto {
     private Integer qtyOffered;
     private Integer batches;
     private String status;
+    private String plantId;
 }
