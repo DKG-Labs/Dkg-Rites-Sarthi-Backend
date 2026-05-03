@@ -266,8 +266,13 @@ public class DashboardServiceImpl implements DashboardService {
             ));
         }
 
-        report.sort(Comparator.comparing(LifecycleReportDTO::getDate));
-
+        //report.sort(Comparator.comparing(LifecycleReportDTO::getDate));
+        report.sort(
+                Comparator.comparing(
+                        LifecycleReportDTO::getDate,
+                        Comparator.nullsLast(Comparator.naturalOrder())
+                )
+        );
         return report;
     }
 
