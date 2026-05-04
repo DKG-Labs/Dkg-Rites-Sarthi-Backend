@@ -16,6 +16,7 @@ public class ProductionBenchGroupResponseDto {
 
     private Double rft;
 
-    private List<String> sleepers;
+  //  private List<String> sleepers;
+    private List<ProductionSleeperResponseDto> sleeperList;
 
 }

@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
@@ -139,7 +141,7 @@ public class SleeperDashboard {
         );
     }
 
-  /*  @GetMapping("/")
+    @GetMapping("/level2")
     public  ResponseEntity<Object> getLevel2(@RequestParam String poNo) {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -147,7 +149,28 @@ public class SleeperDashboard {
                 ),
                 HttpStatus.OK
         );
-    }*/
+    }
+
+    @GetMapping("/level1")
+    public ResponseEntity<Object> getLevel1(
+            @RequestParam String startDate,
+            @RequestParam String endDate
+    ) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start = LocalDate.parse(startDate, formatter);
+        LocalDate end = LocalDate.parse(endDate, formatter);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getLevel1(
+                                start,
+                                end
+                        )
+                ),
+                HttpStatus.OK
+        );
+    }
 
 
 }

@@ -708,5 +708,16 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                 .toList();
     }
 
+    @Override
+    public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions() {
+
+        List<SleeperWorkflowTransaction> list =
+                repository.findFinalCompletedRequests();
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
 
 }

@@ -1,9 +1,11 @@
 package com.sarthi.Sleeper.service;
 
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level1DTO;
 import com.sarthi.Sleeper.dto.SleeperTransitionActionReqDto;
 import com.sarthi.Sleeper.dto.SleeperWorkflowTransactionDto;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -28,4 +30,8 @@ public interface SleeperWorkflowService {
 
 
     public List<SleeperWorkflowTransactionDto> allCompletedWorkflowTransitions();
-}
+
+    public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
+
+
+    }

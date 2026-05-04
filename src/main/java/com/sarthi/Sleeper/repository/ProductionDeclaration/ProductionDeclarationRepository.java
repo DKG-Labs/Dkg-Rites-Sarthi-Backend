@@ -359,86 +359,86 @@ WHERE d.batch_number = :batchNo
 
     @Query(value = """
 
--- DEMOULDING
-SELECT 
-    CAST(CONCAT(di.inspection_date, ' (', di.shift, ')') AS CHAR),
-    NULL,
-    COUNT(dds.id),
-    NULL,NULL,NULL,NULL,NULL
-FROM demoulding_inspection di
-LEFT JOIN demoulding_defective_sleepers dds 
-       ON di.id = dds.inspection_id
-WHERE di.batch_no = :batchNo
-GROUP BY di.inspection_date, di.shift
+            -- DEMOULDING
+            SELECT 
+                CAST(CONCAT(di.inspection_date, ' (', di.shift, ')') AS CHAR),
+                NULL,
+                COUNT(dds.id),
+                NULL,NULL,NULL,NULL,NULL
+            FROM demoulding_inspection di
+            LEFT JOIN demoulding_defective_sleepers dds 
+                   ON di.id = dds.inspection_id
+            WHERE di.batch_no = :batchNo
+            GROUP BY di.inspection_date, di.shift
 
-UNION ALL
+            UNION ALL
 
-SELECT 
-    CAST(CONCAT(scd.date_of_testing, ' (', sct.shift, ')') AS CHAR),
-    ROUND(AVG(scd.strength), 2),
-    NULL,NULL,NULL,NULL,NULL,NULL
-FROM steam_cube_testing sct
-JOIN steam_cube_testing_details scd 
-     ON sct.id = scd.steam_cube_testing_id
-WHERE sct.batch_no = :batchNo
-GROUP BY scd.date_of_testing, sct.shift
+            SELECT 
+                CAST(CONCAT(scd.date_of_testing, ' (', sct.shift, ')') AS CHAR),
+                ROUND(AVG(scd.strength), 2),
+                NULL,NULL,NULL,NULL,NULL,NULL
+            FROM steam_cube_testing sct
+            JOIN steam_cube_testing_details scd 
+                 ON sct.id = scd.steam_cube_testing_id
+            WHERE sct.batch_no = :batchNo
+            GROUP BY scd.date_of_testing, sct.shift
 
-UNION ALL
+            UNION ALL
 
--- WATER CUBE
-SELECT 
-    CAST(CONCAT(DATE(wc.created_date), ' (', wc.shift, ')') AS CHAR),
-    NULL,NULL,NULL,NULL,NULL,
-    ROUND(AVG(wcd.strength_nmm2),2),
-    NULL
-FROM water_cube_strength_test wc
-JOIN water_cube_strength_detail wcd 
-     ON wc.id = wcd.strength_test_id
-WHERE wc.batch_number = :batchNo
-GROUP BY wc.created_date, wc.shift
+            -- WATER CUBE
+            SELECT 
+                CAST(CONCAT(DATE(wc.created_date), ' (', wc.shift, ')') AS CHAR),
+                NULL,NULL,NULL,NULL,NULL,
+                ROUND(AVG(wcd.strength_nmm2),2),
+                NULL
+            FROM water_cube_strength_test wc
+            JOIN water_cube_strength_detail wcd 
+                 ON wc.id = wcd.strength_test_id
+            WHERE wc.batch_number = :batchNo
+            GROUP BY wc.created_date, wc.shift
 
-UNION ALL
+            UNION ALL
 
--- FINAL INSPECTION
-SELECT 
-    CAST(CONCAT(ith.test_date, ' (', ith.shift, ')') AS CHAR),
-    NULL,
-    NULL,
-    COUNT(CASE WHEN itr.module_id = 1 AND itr.result = 'REJECTED' THEN 1 END),
-    COUNT(CASE WHEN itr.module_id = 2 AND itr.result = 'REJECTED' THEN 1 END),
-    COUNT(CASE WHEN itr.module_id = 3 AND itr.result = 'REJECTED' THEN 1 END),
-    NULL,
-    NULL
-FROM inspection_test_header ith
-JOIN inspection_test_result itr 
-     ON ith.id = itr.test_header_id 
-     AND itr.active = 1
-WHERE ith.batch_id = :batchId
-GROUP BY ith.test_date, ith.shift
+            -- FINAL INSPECTION
+            SELECT 
+                CAST(CONCAT(ith.test_date, ' (', ith.shift, ')') AS CHAR),
+                NULL,
+                NULL,
+                COUNT(CASE WHEN itr.module_id = 1 AND itr.result = 'REJECTED' THEN 1 END),
+                COUNT(CASE WHEN itr.module_id = 2 AND itr.result = 'REJECTED' THEN 1 END),
+                COUNT(CASE WHEN itr.module_id = 3 AND itr.result = 'REJECTED' THEN 1 END),
+                NULL,
+                NULL
+            FROM inspection_test_header ith
+            JOIN inspection_test_result itr 
+                 ON ith.id = itr.test_header_id 
+                 AND itr.active = 1
+            WHERE ith.batch_id = :batchId
+            GROUP BY ith.test_date, ith.shift
 
-UNION ALL
+            UNION ALL
 
---  MR
-SELECT 
-    CAST(CONCAT(DATE(mrt.created_date), ' (', mrt.shift, ')') AS CHAR),
-    NULL,NULL,NULL,NULL,NULL,NULL,
-    ROUND(AVG(mrd.ct),2)
-FROM moment_of_resistance_test mrt
-JOIN moment_of_resistance_detail mrd 
-     ON mrt.id = mrd.mr_test_id
-WHERE mrt.batch_number = :batchNo
-GROUP BY mrt.created_date, mrt.shift
+            --  MR
+            SELECT 
+                CAST(CONCAT(DATE(mrt.created_date), ' (', mrt.shift, ')') AS CHAR),
+                NULL,NULL,NULL,NULL,NULL,NULL,
+                ROUND(AVG(mrd.ct),2)
+            FROM moment_of_resistance_test mrt
+            JOIN moment_of_resistance_detail mrd 
+                 ON mrt.id = mrd.mr_test_id
+            WHERE mrt.batch_number = :batchNo
+            GROUP BY mrt.created_date, mrt.shift
 
-ORDER BY 1
+            ORDER BY 1
 
-""", nativeQuery = true)
+            """, nativeQuery = true)
     List<Object[]> getBatchCheckingReport(String batchNo, Long batchId);
 
     @Query("""
-    SELECT p 
-    FROM ProductionDeclaration p
-    WHERE p.batchNumber = :batchNo
-""")
+                SELECT p 
+                FROM ProductionDeclaration p
+                WHERE p.batchNumber = :batchNo
+            """)
     ProductionDeclaration getProductionByBatch(String batchNo);
 
     @Query(value = """
@@ -454,7 +454,7 @@ SELECT
     pi.delivery_date AS deliveryDate,
     pi.extended_delivery_date AS extendedDeliveryDate,
 
-    -- 🔹 TOTAL ACCEPTED (GOOD SLEEPERS FROM ALL CALLS)
+    -- 🔹 TOTAL ACCEPTED
     (
         SELECT COUNT(gs.batch_id)
         FROM sleeper_inspection_call sic
@@ -466,7 +466,7 @@ SELECT
           AND sic.sr_no = pi.item_sr_no
     ) AS totalAccepted,
 
-    -- 🔹 PROCESS REJECTION (DEMOULDING DEFECTS)
+    -- 🔹 PROCESS REJECTION
     (
         SELECT COUNT(dds.id)
         FROM demoulding_inspection di
@@ -482,7 +482,7 @@ SELECT
         )
     ) AS processRejected,
 
-    -- 🔹 FINAL REJECTION (INSPECTION RESULTS)
+  
     (
         SELECT COUNT(itr.id)
         FROM inspection_test_header ith
@@ -509,8 +509,10 @@ FROM po_header ph
 JOIN po_item pi 
      ON ph.id = pi.po_header_id
 
-WHERE ph.po_no = :poNo
+
+WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
 
 """, nativeQuery = true)
     List<Level2Projection> getLevel2Data(String poNo);
+
 }

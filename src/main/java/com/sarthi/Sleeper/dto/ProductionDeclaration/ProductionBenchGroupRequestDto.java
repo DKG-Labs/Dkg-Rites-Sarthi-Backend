@@ -7,6 +7,8 @@ import java.util.List;
 @Data
 public class ProductionBenchGroupRequestDto {
 
+    private Long id;
+
     private Integer benchNo;
 
     private String sleeperType;
@@ -16,5 +18,6 @@ public class ProductionBenchGroupRequestDto {
     private Double rft;
 
     private List<String> sleepers;
+    private List<ProductionSleeperResponseDto> sleeperList;
 
 }

@@ -88,6 +88,20 @@ WHERE t.workflowTransitionId = (
    List<SleeperWorkflowTransaction> findCompletedRequests();
 
     @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId = (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.requestId = t.requestId
+        AND t2.workflowId = 2
+        AND t2.status = 'Completed'
+    )
+    AND t.status = 'Completed'
+    AND t.workflowId = 2
+""")
+    List<SleeperWorkflowTransaction> findFinalCompletedRequests();
+
+    @Query("""
 SELECT t.requestId FROM SleeperWorkflowTransaction t
 WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)

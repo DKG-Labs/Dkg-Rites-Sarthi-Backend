@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.service;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -32,4 +33,5 @@ public interface DashboardService {
 
     public List<Level2DTO> getLevel2(String poNo);
 
+    public List<Level1DTO> getLevel1(LocalDate startDate, LocalDate endDate);
 }

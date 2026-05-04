@@ -6,6 +6,8 @@ import java.util.List;
 
 @Data
 public class ProductionLongLineGangRequestDto {
+
+    private Long id;
     private String mode;
 
     private Integer gangFrom;
@@ -17,5 +19,6 @@ public class ProductionLongLineGangRequestDto {
 
     private Integer mouldsPerGang;
 
-    private List<String> sleepers;
+     private List<String> sleepers;
+    private List<ProductionSleeperResponseDto> sleeperList;
 }

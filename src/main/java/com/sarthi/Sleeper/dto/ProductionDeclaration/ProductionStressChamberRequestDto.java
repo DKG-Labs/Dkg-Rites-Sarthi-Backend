@@ -7,6 +7,8 @@ import java.util.List;
 @Data
 public class ProductionStressChamberRequestDto {
 
+    private Long id;
+
     private Integer chamberNo;
 
     private List<ProductionBenchGroupRequestDto> benchGroups;

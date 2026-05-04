@@ -49,7 +49,10 @@ public class SleeperWorkflow {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allCompletedWorkflowTransitions()), HttpStatus.OK);
     }
 
+    @GetMapping("/allFInalCallCompletedCalls")
+    public ResponseEntity<Object> AllFinalCallCompletedTransition()  {
 
-
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions()), HttpStatus.OK);
+    }
 
 }

@@ -449,16 +449,16 @@ public class DashboardServiceImpl implements DashboardService {
             int processRejected = d.getProcessRejected() != null ? d.getProcessRejected() : 0;
             int finalRejected = d.getFinalRejected() != null ? d.getFinalRejected() : 0;
 
-            // 🔹 Balance (confirm logic)
-            int balance = accepted - qty;   // OR qty - accepted (depends on your business)
 
-            // 🔹 Percent calculations
-            double procRejPercent = accepted > 0
-                    ? (processRejected * 100.0) / accepted
+            int balance = qty - accepted;
+
+
+            double procRejPercent = qty > 0
+                    ? (processRejected * 100.0) / qty
                     : 0.0;
 
-            double finalRejPercent = accepted > 0
-                    ? (finalRejected * 100.0) / accepted
+            double finalRejPercent = qty > 0
+                    ? (finalRejected * 100.0) / qty
                     : 0.0;
 
             double totalRejPercent = procRejPercent + finalRejPercent;
@@ -467,7 +467,7 @@ public class DashboardServiceImpl implements DashboardService {
                     counter.getAndIncrement(),
                     d.getPoNo(),
                     d.getSrNo(),
-                    null, // sleeper type (as per requirement)
+                    null,
                     d.getConsignee(),
 
                     d.getDeliveryDate() != null ? d.getDeliveryDate().toLocalDate() : null,
@@ -476,8 +476,8 @@ public class DashboardServiceImpl implements DashboardService {
                     qty + " " + (d.getUom() != null ? d.getUom() : ""),
 
                     balance,
-                    null, // ICS
-                    null, // Last IC
+                    null,
+                    null,
 
                     round(procRejPercent),
                     round(finalRejPercent),
@@ -491,4 +491,44 @@ public class DashboardServiceImpl implements DashboardService {
         return Math.round(value * 100.0) / 100.0;
     }
 
+    @Override
+    public List<Level1DTO> getLevel1(LocalDate startDate, LocalDate endDate) {
+
+        List<Level1Projection> data = inspectionCallRepository.getLevel1Data(startDate, endDate);
+
+        AtomicInteger counter = new AtomicInteger(1);
+
+        return data.stream().map(d -> {
+
+            int poQty = d.getPoQty() != null ? d.getPoQty() : 0;
+            int accQty = d.getAccQty() != null ? d.getAccQty() : 0;
+
+            int totalRejected = d.getTotalRejected() != null ? d.getTotalRejected() : 0;
+            int totalOffered = d.getTotalOffered() != null ? d.getTotalOffered() : 0;
+
+            // Balance
+            int balQty = poQty - accQty;
+
+            //  Rejection %
+            double rejectionPercent = totalOffered > 0
+                    ? (totalRejected * 100.0) / totalOffered
+                    : 0.0;
+
+            return new Level1DTO(
+                    counter.getAndIncrement(),
+                    d.getRly(),
+                    d.getPoNo(),
+                    d.getPoDate() != null ? d.getPoDate().toLocalDateTime().toLocalDate() : null,
+                    d.getVendor(),
+                    d.getRegion(),
+
+                    poQty,
+                    accQty,
+                    balQty,
+
+                    round(rejectionPercent)
+            );
+
+        }).toList();
+    }
 }

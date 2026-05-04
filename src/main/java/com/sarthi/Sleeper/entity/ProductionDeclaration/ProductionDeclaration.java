@@ -55,14 +55,19 @@ public class ProductionDeclaration {
 
         // STRESS BENCH RELATION
 
-        @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
-        private List<ProductionStressChamber> chambers;
+     //   @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
+     //   private List<ProductionStressChamber> chambers;
 
         // LONG LINE RELATION
 
-        @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
-        private List<ProductionLongLineGang> gangs;
+      //  @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
+      //  private List<ProductionLongLineGang> gangs;
 
+        @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL, orphanRemoval = true)
+        private List<ProductionStressChamber> chambers = new ArrayList<>();
+
+        @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL, orphanRemoval = true)
+        private List<ProductionLongLineGang> gangs = new ArrayList<>();
 
 
 }

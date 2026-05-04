@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.entity.ProductionDeclaration;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -30,6 +31,8 @@ public class ProductionLongLineGang {
     @JoinColumn(name="declaration_id")
     private ProductionDeclaration declaration;
 
-    @OneToMany(mappedBy = "gang", cascade = CascadeType.ALL)
-    private List<ProductionSleeper> sleepers;
+   // @OneToMany(mappedBy = "gang", cascade = CascadeType.ALL)
+    //private List<ProductionSleeper> sleepers;
+   @OneToMany(mappedBy = "gang", cascade = CascadeType.ALL, orphanRemoval = true)
+   private List<ProductionSleeper> sleepers = new ArrayList<>();
 }

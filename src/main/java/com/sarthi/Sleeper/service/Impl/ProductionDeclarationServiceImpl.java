@@ -181,125 +181,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         return getById(entity.getId());
     }
-    /*
-     * @Override
-     * public ProductionDeclarationResponseDto update(
-     * Long id,
-     * ProductionDeclarationRequestDto dto) {
-     * 
-     * ProductionDeclaration entity = repository.findById(id)
-     * .orElseThrow(() -> new RuntimeException("Record not found"));
-     * 
-     * // ===== Header Fields =====
-     * 
-     * entity.setPlantType(dto.getPlantType());
-     * entity.setProductionUnit(dto.getProductionUnit());
-     * LocalDate cDate =
-     * CommonUtils.convertStringToDateObject(dto.getCastingDate());
-     * 
-     * entity.setCastingDate(cDate);
-     * entity.setShift(dto.getShift());
-     * entity.setBatchNumber(dto.getBatchNumber());
-     * entity.setMixDesignReference(dto.getMixDesignReference());
-     * LocalTime pTime = CommonUtils.convertStringToTimeObject(dto.getLbcTime());
-     * 
-     * 
-     * entity.setLbcTime(pTime);
-     * 
-     * entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
-     * entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
-     * entity.setTotalRft(dto.getTotalRft());
-     * 
-     * entity.setRemarks(dto.getRemarks());
-     * 
-     * entity.setUpdatedBy(dto.getUpdatedBy());
-     * entity.setUpdatedDate(LocalDateTime.now());
-     * 
-     * 
-     * // ===== CLEAR OLD DATA =====
-     * 
-     * entity.getChambers().clear();
-     * entity.getGangs().clear();
-     * 
-     * 
-     * // ===== STRESS CHAMBERS =====
-     * 
-     * if (dto.getChambers() != null) {
-     * 
-     * for (ProductionStressChamberRequestDto chamberDto : dto.getChambers()) {
-     * 
-     * ProductionStressChamber chamber = new ProductionStressChamber();
-     * 
-     * chamber.setChamberNo(chamberDto.getChamberNo());
-     * chamber.setDeclaration(entity);
-     * 
-     * entity.getChambers().add(chamber);
-     * 
-     * 
-     * if (chamberDto.getBenchGroups() != null) {
-     * 
-     * for (ProductionBenchGroupRequestDto benchDto : chamberDto.getBenchGroups()) {
-     * 
-     * ProductionBenchGroup bench = new ProductionBenchGroup();
-     * 
-     * bench.setBenchNo(benchDto.getBenchNo());
-     * bench.setSleeperType(benchDto.getSleeperType());
-     * bench.setMouldPerBench(benchDto.getMouldPerBench());
-     * bench.setRft(benchDto.getRft());
-     * 
-     * bench.setChamber(chamber);
-     * 
-     * chamber.getBenchGroups().add(bench);
-     * 
-     * 
-     * if (benchDto.getSleepers() != null) {
-     * 
-     * for (String sleeperNo : benchDto.getSleepers()) {
-     * 
-     * ProductionSleeper sleeper = new ProductionSleeper();
-     * 
-     * sleeper.setSleeperNo(sleeperNo);
-     * sleeper.setBenchGroup(bench);
-     * 
-     * bench.getSleepers().add(sleeper);
-     * }
-     * }
-     * }
-     * }
-     * }
-     * }
-     * 
-     * 
-     * // ===== LONG LINE =====
-     * 
-     * if (dto.getGangs() != null) {
-     * 
-     * for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
-     * 
-     * ProductionLongLineGang gang = new ProductionLongLineGang();
-     * 
-     * gang.setMode(gangDto.getMode());
-     * gang.setGangFrom(gangDto.getGangFrom());
-     * gang.setGangTo(gangDto.getGangTo());
-     * gang.setGangNo(gangDto.getGangNo());
-     * gang.setSleeperType(gangDto.getSleeperType());
-     * gang.setMouldsPerGang(gangDto.getMouldsPerGang());
-     * 
-     * gang.setDeclaration(entity);
-     * 
-     * entity.getGangs().add(gang);
-     * }
-     * }
-     * 
-     * repository.save(entity);
-     * 
-     * // return full response
-     * return getById(entity.getId());
-     * }
-     * 
-     * 
-     */
-
+/*
     @Override
     public ProductionDeclarationResponseDto update(
             Long id,
@@ -418,7 +300,297 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         return getById(entity.getId());
     }
+*/
 
+    /*
+@Override
+public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationRequestDto dto) {
+
+    ProductionDeclaration entity = repository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Record not found"));
+
+    // ===== HEADER =====
+    entity.setPlantType(dto.getPlantType());
+    entity.setProductionUnit(dto.getProductionUnit());
+    entity.setCastingDate(CommonUtils.convertStringToDateObject(dto.getCastingDate()));
+    entity.setVendorCode(dto.getVendorCode());
+    entity.setPlantId(dto.getPlantId());
+    entity.setShift(dto.getShift());
+    entity.setBatchNumber(dto.getBatchNumber());
+    entity.setMixDesignReference(dto.getMixDesignReference());
+    entity.setLbcTime(CommonUtils.convertStringToTimeObject(dto.getLbcTime()));
+    entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
+    entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
+    entity.setTotalRft(dto.getTotalRft());
+    entity.setRemarks(dto.getRemarks());
+    entity.setUpdatedBy(dto.getUpdatedBy());
+    entity.setUpdatedDate(LocalDateTime.now());
+
+
+    entity.getChambers().clear();
+    entity.getGangs().clear();
+
+    // ===== REBUILD CHAMBERS =====
+    if (dto.getChambers() != null) {
+
+        for (ProductionStressChamberRequestDto chamberDto : dto.getChambers()) {
+
+            ProductionStressChamber chamber = new ProductionStressChamber();
+            chamber.setChamberNo(chamberDto.getChamberNo());
+            chamber.setDeclaration(entity);
+
+            List<ProductionBenchGroup> benchList = new ArrayList<>();
+
+            if (chamberDto.getBenchGroups() != null) {
+
+                for (ProductionBenchGroupRequestDto benchDto : chamberDto.getBenchGroups()) {
+
+                    ProductionBenchGroup bench = new ProductionBenchGroup();
+                    bench.setBenchNo(benchDto.getBenchNo());
+                    bench.setSleeperType(benchDto.getSleeperType());
+                    bench.setMouldPerBench(benchDto.getMouldPerBench());
+                    bench.setRft(benchDto.getRft());
+                    bench.setChamber(chamber);
+
+                    List<ProductionSleeper> sleepers = new ArrayList<>();
+
+                    if (benchDto.getSleepers() != null) {
+                        for (String sleeperNo : benchDto.getSleepers()) {
+
+                            ProductionSleeper sleeper = new ProductionSleeper();
+                            sleeper.setSleeperNo(sleeperNo);
+                            sleeper.setBenchGroup(bench);
+
+                            sleepers.add(sleeper);
+                        }
+                    }
+
+                    bench.setSleepers(sleepers);
+                    benchList.add(bench);
+                }
+            }
+
+            chamber.setBenchGroups(benchList);
+            entity.getChambers().add(chamber);
+        }
+    }
+
+    // ===== REBUILD GANGS =====
+    if (dto.getGangs() != null) {
+
+        for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
+
+            ProductionLongLineGang gang = new ProductionLongLineGang();
+
+            gang.setMode(gangDto.getMode());
+            gang.setGangFrom(gangDto.getGangFrom());
+            gang.setGangTo(gangDto.getGangTo());
+            gang.setGangNo(gangDto.getGangNo());
+            gang.setSleeperType(gangDto.getSleeperType());
+            gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+            gang.setDeclaration(entity);
+
+            List<ProductionSleeper> sleepers = new ArrayList<>();
+
+            if (gangDto.getSleepers() != null) {
+                for (String sleeperNo : gangDto.getSleepers()) {
+
+                    ProductionSleeper sleeper = new ProductionSleeper();
+                    sleeper.setSleeperNo(sleeperNo);
+                    sleeper.setGang(gang);
+
+                    sleepers.add(sleeper);
+                }
+            }
+
+            gang.setSleepers(sleepers);
+            entity.getGangs().add(gang);
+        }
+    }
+
+    repository.save(entity);
+
+    return getById(entity.getId());
+}*/
+
+    @Override
+    public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationRequestDto dto) {
+
+        ProductionDeclaration entity = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Record not found"));
+
+        // ===== HEADER =====
+        entity.setPlantType(dto.getPlantType());
+        entity.setProductionUnit(dto.getProductionUnit());
+        entity.setCastingDate(CommonUtils.convertStringToDateObject(dto.getCastingDate()));
+        entity.setVendorCode(dto.getVendorCode());
+        entity.setPlantId(dto.getPlantId());
+        entity.setShift(dto.getShift());
+        entity.setBatchNumber(dto.getBatchNumber());
+        entity.setMixDesignReference(dto.getMixDesignReference());
+        entity.setLbcTime(CommonUtils.convertStringToTimeObject(dto.getLbcTime()));
+        entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
+        entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
+        entity.setTotalRft(dto.getTotalRft());
+        entity.setRemarks(dto.getRemarks());
+        entity.setUpdatedBy(dto.getUpdatedBy());
+        entity.setUpdatedDate(LocalDateTime.now());
+
+        Map<Long, ProductionStressChamber> chamberMap =
+                entity.getChambers().stream()
+                        .collect(Collectors.toMap(ProductionStressChamber::getId, c -> c));
+
+        List<ProductionStressChamber> updatedChambers = new ArrayList<>();
+
+        for (ProductionStressChamberRequestDto chamberDto : dto.getChambers()) {
+
+            ProductionStressChamber chamber;
+
+            if (chamberDto.getId() != null && chamberMap.containsKey(chamberDto.getId())) {
+                chamber = chamberMap.get(chamberDto.getId());
+                chamberMap.remove(chamberDto.getId());
+            } else {
+                chamber = new ProductionStressChamber();
+                chamber.setDeclaration(entity);
+            }
+
+            chamber.setChamberNo(chamberDto.getChamberNo());
+
+            // ===== BENCH MERGE =====
+            Map<Long, ProductionBenchGroup> benchMap = chamber.getBenchGroups() != null
+                    ? chamber.getBenchGroups().stream()
+                    .collect(Collectors.toMap(ProductionBenchGroup::getId, b -> b))
+                    : new HashMap<>();
+
+            List<ProductionBenchGroup> updatedBenches = new ArrayList<>();
+
+            for (ProductionBenchGroupRequestDto benchDto : chamberDto.getBenchGroups()) {
+
+                ProductionBenchGroup bench;
+
+                if (benchDto.getId() != null && benchMap.containsKey(benchDto.getId())) {
+                    bench = benchMap.get(benchDto.getId());
+                    benchMap.remove(benchDto.getId());
+                } else {
+                    bench = new ProductionBenchGroup();
+                    bench.setChamber(chamber);
+                }
+
+                bench.setBenchNo(benchDto.getBenchNo());
+                bench.setSleeperType(benchDto.getSleeperType());
+                bench.setMouldPerBench(benchDto.getMouldPerBench());
+                bench.setRft(benchDto.getRft());
+
+                // ===== SLEEPER MERGE =====
+                Map<Long, ProductionSleeper> sleeperMap = bench.getSleepers() != null
+                        ? bench.getSleepers().stream()
+                        .collect(Collectors.toMap(ProductionSleeper::getId, s -> s))
+                        : new HashMap<>();
+
+                List<ProductionSleeper> updatedSleepers = new ArrayList<>();
+
+                if (benchDto.getSleeperList() != null) {
+                    for (ProductionSleeperResponseDto sDto : benchDto.getSleeperList()) {
+
+                        ProductionSleeper sleeper;
+
+                        if (sDto.getId() != null && sleeperMap.containsKey(sDto.getId())) {
+                            sleeper = sleeperMap.get(sDto.getId());
+                            sleeperMap.remove(sDto.getId());
+                        } else {
+                            sleeper = new ProductionSleeper();
+                            sleeper.setBenchGroup(bench);
+                        }
+
+                        sleeper.setSleeperNo(sDto.getSleeperNo());
+                        updatedSleepers.add(sleeper);
+                    }
+                }
+
+                // remove deleted sleepers
+                sleeperMap.values().forEach(s -> bench.getSleepers().remove(s));
+
+                bench.setSleepers(updatedSleepers);
+                updatedBenches.add(bench);
+            }
+
+            // remove deleted benches
+            benchMap.values().forEach(b -> chamber.getBenchGroups().remove(b));
+
+            chamber.setBenchGroups(updatedBenches);
+            updatedChambers.add(chamber);
+        }
+
+        // remove deleted chambers
+        chamberMap.values().forEach(c -> entity.getChambers().remove(c));
+
+        entity.setChambers(updatedChambers);
+
+        Map<Long, ProductionLongLineGang> gangMap =
+                entity.getGangs().stream()
+                        .collect(Collectors.toMap(ProductionLongLineGang::getId, g -> g));
+
+        List<ProductionLongLineGang> updatedGangs = new ArrayList<>();
+
+        for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
+
+            ProductionLongLineGang gang;
+
+            if (gangDto.getId() != null && gangMap.containsKey(gangDto.getId())) {
+                gang = gangMap.get(gangDto.getId());
+                gangMap.remove(gangDto.getId());
+            } else {
+                gang = new ProductionLongLineGang();
+                gang.setDeclaration(entity);
+            }
+
+            gang.setMode(gangDto.getMode());
+            gang.setGangFrom(gangDto.getGangFrom());
+            gang.setGangTo(gangDto.getGangTo());
+            gang.setGangNo(gangDto.getGangNo());
+            gang.setSleeperType(gangDto.getSleeperType());
+            gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+
+            // sleepers
+            Map<Long, ProductionSleeper> sleeperMap = gang.getSleepers() != null
+                    ? gang.getSleepers().stream()
+                    .collect(Collectors.toMap(ProductionSleeper::getId, s -> s))
+                    : new HashMap<>();
+
+            List<ProductionSleeper> updatedSleepers = new ArrayList<>();
+
+            if (gangDto.getSleeperList() != null) {
+                for (ProductionSleeperResponseDto sDto : gangDto.getSleeperList()) {
+
+                    ProductionSleeper sleeper;
+
+                    if (sDto.getId() != null && sleeperMap.containsKey(sDto.getId())) {
+                        sleeper = sleeperMap.get(sDto.getId());
+                        sleeperMap.remove(sDto.getId());
+                    } else {
+                        sleeper = new ProductionSleeper();
+                        sleeper.setGang(gang);
+                    }
+
+                    sleeper.setSleeperNo(sDto.getSleeperNo());
+                    updatedSleepers.add(sleeper);
+                }
+            }
+
+            sleeperMap.values().forEach(s -> gang.getSleepers().remove(s));
+
+            gang.setSleepers(updatedSleepers);
+            updatedGangs.add(gang);
+        }
+
+        gangMap.values().forEach(g -> entity.getGangs().remove(g));
+
+        entity.setGangs(updatedGangs);
+
+        repository.save(entity);
+
+        return getById(entity.getId());
+    }
     @Override
     public ProductionDeclarationResponseDto getById(Long id) {
 
@@ -484,7 +656,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                         benchDto.setMouldPerBench(bench.getMouldPerBench());
                         benchDto.setRft(bench.getRft());
 
-                        List<String> sleeperNumbers = new ArrayList<>();
+                       /* List<String> sleeperNumbers = new ArrayList<>();
 
                         if (bench.getSleepers() != null) {
 
@@ -494,7 +666,19 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                             }
                         }
 
-                        benchDto.setSleepers(sleeperNumbers);
+                        benchDto.setSleepers(sleeperNumbers);*/
+                        List<ProductionSleeperResponseDto> sleeperList = new ArrayList<>();
+
+                        for (ProductionSleeper sleeper : bench.getSleepers()) {
+
+                            ProductionSleeperResponseDto sDto = new ProductionSleeperResponseDto();
+                            sDto.setId(sleeper.getId());
+                            sDto.setSleeperNo(sleeper.getSleeperNo());
+
+                            sleeperList.add(sDto);
+                        }
+
+                        benchDto.setSleeperList(sleeperList);
 
                         benchList.add(benchDto);
                     }
@@ -527,7 +711,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                     gangDto.setMouldsPerGang(gang.getMouldsPerGang());
 
 
-                    List<String> sleeperNumbers = new ArrayList<>();
+                  /*  List<String> sleeperNumbers = new ArrayList<>();
 
                     if (gang.getSleepers() != null) {
 
@@ -536,7 +720,21 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                         }
                     }
 
-                    gangDto.setSleepers(sleeperNumbers);
+                   */
+
+                    List<ProductionSleeperResponseDto> sleeperList = new ArrayList<>();
+
+                    for (ProductionSleeper sleeper : gang.getSleepers()) {
+
+                        ProductionSleeperResponseDto sDto = new ProductionSleeperResponseDto();
+                        sDto.setId(sleeper.getId());
+                        sDto.setSleeperNo(sleeper.getSleeperNo());
+
+                        sleeperList.add(sDto);
+                    }
+
+                    gangDto.setSleeperList(sleeperList);
+                  //  gangDto.setSleepers(sleeperNumbers);
 
                     gangList.add(gangDto);
                 }
@@ -902,10 +1100,23 @@ public List<ProductionDeclarationResponseDto> getAll() {
                                         benchDto.setMouldPerBench(bench.getMouldPerBench());
                                         benchDto.setRft(bench.getRft());
 
+//                                        if (bench.getSleepers() != null) {
+//                                            benchDto.setSleepers(
+//                                                    bench.getSleepers().stream()
+//                                                            .map(ProductionSleeper::getSleeperNo)
+//                                                            .toList()
+//                                            );
+//                                        }
+
                                         if (bench.getSleepers() != null) {
-                                            benchDto.setSleepers(
+                                            benchDto.setSleeperList(
                                                     bench.getSleepers().stream()
-                                                            .map(ProductionSleeper::getSleeperNo)
+                                                            .map(s -> {
+                                                                ProductionSleeperResponseDto dto = new ProductionSleeperResponseDto();
+                                                                dto.setId(s.getId());
+                                                                dto.setSleeperNo(s.getSleeperNo());
+                                                                return dto;
+                                                            })
                                                             .toList()
                                             );
                                         }
@@ -939,10 +1150,23 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         gangDto.setMouldsPerGang(gang.getMouldsPerGang());
 
                         //ADD THIS (IMPORTANT)
+//                        if (gang.getSleepers() != null) {
+//                            gangDto.setSleepers(
+//                                    gang.getSleepers().stream()
+//                                            .map(ProductionSleeper::getSleeperNo)
+//                                            .toList()
+//                            );
+//                        }
+
                         if (gang.getSleepers() != null) {
-                            gangDto.setSleepers(
+                            gangDto.setSleeperList(
                                     gang.getSleepers().stream()
-                                            .map(ProductionSleeper::getSleeperNo)
+                                            .map(s -> {
+                                                ProductionSleeperResponseDto dto = new ProductionSleeperResponseDto();
+                                                dto.setId(s.getId());
+                                                dto.setSleeperNo(s.getSleeperNo());
+                                                return dto;
+                                            })
                                             .toList()
                             );
                         }
