@@ -24,6 +24,9 @@ public interface ProcessTestingFinishingDataRepository extends JpaRepository<Pro
     Optional<ProcessTestingFinishingData> findByInspectionCallNoAndShiftAndHourIndex(
             String inspectionCallNo, String shift, Integer hourIndex);
 
+    List<ProcessTestingFinishingData> findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNo, String createdBy);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 
     @Query("""

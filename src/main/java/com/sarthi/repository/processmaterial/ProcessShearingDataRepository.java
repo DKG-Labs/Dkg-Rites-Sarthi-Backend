@@ -24,6 +24,9 @@ public interface ProcessShearingDataRepository extends JpaRepository<ProcessShea
     Optional<ProcessShearingData> findByInspectionCallNoAndShiftAndHourIndex(
             String inspectionCallNo, String shift, Integer hourIndex);
 
+    List<ProcessShearingData> findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNo, String createdBy);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 
 /*

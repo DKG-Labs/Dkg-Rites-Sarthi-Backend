@@ -22,6 +22,11 @@ public interface InspectionCallDetailsRepository extends JpaRepository<Inspectio
     Optional<InspectionCallDetails> findByInspectionCallNo(String inspectionCallNo);
 
     /**
+     * Find the most recent InspectionCallDetails by inspection call number (to avoid NonUniqueResultException)
+     */
+    Optional<InspectionCallDetails> findFirstByInspectionCallNoOrderByIdDesc(String inspectionCallNo);
+
+    /**
      * Check if record exists by inspection call number
      */
     boolean existsByInspectionCallNo(String inspectionCallNo);

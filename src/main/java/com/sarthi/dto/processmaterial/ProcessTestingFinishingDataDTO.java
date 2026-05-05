@@ -26,17 +26,16 @@ public class ProcessTestingFinishingDataDTO {
     private String ercCoating2;
     private Integer acceptedQty;
     private Integer rejectedQty;
-    
+
     // Separate rejection fields for each measurement
     private Integer toeLoadRejected;
     private Integer weightRejected;
     private Integer paintIdentificationRejected;
     private Integer ercCoatingRejected;
-    
+
     private String remarks;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String createdBy;
     private String updatedBy;
 }
-

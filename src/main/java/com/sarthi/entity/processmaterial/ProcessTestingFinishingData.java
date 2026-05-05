@@ -7,12 +7,13 @@ import java.time.LocalDateTime;
 
 /**
  * Entity for Testing & Finishing Section data in 8-Hour Grid.
- * Stores hourly toe load, weight, paint identification and ERC coating test data.
+ * Stores hourly toe load, weight, paint identification and ERC coating test
+ * data.
  */
 @Entity
 @Table(name = "process_testing_finishing_data", indexes = {
-    @Index(name = "idx_proc_test_call_no", columnList = "inspection_call_no"),
-    @Index(name = "idx_proc_test_po_no", columnList = "po_no")
+        @Index(name = "idx_proc_test_call_no", columnList = "inspection_call_no"),
+        @Index(name = "idx_proc_test_po_no", columnList = "po_no")
 })
 @Data
 public class ProcessTestingFinishingData {
@@ -120,4 +121,3 @@ public class ProcessTestingFinishingData {
         updatedAt = LocalDateTime.now();
     }
 }
-
