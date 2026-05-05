@@ -20,6 +20,9 @@ public interface ProcessMpiDataRepository extends JpaRepository<ProcessMpiData, 
     Optional<ProcessMpiData> findByInspectionCallNoAndShiftAndHourIndex(
             String inspectionCallNo, String shift, Integer hourIndex);
 
+    List<ProcessMpiData> findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNo, String createdBy);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 }
 

@@ -24,6 +24,9 @@ public interface ProcessFinalCheckDataRepository extends JpaRepository<ProcessFi
     Optional<ProcessFinalCheckData> findByInspectionCallNoAndShiftAndHourIndex(
             String inspectionCallNo, String shift, Integer hourIndex);
 
+    List<ProcessFinalCheckData> findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNo, String createdBy);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 
     @Query("""

@@ -22,6 +22,9 @@ public interface ProcessTemperingDataRepository extends JpaRepository<ProcessTem
     Optional<ProcessTemperingData> findByInspectionCallNoAndShiftAndHourIndex(
             String inspectionCallNo, String shift, Integer hourIndex);
 
+    List<ProcessTemperingData> findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNo, String createdBy);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 
     @Query(value = """

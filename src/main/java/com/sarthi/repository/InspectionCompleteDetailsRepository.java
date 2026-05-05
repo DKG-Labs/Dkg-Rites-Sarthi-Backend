@@ -20,6 +20,11 @@ public interface InspectionCompleteDetailsRepository extends JpaRepository<Inspe
     Optional<InspectionCompleteDetails> findByCallNo(String callNo);
 
     /**
+     * Find the most recent InspectionCompleteDetails by call number (in case of duplicates)
+     */
+    Optional<InspectionCompleteDetails> findFirstByCallNoOrderByCreatedOnDesc(String callNo);
+
+    /**
      * Find InspectionCompleteDetails by certificate number
      * Used to map certificate number to IC number for Process IC
      */

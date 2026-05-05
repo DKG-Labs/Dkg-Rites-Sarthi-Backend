@@ -23,6 +23,9 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
     Optional<ProcessQuenchingData> findByInspectionCallNoAndShiftAndHourIndex(
             String inspectionCallNo, String shift, Integer hourIndex);
 
+    List<ProcessQuenchingData> findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNo, String createdBy);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 
     @Query("""

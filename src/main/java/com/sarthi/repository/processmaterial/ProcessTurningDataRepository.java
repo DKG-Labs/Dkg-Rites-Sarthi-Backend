@@ -24,6 +24,9 @@ public interface ProcessTurningDataRepository extends JpaRepository<ProcessTurni
     Optional<ProcessTurningData> findByInspectionCallNoAndShiftAndHourIndex(
             String inspectionCallNo, String shift, Integer hourIndex);
 
+    List<ProcessTurningData> findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNo, String createdBy);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 
     Optional<ProcessTurningData> findByInspectionCallNoAndLotNoAndShift(String callId, String lotNumber, String shift);
