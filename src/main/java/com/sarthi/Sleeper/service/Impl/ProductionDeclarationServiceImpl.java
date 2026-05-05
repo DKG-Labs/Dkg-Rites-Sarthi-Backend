@@ -20,6 +20,7 @@ import com.sarthi.util.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -416,6 +417,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 }*/
 
     @Override
+    @Transactional
     public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationRequestDto dto) {
 
         ProductionDeclaration entity = repository.findById(id)
@@ -438,11 +440,15 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
 
+        // =========================================================
+        // 🔥 CHAMBER MERGE
+        // =========================================================
+
         Map<Long, ProductionStressChamber> chamberMap =
                 entity.getChambers().stream()
                         .collect(Collectors.toMap(ProductionStressChamber::getId, c -> c));
 
-        List<ProductionStressChamber> updatedChambers = new ArrayList<>();
+        List<ProductionStressChamber> finalChambers = new ArrayList<>();
 
         for (ProductionStressChamberRequestDto chamberDto : dto.getChambers()) {
 
@@ -458,13 +464,14 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 
             chamber.setChamberNo(chamberDto.getChamberNo());
 
-            // ===== BENCH MERGE =====
-            Map<Long, ProductionBenchGroup> benchMap = chamber.getBenchGroups() != null
-                    ? chamber.getBenchGroups().stream()
-                    .collect(Collectors.toMap(ProductionBenchGroup::getId, b -> b))
-                    : new HashMap<>();
+            // ================= BENCH =================
 
-            List<ProductionBenchGroup> updatedBenches = new ArrayList<>();
+            Map<Long, ProductionBenchGroup> benchMap =
+                    chamber.getBenchGroups() == null ? new HashMap<>() :
+                            chamber.getBenchGroups().stream()
+                                    .collect(Collectors.toMap(ProductionBenchGroup::getId, b -> b));
+
+            List<ProductionBenchGroup> finalBenches = new ArrayList<>();
 
             for (ProductionBenchGroupRequestDto benchDto : chamberDto.getBenchGroups()) {
 
@@ -483,13 +490,14 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                 bench.setMouldPerBench(benchDto.getMouldPerBench());
                 bench.setRft(benchDto.getRft());
 
-                // ===== SLEEPER MERGE =====
-                Map<Long, ProductionSleeper> sleeperMap = bench.getSleepers() != null
-                        ? bench.getSleepers().stream()
-                        .collect(Collectors.toMap(ProductionSleeper::getId, s -> s))
-                        : new HashMap<>();
+                // ================= SLEEPERS =================
 
-                List<ProductionSleeper> updatedSleepers = new ArrayList<>();
+                Map<Long, ProductionSleeper> sleeperMap =
+                        bench.getSleepers() == null ? new HashMap<>() :
+                                bench.getSleepers().stream()
+                                        .collect(Collectors.toMap(ProductionSleeper::getId, s -> s));
+
+                List<ProductionSleeper> finalSleepers = new ArrayList<>();
 
                 if (benchDto.getSleeperList() != null) {
                     for (ProductionSleeperResponseDto sDto : benchDto.getSleeperList()) {
@@ -505,34 +513,48 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                         }
 
                         sleeper.setSleeperNo(sDto.getSleeperNo());
-                        updatedSleepers.add(sleeper);
+                        sleeper.setSleeperType(benchDto.getSleeperType());
+
+                        finalSleepers.add(sleeper);
                     }
                 }
 
                 // remove deleted sleepers
                 sleeperMap.values().forEach(s -> bench.getSleepers().remove(s));
 
-                bench.setSleepers(updatedSleepers);
-                updatedBenches.add(bench);
+                // 🔥 IMPORTANT (do NOT replace list)
+                if (bench.getSleepers() == null) bench.setSleepers(new ArrayList<>());
+                bench.getSleepers().clear();
+                bench.getSleepers().addAll(finalSleepers);
+
+                finalBenches.add(bench);
             }
 
             // remove deleted benches
             benchMap.values().forEach(b -> chamber.getBenchGroups().remove(b));
 
-            chamber.setBenchGroups(updatedBenches);
-            updatedChambers.add(chamber);
+            if (chamber.getBenchGroups() == null) chamber.setBenchGroups(new ArrayList<>());
+            chamber.getBenchGroups().clear();
+            chamber.getBenchGroups().addAll(finalBenches);
+
+            finalChambers.add(chamber);
         }
 
         // remove deleted chambers
         chamberMap.values().forEach(c -> entity.getChambers().remove(c));
 
-        entity.setChambers(updatedChambers);
+        entity.getChambers().clear();
+        entity.getChambers().addAll(finalChambers);
+
+        // =========================================================
+        // 🔥 GANG MERGE
+        // =========================================================
 
         Map<Long, ProductionLongLineGang> gangMap =
                 entity.getGangs().stream()
                         .collect(Collectors.toMap(ProductionLongLineGang::getId, g -> g));
 
-        List<ProductionLongLineGang> updatedGangs = new ArrayList<>();
+        List<ProductionLongLineGang> finalGangs = new ArrayList<>();
 
         for (ProductionLongLineGangRequestDto gangDto : dto.getGangs()) {
 
@@ -553,13 +575,14 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             gang.setSleeperType(gangDto.getSleeperType());
             gang.setMouldsPerGang(gangDto.getMouldsPerGang());
 
-            // sleepers
-            Map<Long, ProductionSleeper> sleeperMap = gang.getSleepers() != null
-                    ? gang.getSleepers().stream()
-                    .collect(Collectors.toMap(ProductionSleeper::getId, s -> s))
-                    : new HashMap<>();
+            // ================= SLEEPERS =================
 
-            List<ProductionSleeper> updatedSleepers = new ArrayList<>();
+            Map<Long, ProductionSleeper> sleeperMap =
+                    gang.getSleepers() == null ? new HashMap<>() :
+                            gang.getSleepers().stream()
+                                    .collect(Collectors.toMap(ProductionSleeper::getId, s -> s));
+
+            List<ProductionSleeper> finalSleepers = new ArrayList<>();
 
             if (gangDto.getSleeperList() != null) {
                 for (ProductionSleeperResponseDto sDto : gangDto.getSleeperList()) {
@@ -575,19 +598,25 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                     }
 
                     sleeper.setSleeperNo(sDto.getSleeperNo());
-                    updatedSleepers.add(sleeper);
+                    sleeper.setSleeperType(gangDto.getSleeperType());
+
+                    finalSleepers.add(sleeper);
                 }
             }
 
             sleeperMap.values().forEach(s -> gang.getSleepers().remove(s));
 
-            gang.setSleepers(updatedSleepers);
-            updatedGangs.add(gang);
+            if (gang.getSleepers() == null) gang.setSleepers(new ArrayList<>());
+            gang.getSleepers().clear();
+            gang.getSleepers().addAll(finalSleepers);
+
+            finalGangs.add(gang);
         }
 
         gangMap.values().forEach(g -> entity.getGangs().remove(g));
 
-        entity.setGangs(updatedGangs);
+        entity.getGangs().clear();
+        entity.getGangs().addAll(finalGangs);
 
         repository.save(entity);
 
