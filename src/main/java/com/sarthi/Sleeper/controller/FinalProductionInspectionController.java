@@ -54,9 +54,9 @@ public class FinalProductionInspectionController {
 
     @GetMapping("/inspection/batch")
     public BatchInspectionDetailDto getBatchInspection(
-            @RequestParam("batchId") Long batchId,  @RequestParam("moduleId") Long moduleId) {
+            @RequestParam("batchId") Long batchId,  @RequestParam("moduleId") Long moduleId, @RequestParam("sleeperType")  String sleeperType) {
 
-        return inspectionService.getBatchInspection(batchId, moduleId);
+        return inspectionService.getBatchInspection(batchId, moduleId,sleeperType);
     }
 
 

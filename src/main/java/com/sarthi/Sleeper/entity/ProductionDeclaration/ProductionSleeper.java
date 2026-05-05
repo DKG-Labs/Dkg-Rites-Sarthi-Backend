@@ -13,6 +13,8 @@ public class ProductionSleeper {
     private Long id;
 
     private String sleeperNo;
+    @Column(name = "sleeper_type")
+    private String sleeperType;
 
     @ManyToOne
     @JoinColumn(name="bench_group_id")

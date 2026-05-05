@@ -103,6 +103,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
                         sleeper.setSleeperNo(sleeperNo);
                         sleeper.setBenchGroup(bench);
+                        sleeper.setSleeperType(benchDto.getSleeperType());
 
                         sleepers.add(sleeper);
                     }
@@ -164,6 +165,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                         sleeper.setSleeperNo(sleeperNo);
 
                         sleeper.setGang(gang);
+                        sleeper.setSleeperType(gangDto.getSleeperType());
 
                         sleepers.add(sleeper);
                     }

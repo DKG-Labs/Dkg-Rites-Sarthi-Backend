@@ -722,7 +722,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
      return dto;
  }*/
     @Override
-    public BatchInspectionDetailDto getBatchInspection(Long batchId, Long moduleId) {
+//    public BatchInspectionDetailDto getBatchInspection(Long batchId, Long moduleId) {
+    public BatchInspectionDetailDto getBatchInspection(Long batchId, Long moduleId, String sleeperType){
 
         ProductionDeclaration declaration =
                 productionDeclarationRepository.findBatchById(batchId);
@@ -730,13 +731,23 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         //  List<ProductionSleeper> sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
         List<ProductionSleeper> sleepers;
 
-        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+      /*  if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
 
             sleepers = productionSleeperRepository.getSleepersByBatch(batchId);
 
         } else { // LONG_LINE
 
             sleepers = productionSleeperRepository.getSleepersFromGang(batchId);
+        }*/
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+
+            sleepers = productionSleeperRepository
+                    .getSleepersByBatchAndType(batchId, sleeperType);
+
+        } else {
+
+            sleepers = productionSleeperRepository
+                    .getSleepersFromGangAndType(batchId, sleeperType);
         }
 
         // Fetch ALL inspection results
@@ -794,7 +805,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         .findRejectedSleeperNos(declaration.getBatchNumber());
 
         //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
-        String sleeperType;
+       /* String sleeperType;
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
 
@@ -803,7 +814,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         } else {
 
             sleeperType = productionSleeperRepository.getLongLineSleeperType(batchId);
-        }
+        }*/
         BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
 
         dto.setBatchId(declaration.getId());

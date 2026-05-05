@@ -18,7 +18,17 @@ JOIN b.chamber c
 JOIN c.declaration d
 WHERE d.id = :batchId
 """)
-    List<ProductionSleeper> getSleepersByBatch(Long batchId); 
+    List<ProductionSleeper> getSleepersByBatch(Long batchId);
+   @Query("""
+SELECT s
+FROM ProductionSleeper s
+JOIN s.benchGroup b
+JOIN b.chamber c
+JOIN c.declaration d
+WHERE d.id = :batchId
+AND b.sleeperType = :sleeperType
+""")
+   List<ProductionSleeper> getSleepersByBatchAndType(Long batchId, String sleeperType);
 
     @Query("""
 SELECT COUNT(s.id)
@@ -111,4 +121,15 @@ WHERE g.declaration.id = :batchId
     String getLongLineSleeperType(Long batchId);
 
     Long countBy();
+
+    @Query("""
+SELECT s
+FROM ProductionSleeper s
+JOIN s.gang g
+WHERE g.declaration.id = :batchId
+AND g.sleeperType = :sleeperType
+""")
+    List<ProductionSleeper> getSleepersFromGangAndType(Long batchId, String sleeperType);
+
+
 }
