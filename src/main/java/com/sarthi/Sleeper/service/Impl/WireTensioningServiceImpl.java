@@ -56,6 +56,7 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         entity.setVendorCode(dto.getVendorCode());
         entity.setPlantId(dto.getPlantId());
         entity.setShift(dto.getShift());
+        entity.setLocation(dto.getLocation());
 
         // ===== SCADA =====
 
@@ -166,6 +167,7 @@ public class WireTensioningServiceImpl implements wireTensioningService {
 
         entity.getScadaRecords().clear();
         entity.getManualRecords().clear();
+        entity.setLocation(dto.getLocation());
 
         entity.setVendorCode(dto.getVendorCode());
         entity.setPlantId(dto.getPlantId());
@@ -310,6 +312,8 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         dto.setWiresPerSleeper(entity.getWiresPerSleeper());
         dto.setTargetLoadKn(entity.getTargetLoadKn());
 
+        dto.setLocation(entity.getLocation());
+        dto.setLocation(entity.getLocation());
         dto.setShift(entity.getShift());
         dto.setPlantId(entity.getPlantId());
         dto.setVendorCode(entity.getVendorCode());
@@ -471,6 +475,7 @@ public class WireTensioningServiceImpl implements wireTensioningService {
         dto.setWiresPerSleeper(entity.getWiresPerSleeper());
         dto.setTargetLoadKn(entity.getTargetLoadKn());
 
+        dto.setLocation(entity.getLocation());
         dto.setShift(entity.getShift());
         dto.setPlantId(entity.getPlantId());
         dto.setVendorCode(entity.getVendorCode());

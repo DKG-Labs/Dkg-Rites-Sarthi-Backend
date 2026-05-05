@@ -18,6 +18,7 @@ public class WireTensioningRequestDto {
     private String vendorCode;
     private String plantId;
     private String shift;
+    private String location;
 
 
     private List<WireTensioningScadaDto> scadaRecords;

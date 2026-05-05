@@ -17,6 +17,7 @@ public class WireTensioningResponseDto {
     private String vendorCode;
     private String plantId;
     private String shift;
+    private String location;
 
     private List<WireTensioningScadaDto> scadaRecords;
     private List<WireTensioningManualDto> manualRecords;

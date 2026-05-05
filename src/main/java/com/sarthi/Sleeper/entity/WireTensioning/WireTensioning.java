@@ -49,6 +49,7 @@ public class WireTensioning {
     private String plantId;
     private String shift;
 
+    private String location;
 
 
     @OneToMany(mappedBy = "wireTensioning",

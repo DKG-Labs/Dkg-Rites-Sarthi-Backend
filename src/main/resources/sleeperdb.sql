@@ -1817,5 +1817,13 @@ CREATE TABLE final_inspection_rejections (
         REFERENCES ie_batch_summary(id)
         ON DELETE CASCADE
 );
+/////
 
+
+ALTER TABLE production_sleeper
+ADD COLUMN sleeper_type VARCHAR(50);
+
+
+ALTER TABLE wire_tensioning
+ADD COLUMN location VARCHAR(50);
 
