@@ -50,13 +50,16 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
     @Query("SELECT SUM(pi.qty) FROM PoItem pi WHERE pi.uom = 'Nos.'")
     Long sumQtyByUomNos();
 
-    @Query("SELECT SUM(pi.qty) FROM PoItem pi WHERE pi.uom = 'Mt'")
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi WHERE pi.uom IN ('Mt', 'Mts', 'Mts.')")
     Double sumQtyByUomMt();
 
     @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Nos.'")
     Long sumQtyByItemCatDescrAndUomNos(@Param("itemCatDescr") String itemCatDescr);
 
-    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Mt'")
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Set'")
+    Long sumQtyByItemCatDescrAndUomSet(@Param("itemCatDescr") String itemCatDescr);
+
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom IN ('Mt', 'Mts', 'Mts.')")
     Double sumQtyByItemCatDescrAndUomMt(@Param("itemCatDescr") String itemCatDescr);
 
    // Optional<PoItem> findByPoHeader_PoNoAndItemSrNo(String poNo, String srNo);
