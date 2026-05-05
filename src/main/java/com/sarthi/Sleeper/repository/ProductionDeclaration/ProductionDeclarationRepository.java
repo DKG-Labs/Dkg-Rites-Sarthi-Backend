@@ -44,7 +44,7 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
      * """)
      * List<BatchTestingListResponseDto> getAllBatchTesting();
      */
-    @Query("""
+  /*  @Query("""
             SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
             d.id,
             d.batchNumber,
@@ -65,28 +65,50 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
             WHERE w.status = 'Completed'
             GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId
             """)
+    List<BatchTestingListResponseDto> getAllBatchTesting();*/
+    @Query("""
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+b.sleeperType,
+d.totalCastedSleepers,
+COUNT(s.id),
+0.0,
+'Pending',
+null,
+d.plantId
+)
+FROM ProductionDeclaration d
+JOIN d.chambers c
+JOIN c.benchGroups b
+JOIN b.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON CAST(w.requestId as long) = d.id
+WHERE w.status = 'Completed'
+GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId
+""")
     List<BatchTestingListResponseDto> getAllBatchTesting();
 
     @Query("""
-            SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
-            d.id,
-            d.batchNumber,
-            g.sleeperType,
-            d.totalCastedSleepers,
-            COUNT(s.id),
-            0.0,
-            'Pending',
-            null,
-            d.plantId
-            )
-            FROM ProductionDeclaration d
-            JOIN d.gangs g
-            JOIN g.sleepers s
-            JOIN SleeperWorkflowTransaction w
-                 ON w.requestId = CAST(d.id as string)
-            WHERE w.status = 'Completed'
-            GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers, d.plantId
-            """)
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+g.sleeperType,
+d.totalCastedSleepers,
+COUNT(s.id),
+0.0,
+'Pending',
+null,
+d.plantId
+)
+FROM ProductionDeclaration d
+JOIN d.gangs g
+JOIN g.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON CAST(w.requestId as long) = d.id
+WHERE w.status = 'Completed'
+GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId
+""")
     List<BatchTestingListResponseDto> getLongLineBatchTesting();
 
     @Query("""
