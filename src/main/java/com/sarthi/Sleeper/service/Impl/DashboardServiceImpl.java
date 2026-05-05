@@ -531,4 +531,32 @@ public class DashboardServiceImpl implements DashboardService {
 
         }).toList();
     }
+
+    public List<MprDTO> getMpr(LocalDate startDate, LocalDate endDate) {
+
+        List<MprProjection> data = inspectionCallRepository.getMprData(startDate, endDate);
+
+        AtomicInteger counter = new AtomicInteger(1);
+
+        return data.stream().map(d -> {
+
+            int poQty = d.getPoQty() != null ? d.getPoQty() : 0;
+            int totalDispatched = d.getTotalDispatched() != null ? d.getTotalDispatched() : 0;
+
+            int balance = poQty - totalDispatched;
+
+            return new MprDTO(
+                    counter.getAndIncrement(),
+                    d.getRly(),
+                    d.getPoNo(),
+                    d.getManufacturer(),
+                    poQty,
+                    d.getDispatchedInPeriod(),
+                    totalDispatched,
+                    balance
+            );
+
+        }).toList();
+    }
+
 }

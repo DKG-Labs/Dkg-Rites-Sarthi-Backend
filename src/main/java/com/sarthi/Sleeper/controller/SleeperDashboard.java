@@ -172,5 +172,24 @@ public class SleeperDashboard {
         );
     }
 
+    @GetMapping("/mpr")
+    public ResponseEntity<Object> getMpr(
+            @RequestParam String startDate,
+            @RequestParam String endDate
+    ) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start = LocalDate.parse(startDate, formatter);
+        LocalDate end = LocalDate.parse(endDate, formatter);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getMpr(start, end)
+                ),
+                HttpStatus.OK
+        );
+    }
+
 
 }

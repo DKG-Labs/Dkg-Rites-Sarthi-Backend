@@ -34,4 +34,6 @@ public interface DashboardService {
     public List<Level2DTO> getLevel2(String poNo);
 
     public List<Level1DTO> getLevel1(LocalDate startDate, LocalDate endDate);
+
+    public List<MprDTO> getMpr(LocalDate startDate, LocalDate endDate);
 }

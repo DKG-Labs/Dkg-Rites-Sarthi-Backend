@@ -1,6 +1,7 @@
 package com.sarthi.Sleeper.repository.FinalInspectionRepository;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level1Projection;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.MprProjection;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -87,4 +88,34 @@ ORDER BY ph.po_date DESC
 """, nativeQuery = true)
     List<Level1Projection> getLevel1Data(LocalDate startDate, LocalDate endDate);
 
+    @Query(value = """
+
+SELECT 
+    ph.rly_cd AS rly,
+    ph.po_no AS poNo,
+    ph.vendor_details AS manufacturer,
+
+    -- 🔹 PO QTY
+    (SELECT COALESCE(SUM(pi.qty),0)
+     FROM po_item pi
+     WHERE pi.po_header_id = ph.id) AS poQty,
+
+    -- 🔹 DISPATCHED IN DATE RANGE
+    (SELECT COALESCE(SUM(fci.accepted_qty),0)
+     FROM final_call_inspection_header fci
+     WHERE fci.rly_po_no = ph.po_no
+       AND fci.call_date BETWEEN :startDate AND :endDate
+    ) AS dispatchedInPeriod,
+
+    -- 🔹 TOTAL DISPATCHED
+    (SELECT COALESCE(SUM(fci.accepted_qty),0)
+     FROM final_call_inspection_header fci
+     WHERE fci.rly_po_no = ph.po_no
+    ) AS totalDispatched
+
+FROM po_header ph
+WHERE ph.item_cat_descr = 'PSC Mainline Sleeper'
+
+""", nativeQuery = true)
+    List<MprProjection> getMprData(LocalDate startDate, LocalDate endDate);
 }

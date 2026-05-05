@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 @Builder
 public class FinalCallInspectionHeader {
 
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
