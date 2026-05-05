@@ -1775,6 +1775,8 @@ public class reportsImpl implements reports {
                 dto.setSleeperPoIssued(poHeaderRepository.countPoByItemCatDescr("PSC Mainline Sleeper"));
                 Long sleeperQty = getSleeperPoQuantityNos();
                 dto.setSleeperPoQuantityNos(sleeperQty != null ? sleeperQty : 0L);
+                Long sleeperSetQty = getSleeperPoQuantitySet();
+                dto.setSleeperPoQuantitySet(sleeperSetQty != null ? sleeperSetQty : 0L);
 
                 return dto;
         }
@@ -2243,5 +2245,9 @@ public class reportsImpl implements reports {
 
         private Long getSleeperPoQuantityNos() {
                 return poItemRepository.sumQtyByItemCatDescrAndUomNos("PSC Mainline Sleeper");
+        }
+
+        private Long getSleeperPoQuantitySet() {
+                return poItemRepository.sumQtyByItemCatDescrAndUomSet("PSC Mainline Sleeper");
         }
 }

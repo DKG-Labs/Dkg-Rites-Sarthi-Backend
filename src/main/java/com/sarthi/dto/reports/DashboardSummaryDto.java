@@ -18,4 +18,5 @@ public class DashboardSummaryDto {
     private double rmRejectionPercentage;
     private long sleeperPoIssued;
     private long sleeperPoQuantityNos;
+    private long sleeperPoQuantitySet;
 }
