@@ -27,6 +27,9 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     List<ProcessLineFinalResult> findByInspectionCallNoAndDateOfInspectionAndShiftAndCreatedBy(
             String inspectionCallNo, java.time.LocalDate dateOfInspection, String shift, String createdBy);
 
+    List<ProcessLineFinalResult> findByInspectionCallNoAndShiftAndLotNumberAndLineNoAndCreatedBy(
+            String inspectionCallNo, String shift, String lotNumber, String lineNo, String createdBy);
+
     List<ProcessLineFinalResult> findByInspectionCallNoAndCreatedBy(String inspectionCallNo, String createdBy);
 
     /**

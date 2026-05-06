@@ -29,6 +29,15 @@ public class ProcessStaticPeriodicCheck {
     @Column(name = "line_no", nullable = false, length = 20)
     private String lineNo;
 
+    @Column(name = "shift", length = 10)
+    private String shift;
+
+    @Column(name = "lot_no", length = 50)
+    private String lotNo;
+
+    @Column(name = "date_of_inspection")
+    private java.time.LocalDate dateOfInspection;
+
     // Equipment verification checks
     @Column(name = "shearing_press_check")
     private Boolean shearingPressCheck = false;
@@ -44,6 +53,9 @@ public class ProcessStaticPeriodicCheck {
 
     @Column(name = "forging_die_check")
     private Boolean forgingDieCheck = false;
+
+    @Column(name = "oil_tank_counter_value")
+    private Integer oilTankCounterValue;
 
     @Column(name = "all_checks_passed")
     private Boolean allChecksPassed = false;

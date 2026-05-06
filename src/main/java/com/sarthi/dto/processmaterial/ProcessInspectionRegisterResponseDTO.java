@@ -16,6 +16,11 @@ public class ProcessInspectionRegisterResponseDTO {
     private String inspectingEngineerName;
     private String rawMaterialIcNoAndDate;
     private String ercType;
+    private String heatNo;
+    private String mfgName;
+    private String callNoAndDate;
+    private String lineNo;
+    private String remarks;
 
     // Hourly Labels (e.g., ["06:00-07:00", "07:00-08:00", ...])
     private List<String> hourLabels;

@@ -37,7 +37,22 @@ public class ProcessStaticPeriodicCheckServiceImpl implements ProcessStaticPerio
     @Override
     @Transactional
     public ProcessStaticPeriodicCheckDTO save(ProcessStaticPeriodicCheckDTO dto) {
-        ProcessStaticPeriodicCheck entity = toEntity(dto);
+        Optional<ProcessStaticPeriodicCheck> existing = repository.findByInspectionCallNoAndShiftAndLineNoAndLotNoAndCreatedByAndDateOfInspection(
+                dto.getInspectionCallNo(), dto.getShift(), dto.getLineNo(), dto.getLotNo(), dto.getCreatedBy(), dto.getDateOfInspection());
+        
+        ProcessStaticPeriodicCheck entity;
+        if (existing.isPresent()) {
+            entity = existing.get();
+            // Update fields manually or with BeanUtils excluding ID/CreatedAt
+            Long id = entity.getId();
+            java.time.LocalDateTime createdAt = entity.getCreatedAt();
+            BeanUtils.copyProperties(dto, entity);
+            entity.setId(id);
+            entity.setCreatedAt(createdAt);
+        } else {
+            entity = toEntity(dto);
+        }
+        
         ProcessStaticPeriodicCheck saved = repository.save(entity);
         return toDTO(saved);
     }

@@ -10,6 +10,7 @@ import com.sarthi.repository.InspectionCallDetailsRepository;
 import com.sarthi.repository.MainPoInformationRepository;
 import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.repository.processmaterial.*;
+import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.ProcessRegisterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -60,161 +61,211 @@ public class ProcessRegisterServiceImpl implements ProcessRegisterService {
     private com.sarthi.repository.InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
 
     @Autowired
-    private com.sarthi.repository.rawmaterial.InspectionCallRepository inspectionCallRepository;
+    private InspectionCallRepository inspectionCallRepository;
+
+    @Autowired
+    private ProcessStaticPeriodicCheckRepository staticPeriodicCheckRepository;
 
     @Override
     public List<ProcessInspectionRegisterResponseDTO> getProcessInspectionRegister(String callNo, String date, String shift, String createdBy) {
         
         // 1. Fetch available lots/lines for this call, date, shift, and user
         List<ProcessLineFinalResult> finalResults;
-        
         if (date != null && !date.isEmpty() && shift != null && !shift.isEmpty()) {
             LocalDate inspectionDate = LocalDate.parse(date);
-            finalResults = lineFinalResultRepository
-                    .findByInspectionCallNoAndDateOfInspectionAndShiftAndCreatedBy(callNo, inspectionDate, shift, createdBy);
+            finalResults = lineFinalResultRepository.findByInspectionCallNoAndDateOfInspectionAndShiftAndCreatedBy(callNo, inspectionDate, shift, createdBy);
         } else {
             finalResults = lineFinalResultRepository.findByInspectionCallNoAndCreatedBy(callNo, createdBy);
         }
 
+        if (finalResults.isEmpty()) return new ArrayList<>();
+
+        // 2. Performance Optimization: Fetch Common Data ONCE (N+1 Prevention)
+        Optional<MainPoInformation> poInfo = mainPoRepository.findByInspectionCallNo(callNo);
+        String poNoAndDateStr = poInfo.map(po -> po.getPoNo() + " Date- " + (po.getPoDate() != null ? po.getPoDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : "")).orElse("");
+        String mfgNameStr = poInfo.map(MainPoInformation::getVendorName).orElse("");
+
+        String engineerName = createdBy;
+        try {
+            Integer userId = Integer.parseInt(createdBy);
+            engineerName = userMasterRepository.findByUserId(userId).map(UserMaster::getFullName).orElse(createdBy);
+        } catch(NumberFormatException e) {
+            engineerName = userMasterRepository.findByUserName(createdBy).map(UserMaster::getFullName).orElse(createdBy);
+        }
+
+        Optional<InspectionCallDetails> callDetails = callDetailsRepository.findFirstByInspectionCallNoOrderByIdDesc(callNo);
+        String rmIcNumber = callDetails.map(InspectionCallDetails::getRmIcNumber).orElse("-");
+        
+        Optional<com.sarthi.entity.InspectionCompleteDetails> completeDetails = inspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo);
+        String icDate = completeDetails.map(c -> c.getCreatedOn() != null ? c.getCreatedOn().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : "").orElse("-");
+        String rawMaterialIcNoAndDate = rmIcNumber + " Date-" + icDate;
+
+        Optional<com.sarthi.entity.rawmaterial.InspectionCall> icEntity = inspectionCallRepository.findByIcNumber(callNo);
+        String ercType = icEntity.map(com.sarthi.entity.rawmaterial.InspectionCall::getErcType).orElse("-");
+        String callDateStr = icEntity.flatMap(ic -> Optional.ofNullable(ic.getCreatedAt())).map(d -> d.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))).orElse("");
+        String callNoAndDateStr = callNo + (callDateStr.isEmpty() ? "" : " Date-" + callDateStr);
+
+            // 3. Batch Fetch All Process Data for the entire Call (Extreme Performance Boost)
+            List<ProcessShearingData> allShearing = shearingRepository.findByInspectionCallNo(callNo);
+            List<ProcessTurningData> allTurning = turningRepository.findByInspectionCallNo(callNo);
+            List<ProcessMpiData> allMpi = mpiRepository.findByInspectionCallNo(callNo);
+            List<ProcessQuenchingData> allQuenching = quenchingRepository.findByInspectionCallNo(callNo);
+            List<ProcessTemperingData> allTempering = temperingRepository.findByInspectionCallNo(callNo);
+            List<ProcessTestingFinishingData> allFinishing = testingFinishingRepository.findByInspectionCallNo(callNo);
+            List<ProcessFinalCheckData> allFinalCheck = finalCheckRepository.findByInspectionCallNo(callNo);
+
+        // Index data by shift|lot|user|date for strict O(1) lookup
+        // We use .toLocalDate() to ensure "same day" matching as requested
+        Map<String, List<ProcessShearingData>> shearingMap = allShearing.stream().collect(Collectors.groupingBy(d -> 
+            d.getShift() + "|" + d.getLotNo() + "|" + d.getCreatedBy() + "|" + (d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "")));
+        Map<String, List<ProcessTurningData>> turningMap = allTurning.stream().collect(Collectors.groupingBy(d -> 
+            d.getShift() + "|" + d.getLotNo() + "|" + d.getCreatedBy() + "|" + (d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "")));
+        Map<String, List<ProcessMpiData>> mpiMap = allMpi.stream().collect(Collectors.groupingBy(d -> 
+            d.getShift() + "|" + d.getLotNo() + "|" + d.getCreatedBy() + "|" + (d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "")));
+        Map<String, List<ProcessQuenchingData>> quenchingMap = allQuenching.stream().collect(Collectors.groupingBy(d -> 
+            d.getShift() + "|" + d.getLotNo() + "|" + d.getCreatedBy() + "|" + (d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "")));
+        Map<String, List<ProcessTemperingData>> temperingMap = allTempering.stream().collect(Collectors.groupingBy(d -> 
+            d.getShift() + "|" + d.getLotNo() + "|" + d.getCreatedBy() + "|" + (d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "")));
+        Map<String, List<ProcessTestingFinishingData>> finishingMap = allFinishing.stream().collect(Collectors.groupingBy(d -> 
+            d.getShift() + "|" + d.getLotNo() + "|" + d.getCreatedBy() + "|" + (d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "")));
+        Map<String, List<ProcessFinalCheckData>> finalCheckMap = allFinalCheck.stream().collect(Collectors.groupingBy(d -> 
+            d.getShift() + "|" + d.getLotNo() + "|" + d.getCreatedBy() + "|" + (d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "")));
+
         List<ProcessInspectionRegisterResponseDTO> responseList = new ArrayList<>();
 
         for (ProcessLineFinalResult result : finalResults) {
+            LocalDate resultDate = result.getDateOfInspection() != null ? result.getDateOfInspection() : (result.getCreatedAt() != null ? result.getCreatedAt().toLocalDate() : null);
+            String lotKey = result.getShift() + "|" + result.getLotNumber() + "|" + result.getCreatedBy() + "|" + (resultDate != null ? resultDate : "");
             ProcessInspectionRegisterResponseDTO dto = new ProcessInspectionRegisterResponseDTO();
-            String dateStr = result.getDateOfInspection() != null 
-                ? result.getDateOfInspection().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))
-                : (result.getCreatedAt() != null ? result.getCreatedAt().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : "");
-            dto.setDate(dateStr);
+            
+            // Populate Static Data
+            dto.setDate(result.getDateOfInspection() != null ? result.getDateOfInspection().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : (result.getCreatedAt() != null ? result.getCreatedAt().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : ""));
             dto.setShift(result.getShift());
             dto.setLotNo(result.getLotNumber());
             dto.setErcProducedDuringShift(result.getTotalManufactured());
-
-            // Fetch PO Info
-            Optional<MainPoInformation> poInfo = mainPoRepository.findByInspectionCallNo(callNo);
-            if (poInfo.isPresent()) {
-                String poDateStr = poInfo.get().getPoDate() != null ? poInfo.get().getPoDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : "";
-                dto.setPoNoAndDate(poInfo.get().getPoNo() + " & " + poDateStr);
-            }
-
-            // Fetch Inspecting Engineer Name
-            try {
-                Integer userId = Integer.parseInt(createdBy);
-                Optional<UserMaster> user = userMasterRepository.findByUserId(userId);
-                dto.setInspectingEngineerName(user.map(UserMaster::getFullName).orElse(createdBy));
-            } catch(NumberFormatException e) {
-                Optional<UserMaster> user = userMasterRepository.findByUserName(createdBy);
-                dto.setInspectingEngineerName(user.map(UserMaster::getFullName).orElse(createdBy));
-            }
-
-            // Fetch RM IC Info & Date
-            Optional<InspectionCallDetails> callDetails = callDetailsRepository.findFirstByInspectionCallNoOrderByIdDesc(callNo);
-            String rmIcNumber = callDetails.map(InspectionCallDetails::getRmIcNumber).orElse("-");
-            
-            Optional<com.sarthi.entity.InspectionCompleteDetails> completeDetails = inspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo);
-            String icDate = completeDetails.map(c -> c.getCreatedOn() != null ? c.getCreatedOn().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : "").orElse("-");
-            
-            dto.setRawMaterialIcNoAndDate(rmIcNumber + " & " + icDate);
-            dto.setCaseNoIbs(callNo); // Using Call No as Case No if not specifically stored
-
-            // Fetch ERC Type from Inspection Call
-            Optional<com.sarthi.entity.rawmaterial.InspectionCall> icDetails = inspectionCallRepository.findByIcNumber(callNo);
-            dto.setErcType(icDetails.map(com.sarthi.entity.rawmaterial.InspectionCall::getErcType).orElse("-"));
-
-            // Hour Labels
+            dto.setPoNoAndDate(poNoAndDateStr);
+            dto.setMfgName(mfgNameStr);
+            dto.setInspectingEngineerName(engineerName);
+            dto.setRawMaterialIcNoAndDate(rawMaterialIcNoAndDate);
+            dto.setCaseNoIbs(callNo);
+            dto.setErcType(ercType);
+            dto.setCallNoAndDate(callNoAndDateStr);
+            dto.setHeatNo(result.getHeatNumber());
+            dto.setLineNo(result.getLineNo());
+            dto.setRemarks(result.getAnnexureRemarks());
             dto.setHourLabels(getHourLabelsForShift(result.getShift()));
 
-            // Fetch all process data for this lot
-            String currentShift = result.getShift();
-            List<ProcessShearingData> shearingData = shearingRepository.findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(callNo, currentShift, result.getLotNumber(), createdBy);
-            List<ProcessTurningData> turningData = turningRepository.findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(callNo, currentShift, result.getLotNumber(), createdBy);
-            List<ProcessMpiData> mpiData = mpiRepository.findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(callNo, currentShift, result.getLotNumber(), createdBy);
-            List<ProcessQuenchingData> quenchingData = quenchingRepository.findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(callNo, currentShift, result.getLotNumber(), createdBy);
-            List<ProcessTemperingData> temperingData = temperingRepository.findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(callNo, currentShift, result.getLotNumber(), createdBy);
-            List<ProcessTestingFinishingData> finishingData = testingFinishingRepository.findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(callNo, currentShift, result.getLotNumber(), createdBy);
-            List<ProcessFinalCheckData> finalCheckData = finalCheckRepository.findByInspectionCallNoAndShiftAndLotNoAndCreatedBy(callNo, currentShift, result.getLotNumber(), createdBy);
+            // Get pre-fetched data for this specific lot
+            List<ProcessShearingData> lotShearing = shearingMap.getOrDefault(lotKey, Collections.emptyList());
+            List<ProcessTurningData> lotTurning = turningMap.getOrDefault(lotKey, Collections.emptyList());
+            List<ProcessMpiData> lotMpi = mpiMap.getOrDefault(lotKey, Collections.emptyList());
+            List<ProcessQuenchingData> lotQuenching = quenchingMap.getOrDefault(lotKey, Collections.emptyList());
+            List<ProcessTemperingData> lotTempering = temperingMap.getOrDefault(lotKey, Collections.emptyList());
+            List<ProcessTestingFinishingData> lotFinishing = finishingMap.getOrDefault(lotKey, Collections.emptyList());
+            List<ProcessFinalCheckData> lotFinalCheck = finalCheckMap.getOrDefault(lotKey, Collections.emptyList());
 
             List<ProcessInspectionRegisterRowDTO> rows = new ArrayList<>();
 
-            // Row 1: Shearing (Length cut bars)
             rows.add(createRow(1, "Checking of Length of cut bars, random (3 bars/Hr.)", 
-                mapHourly(shearingData, d -> formatReadings(d.getLengthCutBar1(), d.getLengthCutBar2(), d.getLengthCutBar3())),
+                mapHourly(lotShearing, d -> formatReadings(d.getLengthCutBar1(), d.getLengthCutBar2(), d.getLengthCutBar3())),
                 result.getShearingRejected() != null ? result.getShearingRejected() : 0));
 
-            // Row 2: Turning Length (Straight & Taper Length)
             rows.add(createRow(2, "Turning Length, random (3 bars/Hr.)", 
-                mapHourly(turningData, d -> formatCombinedReadings(d.getStraightLength1(), d.getTaperLength1(), d.getStraightLength2(), d.getTaperLength2(), d.getStraightLength3(), d.getTaperLength3())),
-                sumRejected(turningData, d -> {
-                    int rej = 0;
-                    if (d.getParallelLengthRejected() != null) rej += d.getParallelLengthRejected();
-                    if (d.getFullTurningLengthRejected() != null) rej += d.getFullTurningLengthRejected();
-                    return rej;
-                })));
+                mapHourly(lotTurning, d -> formatCombinedReadings(d.getStraightLength1(), d.getTaperLength1(), d.getStraightLength2(), d.getTaperLength2(), d.getStraightLength3(), d.getTaperLength3())),
+                sumRejected(lotTurning, d -> (d.getParallelLengthRejected() != null ? d.getParallelLengthRejected() : 0) + (d.getFullTurningLengthRejected() != null ? d.getFullTurningLengthRejected() : 0))));
 
-            // Row 3: Turning Dia
             rows.add(createRow(3, "Turning Dia, random (3 bars/Hr.)", 
-                mapHourly(turningData, d -> formatReadings(d.getDia1(), d.getDia2(), d.getDia3())),
-                sumRejected(turningData, d -> d.getTurningDiaRejected() != null ? d.getTurningDiaRejected() : 0)));
+                mapHourly(lotTurning, d -> formatReadings(d.getDia1(), d.getDia2(), d.getDia3())),
+                sumRejected(lotTurning, d -> d.getTurningDiaRejected() != null ? d.getTurningDiaRejected() : 0)));
 
-            // Row 4: MPI Test
             rows.add(createRow(4, "MPI Test, random (3 bars/Hr.)", 
-                mapHourly(mpiData, d -> formatReadings(d.getTestResult1(), d.getTestResult2(), d.getTestResult3())),
+                mapHourly(lotMpi, d -> formatReadings(d.getTestResult1(), d.getTestResult2(), d.getTestResult3())),
                 result.getMpiRejected() != null ? result.getMpiRejected() : 0));
 
-            // Row 5: Forging Temp (N/A)
-            rows.add(createRow(5, "Forging Temp. (N/A)", mapHourly(null, null), 
-                result.getForgingRejected() != null ? result.getForgingRejected() : 0));
+            rows.add(createRow(5, "Forging Temp. (N/A)", mapHourly(null, null), result.getForgingRejected() != null ? result.getForgingRejected() : 0));
 
-            // Row 6: Checking of Die (N/A for now or map if data exists)
-            rows.add(createRow(6, "Checking of Die (100%)", mapHourly(null, null), "-"));
+            // Fetch static periodic check to determine Row 6 display
+            // Try precise composite key first; fall back to callNo+lineNo for older records without shift/lot/date
+            Optional<ProcessStaticPeriodicCheck> staticCheck = staticPeriodicCheckRepository
+                .findByInspectionCallNoAndShiftAndLineNoAndLotNoAndCreatedByAndDateOfInspection(
+                    callNo, result.getShift(), result.getLineNo(), result.getLotNumber(), result.getCreatedBy(), resultDate
+                );
+            if (!staticCheck.isPresent()) {
+                staticCheck = staticPeriodicCheckRepository
+                    .findFirstByInspectionCallNoAndLineNoOrderByCreatedAtDesc(callNo, result.getLineNo());
+            }
+            
+            String dieCheckRemark = "-";
+            if (staticCheck.isPresent()) {
+                Boolean isDieCheckOk = staticCheck.get().getForgingDieCheck();
+                if (isDieCheckOk != null && isDieCheckOk) {
+                    dieCheckRemark = "OK";
+                } else if (isDieCheckOk != null && !isDieCheckOk) {
+                    dieCheckRemark = "NOT OK";
+                }
+            }
+            rows.add(createRow(6, "Checking of Die (100%)", mapHourly(null, null), dieCheckRemark));
 
-            // Row 7: Quenching Temp & Duration
             rows.add(createRow(7, "Quenching Temp & Duration (100%)", 
-                mapHourly(quenchingData, d -> formatCombinedReadings(d.getQuenchingTemperature1(), d.getQuenchingDuration1())),
-                sumRejected(quenchingData, d -> {
-                    int rej = 0;
-                    if (d.getQuenchingTemperatureRejected() != null) rej += d.getQuenchingTemperatureRejected();
-                    if (d.getQuenchingDurationRejected() != null) rej += d.getQuenchingDurationRejected();
-                    return rej;
-                })));
+                mapHourly(lotQuenching, d -> formatCombinedReadings(d.getQuenchingTemperature1(), d.getQuenchingDuration1())),
+                sumRejected(lotQuenching, d -> (d.getQuenchingTemperatureRejected() != null ? d.getQuenchingTemperatureRejected() : 0) + (d.getQuenchingDurationRejected() != null ? d.getQuenchingDurationRejected() : 0))));
 
-            // Row 8: Quenching Hardness
             rows.add(createRow(8, "Quenching Hardness (2 ERCs/Hr.)", 
-                mapHourly(quenchingData, d -> formatReadings(d.getQuenchingHardness1(), d.getQuenchingHardness2())),
+                mapHourly(lotQuenching, d -> formatReadings(d.getQuenchingHardness1(), d.getQuenchingHardness2())),
                 result.getHardnessCheckRejected() != null ? result.getHardnessCheckRejected() : 0));
 
-            // Row 9: Tempering Temp & Duration
             rows.add(createRow(9, "Tempering Temp & Duration (100%)", 
-                mapHourly(temperingData, d -> formatCombinedReadings(d.getTemperingTemperature1(), d.getTemperingDuration1())),
-                sumRejected(temperingData, d -> {
-                    int rej = 0;
-                    if (d.getTemperingTemperatureRejected() != null) rej += d.getTemperingTemperatureRejected();
-                    if (d.getTemperingDurationRejected() != null) rej += d.getTemperingDurationRejected();
-                    return rej;
-                })));
+                mapHourly(lotTempering, d -> formatCombinedReadings(d.getTemperingTemperature1(), d.getTemperingDuration1())),
+                sumRejected(lotTempering, d -> (d.getTemperingTemperatureRejected() != null ? d.getTemperingTemperatureRejected() : 0) + (d.getTemperingDurationRejected() != null ? d.getTemperingDurationRejected() : 0))));
 
-            // Row 10: Dimension Check
             rows.add(createRow(10, "Dimension Check (2 ERCs/Hr.)", 
-                mapHourly(quenchingData, d -> formatReadings(d.getBoxGauge1(), d.getFallingGauge1())),
+                mapHourly(lotQuenching, d -> formatReadings(d.getBoxGauge1(), d.getFallingGauge1())),
                 result.getDimensionsCheckRejected() != null ? result.getDimensionsCheckRejected() : 0));
 
-            // Row 11: Hardness of finished ERC
             rows.add(createRow(11, "Hardness of finished ERC (2 ERCs/Hr.)", 
-                mapHourly(finalCheckData, d -> formatReadings(d.getTemperingHardness1(), d.getTemperingHardness2())),
+                mapHourly(lotFinalCheck, d -> formatReadings(d.getTemperingHardness1(), d.getTemperingHardness2())),
                 result.getHardnessCheckRejected() != null ? result.getHardnessCheckRejected() : 0));
 
-            // Row 12: Toe load of finished ERC
             rows.add(createRow(12, "Toe load of finished ERC (2 ERCs/Hr.)", 
-                mapHourly(finishingData, d -> formatReadings(d.getToeLoad1(), d.getToeLoad2())),
-                sumRejected(finishingData, ProcessTestingFinishingData::getToeLoadRejected)));
+                mapHourly(lotFinishing, d -> formatReadings(d.getToeLoad1(), d.getToeLoad2())),
+                sumRejected(lotFinishing, ProcessTestingFinishingData::getToeLoadRejected)));
 
-            // Row 13: Confirmation of yellow and green paint
-            rows.add(createRow(13, "Confirmation of yellow and green paint", 
-                mapHourly(finishingData, d -> formatReadings(d.getPaintIdentification1(), d.getPaintIdentification2())),
-                result.getVisualCheckRejected() != null ? result.getVisualCheckRejected() : 0));
+            // Row 13 Paint Logic using pre-fetched lists
+            List<String> row13Data = new ArrayList<>();
+            for (int i = 1; i <= 8; i++) {
+                final int hIdxFinal = i;
+                final double minToe = ("MK-III".equalsIgnoreCase(ercType)) ? 850 : (("MK-V".equalsIgnoreCase(ercType)) ? 1200 : 0);
+                final double maxToe = ("MK-III".equalsIgnoreCase(ercType)) ? 1100 : (("MK-V".equalsIgnoreCase(ercType)) ? 1500 : 0);
 
+                // Pick the LATEST record for this hour to match the grid display exactly
+                Optional<ProcessQuenchingData> qd = lotQuenching.stream().filter(d -> Integer.valueOf(hIdxFinal).equals(getHourIndex(d))).reduce((first, second) -> second);
+                Optional<ProcessFinalCheckData> fcd = lotFinalCheck.stream().filter(d -> Integer.valueOf(hIdxFinal).equals(getHourIndex(d))).reduce((first, second) -> second);
+                Optional<ProcessTestingFinishingData> tfd = lotFinishing.stream().filter(d -> Integer.valueOf(hIdxFinal).equals(getHourIndex(d))).reduce((first, second) -> second);
+
+                boolean hasHourData = (qd.isPresent() && (qd.get().getBoxGauge1() != null || qd.get().getFallingGauge1() != null)) ||
+                                      (fcd.isPresent() && (fcd.get().getTemperingHardness1() != null || fcd.get().getTemperingHardness2() != null)) ||
+                                      (tfd.isPresent() && (tfd.get().getToeLoad1() != null || tfd.get().getToeLoad2() != null));
+
+                if (!hasHourData) {
+                    row13Data.add("-");
+                } else {
+                    boolean isRejected = false;
+                    if (qd.isPresent() && (isTextRejected(qd.get().getBoxGauge1()) || isTextRejected(qd.get().getFallingGauge1()))) isRejected = true;
+                    if (!isRejected && fcd.isPresent() && (isOutOfRange(fcd.get().getTemperingHardness1(), 40.0, 44.0) || isOutOfRange(fcd.get().getTemperingHardness2(), 40.0, 44.0))) isRejected = true;
+                    if (!isRejected && tfd.isPresent() && minToe > 0 && (isOutOfRange(tfd.get().getToeLoad1(), minToe, maxToe) || isOutOfRange(tfd.get().getToeLoad2(), minToe, maxToe))) isRejected = true;
+
+                    if (isRejected) row13Data.add("Red");
+                    else if ("MK-III".equalsIgnoreCase(ercType)) row13Data.add("Yellow");
+                    else if ("MK-V".equalsIgnoreCase(ercType)) row13Data.add("Green");
+                    else row13Data.add("-");
+                }
+            }
+
+            int row13RedCount = (int) row13Data.stream().filter("Red"::equals).count();
+            rows.add(createRow(13, "Confirmation of yellow and green paint", row13Data, row13RedCount));
             dto.setRows(rows);
             responseList.add(dto);
         }
-
         return responseList;
     }
 
@@ -370,5 +421,46 @@ public class ProcessRegisterServiceImpl implements ProcessRegisterService {
         }
         // Default to Shift 1 (06:00 - 14:00)
         return Arrays.asList("06:00-07:00", "07:00-08:00", "08:00-09:00", "09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00");
+    }
+
+    @Override
+    public void updateRemarks(String callNo, String shift, String lineNo, String lotNo, String createdBy, String remarks) {
+        List<ProcessLineFinalResult> results = lineFinalResultRepository.findByInspectionCallNoAndShiftAndLotNumberAndLineNoAndCreatedBy(
+            callNo, shift, lotNo, lineNo, createdBy
+        );
+        
+        if (!results.isEmpty()) {
+            ProcessLineFinalResult result = results.get(0);
+            result.setAnnexureRemarks(remarks);
+            lineFinalResultRepository.save(result);
+        }
+    }
+
+    private boolean isTextRejected(String val) {
+        if (val == null || val.trim().isEmpty() || val.equals("-")) return false;
+        String v = val.trim().toUpperCase();
+        if (v.equals("OK") || v.equals("ACCEPTED") || v.equals("PASS")) return false;
+        // If it looks like a number, use range logic (handled elsewhere) or assume OK if positive
+        try {
+            double d = Double.parseDouble(v);
+            return d <= 0; // Negative or 0 might mean failed depending on context, but usually numbers here are measurements
+        } catch (Exception e) {
+            // If it's some other text like "REJECTED" or "FAIL", it's a rejection
+            return v.contains("REJECT") || v.contains("FAIL") || v.contains("NOT OK");
+        }
+    }
+
+    private boolean isOutOfRange(Object val, double min, double max) {
+        if (val == null) return false;
+        try {
+            double d;
+            if (val instanceof BigDecimal) d = ((BigDecimal) val).doubleValue();
+            else d = Double.parseDouble(val.toString());
+            
+            if (d == 0) return false; // Assume 0 means not entered
+            return d < min || d > max;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

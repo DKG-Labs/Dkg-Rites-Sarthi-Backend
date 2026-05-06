@@ -188,6 +188,9 @@ public class ProcessLineFinalResult {
     @Column(name = "remarks", length = 1000)
     private String remarks;
 
+    @Column(name = "annexure_remarks", length = 1000)
+    private String annexureRemarks;
+
     // Audit fields
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

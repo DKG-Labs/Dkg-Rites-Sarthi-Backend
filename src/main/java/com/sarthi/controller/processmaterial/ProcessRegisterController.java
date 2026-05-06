@@ -66,4 +66,23 @@ public class ProcessRegisterController {
         }
         return ResponseEntity.ok(out);
     }
+
+    @PostMapping("/update-remarks")
+    public ResponseEntity<String> updateRemarks(
+            @RequestParam String callNo,
+            @RequestParam String shift,
+            @RequestParam String lineNo,
+            @RequestParam String lotNo,
+            @RequestParam String remarks,
+            @RequestParam(required = false) String createdBy,
+            Authentication authentication) {
+        
+        String user = createdBy;
+        if (user == null && authentication != null) {
+            user = authentication.getName();
+        }
+        
+        registerService.updateRemarks(callNo, shift, lineNo, lotNo, user, remarks);
+        return ResponseEntity.ok("Remarks updated successfully");
+    }
 }
