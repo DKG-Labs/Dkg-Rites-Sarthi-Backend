@@ -18,4 +18,6 @@ public class SleeperScheduleRequest {
     private String shift;
 
     private Long createdBy;
+
+    private Long updatedBy;
 }

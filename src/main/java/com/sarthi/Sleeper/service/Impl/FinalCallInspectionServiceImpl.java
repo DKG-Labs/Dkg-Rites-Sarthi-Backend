@@ -279,6 +279,30 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
         return mapToResponse(saved);
     }
 
+    public SleeperScheduleRequest update(SleeperScheduleRequest req) {
+
+        SleeperSchedule entity = sleeperScheduleRepository.findByCallNo(req.getCallNo())
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Sleeper Schedule not found with id : " + req.getCallNo()
+                        )
+                ));
+
+        entity.setCallNo(req.getCallNo());
+        entity.setScheduleDate(req.getScheduleDate());
+        entity.setReason(req.getReason());
+
+        entity.setUpdatedBy(req.getUpdatedBy());
+        entity.setUpdatedDate(LocalDateTime.now());
+
+        SleeperSchedule updated = sleeperScheduleRepository.save(entity);
+
+        return mapToResponse(updated);
+    }
+
     private SleeperScheduleRequest mapToResponse(SleeperSchedule entity) {
 
         SleeperScheduleRequest res = new SleeperScheduleRequest();

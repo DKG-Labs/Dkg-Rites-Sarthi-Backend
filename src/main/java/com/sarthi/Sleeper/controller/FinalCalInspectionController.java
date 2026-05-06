@@ -79,4 +79,23 @@ public class FinalCalInspectionController {
         );
     }
 
+    @PutMapping("UpdatescheduleingCall")
+    public ResponseEntity<Object> update(@RequestBody SleeperScheduleRequest request) {
+
+        SleeperScheduleRequest result = service.update(request);
+
+        SleeperTransitionActionReqDto req = new  SleeperTransitionActionReqDto();
+        req.setWorkflowTransitionId(request.getWorkflowTransitionId());
+        req.setAction("RESCHEDULE_CALL");
+        req.setActionBy(request.getUpdatedBy());
+        req.setRequestId(request.getCallNo());
+
+        sleeperWorkflowService.performTransitionAction(req);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.CREATED
+        );
+    }
+
 }

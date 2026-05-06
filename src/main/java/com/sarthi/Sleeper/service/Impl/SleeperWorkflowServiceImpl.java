@@ -426,16 +426,16 @@ public SleeperWorkflowTransactionDto performTransitionAction(
             transition = transitions.get(0);
         } else {
             List<SleeperTransitionMaster> trans = null;
-            if (req.getAction().equalsIgnoreCase("PO_VERIFICATION")) {
+            if (req.getAction().equalsIgnoreCase("PO_VERIFICATION") || req.getAction().equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL") ) {
                 trans =
                         sleeperTransitionMasterRepository
                                 .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
                                         current.getWorkflowId().intValue(),
-                                        getRoleId(current.getCurrentRole()),   // ✅ FIX
+                                        getRoleId(current.getCurrentRole()),
                                         current.getAction()
                                 );
                 transition = trans.stream()
-                        .filter(t -> t.getNextAction().equalsIgnoreCase(req.getAction())) // ✅ FIX
+                        .filter(t -> t.getNextAction().equalsIgnoreCase(req.getAction()))
                         .findFirst()
                         .orElseThrow(() -> new RuntimeException("Transition not configured"));
                 tx.setCurrentRole(current.getNextRole());
@@ -523,6 +523,9 @@ public SleeperWorkflowTransactionDto performTransitionAction(
 
             case "MAIN_IE_SCHEDULE_CALL":
                 return "SCHEDULED";
+
+            case "RESCHEDULE_CALL":
+                return "RESCHEDULE";
 
             case "INITIATE_CALL":
                 return "INITIATED";
