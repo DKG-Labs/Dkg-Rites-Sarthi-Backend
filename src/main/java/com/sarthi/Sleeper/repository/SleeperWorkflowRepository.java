@@ -29,7 +29,7 @@ public interface SleeperWorkflowRepository
     AND t.nextRole = :roleName
 """)
     List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName); */
-   @Query("""
+  @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
     WHERE t.workflowTransitionId = (
         SELECT MAX(t2.workflowTransitionId)
@@ -48,11 +48,12 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM SleeperWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-      AND UPPER(t2.status) IN ('CREATED','PENDING','Created')
-      AND t2.nextRole = :roleName
 )
+AND UPPER(t.status) IN ('CREATED','PENDING')
+AND t.nextRole = :roleName
 """)
     List<SleeperWorkflowTransaction> findLatestByRole(String roleName);
+
     @Query("""
                 SELECT t FROM SleeperWorkflowTransaction t
                 WHERE t.workflowTransitionId = (

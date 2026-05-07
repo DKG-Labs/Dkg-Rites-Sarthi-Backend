@@ -230,7 +230,7 @@ public class SleeperDashboard {
         );
     }
 
-  /*  @GetMapping("/pareto-analysis")
+    @GetMapping("/pareto-analysis")
     public ResponseEntity<Object> getParetoAnalysis(
             @RequestParam String startDate,
             @RequestParam String endDate) {
@@ -246,7 +246,7 @@ public class SleeperDashboard {
                 ),
                 HttpStatus.OK
         );
-    }*/
+    }
 
 
 }
