@@ -36,4 +36,17 @@ public interface DashboardService {
     public List<Level1DTO> getLevel1(LocalDate startDate, LocalDate endDate);
 
     public List<MprDTO> getMpr(LocalDate startDate, LocalDate endDate);
+
+    public ManufacturerPerformanceResponseDto getLastYearPerformance(
+            String plantId);
+
+    public ProcessDefectDistributionResponseDto getProcessDefectDistribution(String plantId);
+
+    public DefectDistributionResponseDto getDefectReasonDistribution(LocalDate fromDate,
+            LocalDate toDate);
+
+    public ParetoAnalysisResponseDto getParetoAnalysis(
+            LocalDate fromDate,
+            LocalDate toDate);
+
 }

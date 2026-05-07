@@ -559,4 +559,253 @@ public class DashboardServiceImpl implements DashboardService {
         }).toList();
     }
 
+    @Override
+    public ManufacturerPerformanceResponseDto getLastYearPerformance(
+            String plantId) {
+
+        LocalDate toDate = LocalDate.now();
+        LocalDate fromDate = toDate.minusYears(1);
+
+        List<Object[]> rows =
+                productionDeclarationRepository.getMonthlyPerformance(
+                        plantId,
+                        fromDate,
+                        toDate
+                );
+
+        List<MonthlyPerformanceDto> monthlyList = new ArrayList<>();
+
+        long totalInspected = 0;
+        long totalRejected = 0;
+
+        for (Object[] row : rows) {
+
+            String month = (String) row[0];
+
+            Long inspected =
+                    row[1] != null
+                            ? ((Number) row[1]).longValue()
+                            : 0L;
+
+            Long rejected =
+                    row[2] != null
+                            ? ((Number) row[2]).longValue()
+                            : 0L;
+
+            Double percentage = 0.0;
+
+            if (inspected > 0) {
+                percentage =
+                        (rejected * 100.0) / inspected;
+            }
+
+            monthlyList.add(
+                    new MonthlyPerformanceDto(
+                            month,
+                            inspected,
+                            rejected,
+                            Math.round(percentage * 100.0) / 100.0
+                    )
+            );
+
+            totalInspected += inspected;
+            totalRejected += rejected;
+        }
+
+        ManufacturerPerformanceResponseDto response =
+                new ManufacturerPerformanceResponseDto();
+
+        response.setMonthlyPerformance(monthlyList);
+
+        response.setTotalInspected(totalInspected);
+
+        response.setTotalRejected(totalRejected);
+
+        double avg = 0.0;
+
+        if (totalInspected > 0) {
+            avg = (totalRejected * 100.0) / totalInspected;
+        }
+
+        response.setAverageRejectionPercentage(
+                Math.round(avg * 100.0) / 100.0
+        );
+
+        return response;
+    }
+
+    @Override
+    public ProcessDefectDistributionResponseDto
+    getProcessDefectDistribution(String plantId) {
+
+        LocalDate toDate = LocalDate.now();
+        LocalDate fromDate = toDate.minusYears(1);
+
+        List<Object[]> rows =
+               inspectionTestHeaderRepository.getProcessDefectDistribution(
+                        plantId,
+                        fromDate,
+                        toDate
+                );
+
+        List<DefectDistributionDto> defectList =
+                new ArrayList<>();
+
+        long totalDefects = 0;
+
+        for (Object[] row : rows) {
+
+            Number count = (Number) row[1];
+
+            totalDefects += count.longValue();
+        }
+
+        for (Object[] row : rows) {
+
+            String defectName = (String) row[0];
+
+            Long defectCount =
+                    ((Number) row[1]).longValue();
+
+            Double percentage = 0.0;
+
+            if (totalDefects > 0) {
+
+                percentage =
+                        (defectCount * 100.0) / totalDefects;
+            }
+
+            defectList.add(
+                    new DefectDistributionDto(
+                            defectName,
+                            defectCount,
+                            Math.round(percentage * 100.0) / 100.0
+                    )
+            );
+        }
+
+        ProcessDefectDistributionResponseDto response =
+                new ProcessDefectDistributionResponseDto();
+
+        response.setDefects(defectList);
+
+        return response;
+    }
+
+
+    @Override
+    public DefectDistributionResponseDto
+    getDefectReasonDistribution(
+            LocalDate fromDate,
+            LocalDate toDate) {
+
+        List<Object[]> rows =
+                inspectionTestHeaderRepository.getDefectReasonDistribution(
+                        fromDate,
+                        toDate
+                );
+
+        List<DefectReasonDistributionDto> list =
+                new ArrayList<>();
+
+        long total = 0;
+
+        for (Object[] row : rows) {
+
+            total += ((Number) row[2]).longValue();
+        }
+
+        for (Object[] row : rows) {
+
+            String category = (String) row[0];
+
+            String defectReason = (String) row[1];
+
+            Long defectCount =
+                    ((Number) row[2]).longValue();
+
+            Double percentage = 0.0;
+
+            if (total > 0) {
+
+                percentage =
+                        (defectCount * 100.0) / total;
+            }
+
+            list.add(
+                    new DefectReasonDistributionDto(
+                            category,
+                            defectReason,
+                            defectCount,
+                            Math.round(percentage * 100.0) / 100.0
+                    )
+            );
+        }
+
+        DefectDistributionResponseDto response =
+                new DefectDistributionResponseDto();
+
+        response.setDefects(list);
+
+        return response;
+    }
+
+    @Override
+    public ParetoAnalysisResponseDto
+    getParetoAnalysis(
+            LocalDate fromDate,
+            LocalDate toDate) {
+
+        List<Object[]> rows =
+                inspectionTestHeaderRepository.getParetoAnalysis(
+                        fromDate,
+                        toDate
+                );
+
+        List<ParetoAnalysisDto> list =
+                new ArrayList<>();
+
+        long total = 0;
+
+        for (Object[] row : rows) {
+
+            total += ((Number) row[1]).longValue();
+        }
+
+        double cumulative = 0.0;
+
+        for (Object[] row : rows) {
+
+            String category = (String) row[0];
+
+            Long count =
+                    ((Number) row[1]).longValue();
+
+            Double percentage = 0.0;
+
+            if (total > 0) {
+
+                percentage =
+                        (count * 100.0) / total;
+            }
+
+            cumulative += percentage;
+
+            list.add(
+                    new ParetoAnalysisDto(
+                            category,
+                            count,
+                            Math.round(percentage * 100.0) / 100.0,
+                            Math.round(cumulative * 100.0) / 100.0
+                    )
+            );
+        }
+
+        ParetoAnalysisResponseDto response =
+                new ParetoAnalysisResponseDto();
+
+        response.setDefects(list);
+
+        return response;
+    }
 }

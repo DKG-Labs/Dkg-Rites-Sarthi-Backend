@@ -250,20 +250,20 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         parameterResultRepository.saveAll(parameterResults);
 
-        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
+        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId(), dto.getSleeperType());
     }
 
-    private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId) {
+    private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId,String sleeperT) {
 
         Long totalSleepers =
                 productionSleeperRepository.countByBatchId(batchId);
 
         Long testedSleepers =
-                resultRepository.countTestedSleepers(batchId, moduleId);
+                resultRepository.countTestedSleepers(batchId, moduleId, sleeperT);
 
-        String sleeperType =
-                productionSleeperRepository.getSleeperTypeByBatch(batchId);
+      //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
 
+        String sleeperType = sleeperT;
         String batchNo =
                 productionDeclarationRepository.getBatchNoById(batchId);
 
@@ -447,7 +447,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         parameterResultRepository.saveAll(parameterResults);
 
         //  Completion logic unchanged
-        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId());
+        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId(), dto.getSleeperType());
     }
     /*
         @Override
@@ -512,8 +512,13 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 continue;
             }
 
+           // Long testedCount =resultRepository.countTestedSleepers(dto.getBatchId(), moduleId);
             Long testedCount =
-                    resultRepository.countTestedSleepers(dto.getBatchId(), moduleId);
+                    resultRepository.countTestedSleepers(
+                            dto.getBatchId(),
+                            moduleId,
+                            dto.getSleeperType()
+                    );
 
             Long demouldRejected =
                     demouldingInspectionRepository.countDemouldingRejected(dto.getBatchNumber());

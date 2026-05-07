@@ -5,8 +5,10 @@ import com.sarthi.Sleeper.entity.FinalInspection.InspectionTestHeader;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -66,4 +68,576 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
     WHERE c.callNo = :callNo
 """)
     List<SleeperInspectionCallBatch> getBatchesByCallNo(String callNo);
+
+
+    @Query(value = """
+
+        SELECT
+            defects.defect_name,
+            COUNT(*) AS defect_count
+
+        FROM (
+
+            /* =====================================================
+               DEMOULDING VISUAL DEFECTS
+               ===================================================== */
+
+            SELECT
+                dds.visual_reason AS defect_name
+
+            FROM demoulding_defective_sleepers dds
+
+            INNER JOIN demoulding_inspection di
+                ON di.id = dds.inspection_id
+
+            INNER JOIN production_declaration pd
+                ON pd.batch_number = di.batch_no
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+              AND pd.plant_id = :plantId
+
+              /* FINAL INSPECTION COMPLETED */
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header ith
+
+                    WHERE ith.batch_id = pd.id
+                      AND ith.module_id IN (1,2,3)
+
+                    GROUP BY ith.batch_id
+
+                    HAVING COUNT(DISTINCT ith.module_id) = 3
+              )
+
+              AND dds.visual_reason IS NOT NULL
+              AND dds.visual_reason <> ''
+
+            UNION ALL
+
+            /* =====================================================
+               DEMOULDING DIMENSION DEFECTS
+               ===================================================== */
+
+            SELECT
+                dds.dim_reason AS defect_name
+
+            FROM demoulding_defective_sleepers dds
+
+            INNER JOIN demoulding_inspection di
+                ON di.id = dds.inspection_id
+
+            INNER JOIN production_declaration pd
+                ON pd.batch_number = di.batch_no
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+              AND pd.plant_id = :plantId
+
+              /* FINAL INSPECTION COMPLETED */
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header ith
+
+                    WHERE ith.batch_id = pd.id
+                      AND ith.module_id IN (1,2,3)
+
+                    GROUP BY ith.batch_id
+
+                    HAVING COUNT(DISTINCT ith.module_id) = 3
+              )
+
+              AND dds.dim_reason IS NOT NULL
+              AND dds.dim_reason <> ''
+
+            UNION ALL
+
+            /* =====================================================
+               FINAL VISUAL DEFECTS
+               module_id = 1
+               ===================================================== */
+
+            SELECT
+                itr.rejection_reason AS defect_name
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+              AND pd.plant_id = :plantId
+
+              AND itr.module_id = 1
+              AND itr.result = 'REJECTED'
+
+              /* FINAL INSPECTION COMPLETED */
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header i2
+
+                    WHERE i2.batch_id = pd.id
+                      AND i2.module_id IN (1,2,3)
+
+                    GROUP BY i2.batch_id
+
+                    HAVING COUNT(DISTINCT i2.module_id) = 3
+              )
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+            UNION ALL
+
+            /* =====================================================
+               FINAL CRITICAL DEFECTS
+               module_id = 2
+               ===================================================== */
+
+            SELECT
+                itr.rejection_reason AS defect_name
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+              AND pd.plant_id = :plantId
+
+              AND itr.module_id = 2
+              AND itr.result = 'REJECTED'
+
+              /* FINAL INSPECTION COMPLETED */
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header i2
+
+                    WHERE i2.batch_id = pd.id
+                      AND i2.module_id IN (1,2,3)
+
+                    GROUP BY i2.batch_id
+
+                    HAVING COUNT(DISTINCT i2.module_id) = 3
+              )
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+            UNION ALL
+
+            /* =====================================================
+               FINAL NON CRITICAL DEFECTS
+               module_id = 3
+               ===================================================== */
+
+            SELECT
+                itr.rejection_reason AS defect_name
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+              AND pd.plant_id = :plantId
+
+              AND itr.module_id = 3
+              AND itr.result = 'REJECTED'
+
+              /* FINAL INSPECTION COMPLETED */
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header i2
+
+                    WHERE i2.batch_id = pd.id
+                      AND i2.module_id IN (1,2,3)
+
+                    GROUP BY i2.batch_id
+
+                    HAVING COUNT(DISTINCT i2.module_id) = 3
+              )
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+        ) defects
+
+        GROUP BY defects.defect_name
+
+        ORDER BY defect_count DESC
+
+        """, nativeQuery = true)
+    List<Object[]> getProcessDefectDistribution(
+            @Param("plantId") String plantId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
+
+    @Query(value = """
+
+        SELECT
+            defects.category,
+            defects.defect_reason,
+            COUNT(*) AS defect_count
+
+        FROM (
+
+            /* =====================================================
+               DEMOULDING VISUAL REASONS
+               ===================================================== */
+
+            SELECT
+                'Visual (Demoulding)' AS category,
+                dds.visual_reason AS defect_reason
+
+            FROM demoulding_defective_sleepers dds
+
+            INNER JOIN demoulding_inspection di
+                ON di.id = dds.inspection_id
+
+            INNER JOIN production_declaration pd
+                ON pd.batch_number = di.batch_no
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND dds.visual_reason IS NOT NULL
+              AND dds.visual_reason <> ''
+
+              /* FINAL INSPECTION COMPLETED */
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header ith
+
+                    WHERE ith.batch_id = pd.id
+                      AND ith.module_id IN (1,2,3)
+
+                    GROUP BY ith.batch_id
+
+                    HAVING COUNT(DISTINCT ith.module_id) = 3
+              )
+
+            UNION ALL
+
+            /* =====================================================
+               DEMOULDING DIMENSION REASONS
+               ===================================================== */
+
+            SELECT
+                'Dimension (Demoulding)' AS category,
+                dds.dim_reason AS defect_reason
+
+            FROM demoulding_defective_sleepers dds
+
+            INNER JOIN demoulding_inspection di
+                ON di.id = dds.inspection_id
+
+            INNER JOIN production_declaration pd
+                ON pd.batch_number = di.batch_no
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND dds.dim_reason IS NOT NULL
+              AND dds.dim_reason <> ''
+
+              /* FINAL INSPECTION COMPLETED */
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header ith
+
+                    WHERE ith.batch_id = pd.id
+                      AND ith.module_id IN (1,2,3)
+
+                    GROUP BY ith.batch_id
+
+                    HAVING COUNT(DISTINCT ith.module_id) = 3
+              )
+
+            UNION ALL
+
+            /* =====================================================
+               FINAL VISUAL REASONS
+               module_id = 1
+               ===================================================== */
+
+            SELECT
+                'Final (Visual)' AS category,
+                itr.rejection_reason AS defect_reason
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND itr.module_id = 1
+              AND itr.result = 'REJECTED'
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+            UNION ALL
+
+            /* =====================================================
+               FINAL CRITICAL REASONS
+               module_id = 2
+               ===================================================== */
+
+            SELECT
+                'Final (Critical)' AS category,
+                itr.rejection_reason AS defect_reason
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND itr.module_id = 2
+              AND itr.result = 'REJECTED'
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+            UNION ALL
+
+            /* =====================================================
+               FINAL NON CRITICAL REASONS
+               module_id = 3
+               ===================================================== */
+
+            SELECT
+                'Final (Non-Critical)' AS category,
+                itr.rejection_reason AS defect_reason
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND itr.module_id = 3
+              AND itr.result = 'REJECTED'
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+        ) defects
+
+        GROUP BY
+            defects.category,
+            defects.defect_reason
+
+        ORDER BY defect_count DESC
+
+        """, nativeQuery = true)
+    List<Object[]> getDefectReasonDistribution(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
+
+    @Query(value = """
+
+        SELECT
+            defect_category,
+            COUNT(*) AS defect_count
+
+        FROM (
+
+            /* =========================================
+               VISUAL DEMOULDING
+               ========================================= */
+
+            SELECT
+                'Visual (Dem)' AS defect_category
+
+            FROM demoulding_defective_sleepers dds
+
+            INNER JOIN demoulding_inspection di
+                ON di.id = dds.inspection_id
+
+            INNER JOIN production_declaration pd
+                ON pd.batch_number = di.batch_no
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND dds.visual_reason IS NOT NULL
+              AND dds.visual_reason <> ''
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header ith
+
+                    WHERE ith.batch_id = pd.id
+                      AND ith.module_id IN (1,2,3)
+
+                    GROUP BY ith.batch_id
+
+                    HAVING COUNT(DISTINCT ith.module_id) = 3
+              )
+
+            UNION ALL
+
+            /* =========================================
+               DIMENSION DEMOULDING
+               ========================================= */
+
+            SELECT
+                'Dimension (Dem)' AS defect_category
+
+            FROM demoulding_defective_sleepers dds
+
+            INNER JOIN demoulding_inspection di
+                ON di.id = dds.inspection_id
+
+            INNER JOIN production_declaration pd
+                ON pd.batch_number = di.batch_no
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND dds.dim_reason IS NOT NULL
+              AND dds.dim_reason <> ''
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM inspection_test_header ith
+
+                    WHERE ith.batch_id = pd.id
+                      AND ith.module_id IN (1,2,3)
+
+                    GROUP BY ith.batch_id
+
+                    HAVING COUNT(DISTINCT ith.module_id) = 3
+              )
+
+            UNION ALL
+
+            /* =========================================
+               FINAL VISUAL
+               ========================================= */
+
+            SELECT
+                'Final (Visual)' AS defect_category
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND itr.module_id = 1
+              AND itr.result = 'REJECTED'
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+            UNION ALL
+
+            /* =========================================
+               FINAL CRITICAL
+               ========================================= */
+
+            SELECT
+                'Final (Critical)' AS defect_category
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND itr.module_id = 2
+              AND itr.result = 'REJECTED'
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+            UNION ALL
+
+            /* =========================================
+               FINAL NON CRITICAL
+               ========================================= */
+
+            SELECT
+                'Final (Non-Critical)' AS defect_category
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            INNER JOIN production_declaration pd
+                ON pd.id = ith.batch_id
+
+            WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+              AND itr.module_id = 3
+              AND itr.result = 'REJECTED'
+
+              AND itr.rejection_reason IS NOT NULL
+              AND itr.rejection_reason <> ''
+
+        ) defects
+
+        GROUP BY defect_category
+
+        ORDER BY defect_count DESC
+
+        """, nativeQuery = true)
+    List<Object[]> getParetoAnalysis(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
 }

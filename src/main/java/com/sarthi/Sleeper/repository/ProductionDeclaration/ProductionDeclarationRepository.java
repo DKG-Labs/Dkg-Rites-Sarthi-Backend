@@ -537,4 +537,129 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
 """, nativeQuery = true)
     List<Level2Projection> getLevel2Data(String poNo);
 
+    @Query(value = """
+
+        SELECT
+
+            DATE_FORMAT(pd.casting_date, '%b %Y') AS month,
+
+            SUM(pd.total_casted_sleepers) AS inspectedNos,
+
+            (
+                COALESCE(SUM(dem.reject_count),0)
+                +
+                COALESCE(SUM(test.reject_count),0)
+            ) AS rejectedNos
+
+        FROM production_declaration pd
+
+        /* =========================================
+           DEMOULDING REJECTION
+           uses batch_number
+           ========================================= */
+
+        LEFT JOIN (
+
+            SELECT
+                di.batch_no,
+                COUNT(dds.id) AS reject_count
+
+            FROM demoulding_inspection di
+
+            LEFT JOIN demoulding_defective_sleepers dds
+                ON dds.inspection_id = di.id
+
+            GROUP BY di.batch_no
+
+        ) dem
+            ON dem.batch_no = pd.batch_number
+
+        /* =========================================
+           INSPECTION REJECTION
+           uses pd.id
+           ========================================= */
+
+        LEFT JOIN (
+
+            SELECT
+                ith.batch_id,
+                COUNT(itr.id) AS reject_count
+
+            FROM inspection_test_result itr
+
+            INNER JOIN inspection_test_header ith
+                ON ith.id = itr.test_header_id
+
+            WHERE itr.result = 'REJECTED'
+
+            GROUP BY ith.batch_id
+
+        ) test
+            ON test.batch_id = pd.id
+
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+          AND pd.plant_id = :plantId
+
+        /* =========================================
+           VISUAL + CRITICAL + NON CRITICAL
+           inspection tables use pd.id
+           ========================================= */
+
+          AND EXISTS (
+
+                SELECT 1
+
+                FROM inspection_test_header ith
+
+                WHERE ith.batch_id = pd.id
+                  AND ith.module_id IN (1,2,3)
+
+                GROUP BY ith.batch_id
+
+                HAVING COUNT(DISTINCT ith.module_id) = 3
+          )
+
+        /* =========================================
+           STEAM CUBE EXISTS
+           uses batch_number
+           ========================================= */
+
+          AND EXISTS (
+
+                SELECT 1
+
+                FROM steam_cube_sample_declaration s
+
+                WHERE s.batch_no = pd.batch_number
+          )
+
+        /* =========================================
+           WATER CUBE EXISTS
+           uses batch_number
+           ========================================= */
+
+          AND EXISTS (
+
+                SELECT 1
+
+                FROM water_cube_strength_test w
+
+                WHERE w.batch_number = pd.batch_number
+          )
+
+        GROUP BY
+            DATE_FORMAT(pd.casting_date, '%Y-%m'),
+            DATE_FORMAT(pd.casting_date, '%b %Y')
+
+        ORDER BY
+            DATE_FORMAT(pd.casting_date, '%Y-%m')
+
+        """, nativeQuery = true)
+    List<Object[]> getMonthlyPerformance(
+            @Param("plantId") String plantId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
+
+
 }

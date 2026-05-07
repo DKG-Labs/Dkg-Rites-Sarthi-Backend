@@ -9,10 +9,7 @@ import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -190,6 +187,66 @@ public class SleeperDashboard {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/manufacturer-performance/{plantId}")
+    public ResponseEntity<Object>  getPerformance(
+            @RequestParam String plantId) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getLastYearPerformance(plantId)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/process-defect-distribution")
+    public ResponseEntity<Object>  getProcessDefectDistribution(
+            @RequestParam String plantId) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getProcessDefectDistribution(plantId)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/defect-distribution-analysis")
+    public ResponseEntity<Object> getDefectDistribution(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start = LocalDate.parse(startDate, formatter);
+        LocalDate end = LocalDate.parse(endDate, formatter);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getDefectReasonDistribution(start,end)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+  /*  @GetMapping("/pareto-analysis")
+    public ResponseEntity<Object> getParetoAnalysis(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start = LocalDate.parse(startDate, formatter);
+        LocalDate end = LocalDate.parse(endDate, formatter);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getParetoAnalysis(start,end)
+                ),
+                HttpStatus.OK
+        );
+    }*/
 
 
 }

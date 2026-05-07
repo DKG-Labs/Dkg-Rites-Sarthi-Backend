@@ -36,7 +36,7 @@ AND h.module.id = :moduleId
 """)
     Long countTestedSleepers(Long batchId, Long moduleId);
 */
-  @Query("""
+/*  @Query("""
           SELECT COUNT(DISTINCT r.sleeperId)
           FROM InspectionTestResult r
           JOIN r.testHeader h
@@ -45,7 +45,25 @@ AND h.module.id = :moduleId
           AND r.active = true            
           AND r.result <> 'PENDING'      
           """)
-  Long countTestedSleepers(Long batchId, Long moduleId);
+  Long countTestedSleepers(Long batchId, Long moduleId);*/
+
+    @Query("""
+       SELECT COUNT(DISTINCT r.sleeperId)
+
+       FROM InspectionTestResult r
+       JOIN r.testHeader h
+
+       WHERE h.batchId = :batchId
+       AND h.module.id = :moduleId
+       AND h.sleeperType = :sleeperType
+       AND r.active = true
+       AND r.result <> 'PENDING'
+       """)
+    Long countTestedSleepers(
+            Long batchId,
+            Long moduleId,
+            String sleeperType
+    );
 
   @Query("""
           SELECT r
