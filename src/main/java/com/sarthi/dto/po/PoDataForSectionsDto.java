@@ -88,6 +88,9 @@ public class PoDataForSectionsDto {
      */
     @Data
     public static class RmHeatDetailsDto {
+        // From rm_heat_quantities primary key
+        private Integer id;
+
         // From rm_inspection_details
         private String rawMaterialName;    // item_description
         private String grade;              // grade/spec

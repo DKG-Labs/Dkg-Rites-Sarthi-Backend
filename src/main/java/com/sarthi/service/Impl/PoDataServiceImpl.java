@@ -448,6 +448,9 @@ public class PoDataServiceImpl implements PoDataService {
                 }
             }
 
+            // From rm_heat_quantities primary key
+            heatDto.setId(heat.getId() != null ? heat.getId().intValue() : null);
+
             // From rm_inspection_details + inventory_entries
             heatDto.setRawMaterialName(rawMaterialName);
             heatDto.setGrade(grade);
