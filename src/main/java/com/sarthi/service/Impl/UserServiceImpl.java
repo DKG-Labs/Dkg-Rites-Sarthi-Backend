@@ -158,6 +158,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setDiscipline(userDto.getDiscipline());
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
+        userMaster.setRio(userDto.getRio());
 
         String rolesAsString = String.join(",", userDto.getRoleNames());
         userMaster.setRoleName(rolesAsString);
@@ -422,6 +423,7 @@ public class UserServiceImpl implements UserService {
         userDto.setDiscipline(userMaster.getDiscipline());
         userDto.setEmploymentType(userMaster.getEmploymentType());
         userDto.setDateOfBirth(userMaster.getDateOfBirth());
+        userDto.setRio(userMaster.getRio());
 
         return userDto;
     }
@@ -615,6 +617,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setDiscipline(userDto.getDiscipline());
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
+        userMaster.setRio(userDto.getRio());
 
         String rolesAsString = String.join(",", userDto.getRoleNames());
         userMaster.setRoleName(rolesAsString);
@@ -1028,8 +1031,61 @@ public class UserServiceImpl implements UserService {
         return "Process IE mapping saved successfully";
     }
 
+    @Override
+    public List<UserDto> getAllUsers() {
+        return userMasterRepository.findAll().stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
 
+    @Override
+    public UserDto updateUser(userRequestDto userDto) {
+        return createUser(userDto); // Reuse existing logic
+    }
 
+    @Transactional
+    @Override
+    public void deleteUser(Integer userId) {
+        userMasterRepository.deleteById(userId);
+    }
 
+    @Transactional
+    @Override
+    public String updateUserRegion(Integer userId, String newRegion) {
+        UserMaster user = userMasterRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "User not found")));
+        user.setRio(newRegion);
+        userMasterRepository.save(user);
+        return "Region updated successfully";
+    }
+
+    @Transactional
+    @Override
+    public String updateUserRole(Integer userId, List<String> newRoles) {
+        UserMaster user = userMasterRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "User not found")));
+        
+        String rolesAsString = String.join(",", newRoles);
+        user.setRoleName(rolesAsString);
+        userMasterRepository.save(user);
+        
+        // Update user_role_master
+        userRoleMasterRepository.deleteByUserId(userId);
+        for (String roleName : newRoles) {
+            RoleMaster role = roleMasterRepository.findByRoleName(roleName)
+                    .orElseThrow(() -> new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Role not found: " + roleName)));
+            
+            UserRoleMaster userRole = new UserRoleMaster();
+            userRole.setUserId(userId);
+            userRole.setRoleId(role.getRoleId());
+            userRole.setReadPermission(true);
+            userRole.setWritePermission(true);
+            userRole.setCreatedBy("Admin");
+            userRole.setCreatedDate(new Date());
+            userRoleMasterRepository.save(userRole);
+        }
+        
+        return "Role updated successfully";
+    }
 }
 

@@ -59,4 +59,11 @@ public interface UserService {
 
 
     public String mapProcessIe(PoiProcessIeRequestDto dto);
+    
+    // User Management
+    public List<UserDto> getAllUsers();
+    public UserDto updateUser(userRequestDto userDto);
+    public void deleteUser(Integer userId);
+    public String updateUserRegion(Integer userId, String newRegion);
+    public String updateUserRole(Integer userId, List<String> newRoles);
 }

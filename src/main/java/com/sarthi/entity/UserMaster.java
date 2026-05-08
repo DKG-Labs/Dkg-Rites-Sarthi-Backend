@@ -68,6 +68,9 @@ public class UserMaster implements UserDetails {
 
     private String productType;
 
+    @Column(name = "Region", length = 50)
+    private String rio;
+
     @Column(name = "CREATEDDATE")
     private LocalDateTime createdDate = LocalDateTime.now();
 
