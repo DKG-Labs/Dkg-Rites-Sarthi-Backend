@@ -21,4 +21,5 @@ public class UserDto {
     private String discipline;
     private String employmentType;
     private String dateOfBirth;
+    private String rio;
 }

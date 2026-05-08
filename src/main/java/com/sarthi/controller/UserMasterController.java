@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -167,5 +168,28 @@ public class UserMasterController {
 
         String res= userService.mapProcessIe(dto);
         return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/api/users")
+    public ResponseEntity<Object> getAllUsers() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getAllUsers()), HttpStatus.OK);
+    }
+
+    @PutMapping("/api/users")
+    public ResponseEntity<Object> updateUser(@RequestBody userRequestDto userRequestDto) {
+        UserDto user = userService.updateUser(userRequestDto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(user), HttpStatus.OK);
+    }
+
+    @DeleteMapping("/api/users/{userId}")
+    public ResponseEntity<Object> deleteUser(@PathVariable Integer userId) {
+        userService.deleteUser(userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse("User deleted successfully"), HttpStatus.OK);
+    }
+
+    @PutMapping("/api/users/{userId}/region")
+    public ResponseEntity<Object> updateUserRegion(@PathVariable Integer userId, @RequestBody Map<String, String> request) {
+        String res = userService.updateUserRegion(userId, request.get("region"));
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
 }
