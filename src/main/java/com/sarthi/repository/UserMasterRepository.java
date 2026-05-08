@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -32,4 +33,13 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     @Query("SELECT u.employeeCode FROM UserMaster u WHERE u.userId = :userId")
     String findEmployeeCodeByUserId(Integer userId);
+
+    @Query("""
+select rm.roleName
+from UserRoleMaster urm
+join RoleMaster rm
+on urm.roleId = rm.roleId
+where urm.userId = :userId
+""")
+    List<String> findRoleNamesByUserId(Integer userId);
 }

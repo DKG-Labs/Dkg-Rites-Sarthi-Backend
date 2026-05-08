@@ -255,17 +255,14 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId,String sleeperT) {
 
-        Long totalSleepers =
-                productionSleeperRepository.countByBatchId(batchId);
+        Long totalSleepers = productionSleeperRepository.countByBatchId(batchId);
 
-        Long testedSleepers =
-                resultRepository.countTestedSleepers(batchId, moduleId, sleeperT);
+        Long testedSleepers = resultRepository.countTestedSleepers(batchId, moduleId, sleeperT);
 
       //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
 
         String sleeperType = sleeperT;
-        String batchNo =
-                productionDeclarationRepository.getBatchNoById(batchId);
+        String batchNo = productionDeclarationRepository.getBatchNoById(batchId);
 
         Long demouldRejected =
                 demouldingInspectionRepository.countDemouldingRejected(batchNo);
