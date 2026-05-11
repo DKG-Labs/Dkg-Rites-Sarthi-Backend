@@ -175,6 +175,12 @@ public class UserMasterController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getAllUsers()), HttpStatus.OK);
     }
 
+    @PostMapping("/api/users")
+    public ResponseEntity<Object> createUserFromAdmin(@RequestBody userRequestDto userRequestDto) {
+        UserDto user = userService.createUser(userRequestDto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(user), HttpStatus.OK);
+    }
+
     @PutMapping("/api/users")
     public ResponseEntity<Object> updateUser(@RequestBody userRequestDto userRequestDto) {
         UserDto user = userService.updateUser(userRequestDto);
