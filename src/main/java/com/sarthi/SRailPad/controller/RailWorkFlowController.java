@@ -24,4 +24,28 @@ public class RailWorkFlowController {
     public ResponseEntity<Object> performTransitionAction(@RequestBody RailTransitionActionReqDto railTransitionActionReqDto)  {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.performTransitionAction(railTransitionActionReqDto)), HttpStatus.OK);
     }
+
+    @GetMapping("/allPendingWorkflowTransition")
+    public ResponseEntity<Object> allPendingWorkflowTransition(@RequestParam String roleName)  {
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName)), HttpStatus.OK);
+    }
+
+    @GetMapping("/WorkflowTransitionHistory")
+    public ResponseEntity<Object> WorkflowTransitionHistory(@RequestParam String requestId)  {
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.workflowTransitionHistory(requestId)), HttpStatus.OK);
+    }
+
+    @GetMapping("/allCompletedCalls")
+    public ResponseEntity<Object> AllCompletedTransition()  {
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allCompletedWorkflowTransitions()), HttpStatus.OK);
+    }
+
+    @GetMapping("/allFInalCallCompletedCalls")
+    public ResponseEntity<Object> AllFinalCallCompletedTransition()  {
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions()), HttpStatus.OK);
+    }
 }

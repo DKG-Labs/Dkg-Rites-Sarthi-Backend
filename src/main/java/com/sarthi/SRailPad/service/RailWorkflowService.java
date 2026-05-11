@@ -4,6 +4,8 @@ import com.sarthi.SRailPad.dto.RailTransitionActionReqDto;
 import com.sarthi.SRailPad.dto.RailWorkflowTransactionDto;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public interface RailWorkflowService {
 
@@ -20,4 +22,12 @@ public interface RailWorkflowService {
 
 
 
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName);
+
+    public List<RailWorkflowTransactionDto> workflowTransitionHistory(String requestId);
+
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions();
+
+    public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
 }

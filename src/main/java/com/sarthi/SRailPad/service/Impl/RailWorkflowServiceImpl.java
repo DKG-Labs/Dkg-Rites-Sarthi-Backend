@@ -811,6 +811,66 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
 
+    @Override
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName) {
 
+        List<RailWorkflowTransaction> list = null;
+
+        if(roleName.equalsIgnoreCase("Rail Main IE")) {
+
+            list = railWorkflowTransactionRepository
+                    .findLatestByRole(roleName);
+
+        } else {
+
+            list = railWorkflowTransactionRepository
+                    .findLastPendingRequestsByRole(roleName);
+        }
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+
+    @Override
+    public List<RailWorkflowTransactionDto>
+    workflowTransitionHistory(String requestId) {
+
+        List<RailWorkflowTransaction> list =
+                railWorkflowTransactionRepository
+                        .findByRequestIdOrderByCreatedDateAsc(requestId);
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+
+    @Override
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions() {
+
+        List<RailWorkflowTransaction> list =
+                railWorkflowTransactionRepository
+                        .findCompletedRequests();
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+
+    @Override
+    public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions() {
+
+        List<RailWorkflowTransaction> list =
+                railWorkflowTransactionRepository
+                        .findFinalCompletedRequests();
+
+        return list.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
 
 }
