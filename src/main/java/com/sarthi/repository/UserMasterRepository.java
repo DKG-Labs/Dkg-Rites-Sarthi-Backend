@@ -10,7 +10,10 @@ import java.util.Optional;
 
 @Repository
 public interface UserMasterRepository extends JpaRepository<UserMaster, Integer> {
-    Optional<UserMaster> findByUserName(String userName);
+
+    Optional<UserMaster> findFirstByUserName(String username);
+
+    Optional<UserMaster> findByUserName(String username);
 
     Optional<UserMaster> findByUserId(Integer userId);
 
@@ -18,7 +21,9 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     boolean existsByUserName(String vendorCode);
 
-    UserMaster findByEmployeeCode(String employeeCode);
+    Optional<UserMaster> findFirstByEmployeeCode(String employeeCode);
+    
+    UserMaster findByEmployeeCode(String employeeCode); // Keep for compatibility if needed elsewhere, but use findFirstBy in service
 
     java.util.List<UserMaster> findByRoleNameContaining(String roleName);
 

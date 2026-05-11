@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@CrossOrigin
 @RestController
 @RequestMapping("/api/auth")
 public class UserMasterController {
@@ -173,6 +174,12 @@ public class UserMasterController {
     @GetMapping("/api/users")
     public ResponseEntity<Object> getAllUsers() {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getAllUsers()), HttpStatus.OK);
+    }
+
+    @PostMapping("/api/users")
+    public ResponseEntity<Object> createUserFromAdmin(@RequestBody userRequestDto userRequestDto) {
+        UserDto user = userService.createUser(userRequestDto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(user), HttpStatus.OK);
     }
 
     @PutMapping("/api/users")

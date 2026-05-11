@@ -8,6 +8,7 @@ import java.util.Optional;
 
 @ReadingConverter
 public interface RioUserRepository extends JpaRepository<RioUser, Long> {
+    Optional<RioUser> findFirstByEmployeeCode(String employeeCode);
     Optional<RioUser> findByEmployeeCode(String employeeCode);
 
     boolean existsByRioAndEmployeeCode(String rio, String employeeCode);

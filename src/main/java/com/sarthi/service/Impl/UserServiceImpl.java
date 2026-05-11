@@ -128,6 +128,7 @@ public class UserServiceImpl implements UserService {
      * }
      */
 
+    @Transactional
     @Override
     public UserDto createUser(userRequestDto userDto) {
 
@@ -164,10 +165,12 @@ public class UserServiceImpl implements UserService {
         userMaster.setRoleName(rolesAsString);
 
         userMasterRepository.save(userMaster);
-
-        // If update, consider clearing old roles or handling mapping updates
-        // For simplicity, we keep the existing logic but ensure we use the saved ID
-
+ 
+        // If update, clear old roles to prevent duplicates
+        if (userDto.getUserId() != null) {
+            userRoleMasterRepository.deleteByUserId(userMaster.getUserId());
+        }
+ 
         // Role-based logic
         for (String roleName : userDto.getRoleNames()) {
 
@@ -322,42 +325,36 @@ public class UserServiceImpl implements UserService {
              * }
              */
             if (roleName.equalsIgnoreCase("Process IE")) {
+ 
+                if (userDto.getIePoiMappings() != null && !userDto.getIePoiMappings().isEmpty()) {
+ 
+                    for (IePoiMappingDto ieDto : userDto.getIePoiMappings()) {
 
-                if (userDto.getIePoiMappings() == null || userDto.getIePoiMappings().isEmpty()) {
-                    throw new BusinessException(new ErrorDetails(
-                            AppConstant.ERROR_CODE_RESOURCE,
-                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                            AppConstant.ERROR_TYPE_VALIDATION,
-                            "IE and POI mapping is required for Process IE"));
-                }
+                        // Save Process IE → IE mapping
+                        ProcessIeUsers map = new ProcessIeUsers();
+                        map.setProcessUserId(userMaster.getUserId().longValue());
+                        map.setIeUserId(ieDto.getIeUserId());
+                        map.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
+                        map.setCreatedDate(new Date());
 
-                for (IePoiMappingDto ieDto : userDto.getIePoiMappings()) {
+                        processIeUsersRepository.save(map);
 
-                    // Save Process IE → IE mapping
-                    ProcessIeUsers map = new ProcessIeUsers();
-                    map.setProcessUserId(userMaster.getUserId().longValue());
-                    map.setIeUserId(ieDto.getIeUserId());
-                    map.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
-                    map.setCreatedDate(new Date());
+                        // Save IE → multiple POIs (NEW TABLE)
+                        if (ieDto.getPoiCodes() != null && !ieDto.getPoiCodes().isEmpty()) {
 
-                    processIeUsersRepository.save(map);
+                            for (String poi : ieDto.getPoiCodes()) {
 
-                    // Save IE → multiple POIs (NEW TABLE)
-                    if (ieDto.getPoiCodes() != null && !ieDto.getPoiCodes().isEmpty()) {
+                                IePoiMapping poiMap = new IePoiMapping();
+                                poiMap.setIeUserId(ieDto.getIeUserId());
+                                poiMap.setPoiCode(poi);
+                                poiMap.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
+                                poiMap.setCreatedDate(new Date());
 
-                        for (String poi : ieDto.getPoiCodes()) {
-
-                            IePoiMapping poiMap = new IePoiMapping();
-                            poiMap.setIeUserId(ieDto.getIeUserId());
-                            poiMap.setPoiCode(poi);
-                            poiMap.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
-                            poiMap.setCreatedDate(new Date());
-
-                            iePoiMappingRepository.save(poiMap);
+                                iePoiMappingRepository.save(poiMap);
+                            }
                         }
                     }
                 }
-
             }
 
             boolean isIeRole = userDto.getRoleNames().stream()
@@ -456,8 +453,9 @@ public class UserServiceImpl implements UserService {
                 .filter(Objects::nonNull)
                 .toList();
 
+        // ================= RIO =================
         String rio = rioUserRepository
-                .findByEmployeeCode(user.getEmployeeCode())
+                .findFirstByEmployeeCode(user.getEmployeeCode())
                 .map(RioUser::getRio)
                 .orElse(null);
 
@@ -496,17 +494,9 @@ public class UserServiceImpl implements UserService {
 
         // ================= IE LOGIN =================
         if ("IE".equalsIgnoreCase(loginType)) {
-
-            user = userMasterRepository
-                    .findByEmployeeCode(loginId);
-
+            user = userMasterRepository.findFirstByEmployeeCode(loginId).orElse(null);
             if (user == null) {
-                throw new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_INVALID,
-                                AppConstant.ERROR_TYPE_CODE_INVALID,
-                                AppConstant.ERROR_TYPE_INVALID,
-                                "Invalid login credentials."));
+                throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Invalid login credentials."));
             }
         }
 
@@ -514,7 +504,7 @@ public class UserServiceImpl implements UserService {
         else if ("VENDOR".equalsIgnoreCase(loginType)) {
 
             user = userMasterRepository
-                    .findByUserName(loginId).orElseThrow(() -> new BusinessException(
+                    .findFirstByUserName(loginId).orElseThrow(() -> new BusinessException(
                             new ErrorDetails(
                                     AppConstant.ERROR_CODE_INVALID,
                                     AppConstant.ERROR_TYPE_CODE_INVALID,
@@ -550,10 +540,9 @@ public class UserServiceImpl implements UserService {
                         .orElse(null))
                 .filter(Objects::nonNull)
                 .toList();
-
         // ================= RIO =================
         String rio = rioUserRepository
-                .findByEmployeeCode(user.getEmployeeCode())
+                .findFirstByEmployeeCode(user.getEmployeeCode())
                 .map(RioUser::getRio)
                 .orElse(null);
 
