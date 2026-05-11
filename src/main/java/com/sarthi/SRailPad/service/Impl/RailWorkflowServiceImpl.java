@@ -6,12 +6,16 @@ import com.sarthi.SRailPad.entity.RailTransitionMaster;
 import com.sarthi.SRailPad.entity.RailWorkflowTransaction;
 import com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping;
 import com.sarthi.SRailPad.entity.raipadMapping.RailPoiIeMapping;
+import com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants;
 import com.sarthi.SRailPad.repository.*;
 import com.sarthi.SRailPad.service.RailWorkflowService;
+import com.sarthi.Sleeper.entity.SleeperTransitionMaster;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.entity.IEFieldsMapping;
 import com.sarthi.entity.RoleMaster;
-import com.sarthi.repository.RoleMasterRepository;
-import com.sarthi.repository.UserMasterRepository;
-import com.sarthi.repository.UserRoleMasterRepository;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
+import com.sarthi.repository.*;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +41,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private RailVendorPlantsRepository railVendorPlantsRepository;
     private RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
 
+    private IeFieldsMappingRepository ieFieldsMappingRepository;
+
+    private RioUserRepository rioUserRepository;
+
 
     @Override
     public RailWorkflowTransactionDto initiateWorkflow(
@@ -45,55 +53,135 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             Long workflowId,
             Long createdBy,
             String vendorCode,
-            String plantId, String shift) {
+            String plantId,
+            String shift) {
 
-        validateWorkflowAndModule(workflowId, moduleId);
+        // VALIDATE WORKFLOW + MODULE
+        if (!workflowId.equals(2L)) {
 
-        RailWorkflowTransaction tx = new RailWorkflowTransaction();
+            validateWorkflowAndModule(
+                    workflowId,
+                    moduleId);
+        }
 
-        RailTransitionMaster transition =
-                railTransitionMasterRepository
-                        .findFirstByWorkflowIdAndCurrentActionOrderByTransitionOrderAsc(
-                                workflowId.intValue(),
-                                "CREATE"
-                        )
-                        .orElseThrow(() ->
-                                new RuntimeException("Transition not configured"));
+        RailWorkflowTransaction tx =
+                new RailWorkflowTransaction();
 
+
+        // FETCH POI USING VENDOR CODE
         RailPadPincodePoIMapping mapping =
                 railPadPincodePoIMappingRepository
                         .findByVendorCode(vendorCode)
                         .orElseThrow(() ->
                                 new RuntimeException(
                                         "POI mapping not found for vendor"));
+
+
+        String initialAction =
+                workflowId.equals(2L)
+                        ? "CREATED"
+                        : "CREATE";
+
+
+        RailTransitionMaster transition =
+                railTransitionMasterRepository
+                        .findFirstByWorkflowIdAndCurrentActionOrderByTransitionOrderAsc(
+                                workflowId.intValue(),
+                                initialAction
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Transition not configured"));
+
+
+
         tx.setRequestId(requestId);
+
         tx.setWorkflowId(workflowId);
-        tx.setModuleId(moduleId);
+
+        //tx.setModuleId(moduleId);
+        if (!workflowId.equals(2L)) {
+
+            tx.setModuleId(moduleId);
+
+        } else {
+
+            tx.setModuleId(null);
+        }
 
         tx.setVendorCode(vendorCode);
+
         tx.setPlantId(plantId);
+
         tx.setPoiCode(mapping.getPoiCode());
 
-        tx.setAction(transition.getCurrentAction());
 
-        tx.setStatus("CREATED");
 
-        tx.setCurrentRole(getRoleName(transition.getCurrentRoleId()));
-        tx.setNextRole(getRoleName(transition.getNextRoleId()));
+        tx.setAction(
+                transition.getCurrentAction());
+
+        tx.setStatus(
+                transition.getCurrentAction());
+
+        tx.setJobStatus(
+                transition.getCurrentAction());
+
+
+        tx.setCurrentRole(
+                getRoleName(
+                        transition.getCurrentRoleId()));
+
+        tx.setNextRole(
+                getRoleName(
+                        transition.getNextRoleId()));
+
+
+
+        if (workflowId.equals(2L)
+                && transition.getNextRoleId() != null
+                && transition.getNextRoleId().equals(2L)) {
+
+            String pincode =
+                    mapping.getPinCode();
+
+            String product = "Rail Pad";
+
+            String stage = "F";
+
+
+            IEFieldsMapping ieMap =
+                    ieFieldsMappingRepository
+                            .findByPlantPincodeAndProductAndStageMatch(
+                                   pincode,
+                                    product,
+                                    stage
+                            )
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "RIO mapping not found"));
+
+
+            tx.setRio(
+                    ieMap.getRio());
+        }
+
+
 
         tx.setCreatedBy(createdBy);
+
         tx.setCreatedDate(LocalDateTime.now());
 
-        tx.setJobStatus("CREATED");
         tx.setShift(shift);
 
-        RailWorkflowTransaction saved = railWorkflowTransactionRepository.save(tx);
+
+        RailWorkflowTransaction saved =
+                railWorkflowTransactionRepository.save(tx);
 
         return mapToResponse(saved);
     }
 
 
-
+/*
     @Override
     public RailWorkflowTransactionDto performTransitionAction(
             RailTransitionActionReqDto req) {
@@ -197,6 +285,343 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 railWorkflowTransactionRepository.save(tx);
 
         return mapToResponse(saved);
+    } */
+
+
+    @Override
+    public RailWorkflowTransactionDto performTransitionAction(
+            RailTransitionActionReqDto req) {
+
+        RailWorkflowTransaction current =
+                railWorkflowTransactionRepository
+                        .findById(Math.toIntExact(req.getWorkflowTransitionId()))
+                        .orElseThrow(() -> new BusinessException(
+                                new ErrorDetails(
+                                        AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "Workflow transition not found"
+                                )
+                        ));
+
+
+        if(current.getWorkflowId() == 1
+                && current.getNextRole().equalsIgnoreCase("Rail Process IE")) {
+
+            boolean exists =
+                    poiIeMappingRepository
+                            .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                                    current.getPoiCode(),
+                                    current.getPlantId(),
+                                    Math.toIntExact(req.getActionBy()),
+                                    "Process IE"
+                            );
+
+            if(!exists){
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "User not mapped as Process IE"
+                        )
+                );
+            }
+        }
+
+
+        else if(current.getWorkflowId() == 2
+                && current.getNextRole().equalsIgnoreCase("RIO Help Desk")) {
+
+            String employeeCode =
+                    userMasterRepository
+                            .findEmployeeCodeByUserId(
+                                    Math.toIntExact(req.getActionBy()));
+
+            if(employeeCode == null){
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Employee code not found for user"
+                        )
+                );
+            }
+
+            boolean exists =
+                    rioUserRepository.existsByRioAndEmployeeCode(
+                            current.getRio(),
+                            employeeCode);
+
+            if(!exists){
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "User is not mapped to this RIO"
+                        )
+                );
+            }
+        }
+
+
+        else if(current.getWorkflowId() == 2
+                && current.getNextRole().equalsIgnoreCase("Rail Main IE")) {
+
+            boolean exists =
+                    poiIeMappingRepository
+                            .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                                    current.getPoiCode(),
+                                    current.getPlantId(),
+                                    Math.toIntExact(req.getActionBy()),
+                                    "Main IE"
+                            );
+
+            if(!exists){
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "User is not mapped as Main IE"
+                        )
+                );
+            }
+        }
+
+        String status = null;
+
+
+
+//        if(current.getWorkflowId() == 1){
+//            status = determineJobStatus(req.getAction());
+//        }
+
+        RailWorkflowTransaction tx =
+                new RailWorkflowTransaction();
+
+        tx.setRequestId(req.getRequestId());
+        tx.setModuleId(req.getModuleId());
+        tx.setWorkflowId(current.getWorkflowId());
+
+        tx.setAction(req.getAction());
+        tx.setStatus(status);
+        tx.setRemarks(req.getRemarks());
+
+        tx.setShift(current.getShift());
+        tx.setPoiCode(current.getPoiCode());
+        tx.setPlantId(current.getPlantId());
+        tx.setVendorCode(current.getVendorCode());
+
+
+
+        if(current.getWorkflowId().equals(2L)) {
+
+            List<RailTransitionMaster> transitions =
+                    railTransitionMasterRepository
+                            .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                    current.getWorkflowId().intValue(),
+                                    getRoleId(current.getNextRole()),
+                                    req.getAction()
+                            );
+
+            RailTransitionMaster transition = null;
+
+            if(transitions.size() == 1){
+
+                transition = transitions.get(0);
+
+            } else {
+
+                List<RailTransitionMaster> trans = null;
+
+                if(req.getAction().equalsIgnoreCase("PO_VERIFICATION")
+                        || req.getAction().equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL")) {
+
+                    trans =
+                            railTransitionMasterRepository
+                                    .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                            current.getWorkflowId().intValue(),
+                                            getRoleId(current.getCurrentRole()),
+                                            current.getAction()
+                                    );
+
+                    transition = trans.stream()
+                            .filter(t ->
+                                    t.getNextAction()
+                                            .equalsIgnoreCase(req.getAction()))
+                            .findFirst()
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Transition not configured"));
+
+                    tx.setCurrentRole(current.getNextRole());
+                }
+            }
+
+            tx.setCurrentRole(current.getNextRole());
+            if(current.getWorkflowId() == 2) {
+                tx.setJobStatus(determineJobStatus(req.getAction()));
+            }
+
+            if(transition.getNextRoleId() != null) {
+
+                tx.setNextRole(
+                        getRoleName(
+                                transition.getNextRoleId()));
+            }
+
+            if(transition.getNextRoleId() == null) {
+
+                tx.setStatus(AppConstant.COMPLETED_TYPE);
+
+            } else {
+
+                tx.setStatus(AppConstant.PENDING_TYPE);
+            }
+
+            if(transition.getNextRoleId() != null
+                    && transition.getNextRoleId().equals(2)) {
+
+                RailPadPincodePoIMapping mapping =
+                        railPadPincodePoIMappingRepository
+                                .findByVendorCode(current.getVendorCode())
+                                .orElseThrow(() -> new BusinessException(
+                                        new ErrorDetails(
+                                                AppConstant.ERROR_CODE_RESOURCE,
+                                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                                AppConstant.ERROR_TYPE_VALIDATION,
+                                                "Vendor mapping not found"
+                                        )
+                                ));
+
+                String stage = "F";
+                String product = "Rail Pad";
+
+                String pinCode = mapping.getPinCode();
+
+                IEFieldsMapping map = ieFieldsMappingRepository
+                                .findByPlantPincodeAndProductAndStageMatch(
+                                        pinCode,
+                                        product,
+                                        stage
+                                )
+                                .orElseThrow(() -> new BusinessException(
+                                        new ErrorDetails(
+                                                AppConstant.ERROR_CODE_RESOURCE,
+                                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                                AppConstant.ERROR_TYPE_VALIDATION,
+                                                "No IE mapping found"
+                                        )
+                                ));
+
+                String rio = map.getRio();
+
+                tx.setRio(rio);
+            }
+
+        }
+
+
+
+        else {
+
+            if(req.getAction().equalsIgnoreCase("RETURN_TO_VENDOR")) {
+
+                tx.setCurrentRole("Rail Process IE");
+                tx.setNextRole("Rail Vendor");
+
+            }
+
+            else if(req.getAction().equalsIgnoreCase("RESUBMIT")) {
+
+                tx.setCurrentRole("Rail Vendor");
+                tx.setNextRole("Rail Process IE");
+
+            }
+
+            else {
+
+                tx.setCurrentRole("Rail Process IE");
+            }
+            if ("VERIFY".equalsIgnoreCase(req.getAction())) {
+
+                tx.setStatus("COMPLETED");
+                tx.setJobStatus("COMPLETED");
+
+            }
+            else if ("RETURN_TO_VENDOR".equalsIgnoreCase(req.getAction())) {
+
+                tx.setStatus("RETURNED");
+                tx.setJobStatus("RETURNED");
+
+            }
+            else {
+
+                tx.setStatus("PENDING");
+                tx.setJobStatus("PENDING");
+            }
+        }
+
+        tx.setAssignedToUser(req.getActionBy());
+
+        tx.setCreatedBy(current.getCreatedBy());
+        tx.setModifiedBy(req.getActionBy());
+
+        tx.setCreatedDate(LocalDateTime.now());
+        tx.setUpdatedDate(LocalDateTime.now());
+
+        RailWorkflowTransaction saved =
+                railWorkflowTransactionRepository.save(tx);
+
+        return mapToResponse(saved);
+    }
+
+    private String determineJobStatus(String action) {
+
+        switch (action.toUpperCase()) {
+
+            case "CREATED":
+                return "CREATED";
+
+            case "VERIFY":
+                return "RIO_VERIFIED";
+
+            case "MAIN_IE_SCHEDULE_CALL":
+                return "SCHEDULED";
+
+            case "RESCHEDULE_CALL":
+                return "RESCHEDULE";
+
+            case "INITIATE_CALL":
+                return "INITIATED";
+
+            case "PO_VERIFICATION":
+                return "PO_VERIFICATION";
+
+            case "FINISH":
+            case "COMPLETED":
+                return "COMPLETED";
+
+            case "PAUSE":
+                return "PAUSED";
+
+            case "WITHHELD":
+                return "WITHHELD";
+
+            case "RESUME":
+                return "RESUME";
+
+            case "IC_ISSUE":
+                return "IC_ISSUE";
+
+            case "IC_GENERATION":
+                return "GENERATED";
+
+            default:
+                return "PENDING";
+        }
     }
 
 
@@ -267,12 +692,24 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
             // Process IE / Main IE mappings
 
-            mappings =
-                    poiIeMappingRepository
-                            .findByPoiCodeAndPlantId(
-                                    tx.getPoiCode(),
-                                    tx.getPlantId()
-                            );
+
+            if(tx.getWorkflowId().equals(2L)) {
+                mappings =
+                        poiIeMappingRepository
+                                .findByPoiCodeAndPlantIdAndIeType(
+                                        tx.getPoiCode(),
+                                        tx.getPlantId(),
+                                        "Main IE"
+                                );
+            }else {
+                mappings =
+                        poiIeMappingRepository
+                                .findByPoiCodeAndPlantIdAndIeType(
+                                        tx.getPoiCode(),
+                                        tx.getPlantId(),
+                                        "Process IE"
+                                );
+            }
         }
 
 

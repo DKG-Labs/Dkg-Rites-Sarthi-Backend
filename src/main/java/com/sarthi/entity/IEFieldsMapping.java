@@ -23,4 +23,6 @@ public class IEFieldsMapping {
 
     @Column(name = "rio", length = 50, nullable = false)
     private String rio;
+
+    private String plantPincode;
 }

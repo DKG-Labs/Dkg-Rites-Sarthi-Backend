@@ -9,4 +9,8 @@ import java.util.List;
 @Repository
 public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMapping, Long> {
     List<RailPoiIeMapping> findByPoiCodeAndPlantId(String poiCode, String plantId);
+
+    boolean existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(String poiCode, String plantId, int intExact, String processIe);
+
+    List<RailPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(String poiCode, String plantId, String mainIe);
 }

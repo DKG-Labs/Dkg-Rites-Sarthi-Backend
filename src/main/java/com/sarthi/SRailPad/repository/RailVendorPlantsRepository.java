@@ -18,4 +18,6 @@ where r.vendorCode = :vendorCode
     Optional<Long> findVendorUserIdByVendorCode(
             @Param("vendorCode") String vendorCode
     );
+
+    Optional<RailVendorPlants> findByPlantId(String plantId);
 }

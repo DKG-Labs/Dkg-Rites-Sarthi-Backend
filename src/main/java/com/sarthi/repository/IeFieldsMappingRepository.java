@@ -3,6 +3,7 @@ package com.sarthi.repository;
 import com.sarthi.entity.IEFieldsMapping;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -30,4 +31,16 @@ WHERE m.pinCode = :pinCode
     );
 
 
+    @Query("""
+SELECT i
+FROM IEFieldsMapping i
+WHERE i.plantPincode = :plantPincode
+AND i.product = :product
+AND i.stage LIKE %:stage%
+""")
+    Optional<IEFieldsMapping> findByPlantPincodeAndProductAndStageMatch(
+            @Param("plantPincode") String plantPincode,
+            @Param("product") String product,
+            @Param("stage") String stage
+    );
 }

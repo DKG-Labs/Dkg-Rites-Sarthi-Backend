@@ -4,6 +4,7 @@ import com.sarthi.SRailPad.entity.RailTransitionMaster;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -19,4 +20,5 @@ public interface RailTransitionMasterRepository extends JpaRepository<RailTransi
             String nextAction
     );
 
+    List<RailTransitionMaster> findByWorkflowIdAndCurrentRoleIdAndCurrentAction(int i, Integer roleId, String action);
 }
