@@ -4,6 +4,8 @@ import com.sarthi.SRailPad.entity.RailWorkflowTransaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.query.Param;
+import java.util.Optional;
 
 import java.util.List;
 
@@ -60,4 +62,16 @@ AND t.workflowId = 2
 """)
     List<RailWorkflowTransaction> findFinalCompletedRequests();
 
-    }
+    @Query(value = """
+                SELECT status 
+                FROM rail_workflow_transaction 
+                WHERE request_id = :requestId 
+                  AND module_id = :moduleId
+                ORDER BY workflow_transition_id DESC 
+                LIMIT 1
+            """, nativeQuery = true)
+    Optional<String> findLatestStatusByRequestIdAndModuleId(
+            @Param("requestId") String requestId,
+            @Param("moduleId") Long moduleId
+    );
+}
