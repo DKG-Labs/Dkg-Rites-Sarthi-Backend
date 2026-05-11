@@ -18,4 +18,6 @@ public interface UserRoleMasterRepository extends JpaRepository<UserRoleMaster, 
     @Modifying
     @Transactional
     void deleteByUserId(Integer userId);
+
+
 }

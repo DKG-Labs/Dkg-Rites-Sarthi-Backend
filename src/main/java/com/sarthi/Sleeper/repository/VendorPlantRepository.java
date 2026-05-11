@@ -30,4 +30,12 @@ public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> 
     WHERE vendor_id = :vendorCode
 """, nativeQuery = true)
     List<PlantProjection> getPlants(String vendorCode);
+
+    @Query("""
+    SELECT DISTINCT v.plantId
+    FROM VendorPlant v
+    WHERE v.vendorId = :vendorCode
+    ORDER BY v.plantId
+    """)
+    List<String> findPlantIdsByVendorCode(String vendorCode);
 }
