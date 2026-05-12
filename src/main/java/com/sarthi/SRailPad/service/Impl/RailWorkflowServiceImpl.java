@@ -18,6 +18,7 @@ import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 @Service
 @AllArgsConstructor
+@Transactional(readOnly = true)
 public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
@@ -47,6 +49,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
     @Override
+    @Transactional
     public RailWorkflowTransactionDto initiateWorkflow(
             String requestId,
             Long moduleId,
@@ -289,6 +292,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
     @Override
+    @Transactional
     public RailWorkflowTransactionDto performTransitionAction(
             RailTransitionActionReqDto req) {
 
@@ -306,7 +310,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
         if(current.getWorkflowId() == 1
-                && current.getNextRole().equalsIgnoreCase("Rail Process IE")) {
+                && "Rail Process IE".equalsIgnoreCase(current.getNextRole())) {
 
             boolean exists =
                     poiIeMappingRepository
@@ -331,7 +335,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
         else if(current.getWorkflowId() == 2
-                && current.getNextRole().equalsIgnoreCase("RIO Help Desk")) {
+                && "RIO Help Desk".equalsIgnoreCase(current.getNextRole())) {
 
             String employeeCode =
                     userMasterRepository
@@ -368,7 +372,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
         else if(current.getWorkflowId() == 2
-                && current.getNextRole().equalsIgnoreCase("Rail Main IE")) {
+                && "Rail Main IE".equalsIgnoreCase(current.getNextRole())) {
 
             boolean exists =
                     poiIeMappingRepository
@@ -535,33 +539,28 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
 
             else if(req.getAction().equalsIgnoreCase("RESUBMIT")) {
-
                 tx.setCurrentRole("Rail Vendor");
                 tx.setNextRole("Rail Process IE");
-
-            }
-
-            else {
-
+            } else {
                 tx.setCurrentRole("Rail Process IE");
             }
-            if ("VERIFY".equalsIgnoreCase(req.getAction())) {
 
+            if ("VERIFY".equalsIgnoreCase(req.getAction())) {
                 tx.setStatus("COMPLETED");
                 tx.setJobStatus("COMPLETED");
-
-            }
-            else if ("RETURN_TO_VENDOR".equalsIgnoreCase(req.getAction())) {
-
+            } else if ("RETURN_TO_VENDOR".equalsIgnoreCase(req.getAction())) {
                 tx.setStatus("RETURNED");
                 tx.setJobStatus("RETURNED");
-
-            }
-            else {
-
+            } else if ("RESUBMIT".equalsIgnoreCase(req.getAction())) {
+                System.out.println("[Workflow Service] Action is RESUBMIT, setting status to RESUBMITTED");
+                tx.setStatus("RESUBMITTED");
+                tx.setJobStatus("RESUBMITTED");
+            } else {
+                System.out.println("[Workflow Service] Action is " + req.getAction() + ", setting status to PENDING");
                 tx.setStatus("PENDING");
                 tx.setJobStatus("PENDING");
             }
+            System.out.println("[Workflow Service] Final Status before save: " + tx.getStatus());
         }
 
         tx.setAssignedToUser(req.getActionBy());
@@ -603,6 +602,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             case "FINISH":
             case "COMPLETED":
                 return "COMPLETED";
+
+            case "RESUBMIT":
+                return "RESUBMITTED";
 
             case "PAUSE":
                 return "PAUSED";
@@ -835,6 +837,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
     @Override
+    @Transactional(readOnly = true)
     public List<RailWorkflowTransactionDto>
     workflowTransitionHistory(String requestId) {
 
@@ -873,4 +876,35 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 .toList();
     }
 
+    @Override
+    public List<String> getMappedCompanyNames(Long userId) {
+        List<RailPoiIeMapping> ieMappings = poiIeMappingRepository.findByIeUserId(Math.toIntExact(userId));
+        List<String> companyNames = new ArrayList<>();
+
+        for (RailPoiIeMapping ieMapping : ieMappings) {
+            List<RailPadPincodePoIMapping> poiMappings = railPadPincodePoIMappingRepository.findByPoiCode(ieMapping.getPoiCode());
+            for (RailPadPincodePoIMapping poiMapping : poiMappings) {
+                if (!companyNames.contains(poiMapping.getCompanyName())) {
+                    companyNames.add(poiMapping.getCompanyName());
+                }
+            }
+        }
+        return companyNames;
+    }
+
+    @Override
+    public List<String> getPlantsByCompanyName(String companyName) {
+        List<RailPadPincodePoIMapping> poiMappings = railPadPincodePoIMappingRepository.findByCompanyName(companyName);
+        List<String> plantIds = new ArrayList<>();
+
+        for (RailPadPincodePoIMapping poiMapping : poiMappings) {
+            List<RailVendorPlants> plants = railVendorPlantsRepository.findByVendorCode(poiMapping.getVendorCode());
+            for (RailVendorPlants plant : plants) {
+                if (!plantIds.contains(plant.getPlantId())) {
+                    plantIds.add(plant.getPlantId());
+                }
+            }
+        }
+        return plantIds;
+    }
 }

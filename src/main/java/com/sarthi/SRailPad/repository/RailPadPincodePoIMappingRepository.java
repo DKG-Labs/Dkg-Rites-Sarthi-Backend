@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -20,6 +21,10 @@ where r.poiCode = :poiCode
     );
 
     Optional<RailPadPincodePoIMapping> findByVendorCode(String vendorCode);
+
+    List<RailPadPincodePoIMapping> findByPoiCode(String poiCode);
+
+    List<RailPadPincodePoIMapping> findByCompanyName(String companyName);
 
   //  Optional<RailPadPincodePoIMapping> findByPoiCodeAndPlantId(String poiCode, String plantId);
 }

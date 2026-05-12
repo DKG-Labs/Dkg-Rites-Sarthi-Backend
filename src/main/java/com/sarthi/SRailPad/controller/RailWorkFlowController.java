@@ -22,6 +22,7 @@ public class RailWorkFlowController {
 
     @PostMapping("/performTransitionAction")
     public ResponseEntity<Object> performTransitionAction(@RequestBody RailTransitionActionReqDto railTransitionActionReqDto)  {
+        System.out.println("[Workflow Controller] performTransitionAction hit for Request: " + railTransitionActionReqDto.getRequestId() + ", Action: " + railTransitionActionReqDto.getAction());
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.performTransitionAction(railTransitionActionReqDto)), HttpStatus.OK);
     }
 
@@ -33,7 +34,7 @@ public class RailWorkFlowController {
 
     @GetMapping("/WorkflowTransitionHistory")
     public ResponseEntity<Object> WorkflowTransitionHistory(@RequestParam String requestId)  {
-
+        System.out.println("[Workflow Controller] WorkflowTransitionHistory hit for Request: " + requestId);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.workflowTransitionHistory(requestId)), HttpStatus.OK);
     }
 
@@ -45,7 +46,16 @@ public class RailWorkFlowController {
 
     @GetMapping("/allFInalCallCompletedCalls")
     public ResponseEntity<Object> AllFinalCallCompletedTransition()  {
-
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions()), HttpStatus.OK);
+    }
+
+    @GetMapping("/getMappedCompanyNames")
+    public ResponseEntity<Object> getMappedCompanyNames(@RequestParam Long userId) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getMappedCompanyNames(userId)), HttpStatus.OK);
+    }
+
+    @GetMapping("/getPlantsByCompanyName")
+    public ResponseEntity<Object> getPlantsByCompanyName(@RequestParam String companyName) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getPlantsByCompanyName(companyName)), HttpStatus.OK);
     }
 }

@@ -30,4 +30,8 @@ public interface RailWorkflowService {
     public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions();
 
     public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
+    
+    public List<String> getMappedCompanyNames(Long userId);
+
+    public List<String> getPlantsByCompanyName(String companyName);
 }

@@ -18,7 +18,7 @@ WHERE t.workflowTransitionId = (
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
 )
-AND UPPER(t.status) IN ('CREATED','PENDING')
+AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
 AND t.nextRole = :roleName
 """)
     List<RailWorkflowTransaction> findLatestByRole(String roleName);
@@ -30,7 +30,7 @@ WHERE t.workflowTransitionId = (
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
 )
-AND UPPER(t.status) IN ('CREATED','PENDING')
+AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
 AND t.nextRole = :roleName
 """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRole(String roleName);

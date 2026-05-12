@@ -13,4 +13,6 @@ public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMappi
     boolean existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(String poiCode, String plantId, int intExact, String processIe);
 
     List<RailPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(String poiCode, String plantId, String mainIe);
+
+    List<RailPoiIeMapping> findByIeUserId(Integer ieUserId);
 }

@@ -174,5 +174,45 @@ CREATE TABLE IF NOT EXISTS rail_production_batch (
     final_wt DOUBLE,
     quantity INT,
     CONSTRAINT fk_product_parent FOREIGN KEY (product_id) REFERENCES rail_production_product(id) ON DELETE CASCADE
+
+-- 13. Rail IE Production Verification (Parent)
+CREATE TABLE IF NOT EXISTS rail_ie_production_verification (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    casting_date DATE,
+    shift VARCHAR(50),
+    production_unit VARCHAR(255),
+    request_id BIGINT,
+    total_pieces_produced INT,
+    total_pieces_rejected INT,
+    total_accepted_pieces INT,
+    created_by BIGINT,
+    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT,
+    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 14. Rail IE Production Info (Child 1 - Vendor Production Information)
+CREATE TABLE IF NOT EXISTS rail_ie_production_info (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    verification_id BIGINT NOT NULL,
+    product_type VARCHAR(255),
+    batch_no VARCHAR(100),
+    initial_wt DOUBLE,
+    final_wt DOUBLE,
+    quantity_produced INT,
+    CONSTRAINT fk_ie_verification FOREIGN KEY (verification_id) REFERENCES rail_ie_production_verification(id) ON DELETE CASCADE
+);
+
+-- 15. Rail IE Production Rejection (Child 2 - Log Physical Rejections)
+CREATE TABLE IF NOT EXISTS rail_ie_production_rejection (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    verification_id BIGINT NOT NULL,
+    info_id BIGINT,
+    product_type VARCHAR(255),
+    batch_no VARCHAR(100),
+    rejected_qty INT,
+    reason VARCHAR(255),
+    CONSTRAINT fk_ie_verification_rej FOREIGN KEY (verification_id) REFERENCES rail_ie_production_verification(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ie_info_rej FOREIGN KEY (info_id) REFERENCES rail_ie_production_info(id) ON DELETE SET NULL
 );
 
