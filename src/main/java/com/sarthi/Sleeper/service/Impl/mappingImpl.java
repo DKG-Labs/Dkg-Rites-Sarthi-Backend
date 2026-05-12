@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -176,6 +177,129 @@ public class mappingImpl implements mappingService {
     }
 
 
+    @Override
+    public CompanyEmployeeMappingResDto createBulkMapping(
+            CompanyEmployeeMappingReqDto req) {
+
+        List<String> successEmployees = new ArrayList<>();
+
+        List<String> failedEmployees = new ArrayList<>();
+
+        Integer expectedRoleId = null;
 
 
+        if(req.getIeType().equalsIgnoreCase("Main IE")) {
+
+            expectedRoleId = 10;
+
+        }
+        else if(req.getIeType().equalsIgnoreCase("Process IE")) {
+
+            expectedRoleId = 14;
+
+        }
+        else {
+
+            throw new RuntimeException("Invalid IE Type");
+        }
+
+
+        for(String employeeCode : req.getEmployeeCodes()) {
+
+            try {
+
+                UserMaster user =
+                        userMasterRepository
+                                .findByEmployeeCode(employeeCode);
+
+                // USER VALIDATION
+                if(user == null) {
+
+                    failedEmployees.add(
+                            employeeCode + " -> User not found");
+
+                    continue;
+                }
+
+                // ROLE VALIDATION
+                boolean roleExists =
+                        userRoleMasterRepository
+                                .existsByUserIdAndRoleId(
+                                        user.getUserId(),
+                                        expectedRoleId
+                                );
+
+                if(!roleExists) {
+
+                    failedEmployees.add(
+                            employeeCode + " -> Invalid role");
+
+                    continue;
+                }
+
+                // DUPLICATE VALIDATION
+                boolean mappingExists =
+                        repository
+                                .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                                        req.getPoiCode(),
+                                        req.getPlantId(),
+                                        user.getUserId(),
+                                        req.getIeType()
+                                );
+
+                if(mappingExists) {
+
+                    failedEmployees.add(
+                            employeeCode + " -> Already mapped");
+
+                    continue;
+                }
+
+
+                SleeperPoiIeMapping entity =
+                        new SleeperPoiIeMapping();
+
+                entity.setPoiCode(req.getPoiCode());
+
+                entity.setPlantId(req.getPlantId());
+
+                entity.setIeUserId(user.getUserId());
+
+                entity.setIeType(req.getIeType());
+
+                entity.setCreatedDate(LocalDateTime.now());
+
+                repository.save(entity);
+
+                successEmployees.add(employeeCode);
+
+            } catch (Exception ex) {
+
+                failedEmployees.add(
+                        employeeCode + " -> " + ex.getMessage());
+            }
+        }
+
+        return CompanyEmployeeMappingResDto.builder()
+                .successEmployees(successEmployees)
+                .failedEmployees(failedEmployees)
+                .build();
+    }
+
+
+    @Override
+    public List<EmployeeRoleResDto> getEmployeesByRoleId(
+            Integer roleId) {
+
+        List<UserMaster> users =
+                userMasterRepository
+                        .findUsersByRoleId(roleId);
+
+        return users.stream()
+                .map(user -> EmployeeRoleResDto.builder()
+                        .userId(user.getUserId())
+                        .employeeCode(user.getEmployeeCode())
+                        .build())
+                .toList();
+    }
 }

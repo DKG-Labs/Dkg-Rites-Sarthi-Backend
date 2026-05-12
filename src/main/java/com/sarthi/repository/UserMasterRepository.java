@@ -62,4 +62,13 @@ WHERE u.userId = :userId
 """)
     String findEmployeeCode(Integer userId);
 
+    @Query("""
+SELECT u
+FROM UserMaster u
+JOIN UserRoleMaster ur
+ON u.userId = ur.userId
+WHERE ur.roleId = :roleId
+ORDER BY u.employeeCode
+""")
+    List<UserMaster> findUsersByRoleId(Integer roleId);
 }

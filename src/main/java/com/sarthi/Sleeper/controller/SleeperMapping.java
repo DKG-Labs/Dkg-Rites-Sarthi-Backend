@@ -1,8 +1,6 @@
 package com.sarthi.Sleeper.controller;
 
-import com.sarthi.Sleeper.dto.mapping.EmployeeMappingFetchReqDto;
-import com.sarthi.Sleeper.dto.mapping.SleeperPoiIeMappingReqDto;
-import com.sarthi.Sleeper.dto.mapping.SleeperPoiIeMappingResDto;
+import com.sarthi.Sleeper.dto.mapping.*;
 import com.sarthi.Sleeper.service.mappingService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,6 +70,29 @@ public class SleeperMapping {
         );
     }
 
+
+
+    @PostMapping("/company-wise-sleeper-mapping")
+    public ResponseEntity<Object> createMapping(
+            @RequestBody CompanyEmployeeMappingReqDto req){
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(mappingService.createBulkMapping(req)),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/employees-by-role")
+    public ResponseEntity<Object> getEmployeesByRoleId(
+            @RequestParam Integer roleId){
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        mappingService.getEmployeesByRoleId(roleId)
+                ),
+                HttpStatus.OK
+        );
+    }
 
 
 }

@@ -15,7 +15,9 @@ public interface mappingService {
 
     List<String> getPlantIdsByVendorCode(String vendorCode);
 
-    List<EmployeeMappingResDto> getMappedEmployees(
-            EmployeeMappingFetchReqDto req);;
+    List<EmployeeMappingResDto> getMappedEmployees(EmployeeMappingFetchReqDto req);
 
+    CompanyEmployeeMappingResDto createBulkMapping(CompanyEmployeeMappingReqDto req);
+
+    List<EmployeeRoleResDto> getEmployeesByRoleId(Integer roleId);
 }
