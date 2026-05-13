@@ -68,6 +68,9 @@ public class UserMaster implements UserDetails {
 
     private String productType;
 
+    @Column(name = "ZONAL_RLY", length = 20)
+    private String zonalRly;
+
     @Column(name = "Region", length = 50)
     private String rio;
 

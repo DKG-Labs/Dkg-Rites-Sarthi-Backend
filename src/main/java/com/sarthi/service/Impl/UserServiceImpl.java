@@ -157,6 +157,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setShortName(userDto.getShortName());
         userMaster.setDesignation(userDto.getDesignation());
         userMaster.setDiscipline(userDto.getDiscipline());
+        userMaster.setZonalRly(userDto.getZonalRly());
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
         userMaster.setRio(userDto.getRio());
