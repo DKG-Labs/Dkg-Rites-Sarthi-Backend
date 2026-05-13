@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.PlantDTO;
 import com.sarthi.Sleeper.dto.RlyProjection;
 import com.sarthi.Sleeper.dto.VendorResponseDTO;
 import com.sarthi.Sleeper.entity.VendorPlant;
+import com.sarthi.Sleeper.repository.RailwayMasterRepository;
 import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.Sleeper.service.VendorPlantService;
 import com.sarthi.repository.PoHeaderRepository;
@@ -18,6 +19,8 @@ public class VendorPlantServiceImpl implements VendorPlantService {
     private VendorPlantRepository vendorPlantRepository;
     @Autowired
     private PoHeaderRepository poHeaderRepository;
+    @Autowired
+    private RailwayMasterRepository railwayMasterRepository;
 
     public VendorResponseDTO getPlantsByVendorCode(String vendorCode) {
 
@@ -70,7 +73,7 @@ public class VendorPlantServiceImpl implements VendorPlantService {
 
 
     public List<RlyProjection> getUniqueRlyList() {
-        return poHeaderRepository.getUniqueRlyList();
+        return railwayMasterRepository.getUniqueRlyList();
     }
 
 

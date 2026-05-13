@@ -17,6 +17,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingService {
@@ -185,6 +186,8 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
 
         return dto;
     } */
+
+    /*
        public CompanyUnitResponseDto getCompanyUnits(Integer ieUserId) {
 
            List<SleeperPoiIeMapping> mappingList =
@@ -249,5 +252,76 @@ public class SleeperPoiIeMappingServiceImpl implements SleeperPoiIeMappingServic
 
            return dto;
        }
+*/
 
+    public List<CompanyUnitResponseDto> getCompanyUnits(Integer ieUserId) {
+
+        List<SleeperPoiIeMapping> mappingList =
+                poiIeMappingRepository.findByIeUserId(ieUserId);
+
+        if (mappingList.isEmpty()) {
+            throw new RuntimeException("No mapping found for IE " + ieUserId);
+        }
+
+        List<String> poiCodes = mappingList.stream()
+                .map(SleeperPoiIeMapping::getPoiCode)
+                .distinct()
+                .toList();
+
+        List<String> userPlantIds = mappingList.stream()
+                .map(SleeperPoiIeMapping::getPlantId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<SleeperPincodePoIMapping> mappings =
+                sleeperPincodePoIMappingRepository.findByPoiCodeIn(poiCodes);
+
+        if (mappings.isEmpty()) {
+            throw new RuntimeException("No company found for IE " + ieUserId);
+        }
+
+        Map<String, List<SleeperPincodePoIMapping>> companyMap =
+                mappings.stream()
+                        .collect(Collectors.groupingBy(
+                                SleeperPincodePoIMapping::getVendorCode
+                        ));
+
+        List<CompanyUnitResponseDto> response = new ArrayList<>();
+
+        for (Map.Entry<String, List<SleeperPincodePoIMapping>> entry : companyMap.entrySet()) {
+
+            String vendorCode = entry.getKey();
+
+            SleeperPincodePoIMapping companyData = entry.getValue().get(0);
+
+            CompanyUnitResponseDto dto = new CompanyUnitResponseDto();
+
+            dto.setVendorId(vendorCode);
+            dto.setCompanyName(companyData.getCompanyName());
+
+            userMasterRepository.findByUserId(Integer.valueOf(vendorCode))
+                    .ifPresent(um -> dto.setVendorCode(um.getUsername()));
+
+            Long vendorId = Long.valueOf(vendorCode);
+
+            List<VendorPlant> plants =
+                    vendorPlantRepository.findByVendorId(vendorId);
+
+            List<String> plantIds = plants.stream()
+                    .map(VendorPlant::getPlantId)
+                    .filter(userPlantIds::contains)
+                    .distinct()
+                    .toList();
+
+            dto.setUnitNames(plantIds);
+
+            dto.setCompanyUnitMap(null);
+            dto.setUnitVendorMap(null);
+
+            response.add(dto);
+        }
+
+        return response;
+    }
 }

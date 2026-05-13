@@ -12,5 +12,5 @@ public interface SleeperPoiIeMappingService {
 
     public List<SleeperPoiIeMapping> saveMapping(SleeperPoiIeMappingDto dto);
 
-    public CompanyUnitResponseDto getCompanyUnits(Integer ieUserId);
+    public List<CompanyUnitResponseDto> getCompanyUnits(Integer ieUserId);
 }
