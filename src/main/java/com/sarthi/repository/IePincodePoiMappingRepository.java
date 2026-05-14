@@ -45,4 +45,10 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
 
 
     List<IePincodePoiMapping> findByPoiCode(String placeOfInspection);
+
+    @Query(value = "SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username) " +
+            "FROM ie_pincode_poi_mapping ipm " +
+            "JOIN user_master um ON um.employee_code = ipm.employee_code " +
+            "WHERE ipm.poi_code = :poiCode", nativeQuery = true)
+    List<String> findIeEmpCodeWithName(String poiCode);
 }

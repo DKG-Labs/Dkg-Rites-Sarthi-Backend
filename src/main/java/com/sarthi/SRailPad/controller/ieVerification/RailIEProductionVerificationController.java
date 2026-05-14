@@ -47,4 +47,11 @@ public class RailIEProductionVerificationController {
         service.deleteByRequestId(requestId);
         return ResponseEntity.ok(ResponseBuilder.getSuccessResponse("Record deleted successfully"));
     }
+
+    @GetMapping("/accepted-inventory")
+    public ResponseEntity<APIResponse> getAcceptedInventory(
+            @RequestParam String productionUnit,
+            @RequestParam(required = false) String productType) {
+        return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(service.getAcceptedInventory(productionUnit, productType)));
+    }
 }

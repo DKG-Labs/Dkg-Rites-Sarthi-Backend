@@ -14,12 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 public class RailIEProductionVerificationServiceImpl implements RailIEProductionVerificationService {
 
+    private static final Logger logger = LoggerFactory.getLogger(RailIEProductionVerificationServiceImpl.class);
+
     private final RailIEProductionVerificationRepository repository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
 
     @Override
     @Transactional
@@ -158,5 +163,63 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
             System.out.println("[IE Verification] Deleting record for RequestID: " + requestId);
             repository.delete(verification);
         });
+    }
+
+    @Override
+    public List<com.sarthi.SRailPad.dto.ieVerification.RailAcceptedInventoryDto> getAcceptedInventory(String productionUnit, String productType) {
+        System.out.println("[Accepted Inventory] Fetching for Unit: " + productionUnit + ", Type: " + productType);
+        
+        List<RailIEProductionVerification> verifications = repository.findAllByProductionUnit(productionUnit);
+        
+        // Group by casting date
+        return verifications.stream()
+                .collect(Collectors.groupingBy(RailIEProductionVerification::getCastingDate))
+                .entrySet().stream()
+                .map(entry -> {
+                    com.sarthi.SRailPad.dto.ieVerification.RailAcceptedInventoryDto dto = new com.sarthi.SRailPad.dto.ieVerification.RailAcceptedInventoryDto();
+                    dto.setCastingDate(entry.getKey());
+                    
+                    List<com.sarthi.SRailPad.dto.ieVerification.RailAcceptedInventoryDto.BatchAcceptedDto> batches = entry.getValue().stream()
+                            .flatMap(v -> v.getProductionInfos().stream())
+                            .filter(i -> productType == null || i.getProductType().equalsIgnoreCase(productType))
+                            .map(info -> {
+                                com.sarthi.SRailPad.dto.ieVerification.RailAcceptedInventoryDto.BatchAcceptedDto b = new com.sarthi.SRailPad.dto.ieVerification.RailAcceptedInventoryDto.BatchAcceptedDto();
+                                b.setInfoId(info.getId());
+                                b.setBatchNo(info.getBatchNo());
+                                b.setProductType(info.getProductType());
+                                
+                                // Calculate accepted qty: produced - rejected
+                                // AND subtract quantity already offered in inspection calls
+                                int produced = info.getQuantityProduced() != null ? info.getQuantityProduced() : 0;
+                                
+                                // Check rejections in the same verification record
+                                int rejected = info.getVerification().getRejections().stream()
+                                        .filter(r -> r.getProductionInfo() != null && r.getProductionInfo().getId().equals(info.getId()))
+                                        .mapToInt(r -> r.getRejectedQty() != null ? r.getRejectedQty() : 0)
+                                        .sum();
+
+                                // Get total offered for this batch and date across ALL calls
+                                Integer offered = railInspectionBatchRepository.findTotalOfferedByBatchAndDate(
+                                        info.getBatchNo(), 
+                                        info.getVerification().getCastingDate()
+                                );
+                                int alreadyOffered = offered != null ? offered : 0;
+                                
+                                if (alreadyOffered > 0) {
+                                    logger.info("[Inventory Stats] Batch: {}, Date: {}, Already Offered: {}", info.getBatchNo(), info.getVerification().getCastingDate(), alreadyOffered);
+                                }
+                                
+                                b.setAcceptedQty(produced - rejected - alreadyOffered);
+                                return b;
+                            })
+                            .filter(b -> b.getAcceptedQty() > 0)
+                            .collect(Collectors.toList());
+                    
+                    dto.setBatches(batches);
+                    return dto;
+                })
+                .filter(dto -> !dto.getBatches().isEmpty())
+                .sorted((a, b) -> b.getCastingDate().compareTo(a.getCastingDate())) // Newest first
+                .collect(Collectors.toList());
     }
 }

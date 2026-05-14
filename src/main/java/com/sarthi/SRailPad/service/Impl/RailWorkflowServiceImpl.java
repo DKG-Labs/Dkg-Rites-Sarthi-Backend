@@ -142,7 +142,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         if (workflowId.equals(2L)
                 && transition.getNextRoleId() != null
-                && transition.getNextRoleId().equals(2L)) {
+                && transition.getNextRoleId().equals(2)) {
 
             String pincode =
                     mapping.getPinCode();
@@ -353,7 +353,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 );
             }
 
-            boolean exists =
+            boolean exists = (current.getRio() == null) || 
                     rioUserRepository.existsByRioAndEmployeeCode(
                             current.getRio(),
                             employeeCode);
@@ -418,6 +418,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         tx.setPoiCode(current.getPoiCode());
         tx.setPlantId(current.getPlantId());
         tx.setVendorCode(current.getVendorCode());
+        tx.setRio(current.getRio());
 
 
 

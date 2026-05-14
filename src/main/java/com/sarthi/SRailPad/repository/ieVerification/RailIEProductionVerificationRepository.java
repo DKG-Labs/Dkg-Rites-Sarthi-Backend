@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface RailIEProductionVerificationRepository extends JpaRepository<RailIEProductionVerification, Long> {
     Optional<RailIEProductionVerification> findTopByRequestIdOrderByIdDesc(Long requestId);
+    java.util.List<RailIEProductionVerification> findAllByProductionUnit(String productionUnit);
 }

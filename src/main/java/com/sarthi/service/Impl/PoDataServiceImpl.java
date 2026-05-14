@@ -98,11 +98,11 @@ public class PoDataServiceImpl implements PoDataService {
 
         // Set PO Serial Number and formatted fields from inspection call if available
         if (inspectionCall != null && inspectionCall.getPoSerialNo() != null) {
-            String rlyPrefix = poHeader.getRlyShortName();
-            if (rlyPrefix == null || rlyPrefix.length() > 6) {
-                rlyPrefix = poHeader.getRlyCd();
-            }
-
+        String rlyPrefix = poHeader.getRlyShortName();
+        if (rlyPrefix == null || rlyPrefix.length() > 6) {
+            rlyPrefix = poHeader.getRlyCd();
+        }
+        
             dto.setPoSerialNo(inspectionCall.getPoSerialNo());
             dto.setRlyPoNo(rlyPrefix + "/" + poHeader.getPoNo()); // RLY/PO_NO with / separator
             

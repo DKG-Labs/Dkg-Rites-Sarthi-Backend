@@ -32,6 +32,9 @@ public class RailProductionDeclaration {
 
     @Column(name = "production_line")
     private String productionLine;
+    
+    @Column(name = "po_no")
+    private String poNo;
 
     private String status;
 

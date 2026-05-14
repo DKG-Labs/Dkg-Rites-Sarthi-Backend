@@ -9,6 +9,7 @@ import com.sarthi.entity.ProcessIeUsers;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
+import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
@@ -74,6 +75,8 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private EmployeeCodeSequenceRepository employeeCodeSequenceRepository;
+    private RailWorkflowTransactionRepository railWorkflowTransactionRepository;
+
 
 
 
@@ -740,7 +743,13 @@ public class UserServiceImpl implements UserService {
 
         String prefix = callNo.split("-")[0];
 
-        String poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+        String poiCode = null;
+
+        if ("RPF".equalsIgnoreCase(prefix)) {
+            poiCode = railWorkflowTransactionRepository.findLatestPoiByRequestId(callNo);
+        } else {
+            poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+        }
 
         if (poiCode == null) {
             throw new RuntimeException("Invalid Call No");
@@ -748,6 +757,8 @@ public class UserServiceImpl implements UserService {
 
         if ("EP".equalsIgnoreCase(prefix)) {
             return pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
+        } else if ("RPF".equalsIgnoreCase(prefix)) {
+            return iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
         } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
             return pincodePoIMappingRepository.findIeEmpCodeWithName(poiCode);
         } else {
@@ -919,8 +930,15 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("IC Number is empty");
         }
 
+        icNumber = icNumber.trim();
+        String prefix = icNumber.split("-")[0];
+
+        if ("RPF".equalsIgnoreCase(prefix)) {
+            return railWorkflowTransactionRepository.findLatestPoiByRequestId(icNumber);
+        }
+
         String poi = inspectionCallRepository
-                .findPlaceOfInspectionByIcNumber(icNumber.trim());
+                .findPlaceOfInspectionByIcNumber(icNumber);
 
         if (poi == null) {
             throw new RuntimeException("No data found for given IC Number");

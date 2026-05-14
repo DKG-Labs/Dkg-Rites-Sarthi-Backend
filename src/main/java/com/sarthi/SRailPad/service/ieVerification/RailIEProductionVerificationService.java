@@ -11,4 +11,5 @@ public interface RailIEProductionVerificationService {
     IEProductionVerificationResponseDto getByRequestId(Long requestId);
     List<IEProductionVerificationResponseDto> getAll();
     void deleteByRequestId(Long requestId);
+    List<com.sarthi.SRailPad.dto.ieVerification.RailAcceptedInventoryDto> getAcceptedInventory(String productionUnit, String productType);
 }

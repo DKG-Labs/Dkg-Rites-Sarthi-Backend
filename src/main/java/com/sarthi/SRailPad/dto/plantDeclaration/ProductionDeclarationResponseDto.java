@@ -13,6 +13,7 @@ public class ProductionDeclarationResponseDto {
     private String shift;
     private LocalDate productionDate;
     private String productionLine;
+    private String poNo;
     private String status;
     
     private List<ProductResponseDto> products;

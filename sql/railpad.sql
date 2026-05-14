@@ -1,5 +1,5 @@
 -- RailPad Module - Database Schema
--- Last Updated: 2026-05-08
+-- Last Updated: 2026-05-14
 
 -- 1. Plant Set Up (Parent Table)
 CREATE TABLE rail_plant_setup (
@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS rail_production_batch (
     final_wt DOUBLE,
     quantity INT,
     CONSTRAINT fk_product_parent FOREIGN KEY (product_id) REFERENCES rail_production_product(id) ON DELETE CASCADE
+);
 
 -- 13. Rail IE Production Verification (Parent)
 CREATE TABLE IF NOT EXISTS rail_ie_production_verification (
@@ -216,3 +217,116 @@ CREATE TABLE IF NOT EXISTS rail_ie_production_rejection (
     CONSTRAINT fk_ie_info_rej FOREIGN KEY (info_id) REFERENCES rail_ie_production_info(id) ON DELETE SET NULL
 );
 
+-- 16. Rail Inspection Call (Parent)
+CREATE TABLE IF NOT EXISTS rail_inspection_call (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    call_no VARCHAR(50) UNIQUE,
+    po_no VARCHAR(50),
+    po_sr VARCHAR(20) NULL COMMENT 'PO item serial number e.g. 001, maps to po_item.item_sr_no',
+    vendor_code VARCHAR(50),
+    plant_id VARCHAR(50),
+    rail_pad_type VARCHAR(100),
+    total_qty INT,
+    no_of_lots INT,
+    inspection_date DATE,
+    status VARCHAR(20) DEFAULT 'PENDING',
+    created_by BIGINT,
+    created_at DATETIME,
+    updated_by BIGINT,
+    updated_at DATETIME
+);
+
+-- 17. Rail Inspection Lot (Child)
+CREATE TABLE IF NOT EXISTS rail_inspection_lot (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    call_id BIGINT,
+    lot_no VARCHAR(50),
+    lot_size INT,
+    CONSTRAINT fk_inspection_call FOREIGN KEY (call_id) REFERENCES rail_inspection_call(id) ON DELETE CASCADE
+);
+
+-- 18. Rail Inspection Batch (Grandchild)
+CREATE TABLE IF NOT EXISTS rail_inspection_batch (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    lot_id BIGINT,
+    batch_no VARCHAR(50),
+    quantity INT,
+    production_date DATE,
+    CONSTRAINT fk_inspection_lot FOREIGN KEY (lot_id) REFERENCES rail_inspection_lot(id) ON DELETE CASCADE
+);
+
+-- 19. Rail Inspection Schedule
+CREATE TABLE IF NOT EXISTS rail_inspection_schedule (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    call_no VARCHAR(50) NOT NULL UNIQUE,
+    schedule_date DATE NOT NULL,
+    reason VARCHAR(500),
+    status VARCHAR(50) DEFAULT 'Scheduled',
+    created_by VARCHAR(100),
+    created_at DATETIME,
+    updated_by VARCHAR(100),
+    updated_at DATETIME
+);
+
+-- 20. Rail Initiation Verification
+-- Stores the IE officer's verified Section A & B data for each inspection call.
+-- Also stores the shift details entered via the ShiftDutyForm modal.
+CREATE TABLE IF NOT EXISTS rail_initiation_verification (
+    id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
+    call_no                 VARCHAR(50) NOT NULL UNIQUE COMMENT 'Inspection call number e.g. RPF-0513002',
+
+    -- Section A: PO Information (verified by IE)
+    rly_po_no               VARCHAR(100)    COMMENT 'RLY/PO_NO e.g. SER/60260074102063',
+    po_no                   VARCHAR(50),
+    po_date                 VARCHAR(20),
+    po_qty                  INT,
+    po_sr_qty               INT,
+    vendor_name             VARCHAR(255),
+    vendor_code             VARCHAR(50),
+    ma_no                   VARCHAR(50),
+    ma_date                 VARCHAR(20),
+    purchasing_authority    VARCHAR(500),
+    bill_paying_officer     VARCHAR(255),
+    section_a_status        VARCHAR(20)     DEFAULT 'approved',
+
+    -- Section B: Inspection Call Details (verified by IE)
+    rly_po_no_serial        VARCHAR(150)    COMMENT 'RLY/PO_NO/PO_SR e.g. SER/60260074102063/001',
+    item_desc               TEXT,
+    erc_type                VARCHAR(100),
+    unit                    VARCHAR(50),
+    consignee               VARCHAR(255),
+    orig_dp                 VARCHAR(20),
+    ext_dp                  VARCHAR(20),
+    call_qty                VARCHAR(50),
+    qty_unit                VARCHAR(50),
+    place_of_inspection     VARCHAR(255),
+    remarks                 TEXT,
+    section_b_status        VARCHAR(20)     DEFAULT 'approved',
+
+    -- Shift Details (from ShiftDutyForm modal on "OPEN & VERIFY FORM")
+    shift                   VARCHAR(10),
+    company                 VARCHAR(255),
+    casting_date            DATE,
+    production_unit         VARCHAR(255),
+
+    -- Audit
+    verified_by             BIGINT,
+    verified_at             DATETIME        DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================================================
+-- MIGRATION SCRIPTS
+-- Run these on existing databases (tables already created).
+-- =============================================================================
+
+-- 2026-05-14: Add po_sr to rail_inspection_call
+ALTER TABLE rail_inspection_call
+    ADD COLUMN IF NOT EXISTS po_sr VARCHAR(20) NULL
+    COMMENT 'PO item serial number e.g. 001, maps to po_item.item_sr_no';
+
+-- 2026-05-14: Create rail_initiation_verification (idempotent via CREATE TABLE IF NOT EXISTS above)
+
+-- 2026-05-14: Add po_no to rail_production_declaration
+ALTER TABLE rail_production_declaration
+    ADD COLUMN po_no VARCHAR(100) NULL
+    AFTER production_line;

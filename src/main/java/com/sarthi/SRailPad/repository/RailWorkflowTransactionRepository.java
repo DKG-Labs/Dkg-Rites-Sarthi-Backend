@@ -74,4 +74,7 @@ AND t.workflowId = 2
             @Param("requestId") String requestId,
             @Param("moduleId") Long moduleId
     );
+
+    @Query(value = "SELECT poi_code FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
+    String findLatestPoiByRequestId(@Param("requestId") String requestId);
 }

@@ -12,6 +12,7 @@ public class ProductionDeclarationRequestDto {
     private String shift;
     private LocalDate productionDate;
     private String productionLine;
+    private String poNo;
     private Long createdBy;
     private Long updatedBy;
     
