@@ -72,61 +72,10 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private VendorMasterRepository vendorMasterRepository;
 
+    @Autowired
+    private EmployeeCodeSequenceRepository employeeCodeSequenceRepository;
 
 
-    /*
-     * @Override
-     * public UserDto createUser(userRequestDto userDto) {
-     * UserMaster userMaster = new UserMaster();
-     * userMaster.setUserName(userDto.getUserName());
-     * userMaster.setMobileNumber(userDto.getMobileNumber());
-     * userMaster.setPassword(userDto.getPassword());
-     * userMaster.setEmail(userDto.getEmail());
-     * userMaster.setCreatedBy(userDto.getCreatedBy());
-     * userMaster.setEmployeeId(userDto.getEmployeeId());
-     *
-     * // Save role names as comma-separated string in user_master
-     * String rolesAsString = String.join(",", userDto.getRoleNames());
-     * userMaster.setRoleName(rolesAsString);
-     *
-     * // Save user
-     * userMasterRepository.save(userMaster);
-     *
-     * // Save each role in user_role_master
-     * for (String roleName : userDto.getRoleNames()) {
-     * RoleMaster role = roleMasterRepository.findByRoleName(roleName)
-     * .orElseThrow(() -> new BusinessException(
-     * new ErrorDetails(
-     * AppConstant.ERROR_CODE_RESOURCE,
-     * AppConstant.ERROR_TYPE_CODE_RESOURCE,
-     * AppConstant.ERROR_TYPE_VALIDATION,
-     * "Role with name '" + roleName + "' not found.")
-     * ));
-     *
-     * UserRoleMaster userRole = new UserRoleMaster();
-     * userRole.setUserId(userMaster.getUserId());
-     * userRole.setRoleId(role.getRoleId());
-     * userRole.setReadPermission(true);
-     * userRole.setWritePermission(true);
-     * userRole.setCreatedBy(userDto.getCreatedBy());
-     * userRole.setCreatedDate(new Date());
-     * userRoleMasterRepository.save(userRole);
-     *
-     * if (roleName.equalsIgnoreCase("RIO Help Desk")) {
-     *
-     * // Save cluster → RIO user mapping
-     * ClusterRioUser map = new ClusterRioUser();
-     * map.setClusterName(userDto.getClusterName());
-     * map.setRioUserId(userMaster.getUserId());
-     * map.setRegionName(userDto.getRegionName());
-     * clusterRioUserRepository.save(map);
-     * }
-     *
-     * }
-     *
-     * return mapToResponseDTO(userMaster);
-     * }
-     */
 
     @Transactional
     @Override
@@ -190,32 +139,7 @@ public class UserServiceImpl implements UserService {
             userRole.setCreatedBy(userDto.getCreatedBy());
             userRole.setCreatedDate(new Date());
 
-            // Validate cluster-region mapping (only for role types)
-            /*
-             * if (roleName.equalsIgnoreCase("RIO Help Desk")
-             * // || roleName.equalsIgnoreCase("IE")
-             * // || roleName.equalsIgnoreCase("IE Secondary")
-             * ) {
-             *
-             * RegionCluster rc = regionClusterRepository
-             * .findByClusterName(userDto.getClusterName())
-             * .orElseThrow(() -> new BusinessException(
-             * new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_VALIDATION,
-             * "Cluster not found: " + userDto.getClusterName())
-             * ));
-             *
-             * if (!rc.getRegionName().equalsIgnoreCase(userDto.getRegionName())) {
-             * throw new BusinessException(
-             * new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_CODE_VALIDATION,
-             * AppConstant.ERROR_TYPE_VALIDATION,
-             * "Region mismatch for cluster: " + userDto.getClusterName())
-             * );
-             * }
-             * }
-             */
+
 
             // Save RIO mapping
             if (roleName.equalsIgnoreCase("RIO Help Desk")) {
@@ -294,69 +218,73 @@ public class UserServiceImpl implements UserService {
                 sbu.setSbuHeadUserId(userMaster.getUserId());
                 regionSbuHeadRepository.save(sbu);
             }
-            /*
-             * // Save Process IE + multiple IE mappings
-             * if (roleName.equalsIgnoreCase("Process IE")) {
-             *
-             * //Save Process IE master entry
-             * ProcessIeMaster p = new ProcessIeMaster();
-             * p.setProcessIeUserId(userMaster.getUserId());
-             * p.setClusterName(userDto.getClusterName());
-             * p.setCreatedBy(userDto.getCreatedBy());
-             * processIeMasterRepository.save(p);
-             *
-             * //Validate and Save IE Mapping List
-             * if (userDto.getIeUserIds() == null || userDto.getIeUserIds().isEmpty()) {
-             * throw new BusinessException(new ErrorDetails(
-             * AppConstant.ERROR_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_CODE_VALIDATION,
-             * AppConstant.ERROR_TYPE_VALIDATION,
-             * "At least one IE must be mapped to Process IE"
-             * ));
-             * }
-             *
-             * for (Integer ieUserId : userDto.getIeUserIds()) {
-             * ProcessIeMapping mapping = new ProcessIeMapping();
-             * mapping.setProcessIeUserId(userMaster.getUserId());
-             * mapping.setIeUserId(ieUserId);
-             * mapping.setCreatedBy(userDto.getCreatedBy());
-             * processIeMappingRepository.save(mapping);
-             * }
-             *
-             * }
-             */
-            if (roleName.equalsIgnoreCase("Process IE")) {
- 
-                if (userDto.getIePoiMappings() != null && !userDto.getIePoiMappings().isEmpty()) {
- 
-                    for (IePoiMappingDto ieDto : userDto.getIePoiMappings()) {
+            if (roleName.equalsIgnoreCase("ZONAL RAILWAY")) {
 
-                        // Save Process IE → IE mapping
-                        ProcessIeUsers map = new ProcessIeUsers();
-                        map.setProcessUserId(userMaster.getUserId().longValue());
-                        map.setIeUserId(ieDto.getIeUserId());
-                        map.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
-                        map.setCreatedDate(new Date());
+                String roleCode = "ZR";
+                String zoneCode = userDto.getZonalRly(); // CR
 
-                        processIeUsersRepository.save(map);
+                EmployeeCodeSequence seq =
+                        employeeCodeSequenceRepository
+                                .findByRoleCodeAndZoneCode(roleCode, zoneCode)
+                                .orElse(null);
 
-                        // Save IE → multiple POIs (NEW TABLE)
-                        if (ieDto.getPoiCodes() != null && !ieDto.getPoiCodes().isEmpty()) {
+                int nextNumber = 1;
 
-                            for (String poi : ieDto.getPoiCodes()) {
+                if (seq == null) {
 
-                                IePoiMapping poiMap = new IePoiMapping();
-                                poiMap.setIeUserId(ieDto.getIeUserId());
-                                poiMap.setPoiCode(poi);
-                                poiMap.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
-                                poiMap.setCreatedDate(new Date());
+                    seq = new EmployeeCodeSequence();
+                    seq.setRoleCode(roleCode);
+                    seq.setZoneCode(zoneCode);
+                    seq.setLastNumber(1);
 
-                                iePoiMappingRepository.save(poiMap);
-                            }
-                        }
-                    }
+                } else {
+
+                    nextNumber = seq.getLastNumber() + 1;
+                    seq.setLastNumber(nextNumber);
                 }
+
+                employeeCodeSequenceRepository.save(seq);
+
+                String employeeCode =
+                        roleCode +
+                                zoneCode +
+                                String.format("%02d", nextNumber);
+
+                userMaster.setEmployeeCode(employeeCode);
             }
+//
+//            if (roleName.equalsIgnoreCase("Process IE")) {
+//
+//                if (userDto.getIePoiMappings() != null && !userDto.getIePoiMappings().isEmpty()) {
+//
+//                    for (IePoiMappingDto ieDto : userDto.getIePoiMappings()) {
+//
+//                        // Save Process IE → IE mapping
+//                        ProcessIeUsers map = new ProcessIeUsers();
+//                        map.setProcessUserId(userMaster.getUserId().longValue());
+//                        map.setIeUserId(ieDto.getIeUserId());
+//                        map.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
+//                        map.setCreatedDate(new Date());
+//
+//                        processIeUsersRepository.save(map);
+//
+//                        // Save IE → multiple POIs (NEW TABLE)
+//                        if (ieDto.getPoiCodes() != null && !ieDto.getPoiCodes().isEmpty()) {
+//
+//                            for (String poi : ieDto.getPoiCodes()) {
+//
+//                                IePoiMapping poiMap = new IePoiMapping();
+//                                poiMap.setIeUserId(ieDto.getIeUserId());
+//                                poiMap.setPoiCode(poi);
+//                                poiMap.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
+//                                poiMap.setCreatedDate(new Date());
+//
+//                                iePoiMappingRepository.save(poiMap);
+//                            }
+//                        }
+//                    }
+//                }
+//            }
 
             boolean isIeRole = userDto.getRoleNames().stream()
                     .anyMatch(r -> r.equalsIgnoreCase("IE")
