@@ -66,7 +66,6 @@ public class RailPoSummaryServiceImpl implements RailPoSummaryService {
         dto.setPoNo(header.getPoNo());
         dto.setRlyPoNo(rly + "/" + header.getPoNo());           // SER/60260074102063
         dto.setPoDate(formatDt(header.getPoDate()));
-        dto.setScrCode(header.getRlyShortName());
 
         // Vendor details — prefer vendorDetails, fall back to firmDetails
         String vendorRaw = header.getVendorDetails() != null

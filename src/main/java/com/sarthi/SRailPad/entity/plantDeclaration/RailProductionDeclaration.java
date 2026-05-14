@@ -36,7 +36,6 @@ public class RailProductionDeclaration {
     @Column(name = "po_no")
     private String poNo;
 
-
     private String status;
 
     @Column(name = "is_active")

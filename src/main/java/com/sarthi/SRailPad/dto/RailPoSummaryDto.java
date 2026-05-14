@@ -34,9 +34,6 @@ public class RailPoSummaryDto {
     /** Vendor name extracted from vendorDetails / firmDetails */
     private String vendorName;
 
-    /** SCR Code / Railway short name e.g. SER, SCR */
-    private String scrCode;
-
     /** Vendor code e.g. :1007406 */
     private String vendorCode;
 

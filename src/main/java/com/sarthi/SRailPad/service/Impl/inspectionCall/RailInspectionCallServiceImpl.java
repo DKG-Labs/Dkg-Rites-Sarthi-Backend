@@ -19,8 +19,6 @@ import java.util.Optional;
 public class RailInspectionCallServiceImpl implements RailInspectionCallService {
 
     private final RailInspectionCallRepository repository;
-    private final com.sarthi.repository.PoHeaderRepository poHeaderRepository;
-    private final com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
 
     @Override
     @Transactional
@@ -60,63 +58,16 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
     @Override
     public List<RailInspectionCall> getAllByVendorCode(String vendorCode) {
-        List<RailInspectionCall> calls = repository.findAllByVendorCode(vendorCode);
-        calls.forEach(this::enrichCallData);
-        return calls;
+        return repository.findAllByVendorCode(vendorCode);
     }
 
     @Override
     public RailInspectionCall getById(Long id) {
-        RailInspectionCall call = repository.findById(id).orElse(null);
-        if (call != null) {
-            enrichCallData(call);
-        }
-        return call;
+        return repository.findById(id).orElse(null);
     }
 
     @Override
     public RailInspectionCall getByCallNo(String callNo) {
-        RailInspectionCall call = repository.findByCallNo(callNo).orElse(null);
-        if (call != null) {
-            enrichCallData(call);
-        }
-        return call;
-    }
-
-    private void enrichCallData(RailInspectionCall call) {
-        String barePoNo = call.getPoNo();
-        if (barePoNo != null && barePoNo.contains("/")) {
-            barePoNo = barePoNo.split("/")[0];
-        }
-
-        // 1. Fetch PO Header for RLY info and Vendor Details
-        Optional<com.sarthi.entity.PoHeader> headerOpt = poHeaderRepository.findByPoNo(barePoNo);
-        if (headerOpt.isPresent()) {
-            com.sarthi.entity.PoHeader header = headerOpt.get();
-            call.setScrCode(header.getRlyShortName());
-            
-            String rlyPrefix = header.getRlyShortName() != null ? header.getRlyShortName() : "";
-            call.setRlyPoSrNo(rlyPrefix + "/" + call.getPoNo());
-
-            // Try to extract vendor name from header first
-            if (header.getVendorDetails() != null) {
-                call.setVendorName(extractVendorName(header.getVendorDetails()));
-            }
-        }
-
-        // 2. Fetch Vendor Master for official Name if still null
-        if (call.getVendorName() == null || "N/A".equals(call.getVendorName())) {
-            Optional<com.sarthi.entity.VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(call.getVendorCode());
-            vendorOpt.ifPresent(v -> call.setVendorName(v.getVendorName()));
-        }
-    }
-
-    private String extractVendorName(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        String[] parts = raw.split("~");
-        String segment = parts[0];
-        int dashIdx = segment.lastIndexOf('-');
-        if (dashIdx > 0) return segment.substring(0, dashIdx).trim();
-        return segment.trim();
+        return repository.findByCallNo(callNo).orElse(null);
     }
 }
