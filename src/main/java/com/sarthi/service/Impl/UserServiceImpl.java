@@ -72,62 +72,12 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private VendorMasterRepository vendorMasterRepository;
 
+    @Autowired
+    private EmployeeCodeSequenceRepository employeeCodeSequenceRepository;
 
 
-    /*
-     * @Override
-     * public UserDto createUser(userRequestDto userDto) {
-     * UserMaster userMaster = new UserMaster();
-     * userMaster.setUserName(userDto.getUserName());
-     * userMaster.setMobileNumber(userDto.getMobileNumber());
-     * userMaster.setPassword(userDto.getPassword());
-     * userMaster.setEmail(userDto.getEmail());
-     * userMaster.setCreatedBy(userDto.getCreatedBy());
-     * userMaster.setEmployeeId(userDto.getEmployeeId());
-     *
-     * // Save role names as comma-separated string in user_master
-     * String rolesAsString = String.join(",", userDto.getRoleNames());
-     * userMaster.setRoleName(rolesAsString);
-     *
-     * // Save user
-     * userMasterRepository.save(userMaster);
-     *
-     * // Save each role in user_role_master
-     * for (String roleName : userDto.getRoleNames()) {
-     * RoleMaster role = roleMasterRepository.findByRoleName(roleName)
-     * .orElseThrow(() -> new BusinessException(
-     * new ErrorDetails(
-     * AppConstant.ERROR_CODE_RESOURCE,
-     * AppConstant.ERROR_TYPE_CODE_RESOURCE,
-     * AppConstant.ERROR_TYPE_VALIDATION,
-     * "Role with name '" + roleName + "' not found.")
-     * ));
-     *
-     * UserRoleMaster userRole = new UserRoleMaster();
-     * userRole.setUserId(userMaster.getUserId());
-     * userRole.setRoleId(role.getRoleId());
-     * userRole.setReadPermission(true);
-     * userRole.setWritePermission(true);
-     * userRole.setCreatedBy(userDto.getCreatedBy());
-     * userRole.setCreatedDate(new Date());
-     * userRoleMasterRepository.save(userRole);
-     *
-     * if (roleName.equalsIgnoreCase("RIO Help Desk")) {
-     *
-     * // Save cluster → RIO user mapping
-     * ClusterRioUser map = new ClusterRioUser();
-     * map.setClusterName(userDto.getClusterName());
-     * map.setRioUserId(userMaster.getUserId());
-     * map.setRegionName(userDto.getRegionName());
-     * clusterRioUserRepository.save(map);
-     * }
-     *
-     * }
-     *
-     * return mapToResponseDTO(userMaster);
-     * }
-     */
 
+    @Transactional
     @Override
     public UserDto createUser(userRequestDto userDto) {
 
@@ -156,17 +106,21 @@ public class UserServiceImpl implements UserService {
         userMaster.setShortName(userDto.getShortName());
         userMaster.setDesignation(userDto.getDesignation());
         userMaster.setDiscipline(userDto.getDiscipline());
+        userMaster.setZonalRly(userDto.getZonalRly());
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
+        userMaster.setRio(userDto.getRio());
 
         String rolesAsString = String.join(",", userDto.getRoleNames());
         userMaster.setRoleName(rolesAsString);
 
         userMasterRepository.save(userMaster);
-
-        // If update, consider clearing old roles or handling mapping updates
-        // For simplicity, we keep the existing logic but ensure we use the saved ID
-
+ 
+        // If update, clear old roles to prevent duplicates
+        if (userDto.getUserId() != null) {
+            userRoleMasterRepository.deleteByUserId(userMaster.getUserId());
+        }
+ 
         // Role-based logic
         for (String roleName : userDto.getRoleNames()) {
 
@@ -185,32 +139,7 @@ public class UserServiceImpl implements UserService {
             userRole.setCreatedBy(userDto.getCreatedBy());
             userRole.setCreatedDate(new Date());
 
-            // Validate cluster-region mapping (only for role types)
-            /*
-             * if (roleName.equalsIgnoreCase("RIO Help Desk")
-             * // || roleName.equalsIgnoreCase("IE")
-             * // || roleName.equalsIgnoreCase("IE Secondary")
-             * ) {
-             *
-             * RegionCluster rc = regionClusterRepository
-             * .findByClusterName(userDto.getClusterName())
-             * .orElseThrow(() -> new BusinessException(
-             * new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_VALIDATION,
-             * "Cluster not found: " + userDto.getClusterName())
-             * ));
-             *
-             * if (!rc.getRegionName().equalsIgnoreCase(userDto.getRegionName())) {
-             * throw new BusinessException(
-             * new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_CODE_VALIDATION,
-             * AppConstant.ERROR_TYPE_VALIDATION,
-             * "Region mismatch for cluster: " + userDto.getClusterName())
-             * );
-             * }
-             * }
-             */
+
 
             // Save RIO mapping
             if (roleName.equalsIgnoreCase("RIO Help Desk")) {
@@ -289,75 +218,73 @@ public class UserServiceImpl implements UserService {
                 sbu.setSbuHeadUserId(userMaster.getUserId());
                 regionSbuHeadRepository.save(sbu);
             }
-            /*
-             * // Save Process IE + multiple IE mappings
-             * if (roleName.equalsIgnoreCase("Process IE")) {
-             *
-             * //Save Process IE master entry
-             * ProcessIeMaster p = new ProcessIeMaster();
-             * p.setProcessIeUserId(userMaster.getUserId());
-             * p.setClusterName(userDto.getClusterName());
-             * p.setCreatedBy(userDto.getCreatedBy());
-             * processIeMasterRepository.save(p);
-             *
-             * //Validate and Save IE Mapping List
-             * if (userDto.getIeUserIds() == null || userDto.getIeUserIds().isEmpty()) {
-             * throw new BusinessException(new ErrorDetails(
-             * AppConstant.ERROR_CODE_RESOURCE,
-             * AppConstant.ERROR_TYPE_CODE_VALIDATION,
-             * AppConstant.ERROR_TYPE_VALIDATION,
-             * "At least one IE must be mapped to Process IE"
-             * ));
-             * }
-             *
-             * for (Integer ieUserId : userDto.getIeUserIds()) {
-             * ProcessIeMapping mapping = new ProcessIeMapping();
-             * mapping.setProcessIeUserId(userMaster.getUserId());
-             * mapping.setIeUserId(ieUserId);
-             * mapping.setCreatedBy(userDto.getCreatedBy());
-             * processIeMappingRepository.save(mapping);
-             * }
-             *
-             * }
-             */
-            if (roleName.equalsIgnoreCase("Process IE")) {
+            if (roleName.equalsIgnoreCase("ZONAL RAILWAY")) {
 
-                if (userDto.getIePoiMappings() == null || userDto.getIePoiMappings().isEmpty()) {
-                    throw new BusinessException(new ErrorDetails(
-                            AppConstant.ERROR_CODE_RESOURCE,
-                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                            AppConstant.ERROR_TYPE_VALIDATION,
-                            "IE and POI mapping is required for Process IE"));
+                String roleCode = "ZR";
+                String zoneCode = userDto.getZonalRly(); // CR
+
+                EmployeeCodeSequence seq =
+                        employeeCodeSequenceRepository
+                                .findByRoleCodeAndZoneCode(roleCode, zoneCode)
+                                .orElse(null);
+
+                int nextNumber = 1;
+
+                if (seq == null) {
+
+                    seq = new EmployeeCodeSequence();
+                    seq.setRoleCode(roleCode);
+                    seq.setZoneCode(zoneCode);
+                    seq.setLastNumber(1);
+
+                } else {
+
+                    nextNumber = seq.getLastNumber() + 1;
+                    seq.setLastNumber(nextNumber);
                 }
 
-                for (IePoiMappingDto ieDto : userDto.getIePoiMappings()) {
+                employeeCodeSequenceRepository.save(seq);
 
-                    // Save Process IE → IE mapping
-                    ProcessIeUsers map = new ProcessIeUsers();
-                    map.setProcessUserId(userMaster.getUserId().longValue());
-                    map.setIeUserId(ieDto.getIeUserId());
-                    map.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
-                    map.setCreatedDate(new Date());
+                String employeeCode =
+                        roleCode +
+                                zoneCode +
+                                String.format("%02d", nextNumber);
 
-                    processIeUsersRepository.save(map);
-
-                    // Save IE → multiple POIs (NEW TABLE)
-                    if (ieDto.getPoiCodes() != null && !ieDto.getPoiCodes().isEmpty()) {
-
-                        for (String poi : ieDto.getPoiCodes()) {
-
-                            IePoiMapping poiMap = new IePoiMapping();
-                            poiMap.setIeUserId(ieDto.getIeUserId());
-                            poiMap.setPoiCode(poi);
-                            poiMap.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
-                            poiMap.setCreatedDate(new Date());
-
-                            iePoiMappingRepository.save(poiMap);
-                        }
-                    }
-                }
-
+                userMaster.setEmployeeCode(employeeCode);
             }
+//
+//            if (roleName.equalsIgnoreCase("Process IE")) {
+//
+//                if (userDto.getIePoiMappings() != null && !userDto.getIePoiMappings().isEmpty()) {
+//
+//                    for (IePoiMappingDto ieDto : userDto.getIePoiMappings()) {
+//
+//                        // Save Process IE → IE mapping
+//                        ProcessIeUsers map = new ProcessIeUsers();
+//                        map.setProcessUserId(userMaster.getUserId().longValue());
+//                        map.setIeUserId(ieDto.getIeUserId());
+//                        map.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
+//                        map.setCreatedDate(new Date());
+//
+//                        processIeUsersRepository.save(map);
+//
+//                        // Save IE → multiple POIs (NEW TABLE)
+//                        if (ieDto.getPoiCodes() != null && !ieDto.getPoiCodes().isEmpty()) {
+//
+//                            for (String poi : ieDto.getPoiCodes()) {
+//
+//                                IePoiMapping poiMap = new IePoiMapping();
+//                                poiMap.setIeUserId(ieDto.getIeUserId());
+//                                poiMap.setPoiCode(poi);
+//                                poiMap.setCreatedBy(Long.valueOf(userDto.getCreatedBy()));
+//                                poiMap.setCreatedDate(new Date());
+//
+//                                iePoiMappingRepository.save(poiMap);
+//                            }
+//                        }
+//                    }
+//                }
+//            }
 
             boolean isIeRole = userDto.getRoleNames().stream()
                     .anyMatch(r -> r.equalsIgnoreCase("IE")
@@ -422,6 +349,7 @@ public class UserServiceImpl implements UserService {
         userDto.setDiscipline(userMaster.getDiscipline());
         userDto.setEmploymentType(userMaster.getEmploymentType());
         userDto.setDateOfBirth(userMaster.getDateOfBirth());
+        userDto.setRio(userMaster.getRio());
 
         return userDto;
     }
@@ -454,8 +382,9 @@ public class UserServiceImpl implements UserService {
                 .filter(Objects::nonNull)
                 .toList();
 
+        // ================= RIO =================
         String rio = rioUserRepository
-                .findByEmployeeCode(user.getEmployeeCode())
+                .findFirstByEmployeeCode(user.getEmployeeCode())
                 .map(RioUser::getRio)
                 .orElse(null);
 
@@ -494,17 +423,9 @@ public class UserServiceImpl implements UserService {
 
         // ================= IE LOGIN =================
         if ("IE".equalsIgnoreCase(loginType)) {
-
-            user = userMasterRepository
-                    .findByEmployeeCode(loginId);
-
+            user = userMasterRepository.findFirstByEmployeeCode(loginId).orElse(null);
             if (user == null) {
-                throw new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_INVALID,
-                                AppConstant.ERROR_TYPE_CODE_INVALID,
-                                AppConstant.ERROR_TYPE_INVALID,
-                                "Invalid login credentials."));
+                throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Invalid login credentials."));
             }
         }
 
@@ -512,7 +433,7 @@ public class UserServiceImpl implements UserService {
         else if ("VENDOR".equalsIgnoreCase(loginType)) {
 
             user = userMasterRepository
-                    .findByUserName(loginId).orElseThrow(() -> new BusinessException(
+                    .findFirstByUserName(loginId).orElseThrow(() -> new BusinessException(
                             new ErrorDetails(
                                     AppConstant.ERROR_CODE_INVALID,
                                     AppConstant.ERROR_TYPE_CODE_INVALID,
@@ -548,10 +469,9 @@ public class UserServiceImpl implements UserService {
                         .orElse(null))
                 .filter(Objects::nonNull)
                 .toList();
-
         // ================= RIO =================
         String rio = rioUserRepository
-                .findByEmployeeCode(user.getEmployeeCode())
+                .findFirstByEmployeeCode(user.getEmployeeCode())
                 .map(RioUser::getRio)
                 .orElse(null);
 
@@ -615,6 +535,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setDiscipline(userDto.getDiscipline());
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
+        userMaster.setRio(userDto.getRio());
 
         String rolesAsString = String.join(",", userDto.getRoleNames());
         userMaster.setRoleName(rolesAsString);
@@ -1028,8 +949,61 @@ public class UserServiceImpl implements UserService {
         return "Process IE mapping saved successfully";
     }
 
+    @Override
+    public List<UserDto> getAllUsers() {
+        return userMasterRepository.findAll().stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
 
+    @Override
+    public UserDto updateUser(userRequestDto userDto) {
+        return createUser(userDto); // Reuse existing logic
+    }
 
+    @Transactional
+    @Override
+    public void deleteUser(Integer userId) {
+        userMasterRepository.deleteById(userId);
+    }
 
+    @Transactional
+    @Override
+    public String updateUserRegion(Integer userId, String newRegion) {
+        UserMaster user = userMasterRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "User not found")));
+        user.setRio(newRegion);
+        userMasterRepository.save(user);
+        return "Region updated successfully";
+    }
+
+    @Transactional
+    @Override
+    public String updateUserRole(Integer userId, List<String> newRoles) {
+        UserMaster user = userMasterRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "User not found")));
+        
+        String rolesAsString = String.join(",", newRoles);
+        user.setRoleName(rolesAsString);
+        userMasterRepository.save(user);
+        
+        // Update user_role_master
+        userRoleMasterRepository.deleteByUserId(userId);
+        for (String roleName : newRoles) {
+            RoleMaster role = roleMasterRepository.findByRoleName(roleName)
+                    .orElseThrow(() -> new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Role not found: " + roleName)));
+            
+            UserRoleMaster userRole = new UserRoleMaster();
+            userRole.setUserId(userId);
+            userRole.setRoleId(role.getRoleId());
+            userRole.setReadPermission(true);
+            userRole.setWritePermission(true);
+            userRole.setCreatedBy("Admin");
+            userRole.setCreatedDate(new Date());
+            userRoleMasterRepository.save(userRole);
+        }
+        
+        return "Role updated successfully";
+    }
 }
 

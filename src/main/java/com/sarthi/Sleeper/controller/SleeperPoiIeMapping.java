@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/sleeper-mapping")
 public class SleeperPoiIeMapping {
@@ -31,7 +33,7 @@ public class SleeperPoiIeMapping {
     public ResponseEntity<Object>  getCompanyUnits(
             @PathVariable("ieUserId") Integer ieUserId) {
 
-        CompanyUnitResponseDto result = sleeperPoiIeMappingService.getCompanyUnits(ieUserId);
+        List<CompanyUnitResponseDto> result = sleeperPoiIeMappingService.getCompanyUnits(ieUserId);
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(result),
                 HttpStatus.OK

@@ -48,6 +48,8 @@ public class userRequestDto {
 
     private String productType;
 
+    private String zonalRly;
+
     private List<IePoiMappingDto> iePoiMappings;
 
 }

@@ -17,12 +17,11 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
     @Query("SELECT p FROM SleeperPoiIeMapping p WHERE p.poiCode = :poiCode")
     List<SleeperPoiIeMapping> findByPoiCode(String poiCode);
 
-     List<SleeperPoiIeMapping> findByPoiCodeAndIeType(String poiCode, String mainIe);
+    List<SleeperPoiIeMapping> findByPoiCodeAndIeType(String poiCode, String mainIe);
 
     boolean existsByPoiCodeAndIeUserIdAndIeType(String poiCode, int intExact, String mainIe);
 
     List<SleeperPoiIeMapping> findByIeUserId(Integer ieUserId);
-
 
 
     List<SleeperPoiIeMapping> findByPoiCodeAndPlantId(String poiCode, String plantId);
@@ -41,5 +40,19 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
     );
 
 
+    @Query("""
+            SELECT m
+            FROM SleeperPoiIeMapping m
+            JOIN SleeperPincodePoIMapping s
+            ON s.poiCode = m.poiCode
+            WHERE s.companyName = :companyName
+            AND m.plantId = :plantId
+            AND m.ieType = :ieType
+            """)
+    List<SleeperPoiIeMapping> findMappedEmployees(
+            String companyName,
+            String plantId,
+            String ieType
+    );
 
 }

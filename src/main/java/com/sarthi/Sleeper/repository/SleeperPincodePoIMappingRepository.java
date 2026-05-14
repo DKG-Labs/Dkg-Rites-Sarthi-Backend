@@ -30,4 +30,11 @@ public interface SleeperPincodePoIMappingRepository extends JpaRepository<Sleepe
     FROM sleeper_pincode_poi_mapping
 """, nativeQuery = true)
     List<CompanyProjection> getCompanies();
+
+    @Query("""
+    SELECT DISTINCT s
+    FROM SleeperPincodePoIMapping s
+    ORDER BY s.companyName
+    """)
+    List<SleeperPincodePoIMapping> findAllCompanies();
 }

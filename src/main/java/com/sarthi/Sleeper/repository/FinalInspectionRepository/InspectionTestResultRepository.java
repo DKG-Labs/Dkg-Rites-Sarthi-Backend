@@ -115,7 +115,7 @@ AND h.module.id = :moduleId
   @Query("SELECT COUNT(r) FROM InspectionTestResult r " +
           "WHERE r.result = 'REJECTED' AND r.active = true")
   Long getTotalRejectedCount();
-
+/*
   @Query(value = """
 SELECT vp.plant_id,
        COALESCE(COUNT(d.id), 0)
@@ -130,6 +130,29 @@ GROUP BY vp.plant_id
   List<Object[]> getProcessRejection(
           @Param("startDate") LocalDateTime startDate,
           @Param("endDate") LocalDateTime endDate);
+*/
+
+    @Query(value = """
+SELECT 
+    vp.plant_id,
+    COUNT(d.id)
+FROM vendor_plant vp
+LEFT JOIN demoulding_inspection di 
+    ON di.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
+LEFT JOIN demoulding_defective_sleepers d 
+    ON d.inspection_id = di.id
+WHERE di.created_date BETWEEN :startDate AND :endDate
+AND (
+    TRIM(COALESCE(d.visual_reason, '')) <> ''
+    OR
+    TRIM(COALESCE(d.dim_reason, '')) <> ''
+)
+GROUP BY vp.plant_id
+""", nativeQuery = true)
+    List<Object[]> getProcessRejection(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
 
   @Query(value = """
 SELECT 
