@@ -8,6 +8,7 @@ import com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping;
 import com.sarthi.SRailPad.entity.raipadMapping.RailPoiIeMapping;
 import com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants;
 import com.sarthi.SRailPad.repository.*;
+import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
 import com.sarthi.SRailPad.service.RailWorkflowService;
 import com.sarthi.Sleeper.entity.SleeperTransitionMaster;
 import com.sarthi.constant.AppConstant;
@@ -44,7 +45,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
 
     private IeFieldsMappingRepository ieFieldsMappingRepository;
-
+    private VendorMasterRepository vendorMasterRepository;
+    private RailInspectionCallRepository railInspectionCallRepository;
+    private PoHeaderRepository poHeaderRepository;
     private RioUserRepository rioUserRepository;
 
 
@@ -660,6 +663,25 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         dto.setPlantId(tx.getPlantId());
 
         dto.setPoiCode(tx.getPoiCode());
+
+        if (tx.getVendorCode() != null) {
+            vendorMasterRepository.findByVendorCode(tx.getVendorCode())
+                    .ifPresent(v -> dto.setVendorName(v.getVendorName()));
+        }
+
+        // Fetch additional inspection call details
+        railInspectionCallRepository.findByCallNo(tx.getRequestId())
+                .ifPresent(call -> {
+                    dto.setRailPadType(call.getRailPadType());
+                    
+                    // Fetch PO Header for rlyPoSrNo construction
+                    poHeaderRepository.findByPoNo(call.getPoNo())
+                            .ifPresent(header -> {
+                                String rly = header.getRlyShortName() != null ? header.getRlyShortName() : "";
+                                String poSr = call.getPoSr() != null ? call.getPoSr() : "001";
+                                dto.setRlyPoSrNo(rly + "/" + call.getPoNo() + "/" + poSr);
+                            });
+                });
 
         dto.setAssignedToUser(tx.getAssignedToUser());
 

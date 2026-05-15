@@ -33,6 +33,9 @@ public class RailWorkflowTransactionDto {
         private String shift;
 
         private String vendorCode;
+        private String vendorName;
+        private String rlyPoSrNo;
+        private String railPadType;
         private String plantId;
 
         private String poiCode;
