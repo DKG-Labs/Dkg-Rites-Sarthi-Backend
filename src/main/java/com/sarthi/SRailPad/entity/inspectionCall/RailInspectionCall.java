@@ -58,6 +58,15 @@ public class RailInspectionCall {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Transient
+    private String vendorName;
+
+    @Transient
+    private String scrCode;
+
+    @Transient
+    private String rlyPoSrNo;
+
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RailInspectionLot> lots;
 
