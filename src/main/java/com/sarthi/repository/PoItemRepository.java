@@ -62,5 +62,19 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
     @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom IN ('Mt', 'Mts', 'Mts.')")
     Double sumQtyByItemCatDescrAndUomMt(@Param("itemCatDescr") String itemCatDescr);
 
-   // Optional<PoItem> findByPoHeader_PoNoAndItemSrNo(String poNo, String srNo);
+    @Query("""
+        SELECT new com.sarthi.dto.reports.PoIssuedDetailDto(
+            MAX(ph.rlyShortName),
+            ph.poNo,
+            MAX(ph.poDate),
+            MAX(ph.vendorDetails),
+            SUM(pi.qty),
+            MAX(pi.uom)
+        )
+        FROM PoItem pi
+        JOIN pi.poHeader ph
+        WHERE ph.itemCatDescr = :itemCatDescr
+        GROUP BY ph.poNo
+    """)
+    List<com.sarthi.dto.reports.PoIssuedDetailDto> getPoIssuedDetails(@Param("itemCatDescr") String itemCatDescr);
 }

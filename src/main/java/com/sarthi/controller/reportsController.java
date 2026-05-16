@@ -4,6 +4,7 @@ import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
 import com.sarthi.dto.reports.FourthLevelInspectionDto;
 import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
 import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
+import com.sarthi.dto.reports.PoIssuedDetailDto;
 import com.sarthi.service.reports;
 import com.sarthi.util.ResponseBuilder;
 import jakarta.persistence.Access;
@@ -143,6 +144,12 @@ public class reportsController {
     @GetMapping("/sleeperPoIssuedCount")
     public ResponseEntity<Object> getSleeperPoIssuedCount() {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getSleeperPoCount()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/poIssuedDetails")
+    public ResponseEntity<Object> getPoIssuedDetails(@RequestParam String itemCatDescr) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getPoIssuedDetails(itemCatDescr)),
                 HttpStatus.OK);
     }
 }

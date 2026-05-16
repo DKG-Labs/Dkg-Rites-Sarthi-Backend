@@ -2248,6 +2248,11 @@ public class reportsImpl implements reports {
         }
 
         private Long getSleeperPoQuantitySet() {
-                return poItemRepository.sumQtyByItemCatDescrAndUomSet("PSC Mainline Sleeper");
-        }
+        return poItemRepository.sumQtyByItemCatDescrAndUomSet("PSC Mainline Sleeper");
+    }
+
+    @Override
+    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr) {
+        return poItemRepository.getPoIssuedDetails(itemCatDescr);
+    }
 }

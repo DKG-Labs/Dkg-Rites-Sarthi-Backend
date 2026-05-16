@@ -9,6 +9,7 @@ import com.sarthi.dto.reports.ProcessPerformanceResponseDto;
 import com.sarthi.dto.reports.StageRejectionDto;
 import com.sarthi.dto.reports.InspectionCallStatusDto;
 import com.sarthi.dto.reports.InspectionDetailsDto;
+import com.sarthi.dto.reports.PoIssuedDetailDto;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +33,8 @@ public interface reports {
     public List<FourthLevelInspectionDto> getFourthLevelReport(String callId);
 
     public DashboardSummaryDto getDashboardSummary();
+
+    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr);
 
     public List<String> getProcessIcNumbersByUserId(Long userId);
 
