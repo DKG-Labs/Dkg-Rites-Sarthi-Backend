@@ -43,14 +43,14 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         entity.setConcreteGrade(dto.getConcreteGrade());
         entity.setBatchNo(dto.getBatchNo());
         entity.setCastingDate(dto.getCastingDate());
-
+        entity.setResult(dto.getResult());
 
         // Result Auto Calculation
-        if(dto.getStrength() >= 4500){
-            entity.setResult("PASS");
-        } else {
-            entity.setResult("FAIL");
-        }
+        // if(dto.getStrength() >= 4500){
+        //     entity.setResult("PASS");
+        // } else {
+        //     entity.setResult("FAIL");
+        // }
 
         entity.setRemarks(dto.getRemarks());
 

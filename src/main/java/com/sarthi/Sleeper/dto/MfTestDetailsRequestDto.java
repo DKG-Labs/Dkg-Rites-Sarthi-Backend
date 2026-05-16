@@ -30,4 +30,5 @@ public class MfTestDetailsRequestDto {
     private String sampleIdentification;
 
     private String concreteGrade;
+    private String result;
 }
