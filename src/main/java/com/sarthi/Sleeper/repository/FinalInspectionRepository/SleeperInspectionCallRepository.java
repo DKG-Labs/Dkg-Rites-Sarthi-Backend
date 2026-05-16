@@ -43,7 +43,6 @@ JOIN b.badSleepers s
 """)
     List<SleeperInspectionCall> getCalls(String poNo, String srNo);
 
-
     @Query(value = """
 
 SELECT 
@@ -54,30 +53,36 @@ SELECT
     ph.region_code AS region,
 
     -- 🔹 PO QTY
-    (SELECT SUM(pi.qty) 
-     FROM po_item pi 
+    (SELECT COALESCE(SUM(pi.qty),0)
+     FROM po_item pi
      WHERE pi.po_header_id = ph.id) AS poQty,
 
     -- 🔹 ACCEPTED
     (SELECT COALESCE(SUM(ibs.total_accepted),0)
      FROM ie_batch_summary ibs
-     JOIN sleeper_inspection_call sic 
-          ON ibs.call_no = sic.call_no
-     WHERE sic.po_no = ph.po_no) AS accQty,
+     JOIN sleeper_inspection_call sic
+          ON ibs.call_no COLLATE utf8mb4_unicode_ci
+           = sic.call_no COLLATE utf8mb4_unicode_ci
+     WHERE sic.po_no COLLATE utf8mb4_unicode_ci
+           = ph.po_no COLLATE utf8mb4_unicode_ci) AS accQty,
 
     -- 🔹 REJECTED
     (SELECT COALESCE(SUM(ibs.total_rejected),0)
      FROM ie_batch_summary ibs
-     JOIN sleeper_inspection_call sic 
-          ON ibs.call_no = sic.call_no
-     WHERE sic.po_no = ph.po_no) AS totalRejected,
+     JOIN sleeper_inspection_call sic
+          ON ibs.call_no COLLATE utf8mb4_unicode_ci
+           = sic.call_no COLLATE utf8mb4_unicode_ci
+     WHERE sic.po_no COLLATE utf8mb4_unicode_ci
+           = ph.po_no COLLATE utf8mb4_unicode_ci) AS totalRejected,
 
     -- 🔹 OFFERED
     (SELECT COALESCE(SUM(ibs.total_offered),0)
      FROM ie_batch_summary ibs
-     JOIN sleeper_inspection_call sic 
-          ON ibs.call_no = sic.call_no
-     WHERE sic.po_no = ph.po_no) AS totalOffered
+     JOIN sleeper_inspection_call sic
+          ON ibs.call_no COLLATE utf8mb4_unicode_ci
+           = sic.call_no COLLATE utf8mb4_unicode_ci
+     WHERE sic.po_no COLLATE utf8mb4_unicode_ci
+           = ph.po_no COLLATE utf8mb4_unicode_ci) AS totalOffered
 
 FROM po_header ph
 
@@ -87,8 +92,10 @@ WHERE ph.item_cat_descr = 'PSC Mainline Sleeper'
 ORDER BY ph.po_date DESC
 
 """, nativeQuery = true)
-    List<Level1Projection> getLevel1Data(LocalDate startDate, LocalDate endDate);
-
+    List<Level1Projection> getLevel1Data(
+            LocalDate startDate,
+            LocalDate endDate
+    );
   /*  @Query(value = """
 
 SELECT
