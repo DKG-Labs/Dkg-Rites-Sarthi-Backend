@@ -301,6 +301,10 @@ GROUP BY p.inspectionCallNo
     Long sumTemperingManufacturedLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(DISTINCT DATE(p.created_at)) FROM process_line_final_result p WHERE p.created_at >= :date AND p.tempering_manufactured > 0", nativeQuery = true)
+    Long countDistinctProductionDaysLast30Days(
+            @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
     // ===== NEW: Pareto Analysis – aggregate rejections across all process tables =====
     @org.springframework.data.jpa.repository.Query(value = """
         SELECT 'Forging Temp' AS param_name, COALESCE(SUM(forging_temp_rejected), 0) AS total FROM process_forging_data

@@ -2021,11 +2021,18 @@ public class reportsImpl implements reports {
         }
 
         // ================= NEW LOGIC FOR AVG PRODUCTION / DAY =================
-        // Logic: (Sum of total tempering produced in the last 30 days / 30)
+        // Logic: (Sum of total tempering produced in the last 30 days / active production days in the last 30 days)
         private double calculateAvgProductionPerDayNewLogic() {
                 LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
                 Long temperingSum = processLineFinalResultRepository.sumTemperingManufacturedLast30Days(thirtyDaysAgo);
-                return temperingSum != null ? temperingSum / 30.0 : 0.0;
+                if (temperingSum == null || temperingSum == 0) {
+                        return 0.0;
+                }
+                Long activeDays = processLineFinalResultRepository.countDistinctProductionDaysLast30Days(thirtyDaysAgo);
+                if (activeDays == null || activeDays == 0) {
+                        return 0.0;
+                }
+                return temperingSum / (double) activeDays;
         }
 
         // ===== NEW: Pareto Analysis – Top 10 Rejection Parameters (all process stages)
