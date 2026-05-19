@@ -36,8 +36,6 @@ public class RailProductionDeclaration {
     @Column(name = "po_no")
     private String poNo;
 
-    @Column(name = "po_no")
-    private String poNo;
 
     private String status;
 

@@ -10,6 +10,7 @@ import com.sarthi.dto.reports.StageRejectionDto;
 import com.sarthi.dto.reports.InspectionCallStatusDto;
 import com.sarthi.dto.reports.InspectionDetailsDto;
 import com.sarthi.dto.reports.PoIssuedDetailDto;
+import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -60,4 +61,6 @@ public interface reports {
     public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate);
     
     public long getSleeperPoCount();
+
+    public List<PoWiseDefectsData> getPoWiseDefectsReport();
 }

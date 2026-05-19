@@ -728,5 +728,7 @@ ORDER BY month
             LocalDate startDate,
             LocalDate endDate,
             String companyName);
+
+    List<InspectionCall> findByPoNo(String poNo);
 }
 

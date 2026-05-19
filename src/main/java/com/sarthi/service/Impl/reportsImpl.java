@@ -6,6 +6,9 @@ import com.sarthi.dto.TemperingDefectsDto;
 import com.sarthi.dto.reports.DashboardSummaryDto;
 import com.sarthi.dto.reports.InspectionCallStatusDto;
 import com.sarthi.dto.reports.*;
+import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
+import com.sarthi.entity.PoHeader;
+import com.sarthi.entity.PoItem;
 import com.sarthi.entity.processmaterial.*;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.*;
@@ -20,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -2262,4 +2266,138 @@ public class reportsImpl implements reports {
     public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr) {
         return poItemRepository.getPoIssuedDetails(itemCatDescr);
     }
+
+
+    @Override
+    public List<PoWiseDefectsData> getPoWiseDefectsReport() {
+
+
+                List<PoHeader> poHeaders = poHeaderRepository.findAll();
+
+                List<PoWiseDefectsData> finalResponse = new ArrayList<>();
+
+                for (PoHeader poHeader : poHeaders) {
+
+                        PoWiseDefectsData dto = new PoWiseDefectsData();
+
+                        // ================= BASIC DETAILS =================
+                        dto.setZonalRailway(poHeader.getRlyShortName());
+                        dto.setVendor(poHeader.getFirmDetails());
+                        dto.setTypeOfErc(poHeader.getItemCatDescr());
+                        dto.setPoNo(poHeader.getPoNo());
+
+                        if (poHeader.getPoDate() != null) {
+                                dto.setPoDate(poHeader.getPoDate().toLocalDate().toString());
+                        }
+
+                        // ================= QTY DETAILS =================
+                        BigDecimal inspectedQty = BigDecimal.ZERO;
+                        BigDecimal acceptedQty = BigDecimal.ZERO;
+                        BigDecimal rejectedQty = BigDecimal.ZERO;
+
+                        if (poHeader.getItems() != null) {
+
+                                for (PoItem item : poHeader.getItems()) {
+
+                                        Integer qty = item.getQty() != null
+                                                ? item.getQty()
+                                                : 0;
+
+                                        Integer cancelledQty = item.getQtyCancelled() != null
+                                                ? item.getQtyCancelled()
+                                                : 0;
+
+                                        inspectedQty = inspectedQty.add(
+                                                BigDecimal.valueOf(qty));
+
+                                        acceptedQty = acceptedQty.add(
+                                                BigDecimal.valueOf(qty - cancelledQty));
+
+                                        rejectedQty = rejectedQty.add(
+                                                BigDecimal.valueOf(cancelledQty));
+                                }
+                        }
+
+                        dto.setQtyInspected(inspectedQty);
+                        dto.setQtyAccpeted(acceptedQty);
+                        dto.setTotalRejected(rejectedQty);
+
+
+                        ProcessQtyDto processQty = new ProcessQtyDto();
+
+                        // Get all calls for this PO
+                        List<InspectionCall> calls =
+                                inspectionCallRepository.findByPoNo(poHeader.getPoNo());
+
+                        for (InspectionCall call : calls) {
+
+                                // Get all process rows for each call
+                                List<ProcessLineFinalResult> processList =
+                                        processLineFinalResultRepository
+                                                .findByInspectionCallNo(call.getIcNumber());
+
+                                for (ProcessLineFinalResult p : processList) {
+
+                                        processQty.setShearingProductionQty(
+                                                processQty.getShearingProductionQty()
+                                                        + getValue(p.getShearingManufactured()));
+
+                                        processQty.setShearingRejectionQty(
+                                                processQty.getShearingRejectionQty()
+                                                        + getValue(p.getShearingRejected()));
+
+                                        processQty.setTurningProductionQty(
+                                                processQty.getTurningProductionQty()
+                                                        + getValue(p.getTurningManufactured()));
+
+                                        processQty.setTurningRejectionQty(
+                                                processQty.getTurningRejectionQty()
+                                                        + getValue(p.getTurningRejected()));
+
+                                        processQty.setMpiProductionQty(
+                                                processQty.getMpiProductionQty()
+                                                        + getValue(p.getMpiManufactured()));
+
+                                        processQty.setMpiRejectionQty(
+                                                processQty.getMpiRejectionQty()
+                                                        + getValue(p.getMpiRejected()));
+
+                                        processQty.setForgingProductionQty(
+                                                processQty.getForgingProductionQty()
+                                                        + getValue(p.getForgingManufactured()));
+
+                                        processQty.setForgingRejectionQty(
+                                                processQty.getForgingRejectionQty()
+                                                        + getValue(p.getForgingRejected()));
+
+                                        processQty.setQuenchingProductionQty(
+                                                processQty.getQuenchingProductionQty()
+                                                        + getValue(p.getQuenchingManufactured()));
+
+                                        processQty.setQuenchingRejectionQty(
+                                                processQty.getQuenchingRejectionQty()
+                                                        + getValue(p.getQuenchingRejected()));
+
+                                        processQty.setTemperingProductionQty(
+                                                processQty.getTemperingProductionQty()
+                                                        + getValue(p.getTemperingManufactured()));
+
+                                        processQty.setTemperingRejectionQty(
+                                                processQty.getTemperingRejectionQty()
+                                                        + getValue(p.getTemperingRejected()));
+                                }
+                        }
+
+                        dto.setProcessQty(processQty);
+
+                        finalResponse.add(dto);
+                }
+
+                return finalResponse;
+        }
+
+        private Integer getValue(Integer value) {
+                return value != null ? value : 0;
+        }
+
 }

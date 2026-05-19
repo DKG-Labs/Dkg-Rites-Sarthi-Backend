@@ -5,6 +5,7 @@ import com.sarthi.dto.reports.FourthLevelInspectionDto;
 import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
 import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
 import com.sarthi.dto.reports.PoIssuedDetailDto;
+import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
 import com.sarthi.service.reports;
 import com.sarthi.util.ResponseBuilder;
 import jakarta.persistence.Access;
@@ -63,6 +64,12 @@ public class reportsController {
     @GetMapping("/4thLevelReportICData/{callNo}")
     public ResponseEntity<Object> getProcessDataCallWise(@PathVariable String callNo) {
         List<FourthLevelInspectionDto> list = reportService.getFourthLevelReport(callNo);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/poWise")
+    public ResponseEntity<Object> getPoWise() {
+        List<PoWiseDefectsData> list = reportService.getPoWiseDefectsReport();
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
