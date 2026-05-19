@@ -35,6 +35,7 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
     public ProductionDeclarationResponseDto create(ProductionDeclarationRequestDto requestDto) {
         RailProductionDeclaration entity = new RailProductionDeclaration();
         BeanUtils.copyProperties(requestDto, entity, "products");
+        entity.setPoNo(requestDto.getPoNo()); // Explicitly set PO No
         
         entity.setStatus("PENDING");
         entity.setCreatedBy(requestDto.getCreatedBy());
@@ -87,6 +88,7 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
                 .orElseThrow(() -> new RuntimeException("Production Declaration not found"));
 
         BeanUtils.copyProperties(requestDto, entity, "id", "products", "createdDate", "createdBy");
+        entity.setPoNo(requestDto.getPoNo()); // Explicitly set PO No
         entity.setUpdatedBy(requestDto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
 
@@ -138,6 +140,7 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
     private ProductionDeclarationResponseDto mapToResponseDto(RailProductionDeclaration entity) {
         ProductionDeclarationResponseDto dto = new ProductionDeclarationResponseDto();
         BeanUtils.copyProperties(entity, dto, "products");
+        dto.setPoNo(entity.getPoNo()); // Explicitly set PO No
 
         if (entity.getProducts() != null) {
             List<ProductionDeclarationResponseDto.ProductResponseDto> pDtos = entity.getProducts().stream().map(p -> {

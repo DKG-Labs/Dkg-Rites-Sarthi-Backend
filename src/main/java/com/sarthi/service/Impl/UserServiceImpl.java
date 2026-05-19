@@ -159,40 +159,7 @@ public class UserServiceImpl implements UserService {
                 rioUserRepository.save(rio);
             }
 
-            // Save primary IE
-            // if (roleName.equalsIgnoreCase("IE")) {
-            //
-            // boolean exists = clusterPrimaryIeRepository
-            // .findByClusterName(userDto.getClusterName())
-            // .isPresent();
-            //
-            // if (exists) {
-            // throw new BusinessException(
-            // new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-            // AppConstant.ERROR_TYPE_CODE_VALIDATION,
-            // AppConstant.ERROR_TYPE_VALIDATION,
-            // "Primary IE already exists for this cluster: "
-            // + userDto.getClusterName()
-            // ));
-            // }
-            // ClusterPrimaryIe p = new ClusterPrimaryIe();
-            // p.setClusterName(userDto.getClusterName());
-            // p.setIeUserId(userMaster.getUserId());
-            // clusterPrimaryIeRepository.save(p);
-            // }
-
-            // Save secondary IE
-            // if (roleName.equalsIgnoreCase("IE Secondary")) {
-            //
-            // ClusterSecondaryIe s = new ClusterSecondaryIe();
-            // s.setClusterName(userDto.getClusterName());
-            // s.setIeUserId(userMaster.getUserId());
-            // s.setPriorityOrder(userDto.getPriority());
-            // clusterSecondaryIeRepository.save(s);
-            // }
-
-            // saveing the Cm can have multple cluster (now we mapping only one throught the
-            // user user creation we can do multiple throught another api
+             // user user creation we can do multiple throught another api
             if (roleName.equalsIgnoreCase("Control Manager")) {
 
                 ClusterCmUser cmUser = new ClusterCmUser();
@@ -255,6 +222,7 @@ public class UserServiceImpl implements UserService {
 
                 userMaster.setEmployeeCode(employeeCode);
             }
+
 //
 //            if (roleName.equalsIgnoreCase("Process IE")) {
 //
