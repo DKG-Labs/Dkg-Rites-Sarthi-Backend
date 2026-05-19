@@ -264,12 +264,12 @@ WHERE d.batch_number = :batchNo
 
     ProductionDeclaration findByBatchNumberAndProductionUnit(String batchNo, String productionUnit);
 
-    @Query("""
-                SELECT p FROM ProductionDeclaration p
-                WHERE p.batchNumber NOT IN (
-                    SELECT m.batchNumber FROM MomentOfResistance m
+    @Query(value = """
+                SELECT pd.* FROM production_declaration pd
+                WHERE pd.batch_number COLLATE utf8mb4_unicode_ci NOT IN (
+                    SELECT mor.batch_number COLLATE utf8mb4_unicode_ci FROM moment_of_resistance mor
                 )
-            """)
+            """, nativeQuery = true)
     List<ProductionDeclaration> findAllExcludingMR();
 
     @Query("""
