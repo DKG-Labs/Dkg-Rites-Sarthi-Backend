@@ -63,4 +63,5 @@ public interface reports {
     public long getSleeperPoCount();
 
     public List<PoWiseDefectsData> getPoWiseDefectsReport();
+    public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status);
 }

@@ -294,4 +294,50 @@ AND wt.status = 'DSC_SIGN_IC'
         ) t3
         """, nativeQuery = true)
   List<Object[]> getInspectionCallStatusBreakdownExcludingDummyPo(@Param("excludePo") String excludePo);
-}
+
+  @Query(value = """
+        SELECT 
+            ic.ic_number AS inspectionCallNumber,
+            ic.company_name AS vendor,
+            DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+            CASE 
+                WHEN ic.ic_number LIKE '%ER%' THEN 'RM Stage'
+                WHEN ic.ic_number LIKE '%EP%' THEN 'Process Stage'
+                WHEN ic.ic_number LIKE '%EF%' THEN 'Final Stage'
+                ELSE 'Other'
+            END AS stageOfInspection,
+            CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no, ' / ', COALESCE(ic.po_serial_no, 'N/A')) AS poSrNo,
+            DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
+            CASE 
+                WHEN t.has_initiate = 1 THEN 'Under Inspection'
+                ELSE 'Pending'
+            END AS status
+        FROM (
+            SELECT 
+                requestId,
+                MAX(CASE WHEN UPPER(status) LIKE '%INITIATE%INSPECTION%' THEN 1 ELSE 0 END) AS has_initiate,
+                MAX(CASE WHEN UPPER(status) = 'CREATED' THEN 1 ELSE 0 END) AS has_created,
+                MAX(CASE WHEN UPPER(status) LIKE '%COMPLETE%CONFIRM%' THEN 1 ELSE 0 END) AS is_complete
+            FROM workflow_transition
+            GROUP BY requestId
+        ) t
+        INNER JOIN inspection_calls ic ON t.requestId = ic.ic_number
+        LEFT JOIN po_header ph ON ph.po_no = ic.po_no
+        LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND pi.item_sr_no = ic.po_serial_no
+        WHERE 
+            t.is_complete = 0 
+            AND ic.po_no <> 'DummyPo_001'
+            AND (
+                (:stage = 'RM' AND ic.ic_number LIKE '%ER%') OR
+                (:stage = 'Process' AND ic.ic_number LIKE '%EP%') OR
+                (:stage = 'Final' AND ic.ic_number LIKE '%EF%')
+            )
+            AND (
+                :status = 'ALL' OR 
+                (:status = 'Under Inspection' AND t.has_initiate = 1) OR
+                (:status = 'Pending' AND t.has_initiate = 0 AND t.has_created = 1)
+            )
+        ORDER BY ic.created_at DESC
+        """, nativeQuery = true)
+  List<Object[]> getInspectionCallStatusDetailsRaw(@Param("stage") String stage, @Param("status") String status);
+}

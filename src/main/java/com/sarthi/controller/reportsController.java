@@ -159,4 +159,13 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getPoIssuedDetails(itemCatDescr)),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/inspectionCallStatusDetails")
+    public ResponseEntity<Object> getInspectionCallStatusDetails(
+            @RequestParam String stage, 
+            @RequestParam String status) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getInspectionCallStatusDetails(stage, status)),
+                HttpStatus.OK);
+    }
 }

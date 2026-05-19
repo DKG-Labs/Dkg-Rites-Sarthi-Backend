@@ -2400,4 +2400,23 @@ public class reportsImpl implements reports {
                 return value != null ? value : 0;
         }
 
+    @Override
+    public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status) {
+        List<Object[]> rawList = workflowTransitionRepository.getInspectionCallStatusDetailsRaw(stage, status);
+        List<com.sarthi.dto.reports.InspectionCallDetailDto> dtoList = new java.util.ArrayList<>();
+        if (rawList != null) {
+            for (Object[] row : rawList) {
+                dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
+                    .inspectionCallNumber(row[0] != null ? row[0].toString() : "")
+                    .vendor(row[1] != null ? row[1].toString() : "")
+                    .callSubmissionDateTime(row[2] != null ? row[2].toString() : "")
+                    .stageOfInspection(row[3] != null ? row[3].toString() : "")
+                    .poSrNo(row[4] != null ? row[4].toString() : "")
+                    .dpDate(row[5] != null ? row[5].toString() : "")
+                    .status(row[6] != null ? row[6].toString() : "")
+                    .build());
+            }
+        }
+        return dtoList;
+    }
 }
