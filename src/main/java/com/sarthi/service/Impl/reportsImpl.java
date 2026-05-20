@@ -7,8 +7,7 @@ import com.sarthi.dto.reports.DashboardSummaryDto;
 import com.sarthi.dto.reports.InspectionCallStatusDto;
 import com.sarthi.dto.reports.*;
 import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
-import com.sarthi.entity.PoHeader;
-import com.sarthi.entity.PoItem;
+import com.sarthi.entity.*;
 import com.sarthi.entity.processmaterial.*;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.*;
@@ -69,7 +68,10 @@ public class reportsImpl implements reports {
 
         @Autowired
         private FinalCumulativeResultsRepository finalCumulativeResultsRepository;
-
+        @Autowired
+        private RmVisualInspectionRepository rmVisualInspectionRepository;
+        @Autowired
+        private RmMaterialTestingRepository rmMaterialTestingRepository;
         /*
          * @Override
          * public List<PoInspection1stLevelStatusDto>
@@ -2391,7 +2393,171 @@ public class reportsImpl implements reports {
                         dto.setProcessQty(processQty);
 
                         finalResponse.add(dto);
+                        // ================= RM DEFECTS =================
+
+                        BigDecimal rmVmDefect = BigDecimal.ZERO;
+                        BigDecimal rmDimentionalDefect = BigDecimal.ZERO;
+                        BigDecimal rmInclusionDefect = BigDecimal.ZERO;
+                        BigDecimal rmGrainSizeDefect = BigDecimal.ZERO;
+                        BigDecimal rmDecarbDefect = BigDecimal.ZERO;
+
+// Get all calls of this PO
+                     //   List<InspectionCall> calls = inspectionCallRepository.findByPoNo(poHeader.getPoNo());
+
+                        for (InspectionCall call : calls) {
+
+                                String callNo = call.getIcNumber();
+                                String ercType = call.getErcType();
+
+                                // conversion factor
+                                BigDecimal factor = BigDecimal.ZERO;
+
+                                if (ercType != null) {
+
+                                        if (ercType.toUpperCase().contains("III")) {
+                                                factor = BigDecimal.valueOf(1086.96);
+                                        } else if (ercType.toUpperCase().contains("V")) {
+                                                factor = BigDecimal.valueOf(919.12);
+                                        }
+                                }
+
+                                // =====================================================
+                                // 1. VISUAL DEFECT
+                                // =====================================================
+
+                                List<RmVisualInspection> visualList =
+                                        rmVisualInspectionRepository.findByInspectionCallNo(callNo);
+
+                                for (RmVisualInspection visual : visualList) {
+
+                                        if (visual.getWeightRejected() != null
+                                                && visual.getWeightRejected().compareTo(BigDecimal.ZERO) > 0) {
+
+                                                BigDecimal value =
+                                                        visual.getWeightRejected().multiply(factor);
+
+                                                rmVmDefect = rmVmDefect.add(value);
+                                        }
+                                }
+
+                                // =====================================================
+                                // 2. DIMENSIONAL DEFECT
+                                // =====================================================
+
+                                List<RmHeatFinalResult> heatResults =
+                                        rmHeatFinalResultRepository.findByInspectionCallNo(callNo);
+
+                                for (RmHeatFinalResult heat : heatResults) {
+
+                                        if ("NOT OK".equalsIgnoreCase(heat.getDimensionalStatus())
+                                                && heat.getWeightRejectedMt() != null) {
+
+                                                BigDecimal value =
+                                                        heat.getWeightRejectedMt().multiply(factor);
+
+                                                rmDimentionalDefect =
+                                                        rmDimentionalDefect.add(value);
+                                        }
+                                }
+
+                                // =====================================================
+                                // 3. MATERIAL TESTING DEFECTS
+                                // =====================================================
+
+                                List<RmMaterialTesting> materialTests =
+                                        rmMaterialTestingRepository.findByInspectionCallNo(callNo);
+
+                                // call level flags
+                                boolean inclusionDefect = false;
+                                boolean grainSizeDefect = false;
+                                boolean decarbDefect = false;
+
+                                for (RmMaterialTesting mt : materialTests) {
+
+                                        // ================= GRAIN SIZE =================
+
+                                        if (mt.getGrainSize() != null
+                                                && mt.getGrainSize()
+                                                .compareTo(BigDecimal.valueOf(6)) < 0) {
+
+                                                grainSizeDefect = true;
+                                        }
+
+                                        // ================= DECARB =================
+
+                                        if (mt.getDecarb() != null
+                                                && mt.getDecarb()
+                                                .compareTo(BigDecimal.valueOf(2.0)) > 0) {
+
+                                                decarbDefect = true;
+                                        }
+
+                                        // ================= INCLUSION =================
+
+                                        if (
+                                                (mt.getInclusionA() != null
+                                                        && mt.getInclusionA()
+                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
+
+                                                        || (mt.getInclusionB() != null
+                                                        && mt.getInclusionB()
+                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
+
+                                                        || (mt.getInclusionC() != null
+                                                        && mt.getInclusionC()
+                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
+
+                                                        || (mt.getInclusionD() != null
+                                                        && mt.getInclusionD()
+                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
+                                        ) {
+
+                                                inclusionDefect = true;
+                                        }
+                                }
+
+                                // =====================================================
+                                // FETCH OFFERED WT FROM HEAT FINAL RESULT
+                                // =====================================================
+
+                                BigDecimal totalOfferedWt = BigDecimal.ZERO;
+
+                                for (RmHeatFinalResult heat : heatResults) {
+
+                                        if (heat.getWeightOfferedMt() != null) {
+
+                                                totalOfferedWt =
+                                                        totalOfferedWt.add(heat.getWeightOfferedMt());
+                                        }
+                                }
+
+                                BigDecimal convertedValue =
+                                        totalOfferedWt.multiply(factor);
+
+                                if (inclusionDefect) {
+                                        rmInclusionDefect =
+                                                rmInclusionDefect.add(convertedValue);
+                                }
+
+                                if (grainSizeDefect) {
+                                        rmGrainSizeDefect =
+                                                rmGrainSizeDefect.add(convertedValue);
+                                }
+
+                                if (decarbDefect) {
+                                        rmDecarbDefect =
+                                                rmDecarbDefect.add(convertedValue);
+                                }
+                        }
+
+// set dto
+                        dto.setRmVmDefect(rmVmDefect);
+                        dto.setRmDimentionalDefect(rmDimentionalDefect);
+                        dto.setRmInclusionDefect(rmInclusionDefect);
+                        dto.setRmGrainSizeDefect(rmGrainSizeDefect);
+                        dto.setRmDecarbDefect(rmDecarbDefect);
                 }
+
 
                 return finalResponse;
         }

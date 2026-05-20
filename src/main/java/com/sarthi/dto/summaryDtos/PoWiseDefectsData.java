@@ -19,4 +19,10 @@ public class PoWiseDefectsData {
 
     private ProcessQtyDto processQty;
 
+    private BigDecimal rmVmDefect = BigDecimal.ZERO;
+    private BigDecimal rmDimentionalDefect = BigDecimal.ZERO;
+    private BigDecimal rmInclusionDefect = BigDecimal.ZERO;
+    private BigDecimal rmGrainSizeDefect = BigDecimal.ZERO;
+    private BigDecimal rmDecarbDefect = BigDecimal.ZERO;
+
 }
