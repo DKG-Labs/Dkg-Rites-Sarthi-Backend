@@ -40,4 +40,10 @@ public interface SummaryService {
 
         public PageResponseDTO<MpiaReportDTO> getMpiaReport(int page, int size, LocalDate startDate, LocalDate endDate);
 
+
+        public List<PlantShiftWiseReportDto> getPlantShiftWiseReport(
+                LocalDate startDate,
+                LocalDate endDate,
+                String poiCode
+        );
 }

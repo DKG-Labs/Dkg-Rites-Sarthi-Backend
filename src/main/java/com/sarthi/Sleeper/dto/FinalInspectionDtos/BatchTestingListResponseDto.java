@@ -19,6 +19,7 @@ public class BatchTestingListResponseDto {
     private String testingStatus;
     private LocalDate testingDate;
     private String plantId;
+    private LocalDate castingDate;
 
     public BatchTestingListResponseDto(Long batchId,
                                        String batchNumber,
@@ -27,7 +28,7 @@ public class BatchTestingListResponseDto {
                                        Long noOfSleepers,
                                        Double testedPercentage,
                                        String testingStatus,
-                                       LocalDate testingDate, String plantId) {
+                                       LocalDate testingDate, String plantId, LocalDate castingDate) {
 
         this.batchId = batchId;
         this.batchNumber = batchNumber;
@@ -38,6 +39,7 @@ public class BatchTestingListResponseDto {
         this.testingStatus = testingStatus;
         this.testingDate = testingDate;
         this.plantId = plantId;
+        this.castingDate = castingDate;
 
     }
 

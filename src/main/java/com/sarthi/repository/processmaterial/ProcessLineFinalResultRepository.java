@@ -1,5 +1,6 @@
 package com.sarthi.repository.processmaterial;
 
+import com.sarthi.dto.summaryDtos.PlantShiftWiseRawDto;
 import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -437,4 +439,33 @@ GROUP BY p.inspectionCallNo
             @Param("startDate") java.time.LocalDateTime startDate,
             @Param("endDate") java.time.LocalDateTime endDate,
             Pageable pageable);
+
+    List<ProcessLineFinalResult> findByDateOfInspectionBetween(LocalDate startDate, LocalDate endDate);
+
+    @Query("""
+        SELECT new com.sarthi.dto.summaryDtos.PlantShiftWiseRawDto(
+
+            p.dateOfInspection,
+            p.shift,
+            p.lotNumber,
+            i.poNo,
+            i.poSerialNo,
+            p.shearingManufactured,
+            p.temperingManufactured,
+            p.temperingAccepted,
+            p.totalRejected
+        )
+
+        FROM ProcessLineFinalResult p
+        JOIN InspectionCall i
+            ON p.inspectionCallNo = i.icNumber
+
+        WHERE p.dateOfInspection BETWEEN :startDate AND :endDate
+        AND i.placeOfInspection = :poiCode
+    """)
+    List<PlantShiftWiseRawDto> getPlantShiftWiseRawData(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("poiCode") String poiCode
+    );
 }

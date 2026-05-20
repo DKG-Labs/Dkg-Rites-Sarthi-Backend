@@ -1,10 +1,7 @@
 package com.sarthi.controller;
 
-import com.sarthi.dto.summaryDtos.LotWiseClosedLoopDTO;
-import com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO;
-import com.sarthi.dto.summaryDtos.MonthlyAnalysisDTO;
+import com.sarthi.dto.summaryDtos.*;
 import com.sarthi.service.SummaryService;
-import com.sarthi.dto.summaryDtos.PageResponseDTO;
 import com.sarthi.util.APIResponse;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -118,6 +115,29 @@ public class SummaryReportController {
 
         return ResponseBuilder.getSuccessResponse(
                 summaryService.getMpiaReport(page, size, startDate, endDate));
+    }
+
+    @GetMapping("/plant-shift-wise")
+    public APIResponse getPlantShiftWiseReport(
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate,
+
+            @RequestParam
+            String poiCode
+    ) {
+
+        return ResponseBuilder.getSuccessResponse(
+        summaryService.getPlantShiftWiseReport(
+                startDate,
+                endDate,
+                poiCode
+        ));
     }
 
 }

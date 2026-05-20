@@ -5,6 +5,8 @@ import com.sarthi.dto.QuenchingAllDefectsDto;
 import com.sarthi.dto.TemperingDefectsDto;
 import com.sarthi.dto.reports.*;
 import com.sarthi.dto.summaryDtos.*;
+import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
+import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.ProcessIeQtyRepository;
 import com.sarthi.repository.RmHeatFinalResultRepository;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
@@ -20,10 +22,9 @@ import org.springframework.stereotype.Service;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.*;
 
-import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -450,5 +451,126 @@ public class SummaryServiceImpl implements SummaryService {
 
         return response;
     }
+
+    public List<PlantShiftWiseReportDto> getPlantShiftWiseReport(
+            LocalDate startDate,
+            LocalDate endDate,
+            String poiCode
+    ) {
+
+        List<PlantShiftWiseRawDto> results =
+                processLineFinalResultRepository.getPlantShiftWiseRawData(
+                        startDate,
+                        endDate,
+                        poiCode
+                );
+
+        // GROUP BY DATE + SHIFT
+        Map<String, List<PlantShiftWiseRawDto>> grouped =
+                results.stream()
+                        .collect(Collectors.groupingBy(
+                                r -> r.getInspectionDate()
+                                        + "_"
+                                        + r.getShift()
+                        ));
+
+        List<PlantShiftWiseReportDto> response =
+                new ArrayList<>();
+
+        for (Map.Entry<String, List<PlantShiftWiseRawDto>> entry
+                : grouped.entrySet()) {
+
+            List<PlantShiftWiseRawDto> group =
+                    entry.getValue();
+
+            PlantShiftWiseRawDto first =
+                    group.get(0);
+
+            PlantShiftWiseReportDto dto =
+                    new PlantShiftWiseReportDto();
+
+            dto.setInspectionDate(
+                    first.getInspectionDate()
+            );
+
+            dto.setShift(
+                    first.getShift()
+            );
+
+            // LOT NUMBERS
+            dto.setLotNumbers(
+                    group.stream()
+                            .map(PlantShiftWiseRawDto::getLotNumber)
+                            .filter(Objects::nonNull)
+                            .distinct()
+                            .toList()
+            );
+
+            // PO NUMBER + SERIAL NUMBER
+            dto.setPoNumbers(
+                    group.stream()
+                            .map(r ->
+                                    r.getPoSerialNo()
+                            )
+                            .distinct()
+                            .toList()
+            );
+
+            // SHEARING
+            dto.setProductionInShearing(
+                    group.stream()
+                            .mapToInt(r ->
+                                    Optional.ofNullable(
+                                            r.getShearingManufactured()
+                                    ).orElse(0)
+                            )
+                            .sum()
+            );
+
+            // TEMPERING
+            dto.setProductionInTempering(
+                    group.stream()
+                            .mapToInt(r ->
+                                    Optional.ofNullable(
+                                            r.getTemperingManufactured()
+                                    ).orElse(0)
+                            )
+                            .sum()
+            );
+
+            // ACCEPTED
+            dto.setAcceptedQtyInTempering(
+                    group.stream()
+                            .mapToInt(r ->
+                                    Optional.ofNullable(
+                                            r.getTemperingAccepted()
+                                    ).orElse(0)
+                            )
+                            .sum()
+            );
+
+            // REJECTED
+            dto.setTotalRejected(
+                    group.stream()
+                            .mapToInt(r ->
+                                    Optional.ofNullable(
+                                            r.getTotalRejected()
+                                    ).orElse(0)
+                            )
+                            .sum()
+            );
+
+            response.add(dto);
+        }
+
+        response.sort(
+                Comparator.comparing(
+                        PlantShiftWiseReportDto::getInspectionDate
+                )
+        );
+
+        return response;
+    }
+
 
 }

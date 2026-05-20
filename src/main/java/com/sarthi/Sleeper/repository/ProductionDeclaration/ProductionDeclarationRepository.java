@@ -76,7 +76,8 @@ COUNT(s.id),
 0.0,
 'Pending',
 null,
-d.plantId
+d.plantId,
+d.castingDate
 )
 FROM ProductionDeclaration d
 JOIN d.chambers c
@@ -85,7 +86,7 @@ JOIN b.sleepers s
 JOIN SleeperWorkflowTransaction w
      ON CAST(w.requestId as long) = d.id
 WHERE w.status = 'Completed'
-GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId
+GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId, d.castingDate
 """)
     List<BatchTestingListResponseDto> getAllBatchTesting();
 
@@ -99,7 +100,8 @@ COUNT(s.id),
 0.0,
 'Pending',
 null,
-d.plantId
+d.plantId,
+d.castingDate
 )
 FROM ProductionDeclaration d
 JOIN d.gangs g
@@ -107,7 +109,7 @@ JOIN g.sleepers s
 JOIN SleeperWorkflowTransaction w
      ON CAST(w.requestId as long) = d.id
 WHERE w.status = 'Completed'
-GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId
+GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
     List<BatchTestingListResponseDto> getLongLineBatchTesting();
 
