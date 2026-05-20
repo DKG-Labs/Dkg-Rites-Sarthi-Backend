@@ -2284,9 +2284,6 @@ public class reportsImpl implements reports {
 
                 List<PoWiseDefectsData> finalResponse = new ArrayList<>();
 
-                // =========================================================
-                // FETCH ALL CALLS
-                // =========================================================
 
                 List<InspectionCall> allCalls =
                         inspectionCallRepository.findAll();
@@ -2296,9 +2293,6 @@ public class reportsImpl implements reports {
                         .filter(Objects::nonNull)
                         .toList();
 
-                // =========================================================
-                // PROCESS DATA
-                // =========================================================
 
                 List<ProcessLineFinalResult> allProcessResults =
                         processLineFinalResultRepository
@@ -2309,9 +2303,6 @@ public class reportsImpl implements reports {
                                 .collect(Collectors.groupingBy(
                                         ProcessLineFinalResult::getInspectionCallNo));
 
-                // =========================================================
-                // RM QUERY RESULTS
-                // =========================================================
 
                 List<Object[]> visualResults =
                         rmVisualInspectionRepository
@@ -2333,9 +2324,6 @@ public class reportsImpl implements reports {
                         rmMaterialTestingRepository
                                 .getDecarbDefectCalls(callNos);
 
-                // =========================================================
-                // MAPS
-                // =========================================================
 
                 Map<String, List<InspectionCall>> poCallMap =
                         allCalls.stream()
@@ -2376,9 +2364,6 @@ public class reportsImpl implements reports {
                 Set<String> decarbSet =
                         new HashSet<>(decarbCalls);
 
-                // =========================================================
-                // MAIN LOOP
-                // =========================================================
 
                 for (PoHeader poHeader : poHeaders) {
 
@@ -2397,9 +2382,6 @@ public class reportsImpl implements reports {
                                                 .toString());
                         }
 
-                        // =====================================================
-                        // QTY
-                        // =====================================================
 
                         BigDecimal inspectedQty = BigDecimal.ZERO;
                         BigDecimal acceptedQty = BigDecimal.ZERO;
@@ -2439,10 +2421,6 @@ public class reportsImpl implements reports {
                         dto.setQtyAccpeted(acceptedQty);
                         dto.setTotalRejected(rejectedQty);
 
-                        // =====================================================
-                        // PROCESS QTY
-                        // =====================================================
-
                         ProcessQtyDto processQty =
                                 new ProcessQtyDto();
 
@@ -2463,9 +2441,6 @@ public class reportsImpl implements reports {
 
                                 BigDecimal factor = getFactor(call.getErcType());
 
-                                // =================================================
-                                // PROCESS
-                                // =================================================
 
                                 List<ProcessLineFinalResult> processList =
                                         processMap.getOrDefault(
@@ -2535,9 +2510,6 @@ public class reportsImpl implements reports {
                                                         p.getTemperingRejected()));
                                 }
 
-                                // =================================================
-                                // VISUAL DEFECT
-                                // =================================================
 
                                 rmVmDefect =
                                         rmVmDefect.add(
@@ -2547,9 +2519,6 @@ public class reportsImpl implements reports {
                                                                 BigDecimal.ZERO)
                                                         .multiply(factor));
 
-                                // =================================================
-                                // DIMENSIONAL DEFECT
-                                // =================================================
 
                                 rmDimentionalDefect =
                                         rmDimentionalDefect.add(
@@ -2566,27 +2535,18 @@ public class reportsImpl implements reports {
                                                         BigDecimal.ZERO)
                                                 .multiply(factor);
 
-                                // =================================================
-                                // INCLUSION
-                                // =================================================
 
                                 if (inclusionSet.contains(callNo)) {
                                         rmInclusionDefect =
                                                 rmInclusionDefect.add(convertedWt);
                                 }
 
-                                // =================================================
-                                // GRAIN
-                                // =================================================
 
                                 if (grainSet.contains(callNo)) {
                                         rmGrainSizeDefect =
                                                 rmGrainSizeDefect.add(convertedWt);
                                 }
 
-                                // =================================================
-                                // DECARB
-                                // =================================================
 
                                 if (decarbSet.contains(callNo)) {
                                         rmDecarbDefect =
@@ -2626,6 +2586,8 @@ public class reportsImpl implements reports {
 
                 return BigDecimal.ZERO;
         }
+
+
         private Integer getValue(Integer value) {
                 return value != null ? value : 0;
         }
