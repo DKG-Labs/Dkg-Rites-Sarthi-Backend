@@ -627,115 +627,94 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     }
 
 
-    private RailWorkflowTransactionDto mapToResponse(
-            RailWorkflowTransaction tx) {
+    private RailWorkflowTransactionDto mapToResponse(RailWorkflowTransaction tx) {
+        return mapToResponse(tx, new java.util.HashMap<>());
+    }
 
-        RailWorkflowTransactionDto dto =
-                new RailWorkflowTransactionDto();
+    @SuppressWarnings("unchecked")
+    private RailWorkflowTransactionDto mapToResponse(RailWorkflowTransaction tx, java.util.Map<String, Object> cache) {
+        if (cache == null) {
+            cache = new java.util.HashMap<>();
+        }
 
-        dto.setWorkflowTransitionId(
-                Long.valueOf(tx.getWorkflowTransitionId()));
+        RailWorkflowTransactionDto dto = new RailWorkflowTransactionDto();
 
+        dto.setWorkflowTransitionId(Long.valueOf(tx.getWorkflowTransitionId()));
         dto.setWorkflowId(tx.getWorkflowId());
-
         dto.setModuleId(tx.getModuleId());
-
         dto.setRequestId(tx.getRequestId());
-
         dto.setAction(tx.getAction());
-
         dto.setStatus(tx.getStatus());
-
         dto.setRemarks(tx.getRemarks());
-
         dto.setCurrentRole(tx.getCurrentRole());
-
         dto.setNextRole(tx.getNextRole());
-
         dto.setShift(tx.getShift());
-
         dto.setVendorCode(tx.getVendorCode());
-
         dto.setPlantId(tx.getPlantId());
-
         dto.setPoiCode(tx.getPoiCode());
 
         dto.setAssignedToUser(tx.getAssignedToUser());
-
         dto.setCreatedBy(tx.getCreatedBy());
-
         dto.setModifiedBy(tx.getModifiedBy());
-
         dto.setCreatedDate(tx.getCreatedDate());
-
         dto.setUpdatedDate(tx.getUpdatedDate());
-
         dto.setRio(tx.getRio());
-
         dto.setJobStatus(tx.getJobStatus());
+
         List<RailPoiIeMapping> mappings = null;
-
         String vendorId = null;
-
         List<Integer> userIds = new ArrayList<>();
-
 
         // If next role is Vendor
         if ("Rail Vendor".equalsIgnoreCase(tx.getNextRole())) {
-
-            vendorId =
+            if (tx.getPoiCode() != null) {
+                String vendorIdCacheKey = "vendorId_" + tx.getPoiCode();
+                vendorId = (String) cache.computeIfAbsent(vendorIdCacheKey, k -> 
                     railPadPincodePoIMappingRepository
-                            .findVendorCodeByPoiCode(tx.getPoiCode())
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "Vendor not found for POI"));
-
+                        .findVendorCodeByPoiCode(tx.getPoiCode())
+                        .orElse(null)
+                );
+                
+                if (vendorId == null) {
+                    System.err.println("[WARN] Vendor not found for POI: " + tx.getPoiCode());
+                }
+            }
         } else {
-
             // Process IE / Main IE mappings
-
-
-            if(tx.getWorkflowId().equals(2L)) {
-                mappings =
-                        poiIeMappingRepository
-                                .findByPoiCodeAndPlantIdAndIeType(
-                                        tx.getPoiCode(),
-                                        tx.getPlantId(),
-                                        "Main IE"
-                                );
-            }else {
-                mappings =
-                        poiIeMappingRepository
-                                .findByPoiCodeAndPlantIdAndIeType(
-                                        tx.getPoiCode(),
-                                        tx.getPlantId(),
-                                        "Process IE"
-                                );
+            if (tx.getPoiCode() != null && tx.getPlantId() != null) {
+                String ieType = tx.getWorkflowId().equals(2L) ? "Main IE" : "Process IE";
+                String mappingCacheKey = "mapping_" + tx.getPoiCode() + "_" + tx.getPlantId() + "_" + ieType;
+                mappings = (List<RailPoiIeMapping>) cache.computeIfAbsent(mappingCacheKey, k -> 
+                    poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(
+                        tx.getPoiCode(),
+                        tx.getPlantId(),
+                        ieType
+                    )
+                );
             }
         }
 
-
         // Accessible users
         if (mappings != null) {
-
             userIds = mappings.stream()
                     .map(RailPoiIeMapping::getIeUserId)
                     .toList();
         }
 
-
         // Assign vendor user
         if (vendorId != null) {
-            Long vendorUserId =
-                    railVendorPlantsRepository
-                            .findVendorUserIdByVendorCode(vendorId)
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "Vendor user not found"));
-
-            dto.setAssignedToUser(vendorUserId);
-
-           // dto.setAssignedToUser(Long.valueOf(vendorId));
+            final String finalVendorId = vendorId;
+            String vendorUserCacheKey = "vendorUser_" + vendorId;
+            Long vendorUserId = (Long) cache.computeIfAbsent(vendorUserCacheKey, k -> 
+                railVendorPlantsRepository
+                    .findVendorUserIdByVendorCode(finalVendorId)
+                    .orElse(null)
+            );
+            if (vendorUserId == null) {
+                System.err.println("[WARN] Vendor user not found for vendor code: " + finalVendorId);
+            } else {
+                dto.setAssignedToUser(vendorUserId);
+            }
         }
 
         dto.setAccessibleUserIds(userIds);
@@ -787,6 +766,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             Long actionBy,
             String expectedRole) {
 
+        if (actionBy == null) {
+            throw new RuntimeException("Action by user ID cannot be null");
+        }
+
         List<String> userRoles =
                 userMasterRepository
                         .findRoleNamesByUserId(
@@ -801,7 +784,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         boolean allowed =
                 userRoles.stream()
                         .anyMatch(role ->
-                                role.equalsIgnoreCase(expectedRole));
+                                role != null && role.equalsIgnoreCase(expectedRole));
 
         if (!allowed) {
 
@@ -830,8 +813,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                     .findLastPendingRequestsByRole(roleName);
         }
 
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
         return list.stream()
-                .map(this::mapToResponse)
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
     }
 
@@ -845,8 +829,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 railWorkflowTransactionRepository
                         .findByRequestIdOrderByCreatedDateAsc(requestId);
 
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
         return list.stream()
-                .map(this::mapToResponse)
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
     }
 
@@ -858,8 +843,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 railWorkflowTransactionRepository
                         .findCompletedRequests();
 
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
         return list.stream()
-                .map(this::mapToResponse)
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
     }
 
@@ -871,8 +857,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 railWorkflowTransactionRepository
                         .findFinalCompletedRequests();
 
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
         return list.stream()
-                .map(this::mapToResponse)
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
     }
 

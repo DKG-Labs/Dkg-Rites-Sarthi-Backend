@@ -126,7 +126,7 @@ public class RailRawMaterialSourceServiceImpl implements RailRawMaterialSourceSe
 
         // Get Status from Workflow
         String status = workflowTransactionRepository
-                .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), MODULE_ID)
+                .findLatestStatusByRequestIdAndModuleIdAndPlantId(String.valueOf(entity.getId()), MODULE_ID, entity.getPlantId())
                 .orElse("NOT_STARTED");
         dto.setStatus(status);
 
