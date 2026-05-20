@@ -468,4 +468,6 @@ GROUP BY p.inspectionCallNo
             @Param("endDate") LocalDate endDate,
             @Param("poiCode") String poiCode
     );
+
+    List<ProcessLineFinalResult> findByInspectionCallNoIn(List<String> callNos);
 }

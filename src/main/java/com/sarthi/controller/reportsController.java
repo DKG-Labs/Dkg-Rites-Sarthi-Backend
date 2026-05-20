@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -68,8 +69,9 @@ public class reportsController {
     }
 
     @GetMapping("/poWise")
-    public ResponseEntity<Object> getPoWise() {
-        List<PoWiseDefectsData> list = reportService.getPoWiseDefectsReport();
+    public ResponseEntity<Object> getPoWise(@RequestParam(required = false) LocalDate startDate,
+                                            @RequestParam(required = false) LocalDate endDate) {
+        List<PoWiseDefectsData> list = reportService.getPoWiseDefectsReport(startDate,endDate);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 

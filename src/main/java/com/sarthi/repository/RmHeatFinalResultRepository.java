@@ -427,4 +427,24 @@ FROM rm_heat_final_result
     List<Object[]> sumRmAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate);
+
+    List<RmHeatFinalResult> findByInspectionCallNoIn(List<String> callNos);
+
+    @Query("""
+SELECT
+    r.inspectionCallNo,
+    SUM(
+        CASE
+            WHEN UPPER(r.dimensionalStatus) = 'NOT OK'
+            THEN r.weightRejectedMt
+            ELSE 0
+        END
+    ),
+    SUM(r.weightOfferedMt)
+FROM RmHeatFinalResult r
+WHERE r.inspectionCallNo IN :callNos
+GROUP BY r.inspectionCallNo
+""")
+    List<Object[]> getHeatSummary(
+            @Param("callNos") List<String> callNos);
 }

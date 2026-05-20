@@ -14,6 +14,7 @@ import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -62,6 +63,8 @@ public interface reports {
     
     public long getSleeperPoCount();
 
-    public List<PoWiseDefectsData> getPoWiseDefectsReport();
+    public List<PoWiseDefectsData> getPoWiseDefectsReport(
+            LocalDate startDate,
+            LocalDate endDate);
     public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status);
 }

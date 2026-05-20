@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -169,4 +170,14 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
     WHERE p.rlyCd IS NOT NULL
 """)
     List<RlyProjection> getUniqueRlyList();
+
+    @Query("""
+SELECT p
+FROM PoHeader p
+WHERE p.poDate BETWEEN :startDate AND :endDate
+AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
+""")
+    List<PoHeader> findElasticRailClipsPoHeaders(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

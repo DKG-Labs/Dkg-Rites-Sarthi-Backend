@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2270,29 +2271,136 @@ public class reportsImpl implements reports {
     }
 
 
-    @Override
-    public List<PoWiseDefectsData> getPoWiseDefectsReport() {
+        @Override
+        public List<PoWiseDefectsData> getPoWiseDefectsReport(
+                LocalDate startDate,
+                LocalDate endDate){
 
-
-                List<PoHeader> poHeaders = poHeaderRepository.findAll();
+                List<PoHeader> poHeaders =
+                        poHeaderRepository.findElasticRailClipsPoHeaders(
+                                startDate.atStartOfDay(),
+                                endDate.atTime(LocalTime.MAX)
+                        );
 
                 List<PoWiseDefectsData> finalResponse = new ArrayList<>();
 
+                // =========================================================
+                // FETCH ALL CALLS
+                // =========================================================
+
+                List<InspectionCall> allCalls =
+                        inspectionCallRepository.findAll();
+
+                List<String> callNos = allCalls.stream()
+                        .map(InspectionCall::getIcNumber)
+                        .filter(Objects::nonNull)
+                        .toList();
+
+                // =========================================================
+                // PROCESS DATA
+                // =========================================================
+
+                List<ProcessLineFinalResult> allProcessResults =
+                        processLineFinalResultRepository
+                                .findByInspectionCallNoIn(callNos);
+
+                Map<String, List<ProcessLineFinalResult>> processMap =
+                        allProcessResults.stream()
+                                .collect(Collectors.groupingBy(
+                                        ProcessLineFinalResult::getInspectionCallNo));
+
+                // =========================================================
+                // RM QUERY RESULTS
+                // =========================================================
+
+                List<Object[]> visualResults =
+                        rmVisualInspectionRepository
+                                .getVisualRejectedWeight(callNos);
+
+                List<Object[]> heatResults =
+                        rmHeatFinalResultRepository
+                                .getHeatSummary(callNos);
+
+                List<String> inclusionCalls =
+                        rmMaterialTestingRepository
+                                .getInclusionDefectCalls(callNos);
+
+                List<String> grainCalls =
+                        rmMaterialTestingRepository
+                                .getGrainSizeDefectCalls(callNos);
+
+                List<String> decarbCalls =
+                        rmMaterialTestingRepository
+                                .getDecarbDefectCalls(callNos);
+
+                // =========================================================
+                // MAPS
+                // =========================================================
+
+                Map<String, List<InspectionCall>> poCallMap =
+                        allCalls.stream()
+                                .collect(Collectors.groupingBy(
+                                        InspectionCall::getPoNo));
+
+                Map<String, BigDecimal> visualMap =
+                        visualResults.stream()
+                                .collect(Collectors.toMap(
+                                        r -> (String) r[0],
+                                        r -> (BigDecimal) r[1]
+                                ));
+
+                Map<String, BigDecimal> dimensionalMap =
+                        heatResults.stream()
+                                .collect(Collectors.toMap(
+                                        r -> (String) r[0],
+                                        r -> r[1] != null
+                                                ? (BigDecimal) r[1]
+                                                : BigDecimal.ZERO
+                                ));
+
+                Map<String, BigDecimal> offeredMap =
+                        heatResults.stream()
+                                .collect(Collectors.toMap(
+                                        r -> (String) r[0],
+                                        r -> r[2] != null
+                                                ? (BigDecimal) r[2]
+                                                : BigDecimal.ZERO
+                                ));
+
+                Set<String> inclusionSet =
+                        new HashSet<>(inclusionCalls);
+
+                Set<String> grainSet =
+                        new HashSet<>(grainCalls);
+
+                Set<String> decarbSet =
+                        new HashSet<>(decarbCalls);
+
+                // =========================================================
+                // MAIN LOOP
+                // =========================================================
+
                 for (PoHeader poHeader : poHeaders) {
 
-                        PoWiseDefectsData dto = new PoWiseDefectsData();
+                        PoWiseDefectsData dto =
+                                new PoWiseDefectsData();
 
-                        // ================= BASIC DETAILS =================
                         dto.setZonalRailway(poHeader.getRlyShortName());
                         dto.setVendor(poHeader.getFirmDetails());
                         dto.setTypeOfErc(poHeader.getItemCatDescr());
                         dto.setPoNo(poHeader.getPoNo());
 
                         if (poHeader.getPoDate() != null) {
-                                dto.setPoDate(poHeader.getPoDate().toLocalDate().toString());
+                                dto.setPoDate(
+                                        poHeader.getPoDate()
+                                                .toLocalDate()
+                                                .toString());
                         }
 
-                        // ================= QTY DETAILS =================
+                        // =====================================================
+                        // QTY
+                        // =====================================================
+
                         BigDecimal inspectedQty = BigDecimal.ZERO;
                         BigDecimal acceptedQty = BigDecimal.ZERO;
                         BigDecimal rejectedQty = BigDecimal.ZERO;
@@ -2301,22 +2409,29 @@ public class reportsImpl implements reports {
 
                                 for (PoItem item : poHeader.getItems()) {
 
-                                        Integer qty = item.getQty() != null
-                                                ? item.getQty()
-                                                : 0;
+                                        Integer qty =
+                                                item.getQty() != null
+                                                        ? item.getQty()
+                                                        : 0;
 
-                                        Integer cancelledQty = item.getQtyCancelled() != null
-                                                ? item.getQtyCancelled()
-                                                : 0;
+                                        Integer cancelledQty =
+                                                item.getQtyCancelled() != null
+                                                        ? item.getQtyCancelled()
+                                                        : 0;
 
-                                        inspectedQty = inspectedQty.add(
-                                                BigDecimal.valueOf(qty));
+                                        inspectedQty =
+                                                inspectedQty.add(
+                                                        BigDecimal.valueOf(qty));
 
-                                        acceptedQty = acceptedQty.add(
-                                                BigDecimal.valueOf(qty - cancelledQty));
+                                        acceptedQty =
+                                                acceptedQty.add(
+                                                        BigDecimal.valueOf(
+                                                                qty - cancelledQty));
 
-                                        rejectedQty = rejectedQty.add(
-                                                BigDecimal.valueOf(cancelledQty));
+                                        rejectedQty =
+                                                rejectedQty.add(
+                                                        BigDecimal.valueOf(
+                                                                cancelledQty));
                                 }
                         }
 
@@ -2324,76 +2439,12 @@ public class reportsImpl implements reports {
                         dto.setQtyAccpeted(acceptedQty);
                         dto.setTotalRejected(rejectedQty);
 
+                        // =====================================================
+                        // PROCESS QTY
+                        // =====================================================
 
-                        ProcessQtyDto processQty = new ProcessQtyDto();
-
-                        // Get all calls for this PO
-                        List<InspectionCall> calls =
-                                inspectionCallRepository.findByPoNo(poHeader.getPoNo());
-
-                        for (InspectionCall call : calls) {
-
-                                // Get all process rows for each call
-                                List<ProcessLineFinalResult> processList =
-                                        processLineFinalResultRepository
-                                                .findByInspectionCallNo(call.getIcNumber());
-
-                                for (ProcessLineFinalResult p : processList) {
-
-                                        processQty.setShearingProductionQty(
-                                                processQty.getShearingProductionQty()
-                                                        + getValue(p.getShearingManufactured()));
-
-                                        processQty.setShearingRejectionQty(
-                                                processQty.getShearingRejectionQty()
-                                                        + getValue(p.getShearingRejected()));
-
-                                        processQty.setTurningProductionQty(
-                                                processQty.getTurningProductionQty()
-                                                        + getValue(p.getTurningManufactured()));
-
-                                        processQty.setTurningRejectionQty(
-                                                processQty.getTurningRejectionQty()
-                                                        + getValue(p.getTurningRejected()));
-
-                                        processQty.setMpiProductionQty(
-                                                processQty.getMpiProductionQty()
-                                                        + getValue(p.getMpiManufactured()));
-
-                                        processQty.setMpiRejectionQty(
-                                                processQty.getMpiRejectionQty()
-                                                        + getValue(p.getMpiRejected()));
-
-                                        processQty.setForgingProductionQty(
-                                                processQty.getForgingProductionQty()
-                                                        + getValue(p.getForgingManufactured()));
-
-                                        processQty.setForgingRejectionQty(
-                                                processQty.getForgingRejectionQty()
-                                                        + getValue(p.getForgingRejected()));
-
-                                        processQty.setQuenchingProductionQty(
-                                                processQty.getQuenchingProductionQty()
-                                                        + getValue(p.getQuenchingManufactured()));
-
-                                        processQty.setQuenchingRejectionQty(
-                                                processQty.getQuenchingRejectionQty()
-                                                        + getValue(p.getQuenchingRejected()));
-
-                                        processQty.setTemperingProductionQty(
-                                                processQty.getTemperingProductionQty()
-                                                        + getValue(p.getTemperingManufactured()));
-
-                                        processQty.setTemperingRejectionQty(
-                                                processQty.getTemperingRejectionQty()
-                                                        + getValue(p.getTemperingRejected()));
-                                }
-                        }
-
-                        dto.setProcessQty(processQty);
-
-                        finalResponse.add(dto);
-                        // ================= RM DEFECTS =================
+                        ProcessQtyDto processQty =
+                                new ProcessQtyDto();
 
                         BigDecimal rmVmDefect = BigDecimal.ZERO;
                         BigDecimal rmDimentionalDefect = BigDecimal.ZERO;
@@ -2401,167 +2452,180 @@ public class reportsImpl implements reports {
                         BigDecimal rmGrainSizeDefect = BigDecimal.ZERO;
                         BigDecimal rmDecarbDefect = BigDecimal.ZERO;
 
-// Get all calls of this PO
-                     //   List<InspectionCall> calls = inspectionCallRepository.findByPoNo(poHeader.getPoNo());
+                        List<InspectionCall> calls =
+                                poCallMap.getOrDefault(
+                                        poHeader.getPoNo(),
+                                        Collections.emptyList());
 
                         for (InspectionCall call : calls) {
 
                                 String callNo = call.getIcNumber();
-                                String ercType = call.getErcType();
 
-                                // conversion factor
-                                BigDecimal factor = BigDecimal.ZERO;
+                                BigDecimal factor = getFactor(call.getErcType());
 
-                                if (ercType != null) {
+                                // =================================================
+                                // PROCESS
+                                // =================================================
 
-                                        if (ercType.toUpperCase().contains("III")) {
-                                                factor = BigDecimal.valueOf(1086.96);
-                                        } else if (ercType.toUpperCase().contains("V")) {
-                                                factor = BigDecimal.valueOf(919.12);
-                                        }
+                                List<ProcessLineFinalResult> processList =
+                                        processMap.getOrDefault(
+                                                callNo,
+                                                Collections.emptyList());
+
+                                for (ProcessLineFinalResult p : processList) {
+
+                                        processQty.setShearingProductionQty(
+                                                processQty.getShearingProductionQty()
+                                                        + getValue(
+                                                        p.getShearingManufactured()));
+
+                                        processQty.setShearingRejectionQty(
+                                                processQty.getShearingRejectionQty()
+                                                        + getValue(
+                                                        p.getShearingRejected()));
+
+                                        processQty.setTurningProductionQty(
+                                                processQty.getTurningProductionQty()
+                                                        + getValue(
+                                                        p.getTurningManufactured()));
+
+                                        processQty.setTurningRejectionQty(
+                                                processQty.getTurningRejectionQty()
+                                                        + getValue(
+                                                        p.getTurningRejected()));
+
+                                        processQty.setMpiProductionQty(
+                                                processQty.getMpiProductionQty()
+                                                        + getValue(
+                                                        p.getMpiManufactured()));
+
+                                        processQty.setMpiRejectionQty(
+                                                processQty.getMpiRejectionQty()
+                                                        + getValue(
+                                                        p.getMpiRejected()));
+
+                                        processQty.setForgingProductionQty(
+                                                processQty.getForgingProductionQty()
+                                                        + getValue(
+                                                        p.getForgingManufactured()));
+
+                                        processQty.setForgingRejectionQty(
+                                                processQty.getForgingRejectionQty()
+                                                        + getValue(
+                                                        p.getForgingRejected()));
+
+                                        processQty.setQuenchingProductionQty(
+                                                processQty.getQuenchingProductionQty()
+                                                        + getValue(
+                                                        p.getQuenchingManufactured()));
+
+                                        processQty.setQuenchingRejectionQty(
+                                                processQty.getQuenchingRejectionQty()
+                                                        + getValue(
+                                                        p.getQuenchingRejected()));
+
+                                        processQty.setTemperingProductionQty(
+                                                processQty.getTemperingProductionQty()
+                                                        + getValue(
+                                                        p.getTemperingManufactured()));
+
+                                        processQty.setTemperingRejectionQty(
+                                                processQty.getTemperingRejectionQty()
+                                                        + getValue(
+                                                        p.getTemperingRejected()));
                                 }
 
-                                // =====================================================
-                                // 1. VISUAL DEFECT
-                                // =====================================================
+                                // =================================================
+                                // VISUAL DEFECT
+                                // =================================================
 
-                                List<RmVisualInspection> visualList =
-                                        rmVisualInspectionRepository.findByInspectionCallNo(callNo);
+                                rmVmDefect =
+                                        rmVmDefect.add(
+                                                visualMap
+                                                        .getOrDefault(
+                                                                callNo,
+                                                                BigDecimal.ZERO)
+                                                        .multiply(factor));
 
-                                for (RmVisualInspection visual : visualList) {
+                                // =================================================
+                                // DIMENSIONAL DEFECT
+                                // =================================================
 
-                                        if (visual.getWeightRejected() != null
-                                                && visual.getWeightRejected().compareTo(BigDecimal.ZERO) > 0) {
+                                rmDimentionalDefect =
+                                        rmDimentionalDefect.add(
+                                                dimensionalMap
+                                                        .getOrDefault(
+                                                                callNo,
+                                                                BigDecimal.ZERO)
+                                                        .multiply(factor));
 
-                                                BigDecimal value =
-                                                        visual.getWeightRejected().multiply(factor);
+                                BigDecimal convertedWt =
+                                        offeredMap
+                                                .getOrDefault(
+                                                        callNo,
+                                                        BigDecimal.ZERO)
+                                                .multiply(factor);
 
-                                                rmVmDefect = rmVmDefect.add(value);
-                                        }
-                                }
+                                // =================================================
+                                // INCLUSION
+                                // =================================================
 
-                                // =====================================================
-                                // 2. DIMENSIONAL DEFECT
-                                // =====================================================
-
-                                List<RmHeatFinalResult> heatResults =
-                                        rmHeatFinalResultRepository.findByInspectionCallNo(callNo);
-
-                                for (RmHeatFinalResult heat : heatResults) {
-
-                                        if ("NOT OK".equalsIgnoreCase(heat.getDimensionalStatus())
-                                                && heat.getWeightRejectedMt() != null) {
-
-                                                BigDecimal value =
-                                                        heat.getWeightRejectedMt().multiply(factor);
-
-                                                rmDimentionalDefect =
-                                                        rmDimentionalDefect.add(value);
-                                        }
-                                }
-
-                                // =====================================================
-                                // 3. MATERIAL TESTING DEFECTS
-                                // =====================================================
-
-                                List<RmMaterialTesting> materialTests =
-                                        rmMaterialTestingRepository.findByInspectionCallNo(callNo);
-
-                                // call level flags
-                                boolean inclusionDefect = false;
-                                boolean grainSizeDefect = false;
-                                boolean decarbDefect = false;
-
-                                for (RmMaterialTesting mt : materialTests) {
-
-                                        // ================= GRAIN SIZE =================
-
-                                        if (mt.getGrainSize() != null
-                                                && mt.getGrainSize()
-                                                .compareTo(BigDecimal.valueOf(6)) < 0) {
-
-                                                grainSizeDefect = true;
-                                        }
-
-                                        // ================= DECARB =================
-
-                                        if (mt.getDecarb() != null
-                                                && mt.getDecarb()
-                                                .compareTo(BigDecimal.valueOf(2.0)) > 0) {
-
-                                                decarbDefect = true;
-                                        }
-
-                                        // ================= INCLUSION =================
-
-                                        if (
-                                                (mt.getInclusionA() != null
-                                                        && mt.getInclusionA()
-                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
-
-                                                        || (mt.getInclusionB() != null
-                                                        && mt.getInclusionB()
-                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
-
-                                                        || (mt.getInclusionC() != null
-                                                        && mt.getInclusionC()
-                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
-
-                                                        || (mt.getInclusionD() != null
-                                                        && mt.getInclusionD()
-                                                        .compareTo(BigDecimal.valueOf(2)) > 0)
-                                        ) {
-
-                                                inclusionDefect = true;
-                                        }
-                                }
-
-                                // =====================================================
-                                // FETCH OFFERED WT FROM HEAT FINAL RESULT
-                                // =====================================================
-
-                                BigDecimal totalOfferedWt = BigDecimal.ZERO;
-
-                                for (RmHeatFinalResult heat : heatResults) {
-
-                                        if (heat.getWeightOfferedMt() != null) {
-
-                                                totalOfferedWt =
-                                                        totalOfferedWt.add(heat.getWeightOfferedMt());
-                                        }
-                                }
-
-                                BigDecimal convertedValue =
-                                        totalOfferedWt.multiply(factor);
-
-                                if (inclusionDefect) {
+                                if (inclusionSet.contains(callNo)) {
                                         rmInclusionDefect =
-                                                rmInclusionDefect.add(convertedValue);
+                                                rmInclusionDefect.add(convertedWt);
                                 }
 
-                                if (grainSizeDefect) {
+                                // =================================================
+                                // GRAIN
+                                // =================================================
+
+                                if (grainSet.contains(callNo)) {
                                         rmGrainSizeDefect =
-                                                rmGrainSizeDefect.add(convertedValue);
+                                                rmGrainSizeDefect.add(convertedWt);
                                 }
 
-                                if (decarbDefect) {
+                                // =================================================
+                                // DECARB
+                                // =================================================
+
+                                if (decarbSet.contains(callNo)) {
                                         rmDecarbDefect =
-                                                rmDecarbDefect.add(convertedValue);
+                                                rmDecarbDefect.add(convertedWt);
                                 }
                         }
 
-// set dto
+                        dto.setProcessQty(processQty);
+
                         dto.setRmVmDefect(rmVmDefect);
                         dto.setRmDimentionalDefect(rmDimentionalDefect);
                         dto.setRmInclusionDefect(rmInclusionDefect);
                         dto.setRmGrainSizeDefect(rmGrainSizeDefect);
                         dto.setRmDecarbDefect(rmDecarbDefect);
-                }
 
+                        finalResponse.add(dto);
+                }
 
                 return finalResponse;
         }
 
+        private BigDecimal getFactor(String ercType) {
+
+                if (ercType == null || ercType.isBlank()) {
+                        return BigDecimal.ZERO;
+                }
+
+                String type = ercType.toUpperCase();
+
+                if (type.contains("III")) {
+                        return BigDecimal.valueOf(1086.96);
+                }
+
+                if (type.contains("V")) {
+                        return BigDecimal.valueOf(919.12);
+                }
+
+                return BigDecimal.ZERO;
+        }
         private Integer getValue(Integer value) {
                 return value != null ? value : 0;
         }
