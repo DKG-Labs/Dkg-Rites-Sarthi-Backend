@@ -17,6 +17,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
+    AND t2.moduleId = t.moduleId
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
 AND t.nextRole = :roleName
@@ -29,6 +30,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
+    AND t2.moduleId = t.moduleId
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
 AND t.nextRole = :roleName
@@ -43,6 +45,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
+    AND t2.moduleId = t.moduleId
 )
 AND UPPER(t.status) = 'COMPLETED'
 """)
@@ -54,6 +57,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
+    AND t2.moduleId = t.moduleId
     AND t2.workflowId = 2
     AND UPPER(t2.status) = 'COMPLETED'
 )
@@ -73,6 +77,21 @@ AND t.workflowId = 2
     Optional<String> findLatestStatusByRequestIdAndModuleId(
             @Param("requestId") String requestId,
             @Param("moduleId") Long moduleId
+    );
+
+    @Query(value = """
+                SELECT status 
+                FROM rail_workflow_transaction 
+                WHERE request_id = :requestId 
+                  AND module_id = :moduleId
+                  AND plant_id = :plantId
+                ORDER BY workflow_transition_id DESC 
+                LIMIT 1
+            """, nativeQuery = true)
+    Optional<String> findLatestStatusByRequestIdAndModuleIdAndPlantId(
+            @Param("requestId") String requestId,
+            @Param("moduleId") Long moduleId,
+            @Param("plantId") String plantId
     );
 
     @Query(value = "SELECT poi_code FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
