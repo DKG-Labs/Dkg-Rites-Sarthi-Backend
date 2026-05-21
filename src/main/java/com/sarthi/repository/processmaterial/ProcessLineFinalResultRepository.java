@@ -216,7 +216,7 @@ GROUP BY p.inspectionCallNo
         WHERE p.created_at >= :date
         GROUP BY ic.company_name
         ORDER BY rejectionPct ASC
-        LIMIT 5
+        LIMIT 10
     """, nativeQuery = true)
     List<Object[]> findTop5ProcessPerformanceRevisedLogic(@org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
@@ -249,7 +249,7 @@ GROUP BY p.inspectionCallNo
         WHERE p.created_at >= :date
         GROUP BY ic.company_name
         ORDER BY rejectionPct DESC
-        LIMIT 5
+        LIMIT 10
     """, nativeQuery = true)
     List<Object[]> findWorst5ProcessPerformanceRevisedLogic(@org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 

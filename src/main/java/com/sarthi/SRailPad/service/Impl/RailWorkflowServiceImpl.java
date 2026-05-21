@@ -8,7 +8,6 @@ import com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping;
 import com.sarthi.SRailPad.entity.raipadMapping.RailPoiIeMapping;
 import com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants;
 import com.sarthi.SRailPad.repository.*;
-import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
 import com.sarthi.SRailPad.service.RailWorkflowService;
 import com.sarthi.Sleeper.entity.SleeperTransitionMaster;
 import com.sarthi.constant.AppConstant;
@@ -45,9 +44,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
 
     private IeFieldsMappingRepository ieFieldsMappingRepository;
-    private VendorMasterRepository vendorMasterRepository;
-    private RailInspectionCallRepository railInspectionCallRepository;
-    private PoHeaderRepository poHeaderRepository;
+
     private RioUserRepository rioUserRepository;
 
 
@@ -145,7 +142,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         if (workflowId.equals(2L)
                 && transition.getNextRoleId() != null
-                && transition.getNextRoleId().equals(2)) {
+                && transition.getNextRoleId().equals(2L)) {
 
             String pincode =
                     mapping.getPinCode();
@@ -158,7 +155,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             IEFieldsMapping ieMap =
                     ieFieldsMappingRepository
                             .findByPlantPincodeAndProductAndStageMatch(
-                                   pincode,
+                                    pincode,
                                     product,
                                     stage
                             )
@@ -356,7 +353,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 );
             }
 
-            boolean exists = (current.getRio() == null) || 
+            boolean exists =
                     rioUserRepository.existsByRioAndEmployeeCode(
                             current.getRio(),
                             employeeCode);
@@ -421,7 +418,6 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         tx.setPoiCode(current.getPoiCode());
         tx.setPlantId(current.getPlantId());
         tx.setVendorCode(current.getVendorCode());
-        tx.setRio(current.getRio());
 
 
 
@@ -510,19 +506,19 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 String pinCode = mapping.getPinCode();
 
                 IEFieldsMapping map = ieFieldsMappingRepository
-                                .findByPlantPincodeAndProductAndStageMatch(
-                                        pinCode,
-                                        product,
-                                        stage
+                        .findByPlantPincodeAndProductAndStageMatch(
+                                pinCode,
+                                product,
+                                stage
+                        )
+                        .orElseThrow(() -> new BusinessException(
+                                new ErrorDetails(
+                                        AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "No IE mapping found"
                                 )
-                                .orElseThrow(() -> new BusinessException(
-                                        new ErrorDetails(
-                                                AppConstant.ERROR_CODE_RESOURCE,
-                                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                                AppConstant.ERROR_TYPE_VALIDATION,
-                                                "No IE mapping found"
-                                        )
-                                ));
+                        ));
 
                 String rio = map.getRio();
 
@@ -657,45 +653,6 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         dto.setPlantId(tx.getPlantId());
         dto.setPoiCode(tx.getPoiCode());
 
-        // Cache 1: Vendor Name by Vendor Code
-        if (tx.getVendorCode() != null) {
-            String cacheKey = "vendor_" + tx.getVendorCode();
-            String vendorName = (String) cache.computeIfAbsent(cacheKey, k -> 
-                vendorMasterRepository.findByVendorCode(tx.getVendorCode())
-                    .map(v -> v.getVendorName())
-                    .orElse("")
-            );
-            if (!vendorName.isEmpty()) {
-                dto.setVendorName(vendorName);
-            }
-        }
-
-        // Fetch additional inspection call details (Only for Inspection Call workflow, i.e., workflowId = 2)
-        if (tx.getWorkflowId() != null && tx.getWorkflowId().equals(2L)) {
-            String callCacheKey = "call_" + tx.getRequestId();
-            // Cache 2: Inspection Call details
-            com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall call = (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall) cache.computeIfAbsent(callCacheKey, k -> 
-                railInspectionCallRepository.findByCallNo(tx.getRequestId()).orElse(null)
-            );
-            
-            if (call != null) {
-                dto.setRailPadType(call.getRailPadType());
-                
-                // Cache 3: PO Header details
-                if (call.getPoNo() != null) {
-                    String poCacheKey = "po_" + call.getPoNo();
-                    com.sarthi.entity.PoHeader header = (com.sarthi.entity.PoHeader) cache.computeIfAbsent(poCacheKey, k -> 
-                        poHeaderRepository.findByPoNo(call.getPoNo()).orElse(null)
-                    );
-                    if (header != null) {
-                        String rly = header.getRlyShortName() != null ? header.getRlyShortName() : "";
-                        String poSr = call.getPoSr() != null ? call.getPoSr() : "001";
-                        dto.setRlyPoSrNo(rly + "/" + call.getPoNo() + "/" + poSr);
-                    }
-                }
-            }
-        }
-
         dto.setAssignedToUser(tx.getAssignedToUser());
         dto.setCreatedBy(tx.getCreatedBy());
         dto.setModifiedBy(tx.getModifiedBy());
@@ -712,12 +669,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if ("Rail Vendor".equalsIgnoreCase(tx.getNextRole())) {
             if (tx.getPoiCode() != null) {
                 String vendorIdCacheKey = "vendorId_" + tx.getPoiCode();
-                vendorId = (String) cache.computeIfAbsent(vendorIdCacheKey, k -> 
-                    railPadPincodePoIMappingRepository
-                        .findVendorCodeByPoiCode(tx.getPoiCode())
-                        .orElse(null)
+                vendorId = (String) cache.computeIfAbsent(vendorIdCacheKey, k ->
+                        railPadPincodePoIMappingRepository
+                                .findVendorCodeByPoiCode(tx.getPoiCode())
+                                .orElse(null)
                 );
-                
+
                 if (vendorId == null) {
                     System.err.println("[WARN] Vendor not found for POI: " + tx.getPoiCode());
                 }
@@ -727,12 +684,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             if (tx.getPoiCode() != null && tx.getPlantId() != null) {
                 String ieType = tx.getWorkflowId().equals(2L) ? "Main IE" : "Process IE";
                 String mappingCacheKey = "mapping_" + tx.getPoiCode() + "_" + tx.getPlantId() + "_" + ieType;
-                mappings = (List<RailPoiIeMapping>) cache.computeIfAbsent(mappingCacheKey, k -> 
-                    poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(
-                        tx.getPoiCode(),
-                        tx.getPlantId(),
-                        ieType
-                    )
+                mappings = (List<RailPoiIeMapping>) cache.computeIfAbsent(mappingCacheKey, k ->
+                        poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(
+                                tx.getPoiCode(),
+                                tx.getPlantId(),
+                                ieType
+                        )
                 );
             }
         }
@@ -748,10 +705,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if (vendorId != null) {
             final String finalVendorId = vendorId;
             String vendorUserCacheKey = "vendorUser_" + vendorId;
-            Long vendorUserId = (Long) cache.computeIfAbsent(vendorUserCacheKey, k -> 
-                railVendorPlantsRepository
-                    .findVendorUserIdByVendorCode(finalVendorId)
-                    .orElse(null)
+            Long vendorUserId = (Long) cache.computeIfAbsent(vendorUserCacheKey, k ->
+                    railVendorPlantsRepository
+                            .findVendorUserIdByVendorCode(finalVendorId)
+                            .orElse(null)
             );
             if (vendorUserId == null) {
                 System.err.println("[WARN] Vendor user not found for vendor code: " + finalVendorId);
