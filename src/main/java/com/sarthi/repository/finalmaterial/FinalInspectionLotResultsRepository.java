@@ -2,6 +2,8 @@ package com.sarthi.repository.finalmaterial;
 
 import com.sarthi.entity.finalmaterial.FinalInspectionLotResults;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -32,5 +34,58 @@ public interface FinalInspectionLotResultsRepository extends JpaRepository<Final
      * Check if lot results exist
      */
     boolean existsByInspectionCallNoAndLotNo(String inspectionCallNo, String lotNo);
+
+    @Query("""
+SELECT
+    r.inspectionCallNo,
+
+    MAX(
+        CASE
+            WHEN UPPER(r.visualDimStatus) = 'NOT OK'
+            THEN 1
+            ELSE 0
+        END
+    ),
+
+    MAX(
+        CASE
+            WHEN UPPER(r.hardnessStatus) = 'NOT OK'
+            THEN 1
+            ELSE 0
+        END
+    ),
+
+    MAX(
+        CASE
+            WHEN UPPER(r.inclusionStatus) = 'NOT OK'
+            THEN 1
+            ELSE 0
+        END
+    ),
+
+    MAX(
+        CASE
+            WHEN UPPER(r.deflectionStatus) = 'NOT OK'
+            THEN 1
+            ELSE 0
+        END
+    ),
+
+    MAX(
+        CASE
+            WHEN UPPER(r.toeLoadStatus) = 'NOT OK'
+            THEN 1
+            ELSE 0
+        END
+    )
+
+FROM FinalInspectionLotResults r
+
+WHERE r.inspectionCallNo IN :callNos
+
+GROUP BY r.inspectionCallNo
+""")
+    List<Object[]> getFinalDefectSummary(
+            @Param("callNos") List<String> callNos);
 }
 

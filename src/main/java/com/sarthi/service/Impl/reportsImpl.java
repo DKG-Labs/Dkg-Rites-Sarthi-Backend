@@ -6,12 +6,16 @@ import com.sarthi.dto.TemperingDefectsDto;
 import com.sarthi.dto.reports.DashboardSummaryDto;
 import com.sarthi.dto.reports.InspectionCallStatusDto;
 import com.sarthi.dto.reports.*;
+import com.sarthi.dto.summaryDtos.CallCalculationDto;
 import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
+import com.sarthi.dto.summaryDtos.ProcessSummaryDto;
 import com.sarthi.entity.*;
 import com.sarthi.entity.processmaterial.*;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.*;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
+import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalInspectionLotResultsRepository;
 import com.sarthi.repository.processmaterial.*;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.reports;
@@ -73,6 +77,10 @@ public class reportsImpl implements reports {
         private RmVisualInspectionRepository rmVisualInspectionRepository;
         @Autowired
         private RmMaterialTestingRepository rmMaterialTestingRepository;
+        @Autowired
+        private FinalInspectionLotResultsRepository finalInspectionLotResultsRepository;
+        @Autowired
+        private FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
         /*
          * @Override
          * public List<PoInspection1stLevelStatusDto>
@@ -2274,7 +2282,11 @@ public class reportsImpl implements reports {
         @Override
         public List<PoWiseDefectsData> getPoWiseDefectsReport(
                 LocalDate startDate,
-                LocalDate endDate){
+                LocalDate endDate) {
+
+                // =========================================================
+                // FETCH POS
+                // =========================================================
 
                 List<PoHeader> poHeaders =
                         poHeaderRepository.findElasticRailClipsPoHeaders(
@@ -2282,8 +2294,12 @@ public class reportsImpl implements reports {
                                 endDate.atTime(LocalTime.MAX)
                         );
 
-                List<PoWiseDefectsData> finalResponse = new ArrayList<>();
+                List<PoWiseDefectsData> finalResponse =
+                        new ArrayList<>();
 
+                // =========================================================
+                // FETCH CALLS
+                // =========================================================
 
                 List<InspectionCall> allCalls =
                         inspectionCallRepository.findAll();
@@ -2293,16 +2309,17 @@ public class reportsImpl implements reports {
                         .filter(Objects::nonNull)
                         .toList();
 
+                // =========================================================
+                // PROCESS SUMMARY
+                // =========================================================
 
-                List<ProcessLineFinalResult> allProcessResults =
+                List<Object[]> processResults =
                         processLineFinalResultRepository
-                                .findByInspectionCallNoIn(callNos);
+                                .getProcessSummary(callNos);
 
-                Map<String, List<ProcessLineFinalResult>> processMap =
-                        allProcessResults.stream()
-                                .collect(Collectors.groupingBy(
-                                        ProcessLineFinalResult::getInspectionCallNo));
-
+                // =========================================================
+                // RM QUERY RESULTS
+                // =========================================================
 
                 List<Object[]> visualResults =
                         rmVisualInspectionRepository
@@ -2324,17 +2341,70 @@ public class reportsImpl implements reports {
                         rmMaterialTestingRepository
                                 .getDecarbDefectCalls(callNos);
 
+                // =========================================================
+                // FINAL DEFECTS
+                // =========================================================
+
+                List<Object[]> finalDefectResults =
+                        finalInspectionLotResultsRepository
+                                .getFinalDefectSummary(callNos);
+
+                List<Object[]> finalOfferedResults =
+                        finalInspectionLotDetailsRepository
+                                .getFinalOfferedQty(callNos);
+
+                // =========================================================
+                // PO CALL MAP
+                // =========================================================
 
                 Map<String, List<InspectionCall>> poCallMap =
                         allCalls.stream()
                                 .collect(Collectors.groupingBy(
                                         InspectionCall::getPoNo));
 
+                // =========================================================
+                // PROCESS MAP
+                // =========================================================
+
+                Map<String, ProcessSummaryDto> processMap =
+                        processResults.stream()
+                                .collect(Collectors.toMap(
+
+                                        r -> (String) r[0],
+
+                                        r -> new ProcessSummaryDto(
+
+                                                getInt(r[1]),
+                                                getInt(r[2]),
+
+                                                getInt(r[3]),
+                                                getInt(r[4]),
+
+                                                getInt(r[5]),
+                                                getInt(r[6]),
+
+                                                getInt(r[7]),
+                                                getInt(r[8]),
+
+                                                getInt(r[9]),
+                                                getInt(r[10]),
+
+                                                getInt(r[11]),
+                                                getInt(r[12])
+                                        )
+                                ));
+
+                // =========================================================
+                // RM MAPS
+                // =========================================================
+
                 Map<String, BigDecimal> visualMap =
                         visualResults.stream()
                                 .collect(Collectors.toMap(
                                         r -> (String) r[0],
-                                        r -> (BigDecimal) r[1]
+                                        r -> r[1] != null
+                                                ? (BigDecimal) r[1]
+                                                : BigDecimal.ZERO
                                 ));
 
                 Map<String, BigDecimal> dimensionalMap =
@@ -2364,6 +2434,164 @@ public class reportsImpl implements reports {
                 Set<String> decarbSet =
                         new HashSet<>(decarbCalls);
 
+                // =========================================================
+                // FINAL MAPS
+                // =========================================================
+
+                Map<String, Object[]> finalDefectMap =
+                        finalDefectResults.stream()
+                                .collect(Collectors.toMap(
+                                        r -> (String) r[0],
+                                        r -> r
+                                ));
+
+                Map<String, Integer> finalOfferedMap =
+                        finalOfferedResults.stream()
+                                .collect(Collectors.toMap(
+                                        r -> (String) r[0],
+                                        r -> ((Number) r[1]).intValue()
+                                ));
+
+                // =========================================================
+                // PRECALCULATE CALLS
+                // =========================================================
+
+                Map<String, CallCalculationDto> callCalcMap =
+                        new HashMap<>();
+
+                for (InspectionCall call : allCalls) {
+
+                        String callNo = call.getIcNumber();
+
+                        BigDecimal factor =
+                                getFactor(call.getErcType());
+
+                        CallCalculationDto calc =
+                                new CallCalculationDto();
+
+                        calc.setPoNo(call.getPoNo());
+
+                        // =====================================================
+                        // PROCESS
+                        // =====================================================
+
+                        ProcessSummaryDto process =
+                                processMap.get(callNo);
+
+                        if (process == null) {
+
+                                process = new ProcessSummaryDto(
+                                        0,0,
+                                        0,0,
+                                        0,0,
+                                        0,0,
+                                        0,0,
+                                        0,0
+                                );
+                        }
+
+                        calc.setProcessQty(process);
+
+                        // =====================================================
+                        // RM DEFECTS
+                        // =====================================================
+
+                        BigDecimal visual =
+                                visualMap.getOrDefault(
+                                        callNo,
+                                        BigDecimal.ZERO
+                                ).multiply(factor);
+
+                        BigDecimal dimensional =
+                                dimensionalMap.getOrDefault(
+                                        callNo,
+                                        BigDecimal.ZERO
+                                ).multiply(factor);
+
+                        BigDecimal offered =
+                                offeredMap.getOrDefault(
+                                        callNo,
+                                        BigDecimal.ZERO
+                                ).multiply(factor);
+
+                        calc.setRmVmDefect(visual);
+
+                        calc.setRmDimensionalDefect(dimensional);
+
+                        calc.setRmInclusionDefect(
+                                inclusionSet.contains(callNo)
+                                        ? offered
+                                        : BigDecimal.ZERO
+                        );
+
+                        calc.setRmGrainSizeDefect(
+                                grainSet.contains(callNo)
+                                        ? offered
+                                        : BigDecimal.ZERO
+                        );
+
+                        calc.setRmDecarbDefect(
+                                decarbSet.contains(callNo)
+                                        ? offered
+                                        : BigDecimal.ZERO
+                        );
+
+                        // =====================================================
+                        // FINAL DEFECTS
+                        // =====================================================
+
+                        Object[] finalDefect =
+                                finalDefectMap.get(callNo);
+
+                        Integer finalOffered =
+                                finalOfferedMap.getOrDefault(
+                                        callNo,
+                                        0
+                                );
+
+                        BigDecimal finalQty =
+                                BigDecimal.valueOf(finalOffered)
+                                        .multiply(factor);
+
+                        if (finalDefect != null) {
+
+                                calc.setFinalVisualDimDefect(
+                                        ((Number) finalDefect[1]).intValue() == 1
+                                                ? finalQty
+                                                : BigDecimal.ZERO
+                                );
+
+                                calc.setFinalHardnessDefect(
+                                        ((Number) finalDefect[2]).intValue() == 1
+                                                ? finalQty
+                                                : BigDecimal.ZERO
+                                );
+
+                                calc.setFinalInclusionDefect(
+                                        ((Number) finalDefect[3]).intValue() == 1
+                                                ? finalQty
+                                                : BigDecimal.ZERO
+                                );
+
+                                calc.setFinalDeflectionDefect(
+                                        ((Number) finalDefect[4]).intValue() == 1
+                                                ? finalQty
+                                                : BigDecimal.ZERO
+                                );
+
+                                calc.setFinalToeLoadDefect(
+                                        ((Number) finalDefect[5]).intValue() == 1
+                                                ? finalQty
+                                                : BigDecimal.ZERO
+                                );
+                        }
+
+                        callCalcMap.put(callNo, calc);
+                }
+
+                // =========================================================
+                // MAIN LOOP
+                // =========================================================
 
                 for (PoHeader poHeader : poHeaders) {
 
@@ -2376,12 +2604,16 @@ public class reportsImpl implements reports {
                         dto.setPoNo(poHeader.getPoNo());
 
                         if (poHeader.getPoDate() != null) {
+
                                 dto.setPoDate(
                                         poHeader.getPoDate()
                                                 .toLocalDate()
                                                 .toString());
                         }
 
+                        // =====================================================
+                        // PO QTY
+                        // =====================================================
 
                         BigDecimal inspectedQty = BigDecimal.ZERO;
                         BigDecimal acceptedQty = BigDecimal.ZERO;
@@ -2421,6 +2653,10 @@ public class reportsImpl implements reports {
                         dto.setQtyAccpeted(acceptedQty);
                         dto.setTotalRejected(rejectedQty);
 
+                        // =====================================================
+                        // PROCESS QTY
+                        // =====================================================
+
                         ProcessQtyDto processQty =
                                 new ProcessQtyDto();
 
@@ -2430,6 +2666,16 @@ public class reportsImpl implements reports {
                         BigDecimal rmGrainSizeDefect = BigDecimal.ZERO;
                         BigDecimal rmDecarbDefect = BigDecimal.ZERO;
 
+                        BigDecimal finalVisualDimDefect = BigDecimal.ZERO;
+                        BigDecimal finalHardnessDefect = BigDecimal.ZERO;
+                        BigDecimal finalInclusionDefect = BigDecimal.ZERO;
+                        BigDecimal finalDeflectionDefect = BigDecimal.ZERO;
+                        BigDecimal finalToeLoadDefect = BigDecimal.ZERO;
+
+                        // =====================================================
+                        // CALLS
+                        // =====================================================
+
                         List<InspectionCall> calls =
                                 poCallMap.getOrDefault(
                                         poHeader.getPoNo(),
@@ -2437,122 +2683,108 @@ public class reportsImpl implements reports {
 
                         for (InspectionCall call : calls) {
 
-                                String callNo = call.getIcNumber();
+                                CallCalculationDto calc =
+                                        callCalcMap.get(call.getIcNumber());
 
-                                BigDecimal factor = getFactor(call.getErcType());
-
-
-                                List<ProcessLineFinalResult> processList =
-                                        processMap.getOrDefault(
-                                                callNo,
-                                                Collections.emptyList());
-
-                                for (ProcessLineFinalResult p : processList) {
-
-                                        processQty.setShearingProductionQty(
-                                                processQty.getShearingProductionQty()
-                                                        + getValue(
-                                                        p.getShearingManufactured()));
-
-                                        processQty.setShearingRejectionQty(
-                                                processQty.getShearingRejectionQty()
-                                                        + getValue(
-                                                        p.getShearingRejected()));
-
-                                        processQty.setTurningProductionQty(
-                                                processQty.getTurningProductionQty()
-                                                        + getValue(
-                                                        p.getTurningManufactured()));
-
-                                        processQty.setTurningRejectionQty(
-                                                processQty.getTurningRejectionQty()
-                                                        + getValue(
-                                                        p.getTurningRejected()));
-
-                                        processQty.setMpiProductionQty(
-                                                processQty.getMpiProductionQty()
-                                                        + getValue(
-                                                        p.getMpiManufactured()));
-
-                                        processQty.setMpiRejectionQty(
-                                                processQty.getMpiRejectionQty()
-                                                        + getValue(
-                                                        p.getMpiRejected()));
-
-                                        processQty.setForgingProductionQty(
-                                                processQty.getForgingProductionQty()
-                                                        + getValue(
-                                                        p.getForgingManufactured()));
-
-                                        processQty.setForgingRejectionQty(
-                                                processQty.getForgingRejectionQty()
-                                                        + getValue(
-                                                        p.getForgingRejected()));
-
-                                        processQty.setQuenchingProductionQty(
-                                                processQty.getQuenchingProductionQty()
-                                                        + getValue(
-                                                        p.getQuenchingManufactured()));
-
-                                        processQty.setQuenchingRejectionQty(
-                                                processQty.getQuenchingRejectionQty()
-                                                        + getValue(
-                                                        p.getQuenchingRejected()));
-
-                                        processQty.setTemperingProductionQty(
-                                                processQty.getTemperingProductionQty()
-                                                        + getValue(
-                                                        p.getTemperingManufactured()));
-
-                                        processQty.setTemperingRejectionQty(
-                                                processQty.getTemperingRejectionQty()
-                                                        + getValue(
-                                                        p.getTemperingRejected()));
+                                if (calc == null) {
+                                        continue;
                                 }
 
+                                ProcessSummaryDto p =
+                                        calc.getProcessQty();
+
+                                processQty.setShearingProductionQty(
+                                        processQty.getShearingProductionQty()
+                                                + p.getShearingProductionQty());
+
+                                processQty.setShearingRejectionQty(
+                                        processQty.getShearingRejectionQty()
+                                                + p.getShearingRejectionQty());
+
+                                processQty.setTurningProductionQty(
+                                        processQty.getTurningProductionQty()
+                                                + p.getTurningProductionQty());
+
+                                processQty.setTurningRejectionQty(
+                                        processQty.getTurningRejectionQty()
+                                                + p.getTurningRejectionQty());
+
+                                processQty.setMpiProductionQty(
+                                        processQty.getMpiProductionQty()
+                                                + p.getMpiProductionQty());
+
+                                processQty.setMpiRejectionQty(
+                                        processQty.getMpiRejectionQty()
+                                                + p.getMpiRejectionQty());
+
+                                processQty.setForgingProductionQty(
+                                        processQty.getForgingProductionQty()
+                                                + p.getForgingProductionQty());
+
+                                processQty.setForgingRejectionQty(
+                                        processQty.getForgingRejectionQty()
+                                                + p.getForgingRejectionQty());
+
+                                processQty.setQuenchingProductionQty(
+                                        processQty.getQuenchingProductionQty()
+                                                + p.getQuenchingProductionQty());
+
+                                processQty.setQuenchingRejectionQty(
+                                        processQty.getQuenchingRejectionQty()
+                                                + p.getQuenchingRejectionQty());
+
+                                processQty.setTemperingProductionQty(
+                                        processQty.getTemperingProductionQty()
+                                                + p.getTemperingProductionQty());
+
+                                processQty.setTemperingRejectionQty(
+                                        processQty.getTemperingRejectionQty()
+                                                + p.getTemperingRejectionQty());
 
                                 rmVmDefect =
                                         rmVmDefect.add(
-                                                visualMap
-                                                        .getOrDefault(
-                                                                callNo,
-                                                                BigDecimal.ZERO)
-                                                        .multiply(factor));
-
+                                                calc.getRmVmDefect());
 
                                 rmDimentionalDefect =
                                         rmDimentionalDefect.add(
-                                                dimensionalMap
-                                                        .getOrDefault(
-                                                                callNo,
-                                                                BigDecimal.ZERO)
-                                                        .multiply(factor));
+                                                calc.getRmDimensionalDefect());
 
-                                BigDecimal convertedWt =
-                                        offeredMap
-                                                .getOrDefault(
-                                                        callNo,
-                                                        BigDecimal.ZERO)
-                                                .multiply(factor);
+                                rmInclusionDefect =
+                                        rmInclusionDefect.add(
+                                                calc.getRmInclusionDefect());
 
+                                rmGrainSizeDefect =
+                                        rmGrainSizeDefect.add(
+                                                calc.getRmGrainSizeDefect());
 
-                                if (inclusionSet.contains(callNo)) {
-                                        rmInclusionDefect =
-                                                rmInclusionDefect.add(convertedWt);
-                                }
+                                rmDecarbDefect =
+                                        rmDecarbDefect.add(
+                                                calc.getRmDecarbDefect());
 
+                                finalVisualDimDefect =
+                                        finalVisualDimDefect.add(
+                                                calc.getFinalVisualDimDefect());
 
-                                if (grainSet.contains(callNo)) {
-                                        rmGrainSizeDefect =
-                                                rmGrainSizeDefect.add(convertedWt);
-                                }
+                                finalHardnessDefect =
+                                        finalHardnessDefect.add(
+                                                calc.getFinalHardnessDefect());
 
+                                finalInclusionDefect =
+                                        finalInclusionDefect.add(
+                                                calc.getFinalInclusionDefect());
 
-                                if (decarbSet.contains(callNo)) {
-                                        rmDecarbDefect =
-                                                rmDecarbDefect.add(convertedWt);
-                                }
+                                finalDeflectionDefect =
+                                        finalDeflectionDefect.add(
+                                                calc.getFinalDeflectionDefect());
+
+                                finalToeLoadDefect =
+                                        finalToeLoadDefect.add(
+                                                calc.getFinalToeLoadDefect());
                         }
+
+                        // =====================================================
+                        // SET DTO
+                        // =====================================================
 
                         dto.setProcessQty(processQty);
 
@@ -2561,6 +2793,21 @@ public class reportsImpl implements reports {
                         dto.setRmInclusionDefect(rmInclusionDefect);
                         dto.setRmGrainSizeDefect(rmGrainSizeDefect);
                         dto.setRmDecarbDefect(rmDecarbDefect);
+
+                        dto.setFinalVisualDimDefect(
+                                finalVisualDimDefect);
+
+                        dto.setFinalHardnessDefect(
+                                finalHardnessDefect);
+
+                        dto.setFinalInclusionDefect(
+                                finalInclusionDefect);
+
+                        dto.setFinalDeflectionDefect(
+                                finalDeflectionDefect);
+
+                        dto.setFinalToeLoadDefect(
+                                finalToeLoadDefect);
 
                         finalResponse.add(dto);
                 }
@@ -2587,9 +2834,13 @@ public class reportsImpl implements reports {
                 return BigDecimal.ZERO;
         }
 
+        private Integer getInt(Object value) {
 
-        private Integer getValue(Integer value) {
-                return value != null ? value : 0;
+                if (value == null) {
+                        return 0;
+                }
+
+                return ((Number) value).intValue();
         }
 
     @Override

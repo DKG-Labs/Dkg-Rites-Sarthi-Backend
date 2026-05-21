@@ -470,4 +470,33 @@ GROUP BY p.inspectionCallNo
     );
 
     List<ProcessLineFinalResult> findByInspectionCallNoIn(List<String> callNos);
+
+    @Query("""
+SELECT
+    p.inspectionCallNo,
+
+    SUM(COALESCE(p.shearingManufactured,0)),
+    SUM(COALESCE(p.shearingRejected,0)),
+
+    SUM(COALESCE(p.turningManufactured,0)),
+    SUM(COALESCE(p.turningRejected,0)),
+
+    SUM(COALESCE(p.mpiManufactured,0)),
+    SUM(COALESCE(p.mpiRejected,0)),
+
+    SUM(COALESCE(p.forgingManufactured,0)),
+    SUM(COALESCE(p.forgingRejected,0)),
+
+    SUM(COALESCE(p.quenchingManufactured,0)),
+    SUM(COALESCE(p.quenchingRejected,0)),
+
+    SUM(COALESCE(p.temperingManufactured,0)),
+    SUM(COALESCE(p.temperingRejected,0))
+
+FROM ProcessLineFinalResult p
+WHERE p.inspectionCallNo IN :callNos
+GROUP BY p.inspectionCallNo
+""")
+    List<Object[]> getProcessSummary(
+            @Param("callNos") List<String> callNos);
 }

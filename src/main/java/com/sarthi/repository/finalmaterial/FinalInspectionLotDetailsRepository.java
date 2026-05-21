@@ -2,6 +2,8 @@ package com.sarthi.repository.finalmaterial;
 
 import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -37,5 +39,25 @@ public interface FinalInspectionLotDetailsRepository extends JpaRepository<Final
 
     @org.springframework.data.jpa.repository.Query("SELECT SUM(f.offeredQty) FROM FinalInspectionLotDetails f WHERE f.heatNumber = :heatNumber AND f.lotNumber = :lotNumber")
     Integer sumOfferedQtyByHeatNumberAndLotNumber(@org.springframework.data.repository.query.Param("heatNumber") String heatNumber, @org.springframework.data.repository.query.Param("lotNumber") String lotNumber);
+
+    @Query("""
+SELECT
+    i.icNumber,
+    SUM(COALESCE(l.offeredQty,0))
+
+FROM InspectionCall i
+
+JOIN FinalInspectionDetails f
+    ON f.inspectionCall.id = i.id
+
+JOIN FinalInspectionLotDetails l
+    ON l.finalDetailId = f.id
+
+WHERE i.icNumber IN :callNos
+
+GROUP BY i.icNumber
+""")
+    List<Object[]> getFinalOfferedQty(
+            @Param("callNos") List<String> callNos);
 }
 
