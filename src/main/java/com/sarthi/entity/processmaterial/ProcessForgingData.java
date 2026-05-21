@@ -31,7 +31,7 @@ public class ProcessForgingData {
     private String lineNo;
 
     // Shift and hour info
-    @Column(name = "shift", length = 5)
+    @Column(name = "shift", length = 50)
     private String shift;
 
     @Column(name = "hour_index")

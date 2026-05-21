@@ -552,6 +552,12 @@ CREATE TABLE mix_design (
     ac_ratio DOUBLE,
     wc_ratio DOUBLE,
 
+    ca1_proportion DOUBLE DEFAULT NULL,
+    ca2_proportion DOUBLE DEFAULT NULL,
+    fa_proportion DOUBLE DEFAULT NULL,
+    grading_range_lower DOUBLE DEFAULT NULL,
+    grading_range_upper DOUBLE DEFAULT NULL,
+
     created_by INT,
     created_date DATETIME,
 
@@ -715,6 +721,11 @@ CREATE TABLE `bm_longline_details` (
       `water` double DEFAULT NULL,
       `ac_ratio` double DEFAULT NULL,
       `wc_ratio` double DEFAULT NULL,
+      `ca1_proportion` double DEFAULT NULL,
+      `ca2_proportion` double DEFAULT NULL,
+      `fa_proportion` double DEFAULT NULL,
+      `grading_range_lower` double DEFAULT NULL,
+      `grading_range_upper` double DEFAULT NULL,
       `created_by` int DEFAULT NULL,
       `created_date` datetime DEFAULT NULL,
       `updated_by` int DEFAULT NULL,

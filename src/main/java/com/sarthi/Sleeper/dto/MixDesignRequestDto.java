@@ -26,6 +26,12 @@ public class MixDesignRequestDto {
     private Double acRatio;
     private Double wcRatio;
 
+    private Double ca1Proportion;
+    private Double ca2Proportion;
+    private Double faProportion;
+    private Double gradingRangeLower;
+    private Double gradingRangeUpper;
+
     private BigDecimal admixtureKg;
     private BigDecimal admixturePercentage;
 }

@@ -33,6 +33,21 @@ public class MixDesign {
     @Column(name = "wc_ratio")
     private Double wcRatio;
 
+    @Column(name = "ca1_proportion")
+    private Double ca1Proportion;
+
+    @Column(name = "ca2_proportion")
+    private Double ca2Proportion;
+
+    @Column(name = "fa_proportion")
+    private Double faProportion;
+
+    @Column(name = "grading_range_lower")
+    private Double gradingRangeLower;
+
+    @Column(name = "grading_range_upper")
+    private Double gradingRangeUpper;
+
     private String vendorCode;
     private String plantId;
     private Integer createdBy;

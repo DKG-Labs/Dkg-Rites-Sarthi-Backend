@@ -182,6 +182,7 @@ public class HtsWireServiceImpl implements HtsWireService {
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
         entity.setRelaxationTest(dto.getRelaxationTest());
+        entity.setRelaxationTestTc(dto.getRelaxationTestTc());
 
         if (dto.getDateOfReceipt() != null) {
             entity.setDateOfReceipt(
@@ -205,6 +206,18 @@ public class HtsWireServiceImpl implements HtsWireService {
             entity.setRelaxationTestDate(
                     CommonUtils.convertStringToDateObject(
                             dto.getRelaxationTestDate()));
+        }
+
+        if (dto.getRelaxationTestValidity() != null && !dto.getRelaxationTestValidity().trim().isEmpty()) {
+            entity.setRelaxationTestValidity(
+                    CommonUtils.convertStringToDateObject(
+                            dto.getRelaxationTestValidity()));
+        } else if (entity.getRelaxationTestDate() != null && entity.getRelaxationTest() != null) {
+            if ("1000 Hours Test".equalsIgnoreCase(entity.getRelaxationTest())) {
+                entity.setRelaxationTestValidity(entity.getRelaxationTestDate().plusYears(1));
+            } else if ("100 Hours Test".equalsIgnoreCase(entity.getRelaxationTest())) {
+                entity.setRelaxationTestValidity(entity.getRelaxationTestDate().plusMonths(6));
+            }
         }
     }
 
@@ -281,6 +294,7 @@ public class HtsWireServiceImpl implements HtsWireService {
             dto.setCreatedBy(0);
         }
         dto.setRelaxationTest(entity.getRelaxationTest());
+        dto.setRelaxationTestTc(entity.getRelaxationTestTc());
         dto.setTotalQtyReceived(entity.getTotalQtyReceived());
 
         if (entity.getDateOfReceipt() != null) {
@@ -305,6 +319,12 @@ public class HtsWireServiceImpl implements HtsWireService {
             dto.setRelaxationTestDate(
                     CommonUtils.convertDateToString(
                             entity.getRelaxationTestDate()));
+        }
+
+        if (entity.getRelaxationTestValidity() != null) {
+            dto.setRelaxationTestValidity(
+                    CommonUtils.convertDateToString(
+                            entity.getRelaxationTestValidity()));
         }
         String status = statusMap.getOrDefault(
                 String.valueOf(entity.getId()),
@@ -374,6 +394,7 @@ public class HtsWireServiceImpl implements HtsWireService {
             dto.setCreatedBy(0);
         }
         dto.setRelaxationTest(entity.getRelaxationTest());
+        dto.setRelaxationTestTc(entity.getRelaxationTestTc());
         dto.setTotalQtyReceived(entity.getTotalQtyReceived());
 
         if (entity.getDateOfReceipt() != null) {
@@ -398,6 +419,12 @@ public class HtsWireServiceImpl implements HtsWireService {
             dto.setRelaxationTestDate(
                     CommonUtils.convertDateToString(
                             entity.getRelaxationTestDate()));
+        }
+
+        if (entity.getRelaxationTestValidity() != null) {
+            dto.setRelaxationTestValidity(
+                    CommonUtils.convertDateToString(
+                            entity.getRelaxationTestValidity()));
         }
         String status = sleeperWorkflowRepository
                 .findLatestStatusByRequestIdAndModuleId(String.valueOf(entity.getId()), 5L)

@@ -42,10 +42,16 @@ public class MixDesignServiceImpl implements MixDesignService {
         entity.setFa(dto.getFa());
         entity.setWater(dto.getWater());
         entity.setVendorCode(dto.getVendorCode());
-
         entity.setPlantId(dto.getPlantId());
+
         entity.setAcRatio(dto.getAcRatio());   // coming from frontend
         entity.setWcRatio(dto.getWcRatio());   // coming from frontend
+
+        entity.setCa1Proportion(dto.getCa1Proportion());
+        entity.setCa2Proportion(dto.getCa2Proportion());
+        entity.setFaProportion(dto.getFaProportion());
+        entity.setGradingRangeLower(dto.getGradingRangeLower());
+        entity.setGradingRangeUpper(dto.getGradingRangeUpper());
 
         entity.setAdmixtureKg(dto.getAdmixtureKg());
         entity.setAdmixturePercentage(dto.getAdmixturePercentage());
@@ -81,12 +87,17 @@ public class MixDesignServiceImpl implements MixDesignService {
 
         entity.setAdmixtureKg(dto.getAdmixtureKg());
         entity.setAdmixturePercentage(dto.getAdmixturePercentage());
-
-
         entity.setPlantId(dto.getPlantId());
+
 
         entity.setAcRatio(dto.getAcRatio());   // from frontend
         entity.setWcRatio(dto.getWcRatio());   // from frontend
+
+        entity.setCa1Proportion(dto.getCa1Proportion());
+        entity.setCa2Proportion(dto.getCa2Proportion());
+        entity.setFaProportion(dto.getFaProportion());
+        entity.setGradingRangeLower(dto.getGradingRangeLower());
+        entity.setGradingRangeUpper(dto.getGradingRangeUpper());
 
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
@@ -203,6 +214,13 @@ public class MixDesignServiceImpl implements MixDesignService {
 
         dto.setAcRatio(entity.getAcRatio());
         dto.setWcRatio(entity.getWcRatio());
+
+        dto.setCa1Proportion(entity.getCa1Proportion());
+        dto.setCa2Proportion(entity.getCa2Proportion());
+        dto.setFaProportion(entity.getFaProportion());
+        dto.setGradingRangeLower(entity.getGradingRangeLower());
+        dto.setGradingRangeUpper(entity.getGradingRangeUpper());
+
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedDate(entity.getCreatedDate());
         dto.setUpdatedBy(entity.getUpdatedBy());

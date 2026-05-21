@@ -21,6 +21,8 @@ public class HtsWireResponseDto {
 
     private String relaxationTest;
     private String relaxationTestDate;
+    private String relaxationTestTc;
+    private String relaxationTestValidity;
 
     private Double totalQtyReceived;
     private int createdBy;

@@ -40,10 +40,16 @@ public class HtsWire {
     private LocalDate ritesIcDate;
 
     @Column(name = "relaxation_test")
-    private String relaxationTest; // YES / NO
+    private String relaxationTest; // 100 Hours Test / 1000 Hours Test
 
     @Column(name = "relaxation_test_date")
     private LocalDate relaxationTestDate;
+
+    @Column(name = "relaxation_test_tc")
+    private String relaxationTestTc;
+
+    @Column(name = "relaxation_test_validity")
+    private LocalDate relaxationTestValidity;
 
     @Column(name = "total_qty_received")
     private Double totalQtyReceived;

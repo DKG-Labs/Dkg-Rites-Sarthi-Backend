@@ -23,6 +23,12 @@ public class MixDesignResponseDto {
     private Double acRatio;
     private Double wcRatio;
 
+    private Double ca1Proportion;
+    private Double ca2Proportion;
+    private Double faProportion;
+    private Double gradingRangeLower;
+    private Double gradingRangeUpper;
+
     private Integer createdBy;
     private LocalDateTime createdDate;
 
