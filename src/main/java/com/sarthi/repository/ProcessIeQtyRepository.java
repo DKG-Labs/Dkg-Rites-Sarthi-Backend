@@ -318,13 +318,13 @@ SELECT
     SUM(pl.rejected_qty) AS rejected_qty
 
 FROM (
-   
+
     SELECT
         inspection_call_no,
         created_by,
 
         SUM(
-            LEAST(
+            GREATEST(
                 COALESCE(shearing_accepted,0),
                 COALESCE(turning_accepted,0),
                 COALESCE(mpi_accepted,0),
@@ -343,17 +343,16 @@ FROM (
     GROUP BY inspection_call_no, created_by
 ) pl
 
-JOIN inspection_calls ic 
+JOIN inspection_calls ic
     ON ic.ic_number = pl.inspection_call_no
 
-JOIN pincode_poi_mapping p 
+JOIN pincode_poi_mapping p
     ON p.poi_code = ic.place_of_inspection
 
-JOIN user_master u 
+JOIN user_master u
     ON u.userid = pl.created_by
 
-
-LEFT JOIN po_header ph 
+LEFT JOIN po_header ph
     ON ph.po_no = ic.po_no
 
 WHERE (:rio IS NULL OR :rio = '' OR UPPER(u.Region) = UPPER(:rio))
