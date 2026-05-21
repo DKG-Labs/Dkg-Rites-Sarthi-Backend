@@ -17,7 +17,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-    AND t2.moduleId = t.moduleId
+    AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
 AND t.nextRole = :roleName
@@ -30,7 +30,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-    AND t2.moduleId = t.moduleId
+    AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
 AND t.nextRole = :roleName
@@ -45,7 +45,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-    AND t2.moduleId = t.moduleId
+    AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
 )
 AND UPPER(t.status) = 'COMPLETED'
 """)
@@ -57,7 +57,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-    AND t2.moduleId = t.moduleId
+    AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
     AND t2.workflowId = 2
     AND UPPER(t2.status) = 'COMPLETED'
 )
