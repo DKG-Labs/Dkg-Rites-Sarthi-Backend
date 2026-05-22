@@ -494,10 +494,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         List<BatchTestingListResponseDto> list = new ArrayList<>();
 
         // STRESS (existing)
-        list.addAll(productionDeclarationRepository.getAllBatchTesting(plantId));
+        list.addAll(productionDeclarationRepository.getAllBatchTesting());
 
         // LONG_LINE (new)
-        list.addAll(productionDeclarationRepository.getLongLineBatchTesting(plantId));
+        list.addAll(productionDeclarationRepository.getLongLineBatchTesting());
 
         List<BatchTestingListResponseDto> filteredList = new ArrayList<>();
 

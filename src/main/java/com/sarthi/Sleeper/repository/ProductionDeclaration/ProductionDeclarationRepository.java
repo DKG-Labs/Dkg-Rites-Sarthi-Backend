@@ -66,7 +66,7 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
             GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId
             """)
     List<BatchTestingListResponseDto> getAllBatchTesting();*/
-   /* @Query("""
+    @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -89,8 +89,8 @@ WHERE w.status = 'Completed'
 GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId, d.castingDate
 """)
     List<BatchTestingListResponseDto> getAllBatchTesting();
-*/
-    @Query("""
+
+   /* @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -113,8 +113,8 @@ WHERE w.status = 'Completed'
 AND d.plantId = :plantId
 GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
-    List<BatchTestingListResponseDto> getAllBatchTesting(String plantId);
-  /*  @Query("""
+    List<BatchTestingListResponseDto> getAllBatchTesting(String plantId);*/
+    @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -136,8 +136,8 @@ WHERE w.status = 'Completed'
 GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
     List<BatchTestingListResponseDto> getLongLineBatchTesting();
-*/
-  @Query("""
+
+ /* @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -159,7 +159,7 @@ WHERE w.status = 'Completed'
 AND d.plantId = :plantId
 GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
-  List<BatchTestingListResponseDto> getLongLineBatchTesting(String plantId);
+  List<BatchTestingListResponseDto> getLongLineBatchTesting(String plantId); */
     @Query("""
             SELECT d
             FROM ProductionDeclaration d
@@ -719,6 +719,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate
     );
+
 
 
 }
