@@ -1288,16 +1288,16 @@ public List<String> getBatchNumbers(Long vendorId,
             return new ArrayList<>(finalSet);
         }*/
   @Override
-  public List<String> getBenchNumbers(String batchNo) {
+  public List<String> getBenchNumbers(String batchNo, String productionUnit) {
 
       Set<String> finalSet = new LinkedHashSet<>();
 
       //  Bench Numbers (STRESS)
-      List<String> benches = repository.findBenchNumbers(batchNo);
+      List<String> benches = repository.findBenchNumbers(batchNo, productionUnit);
       finalSet.addAll(benches);
 
       //  Gang Ranges (LONG LINE)
-      List<Object[]> gangResults = repository.findGangRanges(batchNo);
+      List<Object[]> gangResults = repository.findGangRanges(batchNo, productionUnit);
 
      /* for (Object[] row : gangResults) {
 
