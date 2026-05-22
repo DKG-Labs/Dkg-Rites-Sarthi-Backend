@@ -110,9 +110,10 @@ JOIN b.sleepers s
 JOIN SleeperWorkflowTransaction w
      ON CAST(w.requestId as long) = d.id
 WHERE w.status = 'Completed'
+AND d.plantId = :plantId
 GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
-    List<BatchTestingListResponseDto> getAllBatchTesting();
+    List<BatchTestingListResponseDto> getAllBatchTesting(String plantId);
   /*  @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
@@ -155,9 +156,10 @@ JOIN g.sleepers s
 JOIN SleeperWorkflowTransaction w
      ON CAST(w.requestId as long) = d.id
 WHERE w.status = 'Completed'
+AND d.plantId = :plantId
 GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
-  List<BatchTestingListResponseDto> getLongLineBatchTesting();
+  List<BatchTestingListResponseDto> getLongLineBatchTesting(String plantId);
     @Query("""
             SELECT d
             FROM ProductionDeclaration d
