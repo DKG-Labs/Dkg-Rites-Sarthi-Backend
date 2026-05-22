@@ -66,7 +66,7 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
             GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId
             """)
     List<BatchTestingListResponseDto> getAllBatchTesting();*/
-    @Query("""
+   /* @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -89,8 +89,32 @@ WHERE w.status = 'Completed'
 GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId, d.castingDate
 """)
     List<BatchTestingListResponseDto> getAllBatchTesting();
-
+*/
     @Query("""
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+b.sleeperType,
+d.totalCastedSleepers,
+COUNT(DISTINCT s.id), 
+0.0,
+'Pending',
+null,
+d.plantId,
+d.castingDate
+)
+FROM ProductionDeclaration d
+JOIN d.chambers c
+JOIN c.benchGroups b
+JOIN b.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON CAST(w.requestId as long) = d.id
+WHERE w.status = 'Completed'
+AND d.plantId = :plantId
+GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
+""")
+    List<BatchTestingListResponseDto> getAllBatchTesting(String plantId);
+  /*  @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -112,7 +136,30 @@ WHERE w.status = 'Completed'
 GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
     List<BatchTestingListResponseDto> getLongLineBatchTesting();
-
+*/
+  @Query("""
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+g.sleeperType,
+d.totalCastedSleepers,
+COUNT(DISTINCT s.id), 
+0.0,
+'Pending',
+null,
+d.plantId,
+d.castingDate
+)
+FROM ProductionDeclaration d
+JOIN d.gangs g
+JOIN g.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON CAST(w.requestId as long) = d.id
+WHERE w.status = 'Completed'
+AND d.plantId = :plantId
+GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
+""")
+  List<BatchTestingListResponseDto> getLongLineBatchTesting(String plantId);
     @Query("""
             SELECT d
             FROM ProductionDeclaration d
@@ -134,15 +181,16 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
 //    List<String> findBenchNumbers(String batchNo);
 
     @Query(value = """
-            SELECT DISTINCT b.bench_no
-            FROM production_bench_group b
-            JOIN production_stress_chamber c 
-                ON b.chamber_id = c.id
-            JOIN production_declaration d 
-                ON c.declaration_id = d.id
-            WHERE d.batch_number = :batchNo
-            """, nativeQuery = true)
-    List<String> findBenchNumbers(String batchNo);
+        SELECT DISTINCT b.bench_no
+        FROM production_bench_group b
+        JOIN production_stress_chamber c
+            ON b.chamber_id = c.id
+        JOIN production_declaration d
+            ON c.declaration_id = d.id
+        WHERE d.batch_number = :batchNo
+        AND d.production_unit = :productionUnit
+        """, nativeQuery = true)
+    List<String> findBenchNumbers(String batchNo, String productionUnit);
 
     @Query(value = """
             SELECT DISTINCT p.batch_number
@@ -228,14 +276,23 @@ JOIN production_declaration d
 WHERE d.batch_number = :batchNo
 """, nativeQuery = true)
     List<Object[]> findGangRanges(String batchNo);  */
-    @Query(value = """
+   /* @Query(value = """
             SELECT DISTINCT g.mode, g.gang_from, g.gang_to, g.gang_no
             FROM production_longline_gang g
             JOIN production_declaration d 
                 ON g.declaration_id = d.id
             WHERE d.batch_number = :batchNo
             """, nativeQuery = true)
-    List<Object[]> findGangRanges(String batchNo);
+    List<Object[]> findGangRanges(String batchNo); */
+    @Query(value = """
+        SELECT DISTINCT g.mode, g.gang_from, g.gang_to, g.gang_no
+        FROM production_longline_gang g
+        JOIN production_declaration d
+            ON g.declaration_id = d.id
+        WHERE d.batch_number = :batchNo
+        AND d.production_unit = :productionUnit
+        """, nativeQuery = true)
+    List<Object[]> findGangRanges(String batchNo, String productionUnit);
 
     @Query(value = """
             SELECT DISTINCT 

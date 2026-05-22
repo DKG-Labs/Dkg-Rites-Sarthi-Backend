@@ -144,11 +144,12 @@ public class productionDeclarationController {
 
         @GetMapping("getAll/benches")
         public ResponseEntity<Object>  getBenchNumbers(
-                @RequestParam String batchNo) {
+                @RequestParam String batchNo,
+                @RequestParam String productionUnit) {
 
 
                 return new ResponseEntity<>(
-                        ResponseBuilder.getSuccessResponse(service.getBenchNumbers(batchNo)),
+                        ResponseBuilder.getSuccessResponse(service.getBenchNumbers(batchNo, productionUnit)),
                         HttpStatus.OK);
         }
 
