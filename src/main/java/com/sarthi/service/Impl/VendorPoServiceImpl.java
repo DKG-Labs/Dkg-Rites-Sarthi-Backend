@@ -77,6 +77,7 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setRlyCd(poHeader.getRlyCd());
         dto.setItemCategory(poHeader.getItemCatDescr());
         dto.setStatus(poHeader.getPoStatus());
+        dto.setPdfPath(poHeader.getPdfPath());
 
         BigDecimal totalQty = poHeader.getItems().stream()
                 .map(item -> BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0))

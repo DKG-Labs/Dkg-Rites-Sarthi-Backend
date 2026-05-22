@@ -19,6 +19,7 @@ public class VendorPoHeaderResponseDto {
     private String itemCategory;
     private BigDecimal totalValue;
     private String status;
+    private String pdfPath;
 
     private List<VendorPoItemsResponseDto> poItem;
 
