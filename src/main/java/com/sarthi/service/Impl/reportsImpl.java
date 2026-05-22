@@ -2862,4 +2862,109 @@ public class reportsImpl implements reports {
         }
         return dtoList;
     }
-}
+
+    @Override
+    public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport() {
+        // ERC MK-V specification limits for Turning Diameter
+        final double USL = 20.84;
+        final double LSL = 20.47;
+
+        // Step 1: Get all company + unit + ic_number rows
+        List<Object[]> rawRows = inspectionCallRepository.findCompanyUnitIcNumbers();
+
+        // Step 2: Group ic_numbers by (companyName, unitAddress)
+        // We'll use LinkedHashMap to maintain insertion order
+        java.util.Map<String, java.util.Map<String, java.util.List<String>>> grouped = new java.util.LinkedHashMap<>();
+
+        for (Object[] row : rawRows) {
+            String companyName = row[0] != null ? row[0].toString() : "";
+            String unitAddress = row[1] != null ? row[1].toString() : "";
+            String icNumber   = row[2] != null ? row[2].toString() : "";
+
+            if (companyName.isBlank() || unitAddress.isBlank() || icNumber.isBlank()) continue;
+
+            grouped
+                .computeIfAbsent(companyName, k -> new java.util.LinkedHashMap<>())
+                .computeIfAbsent(unitAddress, k -> new java.util.ArrayList<>())
+                .add(icNumber);
+        }
+
+        List<com.sarthi.dto.reports.SqcReportDto> result = new java.util.ArrayList<>();
+        int slNo = 1;
+
+        // Step 3: For each company unit, collect latest 30 dia values across all ic_numbers
+        for (java.util.Map.Entry<String, java.util.Map<String, java.util.List<String>>> companyEntry : grouped.entrySet()) {
+            String companyName = companyEntry.getKey();
+
+            for (java.util.Map.Entry<String, java.util.List<String>> unitEntry : companyEntry.getValue().entrySet()) {
+                String unitAddress = unitEntry.getKey();
+                List<String> icNumbers = unitEntry.getValue();
+
+                // Collect dia values (all records from the latest 30 days of the last record entered for this company unit)
+                List<Double> diaValues = new java.util.ArrayList<>();
+                List<Object[]> rows = processTurningDataRepository.findDiaByCompanyAndUnitForLatest30Days(companyName, unitAddress);
+
+                for (Object[] dRow : rows) {
+                    // dia_1
+                    if (dRow[0] != null) {
+                        double v = ((Number) dRow[0]).doubleValue();
+                        if (v > 0) diaValues.add(v);
+                    }
+                    // dia_2
+                    if (dRow[1] != null) {
+                        double v = ((Number) dRow[1]).doubleValue();
+                        if (v > 0) diaValues.add(v);
+                    }
+                    // dia_3
+                    if (dRow[2] != null) {
+                        double v = ((Number) dRow[2]).doubleValue();
+                        if (v > 0) diaValues.add(v);
+                    }
+                }
+
+
+                double cp = 0.0;
+                double cpk = 0.0;
+                double sqcRating = 0.0;
+                double ucl = 0.0;
+                double lcl = 0.0;
+                int n = diaValues.size();
+
+                if (n >= 2) {
+                    double mean = diaValues.stream().mapToDouble(Double::doubleValue).sum() / n;
+
+                    // Compute moving ranges (absolute differences between successive measurements)
+                    java.util.List<Double> movingRanges = new java.util.ArrayList<>();
+                    for (int i = 1; i < diaValues.size(); i++) {
+                        movingRanges.add(Math.abs(diaValues.get(i) - diaValues.get(i - 1)));
+                    }
+                    double avgMovingRange = movingRanges.stream().mapToDouble(Double::doubleValue).sum() / movingRanges.size();
+                    // Estimate standard deviation using d2 constant for n=2 (1.128)
+                    double stdDev = avgMovingRange / 1.128;
+
+                    if (stdDev != 0) {
+                        cp  = (USL - LSL) / (6.0 * stdDev);
+                        double cpu = (USL - mean) / (3.0 * stdDev);
+                        double cpl = (mean - LSL) / (3.0 * stdDev);
+                        cpk = Math.min(cpu, cpl);
+                        sqcRating = (0.5 * cpk) + (0.5 * cp);
+
+                        // UCL = mean + 3*stdDev, LCL = mean - 3*stdDev  (Excel: E2 +/- 3*G2)
+                        ucl = Math.round((mean + 3.0 * stdDev) * 100000.0) / 100000.0;
+                        lcl = Math.round((mean - 3.0 * stdDev) * 100000.0) / 100000.0;
+
+                        // Round to 2 decimal places
+                        cp        = Math.round(cp * 100.0) / 100.0;
+                        cpk       = Math.round(cpk * 100.0) / 100.0;
+                        sqcRating = Math.round(sqcRating * 100.0) / 100.0;
+                    }
+                }
+
+                result.add(new com.sarthi.dto.reports.SqcReportDto(
+                        slNo++, companyName, unitAddress, cp, cpk, sqcRating, n, new java.util.ArrayList<>(diaValues), ucl, lcl));
+            }
+        }
+
+        return result;
+    }
+}

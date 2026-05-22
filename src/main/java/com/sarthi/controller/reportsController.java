@@ -170,4 +170,12 @@ public class reportsController {
                 ResponseBuilder.getSuccessResponse(reportService.getInspectionCallStatusDetails(stage, status)),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/sqcReport")
+    public ResponseEntity<Object> getSqcReport() {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getSqcReport()),
+                HttpStatus.OK);
+    }
 }
+

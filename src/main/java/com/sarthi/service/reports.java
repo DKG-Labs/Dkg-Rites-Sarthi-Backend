@@ -67,4 +67,7 @@ public interface reports {
             LocalDate startDate,
             LocalDate endDate);
     public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status);
+
+    public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport();
 }
+

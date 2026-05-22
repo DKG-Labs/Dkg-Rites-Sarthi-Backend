@@ -730,5 +730,21 @@ ORDER BY month
             String companyName);
 
     List<InspectionCall> findByPoNo(String poNo);
+
+    /**
+     * Fetch distinct company + unit combinations with their latest ic_number,
+     * used for SQC report Cp/Cpk calculation.
+     * Returns: [company_name, unit_address, ic_number]
+     */
+    @Query(value = """
+        SELECT ic.company_name, ic.unit_address, ic.ic_number
+        FROM inspection_calls ic
+        WHERE ic.type_of_call = 'process'
+          AND ic.unit_address IS NOT NULL
+          AND ic.ic_number IS NOT NULL
+        ORDER BY ic.company_name, ic.unit_address, ic.id DESC
+        """, nativeQuery = true)
+    List<Object[]> findCompanyUnitIcNumbers();
 }
+
 
