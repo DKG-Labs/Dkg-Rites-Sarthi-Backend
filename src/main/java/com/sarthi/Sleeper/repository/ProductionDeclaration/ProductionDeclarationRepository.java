@@ -66,7 +66,7 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
             GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId
             """)
     List<BatchTestingListResponseDto> getAllBatchTesting();*/
-    @Query("""
+   /* @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -89,8 +89,31 @@ WHERE w.status = 'Completed'
 GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers, d.plantId, d.castingDate
 """)
     List<BatchTestingListResponseDto> getAllBatchTesting();
-
+*/
     @Query("""
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+b.sleeperType,
+d.totalCastedSleepers,
+COUNT(DISTINCT s.id), 
+0.0,
+'Pending',
+null,
+d.plantId,
+d.castingDate
+)
+FROM ProductionDeclaration d
+JOIN d.chambers c
+JOIN c.benchGroups b
+JOIN b.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON CAST(w.requestId as long) = d.id
+WHERE w.status = 'Completed'
+GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
+""")
+    List<BatchTestingListResponseDto> getAllBatchTesting();
+  /*  @Query("""
 SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
 d.id,
 d.batchNumber,
@@ -112,7 +135,29 @@ WHERE w.status = 'Completed'
 GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
     List<BatchTestingListResponseDto> getLongLineBatchTesting();
-
+*/
+  @Query("""
+SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
+d.id,
+d.batchNumber,
+g.sleeperType,
+d.totalCastedSleepers,
+COUNT(DISTINCT s.id), 
+0.0,
+'Pending',
+null,
+d.plantId,
+d.castingDate
+)
+FROM ProductionDeclaration d
+JOIN d.gangs g
+JOIN g.sleepers s
+JOIN SleeperWorkflowTransaction w
+     ON CAST(w.requestId as long) = d.id
+WHERE w.status = 'Completed'
+GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
+""")
+  List<BatchTestingListResponseDto> getLongLineBatchTesting();
     @Query("""
             SELECT d
             FROM ProductionDeclaration d
