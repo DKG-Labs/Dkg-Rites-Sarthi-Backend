@@ -96,4 +96,40 @@ AND t.workflowId = 2
 
     @Query(value = "SELECT poi_code FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
     String findLatestPoiByRequestId(@Param("requestId") String requestId);
+
+    @Query(value = "SELECT status FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
+    Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
+
+    @Query(value = """
+        SELECT 
+            COALESCE(SUM(CASE WHEN t.has_initiate = 1 THEN 1 ELSE 0 END), 0) as under_inspection,
+            COALESCE(SUM(CASE WHEN t.has_initiate = 0 THEN 1 ELSE 0 END), 0) as pending
+        FROM (
+            SELECT 
+                rwt1.request_id,
+                CASE WHEN EXISTS (
+                    SELECT 1 
+                    FROM rail_workflow_transaction rwt2 
+                    WHERE rwt2.request_id = rwt1.request_id
+                      AND rwt2.workflow_id = 2
+                      AND (UPPER(rwt2.action) = 'INITIATE_CALL' OR UPPER(rwt2.job_status) = 'INITIATED')
+                ) THEN 1 ELSE 0 END as has_initiate
+            FROM rail_workflow_transaction rwt1
+            WHERE rwt1.workflow_id = 2
+              AND rwt1.workflow_transition_id IN (
+                  SELECT MAX(rwt3.workflow_transition_id) 
+                  FROM rail_workflow_transaction rwt3
+                  WHERE rwt3.workflow_id = 2
+                  GROUP BY rwt3.request_id
+              )
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM rail_workflow_transaction rwt4
+                  WHERE rwt4.request_id = rwt1.request_id
+                    AND rwt4.workflow_id = 2
+                    AND (UPPER(rwt4.status) = 'COMPLETED' OR UPPER(rwt4.job_status) = 'COMPLETED')
+              )
+        ) t
+    """, nativeQuery = true)
+    List<Object[]> getRailPadInspectionCallCounts();
 }

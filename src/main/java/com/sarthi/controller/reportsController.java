@@ -131,8 +131,10 @@ public class reportsController {
     }
 
     @GetMapping("/paretoAnalysis")
-    public ResponseEntity<Object> getParetoAnalysis() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getParetoAnalysis()),
+    public ResponseEntity<Object> getParetoAnalysis(@RequestParam(required = false) String startDate,
+                                                    @RequestParam(required = false) String endDate,
+                                                    @RequestParam(required = false) String product) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getParetoAnalysis(startDate, endDate, product)),
                 HttpStatus.OK);
     }
 
@@ -145,8 +147,9 @@ public class reportsController {
 
     @GetMapping("/monthlyRejectionTrend")
     public ResponseEntity<Object> getMonthlyRejectionTrend(@RequestParam(required = false) String startDate,
-                                                          @RequestParam(required = false) String endDate) {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getMonthlyRejectionTrend(startDate, endDate)),
+                                                          @RequestParam(required = false) String endDate,
+                                                          @RequestParam(required = false) String product) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getMonthlyRejectionTrend(startDate, endDate, product)),
                 HttpStatus.OK);
     }
 
@@ -175,6 +178,40 @@ public class reportsController {
     public ResponseEntity<Object> getSqcReport() {
         return new ResponseEntity<Object>(
                 ResponseBuilder.getSuccessResponse(reportService.getSqcReport()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/railPadShiftWiseProduction")
+    public ResponseEntity<Object> getRailPadShiftWiseProduction(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String vendor,
+            @RequestParam(required = false) String plant) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadShiftWiseProductionReport(startDate, endDate, vendor, plant)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/railPadManufacturers")
+    public ResponseEntity<Object> getRailPadManufacturers() {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadDistinctVendors()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/railPadPlaces")
+    public ResponseEntity<Object> getRailPadPlaces(@RequestParam(required = false) String vendor) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadDistinctPlants(vendor)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/railPadQualityReport")
+    public ResponseEntity<Object> getRailPadQualityReport(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadQualityReport(startDate, endDate)),
                 HttpStatus.OK);
     }
 }

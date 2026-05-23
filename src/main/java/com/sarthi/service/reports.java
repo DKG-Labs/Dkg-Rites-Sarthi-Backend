@@ -55,8 +55,10 @@ public interface reports {
     public List<InspectionCallStatusDto> getInspectionCallStatus();
 
     public List<StageRejectionDto> getParetoAnalysis();
+    public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate, String product);
 
     public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate);
+    public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate, String product);
     public List<InspectionDetailsDto> getInspectionDetails();
 
     public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate);
@@ -69,5 +71,16 @@ public interface reports {
     public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status);
 
     public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport();
+
+    public List<com.sarthi.dto.reports.RailPadShiftWiseProductionDto> getRailPadShiftWiseProductionReport(
+            String startDate, String endDate, String vendorCode, String plantId);
+
+    public List<java.util.Map<String, String>> getRailPadDistinctVendors();
+
+    public List<String> getRailPadDistinctPlants(String vendorCode);
+
+    public List<com.sarthi.dto.reports.RailPadQualityReportDto> getRailPadQualityReport(
+            String startDate,
+            String endDate);
 }
 
