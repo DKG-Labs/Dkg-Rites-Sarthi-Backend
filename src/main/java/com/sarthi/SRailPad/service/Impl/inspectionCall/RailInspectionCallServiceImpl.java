@@ -3,6 +3,7 @@ package com.sarthi.SRailPad.service.Impl.inspectionCall;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionLot;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionBatch;
+import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
 import com.sarthi.SRailPad.service.inspectionCall.RailInspectionCallService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final RailInspectionCallRepository repository;
     private final com.sarthi.repository.PoHeaderRepository poHeaderRepository;
     private final com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
+    private final RailWorkflowTransactionRepository railWorkflowTransactionRepository;
 
     @Override
     @Transactional
@@ -108,6 +110,14 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         if (call.getVendorName() == null || "N/A".equals(call.getVendorName())) {
             Optional<com.sarthi.entity.VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(call.getVendorCode());
             vendorOpt.ifPresent(v -> call.setVendorName(v.getVendorName()));
+        }
+
+        // 3. Fetch latest status dynamically from workflow transactions
+        if (call.getCallNo() != null) {
+            String latestStatus = railWorkflowTransactionRepository
+                    .findLatestStatusByRequestId(call.getCallNo())
+                    .orElse(call.getStatus());
+            call.setStatus(latestStatus);
         }
     }
 

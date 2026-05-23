@@ -19,4 +19,19 @@ public class DashboardSummaryDto {
     private long sleeperPoIssued;
     private long sleeperPoQuantityNos;
     private long sleeperPoQuantitySet;
+    // Rail Pad specific fields
+    private long railPadPoIssued;
+    private long railPadPoQuantityNos;
+    private long railPadPoQuantitySet;
+    private long pendingCalls;
+    private long underInspectionCalls;
+    private long rejectedInProcess;
+    private long rejectedInFinal;
+    // Rail Pad avg production / day (pieces produced / active production days, last 30 days)
+    private double railPadAvgProductionPerDay;
+    // Rail Pad total accepted quantities broken down by UOM
+    private long totalAcceptedNos;
+    private long totalAcceptedSet;
+    // Rail Pad rejection percentage (process IE rejections / production declared by vendor)
+    private double railPadRejectionPercentage;
 }

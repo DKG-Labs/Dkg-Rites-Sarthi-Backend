@@ -180,4 +180,10 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
     List<PoHeader> findElasticRailClipsPoHeaders(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
+
+	@Query("SELECT DISTINCT h FROM PoHeader h LEFT JOIN FETCH h.items WHERE h.itemCatDescr IS NOT NULL AND LOWER(h.itemCatDescr) LIKE '%rail pad%'")
+	List<PoHeader> findRailPadPoHeadersWithItems();
+
+	@Query("SELECT DISTINCT h.firmDetails, h.vendorCode FROM PoHeader h WHERE h.itemCatDescr IS NOT NULL AND LOWER(h.itemCatDescr) LIKE '%rail pad%' ORDER BY h.firmDetails ASC")
+	List<Object[]> findDistinctRailPadVendors();
 }
