@@ -63,7 +63,7 @@ public class DashboardServiceImpl implements DashboardService {
     private SleeperInspectionCallRepository inspectionCallRepository;
     @Override
     public Long getRejectedSleepersCount() {
-        return demouldingDefectiveSleeperRepository.countBy();
+        return demouldingDefectiveSleeperRepository.countByWithReasons();
     }
 
     @Override
@@ -76,7 +76,7 @@ public class DashboardServiceImpl implements DashboardService {
     public Double getRejectionPercentage() {
 
         Long productionCount = productionSleeperRepository.countBy();
-        Long demouldRejected = demouldingDefectiveSleeperRepository.countBy();
+        Long demouldRejected = demouldingDefectiveSleeperRepository.countByWithReasons();
         Long finalRejected = inspectionTestResultRepository.getTotalRejectedCount();
 
         Long totalRejected = demouldRejected + finalRejected;

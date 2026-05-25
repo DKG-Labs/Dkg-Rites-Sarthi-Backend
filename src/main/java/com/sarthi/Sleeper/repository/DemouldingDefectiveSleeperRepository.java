@@ -34,5 +34,13 @@ AND (
 """, nativeQuery = true)
     Set<String> findRejectedSleeperNos(@Param("batchNo") String batchNo);
 
+    @Query(value = """
+SELECT COUNT(d.id)
+FROM demoulding_defective_sleepers d
+WHERE (d.visual_reason IS NOT NULL AND d.visual_reason <> '')
+   OR (d.dim_reason IS NOT NULL AND d.dim_reason <> '')
+""", nativeQuery = true)
+    Long countByWithReasons();
+
     Long countBy();
 }
