@@ -86,7 +86,9 @@ public class reportsImpl implements reports {
         @Autowired
         private RailWorkflowTransactionRepository railWorkflowTransactionRepository;
         @Autowired
-        private RailIEProductionVerificationRepository railIEProductionVerificationRepository;
+        private RailIEProductionVerificationRepository railIEProductionVerificationRepository;
+        @Autowired
+        private PincodePoIMappingRepository pincodePoIMappingRepository;
         /*
          * @Override
          * public List<PoInspection1stLevelStatusDto>
@@ -3330,5 +3332,10 @@ public class reportsImpl implements reports {
             }
 
             return resultList;
+    }
+
+    @Override
+    public List<String> getAllCompanies() {
+        return pincodePoIMappingRepository.getAllCompanies();
     }
 }

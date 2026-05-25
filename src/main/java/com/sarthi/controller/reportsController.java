@@ -214,5 +214,11 @@ public class reportsController {
                 ResponseBuilder.getSuccessResponse(reportService.getRailPadQualityReport(startDate, endDate)),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/companies")
+    public ResponseEntity<Object> getAllCompanies() {
+        List<String> list = reportService.getAllCompanies();
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
 }
 
