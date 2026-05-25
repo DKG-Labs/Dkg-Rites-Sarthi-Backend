@@ -1824,22 +1824,22 @@ public class reportsImpl implements reports {
                 if (productionDeclared > 0) {
                         railPadRejPercentage = (double) totalRejection * 100.0 / (double) productionDeclared;
                 }
-                dto.setRejectedInProcess(totalRejection);
-                dto.setRejectedInFinal(0L);
-                dto.setRailPadRejectionPercentage(Math.round(railPadRejPercentage * 100.0) / 100.0);
-
-                java.time.LocalDate thirtyDaysAgoDate = java.time.LocalDate.now().minusDays(30);
-                Long rpPiecesSum = railIEProductionVerificationRepository.sumTotalPiecesProducedLast30Days(thirtyDaysAgoDate);
-                Long rpPlantCount = railIEProductionVerificationRepository.countDistinctProductionUnitsLast30Days(thirtyDaysAgoDate);
-                double railPadAvg = 0.0;
-                if (rpPiecesSum != null && rpPiecesSum > 0 && rpPlantCount != null && rpPlantCount > 0) {
-                        railPadAvg = rpPiecesSum / (double) rpPlantCount / 24.0;
-                }
-                dto.setRailPadAvgProductionPerDay(Math.round(railPadAvg * 100.0) / 100.0);
-
-                long acceptedNos = 0L;
-                long acceptedSet = 0L;
-                java.util.List<Object[]> acceptedByUom = railIEProductionVerificationRepository.findAcceptedQtyByUom();
+                dto.setRejectedInProcess(totalRejection);
+                dto.setRejectedInFinal(0L);
+                dto.setRailPadRejectionPercentage(Math.round(railPadRejPercentage * 100.0) / 100.0);
+
+                java.time.LocalDate thirtyDaysAgoDate = java.time.LocalDate.now().minusDays(30);
+                Long rpPiecesSum = railIEProductionVerificationRepository.sumTotalPiecesProducedLast30Days(thirtyDaysAgoDate);
+                Long rpPlantCount = railIEProductionVerificationRepository.countDistinctPlantDaysLast30Days(thirtyDaysAgoDate);
+                double railPadAvg = 0.0;
+                if (rpPiecesSum != null && rpPiecesSum > 0 && rpPlantCount != null && rpPlantCount > 0) {
+                        railPadAvg = rpPiecesSum / (double) rpPlantCount;
+                }
+                dto.setRailPadAvgProductionPerDay(Math.round(railPadAvg * 100.0) / 100.0);
+
+                long acceptedNos = 0L;
+                long acceptedSet = 0L;
+                java.util.List<Object[]> acceptedByUom = railIEProductionVerificationRepository.findAcceptedQtyByUom();
                 if (acceptedByUom != null) {
                         for (Object[] row : acceptedByUom) {
                                 String uom = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
