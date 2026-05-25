@@ -56,15 +56,22 @@ AND s.sleeper_no NOT IN (
 )
 """, nativeQuery = true)
   Long countByBatchId(Long batchId);*/
-   @Query("""
+//   @Query("""
+//SELECT DISTINCT b.sleeperType
+//FROM ProductionBenchGroup b
+//JOIN b.chamber c
+//JOIN c.declaration d
+//WHERE d.id = :batchId
+//""")
+//    String getSleeperTypeByBatch(Long batchId);
+@Query("""
 SELECT DISTINCT b.sleeperType
 FROM ProductionBenchGroup b
 JOIN b.chamber c
 JOIN c.declaration d
 WHERE d.id = :batchId
 """)
-    String getSleeperTypeByBatch(Long batchId);
-
+List<String> getSleeperTypeByBatch(Long batchId);
     @Query("SELECT s.sleeperNo FROM ProductionSleeper s " +
             "WHERE s.benchGroup.chamber.declaration.batchNumber = :batchNo " +
             "AND s.benchGroup.benchNo = :benchNo " +
@@ -113,12 +120,19 @@ WHERE g.declaration.id = :batchId
 """)
     List<ProductionSleeper> getSleepersFromGang(Long batchId);
 
+//    @Query("""
+//SELECT DISTINCT g.sleeperType
+//FROM ProductionLongLineGang g
+//WHERE g.declaration.id = :batchId
+//""")
+//    String getLongLineSleeperType(Long batchId);
+
     @Query("""
 SELECT DISTINCT g.sleeperType
 FROM ProductionLongLineGang g
 WHERE g.declaration.id = :batchId
 """)
-    String getLongLineSleeperType(Long batchId);
+    List<String> getLongLineSleeperType(Long batchId);
 
     Long countBy();
 

@@ -1093,16 +1093,17 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         .findRejectedSleeperNos(declaration.getBatchNumber());
 
         //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
-        String sleeperType;
+        List<String> sleeperTypes;
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
 
-            sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
+            sleeperTypes = productionSleeperRepository.getSleeperTypeByBatch(batchId);
 
         } else {
 
-            sleeperType = productionSleeperRepository.getLongLineSleeperType(batchId);
+            sleeperTypes = productionSleeperRepository.getLongLineSleeperType(batchId);
         }
+        String sleeperType = String.join(", ", sleeperTypes);
         BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
 
         dto.setBatchId(declaration.getId());
