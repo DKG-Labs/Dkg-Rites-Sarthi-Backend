@@ -103,7 +103,7 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
             FROM rail_ie_production_verification v
             JOIN rail_production_declaration d ON v.request_id = d.id
             GROUP BY d.po_no
-        ) v_summary ON pi_summary.po_no = v_summary.po_no
+        ) v_summary ON pi_summary.po_no COLLATE utf8mb4_unicode_ci = v_summary.po_no COLLATE utf8mb4_unicode_ci
         GROUP BY pi_summary.uom
     """, nativeQuery = true)
     java.util.List<Object[]> findAcceptedQtyByUom();
