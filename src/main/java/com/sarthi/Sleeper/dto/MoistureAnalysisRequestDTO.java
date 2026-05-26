@@ -42,6 +42,8 @@ public class MoistureAnalysisRequestDTO {
     private Double wcRatio;
     private Double acRatio;
 
+    private String plantId;
+
 
     private List<MoistureSectionDTO> sections;
 

@@ -63,6 +63,7 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
         e.setWtAdoptedCa2(dto.getWtAdoptedCa2());
         e.setWtAdoptedFa(dto.getWtAdoptedFa());
 
+        e.setPlantId(dto.getPlantId());
         e.setTotalFreeMoisture(dto.getTotalFreeMoisture());
         e.setAdjustedWaterWt(dto.getAdjustedWaterWt());
         e.setWcRatio(dto.getWcRatio());
@@ -139,6 +140,7 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
             e.setDesignWater(dto.getDesignWater());
             e.setDesignAdmix(dto.getDesignAdmix());
 
+            e.setPlantId(dto.getPlantId());
             e.setActualCement(dto.getActualCement());
             e.setActualCA1(dto.getActualCA1());
             e.setActualCA2(dto.getActualCA2());
@@ -233,6 +235,7 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
         dto.setActualWater(e.getActualWater());
         dto.setActualAdmix(e.getActualAdmix());
 
+        dto.setPlantId(e.getPlantId());
         // COMMON
         dto.setWtAdoptedCa1(e.getWtAdoptedCa1());
         dto.setWtAdoptedCa2(e.getWtAdoptedCa2());

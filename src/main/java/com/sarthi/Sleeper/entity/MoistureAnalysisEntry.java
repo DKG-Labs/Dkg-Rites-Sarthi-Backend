@@ -109,6 +109,7 @@ public class MoistureAnalysisEntry {
 
     private String status;
 
+    private String plantId;
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MoistureSection> sections;
 }
