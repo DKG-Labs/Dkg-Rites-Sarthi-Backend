@@ -75,5 +75,6 @@ public class InspectionCall {
     @ToString.Exclude
     private com.sarthi.entity.finalmaterial.FinalInspectionDetails finalInspectionDetails;
 
+    private Boolean isModified;
 }
 
