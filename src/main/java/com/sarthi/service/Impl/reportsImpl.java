@@ -6118,7 +6118,6 @@ public class reportsImpl implements reports {
 
                 double lcl = 0.0;
 
-
                 int n = diaValues.size();
 
 
