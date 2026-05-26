@@ -2766,6 +2766,19 @@ public class reportsImpl implements reports {
 
                         .orElseThrow(() -> new RuntimeException("Call not found"));
 
+                String rlyShortName = "";
+                if (call.getPoNo() != null) {
+                        PoHeader po = poHeaderRepository.findByPoNo(call.getPoNo()).orElse(null);
+                        if (po != null && po.getRlyShortName() != null) {
+                                rlyShortName = po.getRlyShortName();
+                        }
+                }
+
+                String displayPoSrNo = call.getPoSerialNo();
+                if (!rlyShortName.isEmpty() && displayPoSrNo != null) {
+                        displayPoSrNo = rlyShortName + "/" + displayPoSrNo;
+                }
+
 
 
                 // Get all process rows
@@ -2840,9 +2853,9 @@ public class reportsImpl implements reports {
 
                                 basic.setShift(p.getShift());
 
-                                basic.setRlyName("");
+                                basic.setRlyName(rlyShortName);
 
-                                basic.setPoSrNo(call.getPoSerialNo());
+                                basic.setPoSrNo(displayPoSrNo);
 
                                 basic.setLotNumber(p.getLotNumber());
 

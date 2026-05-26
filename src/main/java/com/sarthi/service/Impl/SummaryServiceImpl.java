@@ -572,5 +572,24 @@ public class SummaryServiceImpl implements SummaryService {
         return response;
     }
 
+    @Override
+    public List<Map<String, String>> getPoNumbersByManufacturer(String manufacturer) {
+        List<Object[]> rows = inspectionCallRepository.findPoNumbersByManufacturer(manufacturer);
+        List<Map<String, String>> response = new ArrayList<>();
+        for (Object[] row : rows) {
+            String poNo = (String) row[0];
+            String rlyCd = (String) row[1];
+            Map<String, String> map = new HashMap<>();
+            map.put("poNo", poNo);
+            map.put("displayPoNo", (rlyCd != null ? rlyCd : "") + " - " + poNo);
+            response.add(map);
+        }
+        return response;
+    }
+
+    @Override
+    public List<String> getCallNumbersByPoAndManufacturer(String poNo, String manufacturer) {
+        return inspectionCallRepository.findCallNumbersByPoNoAndManufacturer(poNo, manufacturer);
+    }
 
 }

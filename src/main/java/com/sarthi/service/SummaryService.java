@@ -46,4 +46,8 @@ public interface SummaryService {
                 LocalDate endDate,
                 String poiCode
         );
+
+        public List<java.util.Map<String, String>> getPoNumbersByManufacturer(String manufacturer);
+
+        public List<String> getCallNumbersByPoAndManufacturer(String poNo, String manufacturer);
 }
