@@ -6046,7 +6046,6 @@ public class reportsImpl implements reports {
             String companyName = companyEntry.getKey();
 
 
-
             for (java.util.Map.Entry<String, java.util.List<String>> unitEntry : companyEntry.getValue().entrySet()) {
 
                 String unitAddress = unitEntry.getKey();
