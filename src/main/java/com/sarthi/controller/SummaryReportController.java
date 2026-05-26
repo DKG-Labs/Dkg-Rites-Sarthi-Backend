@@ -140,4 +140,14 @@ public class SummaryReportController {
         ));
     }
 
+    @GetMapping("/po-numbers-by-manufacturer")
+    public ResponseEntity<?> getPoNumbersByManufacturer(@RequestParam String manufacturer) {
+        return ResponseEntity.ok(summaryService.getPoNumbersByManufacturer(manufacturer));
+    }
+
+    @GetMapping("/call-numbers-by-po")
+    public ResponseEntity<?> getCallNumbersByPoAndManufacturer(@RequestParam String poNo, @RequestParam String manufacturer) {
+        return ResponseEntity.ok(summaryService.getCallNumbersByPoAndManufacturer(poNo, manufacturer));
+    }
+
 }

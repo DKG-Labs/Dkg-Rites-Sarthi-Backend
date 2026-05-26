@@ -764,6 +764,21 @@ ORDER BY month
         ORDER BY ic.company_name, ic.unit_address, ic.id DESC
         """, nativeQuery = true)
     List<Object[]> findCompanyUnitIcNumbers();
+
+    @Query(value = """
+            SELECT DISTINCT ic.po_no, ph.rly_cd
+            FROM inspection_calls ic
+            JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+            WHERE ic.company_name = :manufacturer
+            """, nativeQuery = true)
+    List<Object[]> findPoNumbersByManufacturer(@Param("manufacturer") String manufacturer);
+
+    @Query(value = """
+            SELECT DISTINCT ic.ic_number
+            FROM inspection_calls ic
+            WHERE ic.po_no = :poNo AND ic.company_name = :manufacturer
+            """, nativeQuery = true)
+    List<String> findCallNumbersByPoNoAndManufacturer(@Param("poNo") String poNo, @Param("manufacturer") String manufacturer);
 }
 
 
