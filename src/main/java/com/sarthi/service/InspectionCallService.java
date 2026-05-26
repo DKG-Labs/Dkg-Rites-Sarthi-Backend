@@ -19,4 +19,9 @@ public interface InspectionCallService {
      * @return true if at least one inspection call exists, false otherwise
      */
     boolean checkIfCallExistsForPoSerial(String poSerialNo);
+
+    InspectionCall modifyInspectionCall(
+            String icNumber,
+            InspectionCallRequestDto icDto,
+            RmInspectionDetailsRequestDto rmDto);
 }

@@ -2,10 +2,8 @@ package com.sarthi.service.Impl;
 
 import com.sarthi.dto.IcDtos.*;
 
-import com.sarthi.entity.rawmaterial.InspectionCall;
-import com.sarthi.entity.rawmaterial.RmChemicalAnalysis;
-import com.sarthi.entity.rawmaterial.RmHeatQuantity;
-import com.sarthi.entity.rawmaterial.RmInspectionDetails;
+import com.sarthi.entity.rawmaterial.*;
+import com.sarthi.repository.InspectionModificationHistoryRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.InspectionCallService;
 import com.sarthi.service.InventoryEntryService;
@@ -21,6 +19,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.lang.reflect.Field;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -32,14 +32,17 @@ public class InspectionCallServiceImpl implements InspectionCallService {
     private final IcNumberGenerator icNumberGenerator;
     private final InventoryEntryService inventoryEntryService;
 
+    private final InspectionModificationHistoryRepository modificationHistoryRepository;
+
     @Autowired
     public InspectionCallServiceImpl(
             InspectionCallRepository inspectionCallRepository,
             IcNumberGenerator icNumberGenerator,
-            InventoryEntryService inventoryEntryService) {
+            InventoryEntryService inventoryEntryService, InspectionModificationHistoryRepository modificationHistoryRepository) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.icNumberGenerator = icNumberGenerator;
         this.inventoryEntryService = inventoryEntryService;
+        this.modificationHistoryRepository = modificationHistoryRepository;
     }
 
     @Override
@@ -228,5 +231,200 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         boolean exists = inspectionCallRepository.existsByPoSerialNo(poSerialNo);
         logger.info("Inspection call exists for PO Serial No {}: {}", poSerialNo, exists);
         return exists;
+    }
+
+
+    @Override
+    @Transactional
+    public InspectionCall modifyInspectionCall(
+            String icNumber,
+            InspectionCallRequestDto icDto,
+            RmInspectionDetailsRequestDto rmDto) {
+
+        InspectionCall inspection =
+                inspectionCallRepository
+                        .findByIcNumber(icNumber)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Inspection Call Not Found"));
+
+        RmInspectionDetails rmDetails =
+                inspection.getRmInspectionDetails();
+
+       // int modificationVersion = inspection.getModificationCount() + 1;
+
+        // =====================================================
+        // PROCESS INSPECTION CALL DTO
+        // =====================================================
+
+        processDtoFields(
+                icDto,
+                inspection,
+                inspection,
+                "inspection_call",
+                1,
+                icDto.getUpdatedBy());
+
+        // =====================================================
+        // PROCESS RM DETAILS DTO
+        // =====================================================
+
+        processDtoFields(
+                rmDto,
+                rmDetails,
+                inspection,
+                "rm_inspection_details",
+                1,
+                icDto.getUpdatedBy());
+
+        // =====================================================
+        // FINAL UPDATE
+        // =====================================================
+
+        inspection.setIsModified(true);
+
+       // inspection.setModificationCount(modificationVersion);
+
+        inspection.setUpdatedBy(icDto.getUpdatedBy());
+
+        inspection.setUpdatedAt(
+                LocalDateTime.now());
+
+        inspection.setUpdatedAt(
+                LocalDateTime.now());
+
+        return inspectionCallRepository.save(inspection);
+    }
+
+    private void processDtoFields(
+            Object dto,
+            Object entity,
+            InspectionCall inspection,
+            String tableName,
+            Integer modificationVersion,
+            String modifiedBy) {
+
+        Field[] dtoFields =
+                dto.getClass().getDeclaredFields();
+
+        for (Field dtoField : dtoFields) {
+
+            try {
+
+                dtoField.setAccessible(true);
+
+                Object newValue =
+                        dtoField.get(dto);
+
+                // skip null fields
+                if (newValue == null) {
+                    continue;
+                }
+
+                String fieldName =
+                        dtoField.getName();
+
+                Field entityField =
+                        entity.getClass()
+                                .getDeclaredField(fieldName);
+
+                entityField.setAccessible(true);
+
+                Object oldValue =
+                        entityField.get(entity);
+
+                // skip same values
+                if (Objects.equals(
+                        String.valueOf(oldValue),
+                        String.valueOf(newValue))) {
+                    continue;
+                }
+
+                // =================================================
+                // UPDATE ENTITY
+                // =================================================
+
+                entityField.set(entity, newValue);
+
+                // =================================================
+                // SAVE MODIFICATION HISTORY
+                // =================================================
+
+                saveModificationHistory(
+                        inspection,
+                        modificationVersion,
+                        tableName,
+                        fieldName,
+                        oldValue,
+                        newValue,
+                        modifiedBy);
+
+                logger.info(
+                        "Field Updated :: {} -> {}",
+                        fieldName,
+                        newValue);
+
+            } catch (NoSuchFieldException e) {
+
+                logger.warn(
+                        "Field Not Found In Entity :: {}",
+                        dtoField.getName());
+
+            } catch (Exception e) {
+
+                logger.error(
+                        "Error Updating Field :: {}",
+                        dtoField.getName(),
+                        e);
+            }
+        }
+    }
+
+    private void saveModificationHistory(
+            InspectionCall inspection,
+            Integer modificationVersion,
+            String tableName,
+            String fieldName,
+            Object oldValue,
+            Object newValue,
+            String modifiedBy) {
+
+        InspectionModificationHistory history =
+                new InspectionModificationHistory();
+
+        history.setInspectionCallId(
+                inspection.getId());
+
+        history.setIcNumber(
+                inspection.getIcNumber());
+
+        history.setModificationVersion(
+                modificationVersion);
+
+        history.setTableName(
+                tableName);
+
+        history.setFieldName(
+                fieldName);
+
+        history.setOldValue(
+                oldValue != null
+                        ? oldValue.toString()
+                        : null);
+
+        history.setNewValue(
+                newValue != null
+                        ? newValue.toString()
+                        : null);
+
+        history.setModifiedBy(
+                modifiedBy);
+
+        history.setModifiedAt(
+                LocalDateTime.now());
+
+        history.setChangeType("UPDATE");
+
+        modificationHistoryRepository.save(history);
     }
 }

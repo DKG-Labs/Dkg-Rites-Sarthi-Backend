@@ -1,6 +1,7 @@
 package com.sarthi.controller.rawmaterial;
 
 import com.sarthi.dto.IcDtos.InspectionCallRequestDto;
+import com.sarthi.dto.IcDtos.InspectionModificationRequestDto;
 import com.sarthi.dto.IcDtos.RmInspectionDetailsRequestDto;
 import com.sarthi.dto.WorkflowDtos.WorkflowTransitionDto;
 import com.sarthi.dto.rawmaterial.*;
@@ -17,6 +18,7 @@ import com.sarthi.service.rawmaterial.RawMaterialInspectionService;
 import com.sarthi.util.APIResponse;
 import com.sarthi.util.ResponseBuilder;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
@@ -271,6 +273,27 @@ public class RawMaterialInspectionController {
                     ResponseBuilder.getErrorResponse(errorDetails),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @PatchMapping("/modifyInspectionCall")
+    public ResponseEntity<Object> modifyInspectionCall(
+
+            @RequestParam String icNumber,
+
+            @RequestBody InspectionModificationRequestDto requestDto) {
+
+        return new ResponseEntity<>(
+
+                ResponseBuilder.getSuccessResponse(
+
+                        inspectionCallService.modifyInspectionCall(
+                                icNumber,
+                                requestDto.getInspectionCall(),
+                                requestDto.getRmInspectionDetails()
+                        )
+                ),
+
+                HttpStatus.OK);
     }
 
 }

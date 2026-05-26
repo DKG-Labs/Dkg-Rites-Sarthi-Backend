@@ -82,5 +82,9 @@ public interface reports {
     public List<com.sarthi.dto.reports.RailPadQualityReportDto> getRailPadQualityReport(
             String startDate,
             String endDate);
+
+
+    public List<String> getAllCompanies();
+
 }
 

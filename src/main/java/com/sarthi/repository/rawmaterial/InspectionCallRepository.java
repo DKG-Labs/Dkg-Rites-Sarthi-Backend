@@ -496,7 +496,7 @@ Page<Object[]> fetchManufacturerSummary(
         @Param("endDate") LocalDate endDate,
         Pageable pageable);
 
-    @Query(value = """
+  /*  @Query(value = """
             SELECT DISTINCT ic.ic_number
             FROM inspection_calls ic
             JOIN ie_poi_mapping ipm
@@ -512,8 +512,27 @@ Page<Object[]> fetchManufacturerSummary(
                 )
             """, nativeQuery = true)
     List<String> findIcNumbersByUserId(@Param("userId") Long userId);
+*/
+  @Query(value = """
+        SELECT DISTINCT ic.ic_number
+        FROM inspection_calls ic
 
+        LEFT JOIN ie_poi_mapping ipm
+            ON ic.place_of_inspection = ipm.POI_CODE
 
+        LEFT JOIN user_master um
+            ON um.userid = :userId
+
+        LEFT JOIN poi_process_ie_mapping ppim
+            ON ic.place_of_inspection = ppim.poi_code
+
+        WHERE ic.type_of_call = 'process'
+        AND (
+                ipm.IE_USER_ID = :userId
+                OR ppim.employee_code = um.EMPLOYEE_CODE
+            )
+        """, nativeQuery = true)
+  List<String> findIcNumbersByUserId(@Param("userId") Long userId);
 
     @Query(value = """
     SELECT place_of_inspection 
