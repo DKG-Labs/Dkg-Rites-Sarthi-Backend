@@ -3711,7 +3711,40 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
             dto.setProcessIeUserId(wt.getProcessIeUserId());
             dto.setCreatedDate(wt.getCreatedDate());
             dto.setWorkflowSequence(wt.getWorkflowSequence());
+            Optional<InspectionCall> ica = inspectionCallRepository.findByIcNumber(wt.getRequestId());
 
+            InspectionCall i =null;
+            if(ica.isPresent()){
+                i = ica.get();
+            }
+            if(wt.getRequestId() != null && wt.getRequestId().startsWith("EP")){
+
+                Integer processIe = wt.getProcessIeUserId();
+                String poi = i.getPlaceOfInspection();
+
+
+                List<Integer> ieUsers = null;
+
+                ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+
+
+
+                // ieUsers.add(processIe);
+                dto.setProcessIes(ieUsers);
+            }
+
+            if (i != null && "Final".equalsIgnoreCase(i.getTypeOfCall())) {
+
+                List<FinalIeMapping> mappings =
+                        finalIeMappingRepository
+                                .findByWorkflowTransitionId(wt.getWorkflowTransitionId());
+
+                List<Integer> finalIes = mappings.stream()
+                        .map(FinalIeMapping::getIeUserId)
+                        .collect(Collectors.toList());
+
+                dto.setFinalIes(finalIes);
+            }
             InspectionDataDto ic = icMap.get(wt.getRequestId());
             if (ic != null) {
                 // PO No Formatting: Railway / PoNo / PoSrNo

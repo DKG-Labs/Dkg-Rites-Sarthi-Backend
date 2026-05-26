@@ -1,8 +1,10 @@
 package com.sarthi.dto;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 public class IcWorkflowTransitionDto {
@@ -43,4 +45,8 @@ public class IcWorkflowTransitionDto {
     private String stage;
     private String inspectionDate;
 
+    public List<Integer> processIes;
+
+
+    public List<Integer> finalIes;
 }
