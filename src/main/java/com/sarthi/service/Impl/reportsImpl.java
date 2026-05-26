@@ -179,6 +179,8 @@ public class reportsImpl implements reports {
         private PincodePoIMappingRepository pincodePoIMappingRepository;
 
 
+
+
         /*
 
          * @Override
@@ -2875,9 +2877,13 @@ public class reportsImpl implements reports {
 
                         // ================= DATE RANGE =================
 
-                        LocalDateTime startDate = date.atStartOfDay();
 
-                        LocalDateTime endDate = date.atTime(23, 59, 59);
+
+                        LocalDate da = p.getCreatedAt().toLocalDate();
+                        LocalDateTime startDate = da.atStartOfDay();
+
+                        LocalDateTime endDate = da.atTime(23, 59, 59);
+
 
 
 
@@ -6652,6 +6658,7 @@ public class reportsImpl implements reports {
     }
 
 
+
     @Override
 
     public List<String> getAllCompanies() {
@@ -6659,7 +6666,6 @@ public class reportsImpl implements reports {
         return pincodePoIMappingRepository.getAllCompanies();
 
     }
-
 
 }
 
