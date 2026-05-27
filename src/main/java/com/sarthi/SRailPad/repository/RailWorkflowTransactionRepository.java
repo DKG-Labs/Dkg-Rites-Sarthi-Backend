@@ -132,4 +132,54 @@ AND t.workflowId = 2
         ) t
     """, nativeQuery = true)
     List<Object[]> getRailPadInspectionCallCounts();
+
+    @Query(value = """
+        SELECT 
+            ic.call_no AS inspectionCallNumber,
+            COALESCE(vm.vendor_name, ic.vendor_code) AS vendor,
+            DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+            'Railpad' AS stageOfInspection,
+            CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no, ' / ', COALESCE(ic.po_sr, 'N/A')) AS poSrNo,
+            DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
+            CASE 
+                WHEN t.has_initiate = 1 THEN 'Under Inspection'
+                ELSE 'Pending'
+            END AS status
+        FROM (
+            SELECT 
+                rwt1.request_id,
+                CASE WHEN EXISTS (
+                    SELECT 1 
+                    FROM rail_workflow_transaction rwt2 
+                    WHERE rwt2.request_id = rwt1.request_id
+                      AND rwt2.workflow_id = 2
+                      AND (UPPER(rwt2.action) = 'INITIATE_CALL' OR UPPER(rwt2.job_status) = 'INITIATED')
+                ) THEN 1 ELSE 0 END as has_initiate
+            FROM rail_workflow_transaction rwt1
+            WHERE rwt1.workflow_id = 2
+              AND rwt1.workflow_transition_id IN (
+                  SELECT MAX(rwt3.workflow_transition_id) 
+                  FROM rail_workflow_transaction rwt3
+                  WHERE rwt3.workflow_id = 2
+                  GROUP BY rwt3.request_id
+              )
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM rail_workflow_transaction rwt4
+                  WHERE rwt4.request_id = rwt1.request_id
+                    AND rwt4.workflow_id = 2
+                    AND (UPPER(rwt4.status) = 'COMPLETED' OR UPPER(rwt4.job_status) = 'COMPLETED')
+              )
+        ) t
+        INNER JOIN rail_inspection_call ic ON t.request_id = ic.call_no
+        LEFT JOIN vendor_master vm ON vm.vendor_code = ic.vendor_code
+        LEFT JOIN po_header ph ON ph.po_no = ic.po_no
+        LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND pi.item_sr_no = ic.po_sr
+        WHERE 
+            (:status = 'ALL' OR 
+             (:status = 'Under Inspection' AND t.has_initiate = 1) OR
+             (:status = 'Pending' AND t.has_initiate = 0))
+        ORDER BY ic.created_at DESC
+    """, nativeQuery = true)
+    List<Object[]> getRailPadInspectionCallStatusDetailsRaw(@Param("status") String status);
 }

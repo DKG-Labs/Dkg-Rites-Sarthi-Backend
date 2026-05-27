@@ -13,6 +13,7 @@ public class RailPadQualityReportDto {
     private String poDate = "";
     private String specification = "";
     private long totalPoQty = 0;
+    private String uom = "";
     private long qtyInspected = 0;
     private long qtyAccepted = 0;
     private long icIssuedQty = 0;

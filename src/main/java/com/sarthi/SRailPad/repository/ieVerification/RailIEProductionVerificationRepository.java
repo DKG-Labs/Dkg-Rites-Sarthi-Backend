@@ -78,11 +78,10 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
         @org.springframework.data.repository.query.Param("since") java.time.LocalDate since);
 
     @Query(value = """
-        SELECT COUNT(DISTINCT v.production_unit, DATE(v.casting_date))
+        SELECT COUNT(DISTINCT DATE(v.casting_date))
         FROM rail_ie_production_verification v
         WHERE v.casting_date >= :since
           AND v.total_pieces_produced > 0
-          AND v.production_unit IS NOT NULL
     """, nativeQuery = true)
     Long countDistinctPlantDaysLast30Days(
         @org.springframework.data.repository.query.Param("since") java.time.LocalDate since);
