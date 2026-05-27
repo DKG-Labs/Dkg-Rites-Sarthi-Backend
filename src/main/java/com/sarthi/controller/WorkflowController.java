@@ -62,13 +62,13 @@ public class WorkflowController {
 
 
     @GetMapping("/callCompleteddata")
-    public ResponseEntity<Object> getCallCompletedData(@RequestParam Integer createdBy) {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService. getInspectionCompletedByCreatedUser(createdBy)), HttpStatus.OK);
+    public ResponseEntity<Object> getCallCompletedData(@RequestParam Integer modifiedBy) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService. getInspectionCompletedByModifiedUser(modifiedBy)), HttpStatus.OK);
     }
 
     @GetMapping("/callSigneddata")
-    public ResponseEntity<Object> getCallSignedData(@RequestParam Integer createdBy) {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getSignedInspectionByCreatedUser(createdBy)), HttpStatus.OK);
+    public ResponseEntity<Object> getCallSignedData(@RequestParam Integer modifiedBy) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getSignedInspectionByModifiedUser(modifiedBy)), HttpStatus.OK);
     }
 
 

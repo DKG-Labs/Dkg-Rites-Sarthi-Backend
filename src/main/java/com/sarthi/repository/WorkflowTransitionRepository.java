@@ -131,11 +131,11 @@ AND wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
        (wt.requestId LIKE 'EP%' AND
            (pm.ieUserId = :userId
             OR wt.processIeUserId = :userId
-            OR wt.createdBy = :userId)
+            OR wt.modifiedBy = :userId)
        )
        OR
        (wt.requestId NOT LIKE 'EP%'
-            AND wt.createdBy = :userId
+            AND wt.modifiedBy = :userId
        )
   )
 """)
@@ -161,11 +161,11 @@ AND wt.status = 'DSC_SIGN_IC'
        (wt.requestId LIKE 'EP%' AND
            (pm.ieUserId = :userId
             OR wt.processIeUserId = :userId
-            OR wt.createdBy = :userId)
+            OR wt.modifiedBy = :userId)
        )
        OR
        (wt.requestId NOT LIKE 'EP%'
-            AND wt.createdBy = :userId
+            AND wt.modifiedBy = :userId
        )
   )
 """)
