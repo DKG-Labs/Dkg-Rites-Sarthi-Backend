@@ -3636,9 +3636,9 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
 
 
     @Override
-    public List<IcWorkflowTransitionDto> getInspectionCompletedByCreatedUser(Integer createdBy) {
+    public List<IcWorkflowTransitionDto> getInspectionCompletedByModifiedUser(Integer modifiedBy) {
         List<WorkflowTransition> entities = workflowTransitionRepository
-                .findCompletedByUserRule(Long.valueOf(createdBy));
+                .findCompletedByUserRule(Long.valueOf(modifiedBy));
 
         if (entities.isEmpty()) {
             return Collections.emptyList();
@@ -3790,9 +3790,9 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
     }
 
     @Override
-    public List<IcWorkflowTransitionDto> getSignedInspectionByCreatedUser(Integer createdBy) {
+    public List<IcWorkflowTransitionDto> getSignedInspectionByModifiedUser(Integer modifiedBy) {
         List<WorkflowTransition> entities = workflowTransitionRepository
-                .findSignedByUserRule(Long.valueOf(createdBy));
+                .findSignedByUserRule(Long.valueOf(modifiedBy));
 
         if (entities.isEmpty()) {
             return Collections.emptyList();

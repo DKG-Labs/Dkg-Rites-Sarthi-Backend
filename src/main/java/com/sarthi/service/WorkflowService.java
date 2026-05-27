@@ -34,9 +34,9 @@ public interface WorkflowService {
 
     public List<TransitionDto> transitionsByWorkflowId(Integer workflowId);
 
-    public List<IcWorkflowTransitionDto> getInspectionCompletedByCreatedUser(Integer createdBy);
+    public List<IcWorkflowTransitionDto> getInspectionCompletedByModifiedUser(Integer modifiedBy);
 
-    public List<IcWorkflowTransitionDto> getSignedInspectionByCreatedUser(Integer createdBy);
+    public List<IcWorkflowTransitionDto> getSignedInspectionByModifiedUser(Integer modifiedBy);
 
     public String withdrawCall(TransitionActionReqDto dto);
 }
