@@ -42,6 +42,8 @@ import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailIEProductionVerificationRepository;
 
+import com.sarthi.SRailPad.repository.plantDeclaration.RailProductionDeclarationRepository;
+
 import com.sarthi.service.reports;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -175,6 +177,8 @@ public class reportsImpl implements reports {
         @Autowired
         private RailIEProductionVerificationRepository railIEProductionVerificationRepository;
 
+        @Autowired
+        private RailProductionDeclarationRepository railProductionDeclarationRepository;
         @Autowired
         private PincodePoIMappingRepository pincodePoIMappingRepository;
 
@@ -657,6 +661,8 @@ public class reportsImpl implements reports {
 
                                                 totalRejected += ((Number) row[1]).doubleValue();
 
+
+
                                 }
 
                         }
@@ -762,6 +768,8 @@ public class reportsImpl implements reports {
                 return list;
 
         }
+
+
 
         /*
 
@@ -5996,6 +6004,46 @@ public class reportsImpl implements reports {
 
     @Override
 
+    public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(String status) {
+
+        List<Object[]> rawList = railWorkflowTransactionRepository.getRailPadInspectionCallStatusDetailsRaw(status);
+
+        List<com.sarthi.dto.reports.InspectionCallDetailDto> dtoList = new java.util.ArrayList<>();
+
+        if (rawList != null) {
+
+            for (Object[] row : rawList) {
+
+                dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
+
+                    .inspectionCallNumber(row[0] != null ? row[0].toString() : "")
+
+                    .vendor(row[1] != null ? row[1].toString() : "")
+
+                    .callSubmissionDateTime(row[2] != null ? row[2].toString() : "")
+
+                    .stageOfInspection(row[3] != null ? row[3].toString() : "")
+
+                    .poSrNo(row[4] != null ? row[4].toString() : "")
+
+                    .dpDate(row[5] != null ? row[5].toString() : "")
+
+                    .status(row[6] != null ? row[6].toString() : "")
+
+                    .build());
+
+            }
+
+        }
+
+        return dtoList;
+
+    }
+
+
+
+    @Override
+
     public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport() {
 
         // ERC MK-V specification limits for Turning Diameter
@@ -6417,6 +6465,24 @@ public class reportsImpl implements reports {
 
 
 
+            // Fetch product types declared by vendor
+
+            List<Object[]> productTypesList = railProductionDeclarationRepository.findProductTypesGroupedByPo(start, end);
+
+            Map<String, String> productTypesMap = new HashMap<>();
+
+            for (Object[] row : productTypesList) {
+
+                    if (row[0] != null && row[1] != null) {
+
+                            productTypesMap.put(row[0].toString(), row[1].toString());
+
+                    }
+
+            }
+
+
+
             List<com.sarthi.dto.reports.RailPadQualityReportDto> resultList = new ArrayList<>();
 
             int index = 1;
@@ -6424,9 +6490,16 @@ public class reportsImpl implements reports {
 
 
             for (PoHeader po : railPadPoHeaders) {
+                    // Check if production has been declared
+                    Object[] vStats = verificationStatsMap.get(po.getPoNo());
+                    Object[] fStats = finalStatsMap.get(po.getPoNo());
+                    List<Object[]> rList = rejectionsMap.get(po.getPoNo());
+
+                    if (vStats == null && fStats == null && rList == null) {
+                            continue;
+                    }
 
                     com.sarthi.dto.reports.RailPadQualityReportDto dto = new com.sarthi.dto.reports.RailPadQualityReportDto();
-
                     dto.setSNo(index++);
 
                     dto.setZonalRailway(po.getRlyShortName() != null ? po.getRlyShortName() : "");
@@ -6439,13 +6512,28 @@ public class reportsImpl implements reports {
 
 
 
-                    String type = "";
+                    String type = productTypesMap.get(po.getPoNo());
+
+                    if (type == null) {
+
+                        type = "";
+
+                    }
+
+
 
                     long orderedQty = 0;
+                    String uom = "";
 
                     if (po.getItems() != null && !po.getItems().isEmpty()) {
 
-                            type = po.getItems().get(0).getItemDesc() != null ? po.getItems().get(0).getItemDesc() : "";
+                            if (type.isEmpty()) {
+
+                                type = po.getItems().get(0).getItemDesc() != null ? po.getItems().get(0).getItemDesc() : "";
+
+                            }
+
+                            uom = po.getItems().get(0).getUom() != null ? po.getItems().get(0).getUom() : "";
 
                             for (PoItem item : po.getItems()) {
 
@@ -6458,6 +6546,7 @@ public class reportsImpl implements reports {
                     dto.setTypeOfRubberPad(type);
 
                     dto.setTotalPoQty(orderedQty);
+                    dto.setUom(uom);
 
                     dto.setSpecification("IRS-T-55-2025");
 

@@ -174,6 +174,14 @@ public class reportsController {
                 HttpStatus.OK);
     }
 
+    @GetMapping("/railPadInspectionCallStatusDetails")
+    public ResponseEntity<Object> getRailPadInspectionCallStatusDetails(
+            @RequestParam String status) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadInspectionCallStatusDetails(status)),
+                HttpStatus.OK);
+    }
+
     @GetMapping("/sqcReport")
     public ResponseEntity<Object> getSqcReport() {
         return new ResponseEntity<Object>(
