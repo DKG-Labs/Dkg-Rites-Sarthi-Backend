@@ -139,7 +139,7 @@ AND t.workflowId = 2
             COALESCE(vm.vendor_name, ic.vendor_code) AS vendor,
             DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
             'Railpad' AS stageOfInspection,
-            CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no, ' / ', COALESCE(ic.po_sr, 'N/A')) AS poSrNo,
+            CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no) AS poSrNo,
             DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
             CASE 
                 WHEN t.has_initiate = 1 THEN 'Under Inspection'
@@ -173,8 +173,8 @@ AND t.workflowId = 2
         ) t
         INNER JOIN rail_inspection_call ic ON t.request_id = ic.call_no
         LEFT JOIN vendor_master vm ON vm.vendor_code = ic.vendor_code
-        LEFT JOIN po_header ph ON ph.po_no = ic.po_no
-        LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND pi.item_sr_no = ic.po_sr
+        LEFT JOIN po_header ph ON ph.po_no = SUBSTRING_INDEX(ic.po_no, '/', 1)
+        LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND pi.item_sr_no = SUBSTRING_INDEX(ic.po_no, '/', -1)
         WHERE 
             (:status = 'ALL' OR 
              (:status = 'Under Inspection' AND t.has_initiate = 1) OR
