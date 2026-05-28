@@ -43,9 +43,10 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
     List<InspectionCall> findByTypeOfCallAndStatusIgnoreCaseOrderByCreatedAtDesc(
             String typeOfCall, String status);
 
-    /* ==================== Find by PO Number ==================== */
-
     List<InspectionCall> findByPoNoOrderByCreatedAtDesc(String poNo);
+
+    @Query("SELECT ic.icNumber, ic.poSerialNo FROM InspectionCall ic WHERE ic.poNo = :poNo")
+    List<Object[]> findIcNumbersAndSerialNumbersByPoNo(@Param("poNo") String poNo);
 
     /* ==================== Find by Company ==================== */
 
