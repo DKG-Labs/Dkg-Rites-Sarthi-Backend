@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.dto.SleeperDashboardDtos.DemouldingProjection;
 import com.sarthi.Sleeper.entity.DemouldingInspection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -76,4 +77,74 @@ WHERE d.inspection.batchNo = :batchNo
     LIMIT 1
 """, nativeQuery = true)
     DemouldingProjection getDemouldingData(String batchNo);
+
+
+    @Query(value = """
+
+        SELECT
+            spm.company_name                       AS companyName,
+
+            vp.plant_name                          AS plantName,
+
+            di.plant_id                            AS plantId,
+
+            ifm.rio                                AS rio,
+
+            um.username                            AS ieName,
+
+            'Process'                 AS stageOfInspection,
+
+            di.shift                               AS shift,
+
+            COUNT(
+                DISTINCT CONCAT(
+                    di.inspection_date,
+                    '-',
+                    di.shift
+                )
+            )                                      AS shiftsWorked,
+
+            COUNT(
+                CASE
+                    WHEN dds.visual_reason IS NOT NULL
+                      OR dds.dim_reason IS NOT NULL
+                    THEN dds.id
+                END
+            )                                      AS rejectedSleepers
+
+        FROM demoulding_inspection di
+
+        LEFT JOIN demoulding_defective_sleepers dds
+               ON dds.inspection_id = di.id
+
+        LEFT JOIN vendor_plant vp
+               ON vp.plant_id COLLATE utf8mb4_unicode_ci =
+                  di.plant_id COLLATE utf8mb4_unicode_ci
+
+        LEFT JOIN sleeper_pincode_poi_mapping spm
+               ON spm.vendor_code COLLATE utf8mb4_unicode_ci =
+                  vp.vendor_id COLLATE utf8mb4_unicode_ci
+
+        LEFT JOIN ie_fields_mapping ifm
+               ON ifm.plant_pincode COLLATE utf8mb4_unicode_ci =
+                  spm.pin_code COLLATE utf8mb4_unicode_ci
+
+        LEFT JOIN user_master um
+               ON um.userid = di.created_by
+
+        WHERE di.inspection_date BETWEEN :fromDate AND :toDate
+
+        GROUP BY
+            spm.company_name,
+            vp.plant_name,
+            di.plant_id,
+            ifm.rio,
+            um.username,
+            di.shift
+
+        """, nativeQuery = true)
+    List<Object[]> getProcessInspectionReport(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
 }

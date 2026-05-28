@@ -808,4 +808,153 @@ public class DashboardServiceImpl implements DashboardService {
 
         return response;
     }
+
+    @Override
+    public List<SleeperEmpPerformanceDto> getEmployeePerformance(
+            LocalDate fromDate,
+            LocalDate toDate) {
+
+        List<SleeperEmpPerformanceDto> response = new ArrayList<>();
+
+
+        // ================= PROCESS =================
+
+        List<Object[]> processList =
+                demouldingInspectionRepository
+                        .getProcessInspectionReport(fromDate, toDate);
+
+        for (Object[] row : processList) {
+
+            SleeperEmpPerformanceDto dto =
+                    new SleeperEmpPerformanceDto();
+
+            dto.setCompanyName(
+                    row[0] != null
+                            ? String.valueOf(row[0])
+                            : null
+            );
+
+            dto.setPlantName(
+                    row[1] != null
+                            ? String.valueOf(row[1])
+                            : null
+            );
+
+            dto.setPlantId(
+                    row[2] != null
+                            ? String.valueOf(row[2])
+                            : null
+            );
+
+            dto.setRio(
+                    row[3] != null
+                            ? String.valueOf(row[3])
+                            : null
+            );
+
+            dto.setIeName(
+                    row[4] != null
+                            ? String.valueOf(row[4])
+                            : null
+            );
+
+            dto.setStageOfInspection(
+                    row[5] != null
+                            ? String.valueOf(row[5])
+                            : null
+            );
+
+            dto.setShift(
+                    row[6] != null
+                            ? String.valueOf(row[6])
+                            : null
+            );
+
+            dto.setShiftsWorked(
+                    row[7] != null
+                            ? ((Number) row[7]).longValue()
+                            : 0L
+            );
+
+            dto.setRejectedSleepers(
+                    row[8] != null
+                            ? ((Number) row[8]).longValue()
+                            : 0L
+            );
+
+            response.add(dto);
+        }
+
+
+        // ================= FINAL =================
+
+        List<Object[]> finalList =
+                inspectionTestHeaderRepository
+                        .getFinalInspectionReport(fromDate, toDate);
+
+        for (Object[] row : finalList) {
+
+            SleeperEmpPerformanceDto dto =
+                    new SleeperEmpPerformanceDto();
+
+            dto.setCompanyName(
+                    row[0] != null
+                            ? String.valueOf(row[0])
+                            : null
+            );
+
+            dto.setPlantName(
+                    row[1] != null
+                            ? String.valueOf(row[1])
+                            : null
+            );
+
+            dto.setPlantId(
+                    row[2] != null
+                            ? String.valueOf(row[2])
+                            : null
+            );
+
+            dto.setRio(
+                    row[3] != null
+                            ? String.valueOf(row[3])
+                            : null
+            );
+
+            dto.setIeName(
+                    row[4] != null
+                            ? String.valueOf(row[4])
+                            : null
+            );
+
+            dto.setStageOfInspection(
+                    row[5] != null
+                            ? String.valueOf(row[5])
+                            : null
+            );
+
+            dto.setShift(
+                    row[6] != null
+                            ? String.valueOf(row[6])
+                            : null
+            );
+
+            dto.setShiftsWorked(
+                    row[7] != null
+                            ? ((Number) row[7]).longValue()
+                            : 0L
+            );
+
+            dto.setRejectedSleepers(
+                    row[8] != null
+                            ? ((Number) row[8]).longValue()
+                            : 0L
+            );
+
+            response.add(dto);
+        }
+
+        return response;
+    }
+
 }

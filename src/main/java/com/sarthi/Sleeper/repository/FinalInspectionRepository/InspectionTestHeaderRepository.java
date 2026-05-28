@@ -640,4 +640,76 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate
     );
+
+    @Query(value = """
+
+        SELECT
+            spm.company_name                           AS companyName,
+
+            vp.plant_name                              AS plantName,
+
+            pd.plant_id                                AS plantId,
+
+            ifm.rio                                    AS rio,
+
+            um.username                                AS ieName,
+
+            'Final'               AS stageOfInspection,
+
+            ith.shift                                  AS shift,
+
+            COUNT(
+                DISTINCT CONCAT(
+                    ith.test_date,
+                    '-',
+                    ith.shift
+                )
+            )                                          AS shiftsWorked,
+
+            COUNT(
+                CASE
+                    WHEN itr.active = 1
+                    THEN itr.id
+                END
+            )                                          AS rejectedSleepers
+
+        FROM inspection_test_header ith
+
+        LEFT JOIN inspection_test_result itr
+               ON itr.test_header_id = ith.id
+
+        LEFT JOIN production_declaration pd
+               ON pd.id = ith.batch_id
+
+        LEFT JOIN vendor_plant vp
+               ON vp.plant_id COLLATE utf8mb4_unicode_ci =
+                  pd.plant_id COLLATE utf8mb4_unicode_ci
+
+        LEFT JOIN sleeper_pincode_poi_mapping spm
+               ON spm.vendor_code COLLATE utf8mb4_unicode_ci =
+                  vp.vendor_id COLLATE utf8mb4_unicode_ci
+
+        LEFT JOIN ie_fields_mapping ifm
+               ON ifm.plant_pincode COLLATE utf8mb4_unicode_ci =
+                  spm.pin_code COLLATE utf8mb4_unicode_ci
+
+        LEFT JOIN user_master um
+               ON um.userid = ith.created_by
+
+        WHERE itr.result = 'REJECTED'
+          AND ith.test_date BETWEEN :fromDate AND :toDate
+
+        GROUP BY
+            spm.company_name,
+            vp.plant_name,
+            pd.plant_id,
+            ifm.rio,
+            um.username,
+            ith.shift
+
+        """, nativeQuery = true)
+    List<Object[]> getFinalInspectionReport(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
 }
