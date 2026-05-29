@@ -26,5 +26,10 @@ public interface FinalProcessIcMappingRepository extends JpaRepository<FinalProc
      * Find all mappings by Process IC Number
      */
     List<FinalProcessIcMapping> findByProcessIcNumber(String processIcNumber);
+
+    /**
+     * Delete mappings by Final IC ID
+     */
+    void deleteByFinalIcId(Long finalIcId);
 }
 

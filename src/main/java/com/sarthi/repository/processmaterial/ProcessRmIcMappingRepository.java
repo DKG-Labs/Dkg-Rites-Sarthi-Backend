@@ -23,5 +23,10 @@ public interface ProcessRmIcMappingRepository extends JpaRepository<ProcessRmIcM
      * Find mapping by RM IC Number
      */
     List<ProcessRmIcMapping> findByRmIcNumber(String rmIcNumber);
+
+    /**
+     * Delete mappings by Process IC ID
+     */
+    void deleteByProcessIcId(Long processIcId);
 }
 

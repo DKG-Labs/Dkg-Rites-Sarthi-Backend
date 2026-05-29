@@ -1,6 +1,7 @@
 package com.sarthi.dto.IcDtos;
 
 import lombok.Data;
+import java.time.LocalDate;
 
 @Data
 public class ProcessInspectionDetailsRequestDto {
@@ -19,6 +20,10 @@ public class ProcessInspectionDetailsRequestDto {
     // ---- QUANTITY INFORMATION ----
     private Integer offeredQty;
     private Integer totalAcceptedQtyRm;
+    private Integer declaredLotSize;
+
+    // ---- PRODUCTION INFORMATION ----
+    private LocalDate tentativeStartDate;
 
     // ---- PLACE OF INSPECTION ----
     private Integer companyId;

@@ -407,6 +407,46 @@ public class FinalInspectionCallController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(quantity), HttpStatus.OK);
     }
 
+    @PatchMapping("/modifyInspectionCall")
+    @Operation(summary = "Modify Final inspection call", description = "Modifies an existing Final inspection call")
+    public ResponseEntity<Object> modifyFinalInspectionCall(
+            @RequestParam String icNumber,
+            @RequestBody CreateFinalInspectionCallRequestDto request) {
+        logger.info("========== MODIFY FINAL INSPECTION CALL REQUEST ==========");
+        logger.info("IC Number: {}", icNumber);
+        logger.info("Request object: {}", request);
+
+        try {
+            InspectionCall ic = finalInspectionCallService.modifyFinalInspectionCall(
+                    icNumber,
+                    request.getInspectionCall(),
+                    request.getFinalInspectionDetails(),
+                    request.getFinalLotDetails()
+            );
+
+            InspectionCallResponse responseData = new InspectionCallResponse(
+                    ic.getId(),
+                    ic.getIcNumber(),
+                    "Final Inspection Call modified successfully"
+            );
+
+            logger.info("✅ Final Inspection Call modified successfully: {}", ic.getIcNumber());
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(responseData), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("❌ ERROR modifying Final inspection call", e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                    AppConstant.INTER_SERVER_ERROR,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    e.getMessage() != null ? e.getMessage() : "Failed to modify Final inspection call"
+            );
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(errorDetails),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
     /**
      * Inner class for response
      */

@@ -27,6 +27,12 @@ public interface FinalInspectionCallService {
             FinalInspectionDetailsRequestDto finalDetails,
             List<FinalInspectionLotDetailsRequestDto> lotDetailsList);
 
+    InspectionCall modifyFinalInspectionCall(
+            String icNumber,
+            InspectionCallRequestDto icDto,
+            FinalInspectionDetailsRequestDto finalDto,
+            List<FinalInspectionLotDetailsRequestDto> lotDtoList);
+
     /**
      * Get Process IC certificate numbers for Final Inspection Call dropdown
      * Filters by vendor and EP prefix

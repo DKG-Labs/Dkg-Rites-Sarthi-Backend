@@ -33,16 +33,23 @@ public class InspectionCallServiceImpl implements InspectionCallService {
     private final InventoryEntryService inventoryEntryService;
 
     private final InspectionModificationHistoryRepository modificationHistoryRepository;
+    private final com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository;
+    private final com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository;
 
     @Autowired
     public InspectionCallServiceImpl(
             InspectionCallRepository inspectionCallRepository,
             IcNumberGenerator icNumberGenerator,
-            InventoryEntryService inventoryEntryService, InspectionModificationHistoryRepository modificationHistoryRepository) {
+            InventoryEntryService inventoryEntryService,
+            InspectionModificationHistoryRepository modificationHistoryRepository,
+            com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository,
+            com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.icNumberGenerator = icNumberGenerator;
         this.inventoryEntryService = inventoryEntryService;
         this.modificationHistoryRepository = modificationHistoryRepository;
+        this.heatQuantityRepository = heatQuantityRepository;
+        this.rmChemicalAnalysisRepository = rmChemicalAnalysisRepository;
     }
 
     @Override
@@ -251,8 +258,6 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         RmInspectionDetails rmDetails =
                 inspection.getRmInspectionDetails();
 
-       // int modificationVersion = inspection.getModificationCount() + 1;
-
         // =====================================================
         // PROCESS INSPECTION CALL DTO
         // =====================================================
@@ -278,17 +283,132 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                 icDto.getUpdatedBy());
 
         // =====================================================
+        // PROCESS HEAT QUANTITIES
+        // =====================================================
+        if (rmDto.getHeatQuantities() != null) {
+            List<RmHeatQuantity> existingHeats = heatQuantityRepository.findByRmDetailId(Math.toIntExact(rmDetails.getId()));
+
+            // 1. Delete heats no longer present in the request (matched by heatNumber)
+            for (RmHeatQuantity existing : existingHeats) {
+                boolean stillExists = rmDto.getHeatQuantities().stream()
+                        .anyMatch(dto -> dto.getHeatNumber() != null && dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()));
+                if (!stillExists) {
+                    heatQuantityRepository.delete(existing);
+                }
+            }
+
+            // 2. Update existing heats or insert new ones
+            for (RmHeatQuantityRequestDto dto : rmDto.getHeatQuantities()) {
+                if (dto.getHeatNumber() == null || dto.getHeatNumber().trim().isEmpty()) {
+                    continue;
+                }
+
+                RmHeatQuantity heat = existingHeats.stream()
+                        .filter(existing -> dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (heat != null) {
+                    // Update existing
+                    heat.setManufacturer(dto.getManufacturer());
+                    heat.setOfferedQty(toBigDecimal(dto.getOfferedQty()));
+                    heat.setTcNumber(dto.getTcNumber());
+                    if (dto.getTcDate() != null && !dto.getTcDate().trim().isEmpty()) {
+                        heat.setTcDate(LocalDate.parse(dto.getTcDate()));
+                    } else {
+                        heat.setTcDate(null);
+                    }
+                    heat.setTcQuantity(toBigDecimal(dto.getTcQuantity()));
+                    heat.setQtyLeft(toBigDecimal(dto.getQtyLeft()));
+                    heat.setQtyAccepted(toBigDecimal(dto.getQtyAccepted()));
+                    heat.setQtyRejected(toBigDecimal(dto.getQtyRejected()));
+                    heat.setRejectionReason(dto.getRejectionReason());
+                    heat.setUpdatedAt(LocalDateTime.now());
+                    heatQuantityRepository.save(heat);
+                } else {
+                    // Insert new
+                    RmHeatQuantity newHeat = new RmHeatQuantity();
+                    newHeat.setRmInspectionDetails(rmDetails);
+                    newHeat.setHeatNumber(dto.getHeatNumber());
+                    newHeat.setManufacturer(dto.getManufacturer());
+                    newHeat.setOfferedQty(toBigDecimal(dto.getOfferedQty()));
+                    newHeat.setTcNumber(dto.getTcNumber());
+                    if (dto.getTcDate() != null && !dto.getTcDate().trim().isEmpty()) {
+                        newHeat.setTcDate(LocalDate.parse(dto.getTcDate()));
+                    }
+                    newHeat.setTcQuantity(toBigDecimal(dto.getTcQuantity()));
+                    newHeat.setQtyLeft(toBigDecimal(dto.getQtyLeft()));
+                    newHeat.setQtyAccepted(toBigDecimal(dto.getQtyAccepted()));
+                    newHeat.setQtyRejected(toBigDecimal(dto.getQtyRejected()));
+                    newHeat.setRejectionReason(dto.getRejectionReason());
+                    newHeat.setCreatedAt(LocalDateTime.now());
+                    newHeat.setUpdatedAt(LocalDateTime.now());
+                    heatQuantityRepository.save(newHeat);
+                }
+            }
+        }
+
+        // =====================================================
+        // PROCESS CHEMICAL ANALYSIS
+        // =====================================================
+        if (rmDto.getChemicalAnalysis() != null) {
+            List<RmChemicalAnalysis> existingChems = rmChemicalAnalysisRepository.findByRmInspectionDetailsId(Math.toIntExact(rmDetails.getId()));
+
+            // 1. Delete chemical analyses no longer present in the request (matched by heatNumber)
+            for (RmChemicalAnalysis existing : existingChems) {
+                boolean stillExists = rmDto.getChemicalAnalysis().stream()
+                        .anyMatch(dto -> dto.getHeatNumber() != null && dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()));
+                if (!stillExists) {
+                    rmChemicalAnalysisRepository.delete(existing);
+                }
+            }
+
+            // 2. Update existing or insert new ones
+            for (RmChemicalAnalysisRequestDto dto : rmDto.getChemicalAnalysis()) {
+                if (dto.getHeatNumber() == null || dto.getHeatNumber().trim().isEmpty()) {
+                    continue;
+                }
+
+                RmChemicalAnalysis chem = existingChems.stream()
+                        .filter(existing -> dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (chem != null) {
+                    // Update existing
+                    chem.setCarbon(toBigDecimal(dto.getCarbon()));
+                    chem.setManganese(toBigDecimal(dto.getManganese()));
+                    chem.setSilicon(toBigDecimal(dto.getSilicon()));
+                    chem.setSulphur(toBigDecimal(dto.getSulphur()));
+                    chem.setPhosphorus(toBigDecimal(dto.getPhosphorus()));
+                    chem.setChromium(toBigDecimal(dto.getChromium()));
+                    chem.setUpdatedAt(LocalDateTime.now());
+                    rmChemicalAnalysisRepository.save(chem);
+                } else {
+                    // Insert new
+                    RmChemicalAnalysis newChem = new RmChemicalAnalysis();
+                    newChem.setRmInspectionDetails(rmDetails);
+                    newChem.setHeatNumber(dto.getHeatNumber());
+                    newChem.setCarbon(toBigDecimal(dto.getCarbon()));
+                    newChem.setManganese(toBigDecimal(dto.getManganese()));
+                    newChem.setSilicon(toBigDecimal(dto.getSilicon()));
+                    newChem.setSulphur(toBigDecimal(dto.getSulphur()));
+                    newChem.setPhosphorus(toBigDecimal(dto.getPhosphorus()));
+                    newChem.setChromium(toBigDecimal(dto.getChromium()));
+                    newChem.setCreatedAt(LocalDateTime.now());
+                    newChem.setUpdatedAt(LocalDateTime.now());
+                    rmChemicalAnalysisRepository.save(newChem);
+                }
+            }
+        }
+
+        // =====================================================
         // FINAL UPDATE
         // =====================================================
 
         inspection.setIsModified(true);
 
-       // inspection.setModificationCount(modificationVersion);
-
         inspection.setUpdatedBy(icDto.getUpdatedBy());
-
-        inspection.setUpdatedAt(
-                LocalDateTime.now());
 
         inspection.setUpdatedAt(
                 LocalDateTime.now());
@@ -296,7 +416,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         return inspectionCallRepository.save(inspection);
     }
 
-    private void processDtoFields(
+    @Override
+    public void processDtoFields(
             Object dto,
             Object entity,
             InspectionCall inspection,
@@ -304,12 +425,21 @@ public class InspectionCallServiceImpl implements InspectionCallService {
             Integer modificationVersion,
             String modifiedBy) {
 
+        if (dto == null || entity == null) {
+            return;
+        }
+
         Field[] dtoFields =
                 dto.getClass().getDeclaredFields();
 
         for (Field dtoField : dtoFields) {
 
             try {
+
+                if (java.util.Collection.class.isAssignableFrom(dtoField.getType()) ||
+                    java.util.Map.class.isAssignableFrom(dtoField.getType())) {
+                    continue;
+                }
 
                 dtoField.setAccessible(true);
 
@@ -380,7 +510,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         }
     }
 
-    private void saveModificationHistory(
+    @Override
+    public void saveModificationHistory(
             InspectionCall inspection,
             Integer modificationVersion,
             String tableName,
