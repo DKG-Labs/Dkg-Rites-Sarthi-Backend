@@ -9,7 +9,9 @@ import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.processmaterial.ProcessRmIcMappingRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.ProcessInspectionCallService;
+import com.sarthi.service.InspectionCallService;
 import com.sarthi.util.IcNumberGenerator;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,17 +32,20 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
     private final ProcessInspectionDetailsRepository processDetailsRepository;
     private final ProcessRmIcMappingRepository processMappingRepository;
     private final IcNumberGenerator icNumberGenerator;
+    private final InspectionCallService inspectionCallService;
 
     @Autowired
     public ProcessInspectionCallServiceImpl(
             InspectionCallRepository inspectionCallRepository,
             ProcessInspectionDetailsRepository processDetailsRepository,
             ProcessRmIcMappingRepository processMappingRepository,
-            IcNumberGenerator icNumberGenerator) {
+            IcNumberGenerator icNumberGenerator,
+            InspectionCallService inspectionCallService) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.processDetailsRepository = processDetailsRepository;
         this.processMappingRepository = processMappingRepository;
         this.icNumberGenerator = icNumberGenerator;
+        this.inspectionCallService = inspectionCallService;
     }
 
     @Override
@@ -155,6 +160,8 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                 // Set INDIVIDUAL quantity information
                 processDetails.setOfferedQty(detail.getOfferedQty());
                 processDetails.setTotalAcceptedQtyRm(detail.getTotalAcceptedQtyRm());
+                processDetails.setDeclaredLotSize(detail.getDeclaredLotSize());
+                processDetails.setTentativeStartDate(detail.getTentativeStartDate());
 
                 // Set place of inspection (from request or from RM IC if available)
                 processDetails.setCompanyId(detail.getCompanyId() != null ? detail.getCompanyId()
@@ -226,5 +233,161 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
 
         logger.info("========== PROCESS INSPECTION CALL CREATED SUCCESSFULLY ==========");
         return inspectionCall;
+    }
+
+    @Override
+    @Transactional
+    public InspectionCall modifyProcessInspectionCall(
+            String icNumber,
+            InspectionCallRequestDto icDto,
+            List<ProcessInspectionDetailsRequestDto> processDetailsList) {
+
+        logger.info("========== MODIFY PROCESS INSPECTION CALL ==========");
+        logger.info("IC Number: {}", icNumber);
+        logger.info("IC Dto: {}", icDto);
+
+        InspectionCall inspection = inspectionCallRepository.findByIcNumber(icNumber)
+                .orElseThrow(() -> new RuntimeException("Inspection Call Not Found"));
+
+        // Update main InspectionCall fields using the reflection helper
+        if (icDto != null) {
+            inspectionCallService.processDtoFields(
+                    icDto,
+                    inspection,
+                    inspection,
+                    "inspection_call",
+                    1,
+                    icDto.getUpdatedBy() != null ? icDto.getUpdatedBy() : "SYSTEM_USER"
+            );
+        }
+
+        // Handle lots
+        if (processDetailsList != null) {
+            List<ProcessInspectionDetails> existingLots = processDetailsRepository.findByIcId(inspection.getId());
+
+            // 1. Delete lots that are no longer present in the request list (matched by lotNumber)
+            for (ProcessInspectionDetails existing : existingLots) {
+                boolean stillExists = processDetailsList.stream()
+                        .anyMatch(dto -> dto.getLotNumber() != null && dto.getLotNumber().equals(existing.getLotNumber()));
+                if (!stillExists) {
+                    processDetailsRepository.delete(existing);
+                }
+            }
+
+            // 2. Update existing lots and insert new ones
+            for (ProcessInspectionDetailsRequestDto dto : processDetailsList) {
+                if (dto.getLotNumber() == null || dto.getLotNumber().trim().isEmpty()) {
+                    continue;
+                }
+
+                // Find matching existing lot
+                ProcessInspectionDetails lot = existingLots.stream()
+                        .filter(existing -> dto.getLotNumber().equals(existing.getLotNumber()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (lot != null) {
+                    // Update existing lot using processDtoFields reflection
+                    inspectionCallService.processDtoFields(
+                            dto,
+                            lot,
+                            inspection,
+                            "process_inspection_details",
+                            1,
+                            icDto != null && icDto.getUpdatedBy() != null ? icDto.getUpdatedBy() : "SYSTEM_USER"
+                    );
+                    
+                    // Always make sure relations and update date are set
+                    lot.setUpdatedAt(LocalDateTime.now());
+                    processDetailsRepository.save(lot);
+                } else {
+                    // Insert new lot
+                    ProcessInspectionDetails newLot = new ProcessInspectionDetails();
+                    newLot.setInspectionCall(inspection);
+                    newLot.setLotNumber(dto.getLotNumber());
+                    newLot.setHeatNumber(dto.getHeatNumber());
+                    newLot.setManufacturer(dto.getManufacturer());
+                    newLot.setManufacturerHeat(dto.getManufacturerHeat());
+                    newLot.setOfferedQty(dto.getOfferedQty());
+                    newLot.setTotalAcceptedQtyRm(dto.getTotalAcceptedQtyRm());
+                    newLot.setDeclaredLotSize(dto.getDeclaredLotSize());
+                    newLot.setTentativeStartDate(dto.getTentativeStartDate());
+                    newLot.setRmIcNumber(dto.getRmIcNumber());
+                    newLot.setCreatedAt(LocalDateTime.now());
+                    newLot.setUpdatedAt(LocalDateTime.now());
+                    
+                    // Extract RM IC reference if exists
+                    if (dto.getRmIcNumber() != null) {
+                        String callNo = dto.getRmIcNumber();
+                        if (callNo.startsWith("N/")) {
+                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("N/([^/]+)/");
+                            java.util.regex.Matcher matcher = pattern.matcher(callNo);
+                            if (matcher.find()) {
+                                callNo = matcher.group(1);
+                            }
+                        }
+                        Optional<InspectionCall> rmIc = inspectionCallRepository.findByIcNumber(callNo);
+                        if (rmIc.isPresent()) {
+                            newLot.setRmIcId(rmIc.get().getId());
+                            newLot.setCompanyId(rmIc.get().getCompanyId());
+                            newLot.setCompanyName(rmIc.get().getCompanyName());
+                            newLot.setUnitId(rmIc.get().getUnitId());
+                            newLot.setUnitName(rmIc.get().getUnitName());
+                            newLot.setUnitAddress(rmIc.get().getUnitAddress());
+                        }
+                    }
+                    
+                    processDetailsRepository.save(newLot);
+                }
+            }
+
+            // 3. Recreate ProcessRmIcMapping
+            processMappingRepository.deleteByProcessIcId(inspection.getId());
+
+            // Create new mapping rows
+            ProcessInspectionDetailsRequestDto firstDetail = processDetailsList.isEmpty() ? null : processDetailsList.get(0);
+            String rmIcNumberFromRequest = firstDetail != null ? firstDetail.getRmIcNumber() : null;
+
+            if (rmIcNumberFromRequest != null && !rmIcNumberFromRequest.isEmpty()) {
+                String[] allRmIcNumbers = rmIcNumberFromRequest.split(",");
+                for (String rawRmIcEntry : allRmIcNumbers) {
+                    String singleCertNo = rawRmIcEntry.trim();
+                    String singleCallNo = singleCertNo;
+                    if (singleCertNo.startsWith("N/")) {
+                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("N/([^/]+)/");
+                        java.util.regex.Matcher m = p.matcher(singleCertNo);
+                        if (m.find()) {
+                            singleCallNo = m.group(1);
+                        }
+                    }
+
+                    InspectionCall singleRmIc = inspectionCallRepository.findByIcNumber(singleCallNo).orElse(null);
+                    if (singleRmIc == null) {
+                        continue;
+                    }
+
+                    for (ProcessInspectionDetailsRequestDto detail : processDetailsList) {
+                        ProcessRmIcMapping mapping = new ProcessRmIcMapping();
+                        mapping.setProcessIcId(inspection.getId());
+                        mapping.setRmIcId(singleRmIc.getId());
+                        mapping.setRmIcNumber(singleCertNo);
+                        mapping.setHeatNumber(detail.getHeatNumber());
+                        mapping.setManufacturer(detail.getManufacturer());
+                        mapping.setRmQtyAccepted(detail.getTotalAcceptedQtyRm() != null ? detail.getTotalAcceptedQtyRm() : 0);
+                        mapping.setRmIcDate(singleRmIc.getDesiredInspectionDate());
+
+                        processMappingRepository.save(mapping);
+                    }
+                }
+            }
+        }
+
+        inspection.setIsModified(true);
+        inspection.setUpdatedAt(LocalDateTime.now());
+        if (icDto != null && icDto.getUpdatedBy() != null) {
+            inspection.setUpdatedBy(icDto.getUpdatedBy());
+        }
+
+        return inspectionCallRepository.save(inspection);
     }
 }

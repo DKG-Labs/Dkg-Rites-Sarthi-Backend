@@ -14,6 +14,7 @@ import com.sarthi.repository.finalmaterial.FinalProcessIcMappingRepository;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.FinalInspectionCallService;
+import com.sarthi.service.InspectionCallService;
 import com.sarthi.util.IcNumberGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +56,9 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
 
     @Autowired
     private IcNumberGenerator icNumberGenerator;
+
+    @Autowired
+    private InspectionCallService inspectionCallService;
 
     @Override
     @Transactional
@@ -329,7 +333,184 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     @Override
     public Integer getOfferedEarlierQuantity(String heatNo, String lotNumber) {
         logger.info("Fetching offered earlier quantity for heat: {} and lot: {}", heatNo, lotNumber);
-        Integer sum = finalInspectionLotDetailsRepository.sumOfferedQtyByHeatNumberAndLotNumber(heatNo, lotNumber);
-        return sum != null ? sum : 0;
+        Integer quantity = finalInspectionLotDetailsRepository.sumOfferedQtyByHeatNumberAndLotNumber(heatNo, lotNumber);
+        logger.info("Offered earlier quantity: {}", quantity);
+        return quantity != null ? quantity : 0;
+    }
+
+    @Override
+    @Transactional
+    public InspectionCall modifyFinalInspectionCall(
+            String icNumber,
+            InspectionCallRequestDto icDto,
+            FinalInspectionDetailsRequestDto finalDto,
+            List<FinalInspectionLotDetailsRequestDto> lotDtoList) {
+
+        logger.info("========== MODIFY FINAL INSPECTION CALL ==========");
+        logger.info("IC Number: {}", icNumber);
+        logger.info("IC Dto: {}", icDto);
+
+        InspectionCall inspection = inspectionCallRepository.findByIcNumber(icNumber)
+                .orElseThrow(() -> new RuntimeException("Inspection Call Not Found"));
+
+        // 1. Update main InspectionCall using reflection helper
+        if (icDto != null) {
+            inspectionCallService.processDtoFields(
+                    icDto,
+                    inspection,
+                    inspection,
+                    "inspection_call",
+                    1,
+                    icDto.getUpdatedBy() != null ? icDto.getUpdatedBy() : "SYSTEM_USER"
+            );
+        }
+
+        // Find existing final details
+        FinalInspectionDetails finalDetails = finalInspectionDetailsRepository.findByIcId(inspection.getId().longValue())
+                .orElseThrow(() -> new RuntimeException("Final Inspection Details Not Found"));
+
+        // 2. Update final details using reflection helper
+        if (finalDto != null) {
+            // Setup RM IC numbers multi-select if updated
+            List<String> rmIcList = (finalDto.getRmIcNumbers() != null && !finalDto.getRmIcNumbers().isEmpty())
+                    ? finalDto.getRmIcNumbers()
+                    : (finalDto.getRmIcNumber() != null ? List.of(finalDto.getRmIcNumber()) : List.of());
+            if (!rmIcList.isEmpty()) {
+                String rmIcNumbersCsv = rmIcList.stream().collect(Collectors.joining(","));
+                finalDetails.setRmIcNumber(rmIcNumbersCsv);
+                Optional<InspectionCall> rmIcOpt = inspectionCallRepository.findByIcNumber(rmIcList.get(0));
+                if (rmIcOpt.isPresent()) {
+                    finalDetails.setRmIcId(rmIcOpt.get().getId().longValue());
+                }
+            }
+
+            // Setup Process IC numbers multi-select if updated
+            List<String> processIcList = (finalDto.getProcessIcNumbers() != null && !finalDto.getProcessIcNumbers().isEmpty())
+                    ? finalDto.getProcessIcNumbers()
+                    : (finalDto.getProcessIcNumber() != null ? List.of(finalDto.getProcessIcNumber()) : List.of());
+            if (!processIcList.isEmpty()) {
+                String processIcNumbersCsv = processIcList.stream().collect(Collectors.joining(","));
+                finalDetails.setProcessIcNumber(processIcNumbersCsv);
+                Optional<InspectionCall> processIcOpt = inspectionCallRepository.findByIcNumber(processIcList.get(0));
+                if (processIcOpt.isPresent()) {
+                    finalDetails.setProcessIcId(processIcOpt.get().getId().longValue());
+                }
+            }
+
+            inspectionCallService.processDtoFields(
+                    finalDto,
+                    finalDetails,
+                    inspection,
+                    "final_inspection_details",
+                    1,
+                    icDto != null && icDto.getUpdatedBy() != null ? icDto.getUpdatedBy() : "SYSTEM_USER"
+            );
+            finalDetails.setUpdatedAt(LocalDateTime.now());
+            finalInspectionDetailsRepository.save(finalDetails);
+        }
+
+        // 3. Handle lot details
+        if (lotDtoList != null) {
+            List<FinalInspectionLotDetails> existingLots = finalInspectionLotDetailsRepository.findByFinalDetailId(finalDetails.getId());
+
+            // Delete lots no longer present
+            for (FinalInspectionLotDetails existing : existingLots) {
+                boolean stillExists = lotDtoList.stream()
+                        .anyMatch(dto -> dto.getLotNumber() != null && dto.getLotNumber().equals(existing.getLotNumber()));
+                if (!stillExists) {
+                    finalInspectionLotDetailsRepository.delete(existing);
+                }
+            }
+
+            // Update existing and insert new
+            for (FinalInspectionLotDetailsRequestDto lotDto : lotDtoList) {
+                if (lotDto.getLotNumber() == null || lotDto.getLotNumber().trim().isEmpty()) {
+                    continue;
+                }
+
+                FinalInspectionLotDetails lot = existingLots.stream()
+                        .filter(existing -> lotDto.getLotNumber().equals(existing.getLotNumber()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (lot != null) {
+                    inspectionCallService.processDtoFields(
+                            lotDto,
+                            lot,
+                            inspection,
+                            "final_inspection_lot_details",
+                            1,
+                            icDto != null && icDto.getUpdatedBy() != null ? icDto.getUpdatedBy() : "SYSTEM_USER"
+                    );
+                    lot.setUpdatedAt(LocalDateTime.now());
+                    finalInspectionLotDetailsRepository.save(lot);
+                } else {
+                    FinalInspectionLotDetails newLot = new FinalInspectionLotDetails();
+                    newLot.setFinalDetailId(finalDetails.getId());
+                    newLot.setLotNumber(lotDto.getLotNumber());
+                    newLot.setHeatNumber(lotDto.getHeatNumber());
+                    newLot.setManufacturer(lotDto.getManufacturer());
+                    newLot.setManufacturerHeat(lotDto.getManufacturerHeat());
+                    newLot.setOfferedQty(lotDto.getOfferedQty());
+                    
+                    if (lotDto.getNoOfBags() != null && lotDto.getNoOfBags() > 0) {
+                        newLot.setNoOfBags(lotDto.getNoOfBags());
+                    } else if (lotDto.getOfferedQty() != null) {
+                        newLot.setNoOfBags((int) Math.ceil((double) lotDto.getOfferedQty() / 50));
+                    }
+                    
+                    if (lotDto.getProcessIcNumber() != null) {
+                        Optional<InspectionCall> processIcForLot = inspectionCallRepository.findByIcNumber(lotDto.getProcessIcNumber());
+                        if (processIcForLot.isPresent()) {
+                            newLot.setProcessIcId(processIcForLot.get().getId().longValue());
+                        }
+                        newLot.setProcessIcNumber(lotDto.getProcessIcNumber());
+                    }
+                    newLot.setCreatedAt(LocalDateTime.now());
+                    newLot.setUpdatedAt(LocalDateTime.now());
+                    finalInspectionLotDetailsRepository.save(newLot);
+                }
+            }
+
+            // 4. Recreate Final Process IC Mapping
+            finalProcessIcMappingRepository.deleteByFinalIcId(inspection.getId().longValue());
+
+            List<String> processIcList = (finalDto != null && finalDto.getProcessIcNumbers() != null && !finalDto.getProcessIcNumbers().isEmpty())
+                    ? finalDto.getProcessIcNumbers()
+                    : (finalDetails.getProcessIcNumber() != null ? List.of(finalDetails.getProcessIcNumber().split(",")) : List.of());
+
+            if (!processIcList.isEmpty()) {
+                for (String processIcNumber : processIcList) {
+                    String cleanProcessIcNo = processIcNumber.trim();
+                    Optional<InspectionCall> processIcForMapping = inspectionCallRepository.findByIcNumber(cleanProcessIcNo);
+                    if (!processIcForMapping.isPresent()) {
+                        continue;
+                    }
+                    InspectionCall processIc = processIcForMapping.get();
+
+                    for (FinalInspectionLotDetailsRequestDto lotDto : lotDtoList) {
+                        FinalProcessIcMapping mapping = new FinalProcessIcMapping();
+                        mapping.setFinalIcId(inspection.getId().longValue());
+                        mapping.setProcessIcId(processIc.getId().longValue());
+                        mapping.setProcessIcNumber(cleanProcessIcNo);
+                        mapping.setLotNumber(lotDto.getLotNumber());
+                        mapping.setHeatNumber(lotDto.getHeatNumber());
+                        mapping.setManufacturer(lotDto.getManufacturer());
+                        mapping.setProcessQtyAccepted(lotDto.getOfferedQty());
+                        mapping.setProcessIcDate(processIc.getDesiredInspectionDate());
+
+                        finalProcessIcMappingRepository.save(mapping);
+                    }
+                }
+            }
+        }
+
+        inspection.setIsModified(true);
+        inspection.setUpdatedAt(LocalDateTime.now());
+        if (icDto != null && icDto.getUpdatedBy() != null) {
+            inspection.setUpdatedBy(icDto.getUpdatedBy());
+        }
+
+        return inspectionCallRepository.save(inspection);
     }
 }

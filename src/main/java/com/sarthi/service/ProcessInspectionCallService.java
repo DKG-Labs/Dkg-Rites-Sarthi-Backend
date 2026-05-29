@@ -20,5 +20,10 @@ public interface ProcessInspectionCallService {
             InspectionCallRequestDto icRequest,
             List<ProcessInspectionDetailsRequestDto> processDetails
     );
+
+    InspectionCall modifyProcessInspectionCall(
+            String icNumber,
+            InspectionCallRequestDto icDto,
+            List<ProcessInspectionDetailsRequestDto> processDetailsList);
 }
 

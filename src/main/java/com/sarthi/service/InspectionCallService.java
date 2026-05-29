@@ -24,4 +24,21 @@ public interface InspectionCallService {
             String icNumber,
             InspectionCallRequestDto icDto,
             RmInspectionDetailsRequestDto rmDto);
+
+    void processDtoFields(
+            Object dto,
+            Object entity,
+            InspectionCall inspection,
+            String tableName,
+            Integer modificationVersion,
+            String modifiedBy);
+
+    void saveModificationHistory(
+            InspectionCall inspection,
+            Integer modificationVersion,
+            String tableName,
+            String fieldName,
+            Object oldValue,
+            Object newValue,
+            String modifiedBy);
 }

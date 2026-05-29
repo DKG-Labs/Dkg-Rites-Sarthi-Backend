@@ -5,6 +5,7 @@ import com.sarthi.entity.rawmaterial.InspectionCall;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -44,6 +45,10 @@ public class ProcessInspectionDetails {
     // ---- QUANTITY INFORMATION ----
     private Integer offeredQty;
     private Integer totalAcceptedQtyRm;
+    private Integer declaredLotSize;
+
+    // ---- PRODUCTION INFORMATION ----
+    private LocalDate tentativeStartDate;
 
     // ---- APPROVAL/REJECTION TRACKING ----
     private Integer qtyAccepted;

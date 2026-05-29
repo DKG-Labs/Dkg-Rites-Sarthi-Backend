@@ -282,6 +282,7 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                                 .poNo(entity.getPoNo())
                                 .poSerialNo(entity.getPoSerialNo())
                                 .typeOfCall(entity.getTypeOfCall())
+                                .ercType(entity.getErcType())
                                 .status(entity.getStatus())
                                 .desiredInspectionDate(String.valueOf(entity.getDesiredInspectionDate()))
                                 .actualInspectionDate(String.valueOf(entity.getActualInspectionDate()))
@@ -318,7 +319,7 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                         if (rmDetails.getHeatQuantities() != null) {
                                 List<RmHeatQuantityDto> heatDtos = rmDetails.getHeatQuantities()
                                                 .stream()
-                                                .map(this::mapToHeatDto)
+                                                .map(heat -> mapToHeatDtoWithChem(heat, rmDetails.getChemicalAnalysisList()))
                                                 .collect(Collectors.toList());
                                 dto.setRmHeatQuantities(heatDtos);
                         }
@@ -380,10 +381,10 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                                                                 : null))
                                 .heatNumber(entity.getHeatNumber())
                                 .manufacturer(entity.getManufacturer())
-                                // .offeredQty(entity.getOfferedQty())
+                                .offeredQty(entity.getOfferedQty() != null ? entity.getOfferedQty().doubleValue() : null)
                                 .tcNumber(entity.getTcNumber())
                                 .tcDate(String.valueOf(entity.getTcDate()))
-                                // .tcQuantity(entity.getTcQuantity())
+                                .tcQuantity(entity.getTcQuantity() != null ? entity.getTcQuantity().doubleValue() : null)
                                 .qtyLeft(String.valueOf(entity.getQtyLeft()))
                                 .qtyAccepted(String.valueOf(entity.getQtyAccepted()))
                                 .qtyRejected(String.valueOf(entity.getQtyRejected()))
@@ -407,8 +408,10 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                                                                 : null))
                                 .heatNumber(entity.getHeatNumber())
                                 .manufacturer(entity.getManufacturer())
+                                .offeredQty(entity.getOfferedQty() != null ? entity.getOfferedQty().doubleValue() : null)
                                 .tcNumber(entity.getTcNumber())
                                 .tcDate(String.valueOf(entity.getTcDate()))
+                                .tcQuantity(entity.getTcQuantity() != null ? entity.getTcQuantity().doubleValue() : null)
                                 .qtyLeft(String.valueOf(entity.getQtyLeft()))
                                 .qtyAccepted(String.valueOf(entity.getQtyAccepted()))
                                 .qtyRejected(String.valueOf(entity.getQtyRejected()))
@@ -439,6 +442,30 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                         logger.debug("No final result found for heat {} in IC {}", entity.getHeatNumber(), icNumber);
                 }
 
+                return dto;
+        }
+
+        private RmChemicalAnalysisDto mapToChemicalDto(RmChemicalAnalysis entity) {
+                RmChemicalAnalysisDto dto = new RmChemicalAnalysisDto();
+                dto.setHeatNumber(entity.getHeatNumber());
+                dto.setCarbon(entity.getCarbon());
+                dto.setManganese(entity.getManganese());
+                dto.setSilicon(entity.getSilicon());
+                dto.setSulphur(entity.getSulphur());
+                dto.setPhosphorus(entity.getPhosphorus());
+                dto.setChromium(entity.getChromium());
+                return dto;
+        }
+
+        private RmHeatQuantityDto mapToHeatDtoWithChem(RmHeatQuantity entity, List<RmChemicalAnalysis> chemList) {
+                RmHeatQuantityDto dto = mapToHeatDto(entity);
+                if (chemList != null && entity.getHeatNumber() != null) {
+                        List<RmChemicalAnalysisDto> chemDtos = chemList.stream()
+                                        .filter(c -> entity.getHeatNumber().equalsIgnoreCase(c.getHeatNumber()))
+                                        .map(this::mapToChemicalDto)
+                                        .collect(Collectors.toList());
+                        dto.setChemicalAnalyses(chemDtos);
+                }
                 return dto;
         }
 
