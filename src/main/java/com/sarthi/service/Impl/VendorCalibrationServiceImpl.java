@@ -1,0 +1,241 @@
+package com.sarthi.service.Impl;
+
+import com.sarthi.constant.AppConstant;
+import com.sarthi.dto.VendorCalibrationDetailDto;
+import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
+import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
+import com.sarthi.entity.VendorCalibrationDetail;
+import com.sarthi.entity.VendorCalibrationHeader;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
+import com.sarthi.repository.VendorCalibrationDetailRepository;
+import com.sarthi.repository.VendorCalibrationHeaderRepository;
+import com.sarthi.service.VendorCalibrationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+@Transactional
+public class VendorCalibrationServiceImpl implements VendorCalibrationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(VendorCalibrationServiceImpl.class);
+
+    @Autowired
+    private VendorCalibrationHeaderRepository headerRepository;
+
+    @Autowired
+    private VendorCalibrationDetailRepository detailRepository;
+
+    @Override
+    public VendorCalibrationHeaderResponseDto createOrUpdateCalibrationGroup(VendorCalibrationHeaderRequestDto requestDto, String userId) {
+        logger.info("Saving/updating calibration group for vendor: {}, category: {}", requestDto.getVendorCode(), requestDto.getCategory());
+
+        try {
+            // Validate basic inputs
+            if (requestDto.getVendorCode() == null || requestDto.getVendorCode().trim().isEmpty()) {
+                throw new IllegalArgumentException("Vendor code is required");
+            }
+
+            if (requestDto.getCategory() == null || requestDto.getCategory().trim().isEmpty()) {
+                throw new IllegalArgumentException("Category is required");
+            }
+
+            // Save Base64 file if present
+            String savedFilePath = requestDto.getCertificateFilePath();
+            if (requestDto.getCertificateFileBase64() != null && !requestDto.getCertificateFileBase64().isEmpty()) {
+                savedFilePath = requestDto.getCertificateFileBase64();
+                logger.info("Calibration certificate file stored in DB as Base64 string");
+            }
+
+            VendorCalibrationHeader header;
+            boolean isNew = true;
+
+            // Check if we are updating an existing group by ID or matching combination
+            if (requestDto.getId() != null) {
+                header = headerRepository.findById(requestDto.getId())
+                        .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_RESOURCE,
+                                "Calibration group not found with ID: " + requestDto.getId())));
+                isNew = false;
+            } else {
+                // Check if vendor + category combo already exists
+                Optional<VendorCalibrationHeader> existing = headerRepository.findByVendorCodeAndCategory(
+                        requestDto.getVendorCode(), requestDto.getCategory());
+                if (existing.isPresent()) {
+                    header = existing.get();
+                    isNew = false;
+                } else {
+                    header = new VendorCalibrationHeader();
+                    header.setVendorCode(requestDto.getVendorCode());
+                    header.setCategory(requestDto.getCategory());
+                }
+            }
+
+            // Set/update parent fields
+            header.setCertificateFilePath(savedFilePath);
+            if (isNew) {
+                header.setCreatedBy(userId);
+            }
+            header.setUpdatedBy(userId);
+
+            // Handle details. We'll clear the old ones if updating to support orphan removal.
+            if (!isNew) {
+                // Clear existing child records
+                header.getDetails().clear();
+                // Flush changes to detailRepository to ensure orphans are deleted first before adding new ones
+                headerRepository.saveAndFlush(header);
+            }
+
+            // Add new child records
+            if (requestDto.getDetails() != null) {
+                for (VendorCalibrationDetailDto detailDto : requestDto.getDetails()) {
+                    VendorCalibrationDetail detail = new VendorCalibrationDetail();
+                    detail.setInstrumentName(detailDto.getInstrumentName());
+                    detail.setCapacity(detailDto.getCapacity());
+                    detail.setDescription(detailDto.getDescription());
+                    detail.setUsedFor(detailDto.getUsedFor());
+                    detail.setSerialNumber(detailDto.getSerialNumber());
+                    detail.setCalibrationCertificateNo(detailDto.getCalibrationCertificateNo());
+                    detail.setCalibrationDate(detailDto.getCalibrationDate());
+                    detail.setCalibrationDueDate(detailDto.getCalibrationDueDate());
+                    detail.setCertifyingLabName(detailDto.getCertifyingLabName());
+                    detail.setAccreditationAgency(detailDto.getAccreditationAgency());
+                    detail.setNotificationDays(detailDto.getNotificationDays() != null ? detailDto.getNotificationDays() : 30);
+                    
+                    // Auto calculate calibration status
+                    String status = "Valid";
+                    if (detailDto.getCalibrationDueDate() != null) {
+                        if (detailDto.getCalibrationDueDate().isBefore(LocalDate.now())) {
+                            status = "Expired";
+                        }
+                    }
+                    detail.setCalibrationStatus(status);
+                    
+                    if (isNew) {
+                        detail.setCreatedBy(userId);
+                    } else {
+                        detail.setCreatedBy(userId); // Or preserve original creator
+                    }
+                    detail.setUpdatedBy(userId);
+
+                    header.addDetail(detail);
+                }
+            }
+
+            VendorCalibrationHeader savedHeader = headerRepository.save(header);
+            logger.info("Saved vendor calibration group successfully with ID: {}", savedHeader.getId());
+            return mapToResponseDto(savedHeader);
+
+        } catch (Exception e) {
+            logger.error("Error saving vendor calibration: {}", e.getMessage(), e);
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Failed to save vendor calibration: " + e.getMessage()));
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VendorCalibrationHeaderResponseDto> getCalibrationsByVendor(String vendorCode) {
+        logger.info("Fetching calibration records for vendor: {}", vendorCode);
+        try {
+            List<VendorCalibrationHeader> headers = headerRepository.findByVendorCode(vendorCode);
+            return headers.stream().map(this::mapToResponseDto).collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("Error fetching calibration records: {}", e.getMessage(), e);
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Failed to fetch calibration records: " + e.getMessage()));
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public VendorCalibrationHeaderResponseDto getCalibrationGroupById(Long id) {
+        logger.info("Fetching calibration record by ID: {}", id);
+        VendorCalibrationHeader header = headerRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_RESOURCE,
+                        "Calibration group not found with ID: " + id)));
+        return mapToResponseDto(header);
+    }
+
+    @Override
+    public void deleteCalibrationGroup(Long id) {
+        logger.info("Deleting calibration group by ID: {}", id);
+        VendorCalibrationHeader header = headerRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_RESOURCE,
+                        "Calibration group not found with ID: " + id)));
+        headerRepository.delete(header);
+    }
+
+    @Override
+    public void deleteCalibrationDetail(Long detailId) {
+        logger.info("Deleting individual calibration detail by ID: {}", detailId);
+        VendorCalibrationDetail detail = detailRepository.findById(detailId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_RESOURCE,
+                        "Calibration detail record not found with ID: " + detailId)));
+        detailRepository.delete(detail);
+    }
+
+    private VendorCalibrationHeaderResponseDto mapToResponseDto(VendorCalibrationHeader header) {
+        VendorCalibrationHeaderResponseDto dto = new VendorCalibrationHeaderResponseDto();
+        dto.setId(header.getId());
+        dto.setVendorCode(header.getVendorCode());
+
+        dto.setCategory(header.getCategory());
+        dto.setCertificateFilePath(header.getCertificateFilePath());
+        dto.setCreatedBy(header.getCreatedBy());
+        dto.setCreatedDate(header.getCreatedDate());
+        dto.setUpdatedBy(header.getUpdatedBy());
+        dto.setUpdatedDate(header.getUpdatedDate());
+
+        List<VendorCalibrationDetailDto> detailsList = new ArrayList<>();
+        if (header.getDetails() != null) {
+            for (VendorCalibrationDetail detail : header.getDetails()) {
+                VendorCalibrationDetailDto dDto = new VendorCalibrationDetailDto();
+                dDto.setId(detail.getId());
+                dDto.setInstrumentName(detail.getInstrumentName());
+                dDto.setCapacity(detail.getCapacity());
+                dDto.setDescription(detail.getDescription());
+                dDto.setUsedFor(detail.getUsedFor());
+                dDto.setSerialNumber(detail.getSerialNumber());
+                dDto.setCalibrationCertificateNo(detail.getCalibrationCertificateNo());
+                dDto.setCalibrationDate(detail.getCalibrationDate());
+                dDto.setCalibrationDueDate(detail.getCalibrationDueDate());
+                dDto.setCertifyingLabName(detail.getCertifyingLabName());
+                dDto.setAccreditationAgency(detail.getAccreditationAgency());
+                dDto.setNotificationDays(detail.getNotificationDays());
+                dDto.setCalibrationStatus(detail.getCalibrationStatus());
+                detailsList.add(dDto);
+            }
+        }
+        dto.setDetails(detailsList);
+        return dto;
+    }
+}

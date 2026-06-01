@@ -1,0 +1,19 @@
+package com.sarthi.service;
+
+import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
+import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
+
+import java.util.List;
+
+public interface VendorCalibrationService {
+
+    VendorCalibrationHeaderResponseDto createOrUpdateCalibrationGroup(VendorCalibrationHeaderRequestDto requestDto, String userId);
+
+    List<VendorCalibrationHeaderResponseDto> getCalibrationsByVendor(String vendorCode);
+
+    VendorCalibrationHeaderResponseDto getCalibrationGroupById(Long id);
+
+    void deleteCalibrationGroup(Long id);
+
+    void deleteCalibrationDetail(Long detailId);
+}
