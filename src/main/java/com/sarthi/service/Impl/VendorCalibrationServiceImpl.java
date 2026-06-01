@@ -1,19 +1,26 @@
 package com.sarthi.service.Impl;
 
 import com.sarthi.constant.AppConstant;
+import com.sarthi.dto.Calibration.CreateIeVendorCalibrationInspectionRequestDto;
+import com.sarthi.dto.Calibration.IeVendorCalibrationInspectionDetailResponseDto;
+import com.sarthi.dto.Calibration.IeVendorCalibrationInspectionResponseDto;
 import com.sarthi.dto.VendorCalibrationDetailDto;
 import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
 import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
+import com.sarthi.entity.IeVendorCalibrationInspection;
+import com.sarthi.entity.IeVendorCalibrationInspectionDetail;
 import com.sarthi.entity.VendorCalibrationDetail;
 import com.sarthi.entity.VendorCalibrationHeader;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
+import com.sarthi.repository.IeVendorCalibrationInspectionRepository;
 import com.sarthi.repository.VendorCalibrationDetailRepository;
 import com.sarthi.repository.VendorCalibrationHeaderRepository;
 import com.sarthi.service.VendorCalibrationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +43,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
 
     @Autowired
     private VendorCalibrationDetailRepository detailRepository;
+
+    @Autowired
+    private IeVendorCalibrationInspectionRepository inspectionRepository;
 
     @Override
     public VendorCalibrationHeaderResponseDto createOrUpdateCalibrationGroup(VendorCalibrationHeaderRequestDto requestDto, String userId) {
@@ -238,4 +248,169 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
         dto.setDetails(detailsList);
         return dto;
     }
+
+
+    public List<VendorCalibrationHeaderResponseDto> getByVendorCode(String vendorCode) {
+
+        List<VendorCalibrationHeader> headers =
+                headerRepository.findByVendorCode(vendorCode);
+
+        return headers.stream()
+                .map(this::mapToResponseDto)
+                .toList();
+    }
+
+
+
+
+
+        @Override
+        public IeVendorCalibrationInspectionResponseDto createInspection(
+                CreateIeVendorCalibrationInspectionRequestDto requestDto) {
+
+            List<VendorCalibrationHeader> vendorHeaders =
+                    headerRepository.findByVendorCode(
+                            requestDto.getVendorCode());
+
+            IeVendorCalibrationInspection inspection =
+                    new IeVendorCalibrationInspection();
+
+            inspection.setCallNo(requestDto.getCallNo());
+            inspection.setPoNumber(requestDto.getPoNumber());
+            inspection.setVendorCode(requestDto.getVendorCode());
+
+            List<IeVendorCalibrationInspectionDetail> inspectionDetails =
+                    new ArrayList<>();
+
+            for (VendorCalibrationHeader header : vendorHeaders) {
+
+                if (header.getDetails() != null) {
+
+                    for (VendorCalibrationDetail detail : header.getDetails()) {
+
+                        IeVendorCalibrationInspectionDetail inspectionDetail =
+                                new IeVendorCalibrationInspectionDetail();
+
+                        inspectionDetail.setInstrumentName(
+                                detail.getInstrumentName());
+
+                        inspectionDetail.setCapacity(
+                                detail.getCapacity());
+
+                        inspectionDetail.setDescription(
+                                detail.getDescription());
+
+                        inspectionDetail.setUsedFor(
+                                detail.getUsedFor());
+
+                        inspectionDetail.setSerialNumber(
+                                detail.getSerialNumber());
+
+                        inspectionDetail.setCalibrationCertificateNo(
+                                detail.getCalibrationCertificateNo());
+
+                        inspectionDetail.setCalibrationDate(
+                                detail.getCalibrationDate());
+
+                        inspectionDetail.setCalibrationDueDate(
+                                detail.getCalibrationDueDate());
+
+                        inspectionDetail.setCertifyingLabName(
+                                detail.getCertifyingLabName());
+
+                        inspectionDetail.setAccreditationAgency(
+                                detail.getAccreditationAgency());
+
+                        inspectionDetail.setNotificationDays(
+                                detail.getNotificationDays());
+
+                        inspectionDetail.setCalibrationStatus(
+                                detail.getCalibrationStatus());
+
+                        inspectionDetail.setInspectionStatus(detail.getCalibrationStatus());
+
+                        inspectionDetail.setInspection(inspection);
+
+                        inspectionDetails.add(inspectionDetail);
+                    }
+                }
+            }
+
+            inspection.setDetails(inspectionDetails);
+
+            IeVendorCalibrationInspection savedInspection =
+                    inspectionRepository.save(inspection);
+
+            return mapToResponseDto(savedInspection);
+        }
+
+        private IeVendorCalibrationInspectionResponseDto mapToResponseDto(
+                IeVendorCalibrationInspection inspection) {
+
+            IeVendorCalibrationInspectionResponseDto dto =
+                    new IeVendorCalibrationInspectionResponseDto();
+
+            dto.setId(inspection.getId());
+            dto.setCallNo(inspection.getCallNo());
+            dto.setPoNumber(inspection.getPoNumber());
+            dto.setVendorCode(inspection.getVendorCode());
+
+            dto.setCreatedBy(inspection.getCreatedBy());
+            dto.setCreatedDate(inspection.getCreatedDate());
+            dto.setUpdatedBy(inspection.getUpdatedBy());
+            dto.setUpdatedDate(inspection.getUpdatedDate());
+
+            List<IeVendorCalibrationInspectionDetailResponseDto> detailDtos =
+                    new ArrayList<>();
+
+            if (inspection.getDetails() != null) {
+
+                for (IeVendorCalibrationInspectionDetail detail :
+                        inspection.getDetails()) {
+
+                    IeVendorCalibrationInspectionDetailResponseDto d =
+                            new IeVendorCalibrationInspectionDetailResponseDto();
+
+                    d.setId(detail.getId());
+                    d.setInstrumentName(detail.getInstrumentName());
+                    d.setCapacity(detail.getCapacity());
+                    d.setDescription(detail.getDescription());
+                    d.setUsedFor(detail.getUsedFor());
+                    d.setSerialNumber(detail.getSerialNumber());
+                    d.setCalibrationCertificateNo(
+                            detail.getCalibrationCertificateNo());
+
+                    d.setCalibrationDate(detail.getCalibrationDate());
+
+                    d.setCalibrationDueDate(
+                            detail.getCalibrationDueDate());
+
+                    d.setCertifyingLabName(
+                            detail.getCertifyingLabName());
+
+                    d.setAccreditationAgency(
+                            detail.getAccreditationAgency());
+
+                    d.setNotificationDays(
+                            detail.getNotificationDays());
+
+                    d.setCalibrationStatus(
+                            detail.getCalibrationStatus());
+
+                    d.setInspectionStatus(
+                            detail.getInspectionStatus());
+
+                    d.setInspectionRemark(
+                            detail.getInspectionRemark());
+
+                    detailDtos.add(d);
+                }
+            }
+
+            dto.setDetails(detailDtos);
+
+            return dto;
+        }
+
+
 }

@@ -1,5 +1,7 @@
 package com.sarthi.service;
 
+import com.sarthi.dto.Calibration.CreateIeVendorCalibrationInspectionRequestDto;
+import com.sarthi.dto.Calibration.IeVendorCalibrationInspectionResponseDto;
 import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
 import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
 
@@ -16,4 +18,10 @@ public interface VendorCalibrationService {
     void deleteCalibrationGroup(Long id);
 
     void deleteCalibrationDetail(Long detailId);
+
+    public IeVendorCalibrationInspectionResponseDto createInspection(
+            CreateIeVendorCalibrationInspectionRequestDto requestDto);
+
+
+    public List<VendorCalibrationHeaderResponseDto> getByVendorCode(String vendorCode);
 }

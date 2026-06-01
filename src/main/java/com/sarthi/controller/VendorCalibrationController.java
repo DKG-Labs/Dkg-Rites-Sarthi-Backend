@@ -1,5 +1,7 @@
 package com.sarthi.controller;
 
+import com.sarthi.dto.Calibration.CreateIeVendorCalibrationInspectionRequestDto;
+import com.sarthi.dto.Calibration.IeVendorCalibrationInspectionResponseDto;
 import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
 import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
 import com.sarthi.service.VendorCalibrationService;
@@ -121,5 +123,22 @@ public class VendorCalibrationController {
                     ResponseBuilder.getSuccessResponse(null),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @GetMapping("/allCalibrations/{vendorCode}")
+    public ResponseEntity<Object> getByVendorCode(@PathVariable String vendorCode) {
+
+        List<VendorCalibrationHeaderResponseDto> res = calibrationService.getByVendorCode(vendorCode);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+
+    }
+
+    @PostMapping("/ie-calibration-inspection")
+    public ResponseEntity<Object> createInspection(
+            @RequestBody CreateIeVendorCalibrationInspectionRequestDto requestDto) {
+
+        IeVendorCalibrationInspectionResponseDto res =  calibrationService.createInspection(requestDto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+
     }
 }
