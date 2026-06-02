@@ -61,4 +61,7 @@ public interface DashboardService {
             LocalDate startDate,
             LocalDate endDate
     );
+    public List<String> getVendorPlantCompanyNames();
+
+    public List<PlantDTO> getVendorPlantsByCompanyName(String companyName);
 }

@@ -311,6 +311,31 @@ public class SleeperDashboard {
                         dashboardService.getQtyPscSleeperReport(start, end)
                 ),
 
+    /**
+     * Get distinct company names from vendor_plant table
+     * for Sleeper Shift Wise Production Report manufacturer dropdown
+     */
+    @GetMapping("/vendor-plant/companies")
+    public ResponseEntity<Object> getVendorPlantCompanies() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getVendorPlantCompanyNames()
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    /**
+     * Get plants by company name from vendor_plant table
+     * for Sleeper Shift Wise Production Report plant dropdown
+     */
+    @GetMapping("/vendor-plant/plants")
+    public ResponseEntity<Object> getVendorPlantsByCompany(
+            @RequestParam String companyName) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getVendorPlantsByCompanyName(companyName)
+                ),
                 HttpStatus.OK
         );
     }
