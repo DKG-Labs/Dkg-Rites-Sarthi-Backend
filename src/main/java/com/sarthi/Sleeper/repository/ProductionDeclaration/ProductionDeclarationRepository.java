@@ -919,4 +919,40 @@ ORDER BY finalData.castingDate DESC
           LocalDate endDate,
           String plantId
   );
+
+
+
+  @Query(value = """
+
+SELECT
+
+    vp.cse AS cse,
+
+    pd.plant_id AS plantId,
+
+    'Mainline' AS sleeperType,
+
+    COALESCE(SUM(pd.total_casted_sleepers),0)
+        AS noOfSleepersProducedDuringMonth
+
+FROM production_declaration pd
+
+LEFT JOIN vendor_plant vp
+    ON vp.plant_id = pd.plant_id
+
+WHERE
+    pd.casting_date BETWEEN :startDate AND :endDate
+
+GROUP BY
+    vp.cse,
+    pd.plant_id
+
+ORDER BY
+    vp.cse
+
+""", nativeQuery = true)
+  List<Object[]> getPSCSleeperQualityReport(
+          LocalDate startDate,
+          LocalDate endDate
+  );
 }

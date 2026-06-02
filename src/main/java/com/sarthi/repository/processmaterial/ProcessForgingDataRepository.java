@@ -52,18 +52,19 @@ AND p.createdAt BETWEEN :startDate AND :endDate
 
 
     @Query("""
-            SELECT COALESCE(SUM(p.embossingDefectRejected),0)
-            FROM ProcessForgingData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
+        SELECT COALESCE(SUM(p.embossingDefectRejected),0)
+        FROM ProcessForgingData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
     Integer getForgingEmbossingSumByDate(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
-            @Param("date") LocalDate date
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 }
 

@@ -50,18 +50,19 @@ AND p.createdAt BETWEEN :startDate AND :endDate
 
 
     @Query("""
-            SELECT COALESCE(SUM(p.embossingDefectRejected),0)
-            FROM ProcessFinalCheckData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
+        SELECT COALESCE(SUM(p.embossingDefectRejected),0)
+        FROM ProcessFinalCheckData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
     Integer getFinalEmbossingSumByDate(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
-            @Param("date") LocalDate date
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
 
@@ -95,18 +96,19 @@ AND created_at BETWEEN :startDate AND :endDate
             LocalDateTime startDate,
             LocalDateTime endDate);
     @Query("""
-            SELECT COALESCE(SUM(p.boxGaugeRejected),0)
-            FROM ProcessFinalCheckData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
+        SELECT COALESCE(SUM(p.boxGaugeRejected),0)
+        FROM ProcessFinalCheckData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
     Integer getFinalBoxGaugeSum(
-            String callNo,
-            String lotNo,
-            String shift,
-            LocalDate date
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo,
+            @Param("shift") String shift,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
 
@@ -128,32 +130,34 @@ AND created_at BETWEEN :startDate AND :endDate
     );
 
     @Query("""
-            SELECT COALESCE(SUM(p.flatBearingAreaRejected),0)
-            FROM ProcessFinalCheckData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
+        SELECT COALESCE(SUM(p.flatBearingAreaRejected),0)
+        FROM ProcessFinalCheckData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
     Integer getFinalFlatBearingSum(
-            String callNo,
-            String lotNo,
-            String shift,
-            LocalDate date
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo,
+            @Param("shift") String shift,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
     @Query("""
-            SELECT COALESCE(SUM(p.fallingGaugeRejected),0)
-            FROM ProcessFinalCheckData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
+        SELECT COALESCE(SUM(p.fallingGaugeRejected),0)
+        FROM ProcessFinalCheckData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
     Integer getFinalFallingGaugeSum(
-            String callNo,
-            String lotNo,
-            String shift,
-            LocalDate date
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo,
+            @Param("shift") String shift,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 }

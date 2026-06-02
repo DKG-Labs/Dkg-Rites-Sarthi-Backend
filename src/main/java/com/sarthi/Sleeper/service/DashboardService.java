@@ -1,6 +1,7 @@
 package com.sarthi.Sleeper.service;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
+import com.sarthi.dto.reports.PSCSleeperQualityReportDto;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -55,4 +56,9 @@ public interface DashboardService {
 
     public List<ShiftWiseProductionReportDto> getReport(LocalDate fromDate,
                                                         LocalDate toDate, String plantId);
+
+    public List<PSCSleeperQualityReportDto> getQtyPscSleeperReport(
+            LocalDate startDate,
+            LocalDate endDate
+    );
 }
