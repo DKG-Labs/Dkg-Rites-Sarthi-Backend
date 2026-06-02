@@ -271,4 +271,26 @@ public class SleeperDashboard {
         );
     }
 
+    @GetMapping("/shift-wise-production")
+    public ResponseEntity<Object> getShiftWiseProductionReport(
+            @RequestParam String startDate,
+            @RequestParam String endDate, @RequestParam String plantId) {
+
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start = LocalDate.parse(startDate, formatter);
+
+        LocalDate end = LocalDate.parse(endDate, formatter);
+
+        return new ResponseEntity<>(
+
+                ResponseBuilder.getSuccessResponse(
+                       dashboardService.getReport(start, end, plantId)
+                ),
+
+                HttpStatus.OK
+        );
+    }
+
 }

@@ -2900,12 +2900,17 @@ public class reportsImpl implements reports {
                         // ================= DATE RANGE =================
 
 
+                       // LocalDate da = p.getCreatedAt().toLocalDate();
+                       // LocalDateTime startDate = da.atStartOfDay();
 
-                        LocalDate da = p.getCreatedAt().toLocalDate();
-                        LocalDateTime startDate = da.atStartOfDay();
 
-                        LocalDateTime endDate = da.atTime(23, 59, 59);
+                       // LocalDateTime endDate = da.atTime(23, 59, 59);
 
+                        LocalDateTime createdAt = p.getCreatedAt();
+
+                        LocalDateTime startDate = createdAt.minusMinutes(2);
+
+                        LocalDateTime endDate = createdAt.plusMinutes(2);
 
 
 

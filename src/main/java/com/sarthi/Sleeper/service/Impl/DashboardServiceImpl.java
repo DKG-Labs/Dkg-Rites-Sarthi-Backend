@@ -957,4 +957,70 @@ public class DashboardServiceImpl implements DashboardService {
         return response;
     }
 
+
+        public List<ShiftWiseProductionReportDto> getReport(  LocalDate fromDate,
+                                                              LocalDate toDate , String plantId)  {
+
+
+
+        List<Object[]> rows =
+                        productionDeclarationRepository.getShiftWiseProductionReport(
+                                fromDate,
+                                toDate,
+                                plantId
+                        );
+
+                List<ShiftWiseProductionReportDto> response =
+                        new ArrayList<>();
+
+                for (Object[] row : rows) {
+
+                    ShiftWiseProductionReportDto dto =
+                            new ShiftWiseProductionReportDto();
+
+                    dto.setDate(row[0] != null ? row[0].toString() : null);
+
+                    dto.setShift(row[1] != null ? row[1].toString() : null);
+
+                    dto.setLineOrShedNo(row[2] != null ? row[2].toString() : null);
+
+                    dto.setNoOfBatches(
+                            row[3] != null
+                                    ? ((Number) row[3]).longValue()
+                                    : 0L
+                    );
+
+                    dto.setNoOfSleepers(
+                            row[4] != null
+                                    ? ((Number) row[4]).intValue()
+                                    : 0
+                    );
+
+                    dto.setSleeperTypesAndCounts(
+                            row[5] != null ? row[5].toString() : ""
+                    );
+
+                    dto.setProcessRejectedSleepers(
+                            row[6] != null
+                                    ? ((Number) row[6]).longValue()
+                                    : 0L
+                    );
+                    dto.setFinalRejectedSleepers(
+                            row[7] != null
+                                    ? ((Number) row[7]).longValue()
+                                    : 0L
+                    );
+
+                    dto.setEtRejectedSleepers(
+                            row[8] != null
+                                    ? ((Number) row[8]).longValue()
+                                    : 0L
+                    );
+                    response.add(dto);
+                }
+
+                return response;
+            }
+
+
 }
