@@ -721,4 +721,202 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
     );
 
 
+  @Query(value = """
+
+SELECT
+
+    finalData.castingDate,
+
+    finalData.shift,
+
+    finalData.lineOrShedNo,
+
+    SUM(finalData.noOfBatches) AS noOfBatches,
+
+    SUM(finalData.noOfSleepers) AS noOfSleepers,
+
+    GROUP_CONCAT(
+        DISTINCT finalData.sleeperTypesAndCounts
+        SEPARATOR ', '
+    ) AS sleeperTypesAndCounts,
+
+    SUM(finalData.processRejectedSleepers)
+        AS processRejectedSleepers,
+
+    SUM(finalData.finalRejectedSleepers)
+        AS finalRejectedSleepers,
+
+    SUM(finalData.etRejectedSleepers)
+        AS etRejectedSleepers
+
+FROM (
+
+    SELECT
+
+        pd.id,
+
+        pd.casting_date AS castingDate,
+
+        pd.shift,
+
+        pd.production_unit AS lineOrShedNo,
+
+        1 AS noOfBatches,
+
+        pd.total_casted_sleepers AS noOfSleepers,
+
+        /* ================= SLEEPER TYPES ================= */
+
+        (
+            SELECT GROUP_CONCAT(
+                CONCAT(temp.sleeper_type,
+                       ' (',
+                       temp.sleeper_count,
+                       ')')
+                SEPARATOR ', '
+            )
+
+            FROM (
+
+                /* ===== STRESS ===== */
+
+                SELECT
+                    pbg.sleeper_type,
+                    COUNT(ps.id) AS sleeper_count
+
+                FROM production_stress_chamber psc
+
+                INNER JOIN production_bench_group pbg
+                    ON pbg.chamber_id = psc.id
+
+                INNER JOIN production_sleeper ps
+                    ON ps.bench_group_id = pbg.id
+
+                WHERE psc.declaration_id = pd.id
+
+                GROUP BY pbg.sleeper_type
+
+                UNION ALL
+
+                /* ===== LONG LINE ===== */
+
+                SELECT
+                    plg.sleeper_type,
+                    COUNT(ps.id) AS sleeper_count
+
+                FROM production_longline_gang plg
+
+                INNER JOIN production_sleeper ps
+                    ON (
+                        (
+                            plg.mode = 'SINGLE'
+                            AND ps.gang_id = plg.gang_no
+                        )
+
+                        OR
+
+                        (
+                            plg.mode = 'RANGE'
+                            AND ps.gang_id BETWEEN plg.gang_from
+                                               AND plg.gang_to
+                        )
+                    )
+
+                WHERE plg.declaration_id = pd.id
+
+                GROUP BY plg.sleeper_type
+
+            ) temp
+
+        ) AS sleeperTypesAndCounts,
+
+        /* ================= PROCESS REJECTED ================= */
+
+        (
+            SELECT COUNT(DISTINCT dds.id)
+
+            FROM demoulding_inspection di
+
+            INNER JOIN demoulding_defective_sleepers dds
+                ON dds.inspection_id = di.id
+
+            WHERE
+                di.casting_date = pd.casting_date
+
+                AND di.line_shed_no = pd.production_unit
+
+                AND di.batch_no = pd.batch_number
+
+                AND (
+                    (
+                        dds.visual_reason IS NOT NULL
+                        AND dds.visual_reason <> ''
+                    )
+
+                    OR
+
+                    (
+                        dds.dim_reason IS NOT NULL
+                        AND dds.dim_reason <> ''
+                    )
+                )
+
+        ) AS processRejectedSleepers,
+
+        /* ================= FINAL REJECTED ================= */
+
+        (
+            SELECT COUNT(DISTINCT itr.id)
+
+            FROM inspection_test_header ith
+
+            INNER JOIN inspection_test_result itr
+                ON itr.test_header_id = ith.id
+
+            WHERE
+                ith.batch_id = pd.id
+
+                AND itr.result = 'REJECTED'
+
+                AND itr.active = 1
+
+        ) AS finalRejectedSleepers,
+
+        /* ================= ET REJECTED ================= */
+
+        (
+            SELECT COUNT(DISTINCT esd.id)
+
+            FROM et_epoxy_treated_sleeper ets
+
+            INNER JOIN et_sleeper_details esd
+                ON esd.et_id = ets.id
+
+            WHERE
+                ets.batch_number = pd.batch_number
+
+        ) AS etRejectedSleepers
+
+    FROM production_declaration pd
+
+    WHERE
+        pd.casting_date BETWEEN :startDate AND :endDate
+
+        AND pd.plant_id = :plantId
+
+) finalData
+
+GROUP BY
+    finalData.castingDate,
+    finalData.shift,
+    finalData.lineOrShedNo
+
+ORDER BY finalData.castingDate DESC
+
+""", nativeQuery = true)
+  List<Object[]> getShiftWiseProductionReport(
+          LocalDate startDate,
+          LocalDate endDate,
+          String plantId
+  );
 }

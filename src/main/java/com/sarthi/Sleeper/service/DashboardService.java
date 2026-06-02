@@ -53,4 +53,6 @@ public interface DashboardService {
             LocalDate fromDate,
             LocalDate toDate);
 
+    public List<ShiftWiseProductionReportDto> getReport(LocalDate fromDate,
+                                                        LocalDate toDate, String plantId);
 }
