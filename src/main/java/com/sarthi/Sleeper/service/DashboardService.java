@@ -49,4 +49,8 @@ public interface DashboardService {
             LocalDate fromDate,
             LocalDate toDate);
 
+    public List<SleeperEmpPerformanceDto> getEmployeePerformance(
+            LocalDate fromDate,
+            LocalDate toDate);
+
 }

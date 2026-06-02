@@ -248,5 +248,27 @@ public class SleeperDashboard {
         );
     }
 
+    @GetMapping("/employee-wise-performance")
+    public ResponseEntity<Object> getEmployeeWisePerformance(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start = LocalDate.parse(startDate, formatter);
+
+        LocalDate end = LocalDate.parse(endDate, formatter);
+
+        return new ResponseEntity<>(
+
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getEmployeePerformance(start, end)
+
+                ),
+
+                HttpStatus.OK
+        );
+    }
 
 }
