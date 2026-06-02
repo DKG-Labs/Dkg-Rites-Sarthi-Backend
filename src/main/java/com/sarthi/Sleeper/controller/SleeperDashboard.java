@@ -311,6 +311,10 @@ public class SleeperDashboard {
                         dashboardService.getQtyPscSleeperReport(start, end)
                 ),
 
+                HttpStatus.OK
+        );
+    }
+
     /**
      * Get distinct company names from vendor_plant table
      * for Sleeper Shift Wise Production Report manufacturer dropdown

@@ -1067,6 +1067,8 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         return response;
+    }
+
     @Override
     public List<String> getVendorPlantCompanyNames() {
         return vendorPlantRepository.findDistinctCompanyNames();
