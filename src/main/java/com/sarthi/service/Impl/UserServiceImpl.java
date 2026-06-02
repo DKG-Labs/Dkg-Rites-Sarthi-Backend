@@ -728,7 +728,7 @@ public class UserServiceImpl implements UserService {
         } else if ("RPF".equalsIgnoreCase(prefix)) {
             return iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
         } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
-            return pincodePoIMappingRepository.findIeEmpCodeWithName(poiCode);
+            return iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
         } else {
             throw new RuntimeException("Invalid Call Type");
         }

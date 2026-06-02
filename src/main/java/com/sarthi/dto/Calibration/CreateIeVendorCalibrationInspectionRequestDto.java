@@ -2,6 +2,7 @@ package com.sarthi.dto.Calibration;
 
 
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class CreateIeVendorCalibrationInspectionRequestDto {
@@ -11,4 +12,6 @@ public class CreateIeVendorCalibrationInspectionRequestDto {
     private String poNumber;
 
     private String vendorCode;
+
+    private List<IeVendorCalibrationInspectionDetailRequestDto> details;
 }

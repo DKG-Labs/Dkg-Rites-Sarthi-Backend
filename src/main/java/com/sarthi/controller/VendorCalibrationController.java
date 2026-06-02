@@ -4,6 +4,8 @@ import com.sarthi.dto.Calibration.CreateIeVendorCalibrationInspectionRequestDto;
 import com.sarthi.dto.Calibration.IeVendorCalibrationInspectionResponseDto;
 import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
 import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
+import com.sarthi.entity.VendorMaster;
+import com.sarthi.repository.VendorMasterRepository;
 import com.sarthi.service.VendorCalibrationService;
 import com.sarthi.util.ResponseBuilder;
 import org.slf4j.Logger;
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/vendor/calibration")
@@ -25,6 +29,9 @@ public class VendorCalibrationController {
 
     @Autowired
     private VendorCalibrationService calibrationService;
+
+    @Autowired
+    private VendorMasterRepository vendorMasterRepository;
 
     /**
      * Create or update a calibration group (header + details)
@@ -141,4 +148,61 @@ public class VendorCalibrationController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
 
     }
+
+    @GetMapping("/ie-calibration-inspection/{callNo}")
+    public ResponseEntity<Object> getInspectionByCallNo(@PathVariable String callNo) {
+        logger.info("Received request to fetch IE calibration inspection for call: {}", callNo);
+        try {
+            IeVendorCalibrationInspectionResponseDto response = calibrationService.getInspectionByCallNo(callNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error fetching IE calibration inspection: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Lookup vendor code by manufacturer/vendor name.
+     * GET /api/vendor/calibration/vendor-code-by-name?vendorName=...
+     *
+     * Returns the vendor_code from vendor_master matching the given vendor name.
+     */
+    @GetMapping("/vendor-code-by-name")
+    public ResponseEntity<Object> getVendorCodeByName(@RequestParam String vendorName) {
+        logger.info("Looking up vendor code for name: {}", vendorName);
+        try {
+            // Try exact match first
+            Optional<VendorMaster> exact = vendorMasterRepository.findByVendorNameIgnoreCase(vendorName);
+            if (exact.isPresent()) {
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                Map.of("vendorCode", exact.get().getVendorCode(),
+                                       "vendorName", exact.get().getVendorName())),
+                        HttpStatus.OK);
+            }
+
+            // Fall back to partial match
+            List<VendorMaster> partialMatches = vendorMasterRepository.findByVendorNameContainingIgnoreCase(vendorName);
+            if (!partialMatches.isEmpty()) {
+                VendorMaster best = partialMatches.get(0);
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                Map.of("vendorCode", best.getVendorCode(),
+                                       "vendorName", best.getVendorName())),
+                        HttpStatus.OK);
+            }
+
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            logger.error("Error looking up vendor code by name: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
+

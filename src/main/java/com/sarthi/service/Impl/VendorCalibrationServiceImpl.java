@@ -268,80 +268,112 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
         public IeVendorCalibrationInspectionResponseDto createInspection(
                 CreateIeVendorCalibrationInspectionRequestDto requestDto) {
 
-            List<VendorCalibrationHeader> vendorHeaders =
-                    headerRepository.findByVendorCode(
-                            requestDto.getVendorCode());
+            // Check if an inspection already exists for this callNo
+            Optional<IeVendorCalibrationInspection> existingOpt =
+                    inspectionRepository.findByCallNo(requestDto.getCallNo());
 
-            IeVendorCalibrationInspection inspection =
-                    new IeVendorCalibrationInspection();
+            IeVendorCalibrationInspection inspection;
+            boolean isNew = false;
+            if (existingOpt.isPresent()) {
+                inspection = existingOpt.get();
+                if (requestDto.getPoNumber() != null) {
+                    inspection.setPoNumber(requestDto.getPoNumber());
+                }
+                if (requestDto.getVendorCode() != null) {
+                    inspection.setVendorCode(requestDto.getVendorCode());
+                }
+            } else {
+                inspection = new IeVendorCalibrationInspection();
+                inspection.setCallNo(requestDto.getCallNo());
+                inspection.setPoNumber(requestDto.getPoNumber());
+                inspection.setVendorCode(requestDto.getVendorCode());
+                isNew = true;
+            }
 
-            inspection.setCallNo(requestDto.getCallNo());
-            inspection.setPoNumber(requestDto.getPoNumber());
-            inspection.setVendorCode(requestDto.getVendorCode());
+            List<IeVendorCalibrationInspectionDetail> inspectionDetails = inspection.getDetails();
+            if (inspectionDetails == null) {
+                inspectionDetails = new ArrayList<>();
+                inspection.setDetails(inspectionDetails);
+            }
 
-            List<IeVendorCalibrationInspectionDetail> inspectionDetails =
-                    new ArrayList<>();
+            // If request has custom verification details (IE is saving from UI)
+            if (requestDto.getDetails() != null && !requestDto.getDetails().isEmpty()) {
+                for (com.sarthi.dto.Calibration.IeVendorCalibrationInspectionDetailRequestDto reqDetail : requestDto.getDetails()) {
+                    // Try to find matching detail in current list
+                    IeVendorCalibrationInspectionDetail match = null;
+                    for (IeVendorCalibrationInspectionDetail existingDetail : inspectionDetails) {
+                        if (existingDetail.getInstrumentName() != null && 
+                            existingDetail.getInstrumentName().equalsIgnoreCase(reqDetail.getInstrumentName()) &&
+                            existingDetail.getSerialNumber() != null && 
+                            existingDetail.getSerialNumber().equalsIgnoreCase(reqDetail.getSerialNumber())) {
+                            match = existingDetail;
+                            break;
+                        }
+                    }
 
-            for (VendorCalibrationHeader header : vendorHeaders) {
+                    if (match != null) {
+                        // Update status and remark
+                        match.setInspectionStatus(reqDetail.getInspectionStatus());
+                        match.setInspectionRemark(reqDetail.getInspectionRemark());
+                    } else {
+                        // Create a new detail
+                        IeVendorCalibrationInspectionDetail newDetail = new IeVendorCalibrationInspectionDetail();
+                        newDetail.setInstrumentName(reqDetail.getInstrumentName());
+                        newDetail.setCapacity(reqDetail.getCapacity());
+                        newDetail.setSerialNumber(reqDetail.getSerialNumber());
+                        newDetail.setCalibrationCertificateNo(reqDetail.getCalibrationCertificateNo());
+                        newDetail.setInspectionStatus(reqDetail.getInspectionStatus());
+                        newDetail.setInspectionRemark(reqDetail.getInspectionRemark());
+                        newDetail.setCalibrationStatus(reqDetail.getInspectionStatus()); // fallback
+                        newDetail.setInspection(inspection);
+                        inspectionDetails.add(newDetail);
+                    }
+                }
+            } else if (isNew) {
+                // Initial auto-save: populate from active vendor calibrations
+                List<VendorCalibrationHeader> vendorHeaders =
+                        headerRepository.findByVendorCode(requestDto.getVendorCode());
 
-                if (header.getDetails() != null) {
+                for (VendorCalibrationHeader header : vendorHeaders) {
+                    if (header.getDetails() != null) {
+                        for (VendorCalibrationDetail detail : header.getDetails()) {
+                            IeVendorCalibrationInspectionDetail inspectionDetail =
+                                    new IeVendorCalibrationInspectionDetail();
 
-                    for (VendorCalibrationDetail detail : header.getDetails()) {
-
-                        IeVendorCalibrationInspectionDetail inspectionDetail =
-                                new IeVendorCalibrationInspectionDetail();
-
-                        inspectionDetail.setInstrumentName(
-                                detail.getInstrumentName());
-
-                        inspectionDetail.setCapacity(
-                                detail.getCapacity());
-
-                        inspectionDetail.setDescription(
-                                detail.getDescription());
-
-                        inspectionDetail.setUsedFor(
-                                detail.getUsedFor());
-
-                        inspectionDetail.setSerialNumber(
-                                detail.getSerialNumber());
-
-                        inspectionDetail.setCalibrationCertificateNo(
-                                detail.getCalibrationCertificateNo());
-
-                        inspectionDetail.setCalibrationDate(
-                                detail.getCalibrationDate());
-
-                        inspectionDetail.setCalibrationDueDate(
-                                detail.getCalibrationDueDate());
-
-                        inspectionDetail.setCertifyingLabName(
-                                detail.getCertifyingLabName());
-
-                        inspectionDetail.setAccreditationAgency(
-                                detail.getAccreditationAgency());
-
-                        inspectionDetail.setNotificationDays(
-                                detail.getNotificationDays());
-
-                        inspectionDetail.setCalibrationStatus(
-                                detail.getCalibrationStatus());
-
-                        inspectionDetail.setInspectionStatus(detail.getCalibrationStatus());
-
-                        inspectionDetail.setInspection(inspection);
-
-                        inspectionDetails.add(inspectionDetail);
+                            inspectionDetail.setInstrumentName(detail.getInstrumentName());
+                            inspectionDetail.setCapacity(detail.getCapacity());
+                            inspectionDetail.setDescription(detail.getDescription());
+                            inspectionDetail.setUsedFor(detail.getUsedFor());
+                            inspectionDetail.setSerialNumber(detail.getSerialNumber());
+                            inspectionDetail.setCalibrationCertificateNo(detail.getCalibrationCertificateNo());
+                            inspectionDetail.setCalibrationDate(detail.getCalibrationDate());
+                            inspectionDetail.setCalibrationDueDate(detail.getCalibrationDueDate());
+                            inspectionDetail.setCertifyingLabName(detail.getCertifyingLabName());
+                            inspectionDetail.setAccreditationAgency(detail.getAccreditationAgency());
+                            inspectionDetail.setNotificationDays(detail.getNotificationDays());
+                            inspectionDetail.setCalibrationStatus(detail.getCalibrationStatus());
+                            
+                            // Default inspection status is same as vendor calibration status
+                            inspectionDetail.setInspectionStatus(detail.getCalibrationStatus());
+                            inspectionDetail.setInspection(inspection);
+                            inspectionDetails.add(inspectionDetail);
+                        }
                     }
                 }
             }
-
-            inspection.setDetails(inspectionDetails);
 
             IeVendorCalibrationInspection savedInspection =
                     inspectionRepository.save(inspection);
 
             return mapToResponseDto(savedInspection);
+        }
+
+        @Override
+        public IeVendorCalibrationInspectionResponseDto getInspectionByCallNo(String callNo) {
+            Optional<IeVendorCalibrationInspection> inspectionOpt =
+                    inspectionRepository.findByCallNo(callNo);
+            
+            return inspectionOpt.map(this::mapToResponseDto).orElse(null);
         }
 
         private IeVendorCalibrationInspectionResponseDto mapToResponseDto(

@@ -14,4 +14,8 @@ public interface VendorMasterRepository extends JpaRepository<VendorMaster, Long
 
     List<VendorMaster> findByVendorCodeIn(List<String> vendorCodes);
 
+    Optional<VendorMaster> findByVendorNameIgnoreCase(String vendorName);
+
+    List<VendorMaster> findByVendorNameContainingIgnoreCase(String vendorName);
+
 }

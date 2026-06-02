@@ -22,6 +22,7 @@ public interface VendorCalibrationService {
     public IeVendorCalibrationInspectionResponseDto createInspection(
             CreateIeVendorCalibrationInspectionRequestDto requestDto);
 
+    public IeVendorCalibrationInspectionResponseDto getInspectionByCallNo(String callNo);
 
     public List<VendorCalibrationHeaderResponseDto> getByVendorCode(String vendorCode);
 }
