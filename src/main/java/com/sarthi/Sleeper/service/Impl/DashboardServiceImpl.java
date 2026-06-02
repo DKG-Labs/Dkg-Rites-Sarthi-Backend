@@ -16,6 +16,7 @@ import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeStrength
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
 import com.sarthi.Sleeper.service.DashboardService;
+import com.sarthi.dto.reports.PSCSleeperQualityReportDto;
 import jakarta.persistence.Access;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -1022,5 +1023,50 @@ public class DashboardServiceImpl implements DashboardService {
                 return response;
             }
 
+
+    // SERVICE
+
+    public List<PSCSleeperQualityReportDto> getQtyPscSleeperReport(
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+
+        List<Object[]> rows =
+                productionDeclarationRepository.getPSCSleeperQualityReport(
+                        startDate,
+                        endDate
+                );
+
+        List<PSCSleeperQualityReportDto> response =
+                new ArrayList<>();
+
+        for (Object[] row : rows) {
+
+            PSCSleeperQualityReportDto dto =
+                    new PSCSleeperQualityReportDto();
+
+            dto.setCse(
+                    row[0] != null ? row[0].toString() : ""
+            );
+
+            dto.setPlantId(
+                    row[1] != null ? row[1].toString() : ""
+            );
+
+            dto.setSleeperType(
+                    row[2] != null ? row[2].toString() : ""
+            );
+
+            dto.setNoOfSleepersProducedDuringMonth(
+                    row[3] != null
+                            ? ((Number) row[3]).longValue()
+                            : 0L
+            );
+
+            response.add(dto);
+        }
+
+        return response;
+    }
 
 }

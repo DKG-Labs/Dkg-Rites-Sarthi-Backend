@@ -3,6 +3,7 @@ package com.sarthi.repository.processmaterial;
 import com.sarthi.entity.processmaterial.ProcessQuenchingData;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -28,7 +29,7 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
 
     void deleteByInspectionCallNo(String inspectionCallNo);
 
-    @Query("""
+ /*   @Query("""
             SELECT COALESCE(SUM(p.boxGaugeRejected),0)
             FROM ProcessQuenchingData p
             WHERE p.inspectionCallNo = :callNo
@@ -41,7 +42,22 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
             String lotNo,
             String shift,
             LocalDate date
-    );
+    ); */
+ @Query("""
+        SELECT COALESCE(SUM(p.boxGaugeRejected),0)
+        FROM ProcessQuenchingData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
+ Integer getQuenchingBoxGaugeSum(
+         @Param("callNo") String callNo,
+         @Param("lotNo") String lotNo,
+         @Param("shift") String shift,
+         @Param("startDate") LocalDateTime startDate,
+         @Param("endDate") LocalDateTime endDate
+ );
 
     @Query("""
             SELECT
@@ -61,33 +77,35 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
     );
 
     @Query("""
-            SELECT COALESCE(SUM(p.flatBearingAreaRejected),0)
-            FROM ProcessQuenchingData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
+        SELECT COALESCE(SUM(p.flatBearingAreaRejected),0)
+        FROM ProcessQuenchingData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
     Integer getQuenchingFlatBearingSum(
-            String callNo,
-            String lotNo,
-            String shift,
-            LocalDate date
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo,
+            @Param("shift") String shift,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
     @Query("""
-            SELECT COALESCE(SUM(p.fallingGaugeRejected),0)
-            FROM ProcessQuenchingData p
-            WHERE p.inspectionCallNo = :callNo
-            AND p.lotNo = :lotNo
-            AND p.shift = :shift
-            AND DATE(p.createdAt) = :date
-            """)
+        SELECT COALESCE(SUM(p.fallingGaugeRejected),0)
+        FROM ProcessQuenchingData p
+        WHERE p.inspectionCallNo = :callNo
+        AND p.lotNo = :lotNo
+        AND p.shift = :shift
+        AND p.createdAt BETWEEN :startDate AND :endDate
+        """)
     Integer getQuenchingFallingGaugeSum(
-            String callNo,
-            String lotNo,
-            String shift,
-            LocalDate date
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo,
+            @Param("shift") String shift,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
     @Query(value = """

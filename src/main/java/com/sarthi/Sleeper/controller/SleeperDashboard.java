@@ -293,4 +293,26 @@ public class SleeperDashboard {
         );
     }
 
+    @GetMapping("/qtyOfPSCSleepers")
+    public ResponseEntity<Object> getQtyOfPscSleeperReport(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start = LocalDate.parse(startDate, formatter);
+
+        LocalDate end = LocalDate.parse(endDate, formatter);
+
+        return new ResponseEntity<>(
+
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getQtyPscSleeperReport(start, end)
+                ),
+
+                HttpStatus.OK
+        );
+    }
+
 }
