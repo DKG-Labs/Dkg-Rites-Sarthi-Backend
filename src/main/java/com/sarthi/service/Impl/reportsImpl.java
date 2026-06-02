@@ -179,8 +179,7 @@ public class reportsImpl implements reports {
 
         @Autowired
         private RailProductionDeclarationRepository railProductionDeclarationRepository;
-        @Autowired
-        private RailProductionDeclarationRepository railProductionDeclarationRepository;
+
         @Autowired
         private PincodePoIMappingRepository pincodePoIMappingRepository;
 
