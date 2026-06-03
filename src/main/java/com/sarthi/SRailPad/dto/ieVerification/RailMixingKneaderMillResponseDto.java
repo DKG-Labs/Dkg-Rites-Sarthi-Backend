@@ -1,0 +1,26 @@
+package com.sarthi.SRailPad.dto.ieVerification;
+
+import lombok.Data;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Data
+public class RailMixingKneaderMillResponseDto {
+    private Long id;
+    private String plantId;
+    private String vendorCode;
+    private String shift;
+    private LocalDate castingDate;
+    private String railPadType;
+    private String batchNo;
+    private Double mixingTime;
+    private Double mixingTemp;
+    private String waterCirculation;
+    private String dustCollector;
+    private String status;
+    private String timestamp;
+    private Long createdBy;
+    private LocalDateTime createdDate;
+    private Long updatedBy;
+    private LocalDateTime updatedDate;
+}
