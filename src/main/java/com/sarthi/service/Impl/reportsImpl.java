@@ -6875,5 +6875,58 @@ public class reportsImpl implements reports {
 
     }
 
+    @Override
+    public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product) {
+        List<Object[]> rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw();
+        List<com.sarthi.dto.reports.IcAnnexuresReportDto> resultList = new java.util.ArrayList<>();
+        
+        if (rawList == null) {
+            return resultList;
+        }
+
+        String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
+
+        for (Object[] row : rawList) {
+            String itemCatDescr = row[8] != null ? row[8].toString() : "";
+            
+            com.sarthi.dto.reports.IcAnnexuresReportDto dto = com.sarthi.dto.reports.IcAnnexuresReportDto.builder()
+                .vendorName(row[0] != null ? row[0].toString() : "")
+                .railwayShortName(row[1] != null ? row[1].toString() : "")
+                .poNumberOnly(row[2] != null ? row[2].toString() : "")
+                .poSerialNumber(row[3] != null ? row[3].toString() : "")
+                .callNumber(row[4] != null ? row[4].toString() : "")
+                .icNumber(row[5] != null ? row[5].toString() : "")
+                .stage(row[6] != null ? row[6].toString() : "")
+                .icIssuedDate(row[7] != null ? row[7].toString() : "")
+                .itemCatDescr(itemCatDescr)
+                .build();
+
+            if (!filterProduct.isEmpty()) {
+                String catLower = itemCatDescr.toLowerCase();
+                if (filterProduct.contains("sleeper") || "sleeper".equals(filterProduct)) {
+                    if (catLower.contains("sleeper")) {
+                        resultList.add(dto);
+                    }
+                } else if (filterProduct.contains("pad") || "rail pad".equals(filterProduct)) {
+                    if (catLower.contains("pad")) {
+                        resultList.add(dto);
+                    }
+                } else if (filterProduct.contains("erc") || "erc".equals(filterProduct)) {
+                    if (catLower.contains("clip") || catLower.contains("erc")) {
+                        resultList.add(dto);
+                    }
+                } else {
+                    if (catLower.contains(filterProduct)) {
+                        resultList.add(dto);
+                    }
+                }
+            } else {
+                resultList.add(dto);
+            }
+        }
+
+        return resultList;
+    }
+
 }
 

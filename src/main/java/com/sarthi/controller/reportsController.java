@@ -5,9 +5,11 @@ import com.sarthi.dto.reports.FourthLevelInspectionDto;
 import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
 import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
 import com.sarthi.dto.reports.PoIssuedDetailDto;
+import com.sarthi.dto.reports.IcAnnexuresReportDto;
 import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
 import com.sarthi.service.reports;
 import com.sarthi.util.ResponseBuilder;
+import com.sarthi.exception.ErrorDetails;
 import jakarta.persistence.Access;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -227,6 +229,23 @@ public class reportsController {
     public ResponseEntity<Object> getAllCompanies() {
         List<String> list = reportService.getAllCompanies();
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/downloadIcAnnexures")
+    public ResponseEntity<Object> getDownloadIcAnnexuresReport(@RequestParam(required = false) String product) {
+        try {
+            List<IcAnnexuresReportDto> list = reportService.getDownloadIcAnnexuresReport(product);
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ErrorDetails errorDetails = new ErrorDetails(
+                    500,
+                    500,
+                    "ERROR",
+                    "Error: " + e.getMessage() + " | Type: " + e.getClass().getName()
+            );
+            return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }
 

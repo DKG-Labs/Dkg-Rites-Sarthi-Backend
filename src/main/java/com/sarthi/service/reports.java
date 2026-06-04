@@ -85,5 +85,7 @@ public interface reports {
             String endDate);
 
     public List<String> getAllCompanies();
+
+    public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product);
 }
 

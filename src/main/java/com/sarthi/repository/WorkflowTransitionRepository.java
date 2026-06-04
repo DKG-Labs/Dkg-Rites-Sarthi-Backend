@@ -340,4 +340,26 @@ AND wt.status = 'DSC_SIGN_IC'
         ORDER BY ic.created_at DESC
         """, nativeQuery = true)
   List<Object[]> getInspectionCallStatusDetailsRaw(@Param("stage") String stage, @Param("status") String status);
+
+  @Query(value = """
+        SELECT DISTINCT
+            vm.vendor_name AS vendorName,
+            ph.rly_short_name AS railwayShortName,
+            ic.po_no AS poNumberOnly,
+            ic.po_serial_no AS poSerialNumber,
+            ic.ic_number AS callNumber,
+            COALESCE(icd.certificate_no, '') AS icNumber,
+            ic.type_of_call AS stage,
+            DATE_FORMAT(wt.CREATEDDATE, '%Y-%m-%d') AS icIssuedDate,
+            ph.item_cat_descr AS itemCatDescr,
+            wt.CREATEDDATE AS rawCreatedDate
+        FROM workflow_transition wt
+        INNER JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
+        INNER JOIN po_header ph ON ic.po_no = ph.po_no
+        LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
+        LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.call_no
+        WHERE wt.STATUS = 'DSC_SIGN_IC'
+        ORDER BY rawCreatedDate DESC
+        """, nativeQuery = true)
+  List<Object[]> findDownloadIcAnnexuresReportRaw();
 }
