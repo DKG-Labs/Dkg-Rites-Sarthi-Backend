@@ -306,7 +306,7 @@ AND wt.status = 'DSC_SIGN_IC'
                 WHEN ic.ic_number LIKE '%EF%' THEN 'Final Stage'
                 ELSE 'Other'
             END AS stageOfInspection,
-            CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no, ' / ', COALESCE(ic.po_serial_no, 'N/A')) AS poSrNo,
+            CONCAT(COALESCE(ph.rly_short_name, ph.rly_cd, 'N/A'), '/', ic.po_no, '/', COALESCE(ic.po_serial_no, 'N/A')) AS poSrNo,
             DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
             CASE 
                 WHEN t.has_initiate = 1 THEN 'Under Inspection'

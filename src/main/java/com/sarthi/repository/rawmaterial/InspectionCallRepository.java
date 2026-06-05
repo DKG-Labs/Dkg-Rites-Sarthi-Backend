@@ -767,7 +767,7 @@ ORDER BY month
     List<Object[]> findCompanyUnitIcNumbers();
 
     @Query(value = """
-            SELECT DISTINCT ic.po_no, ph.rly_cd
+            SELECT DISTINCT ic.po_no, ph.rly_short_name
             FROM inspection_calls ic
             JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
             WHERE ic.company_name = :manufacturer
