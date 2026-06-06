@@ -250,7 +250,7 @@ public class reportsController {
             );
             return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
+    }
 
         @GetMapping("/cm-inspection-calls")
         public ResponseEntity<Object> getInspectionCallsReport (
@@ -273,9 +273,7 @@ public class reportsController {
         }
 
         @GetMapping("/cm-ie-wise-callStatus")
-        public ResponseEntity<Object> getCmIeWiseCallStatus (
-                @RequestParam(required = false) String cmEmpId
-          ){
+        public ResponseEntity<Object> getCmIeWiseCallStatus (@RequestParam(required = false) String cmEmpId){
 
             List<IeWiseCallStatusWorkloadSummaryDto> list = reportService.getIeWiseCallStatusWorkloadSummary(cmEmpId);
 
