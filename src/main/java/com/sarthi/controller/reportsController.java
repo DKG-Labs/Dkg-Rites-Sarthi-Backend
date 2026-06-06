@@ -1,11 +1,15 @@
 package com.sarthi.controller;
 
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
+
 import com.sarthi.dto.reports.FourthLevelInspectionDto;
 import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
 import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
 import com.sarthi.dto.reports.PoIssuedDetailDto;
 import com.sarthi.dto.reports.IcAnnexuresReportDto;
+
+import com.sarthi.dto.reports.*;
+
 import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
 import com.sarthi.service.reports;
 import com.sarthi.util.ResponseBuilder;
@@ -246,6 +250,47 @@ public class reportsController {
             );
             return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-    }
+
+
+        @GetMapping("/cm-inspection-calls")
+        public ResponseEntity<Object> getInspectionCallsReport (
+                @RequestParam(required = false) String startDate,
+                @RequestParam(required = false) String endDate){
+
+            List<InspectionCallsReportDto> list = reportService.getInspectionCallsReport(startDate, endDate);
+
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+        }
+
+        @GetMapping("/cm-erc-overduecalls")
+        public ResponseEntity<Object> getCmOverDueErcCalls (
+                @RequestParam(required = false) String startDate,
+                @RequestParam(required = false) String endDate){
+
+            List<InspectionCallsReportDto> list = reportService.getOverduePendingInspectionCallsReport(startDate, endDate);
+
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+        }
+
+        @GetMapping("/cm-ie-wise-callStatus")
+        public ResponseEntity<Object> getCmIeWiseCallStatus (
+                @RequestParam(required = false) String cmEmpId
+          ){
+
+            List<IeWiseCallStatusWorkloadSummaryDto> list = reportService.getIeWiseCallStatusWorkloadSummary(cmEmpId);
+
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+        }
+
+
+        @GetMapping("/cm-completed-calls-analysis")
+        public ResponseEntity<Object> getCmIeCompletedCalls (@RequestParam(required = false) String cmEmpId){
+
+            List<IeOperationalSlaPerformanceSummaryDto> list = reportService.getIeOperationalSlaPerformanceSummary(cmEmpId);
+
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+
+        }
+
 }
 

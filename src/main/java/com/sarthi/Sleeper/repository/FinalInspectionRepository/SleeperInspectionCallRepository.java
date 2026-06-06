@@ -164,4 +164,664 @@ WHERE ph.item_cat_descr = 'PSC Mainline Sleeper'
   List<MprProjection> getMprData(
           @Param("startDate") LocalDate startDate,
           @Param("endDate") LocalDate endDate);
+
+
+    @Query(value = """
+
+    SELECT
+
+        sic.call_no AS callNumber,
+
+        CONCAT('Sleeper - Final')
+            AS productAndStageOfInspection,
+
+        CONCAT(sic.po_no, '-', sic.sr_no)
+            AS poNumber,
+
+        NULL AS deliveryDate,
+
+        NULL AS expectedDeliveryDate,
+
+        ph.vendor_details AS vendorName,
+
+        NULL AS inspectionDesiredDate,
+
+        sic.created_at AS callDate,
+
+        (
+            SELECT um.username
+
+            FROM sleeper_poi_ie_mapping spim
+
+            JOIN user_master um
+                ON um.userid = spim.ie_user_id
+
+            WHERE spim.plant_id = sic.plant_id
+              AND spim.ie_type = 'Main IE'
+
+            LIMIT 1
+        ) AS ieName,
+
+        (
+            SELECT upcm.cm_employee_code
+
+            FROM user_product_cm_mapping upcm
+
+            WHERE upcm.user_employee_code =
+
+            (
+                SELECT um.employee_code
+
+                FROM sleeper_poi_ie_mapping spim
+
+                JOIN user_master um
+                    ON um.userid = spim.ie_user_id
+
+                WHERE spim.plant_id = sic.plant_id
+                  AND spim.ie_type = 'Main IE'
+
+                LIMIT 1
+            )
+
+            AND upcm.product_type = 'SLEEPER'
+
+            LIMIT 1
+
+        ) AS cmName,
+
+        (
+            SELECT ifm.rio
+
+            FROM sleeper_pincode_poi_mapping sppm
+
+            JOIN ie_fields_mapping ifm
+                ON ifm.pin_code = sppm.pin_code
+                AND ifm.product = 'Sleeper'
+
+            WHERE sppm.vendor_code = sic.created_by
+
+            LIMIT 1
+
+        ) AS ritesRio,
+
+        (
+            SELECT
+
+                CASE
+
+                    WHEN swt.action = 'CREATED'
+                        THEN 'Pending for Call Desk Verification'
+
+                    WHEN swt.action = 'VERIFY'
+                        THEN 'Pending - Assigned to IE'
+
+                    WHEN swt.action = 'MAIN_IE_SCHEDULE_CALL'
+                        THEN 'Pending - Schedule'
+
+                    WHEN swt.action IN (
+                        'INITIATE_CALL',
+                        'PO_VERIFICATION',
+                        'PAUSE'
+                    )
+                        THEN 'Under Inspection'
+
+                    WHEN swt.action = 'FINISH'
+                        THEN 'Completed (Pending for IC Issue)'
+
+                    ELSE 'Under Inspection'
+
+                END
+
+            FROM sleeper_workflow_transaction swt
+
+            WHERE swt.workflow_transition_id = (
+
+                SELECT MAX(swt2.workflow_transition_id)
+
+                FROM sleeper_workflow_transaction swt2
+
+                WHERE swt2.request_id = sic.call_no
+
+            )
+
+        ) AS status
+
+    FROM sleeper_inspection_call sic
+
+    LEFT JOIN po_header ph
+        ON ph.po_no = sic.po_no
+
+    WHERE sic.created_at BETWEEN :fromDate AND :toDate
+
+    ORDER BY sic.created_at DESC
+
+    """, nativeQuery = true)
+    List<Object[]> getSleeperInspectionReport(
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate
+    );
+
+    @Query(value = """
+
+    SELECT
+
+        sic.call_no AS callNumber,
+
+        CONCAT('Sleeper - Final')
+            AS productAndStageOfInspection,
+
+        CONCAT(sic.po_no, '-', sic.sr_no)
+            AS poNumber,
+
+        NULL AS deliveryDate,
+
+        NULL AS expectedDeliveryDate,
+
+        ph.vendor_details AS vendorName,
+
+        sic.desired_inspection_date AS inspectionDesiredDate,
+
+        sic.created_at AS callDate,
+
+        (
+            SELECT um.username
+
+            FROM sleeper_poi_ie_mapping spim
+
+            JOIN user_master um
+                ON um.userid = spim.ie_user_id
+
+            WHERE spim.plant_id = sic.plant_id
+              AND spim.ie_type = 'Main IE'
+
+            LIMIT 1
+        ) AS ieName,
+
+        (
+            SELECT upcm.cm_employee_code
+
+            FROM user_product_cm_mapping upcm
+
+            WHERE upcm.user_employee_code =
+
+            (
+                SELECT um.employee_code
+
+                FROM sleeper_poi_ie_mapping spim
+
+                JOIN user_master um
+                    ON um.userid = spim.ie_user_id
+
+                WHERE spim.plant_id = sic.plant_id
+                  AND spim.ie_type = 'Main IE'
+
+                LIMIT 1
+            )
+
+            AND upcm.product_type = 'SLEEPER'
+
+            LIMIT 1
+
+        ) AS cmName,
+
+        (
+            SELECT ifm.rio
+
+            FROM sleeper_pincode_poi_mapping sppm
+
+            JOIN ie_fields_mapping ifm
+                ON ifm.pin_code = sppm.pin_code
+                AND ifm.product = 'Sleeper'
+
+            WHERE sppm.vendor_code = sic.created_by
+
+            LIMIT 1
+
+        ) AS ritesRio,
+
+        (
+            SELECT
+
+                CASE
+
+                    WHEN swt.action = 'CREATED'
+                        THEN 'Pending for Call Desk Verification'
+
+                    WHEN swt.action = 'VERIFY'
+                        THEN 'Pending - Assigned to IE'
+
+                    WHEN swt.action = 'MAIN_IE_SCHEDULE_CALL'
+                        THEN 'Pending - Schedule'
+
+                    WHEN swt.action IN (
+                        'INITIATE_CALL',
+                        'PO_VERIFICATION',
+                        'PAUSE'
+                    )
+                        THEN 'Under Inspection'
+
+                    WHEN swt.action = 'FINISH'
+                        THEN 'Completed (Pending for IC Issue)'
+
+                    ELSE 'Under Inspection'
+
+                END
+
+            FROM sleeper_workflow_transaction swt
+
+            WHERE swt.workflow_transition_id = (
+
+                SELECT MAX(swt2.workflow_transition_id)
+
+                FROM sleeper_workflow_transaction swt2
+
+                WHERE swt2.request_id = sic.call_no
+
+            )
+
+        ) AS status
+
+    FROM sleeper_inspection_call sic
+
+    LEFT JOIN po_header ph
+        ON ph.po_no = sic.po_no
+
+    WHERE sic.created_at BETWEEN :fromDate AND :toDate
+
+      AND sic.desired_inspection_date < CURDATE()
+
+      AND (
+
+            SELECT swt.job_status
+
+            FROM sleeper_workflow_transaction swt
+
+            WHERE swt.workflow_transition_id = (
+
+                SELECT MAX(swt2.workflow_transition_id)
+
+                FROM sleeper_workflow_transaction swt2
+
+                WHERE swt2.request_id = sic.call_no
+
+            )
+
+        ) = 'RIO_VERIFIED'
+
+    ORDER BY sic.created_at DESC
+
+    """, nativeQuery = true)
+    List<Object[]> getSleeperOverduePendingCallsReport(
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate
+    );
+
+    @Query(value = """
+
+    SELECT
+
+        um.employee_code AS ieId,
+
+        um.username AS ieName,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM sleeper_inspection_call sic
+
+            WHERE EXISTS (
+
+                SELECT 1
+
+                FROM sleeper_poi_ie_mapping spim
+
+                WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
+                      sic.plant_id COLLATE utf8mb4_unicode_ci
+
+                  AND spim.ie_user_id = um.userid
+            )
+
+            AND (
+
+                SELECT swt.action
+
+                FROM sleeper_workflow_transaction swt
+
+                WHERE swt.workflow_transition_id = (
+
+                    SELECT MAX(swt2.workflow_transition_id)
+
+                    FROM sleeper_workflow_transaction swt2
+
+                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
+                          sic.call_no COLLATE utf8mb4_unicode_ci
+                )
+
+            ) IN (
+                'VERIFY'
+            )
+
+        ),0) AS noOfCallsPending,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM sleeper_inspection_call sic
+
+            WHERE EXISTS (
+
+                SELECT 1
+
+                FROM sleeper_poi_ie_mapping spim
+
+                WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
+                      sic.plant_id COLLATE utf8mb4_unicode_ci
+
+                  AND spim.ie_user_id = um.userid
+            )
+
+            AND (
+
+                SELECT swt.action
+
+                FROM sleeper_workflow_transaction swt
+
+                WHERE swt.workflow_transition_id = (
+
+                    SELECT MAX(swt2.workflow_transition_id)
+
+                    FROM sleeper_workflow_transaction swt2
+
+                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
+                          sic.call_no COLLATE utf8mb4_unicode_ci
+                )
+
+            ) IN (
+                'INITIATE_CALL',
+                'PO_VERIFICATION',
+                'PAUSE'
+            )
+
+        ),0) AS noOfCallsUnderInspection,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM sleeper_inspection_call sic
+
+            WHERE EXISTS (
+
+                SELECT 1
+
+                FROM sleeper_poi_ie_mapping spim
+
+                WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
+                      sic.plant_id COLLATE utf8mb4_unicode_ci
+
+                  AND spim.ie_user_id = um.userid
+            )
+
+            AND (
+
+                SELECT swt.action
+
+                FROM sleeper_workflow_transaction swt
+
+                WHERE swt.workflow_transition_id = (
+
+                    SELECT MAX(swt2.workflow_transition_id)
+
+                    FROM sleeper_workflow_transaction swt2
+
+                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
+                          sic.call_no COLLATE utf8mb4_unicode_ci
+                )
+
+            ) = 'FINISH'
+
+        ),0) AS noOfCallsPendingForIc,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM sleeper_inspection_call sic
+
+            WHERE sic.desired_inspection_date < CURDATE()
+
+              AND EXISTS (
+
+                    SELECT 1
+
+                    FROM sleeper_poi_ie_mapping spim
+
+                    WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
+                          sic.plant_id COLLATE utf8mb4_unicode_ci
+
+                      AND spim.ie_user_id = um.userid
+              )
+
+              AND (
+
+                    SELECT swt.job_status
+
+                    FROM sleeper_workflow_transaction swt
+
+                    WHERE swt.workflow_transition_id = (
+
+                        SELECT MAX(swt2.workflow_transition_id)
+
+                        FROM sleeper_workflow_transaction swt2
+
+                        WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
+                              sic.call_no COLLATE utf8mb4_unicode_ci
+                    )
+
+              ) = 'RIO_VERIFIED'
+
+        ),0) AS noOfCallsOverdue
+
+    FROM user_master um
+
+    JOIN user_role_master urm
+        ON urm.userid = um.userid
+
+    JOIN user_product_cm_mapping upcm
+        ON upcm.user_employee_code COLLATE utf8mb4_unicode_ci =
+           um.employee_code COLLATE utf8mb4_unicode_ci
+
+        AND upcm.product_type = 'SLEEPER'
+
+    WHERE urm.roleid IN (10)
+
+      AND upcm.cm_employee_code = :cmEmployeeCode
+
+    ORDER BY um.employee_code
+
+    """, nativeQuery = true)
+    List<Object[]> getSleeperIeWiseCallStatusWorkloadSummary(
+            @Param("cmEmployeeCode") String cmEmployeeCode
+    );
+
+
+    @Query(value = """
+
+SELECT
+
+    um.employee_code AS ieId,
+
+    um.username AS ieName,
+
+    COUNT(DISTINCT fc.call_no) AS totalCalls,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.isOverdue = 1
+        THEN fc.call_no
+    END) AS overdueCallsAttended,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'ACCEPTED'
+        THEN fc.call_no
+    END) AS callsAccepted,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'REJECTED'
+        THEN fc.call_no
+    END) AS callsRejected,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'PARTIAL'
+        THEN fc.call_no
+    END) AS callsPartiallyAcceptedRejected,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.icIssued = 1
+        THEN fc.call_no
+    END) AS icIssued
+
+FROM user_master um
+
+JOIN user_role_master urm
+    ON urm.userid = um.userid
+
+JOIN user_product_cm_mapping upcm
+    ON upcm.user_employee_code = um.employee_code
+    AND upcm.product_type = 'SLEEPER'
+
+LEFT JOIN (
+
+    SELECT DISTINCT
+
+        sic.call_no,
+
+        sic.plant_id,
+
+        CASE
+
+            -- ACCEPTED
+            WHEN fcih.qty_offered_now = fcih.accepted_qty
+                 AND fcih.rejected_qty = 0
+            THEN 'ACCEPTED'
+
+            -- REJECTED
+            WHEN fcih.qty_offered_now = fcih.rejected_qty
+            THEN 'REJECTED'
+
+            -- PARTIAL
+            WHEN fcih.rejected_qty > 0
+                 AND fcih.rejected_qty < fcih.qty_offered_now
+            THEN 'PARTIAL'
+
+            ELSE NULL
+
+        END AS finalStatus,
+
+        -- OVERDUE
+        CASE
+
+            WHEN sic.desired_inspection_date < (
+
+                SELECT DATE(swt.created_date)
+
+                FROM sleeper_workflow_transaction swt
+
+                WHERE swt.workflow_transition_id = (
+
+                    SELECT MIN(swt2.workflow_transition_id)
+
+                    FROM sleeper_workflow_transaction swt2
+
+                    WHERE swt2.request_id = sic.call_no
+                      AND swt2.action = 'MAIN_IE_SCHEDULE_CALL'
+                )
+
+            )
+
+            THEN 1
+            ELSE 0
+
+        END AS isOverdue,
+
+        -- IC ISSUED
+       CASE
+
+            WHEN (
+
+                SELECT swt.status
+
+                FROM sleeper_workflow_transaction swt
+
+                WHERE swt.workflow_transition_id = (
+
+                    SELECT MAX(swt2.workflow_transition_id)
+
+                    FROM sleeper_workflow_transaction swt2
+
+                    WHERE swt2.request_id = sic.call_no
+                )
+
+            ) = 'DSC_SIGN_IC'
+
+            THEN 1
+            ELSE 0
+
+        END AS icIssued
+
+    FROM sleeper_inspection_call sic
+
+    JOIN final_call_inspection_header fcih
+        ON fcih.call_no = sic.call_no
+
+    WHERE (
+
+        SELECT swt.action
+
+        FROM sleeper_workflow_transaction swt
+
+        WHERE swt.workflow_transition_id = (
+
+            SELECT MAX(swt2.workflow_transition_id)
+
+            FROM sleeper_workflow_transaction swt2
+
+            WHERE swt2.request_id = sic.call_no
+        )
+
+    ) IN (
+        'FINISH',
+        'GENERATE_IC',
+        'DSC_SIGN_IC'
+    )
+
+) fc
+
+ON EXISTS (
+
+    SELECT 1
+
+    FROM sleeper_poi_ie_mapping spim
+
+    WHERE spim.plant_id = fc.plant_id
+      AND spim.ie_user_id = um.userid
+
+)
+
+WHERE urm.roleid IN (10)
+
+AND upcm.cm_employee_code = :cmEmployeeCode
+
+GROUP BY
+    um.employee_code,
+    um.username
+
+ORDER BY um.employee_code
+
+""", nativeQuery = true)
+    List<Object[]> getSleeperIeOperationalSlaPerformanceSummary(
+            @Param("cmEmployeeCode") String cmEmployeeCode
+    );
+
+
+
+
+
 }

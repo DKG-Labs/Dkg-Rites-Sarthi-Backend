@@ -16,6 +16,9 @@ import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeStrength
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository;
 import com.sarthi.Sleeper.service.DashboardService;
+import com.sarthi.dto.reports.IeOperationalSlaPerformanceSummaryDto;
+import com.sarthi.dto.reports.IeWiseCallStatusWorkloadSummaryDto;
+import com.sarthi.dto.reports.InspectionCallsReportDto;
 import com.sarthi.dto.reports.PSCSleeperQualityReportDto;
 import jakarta.persistence.Access;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1024,7 +1027,6 @@ public class DashboardServiceImpl implements DashboardService {
             }
 
 
-    // SERVICE
 
     public List<PSCSleeperQualityReportDto> getQtyPscSleeperReport(
             LocalDate startDate,
@@ -1078,6 +1080,287 @@ public class DashboardServiceImpl implements DashboardService {
     public List<PlantDTO> getVendorPlantsByCompanyName(String companyName) {
         return vendorPlantRepository.findPlantsByCompanyName(companyName);
     }
+
+
+    public List<InspectionCallsReportDto> getInspectionCallsReport(
+            String startDate,
+            String endDate) {
+
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start =
+                (startDate != null && !startDate.isBlank())
+                        ? LocalDate.parse(startDate, formatter)
+                        : LocalDate.now().minusYears(1);
+
+        LocalDate end =
+                (endDate != null && !endDate.isBlank())
+                        ? LocalDate.parse(endDate, formatter)
+                        : LocalDate.now();
+
+        LocalDateTime startDateTime =
+                start.atStartOfDay();
+
+        LocalDateTime endDateTime =
+                end.atTime(23, 59, 59);
+
+        List<Object[]> results =
+                            inspectionCallRepository.getSleeperInspectionReport(startDateTime, endDateTime);
+
+        return results.stream().map(obj -> {
+
+            InspectionCallsReportDto dto =
+                    new InspectionCallsReportDto();
+
+            dto.setCallNumber((String) obj[0]);
+            dto.setProductAndStageOfInspection((String) obj[1]);
+            dto.setPoNumber((String) obj[2]);
+
+            dto.setDeliveryDate(
+                    obj[3] != null
+                            ? ((Timestamp) obj[3]).toLocalDateTime()
+                            : null
+            );
+
+            dto.setExpectedDeliveryDate(
+                    obj[4] != null
+                            ? ((Timestamp) obj[4]).toLocalDateTime()
+                            : null
+            );
+
+            dto.setVendorName((String) obj[5]);
+
+            dto.setInspectionDesiredDate((LocalDate) obj[6]);
+
+            dto.setCallDate(
+                    obj[7] != null
+                            ? ((Timestamp) obj[7]).toLocalDateTime()
+                            : null
+            );
+
+            dto.setIeName(
+                    obj[8] != null ? obj[8].toString() : null
+            );
+
+            dto.setCmName((String) obj[9]);
+
+            dto.setRitesRio((String) obj[10]);
+
+            dto.setStatus((String) obj[11]);
+
+            return dto;
+
+        }).toList();
+    }
+
+
+    @Override
+    public List<InspectionCallsReportDto> getSleeperOverduePendingCallsReport(
+            String startDate,
+            String endDate) {
+
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDate start =
+                (startDate != null && !startDate.isBlank())
+                        ? LocalDate.parse(startDate, formatter)
+                        : LocalDate.now().minusYears(1);
+
+        LocalDate end =
+                (endDate != null && !endDate.isBlank())
+                        ? LocalDate.parse(endDate, formatter)
+                        : LocalDate.now();
+
+        LocalDateTime startDateTime =
+                start.atStartOfDay();
+
+        LocalDateTime endDateTime =
+                end.atTime(23, 59, 59);
+
+        List<Object[]> results =
+                inspectionCallRepository
+                        .getSleeperOverduePendingCallsReport(
+                                startDateTime,
+                                endDateTime
+                        );
+
+        return results.stream().map(obj -> {
+
+            InspectionCallsReportDto dto =
+                    new InspectionCallsReportDto();
+
+            dto.setCallNumber(
+                    obj[0] != null ? obj[0].toString() : null
+            );
+
+            dto.setProductAndStageOfInspection(
+                    obj[1] != null ? obj[1].toString() : null
+            );
+
+            dto.setPoNumber(
+                    obj[2] != null ? obj[2].toString() : null
+            );
+
+            dto.setDeliveryDate(null);
+
+            dto.setExpectedDeliveryDate(null);
+
+            dto.setVendorName(
+                    obj[5] != null ? obj[5].toString() : null
+            );
+
+            dto.setInspectionDesiredDate(
+                    obj[6] != null
+                            ? ((java.sql.Date) obj[6]).toLocalDate()
+                            : null
+            );
+
+            dto.setCallDate(
+                    obj[7] != null
+                            ? ((java.sql.Timestamp) obj[7]).toLocalDateTime()
+                            : null
+            );
+
+            dto.setIeName(
+                    obj[8] != null ? obj[8].toString() : null
+            );
+
+            dto.setCmName(
+                    obj[9] != null ? obj[9].toString() : null
+            );
+
+            dto.setRitesRio(
+                    obj[10] != null ? obj[10].toString() : null
+            );
+
+            dto.setStatus(
+                    obj[11] != null ? obj[11].toString() : null
+            );
+
+            return dto;
+
+        }).toList();
+    }
+
+
+    @Override
+    public List<IeWiseCallStatusWorkloadSummaryDto> getSleeperIeWiseCallStatusWorkloadSummary(
+            String cmEmployeeCode) {
+
+        List<Object[]> results =
+                inspectionCallRepository
+                        .getSleeperIeWiseCallStatusWorkloadSummary(
+                                cmEmployeeCode
+                        );
+
+        return results.stream().map(obj -> {
+
+            IeWiseCallStatusWorkloadSummaryDto dto =
+                    new IeWiseCallStatusWorkloadSummaryDto();
+
+            dto.setIeId(
+                    obj[0] != null ? obj[0].toString() : null
+            );
+
+            dto.setIeName(
+                    obj[1] != null ? obj[1].toString() : null
+            );
+
+            dto.setNoOfCallsPending(
+                    obj[2] != null
+                            ? ((Number) obj[2]).longValue()
+                            : 0L
+            );
+
+            dto.setNoOfCallsUnderInspection(
+                    obj[3] != null
+                            ? ((Number) obj[3]).longValue()
+                            : 0L
+            );
+
+            dto.setNoOfCallsPendingForIc(
+                    obj[4] != null
+                            ? ((Number) obj[4]).longValue()
+                            : 0L
+            );
+
+            dto.setNoOfCallsOverdue(
+                    obj[5] != null
+                            ? ((Number) obj[5]).longValue()
+                            : 0L
+            );
+
+            return dto;
+
+        }).toList();
+    }
+
+
+    @Override
+    public List<IeOperationalSlaPerformanceSummaryDto> getSleeperIeOperationalSlaPerformanceSummary(String cmEmployeeCode) {
+
+        List<Object[]> result =
+                inspectionCallRepository
+                        .getSleeperIeOperationalSlaPerformanceSummary(cmEmployeeCode);
+
+        return result.stream().map(obj -> {
+
+            IeOperationalSlaPerformanceSummaryDto dto =
+                    new IeOperationalSlaPerformanceSummaryDto();
+
+            dto.setIeId(
+                    obj[0] != null ? obj[0].toString() : null
+            );
+
+            dto.setIeName(
+                    obj[1] != null ? obj[1].toString() : null
+            );
+
+            dto.setTotalCalls(
+                    obj[2] != null
+                            ? ((Number) obj[2]).longValue()
+                            : 0L
+            );
+
+            dto.setOverdueCallsAttended(
+                    obj[3] != null
+                            ? ((Number) obj[3]).longValue()
+                            : 0L
+            );
+
+            dto.setCallsAccepted(
+                    obj[4] != null
+                            ? ((Number) obj[4]).longValue()
+                            : 0L
+            );
+
+            dto.setCallsRejected(
+                    obj[5] != null
+                            ? ((Number) obj[5]).longValue()
+                            : 0L
+            );
+
+            dto.setCallsPartiallyAcceptedRejected(
+                    obj[6] != null
+                            ? ((Number) obj[6]).longValue()
+                            : 0L
+            );
+
+            dto.setIcIssued(
+                    obj[7] != null
+                            ? ((Number) obj[7]).longValue()
+                            : 0L
+            );
+
+            return dto;
+
+        }).toList();
+    }
+
+
+
 
 }
 

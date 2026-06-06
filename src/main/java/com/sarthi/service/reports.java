@@ -1,15 +1,7 @@
 package com.sarthi.service;
 
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
-import com.sarthi.dto.reports.DashboardSummaryDto;
-import com.sarthi.dto.reports.FourthLevelInspectionDto;
-import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
-import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
-import com.sarthi.dto.reports.ProcessPerformanceResponseDto;
-import com.sarthi.dto.reports.StageRejectionDto;
-import com.sarthi.dto.reports.InspectionCallStatusDto;
-import com.sarthi.dto.reports.InspectionDetailsDto;
-import com.sarthi.dto.reports.PoIssuedDetailDto;
+import com.sarthi.dto.reports.*;
 import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -86,6 +78,20 @@ public interface reports {
 
     public List<String> getAllCompanies();
 
+
     public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product);
+
+    List<InspectionCallsReportDto> getInspectionCallsReport(String startDate, String endDate);
+
+    public List<InspectionCallsReportDto> getOverduePendingInspectionCallsReport(
+            String startDate,
+            String endDate);
+
+    public List<IeWiseCallStatusWorkloadSummaryDto> getIeWiseCallStatusWorkloadSummary(
+            String cmEmployeeCode);
+
+    public List<IeOperationalSlaPerformanceSummaryDto> getIeOperationalSlaPerformanceSummary(
+            String cmEmployeeCode);
+
 }
 

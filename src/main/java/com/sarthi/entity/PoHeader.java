@@ -20,7 +20,7 @@ public class PoHeader {
 
 
         @Column(name = "po_key", nullable = false)
-        private String poKey; // CASE_NO
+        private String poKey;
 
         private String poNo;
         private String l5PoNo;

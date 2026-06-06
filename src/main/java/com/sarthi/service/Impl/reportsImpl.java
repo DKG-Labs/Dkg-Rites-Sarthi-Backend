@@ -61,13 +61,16 @@ import org.springframework.stereotype.Service;
 
 
 import java.math.BigDecimal;
-
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.LocalDate;
-
 import java.time.LocalDateTime;
-
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import java.util.concurrent.TimeUnit;
@@ -6875,6 +6878,7 @@ public class reportsImpl implements reports {
 
     }
 
+
     @Override
     public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product) {
         List<Object[]> rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw();
@@ -6927,6 +6931,336 @@ public class reportsImpl implements reports {
 
         return resultList;
     }
+
+
+        @Override
+        public List<InspectionCallsReportDto> getInspectionCallsReport(
+                String startDate,
+                String endDate) {
+
+                DateTimeFormatter formatter =
+                        DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+                LocalDate start =
+                        (startDate != null && !startDate.isBlank())
+                                ? LocalDate.parse(startDate, formatter)
+                                : LocalDate.now().minusYears(1);
+
+                LocalDate end =
+                        (endDate != null && !endDate.isBlank())
+                                ? LocalDate.parse(endDate, formatter)
+                                : LocalDate.now();
+
+                LocalDateTime startDateTime =
+                        start.atStartOfDay();
+
+                LocalDateTime endDateTime =
+                        end.atTime(23, 59, 59);
+
+                List<Object[]> results =
+                        inspectionCallRepository.getInspectionCallsReport(
+                                startDateTime,
+                                endDateTime
+                        );
+
+                List<InspectionCallsReportDto> response =
+                        new ArrayList<>();
+
+                for (Object[] obj : results) {
+
+                        InspectionCallsReportDto dto =
+                                new InspectionCallsReportDto();
+
+                        dto.setCallNumber(
+                                obj[0] != null ? obj[0].toString() : null
+                        );
+
+                        dto.setProductAndStageOfInspection(
+                                obj[1] != null ? obj[1].toString() : null
+                        );
+
+                        dto.setPoNumber(
+                                obj[2] != null ? obj[2].toString() : null
+                        );
+
+                        dto.setDeliveryDate(
+                                obj[3] != null
+                                        ? ((Timestamp) obj[3]).toLocalDateTime()
+                                        : null
+                        );
+
+                        dto.setExpectedDeliveryDate(
+                                obj[4] != null
+                                        ? ((Timestamp) obj[4]).toLocalDateTime()
+                                        : null
+                        );
+
+                        dto.setVendorName(
+                                obj[5] != null ? obj[5].toString() : null
+                        );
+
+                        dto.setInspectionDesiredDate(
+                                obj[6] != null
+                                        ? ((Date) obj[6]).toLocalDate()
+                                        : null
+                        );
+
+                        dto.setCallDate(
+                                obj[7] != null
+                                        ? ((Timestamp) obj[7]).toLocalDateTime()
+                                        : null
+                        );
+
+                        dto.setIeName(
+                                obj[8] != null ? obj[8].toString() : null
+                        );
+
+                        dto.setCmName(
+                                obj[9] != null ? obj[9].toString() : null
+                        );
+
+                        dto.setRitesRio(
+                                obj[10] != null ? obj[10].toString() : null
+                        );
+
+                        dto.setStatus(
+                                obj[11] != null ? obj[11].toString() : null
+                        );
+
+                        response.add(dto);
+                }
+
+                return response;
+        }
+
+        @Override
+        public List<InspectionCallsReportDto> getOverduePendingInspectionCallsReport(
+                String startDate,
+                String endDate) {
+
+                DateTimeFormatter formatter =
+                        DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+                LocalDate start =
+                        (startDate != null && !startDate.isBlank())
+                                ? LocalDate.parse(startDate, formatter)
+                                : LocalDate.now().minusYears(1);
+
+                LocalDate end =
+                        (endDate != null && !endDate.isBlank())
+                                ? LocalDate.parse(endDate, formatter)
+                                : LocalDate.now();
+
+                LocalDateTime startDateTime =
+                        start.atStartOfDay();
+
+                LocalDateTime endDateTime =
+                        end.atTime(23, 59, 59);
+
+
+                List<Object[]> results =
+                        inspectionCallRepository
+                                .getOverduePendingInspectionCallsReport(
+                                        startDateTime,
+                                        endDateTime
+                                );
+
+                return results.stream().map(obj -> {
+
+                        InspectionCallsReportDto dto =
+                                new InspectionCallsReportDto();
+
+                        dto.setCallNumber(
+                                obj[0] != null ? obj[0].toString() : null
+                        );
+
+                        dto.setProductAndStageOfInspection(
+                                obj[1] != null ? obj[1].toString() : null
+                        );
+
+                        dto.setPoNumber(
+                                obj[2] != null ? obj[2].toString() : null
+                        );
+
+                        dto.setDeliveryDate(
+                                obj[3] != null
+                                        ? ((Timestamp) obj[3]).toLocalDateTime()
+                                        : null
+                        );
+
+                        dto.setExpectedDeliveryDate(
+                                obj[4] != null
+                                        ? ((Timestamp) obj[4]).toLocalDateTime()
+                                        : null
+                        );
+
+                        dto.setVendorName(
+                                obj[5] != null ? obj[5].toString() : null
+                        );
+
+                        dto.setInspectionDesiredDate(
+                                obj[6] != null
+                                        ? ((Date) obj[6]).toLocalDate()
+                                        : null
+                        );
+
+                        dto.setCallDate(
+                                obj[7] != null
+                                        ? ((Timestamp) obj[7]).toLocalDateTime()
+                                        : null
+                        );
+
+                        dto.setIeName(
+                                obj[8] != null ? obj[8].toString() : null
+                        );
+
+                        dto.setCmName(
+                                obj[9] != null ? obj[9].toString() : null
+                        );
+
+                        dto.setRitesRio(
+                                obj[10] != null ? obj[10].toString() : null
+                        );
+
+                        dto.setStatus(
+                                obj[11] != null ? obj[11].toString() : null
+                        );
+
+                        return dto;
+
+                }).toList();
+        }
+
+
+        @Override
+        public List<IeWiseCallStatusWorkloadSummaryDto>
+        getIeWiseCallStatusWorkloadSummary(
+                String cmEmployeeCode) {
+
+                List<Object[]> results =
+                        inspectionCallRepository
+                                .getIeWiseCallStatusWorkloadSummary(
+                                        cmEmployeeCode
+                                );
+
+                return results.stream().map(obj -> {
+
+                        IeWiseCallStatusWorkloadSummaryDto dto =
+                                new IeWiseCallStatusWorkloadSummaryDto();
+
+                        dto.setIeId(
+                                obj[0] != null ? obj[0].toString() : null
+                        );
+
+                        dto.setIeName(
+                                obj[1] != null ? obj[1].toString() : null
+                        );
+
+                        dto.setNoOfCallsPending(
+                                obj[2] != null
+                                        ? ((Number) obj[2]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setNoOfCallsUnderInspection(
+                                obj[3] != null
+                                        ? ((Number) obj[3]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setNoOfCallsPendingForIc(
+                                obj[4] != null
+                                        ? ((Number) obj[4]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setNoOfCallsOverdue(
+                                obj[5] != null
+                                        ? ((Number) obj[5]).longValue()
+                                        : 0L
+                        );
+
+                        return dto;
+
+                }).toList();
+        }
+
+
+        @Override
+        public List<IeOperationalSlaPerformanceSummaryDto> getIeOperationalSlaPerformanceSummary(
+                String cmEmployeeCode) {
+
+                List<Object[]> results =
+                        inspectionCallRepository
+                                .getIeOperationalSlaPerformanceSummary(
+                                        cmEmployeeCode
+                                );
+
+                return results.stream().map(obj -> {
+
+                        IeOperationalSlaPerformanceSummaryDto dto =
+                                new IeOperationalSlaPerformanceSummaryDto();
+
+                        dto.setIeId(
+                                obj[0] != null ? obj[0].toString() : null
+                        );
+
+                        dto.setIeName(
+                                obj[1] != null ? obj[1].toString() : null
+                        );
+
+                        dto.setTotalCalls(
+                                obj[2] != null
+                                        ? ((Number) obj[2]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setOverdueCallsAttended(
+                                obj[3] != null
+                                        ? ((Number) obj[3]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setCallsCancelled(
+                                obj[4] != null
+                                        ? ((Number) obj[4]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setCallsAccepted(
+                                obj[5] != null
+                                        ? ((Number) obj[5]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setCallsRejected(
+                                obj[6] != null
+                                        ? ((Number) obj[6]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setCallsPartiallyAcceptedRejected(
+                                obj[7] != null
+                                        ? ((Number) obj[7]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setCallsWithheld(
+                                obj[8] != null
+                                        ? ((Number) obj[8]).longValue()
+                                        : 0L
+                        );
+
+                        dto.setIcIssued(
+                                obj[9] != null
+                                        ? ((Number) obj[9]).longValue()
+                                        : 0L
+                        );
+
+                        return dto;
+
+                }).toList();
+        }
 
 }
 

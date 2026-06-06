@@ -1,6 +1,9 @@
 package com.sarthi.Sleeper.service;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
+import com.sarthi.dto.reports.IeOperationalSlaPerformanceSummaryDto;
+import com.sarthi.dto.reports.IeWiseCallStatusWorkloadSummaryDto;
+import com.sarthi.dto.reports.InspectionCallsReportDto;
 import com.sarthi.dto.reports.PSCSleeperQualityReportDto;
 import org.springframework.stereotype.Service;
 
@@ -61,7 +64,21 @@ public interface DashboardService {
             LocalDate startDate,
             LocalDate endDate
     );
+
     public List<String> getVendorPlantCompanyNames();
 
     public List<PlantDTO> getVendorPlantsByCompanyName(String companyName);
+
+
+    List<InspectionCallsReportDto> getInspectionCallsReport(String startDate, String endDate);
+
+    public List<InspectionCallsReportDto> getSleeperOverduePendingCallsReport(
+            String startDate,
+            String endDate);
+
+    public List<IeWiseCallStatusWorkloadSummaryDto> getSleeperIeWiseCallStatusWorkloadSummary(
+            String cmEmployeeCode);
+
+    public List<IeOperationalSlaPerformanceSummaryDto> getSleeperIeOperationalSlaPerformanceSummary(String cmEmployeeCode);
+
 }

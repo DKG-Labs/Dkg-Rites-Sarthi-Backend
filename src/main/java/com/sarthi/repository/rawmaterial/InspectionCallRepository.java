@@ -1,6 +1,7 @@
 package com.sarthi.repository.rawmaterial;
 
 import com.sarthi.dto.InspectionDataDto;
+import com.sarthi.dto.reports.InspectionCallsReportDto;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -780,6 +782,1006 @@ ORDER BY month
             WHERE ic.po_no = :poNo AND ic.company_name = :manufacturer
             """, nativeQuery = true)
     List<String> findCallNumbersByPoNoAndManufacturer(@Param("poNo") String poNo, @Param("manufacturer") String manufacturer);
+
+
+    @Query(value = """
+
+    SELECT
+
+        ic.ic_number AS callNumber,
+
+        CASE
+            WHEN ic.ic_number LIKE 'ER%' THEN 'Raw Material'
+            WHEN ic.ic_number LIKE 'EP%' THEN 'Process'
+            WHEN ic.ic_number LIKE 'EF%' THEN 'Final'
+            ELSE NULL
+        END AS productAndStageOfInspection,
+
+        CONCAT(ic.po_no, '-', ic.po_serial_no) AS poNumber,
+
+        pi.delivery_date AS deliveryDate,
+
+        pi.extended_delivery_date AS expectedDeliveryDate,
+
+        ph.vendor_details AS vendorName,
+
+        ic.desired_inspection_date AS inspectionDesiredDate,
+
+        ic.created_at AS callDate,
+
+        CASE
+
+            WHEN ic.ic_number LIKE 'EP%' THEN (
+
+                SELECT GROUP_CONCAT(ppim.employee_code)
+
+                FROM poi_process_ie_mapping ppim
+
+                WHERE ppim.poi_code = ic.place_of_inspection
+            )
+
+            ELSE (
+
+                SELECT ipm.employee_code
+
+                FROM ie_pincode_poi_mapping ipm
+
+                WHERE ipm.poi_code = ic.place_of_inspection
+
+                LIMIT 1
+            )
+
+        END AS ieName,
+
+        (
+
+            SELECT upcm.cm_employee_code
+
+            FROM user_product_cm_mapping upcm
+
+            WHERE upcm.user_employee_code =
+
+            CASE
+
+                WHEN ic.ic_number LIKE 'EP%' THEN (
+
+                    SELECT SUBSTRING_INDEX(
+                        GROUP_CONCAT(ppim.employee_code),
+                        ',',
+                        1
+                    )
+
+                    FROM poi_process_ie_mapping ppim
+
+                    WHERE ppim.poi_code = ic.place_of_inspection
+                )
+
+                ELSE (
+
+                    SELECT ipm.employee_code
+
+                    FROM ie_pincode_poi_mapping ipm
+
+                    WHERE ipm.poi_code = ic.place_of_inspection
+
+                    LIMIT 1
+                )
+
+            END
+
+            AND upcm.product_type = 'ERC'
+
+            LIMIT 1
+
+        ) AS cmName,
+
+        (
+
+            SELECT ifm.rio
+
+            FROM pincode_poi_mapping ppm
+
+            JOIN ie_fields_mapping ifm
+                ON ifm.pin_code = ppm.pin_code
+                AND ifm.product = 'ERC'
+
+            WHERE ppm.poi_code = ic.place_of_inspection
+
+            LIMIT 1
+
+        ) AS ritesRio,
+
+        (
+
+            SELECT
+
+                CASE
+
+                    WHEN wt.status = 'CREATED'
+                        THEN 'Pending for Call Desk Verification'
+
+                    WHEN wt.status IN ('VERIFIED', 'CALL_REGISTERED')
+                        THEN 'Pending - Assigned to IE'
+
+                    WHEN wt.status = 'IE_SCHEDULED'
+                        THEN 'Pending - Schedule'
+
+                    WHEN wt.status IN (
+                        'INITIATE_INSPECTION',
+                        'VERIFY_PO_DETAILS',
+                        'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                        'PAUSE_INSPECTION_RESUME_NEXT_DAY'
+                    )
+                        THEN 'Under Inspection'
+
+                    WHEN wt.status IN (
+                        'INSPECTION_COMPLETE_CONFIRM',
+                        'GENERATE_IC'
+                    )
+                        THEN 'Completed (Pending for IC Issue)'
+
+                    WHEN wt.status = 'DSC_SIGN_IC'
+                        THEN 'IC Issued (Completed)'
+
+                    ELSE wt.status
+
+                END
+
+            FROM workflow_transition wt
+
+            WHERE wt.workflowtransitionid = (
+
+                SELECT MAX(wt2.workflowtransitionid)
+
+                FROM workflow_transition wt2
+
+                WHERE wt2.requestid = ic.ic_number
+            )
+
+        ) AS status
+
+    FROM inspection_calls ic
+
+    LEFT JOIN po_header ph
+        ON ph.po_no = ic.po_no
+
+    LEFT JOIN po_item pi
+        ON pi.po_header_id = ph.id
+        AND pi.item_sr_no = ic.po_serial_no
+
+    WHERE ic.created_at BETWEEN :startDateTime AND :endDateTime
+
+    ORDER BY ic.created_at DESC
+
+    """,
+            nativeQuery = true)
+    List<Object[]> getInspectionCallsReport(
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTime") LocalDateTime endDateTime
+    );
+
+
+    @Query(value = """
+
+    SELECT
+
+        ic.ic_number AS callNumber,
+
+        CASE
+            WHEN ic.ic_number LIKE 'ER%' THEN 'Raw Material'
+            WHEN ic.ic_number LIKE 'EP%' THEN 'Process'
+            WHEN ic.ic_number LIKE 'EF%' THEN 'Final'
+            ELSE NULL
+        END AS productAndStageOfInspection,
+
+        CONCAT(ic.po_no, '-', ic.po_serial_no) AS poNumber,
+
+        pi.delivery_date AS deliveryDate,
+
+        pi.extended_delivery_date AS expectedDeliveryDate,
+
+        ph.vendor_details AS vendorName,
+
+        ic.desired_inspection_date AS inspectionDesiredDate,
+
+        ic.created_at AS callDate,
+
+        CASE
+
+            WHEN ic.ic_number LIKE 'EP%' THEN (
+
+                SELECT GROUP_CONCAT(ppim.employee_code)
+
+                FROM poi_process_ie_mapping ppim
+
+                WHERE ppim.poi_code = ic.place_of_inspection
+            )
+
+            ELSE (
+
+                SELECT ipm.employee_code
+
+                FROM ie_pincode_poi_mapping ipm
+
+                WHERE ipm.poi_code = ic.place_of_inspection
+
+                LIMIT 1
+            )
+
+        END AS ieName,
+
+        (
+
+            SELECT upcm.cm_employee_code
+
+            FROM user_product_cm_mapping upcm
+
+            WHERE upcm.user_employee_code =
+
+            CASE
+
+                WHEN ic.ic_number LIKE 'EP%' THEN (
+
+                    SELECT SUBSTRING_INDEX(
+                        GROUP_CONCAT(ppim.employee_code),
+                        ',',
+                        1
+                    )
+
+                    FROM poi_process_ie_mapping ppim
+
+                    WHERE ppim.poi_code = ic.place_of_inspection
+                )
+
+                ELSE (
+
+                    SELECT ipm.employee_code
+
+                    FROM ie_pincode_poi_mapping ipm
+
+                    WHERE ipm.poi_code = ic.place_of_inspection
+
+                    LIMIT 1
+                )
+
+            END
+
+            AND upcm.product_type = 'ERC'
+
+            LIMIT 1
+
+        ) AS cmName,
+
+        (
+
+            SELECT ifm.rio
+
+            FROM pincode_poi_mapping ppm
+
+            JOIN ie_fields_mapping ifm
+                ON ifm.pin_code = ppm.pin_code
+                AND ifm.product = 'ERC'
+
+            WHERE ppm.poi_code = ic.place_of_inspection
+
+            LIMIT 1
+
+        ) AS ritesRio,
+
+        (
+
+            SELECT
+
+                CASE
+
+                    WHEN wt.status = 'CREATED'
+                        THEN 'Pending for Call Desk Verification'
+
+                    WHEN wt.status IN ('VERIFIED', 'CALL_REGISTERED')
+                        THEN 'Pending - Assigned to IE'
+
+                    WHEN wt.status = 'IE_SCHEDULED'
+                        THEN 'Pending - Schedule'
+
+                    WHEN wt.status IN (
+                        'INITIATE_INSPECTION',
+                        'VERIFY_PO_DETAILS',
+                        'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                        'PAUSE_INSPECTION_RESUME_NEXT_DAY'
+                    )
+                        THEN 'Under Inspection'
+
+                    WHEN wt.status IN (
+                        'INSPECTION_COMPLETE_CONFIRM',
+                        'GENERATE_IC'
+                    )
+                        THEN 'Completed (Pending for IC Issue)'
+
+                    WHEN wt.status = 'DSC_SIGN_IC'
+                        THEN 'IC Issued (Completed)'
+
+                    ELSE wt.status
+
+                END
+
+            FROM workflow_transition wt
+
+            WHERE wt.workflowtransitionid = (
+
+                SELECT MAX(wt2.workflowtransitionid)
+
+                FROM workflow_transition wt2
+
+                WHERE wt2.requestid = ic.ic_number
+            )
+
+        ) AS status
+
+    FROM inspection_calls ic
+
+    LEFT JOIN po_header ph
+        ON ph.po_no = ic.po_no
+
+    LEFT JOIN po_item pi
+        ON pi.po_header_id = ph.id
+        AND pi.item_sr_no = ic.po_serial_no
+
+    WHERE ic.created_at BETWEEN :startDateTime AND :endDateTime
+
+      AND ic.desired_inspection_date < CURDATE()
+
+      AND (
+
+            SELECT wt.status
+
+            FROM workflow_transition wt
+
+            WHERE wt.workflowtransitionid = (
+
+                SELECT MAX(wt2.workflowtransitionid)
+
+                FROM workflow_transition wt2
+
+                WHERE wt2.requestid = ic.ic_number
+
+            )
+
+        ) = 'CALL_REGISTERED'
+
+    ORDER BY ic.created_at DESC
+
+    """,
+            nativeQuery = true)
+    List<Object[]> getOverduePendingInspectionCallsReport(
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTime") LocalDateTime endDateTime
+    );
+
+    @Query(value = """
+
+    SELECT
+
+        um.employee_code AS ieId,
+
+        um.username AS ieName,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM inspection_calls ic
+
+            WHERE
+
+                (
+                    (
+                        ic.ic_number LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM poi_process_ie_mapping ppim
+
+                            WHERE ppim.poi_code = ic.place_of_inspection
+                              AND ppim.employee_code = um.employee_code
+                        )
+                    )
+
+                    OR
+
+                    (
+                        ic.ic_number NOT LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM ie_pincode_poi_mapping ipm
+
+                            WHERE ipm.poi_code = ic.place_of_inspection
+                              AND ipm.employee_code = um.employee_code
+                        )
+                    )
+                )
+
+                AND (
+
+                    SELECT wt.status
+
+                    FROM workflow_transition wt
+
+                    WHERE wt.workflowtransitionid = (
+
+                        SELECT MAX(wt2.workflowtransitionid)
+
+                        FROM workflow_transition wt2
+
+                        WHERE wt2.requestid = ic.ic_number
+                    )
+
+                ) IN (
+                    'VERIFIED',
+                    'CALL_REGISTERED'
+                )
+
+        ),0) AS noOfCallsPending,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM inspection_calls ic
+
+            WHERE
+
+                (
+                    (
+                        ic.ic_number LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM poi_process_ie_mapping ppim
+
+                            WHERE ppim.poi_code = ic.place_of_inspection
+                              AND ppim.employee_code = um.employee_code
+                        )
+                    )
+
+                    OR
+
+                    (
+                        ic.ic_number NOT LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM ie_pincode_poi_mapping ipm
+
+                            WHERE ipm.poi_code = ic.place_of_inspection
+                              AND ipm.employee_code = um.employee_code
+                        )
+                    )
+                )
+
+                AND (
+
+                    SELECT wt.status
+
+                    FROM workflow_transition wt
+
+                    WHERE wt.workflowtransitionid = (
+
+                        SELECT MAX(wt2.workflowtransitionid)
+
+                        FROM workflow_transition wt2
+
+                        WHERE wt2.requestid = ic.ic_number
+                    )
+
+                ) IN (
+                    'INITIATE_INSPECTION',
+                    'VERIFY_PO_DETAILS',
+                    'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                    'PAUSE_INSPECTION_RESUME_NEXT_DAY'
+                )
+
+        ),0) AS noOfCallsUnderInspection,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM inspection_calls ic
+
+            WHERE
+
+                (
+                    (
+                        ic.ic_number LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM poi_process_ie_mapping ppim
+
+                            WHERE ppim.poi_code = ic.place_of_inspection
+                              AND ppim.employee_code = um.employee_code
+                        )
+                    )
+
+                    OR
+
+                    (
+                        ic.ic_number NOT LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM ie_pincode_poi_mapping ipm
+
+                            WHERE ipm.poi_code = ic.place_of_inspection
+                              AND ipm.employee_code = um.employee_code
+                        )
+                    )
+                )
+
+                AND (
+
+                    SELECT wt.status
+
+                    FROM workflow_transition wt
+
+                    WHERE wt.workflowtransitionid = (
+
+                        SELECT MAX(wt2.workflowtransitionid)
+
+                        FROM workflow_transition wt2
+
+                        WHERE wt2.requestid = ic.ic_number
+                    )
+
+                ) IN (
+                    'INSPECTION_COMPLETE_CONFIRM',
+                    'GENERATE_IC'
+                )
+
+        ),0) AS noOfCallsPendingForIc,
+
+        COALESCE((
+            SELECT COUNT(*)
+
+            FROM inspection_calls ic
+
+            WHERE
+
+                ic.desired_inspection_date < CURDATE()
+
+                AND
+
+                (
+                    (
+                        ic.ic_number LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM poi_process_ie_mapping ppim
+
+                            WHERE ppim.poi_code = ic.place_of_inspection
+                              AND ppim.employee_code = um.employee_code
+                        )
+                    )
+
+                    OR
+
+                    (
+                        ic.ic_number NOT LIKE 'EP%'
+
+                        AND EXISTS (
+
+                            SELECT 1
+
+                            FROM ie_pincode_poi_mapping ipm
+
+                            WHERE ipm.poi_code = ic.place_of_inspection
+                              AND ipm.employee_code = um.employee_code
+                        )
+                    )
+                )
+
+                AND (
+
+                    SELECT wt.status
+
+                    FROM workflow_transition wt
+
+                    WHERE wt.workflowtransitionid = (
+
+                        SELECT MAX(wt2.workflowtransitionid)
+
+                        FROM workflow_transition wt2
+
+                        WHERE wt2.requestid = ic.ic_number
+                    )
+
+                ) = 'CALL_REGISTERED'
+
+        ),0) AS noOfCallsOverdue
+
+    FROM user_master um
+
+    JOIN user_role_master urm
+        ON urm.userid = um.userid
+
+    JOIN user_product_cm_mapping upcm
+        ON upcm.user_employee_code = um.employee_code
+        AND upcm.product_type = 'ERC'
+
+    WHERE urm.roleid IN (3, 7)
+
+      AND upcm.cm_employee_code = :cmEmployeeCode
+
+    ORDER BY um.employee_code
+
+    """, nativeQuery = true)
+    List<Object[]> getIeWiseCallStatusWorkloadSummary(
+            @Param("cmEmployeeCode") String cmEmployeeCode
+    );
+
+
+
+    @Query(value = """
+
+SELECT
+
+    um.employee_code AS ieId,
+
+    um.username AS ieName,
+
+    COUNT(DISTINCT fc.ic_number) AS totalCalls,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.isOverdue = 1
+        THEN fc.ic_number
+    END) AS overdueCallsAttended,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'CANCELLED'
+        THEN fc.ic_number
+    END) AS callsCancelled,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'ACCEPTED'
+        THEN fc.ic_number
+    END) AS callsAccepted,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'REJECTED'
+        THEN fc.ic_number
+    END) AS callsRejected,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'PARTIAL'
+        THEN fc.ic_number
+    END) AS callsPartiallyAcceptedRejected,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.finalStatus = 'WITHDRAW'
+        THEN fc.ic_number
+    END) AS callsWithheld,
+
+    COUNT(DISTINCT CASE
+        WHEN fc.icIssued = 1
+        THEN fc.ic_number
+    END) AS icIssued
+
+FROM user_master um
+
+JOIN user_role_master urm
+    ON urm.userid = um.userid
+
+JOIN user_product_cm_mapping upcm
+    ON upcm.user_employee_code = um.employee_code
+    AND upcm.product_type = 'ERC'
+
+LEFT JOIN (
+
+    SELECT DISTINCT
+
+        ic.ic_number,
+
+        ic.place_of_inspection,
+
+        CASE
+
+           -- ACCEPTED / REJECTED / PARTIAL LOGIC
+         
+            -- ER ACCEPTED
+            WHEN ic.ic_number LIKE 'ER%'
+             AND EXISTS (
+                SELECT 1
+                FROM rm_heat_final_result rhfr
+                WHERE rhfr.inspection_call_no = ic.ic_number
+                  AND rhfr.overall_status = 'ACCEPTED'
+             )
+            THEN 'ACCEPTED'
+
+            -- ER REJECTED
+            WHEN ic.ic_number LIKE 'ER%'
+             AND EXISTS (
+                SELECT 1
+                FROM rm_heat_final_result rhfr
+                WHERE rhfr.inspection_call_no = ic.ic_number
+                  AND rhfr.overall_status = 'REJECTED'
+             )
+            THEN 'REJECTED'
+
+            -- ER PARTIAL
+            WHEN ic.ic_number LIKE 'ER%'
+             AND EXISTS (
+                SELECT 1
+                FROM rm_heat_final_result rhfr
+                WHERE rhfr.inspection_call_no = ic.ic_number
+                  AND rhfr.overall_status = 'PARTIALLY_ACCEPTED'
+             )
+            THEN 'PARTIAL'
+
+            -- EF ACCEPTED
+           WHEN ic.ic_number LIKE 'EF%'
+             AND EXISTS (
+                SELECT 1
+                FROM final_inspection_lot_results filr
+                WHERE filr.inspection_call_no = ic.ic_number
+             )
+             AND NOT EXISTS (
+                SELECT 1
+                FROM final_inspection_lot_results filr
+                WHERE filr.inspection_call_no = ic.ic_number
+                  AND filr.lot_status <> 'ACCEPTED'
+             )
+            THEN 'ACCEPTED'
+
+            -- EF REJECTED
+            WHEN ic.ic_number LIKE 'EF%'
+             AND EXISTS (
+                SELECT 1
+                FROM final_inspection_lot_results filr
+                WHERE filr.inspection_call_no = ic.ic_number
+             )
+             AND NOT EXISTS (
+                SELECT 1
+                FROM final_inspection_lot_results filr
+                WHERE filr.inspection_call_no = ic.ic_number
+                  AND filr.lot_status <> 'REJECTED'
+             )
+            THEN 'REJECTED'
+
+            -- EF PARTIAL
+           WHEN ic.ic_number LIKE 'EF%'
+             AND EXISTS (
+                SELECT 1
+                FROM final_inspection_lot_results filr
+                WHERE filr.inspection_call_no = ic.ic_number
+                  AND filr.lot_status = 'ACCEPTED'
+             )
+             AND EXISTS (
+                SELECT 1
+                FROM final_inspection_lot_results filr
+                WHERE filr.inspection_call_no = ic.ic_number
+                  AND filr.lot_status = 'REJECTED'
+             )
+            THEN 'PARTIAL'
+
+            -- EP ACCEPTED
+           WHEN ic.ic_number LIKE 'EP%'
+             AND EXISTS (
+                SELECT 1
+                FROM process_line_final_result plfr
+                WHERE plfr.inspection_call_no = ic.ic_number
+             )
+             AND NOT EXISTS (
+
+                SELECT 1
+
+                FROM (
+
+                    SELECT
+                        plfr.lot_number,
+                        MAX(plfr.offered_qty) AS offeredQty,
+                        SUM(plfr.total_accepted) AS acceptedQty
+
+                    FROM process_line_final_result plfr
+
+                    WHERE plfr.inspection_call_no = ic.ic_number
+
+                    GROUP BY plfr.lot_number
+
+                ) x
+
+                WHERE x.acceptedQty < x.offeredQty
+
+             )
+            THEN 'ACCEPTED'
+
+            -- EP REJECTED
+           WHEN ic.ic_number LIKE 'EP%'
+             AND EXISTS (
+                SELECT 1
+                FROM process_line_final_result plfr
+                WHERE plfr.inspection_call_no = ic.ic_number
+             )
+             AND NOT EXISTS (
+
+                SELECT 1
+
+                FROM (
+
+                    SELECT
+                        plfr.lot_number,
+                        MAX(plfr.offered_qty) AS offeredQty,
+                        SUM(plfr.total_rejected) AS rejectedQty
+
+                    FROM process_line_final_result plfr
+
+                    WHERE plfr.inspection_call_no = ic.ic_number
+
+                    GROUP BY plfr.lot_number
+
+                ) x
+
+                WHERE x.rejectedQty < x.offeredQty
+
+             )
+            THEN 'REJECTED'
+
+            -- EP PARTIAL
+            WHEN ic.ic_number LIKE 'EP%'
+             AND EXISTS (
+
+                SELECT 1
+
+                FROM (
+
+                    SELECT
+                        plfr.lot_number,
+                        MAX(plfr.offered_qty) AS offeredQty,
+                        SUM(plfr.total_accepted) AS acceptedQty,
+                        SUM(plfr.total_rejected) AS rejectedQty
+
+                    FROM process_line_final_result plfr
+
+                    WHERE plfr.inspection_call_no = ic.ic_number
+
+                    GROUP BY plfr.lot_number
+
+                ) x
+
+                WHERE x.acceptedQty > 0
+                  AND x.rejectedQty > 0
+
+             )
+            THEN 'PARTIAL'
+
+            ELSE NULL
+
+        END AS finalStatus,
+
+        CASE
+
+            WHEN ic.desired_inspection_date < (
+
+                SELECT DATE(wt.createddate)
+
+                FROM workflow_transition wt
+
+                WHERE wt.workflowtransitionid = (
+
+                    SELECT MIN(wt2.workflowtransitionid)
+
+                    FROM workflow_transition wt2
+
+                    WHERE wt2.requestid = ic.ic_number
+                      AND wt2.status = 'IE_SCHEDULED'
+                )
+
+            )
+
+            THEN 1
+            ELSE 0
+
+        END AS isOverdue,
+
+        CASE
+
+            WHEN (
+                SELECT wt.status
+                FROM workflow_transition wt
+                WHERE wt.workflowtransitionid = (
+                    SELECT MAX(wt2.workflowtransitionid)
+                    FROM workflow_transition wt2
+                    WHERE wt2.requestid = ic.ic_number
+                )
+            ) = 'DSC_SIGN_IC'
+
+            THEN 1
+            ELSE 0
+
+        END AS icIssued
+
+    FROM inspection_calls ic
+
+    WHERE (
+
+        SELECT wt.status
+
+        FROM workflow_transition wt
+
+        WHERE wt.workflowtransitionid = (
+
+            SELECT MAX(wt2.workflowtransitionid)
+
+            FROM workflow_transition wt2
+
+            WHERE wt2.requestid = ic.ic_number
+        )
+
+    ) IN (
+        'INSPECTION_COMPLETE_CONFIRM',
+        'GENERATE_IC',
+        'DSC_SIGN_IC'
+    )
+
+) fc
+
+ON (
+
+    (
+        fc.ic_number LIKE 'EP%'
+
+        AND EXISTS (
+            SELECT 1
+            FROM poi_process_ie_mapping ppim
+            WHERE ppim.poi_code = fc.place_of_inspection
+              AND ppim.employee_code = um.employee_code
+        )
+    )
+
+    OR
+
+    (
+        fc.ic_number NOT LIKE 'EP%'
+
+        AND EXISTS (
+            SELECT 1
+            FROM ie_pincode_poi_mapping ipm
+            WHERE ipm.poi_code = fc.place_of_inspection
+              AND ipm.employee_code = um.employee_code
+        )
+    )
+)
+
+WHERE urm.roleid IN (3,7)
+
+AND upcm.cm_employee_code = :cmEmployeeCode
+
+GROUP BY
+    um.employee_code,
+    um.username
+
+ORDER BY um.employee_code
+
+""", nativeQuery = true)
+    List<Object[]> getIeOperationalSlaPerformanceSummary(
+            @Param("cmEmployeeCode") String cmEmployeeCode
+    );
+
+
+
+
 }
 
 
