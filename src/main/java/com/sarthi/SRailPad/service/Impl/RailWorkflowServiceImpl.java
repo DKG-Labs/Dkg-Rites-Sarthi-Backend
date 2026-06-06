@@ -142,7 +142,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         if (workflowId.equals(2L)
                 && transition.getNextRoleId() != null
-                && transition.getNextRoleId().equals(2L)) {
+                && transition.getNextRoleId().equals(2)) {
 
             String pincode =
                     mapping.getPinCode();
@@ -308,6 +308,36 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                                 )
                         ));
 
+        // Verify that the transaction is not already in a terminal state
+        if ("COMPLETED".equalsIgnoreCase(current.getStatus()) || "COMPLETED".equalsIgnoreCase(current.getJobStatus())) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "This inspection has already been finished."
+                    )
+            );
+        }
+
+
+        // Also check if there's any newer transaction that has already advanced past this one
+        List<RailWorkflowTransaction> allTx = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(current.getRequestId());
+        if (allTx != null && !allTx.isEmpty()) {
+            RailWorkflowTransaction latestTx = allTx.get(allTx.size() - 1);
+            if (latestTx.getWorkflowTransitionId() > current.getWorkflowTransitionId()) {
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "This transition has already been processed."
+                        )
+                );
+            }
+        }
+
+
 
         if(current.getWorkflowId() == 1
                 && "Rail Process IE".equalsIgnoreCase(current.getNextRole())) {
@@ -442,7 +472,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 List<RailTransitionMaster> trans = null;
 
                 if(req.getAction().equalsIgnoreCase("PO_VERIFICATION")
-                        || req.getAction().equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL")) {
+                        || req.getAction().equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL")
+                        || req.getAction().equalsIgnoreCase("PAUSE")
+                        || req.getAction().equalsIgnoreCase("FINISH")
+                        || req.getAction().equalsIgnoreCase("RESUME")
+                        || req.getAction().equalsIgnoreCase("WITHHELD")
+                        || req.getAction().equalsIgnoreCase("RESCHEDULE_CALL")) {
 
                     trans =
                             railTransitionMasterRepository
@@ -457,8 +492,13 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                                     t.getNextAction()
                                             .equalsIgnoreCase(req.getAction()))
                             .findFirst()
-                            .orElseThrow(() -> new RuntimeException(
-                                    "Transition not configured"));
+                            .orElseThrow(() -> new BusinessException(
+                                    new ErrorDetails(
+                                            AppConstant.ERROR_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_VALIDATION,
+                                            "Transition not configured for action: " + req.getAction()
+                                    )));
 
                     tx.setCurrentRole(current.getNextRole());
                 }
@@ -467,6 +507,16 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             tx.setCurrentRole(current.getNextRole());
             if(current.getWorkflowId() == 2) {
                 tx.setJobStatus(determineJobStatus(req.getAction()));
+            }
+
+            if(transition == null) {
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "No valid transition found for action: " + req.getAction()
+                        ));
             }
 
             if(transition.getNextRoleId() != null) {

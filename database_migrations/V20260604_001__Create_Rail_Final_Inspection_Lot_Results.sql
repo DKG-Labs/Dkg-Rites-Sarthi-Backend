@@ -1,0 +1,28 @@
+-- Create Rail Final Inspection Lot Results table
+CREATE TABLE rail_final_inspection_lot_results (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    call_no VARCHAR(255) NOT NULL,
+    shift VARCHAR(50),
+    date_of_inspection DATE,
+    plant_id VARCHAR(255),
+    rly_po_sr_no VARCHAR(255),
+    vendor_name VARCHAR(255),
+    vendor_code VARCHAR(255),
+    railpad_type VARCHAR(255),
+    lot_no VARCHAR(255) NOT NULL,
+    offered_qty INT,
+    accepted_qty INT,
+    rejected_qty INT,
+    visual_dimensional_status VARCHAR(50),
+    physical_ageing_properties_status VARCHAR(50),
+    electrical_chemical_status VARCHAR(50),
+    dynamic_durability_test_status VARCHAR(50),
+    ncrgrsp_status VARCHAR(50),
+    overall_status VARCHAR(50),
+    hologram TEXT,
+    remarks TEXT,
+    created_by BIGINT,
+    created_date DATETIME,
+    updated_by BIGINT,
+    updated_date DATETIME
+);

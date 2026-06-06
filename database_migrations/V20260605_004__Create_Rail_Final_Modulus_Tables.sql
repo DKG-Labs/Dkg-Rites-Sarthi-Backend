@@ -1,0 +1,39 @@
+-- Create Rail Final Modulus table (Consolidated single table with 6 samples support)
+CREATE TABLE rail_final_modulus (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    call_no VARCHAR(255) NOT NULL,
+    lot_no VARCHAR(255) NOT NULL,
+    plant_id VARCHAR(255),
+    vendor_code VARCHAR(255),
+    shift VARCHAR(50),
+    railpad_type VARCHAR(255),
+    offered_qty INT,
+    
+    -- Before Ageing samples (1 to 6)
+    sample_before1 VARCHAR(255),
+    sample_before2 VARCHAR(255),
+    sample_before3 VARCHAR(255),
+    sample_before4 VARCHAR(255),
+    sample_before5 VARCHAR(255),
+    sample_before6 VARCHAR(255),
+    
+    -- After Ageing samples (1 to 6)
+    sample_after1 VARCHAR(255),
+    sample_after2 VARCHAR(255),
+    sample_after3 VARCHAR(255),
+    sample_after4 VARCHAR(255),
+    sample_after5 VARCHAR(255),
+    sample_after6 VARCHAR(255),
+    
+    modulus_status VARCHAR(50),
+    not_ok_count INT,
+    remarks TEXT,
+    
+    -- Audit fields
+    created_by BIGINT,
+    created_date DATETIME,
+    updated_by BIGINT,
+    updated_date DATETIME,
+    
+    UNIQUE KEY uk_rail_final_modulus (call_no, lot_no)
+);

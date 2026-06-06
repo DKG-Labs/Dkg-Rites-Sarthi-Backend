@@ -1,0 +1,43 @@
+package com.sarthi.SRailPad.dto.ieVerification;
+
+import lombok.Data;
+import java.util.List;
+
+@Data
+public class RailFinalWeightTestRequestDto {
+    private String callNo;
+    private String lotNo;
+    private String plantId;
+    private String vendorCode;
+    private String shift;
+    private String railpadType;
+    private Integer offeredQty;
+    private java.time.LocalDate dateOfShift;
+
+    private Integer n1;
+    private Integer ac1;
+    private Integer re1;
+    private Integer n2;
+    private Integer ac2;
+    private Integer re2;
+    private Double minWeight;
+    private Double maxWeight;
+    private Boolean isSecondActive;
+
+    private String weightStatus;
+    private Integer notOk1;
+    private Integer notOk2;
+    private Integer totalNotOk;
+    private String remarks;
+    private Long userId;
+
+    private List<SampleDto> samples;
+
+    @Data
+    public static class SampleDto {
+        private Integer samplingNo;
+        private Integer sampleNo;
+        private Double sampleValue;
+        private Boolean isRejected;
+    }
+}
