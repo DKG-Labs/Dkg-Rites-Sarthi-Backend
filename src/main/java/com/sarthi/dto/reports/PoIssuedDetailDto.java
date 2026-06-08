@@ -15,4 +15,6 @@ public class PoIssuedDetailDto {
     private String vendor;
     private Long poQuantity;
     private String uom;
+    private Long acceptedQtyAfterFinalInspection;
+    private Long balanceQuantity;
 }

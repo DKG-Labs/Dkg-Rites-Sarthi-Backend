@@ -4935,7 +4935,15 @@ public class reportsImpl implements reports {
 
     public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr) {
 
-        return poItemRepository.getPoIssuedDetails(itemCatDescr);
+        List<PoIssuedDetailDto> list = poItemRepository.getPoIssuedDetails(itemCatDescr);
+        if (list != null) {
+            for (PoIssuedDetailDto dto : list) {
+                long poQty = dto.getPoQuantity() != null ? dto.getPoQuantity() : 0L;
+                long acceptedQty = dto.getAcceptedQtyAfterFinalInspection() != null ? dto.getAcceptedQtyAfterFinalInspection() : 0L;
+                dto.setBalanceQuantity(poQty - acceptedQty);
+            }
+        }
+        return list;
 
     }
 

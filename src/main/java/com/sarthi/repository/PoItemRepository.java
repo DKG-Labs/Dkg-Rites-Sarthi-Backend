@@ -69,7 +69,9 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
             MAX(ph.poDate),
             MAX(ph.vendorDetails),
             SUM(pi.qty),
-            MAX(pi.uom)
+            MAX(pi.uom),
+            (SELECT COALESCE(SUM(f.qtyNowPassed), 0L) FROM FinalCumulativeResults f WHERE f.poNo = ph.poNo),
+            0L
         )
         FROM PoItem pi
         JOIN pi.poHeader ph
