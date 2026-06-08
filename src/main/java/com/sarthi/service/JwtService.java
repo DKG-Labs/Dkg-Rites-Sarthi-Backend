@@ -10,4 +10,6 @@ public interface JwtService {
     public String extractUserId(String token);
     boolean isValid(String token, UserDetails user);
 
+    public void validateToken(String authHeader);
+
 }

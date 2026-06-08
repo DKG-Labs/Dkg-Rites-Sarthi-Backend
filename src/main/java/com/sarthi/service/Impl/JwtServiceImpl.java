@@ -66,4 +66,24 @@ public class JwtServiceImpl implements JwtService {
         return username.equals(user.getUsername()) &&
                 !extractClaim(token, Claims::getExpiration).before(new Date());
     }
+
+    public void validateToken(String authHeader) {
+
+        if (authHeader == null
+                || !authHeader.startsWith("Bearer ")) {
+
+            throw new RuntimeException("Missing token");
+        }
+
+        String token = authHeader.substring(7);
+
+        try {
+
+          extractUserName(token);
+
+        } catch (Exception e) {
+
+            throw new RuntimeException("Invalid token");
+        }
+    }
 }

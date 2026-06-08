@@ -38,6 +38,7 @@ public class SecurityConfig {
                                 "/sarthi-backend/allPendingWorkflowTransition",
                                 "/sarthi-backend/allPendingQtyEditTransitions",
                                 "/sarthi-backend/workflowTransitionHistory",
+                                "/api/ibs/sarthi/authenticate",
                                 // Raw Material APIs - temporarily public for testing
                                 "/api/raw-material/**",
                                 // Process Material APIs - temporarily public for testing
@@ -53,6 +54,10 @@ public class SecurityConfig {
                                 "/configuration/security"
                         ).permitAll()
 
+                        .requestMatchers(
+                                "/api/ibs/callData",
+                                "/api/ibs/acknowledge"
+                        ).authenticated()
                         // All other requests - permit for now (can be changed to authenticated() later)
                         .anyRequest().permitAll()
                 )

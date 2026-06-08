@@ -1,0 +1,20 @@
+package com.sarthi.repository;
+
+import com.sarthi.entity.IBS.IbsCallRegistration;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+import java.util.Set;
+
+@Repository
+public interface IbsCallRegistrationRepository
+        extends JpaRepository<IbsCallRegistration, Long> {
+    boolean existsByCallNumberAndStatus(String callNumber, String status);
+
+    @Query("""
+       SELECT i.callNumber
+       FROM IbsCallRegistration i
+       """)
+    Set<String> findAllCallNumbers();
+}
