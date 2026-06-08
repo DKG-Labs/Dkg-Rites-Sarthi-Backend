@@ -82,7 +82,13 @@ SELECT
           ON ibs.call_no COLLATE utf8mb4_unicode_ci
            = sic.call_no COLLATE utf8mb4_unicode_ci
      WHERE sic.po_no COLLATE utf8mb4_unicode_ci
-           = ph.po_no COLLATE utf8mb4_unicode_ci) AS totalOffered
+           = ph.po_no COLLATE utf8mb4_unicode_ci) AS totalOffered,
+
+    -- 🔹 UOM
+    (SELECT pi.uom
+     FROM po_item pi
+     WHERE pi.po_header_id = ph.id
+     LIMIT 1) AS uom
 
 FROM po_header ph
 

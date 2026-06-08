@@ -21,4 +21,5 @@ public class Level1DTO {
     private Integer balQty;
 
     private Double rejectionPercent;
+    private String uom;
 }

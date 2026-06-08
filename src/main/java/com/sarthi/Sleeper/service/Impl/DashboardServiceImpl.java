@@ -533,7 +533,8 @@ public class DashboardServiceImpl implements DashboardService {
                     accQty,
                     balQty,
 
-                    round(rejectionPercent)
+                    round(rejectionPercent),
+                    d.getUom()
             );
 
         }).toList();
