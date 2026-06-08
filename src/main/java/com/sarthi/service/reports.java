@@ -70,6 +70,8 @@ public interface reports {
 
     public List<java.util.Map<String, String>> getRailPadDistinctVendors();
 
+    public List<com.sarthi.dto.reports.RailPadVendorWiseQualityDto> getRailPadVendorWiseQualityReport(String startDate, String endDate);
+
     public List<String> getRailPadDistinctPlants(String vendorCode);
 
     public List<com.sarthi.dto.reports.RailPadQualityReportDto> getRailPadQualityReport(
@@ -93,5 +95,35 @@ public interface reports {
     public List<IeOperationalSlaPerformanceSummaryDto> getIeOperationalSlaPerformanceSummary(
             String cmEmployeeCode);
 
+    public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary();
+
+    public List<RailPadPoLifeCycle1stLevelDto> getRailPadPo1stLevelStatus();
+    public List<RailPadPoLifeCycle2ndLevelDto> getRailPadPo2ndLevelStatus(String poNo);
+    public List<RailPadPoLifeCycle3rdLevelDto> getRailPadPo3rdLevelStatus(String poNo, String serialNo);
+    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMprReportDto> getRailPadMprReport(
+            int page,
+            int size,
+            java.time.LocalDate startDate,
+            java.time.LocalDate endDate,
+            String rio,
+            String zone,
+            String vendor);
+
+    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMauReportDto> getRailPadMauReport(
+            int page,
+            int size,
+            java.time.LocalDate startDate,
+            java.time.LocalDate endDate,
+            String rio,
+            String zone,
+            String vendor);
+
+    public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopManufacturers();
+
+    public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopPlants(String vendorCode);
+
+    public java.util.List<java.util.Map<String, Object>> getRailPadClosedLoopLots(String plantId, int year);
+
+    public com.sarthi.dto.reports.RailPadLotClosedLoopDto getRailPadLotClosedLoopDetails(Long lotId);
 }
 

@@ -23,4 +23,16 @@ public interface RailProductionDeclarationRepository extends JpaRepository<RailP
     List<Object[]> findProductTypesGroupedByPo(
         @Param("startDate") java.time.LocalDate startDate,
         @Param("endDate") java.time.LocalDate endDate);
+
+    @Query(value = """
+        SELECT 
+            d.po_no AS poNo,
+            GROUP_CONCAT(DISTINCT p.product_type SEPARATOR ', ') AS productTypes
+        FROM rail_production_declaration d
+        JOIN rail_production_product p ON d.id = p.declaration_id
+        WHERE d.po_no IS NOT NULL AND d.po_no <> ''
+          AND p.product_type IS NOT NULL AND p.product_type <> ''
+        GROUP BY d.po_no
+    """, nativeQuery = true)
+    List<Object[]> findDistinctProductTypesGroupByPo();
 }

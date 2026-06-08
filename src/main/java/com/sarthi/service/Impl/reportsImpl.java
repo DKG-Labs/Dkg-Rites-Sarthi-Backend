@@ -39,10 +39,18 @@ import com.sarthi.repository.processmaterial.*;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 
 import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
+import com.sarthi.SRailPad.repository.RailVendorPlantsRepository;
+import com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository;
+import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionLotRepository;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailIEProductionVerificationRepository;
 
+import com.sarthi.SRailPad.repository.ieVerification.RailFinalInspectionLotResultsRepository;
+
 import com.sarthi.SRailPad.repository.plantDeclaration.RailProductionDeclarationRepository;
+import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
+
+import com.sarthi.dto.reports.RailPadFinalInspectionSummaryDto;
 
 import com.sarthi.service.reports;
 
@@ -183,7 +191,17 @@ public class reportsImpl implements reports {
         @Autowired
         private RailProductionDeclarationRepository railProductionDeclarationRepository;
         @Autowired
+        private RailFinalInspectionLotResultsRepository railFinalInspectionLotResultsRepository;
+        @Autowired
+        private RailInspectionCallRepository railInspectionCallRepository;
+        @Autowired
         private PincodePoIMappingRepository pincodePoIMappingRepository;
+        @Autowired
+        private RailVendorPlantsRepository railVendorPlantsRepository;
+        @Autowired
+        private RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
+        @Autowired
+        private RailInspectionLotRepository railInspectionLotRepository;
 
         /*
 
@@ -3777,7 +3795,11 @@ public class reportsImpl implements reports {
 
 
 
+                RailPadFinalInspectionSummaryDto finalSummary = getRailPadFinalInspectionSummary();
+
                 long totalRejection = railIEProductionVerificationRepository.sumAllRejectedQty();
+
+                long finalRejection = finalSummary.getRejectedQtyNos() + finalSummary.getRejectedQtySet();
 
                 long productionDeclared = railIEProductionVerificationRepository.sumAllTotalPiecesProduced();
 
@@ -3785,55 +3807,39 @@ public class reportsImpl implements reports {
 
                 if (productionDeclared > 0) {
 
-                        railPadRejPercentage = (double) totalRejection * 100.0 / (double) productionDeclared;
+                        railPadRejPercentage = (double) (totalRejection + finalRejection) * 100.0 / (double) productionDeclared;
 
                 }
 
                 dto.setRejectedInProcess(totalRejection);
-                dto.setRejectedInFinal(0L);
+
+                dto.setRejectedInFinal(finalRejection);
+
                 dto.setRailPadRejectionPercentage(Math.round(railPadRejPercentage * 100.0) / 100.0);
 
+
+
                 java.time.LocalDate thirtyDaysAgoDate = java.time.LocalDate.now().minusDays(30);
+
                 Long rpPiecesSum = railIEProductionVerificationRepository.sumTotalPiecesProducedLast30Days(thirtyDaysAgoDate);
+
                 Long rpPlantCount = railIEProductionVerificationRepository.countDistinctPlantDaysLast30Days(thirtyDaysAgoDate);
+
                 double railPadAvg = 0.0;
+
                 if (rpPiecesSum != null && rpPiecesSum > 0 && rpPlantCount != null && rpPlantCount > 0) {
+
                         railPadAvg = rpPiecesSum / (double) rpPlantCount;
+
                 }
+
                 dto.setRailPadAvgProductionPerDay(Math.round(railPadAvg * 100.0) / 100.0);
 
-                long acceptedNos = 0L;
-                long acceptedSet = 0L;
-                java.util.List<Object[]> acceptedByUom = railIEProductionVerificationRepository.findAcceptedQtyByUom();
-                if (acceptedByUom != null) {
 
-                        for (Object[] row : acceptedByUom) {
 
-                                String uom = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
+                dto.setTotalAcceptedNos(finalSummary.getAcceptedQtyNos());
 
-                                long qty = row[1] != null ? ((Number) row[1]).longValue() : 0L;
-
-                                if (uom.contains("NOS") || uom.contains("NO.") || uom.contains("NUMBER")) {
-
-                                        acceptedNos += qty;
-
-                                } else if (uom.contains("SET")) {
-
-                                        acceptedSet += qty;
-
-                                } else {
-
-                                        acceptedNos += qty;
-
-                                }
-
-                        }
-
-                }
-
-                dto.setTotalAcceptedNos(acceptedNos);
-
-                dto.setTotalAcceptedSet(acceptedSet);
+                dto.setTotalAcceptedSet(finalSummary.getAcceptedQtySet());
 
 
 
@@ -4486,31 +4492,23 @@ public class reportsImpl implements reports {
 
 
                                 long runningTotal = 0;
-
+                                int colorIndex = 0;
                                 for (int i = 0; i < rows.size(); i++) {
-
                                         Object[] row = rows.get(i);
-
                                         String name = row[0] != null ? row[0].toString() : "Unknown";
-
                                         long count = row[1] != null ? ((Number) row[1]).longValue() : 0;
-
+                                        if (count <= 0) {
+                                                continue;
+                                        }
                                         runningTotal += count;
-
-
 
                                         double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
 
-
-
                                         StageRejectionDto dto = new StageRejectionDto(name, (double) count,
-
-                                                palette[i % palette.length]);
-
+                                                palette[colorIndex % palette.length]);
+                                        colorIndex++;
                                         dto.setCumulative(Math.round(cumulative * 10.0) / 10.0); // 1 decimal
-
                                         result.add(dto);
-
                                 }
 
                         } catch (Exception e) {
@@ -4798,25 +4796,39 @@ public class reportsImpl implements reports {
                         if (product != null && (product.equalsIgnoreCase("Rail Pad") || product.equalsIgnoreCase("Rail Pads"))) {
 
                                 List<Object[]> results = railIEProductionVerificationRepository
-
                                         .findMonthlyRejectionTrend(lStart, lEnd);
 
+                                List<Object[]> finalRejections = railFinalInspectionLotResultsRepository
+                                        .findMonthlyFinalRejections(lStart, lEnd);
+
+                                Map<String, Long> finalRejMap = new HashMap<>();
+                                if (finalRejections != null) {
+                                        for (Object[] row : finalRejections) {
+                                                String my = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
+                                                long val = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                                                finalRejMap.put(my, val);
+                                        }
+                                }
+
                                 if (results != null) {
-
                                         for (Object[] row : results) {
-
                                                 String label = row[0] != null ? row[0].toString() : "Unknown";
-
                                                 double percentage = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
+                                                long totalProduced = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+
+                                                String key = label.trim().toUpperCase();
+                                                long finalRejQty = finalRejMap.getOrDefault(key, 0L);
+
+                                                double finalPct = 0.0;
+                                                if (totalProduced > 0) {
+                                                        finalPct = (double) finalRejQty * 100.0 / (double) totalProduced;
+                                                        finalPct = Math.round(finalPct * 100.0) / 100.0;
+                                                }
 
                                                 StageRejectionDto dto = new StageRejectionDto(label, percentage, "#10b981");
-
-                                                dto.setFinalValue(0.0);
-
+                                                dto.setFinalValue(finalPct);
                                                 trend.add(dto);
-
                                         }
-
                                 }
 
                         } else {
@@ -6395,6 +6407,38 @@ public class reportsImpl implements reports {
 
         }
 
+        @Override
+        public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary() {
+                long acceptedQtyNos = 0L;
+                long acceptedQtySet = 0L;
+                long rejectedQtyNos = 0L;
+                long rejectedQtySet = 0L;
+
+                java.util.List<Object[]> results = railFinalInspectionLotResultsRepository.findAcceptedAndRejectedQtyByUom();
+                if (results != null) {
+                        for (Object[] row : results) {
+                                String uom = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
+                                long acc = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                                long rej = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+
+                                if (uom.contains("SET")) {
+                                        acceptedQtySet += acc;
+                                        rejectedQtySet += rej;
+                                } else {
+                                        acceptedQtyNos += acc;
+                                        rejectedQtyNos += rej;
+                                }
+                        }
+                }
+
+                return RailPadFinalInspectionSummaryDto.builder()
+                        .acceptedQtyNos(acceptedQtyNos)
+                        .acceptedQtySet(acceptedQtySet)
+                        .rejectedQtyNos(rejectedQtyNos)
+                        .rejectedQtySet(rejectedQtySet)
+                        .build();
+        }
+
 
 
     @Override
@@ -6465,7 +6509,11 @@ public class reportsImpl implements reports {
 
                     dto.setPlantId(row[9] != null ? row[9].toString() : "");
 
-
+                    if (row.length > 10 && row[10] != null) {
+                            dto.setPlantName(row[10].toString());
+                    } else {
+                            dto.setPlantName("");
+                    }
 
                     result.add(dto);
 
@@ -6722,78 +6770,45 @@ public class reportsImpl implements reports {
 
 
 
-                                    if (reason.contains("hardness")) {
-
-                                            hardness += qty;
-
-                                    } else if (reason.contains("gravity")) {
-
-                                            gravity += qty;
-
-                                    } else if (reason.contains("rubber")) {
-
-                                            rubber += qty;
-
-                                    } else if (reason.contains("ash")) {
-
-                                            ash += qty;
-
-                                    } else if (reason.contains("rebound") || reason.contains("resilience")) {
-
-                                            rebound += qty;
-
-                                    } else if (reason.contains("dimension")) {
-
-                                            dimension += qty;
-
-                                    } else if (reason.contains("weight")) {
-
-                                            weight += qty;
-
-                                    } else if (reason.contains("surface")) {
-
-                                            surface += qty;
-
-                                    } else if (reason.contains("compression")) {
-
-                                            compression += qty;
-
-                                    } else if (reason.contains("visual test")) {
-
-                                            visualTest += qty;
-
-                                    } else if (reason.contains("material") || reason.contains("raw")) {
-
-                                            rm += qty;
-
-                                    } else if (reason.contains("compounding")) {
-
-                                            compounding += qty;
-
-                                    } else if (reason.contains("mixing")) {
-
-                                            mixing += qty;
-
-                                    } else if (reason.contains("curing")) {
-
-                                            curing += qty;
-
-                                    } else if (reason.contains("cutting")) {
-
-                                            cutting += qty;
-
-                                    } else if (reason.contains("rheo")) {
-
-                                            rheometer += qty;
-
-                                    } else if (reason.contains("finishing") || reason.contains("visual check")) {
-
+                                    if (reason.contains("finishing") || reason.contains("visual check") || 
+                                            reason.contains("short moulding") || reason.contains("bubbles") || 
+                                            reason.contains("blisters") || reason.contains("uneven edges") || 
+                                            reason.contains("surface roughness") || reason.contains("improper side cut")) {
                                             visualFinishing += qty;
-
+                                    } else if (reason.contains("hardness")) {
+                                            hardness += qty;
+                                    } else if (reason.contains("gravity")) {
+                                            gravity += qty;
+                                    } else if (reason.contains("rubber")) {
+                                            rubber += qty;
+                                    } else if (reason.contains("ash")) {
+                                            ash += qty;
+                                    } else if (reason.contains("rebound") || reason.contains("resilience")) {
+                                            rebound += qty;
+                                    } else if (reason.contains("dimension")) {
+                                            dimension += qty;
+                                    } else if (reason.contains("weight")) {
+                                            weight += qty;
+                                    } else if (reason.contains("surface")) {
+                                            surface += qty;
+                                    } else if (reason.contains("compression")) {
+                                            compression += qty;
+                                    } else if (reason.contains("visual test")) {
+                                            visualTest += qty;
+                                    } else if (reason.contains("material") || reason.contains("raw")) {
+                                            rm += qty;
+                                    } else if (reason.contains("compounding")) {
+                                            compounding += qty;
+                                    } else if (reason.contains("mixing")) {
+                                            mixing += qty;
+                                    } else if (reason.contains("curing")) {
+                                            curing += qty;
+                                    } else if (reason.contains("cutting")) {
+                                            cutting += qty;
+                                    } else if (reason.contains("rheo")) {
+                                            rheometer += qty;
                                     } else {
-
                                             other += qty;
-
                                     }
 
                             }
@@ -7270,5 +7285,592 @@ public class reportsImpl implements reports {
                 }).toList();
         }
 
+        @Override
+        public List<RailPadPoLifeCycle1stLevelDto> getRailPadPo1stLevelStatus() {
+                List<PoHeader> poHeaders = poHeaderRepository.findRailPadPoHeadersWithItems();
+                List<Object[]> acceptedQtyList = railFinalInspectionLotResultsRepository.findAcceptedQtyByPo();
+                
+                // Fetch railpad types from final inspection lot results, inspection calls, and production declarations
+                List<Object[]> typeList = railFinalInspectionLotResultsRepository.findDistinctRailpadTypesGroupByPo();
+                List<Object[]> callTypeList = railInspectionCallRepository.findDistinctRailpadTypesGroupByPo();
+                List<Object[]> prodTypeList = railProductionDeclarationRepository.findDistinctProductTypesGroupByPo();
+                
+                Map<String, Long> acceptedQtyMap = new HashMap<>();
+                for (Object[] row : acceptedQtyList) {
+                        if (row[0] != null && row[1] != null) {
+                                acceptedQtyMap.put(row[0].toString().trim(), ((Number) row[1]).longValue());
+                        }
+                }
+
+                // Combine all types into a set per PO to ensure we capture clean types
+                Map<String, Set<String>> combinedTypes = new HashMap<>();
+                
+                for (Object[] row : typeList) {
+                        if (row[0] != null && row[1] != null) {
+                                String po = row[0].toString().trim();
+                                String types = row[1].toString();
+                                combinedTypes.computeIfAbsent(po, k -> new LinkedHashSet<>())
+                                             .addAll(Arrays.asList(types.split(",\\s*")));
+                        }
+                }
+                for (Object[] row : callTypeList) {
+                        if (row[0] != null && row[1] != null) {
+                                String po = row[0].toString().trim();
+                                String types = row[1].toString();
+                                combinedTypes.computeIfAbsent(po, k -> new LinkedHashSet<>())
+                                             .addAll(Arrays.asList(types.split(",\\s*")));
+                        }
+                }
+                for (Object[] row : prodTypeList) {
+                        if (row[0] != null && row[1] != null) {
+                                String po = row[0].toString().trim();
+                                String types = row[1].toString();
+                                combinedTypes.computeIfAbsent(po, k -> new LinkedHashSet<>())
+                                             .addAll(Arrays.asList(types.split(",\\s*")));
+                        }
+                }
+
+                Map<String, String> typeMap = new HashMap<>();
+                for (Map.Entry<String, Set<String>> entry : combinedTypes.entrySet()) {
+                        typeMap.put(entry.getKey(), String.join(", ", entry.getValue()));
+                }
+
+                List<RailPadPoLifeCycle1stLevelDto> list = new ArrayList<>();
+                AtomicInteger counter = new AtomicInteger(1);
+
+                for (PoHeader po : poHeaders) {
+                        String poNo = po.getPoNo();
+                        long totalQty = po.getItems().stream()
+                                .mapToLong(pi -> pi.getQty() != null ? pi.getQty().longValue() : 0L)
+                                .sum();
+                        long acceptedQty = acceptedQtyMap.getOrDefault(poNo.trim(), 0L);
+                        long overallPoBalance = totalQty - acceptedQty;
+                        if (overallPoBalance < 0) overallPoBalance = 0L;
+
+                        String vendorName = po.getFirmDetails() != null ? po.getFirmDetails() : 
+                                (po.getVendorDetails() != null ? po.getVendorDetails().split("~")[0] : "");
+
+                        String railPadType = typeMap.getOrDefault(poNo.trim(), "");
+                        if (railPadType.isEmpty() && !po.getItems().isEmpty()) {
+                                List<String> itemDescs = po.getItems().stream()
+                                        .map(pi -> parseRailPadType(pi.getItemDesc()))
+                                        .filter(Objects::nonNull)
+                                        .filter(s -> !s.isEmpty())
+                                        .distinct()
+                                        .toList();
+                                railPadType = String.join(", ", itemDescs);
+                        }
+
+                        RailPadPoLifeCycle1stLevelDto dto = new RailPadPoLifeCycle1stLevelDto(
+                                counter.getAndIncrement(),
+                                po.getRlyShortName(),
+                                poNo,
+                                po.getPoDate(),
+                                vendorName,
+                                po.getInspectingAgency(),
+                                totalQty,
+                                acceptedQty,
+                                overallPoBalance,
+                                railPadType
+                        );
+                        list.add(dto);
+                }
+                return list;
+        }
+
+        @Override
+        public List<RailPadPoLifeCycle2ndLevelDto> getRailPadPo2ndLevelStatus(String poNo) {
+                Optional<PoHeader> poOpt = poHeaderRepository.findByPoNoWithItems(poNo);
+                if (poOpt.isEmpty()) {
+                        return new ArrayList<>();
+                }
+                PoHeader po = poOpt.get();
+                List<PoItem> items = po.getItems();
+
+                // 1. Process rejections: total pieces produced and rejected for the entire PO
+                List<Object[]> processRejList = railIEProductionVerificationRepository.findProcessRejectionSumsByPo(poNo);
+                double processProduced = 0.0;
+                double processRejected = 0.0;
+                if (processRejList != null && !processRejList.isEmpty()) {
+                        Object[] row = processRejList.get(0);
+                        if (row[0] != null) processProduced = ((Number) row[0]).doubleValue();
+                        if (row[1] != null) processRejected = ((Number) row[1]).doubleValue();
+                }
+                double processRejectionPercentage = 0.0;
+                if (processProduced > 0) {
+                        processRejectionPercentage = (processRejected * 100.0) / processProduced;
+                        processRejectionPercentage = Math.round(processRejectionPercentage * 100.0) / 100.0;
+                }
+
+                List<RailPadPoLifeCycle2ndLevelDto> list = new ArrayList<>();
+                AtomicInteger counter = new AtomicInteger(1);
+
+                for (PoItem item : items) {
+                        String poSr = item.getItemSrNo();
+
+                        // 2. Fetch distinct rail pad type(s)
+                        List<String> types = railFinalInspectionLotResultsRepository.findDistinctRailpadTypesByPoAndSr(poNo, poSr);
+                        String railPadType = (types != null && !types.isEmpty()) ? String.join(", ", types) : parseRailPadType(item.getItemDesc());
+
+                        // 3. Accepted Qty
+                        Long acceptedQtyLong = railFinalInspectionLotResultsRepository.sumAcceptedQtyByPoAndSr(poNo, poSr);
+                        int acceptedQty = acceptedQtyLong != null ? acceptedQtyLong.intValue() : 0;
+
+                        // 4. Balance Qty
+                        int poSrNoQty = item.getQty() != null ? item.getQty() : 0;
+                        int balanceQty = poSrNoQty - acceptedQty;
+                        if (balanceQty < 0) balanceQty = 0;
+
+                        // 5. Distinct calls count
+                        Long noOfIcsLong = railInspectionCallRepository.countCallsByPoAndSr(poNo, poSr);
+                        int noOfIcs = noOfIcsLong != null ? noOfIcsLong.intValue() : 0;
+
+                        // 6. Final rejection %: sum(rejected_qty) * 100 / sum(offered_qty) for that serial
+                        List<Object[]> finalRejList = railFinalInspectionLotResultsRepository.findFinalRejectionSumsByPoAndSr(poNo, poSr);
+                        double finalOffered = 0.0;
+                        double finalRejected = 0.0;
+                        if (finalRejList != null && !finalRejList.isEmpty()) {
+                                Object[] row = finalRejList.get(0);
+                                if (row[0] != null) finalOffered = ((Number) row[0]).doubleValue();
+                                if (row[1] != null) finalRejected = ((Number) row[1]).doubleValue();
+                        }
+                        double finalRejectionPercentage = 0.0;
+                        if (finalOffered > 0) {
+                                finalRejectionPercentage = (finalRejected * 100.0) / finalOffered;
+                                finalRejectionPercentage = Math.round(finalRejectionPercentage * 100.0) / 100.0;
+                        }
+
+                        // 7. Total rejection %
+                        double totalRejectionPercentage = processRejectionPercentage + finalRejectionPercentage;
+                        totalRejectionPercentage = Math.round(totalRejectionPercentage * 100.0) / 100.0;
+
+                        RailPadPoLifeCycle2ndLevelDto dto = new RailPadPoLifeCycle2ndLevelDto(
+                                counter.getAndIncrement(),
+                                poSr,
+                                railPadType,
+                                item.getConsigneeDetail(),
+                                item.getDeliveryDate(),
+                                item.getExtendedDeliveryDate(),
+                                poSrNoQty,
+                                balanceQty,
+                                noOfIcs,
+                                processRejectionPercentage,
+                                finalRejectionPercentage,
+                                totalRejectionPercentage
+                        );
+                        list.add(dto);
+                }
+                return list;
+        }
+
+        @Override
+        public List<RailPadPoLifeCycle3rdLevelDto> getRailPadPo3rdLevelStatus(String poNo, String serialNo) {
+                List<Object[]> rows = railFinalInspectionLotResultsRepository.findCallsDetailByPoAndSr(poNo, serialNo);
+                List<RailPadPoLifeCycle3rdLevelDto> list = new ArrayList<>();
+                AtomicInteger counter = new AtomicInteger(1);
+
+                for (Object[] row : rows) {
+                        String callNo = row[0] != null ? row[0].toString() : "";
+                        double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                        double accepted = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+                        double rejected = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
+
+                        double rejectionPercentage = 0.0;
+                        if (offered > 0) {
+                                rejectionPercentage = (rejected * 100.0) / offered;
+                                rejectionPercentage = Math.round(rejectionPercentage * 100.0) / 100.0;
+                        }
+
+                        RailPadPoLifeCycle3rdLevelDto dto = new RailPadPoLifeCycle3rdLevelDto(
+                                counter.getAndIncrement(),
+                                callNo,
+                                offered,
+                                accepted,
+                                rejected,
+                                rejectionPercentage
+                        );
+                        list.add(dto);
+                }
+                return list;
+        }
+
+        @Override
+        public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMprReportDto> getRailPadMprReport(
+                int page,
+                int size,
+                java.time.LocalDate startDate,
+                java.time.LocalDate endDate,
+                String rio,
+                String zone,
+                String vendor) {
+
+                String zoneParam = (zone != null && !zone.trim().isEmpty() && !zone.equalsIgnoreCase("all")) ? zone.trim() : null;
+                String vendorParam = (vendor != null && !vendor.trim().isEmpty() && !vendor.equalsIgnoreCase("all")) ? vendor.trim() : null;
+                String rioParam = (rio != null && !rio.trim().isEmpty() && !rio.equalsIgnoreCase("all")) ? rio.trim() : null;
+
+                List<Object[]> rows = poHeaderRepository.fetchRailPadMonthlyProgress(startDate, endDate, rioParam, zoneParam, vendorParam);
+                List<com.sarthi.dto.reports.RailPadMprReportDto> allList = new ArrayList<>();
+
+                for (Object[] row : rows) {
+                        String rly = row[0] != null ? row[0].toString() : "";
+                        String poNo = row[1] != null ? row[1].toString() : "";
+                        String manufacturer = row[2] != null ? row[2].toString() : "";
+                        Double poQty = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
+                        String uom = row[4] != null ? row[4].toString() : "Nos.";
+                        Double dispatchedMonthly = row[5] != null ? ((Number) row[5]).doubleValue() : 0.0;
+                        Double totalDispatched = row[6] != null ? ((Number) row[6]).doubleValue() : 0.0;
+                        Double balance = poQty - totalDispatched;
+                        if (balance < 0) balance = 0.0;
+
+                        allList.add(new com.sarthi.dto.reports.RailPadMprReportDto(
+                                rly, poNo, manufacturer, poQty, uom, dispatchedMonthly, totalDispatched, balance
+                        ));
+                }
+
+                // In-memory pagination
+                int totalElements = allList.size();
+                int totalPages = (int) Math.ceil((double) totalElements / size);
+                if (totalPages == 0) totalPages = 1;
+
+                int startIdx = page * size;
+                int endIdx = Math.min(startIdx + size, totalElements);
+                List<com.sarthi.dto.reports.RailPadMprReportDto> content = new ArrayList<>();
+                if (startIdx < totalElements) {
+                        content = allList.subList(startIdx, endIdx);
+                }
+
+                com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMprReportDto> response = 
+                        new com.sarthi.dto.summaryDtos.PageResponseDTO<>();
+                response.setContent(content);
+                response.setPage(page);
+                response.setSize(size);
+                response.setTotalElements(totalElements);
+                response.setTotalPages(totalPages);
+                response.setLast(page >= totalPages - 1);
+
+                return response;
+        }
+
+        @Override
+        public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMauReportDto> getRailPadMauReport(
+                int page,
+                int size,
+                java.time.LocalDate startDate,
+                java.time.LocalDate endDate,
+                String rio,
+                String zone,
+                String vendor) {
+
+                String zoneParam = (zone != null && !zone.trim().isEmpty() && !zone.equalsIgnoreCase("all")) ? zone.trim() : null;
+                String vendorParam = (vendor != null && !vendor.trim().isEmpty() && !vendor.equalsIgnoreCase("all")) ? vendor.trim() : null;
+                String rioParam = (rio != null && !rio.trim().isEmpty() && !rio.equalsIgnoreCase("all")) ? rio.trim() : null;
+
+                List<Object[]> rows = railVendorPlantsRepository.fetchRailPadMonthlyAnalysis(startDate, endDate, rioParam, zoneParam, vendorParam);
+                List<com.sarthi.dto.reports.RailPadMauReportDto> allList = new ArrayList<>();
+
+                for (Object[] row : rows) {
+                        String plantName = row[0] != null ? row[0].toString() : "";
+                        String rowRio = row[1] != null ? row[1].toString() : "N/A";
+                        Long production = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        Long acceptance = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                        Long processRejection = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                        Long finalRejection = row[5] != null ? ((Number) row[5]).longValue() : 0L;
+
+                        double processRejPct = 0.0;
+                        double finalRejPct = 0.0;
+                        double totalRejPct = 0.0;
+
+                        if (production > 0) {
+                                processRejPct = Math.round(((double) processRejection / production * 100) * 100.0) / 100.0;
+                                finalRejPct = Math.round(((double) finalRejection / production * 100) * 100.0) / 100.0;
+                                totalRejPct = Math.round(((double) (finalRejection + processRejection) / production * 100) * 100.0) / 100.0;
+                        }
+
+                        allList.add(new com.sarthi.dto.reports.RailPadMauReportDto(
+                                plantName, rowRio, production, acceptance, processRejection, processRejPct, finalRejection, finalRejPct, totalRejPct
+                        ));
+                }
+
+                // In-memory pagination
+                int totalElements = allList.size();
+                int totalPages = (int) Math.ceil((double) totalElements / size);
+                if (totalPages == 0) totalPages = 1;
+
+                int startIdx = page * size;
+                int endIdx = Math.min(startIdx + size, totalElements);
+                List<com.sarthi.dto.reports.RailPadMauReportDto> content = new ArrayList<>();
+                if (startIdx < totalElements) {
+                        content = allList.subList(startIdx, endIdx);
+                }
+
+                com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMauReportDto> response = 
+                        new com.sarthi.dto.summaryDtos.PageResponseDTO<>();
+                response.setContent(content);
+                response.setPage(page);
+                response.setSize(size);
+                response.setTotalElements(totalElements);
+                response.setTotalPages(totalPages);
+                response.setLast(page >= totalPages - 1);
+
+                return response;
+        }
+
+        @Override
+        public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopManufacturers() {
+                List<Object[]> rows = railPadPincodePoIMappingRepository.findDistinctManufacturers();
+                List<java.util.Map<String, String>> list = new ArrayList<>();
+                for (Object[] r : rows) {
+                        java.util.Map<String, String> map = new java.util.HashMap<>();
+                        map.put("vendorCode", r[0] != null ? r[0].toString() : "");
+                        map.put("companyName", r[1] != null ? r[1].toString() : "");
+                        list.add(map);
+                }
+                return list;
+        }
+
+        @Override
+        public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopPlants(String vendorCode) {
+                List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> plants = railVendorPlantsRepository.findByVendorCode(vendorCode);
+                List<java.util.Map<String, String>> list = new ArrayList<>();
+                for (com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants p : plants) {
+                        java.util.Map<String, String> map = new java.util.HashMap<>();
+                        map.put("plantId", p.getPlantId());
+                        map.put("plantName", p.getPlantName());
+                        list.add(map);
+                }
+                return list;
+        }
+
+        @Override
+        public java.util.List<java.util.Map<String, Object>> getRailPadClosedLoopLots(String plantId, int year) {
+                List<Object[]> rows = railInspectionLotRepository.findLotsByPlantAndYear(plantId, year);
+                List<java.util.Map<String, Object>> list = new ArrayList<>();
+                for (Object[] r : rows) {
+                        java.util.Map<String, Object> map = new java.util.HashMap<>();
+                        map.put("lotId", r[0] != null ? ((Number) r[0]).longValue() : 0L);
+                        map.put("lotNo", r[1] != null ? r[1].toString() : "");
+                        map.put("callNo", r[2] != null ? r[2].toString() : "");
+                        list.add(map);
+                }
+                return list;
+        }
+
+        @Override
+        public com.sarthi.dto.reports.RailPadLotClosedLoopDto getRailPadLotClosedLoopDetails(Long lotId) {
+                Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionLot> lotOpt = railInspectionLotRepository.findById(lotId);
+                if (lotOpt.isEmpty()) {
+                        return null;
+                }
+                com.sarthi.SRailPad.entity.inspectionCall.RailInspectionLot lot = lotOpt.get();
+                com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall call = lot.getInspectionCall();
+                if (call == null) {
+                        return null;
+                }
+
+                String callNo = call.getCallNo();
+                String lotNo = lot.getLotNo();
+                Integer lotSize = lot.getLotSize();
+
+                Optional<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults> finalResultOpt = 
+                        railFinalInspectionLotResultsRepository.findByCallNoAndLotNo(callNo, lotNo);
+
+                String rlyPoSrNo = "";
+                LocalDate dateOfInspection = null;
+                Integer acceptedQty = 0;
+                Integer rejectedQty = 0;
+                String overallStatus = "PENDING";
+
+                if (finalResultOpt.isPresent()) {
+                        com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults finalRes = finalResultOpt.get();
+                        rlyPoSrNo = finalRes.getRlyPoSrNo();
+                        if (rlyPoSrNo != null && rlyPoSrNo.startsWith("N/A/")) {
+                                if (call.getPoNo() != null) {
+                                        String barePoNo = call.getPoNo().contains("/") ? call.getPoNo().split("/")[0] : call.getPoNo();
+                                        Optional<com.sarthi.entity.PoHeader> poOpt = poHeaderRepository.findByPoNo(barePoNo);
+                                        if (poOpt.isPresent()) {
+                                                String rly = poOpt.get().getRlyShortName();
+                                                if (rly == null || rly.trim().isEmpty()) {
+                                                        rly = poOpt.get().getRlyCd();
+                                                }
+                                                if (rly != null && !rly.trim().isEmpty()) {
+                                                        rlyPoSrNo = rly + rlyPoSrNo.substring(3);
+                                                }
+                                        }
+                                }
+                        }
+                        dateOfInspection = finalRes.getDateOfInspection();
+                        acceptedQty = finalRes.getAcceptedQty() != null ? finalRes.getAcceptedQty() : 0;
+                        rejectedQty = finalRes.getRejectedQty() != null ? finalRes.getRejectedQty() : 0;
+                        overallStatus = finalRes.getOverallStatus();
+                } else {
+                        String rlyShortName = "N/A";
+                        if (call.getPoNo() != null) {
+                                String barePoNo = call.getPoNo().contains("/") ? call.getPoNo().split("/")[0] : call.getPoNo();
+                                Optional<com.sarthi.entity.PoHeader> poOpt = poHeaderRepository.findByPoNo(barePoNo);
+                                if (poOpt.isPresent()) {
+                                        rlyShortName = poOpt.get().getRlyShortName();
+                                        if (rlyShortName == null || rlyShortName.trim().isEmpty()) {
+                                                rlyShortName = poOpt.get().getRlyCd();
+                                        }
+                                }
+                        }
+                        if (rlyShortName == null || rlyShortName.trim().isEmpty()) {
+                                rlyShortName = "N/A";
+                        }
+                        String poSr = call.getPoSr() != null ? call.getPoSr() : "N/A";
+                        rlyPoSrNo = rlyShortName + "/" + call.getPoNo() + "/" + poSr;
+                        dateOfInspection = null;
+                }
+                
+                if (rlyPoSrNo != null && rlyPoSrNo.endsWith("/N/A")) {
+                        rlyPoSrNo = rlyPoSrNo.substring(0, rlyPoSrNo.length() - 4);
+                }
+
+                List<Object[]> batchRows = railInspectionLotRepository.findBatchesByLotId(lotId);
+                List<com.sarthi.dto.reports.RailPadLotClosedLoopDto.BatchDto> batchesList = new ArrayList<>();
+                
+                long totalProduction = 0L;
+                long totalProcessRejection = 0L;
+                LocalDate productionDate = null;
+
+                for (Object[] r : batchRows) {
+                        String batchNo = r[0] != null ? r[0].toString() : "";
+                        LocalDate prodDate = r[1] != null ? (r[1] instanceof java.sql.Date ? ((java.sql.Date) r[1]).toLocalDate() : (LocalDate) r[1]) : null;
+                        Integer qty = r[2] != null ? ((Number) r[2]).intValue() : 0;
+
+                        batchesList.add(new com.sarthi.dto.reports.RailPadLotClosedLoopDto.BatchDto(
+                                batchNo, prodDate, qty
+                        ));
+
+                        if (prodDate != null) {
+                                productionDate = prodDate;
+                        }
+
+                        List<Object[]> prodInfo = railInspectionLotRepository.findProductionByPlantAndBatch(call.getPlantId(), batchNo);
+                        if (!prodInfo.isEmpty()) {
+                                Object[] pRow = prodInfo.get(0);
+                                totalProduction += pRow[0] != null ? ((Number) pRow[0]).longValue() : 0L;
+                                if (pRow[1] != null && productionDate == null) {
+                                        productionDate = pRow[1] instanceof java.sql.Date ? ((java.sql.Date) pRow[1]).toLocalDate() : (LocalDate) pRow[1];
+                                }
+                        }
+
+                        List<Object[]> procRejInfo = railInspectionLotRepository.findProcessRejectionByPlantAndBatch(call.getPlantId(), batchNo);
+                        if (!procRejInfo.isEmpty()) {
+                                Object[] prRow = procRejInfo.get(0);
+                                totalProcessRejection += prRow[0] != null ? ((Number) prRow[0]).longValue() : 0L;
+                        }
+                }
+
+                List<com.sarthi.dto.reports.RailPadLotClosedLoopDto.StageDto> stagesList = new ArrayList<>();
+
+                stagesList.add(new com.sarthi.dto.reports.RailPadLotClosedLoopDto.StageDto(
+                        "Produced",
+                        productionDate,
+                        (int) totalProduction,
+                        "Total declared production: " + totalProduction + " Nos."
+                ));
+
+                stagesList.add(new com.sarthi.dto.reports.RailPadLotClosedLoopDto.StageDto(
+                        "Rejection in Process",
+                        productionDate,
+                        (int) totalProcessRejection,
+                        "Process inspection rejected: " + totalProcessRejection + " Nos."
+                ));
+
+                stagesList.add(new com.sarthi.dto.reports.RailPadLotClosedLoopDto.StageDto(
+                        "Final Inspection",
+                        dateOfInspection,
+                        lotSize,
+                        overallStatus + " (Accepted: " + acceptedQty + ", Rejected: " + rejectedQty + ")"
+                ));
+
+                return new com.sarthi.dto.reports.RailPadLotClosedLoopDto(
+                        rlyPoSrNo, lotSize, dateOfInspection, acceptedQty, rejectedQty, overallStatus, batchesList, stagesList
+                );
+        }
+
+        private static String parseRailPadType(String desc) {
+                if (desc == null || desc.isEmpty()) {
+                        return "";
+                }
+                String lower = desc.toLowerCase();
+                
+                boolean is10mm = lower.contains("10 mm") || lower.contains("10mm") || lower.contains("10.00mm") || lower.contains("10.00 mm");
+                boolean is6mm = lower.contains("6 mm") || lower.contains("6mm") || lower.contains("6.00mm") || lower.contains("6.00 mm") || lower.contains("6.2 mm") || lower.contains("6.2mm");
+                boolean is12mm = lower.contains("12 mm") || lower.contains("12mm") || lower.contains("12.00mm");
+                
+                boolean isComposite = lower.contains("composite") || lower.contains("cgrsp");
+                boolean isNylon = lower.contains("nylon") || lower.contains("ncrgrsp") || lower.contains("reinforced");
+                
+                if (is10mm) {
+                        if (isComposite) return "10.00mm CGRSP";
+                        if (isNylon) return "10.00mm NCRGRSP";
+                        return "10.00mm GRSP";
+                }
+                if (is6mm) {
+                        if (isComposite) {
+                                if (lower.contains("6.2")) return "6.20mm CGRSP";
+                                return "6.00mm CGRSP";
+                        }
+                        if (isNylon) return "6.00mm NCRGRSP";
+                        return "6.00mm GRSP";
+                }
+                if (is12mm) {
+                        return "12.00mm GRSP";
+                }
+                
+                if (lower.contains("rt-8746") || lower.contains("t-8746") || lower.contains("t-8747")) {
+                        return "10.00mm CGRSP";
+                }
+                if (lower.contains("t-6618") || lower.contains("t-8327")) {
+                        return "6.20mm CGRSP";
+                }
+                if (lower.contains("t-4218") || lower.contains("t-4865") || lower.contains("t-6154") || lower.contains("t-3902") || lower.contains("t-10263")) {
+                        return "6.00mm NCRGRSP";
+                }
+                
+                if (lower.contains("composite")) return "CGRSP";
+                if (lower.contains("nylon")) return "NCRGRSP";
+                if (lower.contains("grooved")) return "GRSP";
+                
+                return desc.length() > 30 ? desc.substring(0, 30) + "..." : desc;
+        }
+
+        @Override
+        public List<com.sarthi.dto.reports.RailPadVendorWiseQualityDto> getRailPadVendorWiseQualityReport(String startDate, String endDate) {
+                LocalDate start = (startDate != null && !startDate.isEmpty()) ? LocalDate.parse(startDate) : LocalDate.now().minusDays(30);
+                LocalDate end = (endDate != null && !endDate.isEmpty()) ? LocalDate.parse(endDate) : LocalDate.now();
+
+                List<Object[]> rows = railIEProductionVerificationRepository.getRailPadVendorWiseQualityReport(start, end);
+                List<com.sarthi.dto.reports.RailPadVendorWiseQualityDto> result = new ArrayList<>();
+
+                for (Object[] row : rows) {
+                        String companyName = row[0] != null ? row[0].toString() : "";
+                        String plantName = row[1] != null ? row[1].toString() : "";
+                        long inspected = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        long accepted = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                        long rejected = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+
+                        String manufacture = companyName;
+                        if (!plantName.isEmpty() && !companyName.contains(plantName)) {
+                                manufacture = companyName + " - " + plantName;
+                        } else if (!plantName.isEmpty()) {
+                                manufacture = plantName;
+                        }
+
+                        String rejectionPercent = "0.00%";
+                        if (inspected > 0) {
+                                double pct = ((double) rejected / inspected) * 100.0;
+                                rejectionPercent = String.format("%.2f%%", pct);
+                        }
+
+                        result.add(new com.sarthi.dto.reports.RailPadVendorWiseQualityDto(
+                                manufacture, inspected, accepted, rejected, rejectionPercent
+                        ));
+                }
+
+                return result;
+        }
 }
 

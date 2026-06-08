@@ -87,6 +87,106 @@ public class reportsController {
                 HttpStatus.OK);
     }
 
+    @GetMapping("/railpad-final-accepted-rejected")
+    public ResponseEntity<Object> getRailPadFinalAcceptedRejected() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getRailPadFinalInspectionSummary()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/railpad/1stLevelReportPoData")
+    public ResponseEntity<Object> getRailPad1stLevelReportPoData() {
+        List<RailPadPoLifeCycle1stLevelDto> list = reportService.getRailPadPo1stLevelStatus();
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/railpad/2ndLevelReportPoSerialData/{poNo}")
+    public ResponseEntity<Object> getRailPad2ndLevelReportPoSerialData(@PathVariable String poNo) {
+        List<RailPadPoLifeCycle2ndLevelDto> list = reportService.getRailPadPo2ndLevelStatus(poNo);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/railpad/3rdLevelReportICData/{poNo}/{serialNo}")
+    public ResponseEntity<Object> getRailPad3rdLevelReportICData(@PathVariable String poNo, @PathVariable String serialNo) {
+        List<RailPadPoLifeCycle3rdLevelDto> list = reportService.getRailPadPo3rdLevelStatus(poNo, serialNo);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/railpad/monthly-progress")
+    public ResponseEntity<Object> getRailPadMonthlyProgress(
+            @RequestParam int page,
+            @RequestParam int size,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate startDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate endDate,
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String zone,
+            @RequestParam(required = false) String vendor) {
+        
+        if (endDate == null) {
+            endDate = java.time.LocalDate.now();
+        }
+        if (startDate == null) {
+            startDate = endDate.minusMonths(6);
+        }
+
+        com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMprReportDto> result = 
+                reportService.getRailPadMprReport(page, size, startDate, endDate, rio, zone, vendor);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+    }
+
+    @GetMapping("/railpad/monthly-analysis")
+    public ResponseEntity<Object> getRailPadMonthlyAnalysis(
+            @RequestParam int page,
+            @RequestParam int size,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate startDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate endDate,
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String zone,
+            @RequestParam(required = false) String vendor) {
+        
+        if (endDate == null) {
+            endDate = java.time.LocalDate.now();
+        }
+        if (startDate == null) {
+            startDate = endDate.minusMonths(6);
+        }
+
+        com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMauReportDto> result = 
+                reportService.getRailPadMauReport(page, size, startDate, endDate, rio, zone, vendor);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+    }
+
+    @GetMapping("/railpad/closed-loop/manufacturers")
+    public ResponseEntity<Object> getRailPadClosedLoopManufacturers() {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadClosedLoopManufacturers()), 
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/railpad/closed-loop/plants")
+    public ResponseEntity<Object> getRailPadClosedLoopPlants(@RequestParam String vendorCode) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadClosedLoopPlants(vendorCode)), 
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/railpad/closed-loop/lots")
+    public ResponseEntity<Object> getRailPadClosedLoopLots(@RequestParam String plantId, @RequestParam int year) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadClosedLoopLots(plantId, year)), 
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/railpad/closed-loop/details/{lotId}")
+    public ResponseEntity<Object> getRailPadClosedLoopDetails(@PathVariable Long lotId) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadLotClosedLoopDetails(lotId)), 
+                HttpStatus.OK
+        );
+    }
+
 
     @GetMapping("/process/ic-numbers/{userId}")
     public ResponseEntity<List<String>> getIcNumbers(@PathVariable Long userId) {
@@ -217,6 +317,15 @@ public class reportsController {
     public ResponseEntity<Object> getRailPadPlaces(@RequestParam(required = false) String vendor) {
         return new ResponseEntity<Object>(
                 ResponseBuilder.getSuccessResponse(reportService.getRailPadDistinctPlants(vendor)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/railPadVendorWiseQuality")
+    public ResponseEntity<Object> getRailPadVendorWiseQuality(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(reportService.getRailPadVendorWiseQualityReport(startDate, endDate)),
                 HttpStatus.OK);
     }
 

@@ -184,6 +184,44 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
 	@Query("SELECT DISTINCT h FROM PoHeader h LEFT JOIN FETCH h.items WHERE h.itemCatDescr IS NOT NULL AND LOWER(h.itemCatDescr) LIKE '%rail pad%'")
 	List<PoHeader> findRailPadPoHeadersWithItems();
 
+	@Query(value = """
+        SELECT 
+            ph.rly_short_name AS rly,
+            ph.po_no AS poNo,
+            COALESCE(ph.firm_details, SUBSTRING_INDEX(ph.vendor_details, '~', 1)) AS manufacturer,
+            (SELECT SUM(pi.qty) FROM po_item pi WHERE pi.po_header_id = ph.id) AS poQty,
+            (SELECT MIN(pi.uom) FROM po_item pi WHERE pi.po_header_id = ph.id) AS uom,
+            COALESCE((
+                SELECT SUM(r.accepted_qty)
+                FROM rail_final_inspection_lot_results r
+                JOIN rail_inspection_call ic ON r.call_no = ic.call_no
+                WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) = ph.po_no
+                  AND r.date_of_inspection BETWEEN :startDate AND :endDate
+            ), 0) AS dispatchedMonthly,
+            COALESCE((
+                SELECT SUM(r.accepted_qty)
+                FROM rail_final_inspection_lot_results r
+                JOIN rail_inspection_call ic ON r.call_no = ic.call_no
+                WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) = ph.po_no
+            ), 0) AS totalDispatched
+        FROM po_header ph
+        LEFT JOIN pincode_poi_mapping p ON p.vendor_code = ph.vendor_code OR p.company_name = ph.firm_details
+        LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+        LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
+        WHERE LOWER(ph.item_cat_descr) LIKE '%rail pad%'
+          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+          AND (:vendor IS NULL OR :vendor = '' OR ph.firm_details = :vendor OR SUBSTRING_INDEX(ph.vendor_details, '~', 1) = :vendor)
+          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+        GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.firm_details, ph.vendor_details
+        ORDER BY ph.po_date DESC, ph.id DESC
+    """, nativeQuery = true)
+    List<Object[]> fetchRailPadMonthlyProgress(
+        @Param("startDate") java.time.LocalDate startDate,
+        @Param("endDate") java.time.LocalDate endDate,
+        @Param("rio") String rio,
+        @Param("zone") String zone,
+        @Param("vendor") String vendor);
+
 	@Query("SELECT DISTINCT h.firmDetails, h.vendorCode FROM PoHeader h WHERE h.itemCatDescr IS NOT NULL AND LOWER(h.itemCatDescr) LIKE '%rail pad%' ORDER BY h.firmDetails ASC")
 	List<Object[]> findDistinctRailPadVendors();
 

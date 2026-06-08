@@ -19,4 +19,5 @@ public class RailPadShiftWiseProductionDto {
     private String vendorName;
     private String vendorCode;
     private String plantId;
+    private String plantName;
 }
