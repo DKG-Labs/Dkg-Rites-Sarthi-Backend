@@ -2,12 +2,14 @@ package com.sarthi.dto.summaryDtos;
 
 
 import lombok.Data;
+import java.time.LocalDateTime;
 
 @Data
 public class MonthlyProgressReportDTO {
 
     private String rly;
     private String poNumber;
+    private LocalDateTime poDate;
     private String manufacturer;
 
     private Double poQty;
@@ -19,3 +21,4 @@ public class MonthlyProgressReportDTO {
     private Double totalFinalInspected;
     private Double poBalance;
 }
+
