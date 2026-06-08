@@ -186,4 +186,6 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
 
 	@Query("SELECT DISTINCT h.firmDetails, h.vendorCode FROM PoHeader h WHERE h.itemCatDescr IS NOT NULL AND LOWER(h.itemCatDescr) LIKE '%rail pad%' ORDER BY h.firmDetails ASC")
 	List<Object[]> findDistinctRailPadVendors();
+
+    List<PoHeader> findByCaseNoIsNull();
 }

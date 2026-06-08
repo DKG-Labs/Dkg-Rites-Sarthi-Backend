@@ -67,6 +67,8 @@ public class PoHeader {
         private String itemCat;
         private String itemCatDescr;
 
+        private String caseNo;
+        private String caseStatus;
 
         // ---- RELATION ----
         @OneToMany(mappedBy = "poHeader",

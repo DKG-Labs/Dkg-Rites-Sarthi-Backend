@@ -3,7 +3,8 @@ package com.sarthi.controller;
 
 import com.sarthi.dto.ibsDtos.AuthRequestDto;
 import com.sarthi.dto.ibsDtos.AuthResponseDto;
-import com.sarthi.service.ibsService;
+import com.sarthi.service.IbsService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 public class IbsController {
 
     @Autowired
-    private ibsService service;
+    private IbsService service;
 
     @PostMapping("/sarthi/authenticate")
     public ResponseEntity<AuthResponseDto> generateIntegrationToken(

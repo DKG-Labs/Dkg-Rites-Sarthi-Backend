@@ -15,6 +15,8 @@ public class CrisPoScheduler {
     @Autowired
     private CrisPoAsyncService asyncService;
 
+
+
     @Scheduled(cron = "0 0 15 * * ?")
     public void runDailyPoSync() {
         System.out.println("Scheduler triggered");
