@@ -34,6 +34,14 @@ public class SleeperDashboard {
         );
     }
 
+    @GetMapping("/final-inspection-call-status-counts")
+    public ResponseEntity<Object> getFinalInspectionCallStatusCounts() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(dashboardService.getFinalInspectionCallStatusCounts()),
+                HttpStatus.OK
+        );
+    }
+
 
     @GetMapping("/Final-inspection-rejected-count")
     public ResponseEntity<Object> getFinalInspectionRejectedCount() {

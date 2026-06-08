@@ -7,6 +7,7 @@ import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.entity.SleeperPincodePoIMapping;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.entity.VendorPlant;
 import com.sarthi.Sleeper.repository.*;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.InspectionTestHeaderRepository;
@@ -65,6 +66,8 @@ public class DashboardServiceImpl implements DashboardService {
     private SleeperPincodePoIMappingRepository sleeperPincodePoIMappingRepository;
     @Autowired
     private SleeperInspectionCallRepository inspectionCallRepository;
+    @Autowired
+    private SleeperWorkflowRepository sleeperWorkflowRepository;
     @Override
     public Long getRejectedSleepersCount() {
         return demouldingDefectiveSleeperRepository.countByWithReasons();
@@ -1359,8 +1362,33 @@ public class DashboardServiceImpl implements DashboardService {
         }).toList();
     }
 
-
-
-
+    @Override
+    public java.util.Map<String, Long> getFinalInspectionCallStatusCounts() {
+        List<SleeperWorkflowTransaction> latestTransactions = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2();
+        
+        long pending = 0;
+        long underInspection = 0;
+        
+        for (SleeperWorkflowTransaction tx : latestTransactions) {
+            String jobStatus = tx.getJobStatus();
+            if (jobStatus == null || jobStatus.trim().isEmpty()) {
+                continue;
+            }
+            
+            String statusUpper = jobStatus.trim().toUpperCase();
+            if ("SCHEDULED".equals(statusUpper)) {
+                pending++;
+            } else if (!"CREATED".equals(statusUpper) 
+                    && !"RIO_VERIFIED".equals(statusUpper) 
+                    && !"COMPLETED".equals(statusUpper)) {
+                underInspection++;
+            }
+        }
+        
+        java.util.Map<String, Long> response = new java.util.HashMap<>();
+        response.put("pending", pending);
+        response.put("underInspection", underInspection);
+        return response;
+    }
 }
 

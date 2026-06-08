@@ -113,29 +113,19 @@ AND t.moduleId = :moduleId
 AND t.status = 'Completed'
 """)
     List<String> findCompletedRequestIdsByModuleId(@Param("moduleId") Long moduleId);
-/*
-    @Query(value = """
-    SELECT status 
-    FROM sleeper_workflow_transaction 
-    WHERE request_id = :requestId 
-    ORDER BY workflow_transition_id DESC 
-    LIMIT 1
-""", nativeQuery = true)
-    Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
-=======
->>>>>>> sleeper-uday
 
-    /*
-        @Query(value = """
-        SELECT status
-        FROM sleeper_workflow_transaction
-        WHERE request_id = :requestId
-        ORDER BY workflow_transition_id DESC
-        LIMIT 1
-    """, nativeQuery = true)
-        Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
+    @Query("""
+        SELECT t FROM SleeperWorkflowTransaction t
+        WHERE t.workflowTransitionId = (
+            SELECT MAX(t2.workflowTransitionId)
+            FROM SleeperWorkflowTransaction t2
+            WHERE t2.requestId = t.requestId
+              AND t2.workflowId = 2
+        )
+        AND t.workflowId = 2
+    """)
+    List<SleeperWorkflowTransaction> findLatestTransactionsForWorkflow2();
 
-     */
     @Query(value = """
                 SELECT status 
                 FROM sleeper_workflow_transaction 
