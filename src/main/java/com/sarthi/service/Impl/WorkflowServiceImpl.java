@@ -401,7 +401,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                                       new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
                                               AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                               AppConstant.ERROR_TYPE_VALIDATION,
-                                              "No IE mapping for given pin/product/stage")));
+                                              "Please contact Admin. No IE has been mapped.")));
 
               rio =mapping.getRio();
 
@@ -1300,7 +1300,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                                         new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
                                                 AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                                 AppConstant.ERROR_TYPE_VALIDATION,
-                                                "No IE mapping for given pin/product/stage")));
+                                                "Please contact Admin. No IE has been mapped.")));
 
                 String  rio =mapping.getRio();
                 InspectionCompleteDetails details = new InspectionCompleteDetails();
@@ -1785,7 +1785,7 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
                                 new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
                                         AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                         AppConstant.ERROR_TYPE_VALIDATION,
-                                        "No IE mapping for given pin/product/stage")));
+                                        "Please contact Admin. No IE has been mapped.")));
 
          String  rio =mapping.getRio();
 
@@ -2048,7 +2048,7 @@ private Integer assignIE(
 //                            new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
 //                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
 //                                    AppConstant.ERROR_TYPE_VALIDATION,
-//                                    "No IE mapping for given pin/product/stage")));
+//                                    "Please contact Admin. No IE has been mapped.")));
 
     System.out.print(pinCode+" "+product +" "+ stage +" "+poiCode);
 
@@ -2059,7 +2059,7 @@ private Integer assignIE(
                             new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
                                     AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                     AppConstant.ERROR_TYPE_VALIDATION,
-                                    "No IE mapping for given pin/product/stage")));
+                                    "Please contact Admin. No IE has been mapped.")));
 
 
     String rio = mapping.getRio();

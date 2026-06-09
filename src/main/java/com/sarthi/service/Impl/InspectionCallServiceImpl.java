@@ -35,6 +35,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
     private final InspectionModificationHistoryRepository modificationHistoryRepository;
     private final com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository;
     private final com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository;
+    private final com.sarthi.service.WorkflowService workflowService;
 
     @Autowired
     public InspectionCallServiceImpl(
@@ -43,13 +44,15 @@ public class InspectionCallServiceImpl implements InspectionCallService {
             InventoryEntryService inventoryEntryService,
             InspectionModificationHistoryRepository modificationHistoryRepository,
             com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository,
-            com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository) {
+            com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository,
+            com.sarthi.service.WorkflowService workflowService) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.icNumberGenerator = icNumberGenerator;
         this.inventoryEntryService = inventoryEntryService;
         this.modificationHistoryRepository = modificationHistoryRepository;
         this.heatQuantityRepository = heatQuantityRepository;
         this.rmChemicalAnalysisRepository = rmChemicalAnalysisRepository;
+        this.workflowService = workflowService;
     }
 
     @Override
@@ -225,7 +228,29 @@ public class InspectionCallServiceImpl implements InspectionCallService {
 
         rmDetails.setChemicalAnalysisList(chemEntities);
 
-        return inspectionCallRepository.save(inspectionCall);
+        InspectionCall savedIc = inspectionCallRepository.save(inspectionCall);
+
+        // Trigger workflow ONLY on success of save, but inside the same transaction
+        // so if workflow fails, the save is rolled back.
+        String workflowName = "INSPECTION CALL";
+        Integer createdByUserId = null;
+        try {
+            createdByUserId = Integer.valueOf(savedIc.getCreatedBy());
+        } catch (NumberFormatException e) {
+            logger.warn("⚠️ createdBy is not a valid integer: {}. Skipping workflow initiation.", savedIc.getCreatedBy());
+        }
+
+        if (createdByUserId != null) {
+            workflowService.initiateWorkflow(
+                    savedIc.getIcNumber(),
+                    createdByUserId,
+                    workflowName,
+                    "560001"
+            );
+            logger.info("✅ Workflow initiated for IC: {}", savedIc.getIcNumber());
+        }
+
+        return savedIc;
     }
 
     private BigDecimal toBigDecimal(Double value) {

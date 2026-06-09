@@ -6,13 +6,13 @@ public class BusinessException extends RuntimeException {
     private Throwable throwable;
 
     public BusinessException(ErrorDetails errorDetails,Throwable throwable) {
-        super();
+        super(errorDetails.getMessage(), throwable);
         this.errorDetails = errorDetails;
         this.throwable = throwable;
     }
 
     public BusinessException(ErrorDetails errorDetails) {
-        super();
+        super(errorDetails.getMessage());
         this.errorDetails = errorDetails;
         this.throwable = null;
     }

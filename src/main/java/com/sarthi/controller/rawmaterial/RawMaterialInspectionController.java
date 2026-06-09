@@ -241,18 +241,10 @@ public class RawMaterialInspectionController {
             logger.info("RM Details: {}", request.getRmInspectionDetails());
             logger.info("====================================================");
 
-            // 1️⃣ Save inspection call
+            // 1️⃣ Save inspection call and trigger workflow (Transactional)
             InspectionCall ic = inspectionCallService.createInspectionCall(
                     request.getInspectionCall(),
                     request.getRmInspectionDetails());
-
-            // 2️⃣ Trigger workflow ONLY on success
-            String workflowName = "INSPECTION CALL";
-            workflowService.initiateWorkflow(
-                    ic.getIcNumber(),
-                    Integer.valueOf(ic.getCreatedBy()),
-                    workflowName,
-                    "560001");
 
             logger.info("✅ Inspection call created successfully with ID: {}", ic.getId());
             return new ResponseEntity<>(
