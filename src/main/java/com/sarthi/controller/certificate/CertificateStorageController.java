@@ -3,8 +3,10 @@ package com.sarthi.controller.certificate;
 import com.sarthi.entity.certificate.CertificateStorage;
 import com.sarthi.repository.certificate.CertificateStorageRepository;
 import com.sarthi.service.AzureBlobStorageService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -107,5 +109,42 @@ public class CertificateStorageController {
     private ResponseEntity<?> getCheckResponse(String icNumber) {
         boolean exists = certificateStorageRepository.findByIcNumber(icNumber).isPresent();
         return ResponseEntity.ok(Map.of("exists", exists));
+    }
+
+
+    @GetMapping("/path/{callNumber}")
+    public ResponseEntity<String> getCertificatePath(
+            @PathVariable String callNumber,
+            HttpServletRequest request) {
+
+        String baseUrl =
+                request.getScheme() +
+                        "://" +
+                        request.getServerName() +
+                        ":" +
+                        request.getServerPort()
+                        + "/" + "sarthi-backend";
+
+
+        String certificatePath =
+                baseUrl +
+                        "/api/certificate-storage/view/" +
+                        callNumber +
+                        ".pdf";
+
+        return ResponseEntity.ok(certificatePath);
+    }
+
+
+    @GetMapping(
+            value = "/view/{callNumber}.pdf",
+            produces = MediaType.APPLICATION_PDF_VALUE
+    )
+    public ResponseEntity<byte[]> openCertificate(
+            @PathVariable String callNumber) {
+
+        return azureBlobStorageService.openCertificate(
+                callNumber
+        );
     }
 }
