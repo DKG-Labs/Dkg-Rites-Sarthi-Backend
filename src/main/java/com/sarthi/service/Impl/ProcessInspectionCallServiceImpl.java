@@ -33,6 +33,7 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
     private final ProcessRmIcMappingRepository processMappingRepository;
     private final IcNumberGenerator icNumberGenerator;
     private final InspectionCallService inspectionCallService;
+    private final com.sarthi.service.WorkflowService workflowService;
 
     @Autowired
     public ProcessInspectionCallServiceImpl(
@@ -40,12 +41,14 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
             ProcessInspectionDetailsRepository processDetailsRepository,
             ProcessRmIcMappingRepository processMappingRepository,
             IcNumberGenerator icNumberGenerator,
-            InspectionCallService inspectionCallService) {
+            InspectionCallService inspectionCallService,
+            com.sarthi.service.WorkflowService workflowService) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.processDetailsRepository = processDetailsRepository;
         this.processMappingRepository = processMappingRepository;
         this.icNumberGenerator = icNumberGenerator;
         this.inspectionCallService = inspectionCallService;
+        this.workflowService = workflowService;
     }
 
     @Override
@@ -230,8 +233,28 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                 logger.info("⚠️ Skipping Process RM IC Mapping creation - no RM IC numbers provided");
             }
         }
-
         logger.info("========== PROCESS INSPECTION CALL CREATED SUCCESSFULLY ==========");
+        
+        // Trigger workflow ONLY on success of save, but inside the same transaction
+        // so if workflow fails, the save is rolled back.
+        String workflowName = "INSPECTION CALL";
+        Integer createdByUserId = null;
+        try {
+            createdByUserId = Integer.valueOf(inspectionCall.getCreatedBy());
+        } catch (NumberFormatException e) {
+            logger.warn("⚠️ createdBy is not a valid integer: {}. Skipping workflow initiation.", inspectionCall.getCreatedBy());
+        }
+
+        if (createdByUserId != null) {
+            workflowService.initiateWorkflow(
+                    inspectionCall.getIcNumber(),
+                    createdByUserId,
+                    workflowName,
+                    "560001"
+            );
+            logger.info("✅ Workflow initiated for IC: {}", inspectionCall.getIcNumber());
+        }
+
         return inspectionCall;
     }
 

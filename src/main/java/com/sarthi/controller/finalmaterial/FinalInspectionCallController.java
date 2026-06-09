@@ -82,31 +82,6 @@ public class FinalInspectionCallController {
                 request.getFinalInspectionDetails(),
                 request.getFinalLotDetails());
 
-        // 2️⃣ Trigger workflow ONLY on success
-        String workflowName = "INSPECTION CALL";
-        try {
-            // Try to parse createdBy as Integer, if it fails, use a default value or skip
-            // workflow
-            Integer createdByUserId = null;
-            try {
-                createdByUserId = Integer.valueOf(ic.getCreatedBy());
-            } catch (NumberFormatException e) {
-                logger.warn("⚠️ createdBy is not a valid integer: {}. Skipping workflow initiation.",
-                        ic.getCreatedBy());
-            }
-
-            if (createdByUserId != null) {
-                workflowService.initiateWorkflow(
-                        ic.getIcNumber(),
-                        createdByUserId,
-                        workflowName,
-                        "560001");
-                logger.info("✅ Workflow initiated for IC: {}", ic.getIcNumber());
-            }
-        } catch (Exception workflowEx) {
-            logger.error("⚠️ Workflow initiation failed but IC was created: {}", workflowEx.getMessage());
-            // Don't fail the entire request if workflow fails
-        }
 
         // 3️⃣ Return success response
         InspectionCallResponse responseData = new InspectionCallResponse(

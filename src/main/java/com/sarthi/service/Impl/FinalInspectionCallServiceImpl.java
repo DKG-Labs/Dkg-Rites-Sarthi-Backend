@@ -60,6 +60,9 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     @Autowired
     private InspectionCallService inspectionCallService;
 
+    @Autowired
+    private com.sarthi.service.WorkflowService workflowService;
+
     @Override
     @Transactional
     public InspectionCall createFinalInspectionCall(
@@ -241,6 +244,26 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         logger.info("========== FINAL INSPECTION CALL CREATED SUCCESSFULLY ==========");
         logger.info("IC Number: {}", icNumber);
         logger.info("Total Lots: {}", lotDetailsList != null ? lotDetailsList.size() : 0);
+
+        // Trigger workflow ONLY on success of save, but inside the same transaction
+        // so if workflow fails, the save is rolled back.
+        String workflowName = "INSPECTION CALL";
+        Integer createdByUserId = null;
+        try {
+            createdByUserId = Integer.valueOf(inspectionCall.getCreatedBy());
+        } catch (NumberFormatException e) {
+            logger.warn("⚠️ createdBy is not a valid integer: {}. Skipping workflow initiation.", inspectionCall.getCreatedBy());
+        }
+
+        if (createdByUserId != null) {
+            workflowService.initiateWorkflow(
+                    inspectionCall.getIcNumber(),
+                    createdByUserId,
+                    workflowName,
+                    "560001"
+            );
+            logger.info("✅ Workflow initiated for IC: {}", inspectionCall.getIcNumber());
+        }
 
         return inspectionCall;
     }
