@@ -342,11 +342,12 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 ),0) AS monthlyFinal,
 
                 --  TOTAL FINAL WITHOUT DATE FILTER
-                COALESCE((
-                    SELECT SUM(f.qty_now_passed)
-                    FROM final_cumulative_results f
-                    WHERE f.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
-                ),0) AS totalFinalInspected,
+               COALESCE((
+                                              SELECT SUM(f.qty_now_passed)
+                                              FROM final_cumulative_results f
+                                              WHERE f.po_no COLLATE utf8mb4_unicode_ci
+                                                    LIKE CONCAT('%', ic.po_no, '%')
+                                          ),0) AS totalFinalInspected,
                 ph.po_date AS poDate
 
             FROM (

@@ -161,7 +161,7 @@ public class AzureBlobStorageService {
 
             CertificateStorage storage =
                     certificateStorageRepository
-                            .findByIcNumber(callNumber)
+                            .findByCallNumber(callNumber)
                             .orElseThrow(() ->
                                     new RuntimeException(
                                             "Certificate not found"
@@ -169,9 +169,7 @@ public class AzureBlobStorageService {
                             );
 
             byte[] pdfBytes =
-                   downloadFile(
-                            storage.getFileName()
-                    );
+                    downloadFile(storage.getFileName());
 
             return ResponseEntity.ok()
                     .header(
