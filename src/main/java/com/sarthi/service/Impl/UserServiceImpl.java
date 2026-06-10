@@ -397,8 +397,8 @@ public class UserServiceImpl implements UserService {
                 roleNames,
                 token,
                 rio,
-                user.getShortName() // Include shortName for IC number generation
-
+                user.getShortName(), // Include shortName for IC number generation
+                user.getEmployeeCode()
         );
     }
 
@@ -478,7 +478,6 @@ public class UserServiceImpl implements UserService {
             }
         }
 
-        // ================= RESPONSE =================
         return new LoginResponseDto(
                 user.getUserId(),
                 user.getUsername(),
@@ -486,7 +485,8 @@ public class UserServiceImpl implements UserService {
                roleNames,
                 token,
                 rio,
-                user.getShortName());
+                user.getShortName(),
+                user.getEmployeeCode());
     }
 
     public UserDetails loadUserByUsername(Integer userId) throws UsernameNotFoundException {
