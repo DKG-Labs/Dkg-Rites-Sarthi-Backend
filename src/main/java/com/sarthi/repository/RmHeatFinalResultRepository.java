@@ -447,4 +447,75 @@ GROUP BY r.inspectionCallNo
 """)
     List<Object[]> getHeatSummary(
             @Param("callNos") List<String> callNos);
+
+
+    @Query(value = """
+
+SELECT
+    ph.case_no                                  AS caseNumber,
+
+    DATE(ic.created_at)                         AS callDate,
+
+    ic.place_of_inspection                      AS placeOfInspection,
+
+    CAST(um.employee_code AS CHAR)              AS ieEmployeeNumber,
+
+    'IC Generated'                              AS callStatus,
+
+    ic.po_serial_no                             AS poItemSerialNumber,
+
+    CAST(rm.book_no AS CHAR)                    AS bkNumber,
+
+    CAST(rm.set_no AS CHAR)                     AS setNumber,
+
+    DATE(rm.created_at)                         AS icDate,
+
+    COALESCE(SUM(DISTINCT rmr.total_qty_offered_mt),0)
+                                                    AS quantityOffered,
+
+    COALESCE(SUM(rmr.accepted_qty_mt),0)
+                                                    AS quantityPassed,
+
+    COALESCE(SUM(rmr.weight_rejected_mt),0)
+                                                    AS quantityRejected,
+    ic.ic_number                                    AS callNo
+                                                
+
+FROM rm_ic_edit rm
+
+INNER JOIN inspection_calls ic
+        ON ic.ic_number =
+          SUBSTRING_INDEX(
+                          SUBSTRING_INDEX(rm.ic_number,'/',2),
+                          '/',
+                          -1
+                      )
+
+INNER JOIN po_header ph
+        ON ph.po_no = ic.po_no
+
+INNER JOIN user_master um
+        ON um.userid = rm.created_by
+
+LEFT JOIN rm_heat_final_result rmr
+        ON rmr.inspection_call_no = ic.ic_number
+
+LEFT JOIN ibs_call_registration icr
+        ON icr.call_number = ic.ic_number
+
+WHERE icr.call_number IS NULL
+   OR icr.status = 'Failed'
+
+GROUP BY
+    ph.case_no,
+    ic.created_at,
+    ic.place_of_inspection,
+    um.employee_code,
+    ic.po_serial_no,
+    rm.book_no,
+    rm.set_no,
+    rm.created_at,ic.ic_number
+
+""", nativeQuery = true)
+    List<Object[]> getRmInspectionCalls();
 }

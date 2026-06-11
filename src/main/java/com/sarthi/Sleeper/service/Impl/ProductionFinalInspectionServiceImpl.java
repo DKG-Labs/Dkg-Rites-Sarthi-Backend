@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.BatchInspectionResponseDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.*;
 import com.sarthi.Sleeper.entity.EtSleeperDetails;
 import com.sarthi.Sleeper.entity.FinalInspection.*;
+import com.sarthi.Sleeper.entity.InspectionReasonMaster;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper;
 import com.sarthi.Sleeper.repository.*;
@@ -68,6 +69,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     @Autowired
     private SleeperInspectionCallRepository inspectionCallRepository;
+
+    @Autowired
+    private InspectionReasonMasterRepository reasonRepository;
 
 
     /*  @Override
@@ -227,7 +231,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             result.setActive(true);
 
             resultRepository.save(result);
-
+/*
             // parameters (same as your code)
             if (sleeperDto.getParameters() != null) {
 
@@ -242,6 +246,61 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     paramResult.setTestResult(result);
                     paramResult.setParameter(parameter);
                     paramResult.setParameterResult(paramDto.getResult());
+
+                    parameterResults.add(paramResult);
+                }
+            }*/
+
+            if (sleeperDto.getParameters() != null) {
+
+                for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+
+
+
+                    InspectionParameter parameter =
+                            parameterMap.get(paramDto.getParameterId());
+
+
+                    Long reasonId = null;
+
+                    if (paramDto.getSubReasonId() != null) {
+
+                        reasonId = paramDto.getSubReasonId();
+
+                    } else if (paramDto.getMainReasonId() != null) {
+
+                        reasonId = paramDto.getMainReasonId();
+                    }
+
+
+
+                    InspectionReasonMaster reason = null;
+
+                    if (reasonId != null) {
+
+                        reason = reasonRepository
+                                .findById(reasonId)
+                                .orElseThrow(() ->
+                                        new RuntimeException(
+                                                "Reason not found"));
+                    }
+
+
+
+
+                    InspectionParameterResult paramResult =
+                            new InspectionParameterResult();
+
+                    paramResult.setTestResult(result);
+
+                    paramResult.setParameter(parameter);
+
+                    paramResult.setParameterResult(
+                            paramDto.getResult());
+
+
+
+                    paramResult.setReasonMaster(reason);
 
                     parameterResults.add(paramResult);
                 }

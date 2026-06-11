@@ -2,6 +2,7 @@ package com.sarthi.service.Impl;
 
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.*;
+import com.sarthi.dto.WorkflowDtos.ProductCmDto;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.entity.*;
 import com.sarthi.entity.PoiProcessIeMapping;
@@ -66,6 +67,8 @@ public class UserServiceImpl implements UserService {
     private PincodePoIMappingRepository pincodePoIMappingRepository;
     @Autowired
     private InspectionCallRepository inspectionCallRepository;
+    @Autowired
+    private UserProductCmMappingRepository userProductCmMappingRepository;
 
     @Autowired
     private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
@@ -159,13 +162,28 @@ public class UserServiceImpl implements UserService {
                 rioUserRepository.save(rio);
             }
 
-             // user user creation we can do multiple throught another api
-            if (roleName.equalsIgnoreCase("Control Manager")) {
+            if (userDto.getProductCmMappings() != null) {
 
-                ClusterCmUser cmUser = new ClusterCmUser();
-                cmUser.setClusterName(userDto.getClusterName());
-                cmUser.setCmUserId(userMaster.getUserId());
-                clusterCmUserRepository.save(cmUser);
+                for (ProductCmDto dto : userDto.getProductCmMappings()) {
+
+                    UserProductCmMapping mapping =
+                            new UserProductCmMapping();
+
+                    mapping.setUserEmployeeCode(
+                            userMaster.getEmployeeCode());
+
+                    mapping.setProductType(dto.getProductType());
+
+                    mapping.setCmEmployeeCode(
+                            dto.getCmEmployeeCode());
+
+                    mapping.setCreatedBy(
+                            Long.valueOf(userDto.getCreatedBy()));
+
+                    mapping.setCreatedDate(new Date());
+
+                    userProductCmMappingRepository.save(mapping);
+                }
             }
 
             // Save SBU Head mapping (1 region = 1 SBU Head)

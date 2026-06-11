@@ -2,6 +2,8 @@ package com.sarthi.Sleeper.entity.FinalInspection;
 
 import jakarta.persistence.*;
 import lombok.Data;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -32,6 +34,7 @@ public class SleeperInspectionCall {
     @Column(name = "total_rejected", nullable = false)
     private Integer totalRejected;
 
+    private LocalDate desiredInspectionDate;
     @Column(name = "status")
     private String status = "Pending for verification";
 

@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO;
+
 import java.util.Collection;
 import java.util.List;
 
@@ -38,4 +40,10 @@ public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> 
     ORDER BY v.plantId
     """)
     List<String> findPlantIdsByVendorCode(String vendorCode);
+
+    @Query("SELECT DISTINCT v.companyName FROM VendorPlant v WHERE v.companyName IS NOT NULL AND v.companyName <> '' ORDER BY v.companyName")
+    List<String> findDistinctCompanyNames();
+
+    @Query("SELECT DISTINCT new com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO(v.plantName, v.plantId) FROM VendorPlant v WHERE v.companyName = :companyName AND v.plantId IS NOT NULL AND v.plantId <> '' ORDER BY v.plantName")
+    List<PlantDTO> findPlantsByCompanyName(@Param("companyName") String companyName);
 }

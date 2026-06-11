@@ -20,7 +20,7 @@ public class PoHeader {
 
 
         @Column(name = "po_key", nullable = false)
-        private String poKey; // CASE_NO
+        private String poKey;
 
         private String poNo;
         private String l5PoNo;
@@ -67,6 +67,8 @@ public class PoHeader {
         private String itemCat;
         private String itemCatDescr;
 
+        private String caseNo;
+        private String caseStatus;
 
         // ---- RELATION ----
         @OneToMany(mappedBy = "poHeader",

@@ -52,4 +52,6 @@ public class userRequestDto {
 
     private List<IePoiMappingDto> iePoiMappings;
 
+    private List<ProductCmDto> productCmMappings;
+
 }

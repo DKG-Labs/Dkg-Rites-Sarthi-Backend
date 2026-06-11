@@ -1838,3 +1838,389 @@ ADD COLUMN sleeper_type VARCHAR(50);
 ALTER TABLE wire_tensioning
 ADD COLUMN location VARCHAR(50);
 
+//////
+
+
+select *from inspection_reason_master
+
+CREATE TABLE inspection_reason_master (
+
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    parameter_id BIGINT NOT NULL,
+
+    reason_name VARCHAR(255) NOT NULL,
+
+    parent_reason_id BIGINT NULL,
+
+    active BOOLEAN DEFAULT TRUE,
+
+    FOREIGN KEY (parameter_id)
+        REFERENCES inspection_parameter(id),
+
+    FOREIGN KEY (parent_reason_id)
+        REFERENCES inspection_reason_master(id)
+);
+
+
+
+
+
+
+
+-- =========================================
+-- VISUAL MODULE
+-- module_id = 1
+-- =========================================
+
+
+-- =========================================
+-- PARAMETER : Visual Checking
+-- parameter_id = 1
+-- =========================================
+
+
+-- =========================
+-- MAIN REASONS
+-- =========================
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(1,1,'Surface Defect',NULL),
+
+(2,1,'Honeycomb',NULL),
+
+(3,1,'Crack',NULL),
+
+(4,1,'Insert Missing / Tilt / Sink',NULL),
+
+(5,1,'Dowel Missing / Tilt / Sink',NULL);
+
+
+
+-- =========================
+-- SUB REASONS
+-- =========================
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+-- Surface Defect
+(1,'Rail Seat Damage',1),
+(1,'End Damage',1),
+(1,'Surface Damage',1),
+
+-- Honeycomb
+(1,'Rail Seat Honeycomb',2),
+(1,'End Honeycomb',2),
+
+-- Crack
+(1,'Horizontal Crack',3),
+(1,'Vertical Crack',3),
+
+-- Insert Missing / Tilt / Sink
+(1,'Insert Missing',4),
+(1,'Insert Tilt',4),
+(1,'Insert Sink',4),
+
+-- Dowel Missing / Tilt / Sink
+(1,'Dowel Missing',5),
+(1,'Dowel Tilt',5),
+(1,'Dowel Sink',5),
+(1,'Dowel Jam',5);
+
+
+
+-- =========================================
+-- PARAMETER : Dimension Checking
+-- parameter_id = 2
+-- =========================================
+
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(50,2,'Outer Gauge',NULL);
+
+
+
+-- SUB REASONS
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+(2,'Outer Gauge (+)',50),
+(2,'Outer Gauge (-)',50);
+
+
+
+-- =========================================
+-- PARAMETER : FTC Checking
+-- parameter_id = 3
+-- =========================================
+
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(60,3,'FTC',NULL);
+
+
+-- =========================================================
+-- CRITICAL DIMENSION
+-- module_id = 2
+-- =========================================================
+
+
+
+-- =========================================================
+-- PARAMETER : Toe Gap
+-- parameter_id = 7
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(100,7,'Toe Gap',NULL);
+
+
+-- SUB REASONS
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+(7,'Toe Gap (-)',100),
+(7,'Toe Gap (+)',100);
+
+
+
+
+-- =========================================================
+-- PARAMETER : Distance Between Inserts
+-- parameter_id = 8
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(110,8,'Location of Inserts in Turn Outs',NULL);
+
+
+-- NO SUB REASONS
+
+
+
+
+-- =========================================================
+-- PARAMETER : Slope Gauge
+-- parameter_id = 9
+-- =========================================================
+
+-- MAIN REASONS
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+
+(120,9,'Rail Seat',NULL),
+
+(130,9,'Rail Seat Slope',NULL),
+
+(140,9,'Angularity in Inserts of Turn Outs',NULL),
+
+(150,9,'Location of Dowel',NULL),
+
+(160,9,'Camber in Turn Out Sleepers',NULL);
+
+
+
+-- SUB REASONS
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+-- Rail Seat
+(9,'Rail Seat (-)',120),
+(9,'Rail Seat (+)',120),
+
+-- Camber in Turn Out Sleepers
+(9,'Camber (+)',160),
+(9,'Camber (-)',160);
+
+
+
+-- =========================================================
+-- NON CRITICAL DIMENSION
+-- module_id = 3
+-- =========================================================
+
+
+
+-- =========================================================
+-- PARAMETER : Position of HTS Wires
+-- parameter_id = 13
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(200,13,'HTS Wire Position',NULL);
+
+
+-- SUB REASONS
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+(13,'Top Cover',200),
+(13,'Bottom Cover',200);
+
+
+
+
+-- =========================================================
+-- PARAMETER : Depth of Sleeper
+-- parameter_id = 14
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(210,14,'Height Gauge',NULL);
+
+
+-- SUB REASONS
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+(14,'Height at Center (+)',210),
+(14,'Height at Center (-)',210),
+
+(14,'Height at End (+)',210),
+(14,'Height at End (-)',210),
+
+(14,'Height at Rail Seat (+)',210),
+(14,'Height at Rail Seat (-)',210);
+
+
+
+
+-- =========================================================
+-- PARAMETER : Width of Sleeper
+-- parameter_id = 15
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(220,15,'Width of Sleeper',NULL);
+
+
+-- SUB REASONS
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+(15,'Width at Rail Seat (+)',220),
+(15,'Width at Rail Seat (-)',220),
+
+(15,'Width at Center (+)',220),
+(15,'Width at Center (-)',220),
+
+(15,'Width at End (+)',220),
+(15,'Width at End (-)',220);
+
+
+
+
+-- =========================================================
+-- PARAMETER : Length of Sleeper
+-- parameter_id = 16
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(230,16,'Length of Sleeper',NULL);
+
+
+-- SUB REASONS
+
+INSERT INTO inspection_reason_master
+(parameter_id, reason_name, parent_reason_id)
+VALUES
+
+(16,'Length (+)',230),
+(16,'Length (-)',230);
+
+
+
+
+-- =========================================================
+-- PARAMETER : Wind Gauge
+-- parameter_id = 17
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(240,17,'Wind Gauge',NULL);
+
+
+-- NO SUB REASONS
+
+
+
+
+-- =========================================================
+-- PARAMETER : Camber Check
+-- parameter_id = 18
+-- =========================================================
+
+-- MAIN REASON
+
+INSERT INTO inspection_reason_master
+(id, parameter_id, reason_name, parent_reason_id)
+VALUES
+(250,18,'Rail Seat Camber',NULL);
+
+
+-- NO SUB REASONS
+
+
+
+ALTER TABLE inspection_parameter_result
+ADD COLUMN reason_master_id BIGINT NULL;
+
+
+ALTER TABLE inspection_parameter_result
+ADD CONSTRAINT fk_reason_master
+FOREIGN KEY (reason_master_id)
+REFERENCES inspection_reason_master(id);

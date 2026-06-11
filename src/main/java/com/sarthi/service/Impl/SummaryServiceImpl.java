@@ -158,6 +158,18 @@ public class SummaryServiceImpl implements SummaryService {
 
         dto.setPoBalance(poQty - totalFinal);
 
+        if (row.length > 8 && row[8] != null) {
+            if (row[8] instanceof java.sql.Timestamp) {
+                dto.setPoDate(((java.sql.Timestamp) row[8]).toLocalDateTime());
+            } else if (row[8] instanceof java.time.LocalDateTime) {
+                dto.setPoDate((java.time.LocalDateTime) row[8]);
+            } else if (row[8] instanceof java.sql.Date) {
+                dto.setPoDate(((java.sql.Date) row[8]).toLocalDate().atStartOfDay());
+            } else if (row[8] instanceof java.time.LocalDate) {
+                dto.setPoDate(((java.time.LocalDate) row[8]).atStartOfDay());
+            }
+        }
+
         return dto;
     }
 

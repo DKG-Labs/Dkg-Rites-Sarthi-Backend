@@ -4,11 +4,18 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.sarthi.entity.certificate.CertificateStorage;
+import com.sarthi.repository.certificate.CertificateStorageRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.Base64;
 
 @Service
@@ -22,6 +29,9 @@ public class AzureBlobStorageService {
     private String containerName;
 
     private BlobContainerClient containerClient;
+
+    @Autowired
+    private CertificateStorageRepository certificateStorageRepository;
 
     private BlobContainerClient getContainerClient() {
         if (containerClient == null) {
@@ -81,6 +91,107 @@ public class AzureBlobStorageService {
         } catch (Exception e) {
             log.error("Error downloading file from Azure: {}", e.getMessage());
             throw new RuntimeException("Failed to download file from Azure", e);
+        }
+    }
+
+    /**
+     * Downloads a file from Azure Blob Storage as byte array
+     */
+    public byte[] downloadFile(String fileName) {
+
+        try {
+
+            BlobClient blobClient =
+                    getContainerClient().getBlobClient(fileName);
+
+            if (!blobClient.exists()) {
+
+                throw new RuntimeException(
+                        "File not found in storage: " + fileName
+                );
+            }
+
+            ByteArrayOutputStream outputStream =
+                    new ByteArrayOutputStream();
+
+            blobClient.download(outputStream);
+
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+
+            log.error(
+                    "Error downloading file from Azure: {}",
+                    e.getMessage(),
+                    e
+            );
+
+            throw new RuntimeException(
+                    "Failed to download file from Azure",
+                    e
+            );
+        }
+    }
+
+
+
+
+
+
+    public String getCertificatePath(String callNumber) {
+
+        CertificateStorage storage =
+                certificateStorageRepository
+                        .findByIcNumber(callNumber)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Certificate not found"
+                                )
+                        );
+
+        return "/api/certificates/view/" +
+                callNumber +
+                ".pdf";
+    }
+
+    public ResponseEntity<byte[]> openCertificate(
+            String callNumber) {
+
+        try {
+
+            CertificateStorage storage =
+                    certificateStorageRepository
+                            .findByCallNumber(callNumber)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Certificate not found"
+                                    )
+                            );
+
+            byte[] pdfBytes =
+                    downloadFile(storage.getFileName());
+
+            return ResponseEntity.ok()
+                    .header(
+                            HttpHeaders.CONTENT_DISPOSITION,
+                            "inline; filename=" +
+                                    storage.getFileName()
+                    )
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .contentLength(pdfBytes.length)
+                    .body(pdfBytes);
+
+        } catch (Exception e) {
+
+            log.error(
+                    "Failed to open certificate for {} : {}",
+                    callNumber,
+                    e.getMessage(),
+                    e
+            );
+
+            return ResponseEntity.internalServerError()
+                    .build();
         }
     }
 }

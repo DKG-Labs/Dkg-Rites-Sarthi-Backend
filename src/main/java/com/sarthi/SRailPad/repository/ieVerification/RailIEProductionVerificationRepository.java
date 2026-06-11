@@ -55,11 +55,68 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
         @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
 
     @Query(value = """
-        SELECT r.reason AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count 
-        FROM rail_ie_production_rejection r
-        JOIN rail_ie_production_verification v ON r.verification_id = v.id
-        WHERE IFNULL(v.casting_date, v.created_date) BETWEEN :startDate AND :endDate
-        GROUP BY r.reason
+        SELECT t.reason AS reason, SUM(t.count) AS count
+        FROM (
+            -- 1. Process rejections
+            SELECT r.reason COLLATE utf8mb4_unicode_ci AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count 
+            FROM rail_ie_production_rejection r
+            JOIN rail_ie_production_verification v ON r.verification_id = v.id
+            WHERE IFNULL(v.casting_date, v.created_date) BETWEEN :startDate AND :endDate
+            GROUP BY r.reason
+            
+            UNION ALL
+            
+            -- 2. Final rejections from child section results
+            SELECT s.section_name COLLATE utf8mb4_unicode_ci AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count
+            FROM rail_final_inspection_section_results s
+            JOIN rail_final_inspection_lot_results r ON s.lot_result_id = r.id
+            WHERE s.status = 'FAIL'
+              AND r.date_of_inspection BETWEEN DATE(:startDate) AND DATE(:endDate)
+            GROUP BY s.section_name
+            
+            UNION ALL
+            
+            -- 3. Final rejections from parent columns when NO child results exist
+            SELECT 'Visual & Dimensional Inspection' AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count
+            FROM rail_final_inspection_lot_results r
+            WHERE r.visual_dimensional_status = 'FAIL'
+              AND r.date_of_inspection BETWEEN DATE(:startDate) AND DATE(:endDate)
+              AND NOT EXISTS (SELECT 1 FROM rail_final_inspection_section_results s WHERE s.lot_result_id = r.id)
+              
+            UNION ALL
+            
+            SELECT 'Physical & Ageing Properties' AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count
+            FROM rail_final_inspection_lot_results r
+            WHERE r.physical_ageing_properties_status = 'FAIL'
+              AND r.date_of_inspection BETWEEN DATE(:startDate) AND DATE(:endDate)
+              AND NOT EXISTS (SELECT 1 FROM rail_final_inspection_section_results s WHERE s.lot_result_id = r.id)
+              
+            UNION ALL
+            
+            SELECT 'Electrical & Chemical Properties' AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count
+            FROM rail_final_inspection_lot_results r
+            WHERE r.electrical_chemical_status = 'FAIL'
+              AND r.date_of_inspection BETWEEN DATE(:startDate) AND DATE(:endDate)
+              AND NOT EXISTS (SELECT 1 FROM rail_final_inspection_section_results s WHERE s.lot_result_id = r.id)
+              
+            UNION ALL
+            
+            SELECT 'Dynamic & Durability Test' AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count
+            FROM rail_final_inspection_lot_results r
+            WHERE r.dynamic_durability_test_status = 'FAIL'
+              AND r.date_of_inspection BETWEEN DATE(:startDate) AND DATE(:endDate)
+              AND NOT EXISTS (SELECT 1 FROM rail_final_inspection_section_results s WHERE s.lot_result_id = r.id)
+              
+            UNION ALL
+            
+            SELECT 'NCR/GRSP' AS reason, SUM(COALESCE(r.rejected_qty, 0)) AS count
+            FROM rail_final_inspection_lot_results r
+            WHERE r.ncrgrsp_status = 'FAIL'
+              AND r.date_of_inspection BETWEEN DATE(:startDate) AND DATE(:endDate)
+              AND NOT EXISTS (SELECT 1 FROM rail_final_inspection_section_results s WHERE s.lot_result_id = r.id)
+        ) t
+        GROUP BY t.reason
+        HAVING SUM(t.count) > 0
         ORDER BY count DESC
     """, nativeQuery = true)
     java.util.List<Object[]> findRailPadParetoAnalysisRejections(
@@ -120,7 +177,8 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
             SUM(COALESCE(v.total_pieces_rejected, 0)) AS rejectedQty,
             GROUP_CONCAT(DISTINCT d.vendor_name ORDER BY d.vendor_name SEPARATOR ', ') AS vendorName,
             GROUP_CONCAT(DISTINCT d.vendor_code ORDER BY d.vendor_code SEPARATOR ', ') AS vendorCode,
-            GROUP_CONCAT(DISTINCT d.plant_id ORDER BY d.plant_id SEPARATOR ', ') AS plantId
+            GROUP_CONCAT(DISTINCT d.plant_id ORDER BY d.plant_id SEPARATOR ', ') AS plantId,
+            GROUP_CONCAT(DISTINCT (SELECT plant_name FROM rail_vendor_plant rvp WHERE rvp.plant_id = d.plant_id LIMIT 1) SEPARATOR ', ') AS plantName
         FROM rail_ie_production_verification v
         JOIN rail_production_declaration d ON v.request_id = d.id
         LEFT JOIN (
@@ -226,6 +284,33 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
         GROUP BY d.po_no, r.reason
     """, nativeQuery = true)
     java.util.List<Object[]> findProcessRejectionsGroupedByPo(
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+        @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
+
+    @Query(value = """
+        SELECT 
+            COALESCE(SUM(v.total_pieces_produced), 0) AS totalProduced,
+            COALESCE(SUM(v.total_pieces_rejected), 0) AS totalRejected
+        FROM rail_ie_production_verification v
+        JOIN rail_production_declaration d ON v.request_id = d.id
+        WHERE d.po_no = :poNo
+    """, nativeQuery = true)
+    java.util.List<Object[]> findProcessRejectionSumsByPo(@org.springframework.data.repository.query.Param("poNo") String poNo);
+
+    @Query(value = """
+        SELECT 
+            GROUP_CONCAT(DISTINCT d.vendor_name ORDER BY d.vendor_name SEPARATOR ', ') AS companyName,
+            GROUP_CONCAT(DISTINCT (SELECT plant_name FROM rail_vendor_plant rvp WHERE rvp.plant_id = d.plant_id LIMIT 1) SEPARATOR ', ') AS plantName,
+            SUM(COALESCE(v.total_pieces_produced, 0)) AS totalInspected,
+            SUM(COALESCE(v.total_accepted_pieces, 0)) AS totalAccepted,
+            SUM(COALESCE(v.total_pieces_rejected, 0)) AS totalRejected
+        FROM rail_ie_production_verification v
+        JOIN rail_production_declaration d ON v.request_id = d.id
+        WHERE COALESCE(v.casting_date, DATE(v.created_date)) BETWEEN :startDate AND :endDate
+        GROUP BY d.plant_id
+        ORDER BY companyName ASC, plantName ASC
+    """, nativeQuery = true)
+    java.util.List<Object[]> getRailPadVendorWiseQualityReport(
         @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
         @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
 }

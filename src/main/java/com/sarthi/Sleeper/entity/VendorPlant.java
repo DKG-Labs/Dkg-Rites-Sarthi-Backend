@@ -19,5 +19,7 @@ public class VendorPlant {
     private String plantName;
     private String plantId;
 
+    private String zonalRailway;
+
 
 }

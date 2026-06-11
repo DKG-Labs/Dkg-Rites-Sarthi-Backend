@@ -1,10 +1,10 @@
 package com.sarthi.Sleeper.controller;
 
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchDTO;
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.CompanyDTO;
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level4BatchDTO;
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
 import com.sarthi.Sleeper.service.DashboardService;
+import com.sarthi.dto.reports.IeOperationalSlaPerformanceSummaryDto;
+import com.sarthi.dto.reports.IeWiseCallStatusWorkloadSummaryDto;
+import com.sarthi.dto.reports.InspectionCallsReportDto;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -27,6 +27,14 @@ public class SleeperDashboard {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(dashboardService.getRejectedSleepersCount()),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/final-inspection-call-status-counts")
+    public ResponseEntity<Object> getFinalInspectionCallStatusCounts() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(dashboardService.getFinalInspectionCallStatusCounts()),
                 HttpStatus.OK
         );
     }
@@ -314,5 +322,86 @@ public class SleeperDashboard {
                 HttpStatus.OK
         );
     }
+
+
+    /**
+     * Get distinct company names from vendor_plant table
+     * for Sleeper Shift Wise Production Report manufacturer dropdown
+     */
+    @GetMapping("/vendor-plant/companies")
+    public ResponseEntity<Object> getVendorPlantCompanies() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getVendorPlantCompanyNames()
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    /**
+     * Get plants by company name from vendor_plant table
+     * for Sleeper Shift Wise Production Report plant dropdown
+     */
+    @GetMapping("/vendor-plant/plants")
+    public ResponseEntity<Object> getVendorPlantsByCompany(
+            @RequestParam String companyName) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getVendorPlantsByCompanyName(companyName)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+
+    @GetMapping("/cm-inspection-calls")
+    public ResponseEntity<Object> getInspectionCallsReport(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+
+        List<InspectionCallsReportDto>  list = dashboardService.getInspectionCallsReport(startDate, endDate);
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/cm-sleeper-overduecalls")
+    public ResponseEntity<Object> getCmSleeperOverDueCalls(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+
+        List<InspectionCallsReportDto>  list = dashboardService.getSleeperOverduePendingCallsReport(startDate, endDate);
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/cm-sleeper-ie-callWiseStatus")
+    public ResponseEntity<Object> getCmSleeperieCallWiseStatus(
+            @RequestParam(required = false) String cmEmplId) {
+
+        List<IeWiseCallStatusWorkloadSummaryDto>  list = dashboardService.getSleeperIeWiseCallStatusWorkloadSummary(cmEmplId);
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+
+    @GetMapping("/cm-sleeper-IECompletedCalls")
+    public ResponseEntity<Object> getCmSleeperIeCompletedCalls(
+            @RequestParam(required = false) String cmEmplId) {
+
+        List<IeOperationalSlaPerformanceSummaryDto>  list = dashboardService.getSleeperIeOperationalSlaPerformanceSummary(cmEmplId);
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/quality-sleeper")
+    public ResponseEntity<Object> getQualitySleeper(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+
+        List<QualitySleeperReportDto>  list = dashboardService.getQualitySleeperReport(startDate,endDate);
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
 
 }

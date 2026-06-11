@@ -14,4 +14,6 @@ public interface Level1Projection {
     Integer getAccQty();
     Integer getTotalRejected();
     Integer getTotalOffered();
+
+    String getUom();
 }

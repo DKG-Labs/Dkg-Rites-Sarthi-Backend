@@ -1,15 +1,7 @@
 package com.sarthi.service;
 
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
-import com.sarthi.dto.reports.DashboardSummaryDto;
-import com.sarthi.dto.reports.FourthLevelInspectionDto;
-import com.sarthi.dto.reports.PoInspection1stLevelStatusDto;
-import com.sarthi.dto.reports.PoInspection3rdLevelCallStatusDto;
-import com.sarthi.dto.reports.ProcessPerformanceResponseDto;
-import com.sarthi.dto.reports.StageRejectionDto;
-import com.sarthi.dto.reports.InspectionCallStatusDto;
-import com.sarthi.dto.reports.InspectionDetailsDto;
-import com.sarthi.dto.reports.PoIssuedDetailDto;
+import com.sarthi.dto.reports.*;
 import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -78,6 +70,8 @@ public interface reports {
 
     public List<java.util.Map<String, String>> getRailPadDistinctVendors();
 
+    public List<com.sarthi.dto.reports.RailPadVendorWiseQualityDto> getRailPadVendorWiseQualityReport(String startDate, String endDate);
+
     public List<String> getRailPadDistinctPlants(String vendorCode);
 
     public List<com.sarthi.dto.reports.RailPadQualityReportDto> getRailPadQualityReport(
@@ -86,6 +80,52 @@ public interface reports {
 
 
     public List<String> getAllCompanies();
+
+
+    public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product);
+
+    List<InspectionCallsReportDto> getInspectionCallsReport(String startDate, String endDate);
+
+    public List<InspectionCallsReportDto> getOverduePendingInspectionCallsReport(
+            String startDate,
+            String endDate);
+
+    public List<IeWiseCallStatusWorkloadSummaryDto> getIeWiseCallStatusWorkloadSummary(
+            String cmEmployeeCode);
+
+    public List<IeOperationalSlaPerformanceSummaryDto> getIeOperationalSlaPerformanceSummary(
+            String cmEmployeeCode);
+
+    public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary();
+
+    public List<RailPadPoLifeCycle1stLevelDto> getRailPadPo1stLevelStatus();
+    public List<RailPadPoLifeCycle2ndLevelDto> getRailPadPo2ndLevelStatus(String poNo);
+    public List<RailPadPoLifeCycle3rdLevelDto> getRailPadPo3rdLevelStatus(String poNo, String serialNo);
+    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMprReportDto> getRailPadMprReport(
+            int page,
+            int size,
+            java.time.LocalDate startDate,
+            java.time.LocalDate endDate,
+            String rio,
+            String zone,
+            String vendor);
+
+    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMauReportDto> getRailPadMauReport(
+            int page,
+            int size,
+            java.time.LocalDate startDate,
+            java.time.LocalDate endDate,
+            String rio,
+            String zone,
+            String vendor);
+
+    public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopManufacturers();
+
+    public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopPlants(String vendorCode);
+
+    public java.util.List<java.util.Map<String, Object>> getRailPadClosedLoopLots(String plantId, int year);
+
+    public com.sarthi.dto.reports.RailPadLotClosedLoopDto getRailPadLotClosedLoopDetails(Long lotId);
 
 }
 
