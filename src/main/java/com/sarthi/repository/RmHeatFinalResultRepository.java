@@ -477,7 +477,9 @@ SELECT
                                                     AS quantityPassed,
 
     COALESCE(SUM(rmr.weight_rejected_mt),0)
-                                                    AS quantityRejected
+                                                    AS quantityRejected,
+    ic.ic_number                                    AS callNo
+                                                
 
 FROM rm_ic_edit rm
 
@@ -512,7 +514,7 @@ GROUP BY
     ic.po_serial_no,
     rm.book_no,
     rm.set_no,
-    rm.created_at
+    rm.created_at,ic.ic_number
 
 """, nativeQuery = true)
     List<Object[]> getRmInspectionCalls();

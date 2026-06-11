@@ -532,7 +532,8 @@ GROUP BY p.inspectionCallNo
                                                         AS quantityPassed,
 
         COALESCE(SUM(pr.total_rejected),0)
-                                                        AS quantityRejected
+                                                        AS quantityRejected,
+        ic.ic_number                                    AS callNo
 
     FROM process_ic_edit p
 
@@ -567,7 +568,7 @@ GROUP BY p.inspectionCallNo
         ic.po_serial_no,
         p.book_no,
         p.set_no,
-        p.created_at
+        p.created_at,ic.ic_number
 
     """,
             nativeQuery = true)

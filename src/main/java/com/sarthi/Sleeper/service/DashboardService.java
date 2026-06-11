@@ -82,4 +82,8 @@ public interface DashboardService {
     public List<IeOperationalSlaPerformanceSummaryDto> getSleeperIeOperationalSlaPerformanceSummary(String cmEmployeeCode);
 
     java.util.Map<String, Long> getFinalInspectionCallStatusCounts();
+
+    List<QualitySleeperReportDto> getQualitySleeperReport(
+            String startDate,
+            String endDate);
 }

@@ -1,9 +1,6 @@
 package com.sarthi.Sleeper.controller;
 
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchDTO;
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.CompanyDTO;
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level4BatchDTO;
-import com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.*;
 import com.sarthi.Sleeper.service.DashboardService;
 import com.sarthi.dto.reports.IeOperationalSlaPerformanceSummaryDto;
 import com.sarthi.dto.reports.IeWiseCallStatusWorkloadSummaryDto;
@@ -395,5 +392,16 @@ public class SleeperDashboard {
 
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
+
+    @GetMapping("/quality-sleeper")
+    public ResponseEntity<Object> getQualitySleeper(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+
+        List<QualitySleeperReportDto>  list = dashboardService.getQualitySleeperReport(startDate,endDate);
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
 
 }

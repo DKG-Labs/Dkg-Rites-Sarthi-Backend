@@ -1391,5 +1391,95 @@ public class DashboardServiceImpl implements DashboardService {
         response.put("underInspection", underInspection);
         return response;
     }
+
+
+        @Override
+        public List<QualitySleeperReportDto> getQualitySleeperReport(
+                String startDate,
+                String endDate) {
+
+            DateTimeFormatter formatter =
+                    DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+            LocalDate start =
+                    (startDate != null && !startDate.isBlank())
+                            ? LocalDate.parse(startDate, formatter)
+                            : LocalDate.now().minusYears(1);
+
+            LocalDate end =
+                    (endDate != null && !endDate.isBlank())
+                            ? LocalDate.parse(endDate, formatter)
+                            : LocalDate.now();
+
+            List<QualitySleeperReportProjection> reportData =
+
+                    productionDeclarationRepository.getQualitySleeperReport(
+                          start,
+                           end);
+
+
+            return reportData.stream()
+                    .map(this::mapToDto)
+                    .toList();
+        }
+
+
+
+    private QualitySleeperReportDto mapToDto(
+            QualitySleeperReportProjection p){
+
+        QualitySleeperReportDto dto =
+                new QualitySleeperReportDto();
+
+        dto.setRailwayZone(
+                p.getRailwayZone());
+
+        dto.setPlantId(
+                p.getPlantId());
+
+        dto.setSleeperType(
+                p.getSleeperType());
+
+        dto.setTotalProducedSleepers(
+                p.getTotalProducedSleepers());
+
+        dto.setNoOfSleeperInspectedInProcess(
+                p.getNoOfSleeperInspectedInProcess());
+
+        dto.setNoOfSleeperRejectedInProcess(
+                p.getNoOfSleeperRejectedInProcess());
+
+
+        // =====================================
+        // DEFECT COUNTS
+        // =====================================
+
+        dto.setForDimensionToeGauge(
+                p.getForDimensionToeGauge());
+
+        dto.setForEndDamage(
+                p.getForEndDamage());
+
+        dto.setHoneyCombingSurfaceDefectCrack(
+                p.getHoneyCombingSurfaceDefectCrack());
+
+        dto.setMissingDowel(
+                p.getMissingDowel());
+
+        dto.setOtherDefectsInsertSinkTilt(
+                p.getOtherDefectsInsertSinkTilt());
+
+        dto.setTotalRejectedDefects(
+                p.getTotalRejectedDefects());
+
+        dto.setRejectionPercentage(
+                p.getRejectionPercentage());
+
+        return dto;
+    }
+
+
+
+
 }
 

@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchProjection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level2Projection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.ProductionProjection;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.QualitySleeperReportProjection;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import org.springframework.data.domain.Page;
@@ -955,4 +956,802 @@ ORDER BY
           LocalDate startDate,
           LocalDate endDate
   );
+
+/*
+  @Query(value = """
+
+SELECT
+
+    x.railwayZone AS railwayZone,
+
+    x.plantId AS plantId,
+
+    NULL AS sleeperType,
+
+
+
+    SUM(x.totalProducedSleepers)
+        AS totalProducedSleepers,
+
+
+
+    SUM(x.noOfSleeperInspectedInProcess)
+        AS noOfSleeperInspectedInProcess,
+
+
+
+    SUM(x.noOfSleeperRejectedInProcess)
+        AS noOfSleeperRejectedInProcess
+
+
+
+FROM (
+
+    SELECT
+
+        pd.id AS productionId,
+
+        vp.zonal_railway AS railwayZone,
+
+        pd.plant_id AS plantId,
+
+        pd.batch_number AS batchNumber,
+
+
+
+        -- produced sleepers per batch
+
+        pd.total_casted_sleepers
+            AS totalProducedSleepers,
+
+
+
+        -- inspected sleepers
+
+        COUNT(dds.id)
+            AS noOfSleeperInspectedInProcess,
+
+
+
+        -- rejected sleepers
+
+        SUM(
+
+            CASE
+
+                WHEN (
+
+                        dds.visual_reason IS NOT NULL
+                        AND TRIM(dds.visual_reason) <> ''
+
+                     )
+
+                  OR (
+
+                        dds.dim_reason IS NOT NULL
+                        AND TRIM(dds.dim_reason) <> ''
+
+                     )
+
+                THEN 1
+
+                ELSE 0
+
+            END
+
+        ) AS noOfSleeperRejectedInProcess
+
+
+
+    FROM production_declaration pd
+
+
+
+    LEFT JOIN vendor_plant vp
+
+        ON vp.plant_id COLLATE utf8mb4_unicode_ci
+         = pd.plant_id COLLATE utf8mb4_unicode_ci
+
+
+
+    LEFT JOIN demoulding_inspection di
+
+        ON di.batch_no COLLATE utf8mb4_unicode_ci
+         = pd.batch_number COLLATE utf8mb4_unicode_ci
+
+
+
+    LEFT JOIN demoulding_defective_sleepers dds
+
+        ON dds.inspection_id = di.id
+
+
+
+    WHERE DATE(pd.created_date)
+    BETWEEN :startDate AND :endDate
+
+
+
+    GROUP BY
+
+        pd.id,
+        vp.zonal_railway,
+        pd.plant_id,
+        pd.batch_number,
+        pd.total_casted_sleepers
+
+) x
+
+
+
+GROUP BY
+
+    x.railwayZone,
+    x.plantId
+
+
+
+ORDER BY
+
+    x.railwayZone,
+    x.plantId
+
+""", nativeQuery = true)
+  List<QualitySleeperReportProjection>
+  getQualitySleeperReport(
+          LocalDate startDate,
+          LocalDate endDate);*/
+
+
+  @Query(value = """
+
+SELECT
+
+    x.railwayZone AS railwayZone,
+
+    x.plantId AS plantId,
+
+    NULL AS sleeperType,
+
+
+    -- =========================================
+    -- TOTAL PRODUCED
+    -- =========================================
+
+    COALESCE(SUM(x.totalProducedSleepers),0)
+        AS totalProducedSleepers,
+
+
+    -- =========================================
+    -- DEMOULDING INSPECTED
+    -- =========================================
+
+    COALESCE(SUM(x.noOfSleeperInspectedInProcess),0)
+        AS noOfSleeperInspectedInProcess,
+
+
+    -- =========================================
+    -- DEMOULDING REJECTED
+    -- =========================================
+
+    COALESCE(SUM(x.noOfSleeperRejectedInProcess),0)
+        AS noOfSleeperRejectedInProcess,
+
+
+    -- =========================================
+    -- DEFECT CATEGORY COUNTS
+    -- =========================================
+
+    COALESCE(SUM(x.forDimensionToeGauge),0)
+        AS forDimensionToeGauge,
+
+    COALESCE(SUM(x.forEndDamage),0)
+        AS forEndDamage,
+
+    COALESCE(SUM(x.honeyCombingSurfaceDefectCrack),0)
+        AS honeyCombingSurfaceDefectCrack,
+
+    COALESCE(SUM(x.missingDowel),0)
+        AS missingDowel,
+
+    COALESCE(SUM(x.otherDefectsInsertSinkTilt),0)
+        AS otherDefectsInsertSinkTilt,
+
+
+    -- =========================================
+    -- TOTAL REJECTED DEFECTS
+    -- =========================================
+
+    COALESCE(SUM(x.totalRejectedDefects),0)
+        AS totalRejectedDefects,
+
+
+    -- =========================================
+    -- REJECTION %
+    -- =========================================
+
+    ROUND(
+
+        (
+            COALESCE(SUM(x.totalRejectedDefects),0) * 100.0
+        )
+
+        /
+
+        NULLIF(
+            COALESCE(SUM(x.totalProducedSleepers),0),
+            0
+        ),
+
+    2)
+
+    AS rejectionPercentage
+
+
+FROM (
+
+    SELECT
+
+        pd.id AS productionId,
+
+        vp.zonal_railway AS railwayZone,
+
+        pd.plant_id AS plantId,
+
+        pd.batch_number AS batchNumber,
+
+
+        -- =====================================
+        -- PRODUCED SLEEPERS
+        -- =====================================
+
+        pd.total_casted_sleepers
+            AS totalProducedSleepers,
+
+
+        -- =====================================
+        -- DEMOULDING INSPECTED
+        -- =====================================
+
+        COUNT(dds.id)
+            AS noOfSleeperInspectedInProcess,
+
+
+        -- =====================================
+        -- DEMOULDING REJECTED
+        -- =====================================
+
+        SUM(
+
+            CASE
+
+                WHEN (
+
+                        dds.visual_reason IS NOT NULL
+                        AND TRIM(dds.visual_reason) <> ''
+
+                     )
+
+                  OR (
+
+                        dds.dim_reason IS NOT NULL
+                        AND TRIM(dds.dim_reason) <> ''
+
+                     )
+
+                THEN 1
+
+                ELSE 0
+
+            END
+
+        ) AS noOfSleeperRejectedInProcess,
+
+
+        -- =====================================
+        -- FOR DIMENSION / TOE GAUGE
+        -- =====================================
+
+        COALESCE(
+
+            (
+
+                SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                FROM inspection_test_header ith
+
+                JOIN inspection_test_result itr
+                    ON itr.test_header_id = ith.id
+
+                JOIN inspection_parameter_result ipr
+                    ON ipr.test_result_id = itr.id
+
+                JOIN inspection_reason_master irm
+                    ON irm.id = ipr.reason_master_id
+
+                WHERE ith.batch_id = pd.id
+
+                  AND itr.active = 1
+
+                  AND itr.result = 'REJECTED'
+
+                  AND ipr.parameter_result = 'REJECTED'
+
+                  AND irm.id IN (
+
+                        51,52,
+
+                        101,102,
+
+                        161,162,
+
+                        163,164,
+
+                        211,212,
+
+                        213,214,
+
+                        215,216,
+
+                        221,222,
+
+                        223,224,
+
+                        225,226,
+
+                        231,232,
+
+                        201,202
+
+                  )
+
+            ),
+
+        0)
+
+        AS forDimensionToeGauge,
+
+
+        -- =====================================
+        -- END DAMAGE
+        -- =====================================
+
+        COALESCE(
+
+            (
+
+                SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                FROM inspection_test_header ith
+
+                JOIN inspection_test_result itr
+                    ON itr.test_header_id = ith.id
+
+                JOIN inspection_parameter_result ipr
+                    ON ipr.test_result_id = itr.id
+
+                JOIN inspection_reason_master irm
+                    ON irm.id = ipr.reason_master_id
+
+                WHERE ith.batch_id = pd.id
+
+                  AND itr.active = 1
+
+                  AND itr.result = 'REJECTED'
+
+                  AND ipr.parameter_result = 'REJECTED'
+
+                  AND irm.id = 7
+
+            ),
+
+        0)
+
+        AS forEndDamage,
+
+
+        -- =====================================
+        -- HONEYCOMB / SURFACE / CRACK
+        -- =====================================
+
+        COALESCE(
+
+            (
+
+                SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                FROM inspection_test_header ith
+
+                JOIN inspection_test_result itr
+                    ON itr.test_header_id = ith.id
+
+                JOIN inspection_parameter_result ipr
+                    ON ipr.test_result_id = itr.id
+
+                JOIN inspection_reason_master irm
+                    ON irm.id = ipr.reason_master_id
+
+                WHERE ith.batch_id = pd.id
+
+                  AND itr.active = 1
+
+                  AND itr.result = 'REJECTED'
+
+                  AND ipr.parameter_result = 'REJECTED'
+
+                  AND irm.id IN (
+
+                        6,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12
+
+                  )
+
+            ),
+
+        0)
+
+        AS honeyCombingSurfaceDefectCrack,
+
+
+        -- =====================================
+        -- MISSING DOWEL
+        -- =====================================
+
+        COALESCE(
+
+            (
+
+                SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                FROM inspection_test_header ith
+
+                JOIN inspection_test_result itr
+                    ON itr.test_header_id = ith.id
+
+                JOIN inspection_parameter_result ipr
+                    ON ipr.test_result_id = itr.id
+
+                JOIN inspection_reason_master irm
+                    ON irm.id = ipr.reason_master_id
+
+                WHERE ith.batch_id = pd.id
+
+                  AND itr.active = 1
+
+                  AND itr.result = 'REJECTED'
+
+                  AND ipr.parameter_result = 'REJECTED'
+
+                  AND irm.id = 16
+
+            ),
+
+        0)
+
+        AS missingDowel,
+
+
+        -- =====================================
+        -- OTHER DEFECTS
+        -- =====================================
+
+        COALESCE(
+
+            (
+
+                SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                FROM inspection_test_header ith
+
+                JOIN inspection_test_result itr
+                    ON itr.test_header_id = ith.id
+
+                JOIN inspection_parameter_result ipr
+                    ON ipr.test_result_id = itr.id
+
+                JOIN inspection_reason_master irm
+                    ON irm.id = ipr.reason_master_id
+
+                WHERE ith.batch_id = pd.id
+
+                  AND itr.active = 1
+
+                  AND itr.result = 'REJECTED'
+
+                  AND ipr.parameter_result = 'REJECTED'
+
+                  AND irm.id IN (
+
+                        13,
+                        14,
+                        15,
+                        17,
+                        18,
+                        19
+
+                  )
+
+            ),
+
+        0)
+
+        AS otherDefectsInsertSinkTilt,
+
+
+        -- =====================================
+        -- TOTAL REJECTED DEFECTS
+        -- =====================================
+
+        (
+
+            COALESCE(
+
+                (
+
+                    SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                    FROM inspection_test_header ith
+
+                    JOIN inspection_test_result itr
+                        ON itr.test_header_id = ith.id
+
+                    JOIN inspection_parameter_result ipr
+                        ON ipr.test_result_id = itr.id
+
+                    JOIN inspection_reason_master irm
+                        ON irm.id = ipr.reason_master_id
+
+                    WHERE ith.batch_id = pd.id
+
+                      AND itr.active = 1
+
+                      AND itr.result = 'REJECTED'
+
+                      AND ipr.parameter_result = 'REJECTED'
+
+                      AND irm.id IN (
+
+                            51,52,
+
+                            101,102,
+
+                            161,162,
+
+                            163,164,
+
+                            211,212,
+
+                            213,214,
+
+                            215,216,
+
+                            221,222,
+
+                            223,224,
+
+                            225,226,
+
+                            231,232,
+
+                            201,202
+
+                      )
+
+                ),
+
+            0)
+
+            +
+
+            COALESCE(
+
+                (
+
+                    SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                    FROM inspection_test_header ith
+
+                    JOIN inspection_test_result itr
+                        ON itr.test_header_id = ith.id
+
+                    JOIN inspection_parameter_result ipr
+                        ON ipr.test_result_id = itr.id
+
+                    JOIN inspection_reason_master irm
+                        ON irm.id = ipr.reason_master_id
+
+                    WHERE ith.batch_id = pd.id
+
+                      AND itr.active = 1
+
+                      AND itr.result = 'REJECTED'
+
+                      AND ipr.parameter_result = 'REJECTED'
+
+                      AND irm.id = 7
+
+                ),
+
+            0)
+
+            +
+
+            COALESCE(
+
+                (
+
+                    SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                    FROM inspection_test_header ith
+
+                    JOIN inspection_test_result itr
+                        ON itr.test_header_id = ith.id
+
+                    JOIN inspection_parameter_result ipr
+                        ON ipr.test_result_id = itr.id
+
+                    JOIN inspection_reason_master irm
+                        ON irm.id = ipr.reason_master_id
+
+                    WHERE ith.batch_id = pd.id
+
+                      AND itr.active = 1
+
+                      AND itr.result = 'REJECTED'
+
+                      AND ipr.parameter_result = 'REJECTED'
+
+                      AND irm.id IN (
+
+                            6,
+                            8,
+                            9,
+                            10,
+                            11,
+                            12
+
+                      )
+
+                ),
+
+            0)
+
+            +
+
+            COALESCE(
+
+                (
+
+                    SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                    FROM inspection_test_header ith
+
+                    JOIN inspection_test_result itr
+                        ON itr.test_header_id = ith.id
+
+                    JOIN inspection_parameter_result ipr
+                        ON ipr.test_result_id = itr.id
+
+                    JOIN inspection_reason_master irm
+                        ON irm.id = ipr.reason_master_id
+
+                    WHERE ith.batch_id = pd.id
+
+                      AND itr.active = 1
+
+                      AND itr.result = 'REJECTED'
+
+                      AND ipr.parameter_result = 'REJECTED'
+
+                      AND irm.id = 16
+
+                ),
+
+            0)
+
+            +
+
+            COALESCE(
+
+                (
+
+                    SELECT COUNT(DISTINCT itr.sleeper_id)
+
+                    FROM inspection_test_header ith
+
+                    JOIN inspection_test_result itr
+                        ON itr.test_header_id = ith.id
+
+                    JOIN inspection_parameter_result ipr
+                        ON ipr.test_result_id = itr.id
+
+                    JOIN inspection_reason_master irm
+                        ON irm.id = ipr.reason_master_id
+
+                    WHERE ith.batch_id = pd.id
+
+                      AND itr.active = 1
+
+                      AND itr.result = 'REJECTED'
+
+                      AND ipr.parameter_result = 'REJECTED'
+
+                      AND irm.id IN (
+
+                            13,
+                            14,
+                            15,
+                            17,
+                            18,
+                            19
+
+                      )
+
+                ),
+
+            0)
+
+        )
+
+        AS totalRejectedDefects
+
+
+    FROM production_declaration pd
+
+
+    LEFT JOIN vendor_plant vp
+
+        ON vp.plant_id COLLATE utf8mb4_unicode_ci
+         = pd.plant_id COLLATE utf8mb4_unicode_ci
+
+
+    LEFT JOIN demoulding_inspection di
+
+        ON di.batch_no COLLATE utf8mb4_unicode_ci
+         = pd.batch_number COLLATE utf8mb4_unicode_ci
+
+
+    LEFT JOIN demoulding_defective_sleepers dds
+
+        ON dds.inspection_id = di.id
+
+
+    WHERE DATE(pd.created_date)
+    BETWEEN :startDate AND :endDate
+
+
+    GROUP BY
+
+        pd.id,
+        vp.zonal_railway,
+        pd.plant_id,
+        pd.batch_number,
+        pd.total_casted_sleepers
+
+) x
+
+
+GROUP BY
+
+    x.railwayZone,
+    x.plantId
+
+
+ORDER BY
+
+    x.railwayZone,
+    x.plantId
+
+""", nativeQuery = true)
+  List<QualitySleeperReportProjection>
+  getQualitySleeperReport(
+          LocalDate startDate,
+          LocalDate endDate);
+
+
+
 }

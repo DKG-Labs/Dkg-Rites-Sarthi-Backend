@@ -299,7 +299,8 @@ FROM final_cumulative_results
                                                         AS quantityPassed,
 
         COALESCE(fr.qty_now_rejected,0)
-                                                        AS quantityRejected
+                                                        AS quantityRejected,
+        ic.ic_number                                    AS callNo
 
     FROM final_ic_edit f
 

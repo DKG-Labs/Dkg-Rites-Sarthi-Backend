@@ -729,6 +729,14 @@ public class IbsServiceImpl implements IbsService {
                     ((Number) row[11]).intValue()
             );
 
+            String callNumber = (String) row[12];
+
+            dto.setIcFileLink(
+                    "https://sarthibackendservice-bfe2eag3byfkbsa6.canadacentral-01.azurewebsites.net"
+                            + "/sarthi-backend/api/certificate-storage/view/"
+                            + callNumber
+                            + ".pdf"
+            );
             list.add(dto);
         }
 
