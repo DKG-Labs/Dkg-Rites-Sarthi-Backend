@@ -24,5 +24,6 @@ public class BenchMouldInspectionResponseDto {
 
         private String combinedRemarks;
         private int createdBy;
+        private String userName;
 }
 

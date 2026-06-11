@@ -10,6 +10,7 @@ import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.CommonUtils;
+import com.sarthi.repository.UserMasterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,9 @@ public class BenchMouldInspectionServiceImpl
         implements BenchMouldInspectionService {
     @Autowired
     private BenchMouldInspectionRepository repository;
+    
+    @Autowired
+    private UserMasterRepository userMasterRepository;
 
 
     @Override
@@ -207,7 +211,17 @@ public class BenchMouldInspectionServiceImpl
 
         dto.setCombinedRemarks(
                 entity.getCombinedRemarks());
-        dto.setCreatedBy(Integer.parseInt(entity.getCreatedBy()));
+        if (entity.getCreatedBy() != null) {
+            try {
+                int createdById = Integer.parseInt(entity.getCreatedBy());
+                dto.setCreatedBy(createdById);
+                userMasterRepository.findByUserId(createdById).ifPresent(user -> {
+                    dto.setUserName(user.getUsername());
+                });
+            } catch (NumberFormatException e) {
+                // Log or handle if createdBy is not an integer
+            }
+        }
 
         return dto;
     }
