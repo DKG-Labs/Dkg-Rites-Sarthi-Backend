@@ -3,6 +3,7 @@ package com.sarthi.service.rawmaterial;
 import com.sarthi.dto.rawmaterial.InspectionCallDto;
 import com.sarthi.dto.rawmaterial.RmHeatQuantityDto;
 import com.sarthi.dto.rawmaterial.RmInspectionDetailsDto;
+import com.sarthi.dto.rawmaterial.RmIcCertWithDateDto;
 
 import java.util.List;
 
@@ -91,7 +92,7 @@ public interface RawMaterialInspectionService {
      * @return List of completed RM IC certificate numbers (e.g.,
      *         "N/ER-01080001/RAJK")
      */
-    List<String> getCompletedRmIcNumbers(String poSerialNo);
+    List<RmIcCertWithDateDto> getCompletedRmIcNumbers(String poSerialNo);
 
     /**
      * Get heat numbers for a specific RM IC number

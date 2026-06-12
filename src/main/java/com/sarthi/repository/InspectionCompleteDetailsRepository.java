@@ -136,4 +136,60 @@ List<Object[]> findCertificateNosByCallNos(
         @Param("callNos") List<String> callNos
 );
 
+    @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(rm.created_at, icd.CREATED_ON) AS createdAt " +
+            "FROM inspection_complete_details icd " +
+            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
+            "LEFT JOIN rm_ic_edit rm ON icd.CERTIFICATE_NO = rm.ic_number " +
+            "WHERE icd.CALL_NO LIKE 'ER-%' " +
+            "AND ic.po_serial_no = :poSerialNo " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(@Param("poSerialNo") String poSerialNo);
+
+    @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(rm.created_at, icd.CREATED_ON) AS createdAt " +
+            "FROM inspection_complete_details icd " +
+            "LEFT JOIN rm_ic_edit rm ON icd.CERTIFICATE_NO = rm.ic_number " +
+            "WHERE icd.CALL_NO LIKE 'ER-%' " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findAllCompletedRmIcsWithDate();
+
+    @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
+            "FROM inspection_complete_details icd " +
+            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
+            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER " +
+            "WHERE icd.CALL_NO LIKE 'EP%' " +
+            "AND ic.vendor_id = :vendorId " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findProcessIcCertificateNumbersWithDateByVendor(@Param("vendorId") String vendorId);
+
+    @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
+            "FROM inspection_complete_details icd " +
+            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER " +
+            "WHERE icd.CALL_NO IN (" +
+            "    SELECT DISTINCT ic2.ic_number " +
+            "    FROM process_inspection_details pid " +
+            "    INNER JOIN inspection_calls ic2 ON pid.ic_id = ic2.id " +
+            "    WHERE pid.rm_ic_number = :rmCertificateNo" +
+            ") " +
+            "AND icd.CALL_NO LIKE 'EP%' " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findProcessIcNumbersWithDateByRmIcNumber(@Param("rmCertificateNo") String rmCertificateNo);
+
+    @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
+            "FROM inspection_complete_details icd " +
+            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER " +
+            "WHERE icd.CALL_NO IN (" +
+            "    SELECT DISTINCT ic2.ic_number " +
+            "    FROM process_inspection_details pid " +
+            "    INNER JOIN inspection_calls ic2 ON pid.ic_id = ic2.id " +
+            "    WHERE pid.rm_ic_number IN :rmCertificateNos" +
+            ") " +
+            "AND icd.CALL_NO LIKE 'EP%' " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findProcessIcNumbersWithDateByMultipleRmIcNumbers(@Param("rmCertificateNos") List<String> rmCertificateNos);
+
 }

@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -444,5 +445,105 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
             return dto;
         }
 
+    @Override
+    @Transactional
+    public void submitBulkRegistration(Map<String, Object> payload, String userId) {
+        logger.info("Processing bulk registration payload via service");
+        String vendorCode = (String) payload.get("vendorCode");
+        if (vendorCode == null || vendorCode.trim().isEmpty()) {
+            vendorCode = userId;
+        }
+        if (vendorCode == null || vendorCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Vendor code is required");
+        }
 
+        String fileData = (String) payload.get("fileData"); // Combined certificate base64
+        String fileName = (String) payload.get("fileName"); // File name
+
+        List<Map<String, Object>> items = (List<Map<String, Object>>) payload.get("items");
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("No calibration items provided");
+        }
+
+        // Group items by category (Document, Instrument, Gauge)
+        Map<String, List<Map<String, Object>>> itemsByCategory = items.stream()
+                .filter(item -> item.get("category") != null)
+                .collect(Collectors.groupingBy(item -> (String) item.get("category")));
+
+        for (Map.Entry<String, List<Map<String, Object>>> entry : itemsByCategory.entrySet()) {
+            String category = entry.getKey();
+            List<Map<String, Object>> categoryItems = entry.getValue();
+
+            // Find or create VendorCalibrationHeader
+            VendorCalibrationHeader header;
+            Optional<VendorCalibrationHeader> existingOpt = headerRepository.findByVendorCodeAndCategory(vendorCode, category);
+            if (existingOpt.isPresent()) {
+                header = existingOpt.get();
+                header.getDetails().clear();
+                headerRepository.saveAndFlush(header);
+            } else {
+                header = new VendorCalibrationHeader();
+                header.setVendorCode(vendorCode);
+                header.setCategory(category);
+            }
+
+            // Set the certificate file data (since it's a combined certificate, we set it on all categories)
+            header.setCertificateFilePath(fileData);
+            header.setCreatedBy(userId);
+            header.setUpdatedBy(userId);
+
+            for (Map<String, Object> itemMap : categoryItems) {
+                VendorCalibrationDetail detail = new VendorCalibrationDetail();
+                detail.setInstrumentName((String) itemMap.get("instrumentName"));
+                detail.setCapacity((String) itemMap.get("capacity"));
+                detail.setDescription((String) itemMap.get("description"));
+                detail.setUsedFor((String) itemMap.get("usedFor"));
+                detail.setSerialNumber((String) itemMap.get("serialNumber"));
+                detail.setCalibrationCertificateNo((String) itemMap.get("calibrationCertificateNo"));
+
+                // Parse dates
+                String calDateStr = (String) itemMap.get("calibrationDate");
+                if (calDateStr != null && !calDateStr.trim().isEmpty()) {
+                    detail.setCalibrationDate(LocalDate.parse(calDateStr));
+                }
+                String dueDateStr = (String) itemMap.get("calibrationDueDate");
+                LocalDate dueDate = null;
+                if (dueDateStr != null && !dueDateStr.trim().isEmpty()) {
+                    dueDate = LocalDate.parse(dueDateStr);
+                    detail.setCalibrationDueDate(dueDate);
+                }
+
+                detail.setCertifyingLabName((String) itemMap.get("certifyingLabName"));
+                detail.setAccreditationAgency((String) itemMap.get("accreditationAgency"));
+
+                // Notification days
+                Object notifDaysObj = itemMap.get("notificationDays");
+                int notifDays = 30;
+                if (notifDaysObj instanceof Number) {
+                    notifDays = ((Number) notifDaysObj).intValue();
+                } else if (notifDaysObj instanceof String) {
+                    try {
+                        notifDays = Integer.parseInt((String) notifDaysObj);
+                    } catch (NumberFormatException e) {
+                        // ignore
+                    }
+                }
+                detail.setNotificationDays(notifDays);
+
+                // Auto calculate status
+                String status = "Valid";
+                if (dueDate != null && dueDate.isBefore(LocalDate.now())) {
+                    status = "Expired";
+                }
+                detail.setCalibrationStatus(status);
+
+                detail.setCreatedBy(userId);
+                detail.setUpdatedBy(userId);
+
+                header.addDetail(detail);
+            }
+
+            headerRepository.save(header);
+        }
+    }
 }

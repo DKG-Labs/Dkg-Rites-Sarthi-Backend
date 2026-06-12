@@ -27,6 +27,7 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/vendor/poData",
                                 "/api/vendor/po-assigned",
+                                "/api/vendor/proxy-pdf",
                                 "/sarthi-backend/api/auth",
                                 "/sarthi-backend/api/auth/login",
                                 "/sarthi-backend/api/auth",
