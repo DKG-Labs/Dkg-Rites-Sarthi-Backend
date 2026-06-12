@@ -504,7 +504,7 @@ GROUP BY p.inspectionCallNo
     List<Object[]> getProcessSummary(
             @Param("callNos") List<String> callNos);
 
-    @Query(value = """
+  /*  @Query(value = """
 
     SELECT
         ph.case_no                                   AS caseNumber,
@@ -572,5 +572,78 @@ GROUP BY p.inspectionCallNo
 
     """,
             nativeQuery = true)
-    List<Object[]> getProcessInspectionCalls();
+    List<Object[]> getProcessInspectionCalls();  */
+  @Query(value = """
+
+SELECT
+    ph.case_no                                   AS caseNumber,
+
+    DATE(ic.created_at)                          AS callDate,
+
+    ic.place_of_inspection                       AS placeOfInspection,
+
+    CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
+
+    'IC Generated'                               AS callStatus,
+
+    ic.po_serial_no                              AS poItemSerialNumber,
+
+    CAST(p.book_no AS CHAR)                      AS bkNumber,
+
+    CAST(p.set_no AS CHAR)                       AS setNumber,
+
+    DATE(p.created_at)                           AS icDate,
+
+    COALESCE(SUM(DISTINCT pr.offered_qty),0)
+                                                    AS quantityOffered,
+
+    COALESCE(SUM(pr.total_accepted),0)
+                                                    AS quantityPassed,
+
+    COALESCE(SUM(pr.total_rejected),0)
+                                                    AS quantityRejected,
+
+    ic.ic_number                                 AS callNo
+
+FROM process_ic_edit p
+
+INNER JOIN inspection_calls ic
+        ON ic.ic_number COLLATE utf8mb4_unicode_ci =
+           SUBSTRING_INDEX(
+                SUBSTRING_INDEX(p.ic_number,'/',2),
+                '/',
+                -1
+           ) COLLATE utf8mb4_unicode_ci
+
+INNER JOIN po_header ph
+        ON ph.po_no = ic.po_no
+
+INNER JOIN user_master um
+        ON um.userid = p.created_by
+
+LEFT JOIN process_line_final_result pr
+        ON pr.inspection_call_no COLLATE utf8mb4_unicode_ci
+         = ic.ic_number COLLATE utf8mb4_unicode_ci
+
+LEFT JOIN ibs_call_registration icr
+        ON icr.call_number COLLATE utf8mb4_unicode_ci
+         = ic.ic_number COLLATE utf8mb4_unicode_ci
+
+WHERE icr.call_number IS NULL
+   OR icr.status = 'Failed'
+
+GROUP BY
+    ph.case_no,
+    ic.created_at,
+    ic.place_of_inspection,
+    um.employee_code,
+    ic.po_serial_no,
+    p.book_no,
+    p.set_no,
+    p.created_at,
+    ic.ic_number
+
+""",
+          nativeQuery = true)
+  List<Object[]> getProcessInspectionCalls();
 }
