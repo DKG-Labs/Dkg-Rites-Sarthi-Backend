@@ -799,7 +799,7 @@ ORDER BY month
             ELSE NULL
         END AS productAndStageOfInspection,
 
-        CONCAT(ic.po_no, '-', ic.po_serial_no) AS poNumber,
+        CONCAT(ph.rly_short_name, '-', ic.po_serial_no) AS poNumber,
 
         pi.delivery_date AS deliveryDate,
 
@@ -812,70 +812,93 @@ ORDER BY month
         ic.created_at AS callDate,
 
         CASE
-
-            WHEN ic.ic_number LIKE 'EP%' THEN (
-
-                SELECT GROUP_CONCAT(ppim.employee_code)
-
-                FROM poi_process_ie_mapping ppim
-
-                WHERE ppim.poi_code = ic.place_of_inspection
-            )
-
-            ELSE (
-
-                SELECT ipm.employee_code
-
-                FROM ie_pincode_poi_mapping ipm
-
-                WHERE ipm.poi_code = ic.place_of_inspection
-
-                LIMIT 1
-            )
-
-        END AS ieName,
+                
+                    WHEN ic.ic_number LIKE 'EP%' THEN (
+                
+                        SELECT GROUP_CONCAT(
+                            CONCAT(
+                                ppim.employee_code,
+                                ' - ',
+                                um.full_name
+                            )
+                        )
+                
+                        FROM poi_process_ie_mapping ppim
+                
+                        JOIN user_master um
+                            ON um.employee_code = ppim.employee_code
+                
+                        WHERE ppim.poi_code = ic.place_of_inspection
+                    )
+                
+                    ELSE (
+                
+                        SELECT CONCAT(
+                            ipm.employee_code,
+                            ' - ',
+                            um.full_name
+                        )
+                
+                        FROM ie_pincode_poi_mapping ipm
+                
+                        JOIN user_master um
+                            ON um.employee_code = ipm.employee_code
+                
+                        WHERE ipm.poi_code = ic.place_of_inspection
+                
+                        LIMIT 1
+                    )
+                
+                END AS ieName,
 
         (
-
-            SELECT upcm.cm_employee_code
-
-            FROM user_product_cm_mapping upcm
-
-            WHERE upcm.user_employee_code =
-
-            CASE
-
-                WHEN ic.ic_number LIKE 'EP%' THEN (
-
-                    SELECT SUBSTRING_INDEX(
-                        GROUP_CONCAT(ppim.employee_code),
-                        ',',
-                        1
+                
+                    SELECT CONCAT(
+                        upcm.cm_employee_code,
+                        ' - ',
+                        um.full_name
                     )
-
-                    FROM poi_process_ie_mapping ppim
-
-                    WHERE ppim.poi_code = ic.place_of_inspection
-                )
-
-                ELSE (
-
-                    SELECT ipm.employee_code
-
-                    FROM ie_pincode_poi_mapping ipm
-
-                    WHERE ipm.poi_code = ic.place_of_inspection
-
+                
+                    FROM user_product_cm_mapping upcm
+                
+                    JOIN user_master um
+                        ON um.employee_code = upcm.cm_employee_code
+                
+                    WHERE upcm.user_employee_code =
+                
+                    CASE
+                
+                        WHEN ic.ic_number LIKE 'EP%' THEN (
+                
+                            SELECT SUBSTRING_INDEX(
+                                GROUP_CONCAT(ppim.employee_code),
+                                ',',
+                                1
+                            )
+                
+                            FROM poi_process_ie_mapping ppim
+                
+                            WHERE ppim.poi_code = ic.place_of_inspection
+                        )
+                
+                        ELSE (
+                
+                            SELECT ipm.employee_code
+                
+                            FROM ie_pincode_poi_mapping ipm
+                
+                            WHERE ipm.poi_code = ic.place_of_inspection
+                
+                            LIMIT 1
+                        )
+                
+                    END
+                
+                    AND upcm.product_type = 'ERC'
+                
                     LIMIT 1
-                )
-
-            END
-
-            AND upcm.product_type = 'ERC'
-
-            LIMIT 1
-
-        ) AS cmName,
+                
+                ) AS cmName,
 
         (
 
@@ -948,8 +971,9 @@ ORDER BY month
         ON ph.po_no = ic.po_no
 
     LEFT JOIN po_item pi
-        ON pi.po_header_id = ph.id
-        AND pi.item_sr_no = ic.po_serial_no
+                ON pi.po_header_id = ph.id
+                AND pi.item_sr_no =
+                    SUBSTRING_INDEX(ic.po_serial_no, '/', -1)
 
     WHERE ic.created_at BETWEEN :startDateTime AND :endDateTime
 
@@ -976,7 +1000,7 @@ ORDER BY month
             ELSE NULL
         END AS productAndStageOfInspection,
 
-        CONCAT(ic.po_no, '-', ic.po_serial_no) AS poNumber,
+        CONCAT(ph.rly_short_name, '-', ic.po_serial_no) AS poNumber,
 
         pi.delivery_date AS deliveryDate,
 
@@ -992,18 +1016,36 @@ ORDER BY month
 
             WHEN ic.ic_number LIKE 'EP%' THEN (
 
-                SELECT GROUP_CONCAT(ppim.employee_code)
+                SELECT CONCAT(
+                    um.FULL_NAME,
+                    ' - ',
+                    ppim.employee_code
+                )
 
                 FROM poi_process_ie_mapping ppim
 
+                LEFT JOIN user_master um
+                    ON um.EMPLOYEE_CODE COLLATE utf8mb4_unicode_ci =
+                       ppim.employee_code COLLATE utf8mb4_unicode_ci
+
                 WHERE ppim.poi_code = ic.place_of_inspection
+
+                LIMIT 1
             )
 
             ELSE (
 
-                SELECT ipm.employee_code
+                SELECT CONCAT(
+                    um.FULL_NAME,
+                    ' - ',
+                    ipm.employee_code
+                )
 
                 FROM ie_pincode_poi_mapping ipm
+
+                LEFT JOIN user_master um
+                    ON um.EMPLOYEE_CODE COLLATE utf8mb4_unicode_ci =
+                       ipm.employee_code COLLATE utf8mb4_unicode_ci
 
                 WHERE ipm.poi_code = ic.place_of_inspection
 
@@ -1014,9 +1056,17 @@ ORDER BY month
 
         (
 
-            SELECT upcm.cm_employee_code
+            SELECT CONCAT(
+                um2.FULL_NAME,
+                ' - ',
+                upcm.cm_employee_code
+            )
 
             FROM user_product_cm_mapping upcm
+
+            LEFT JOIN user_master um2
+                ON um2.EMPLOYEE_CODE COLLATE utf8mb4_unicode_ci =
+                   upcm.cm_employee_code COLLATE utf8mb4_unicode_ci
 
             WHERE upcm.user_employee_code =
 
@@ -1126,7 +1176,8 @@ ORDER BY month
 
     LEFT JOIN po_item pi
         ON pi.po_header_id = ph.id
-        AND pi.item_sr_no = ic.po_serial_no
+        AND pi.item_sr_no =
+            SUBSTRING_INDEX(ic.po_serial_no, '/', -1)
 
     WHERE ic.created_at BETWEEN :startDateTime AND :endDateTime
 
