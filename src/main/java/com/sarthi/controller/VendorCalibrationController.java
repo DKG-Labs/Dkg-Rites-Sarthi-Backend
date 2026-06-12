@@ -204,5 +204,25 @@ public class VendorCalibrationController {
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<Object> submitBulkRegistration(
+            @RequestBody Map<String, Object> payload,
+            Principal principal) {
+        logger.info("Received request for bulk calibration registration");
+        try {
+            String userId = "vendor";
+            if (principal != null && principal.getName() != null && !principal.getName().isEmpty()) {
+                userId = principal.getName();
+            }
+            calibrationService.submitBulkRegistration(payload, userId);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse("Bulk registration successful"), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error during bulk calibration registration: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
 

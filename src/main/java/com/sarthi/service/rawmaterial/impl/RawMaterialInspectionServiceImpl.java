@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 /**
@@ -123,27 +124,33 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
         /* ==================== Process IC Support Operations ==================== */
 
         @Override
-        public List<String> getCompletedRmIcNumbers(String poSerialNo) {
+        public List<RmIcCertWithDateDto> getCompletedRmIcNumbers(String poSerialNo) {
                 logger.info("Fetching completed RM IC certificate numbers for PO Serial No: {}", poSerialNo);
 
-                // If PO Serial Number is provided, use the optimized query with PO Serial
-                // filter
+                List<Object[]> results;
                 if (poSerialNo != null && !poSerialNo.trim().isEmpty()) {
                         logger.info("Using PO Serial-filtered query for PO Serial No: {}", poSerialNo);
-                        return inspectionCompleteDetailsRepository
-                                        .findCompletedRmIcCertificateNumbersByPoSerialNo(poSerialNo);
+                        results = inspectionCompleteDetailsRepository
+                                        .findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+                } else {
+                        logger.info("No PO Serial filter provided, fetching all ER ICs");
+                        results = inspectionCompleteDetailsRepository.findAllCompletedRmIcsWithDate();
                 }
 
-                // Otherwise, fall back to the original logic (fetch all ER ICs)
-                logger.info("No PO Serial filter provided, fetching all ER ICs");
-                List<InspectionCompleteDetails> completedDetails = inspectionCompleteDetailsRepository.findAll();
-
-                // Filter by ER prefix (Raw Material inspections) and return certificate numbers
-                return completedDetails.stream()
-                                .filter(detail -> detail.getCallNo() != null && detail.getCallNo().startsWith("ER-"))
-                                .map(InspectionCompleteDetails::getCertificateNo)
-                                .filter(certNo -> certNo != null && !certNo.isEmpty())
-                                .distinct()
+                return results.stream()
+                                .map(row -> {
+                                        String certNo = (String) row[0];
+                                        LocalDateTime date = null;
+                                        if (row[1] != null) {
+                                                if (row[1] instanceof java.sql.Timestamp) {
+                                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                                                } else if (row[1] instanceof LocalDateTime) {
+                                                        date = (LocalDateTime) row[1];
+                                                }
+                                        }
+                                        return new RmIcCertWithDateDto(certNo, date);
+                                })
+                                .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
                                 .collect(Collectors.toList());
         }
 

@@ -52,6 +52,33 @@ public class VendorController {
         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorId, vendorType);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
+
+    @GetMapping("/proxy-pdf")
+    public ResponseEntity<byte[]> proxyPdf(@RequestParam String url) {
+        logger.info("Received request to proxy PDF from url: {}", url);
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            org.springframework.http.HttpHeaders requestHeaders = new org.springframework.http.HttpHeaders();
+            requestHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            org.springframework.http.HttpEntity<Void> requestEntity = new org.springframework.http.HttpEntity<>(requestHeaders);
+            
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                url,
+                org.springframework.http.HttpMethod.GET,
+                requestEntity,
+                byte[].class
+            );
+            
+            byte[] pdfBytes = response.getBody();
+            org.springframework.http.HttpHeaders responseHeaders = new org.springframework.http.HttpHeaders();
+            responseHeaders.setContentType(org.springframework.http.MediaType.APPLICATION_PDF);
+            
+            return new ResponseEntity<>(pdfBytes, responseHeaders, HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error proxying PDF from url: {}", url, e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 /*
 
     @GetMapping("/po-assigned")

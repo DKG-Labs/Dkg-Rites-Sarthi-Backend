@@ -318,6 +318,16 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                 boolean stillExists = rmDto.getHeatQuantities().stream()
                         .anyMatch(dto -> dto.getHeatNumber() != null && dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()));
                 if (!stillExists) {
+                    // Reinstate quantity to inventory since this heat is removed from the call
+                    BigDecimal oldQty = existing.getOfferedQty();
+                    if (oldQty != null && oldQty.compareTo(BigDecimal.ZERO) > 0 && existing.getHeatNumber() != null && existing.getTcNumber() != null) {
+                        try {
+                            logger.info("Reinstating inventory for deleted heat: {}, TC: {}, Qty: {}", existing.getHeatNumber(), existing.getTcNumber(), oldQty);
+                            inventoryEntryService.updateOfferedQuantity(existing.getHeatNumber(), existing.getTcNumber(), oldQty.negate());
+                        } catch (Exception e) {
+                            logger.error("Failed to reinstate inventory for deleted heat: " + existing.getHeatNumber() + ", TC: " + existing.getTcNumber(), e);
+                        }
+                    }
                     heatQuantityRepository.delete(existing);
                 }
             }
@@ -334,7 +344,56 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                         .orElse(null);
 
                 if (heat != null) {
-                    // Update existing
+                    // Inventory Adjustment: Compare old and new values
+                    String oldTc = heat.getTcNumber();
+                    BigDecimal oldQty = heat.getOfferedQty() != null ? heat.getOfferedQty() : BigDecimal.ZERO;
+                    String newTc = dto.getTcNumber();
+                    BigDecimal newQty = toBigDecimal(dto.getOfferedQty()) != null ? toBigDecimal(dto.getOfferedQty()) : BigDecimal.ZERO;
+
+                    if (oldTc != null && newTc != null) {
+                        if (oldTc.equalsIgnoreCase(newTc)) {
+                            // Sub-case 1: TC number is the same, quantity might have changed
+                            BigDecimal difference = newQty.subtract(oldQty);
+                            if (difference.compareTo(BigDecimal.ZERO) != 0) {
+                                try {
+                                    logger.info("Adjusting inventory for heat: {}, TC: {}, difference: {}", heat.getHeatNumber(), newTc, difference);
+                                    inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), newTc, difference);
+                                } catch (Exception e) {
+                                    logger.error("Failed to adjust inventory for heat: " + heat.getHeatNumber() + ", TC: " + newTc, e);
+                                }
+                            }
+                        } else {
+                            // Sub-case 2: TC number changed
+                            // Reinstate old quantity to old TC
+                            if (oldQty.compareTo(BigDecimal.ZERO) > 0) {
+                                try {
+                                    logger.info("Reinstating old TC inventory: Heat: {}, TC: {}, Qty: {}", heat.getHeatNumber(), oldTc, oldQty);
+                                    inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), oldTc, oldQty.negate());
+                                } catch (Exception e) {
+                                    logger.error("Failed to reinstate old TC inventory for heat: " + heat.getHeatNumber() + ", TC: " + oldTc, e);
+                                }
+                            }
+                            // Deduct new quantity from new TC
+                            if (newQty.compareTo(BigDecimal.ZERO) > 0) {
+                                try {
+                                    logger.info("Deducting new TC inventory: Heat: {}, TC: {}, Qty: {}", heat.getHeatNumber(), newTc, newQty);
+                                    inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), newTc, newQty);
+                                } catch (Exception e) {
+                                    logger.error("Failed to deduct new TC inventory for heat: " + heat.getHeatNumber() + ", TC: " + newTc, e);
+                                }
+                            }
+                        }
+                    } else if (newTc != null && newQty.compareTo(BigDecimal.ZERO) > 0) {
+                        // If oldTc was null, just deduct the new quantity from the new TC
+                        try {
+                            logger.info("Deducting inventory for heat: {}, TC: {}, Qty: {}", heat.getHeatNumber(), newTc, newQty);
+                            inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), newTc, newQty);
+                        } catch (Exception e) {
+                            logger.error("Failed to deduct inventory for heat: " + heat.getHeatNumber() + ", TC: " + newTc, e);
+                        }
+                    }
+
+                    // Update existing RmHeatQuantity record
                     heat.setManufacturer(dto.getManufacturer());
                     heat.setOfferedQty(toBigDecimal(dto.getOfferedQty()));
                     heat.setTcNumber(dto.getTcNumber());
@@ -351,7 +410,18 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     heat.setUpdatedAt(LocalDateTime.now());
                     heatQuantityRepository.save(heat);
                 } else {
-                    // Insert new
+                    // Heat is brand new: deduct new quantity from new TC
+                    BigDecimal newQty = toBigDecimal(dto.getOfferedQty()) != null ? toBigDecimal(dto.getOfferedQty()) : BigDecimal.ZERO;
+                    if (dto.getTcNumber() != null && newQty.compareTo(BigDecimal.ZERO) > 0) {
+                        try {
+                            logger.info("Deducting inventory for new heat: {}, TC: {}, Qty: {}", dto.getHeatNumber(), dto.getTcNumber(), newQty);
+                            inventoryEntryService.updateOfferedQuantity(dto.getHeatNumber(), dto.getTcNumber(), newQty);
+                        } catch (Exception e) {
+                            logger.error("Failed to deduct inventory for new heat: " + dto.getHeatNumber() + ", TC: " + dto.getTcNumber(), e);
+                        }
+                    }
+
+                    // Insert new RmHeatQuantity record
                     RmHeatQuantity newHeat = new RmHeatQuantity();
                     newHeat.setRmInspectionDetails(rmDetails);
                     newHeat.setHeatNumber(dto.getHeatNumber());

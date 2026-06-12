@@ -1,5 +1,7 @@
 package com.sarthi.service.Impl;
 
+import com.sarthi.dto.rawmaterial.RmIcCertWithDateDto;
+import com.sarthi.dto.processmaterial.ProcessIcCertWithDateDto;
 import com.sarthi.dto.IcDtos.FinalInspectionDetailsRequestDto;
 import com.sarthi.dto.IcDtos.FinalInspectionLotDetailsRequestDto;
 import com.sarthi.dto.IcDtos.InspectionCallRequestDto;
@@ -269,12 +271,26 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     }
 
     @Override
-    public List<String> getProcessIcCertificateNumbers(String vendorId) {
+    public List<ProcessIcCertWithDateDto> getProcessIcCertificateNumbers(String vendorId) {
         logger.info("Fetching Process IC certificate numbers for vendor: {}", vendorId);
-        List<String> certificateNumbers = inspectionCompleteDetailsRepository
-                .findProcessIcCertificateNumbersByVendor(vendorId);
-        logger.info("Found {} certificate numbers", certificateNumbers.size());
-        return certificateNumbers;
+        List<Object[]> results = inspectionCompleteDetailsRepository
+                .findProcessIcCertificateNumbersWithDateByVendor(vendorId);
+        logger.info("Found {} certificate numbers", results.size());
+        return results.stream()
+                .map(row -> {
+                        String certNo = (String) row[0];
+                        LocalDateTime date = null;
+                        if (row[1] != null) {
+                                if (row[1] instanceof java.sql.Timestamp) {
+                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                                } else if (row[1] instanceof LocalDateTime) {
+                                        date = (LocalDateTime) row[1];
+                                }
+                        }
+                        return new ProcessIcCertWithDateDto(certNo, date);
+                })
+                .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -297,21 +313,49 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     // ====================
 
     @Override
-    public List<String> getRmIcCertificateNumbers(String poSerialNo) {
+    public List<RmIcCertWithDateDto> getRmIcCertificateNumbers(String poSerialNo) {
         logger.info("Fetching RM IC certificate numbers for PO Serial No: {}", poSerialNo);
-        List<String> certificateNumbers = inspectionCompleteDetailsRepository
-                .findCompletedRmIcCertificateNumbersByPoSerialNo(poSerialNo);
-        logger.info("Found {} RM IC certificate numbers", certificateNumbers.size());
-        return certificateNumbers;
+        List<Object[]> results = inspectionCompleteDetailsRepository
+                .findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+        logger.info("Found {} RM IC certificate numbers", results.size());
+        return results.stream()
+                .map(row -> {
+                        String certNo = (String) row[0];
+                        LocalDateTime date = null;
+                        if (row[1] != null) {
+                                if (row[1] instanceof java.sql.Timestamp) {
+                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                                } else if (row[1] instanceof LocalDateTime) {
+                                        date = (LocalDateTime) row[1];
+                                }
+                        }
+                        return new RmIcCertWithDateDto(certNo, date);
+                })
+                .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
+                .collect(Collectors.toList());
     }
 
     @Override
-    public List<String> getProcessIcCertificateNumbersByRmCertificate(String rmCertificateNo) {
+    public List<ProcessIcCertWithDateDto> getProcessIcCertificateNumbersByRmCertificate(String rmCertificateNo) {
         logger.info("Fetching Process IC certificate numbers for RM certificate: {}", rmCertificateNo);
-        List<String> certificateNumbers = inspectionCompleteDetailsRepository
-                .findProcessIcNumbersByRmIcNumber(rmCertificateNo);
-        logger.info("Found {} Process IC certificate numbers", certificateNumbers.size());
-        return certificateNumbers;
+        List<Object[]> results = inspectionCompleteDetailsRepository
+                .findProcessIcNumbersWithDateByRmIcNumber(rmCertificateNo);
+        logger.info("Found {} Process IC certificate numbers", results.size());
+        return results.stream()
+                .map(row -> {
+                        String certNo = (String) row[0];
+                        LocalDateTime date = null;
+                        if (row[1] != null) {
+                                if (row[1] instanceof java.sql.Timestamp) {
+                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                                } else if (row[1] instanceof LocalDateTime) {
+                                        date = (LocalDateTime) row[1];
+                                }
+                        }
+                        return new ProcessIcCertWithDateDto(certNo, date);
+                })
+                .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -334,12 +378,26 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     }
 
     @Override
-    public List<String> getProcessIcCertificateNumbersByMultipleRmCertificates(List<String> rmCertificateNos) {
+    public List<ProcessIcCertWithDateDto> getProcessIcCertificateNumbersByMultipleRmCertificates(List<String> rmCertificateNos) {
         logger.info("Fetching Process IC certificate numbers for multiple RM certificates: {}", rmCertificateNos);
-        List<String> certificateNumbers = inspectionCompleteDetailsRepository
-                .findProcessIcNumbersByMultipleRmIcNumbers(rmCertificateNos);
-        logger.info("Found {} Process IC certificate numbers", certificateNumbers.size());
-        return certificateNumbers;
+        List<Object[]> results = inspectionCompleteDetailsRepository
+                .findProcessIcNumbersWithDateByMultipleRmIcNumbers(rmCertificateNos);
+        logger.info("Found {} Process IC certificate numbers", results.size());
+        return results.stream()
+                .map(row -> {
+                        String certNo = (String) row[0];
+                        LocalDateTime date = null;
+                        if (row[1] != null) {
+                                if (row[1] instanceof java.sql.Timestamp) {
+                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                                } else if (row[1] instanceof LocalDateTime) {
+                                        date = (LocalDateTime) row[1];
+                                }
+                        }
+                        return new ProcessIcCertWithDateDto(certNo, date);
+                })
+                .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
+                .collect(Collectors.toList());
     }
 
     @Override

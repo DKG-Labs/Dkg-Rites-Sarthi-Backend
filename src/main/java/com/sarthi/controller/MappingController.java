@@ -1,15 +1,12 @@
 package com.sarthi.controller;
 
 import com.sarthi.dto.ProcessIeMappingRequestDto;
-import com.sarthi.dto.MappingListDto;
 import com.sarthi.util.ResponseBuilder;
 import com.sarthi.service.MappingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/mapping")
@@ -44,39 +41,6 @@ public class MappingController {
                             5000,
                             "error",
                             "Failed to save mapping: " + ex.getMessage()
-                    ))
-            );
-        }
-    }
-
-    @GetMapping("/all")
-    public ResponseEntity<Object> getAllMappings() {
-        try {
-            return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(mappingService.getAllMappings()));
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
-                            HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                            5000,
-                            "error",
-                            "Failed to fetch mappings: " + ex.getMessage()
-                    ))
-            );
-        }
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Object> deleteMapping(@PathVariable("id") String id) {
-        try {
-            mappingService.deleteMappingById(id);
-            return ResponseEntity.ok(ResponseBuilder.getSuccessResponse("Mapping deleted successfully"));
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
-                            HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                            5000,
-                            "error",
-                            "Failed to delete mapping: " + ex.getMessage()
                     ))
             );
         }

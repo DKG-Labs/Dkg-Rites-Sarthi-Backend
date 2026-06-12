@@ -1,6 +1,8 @@
 package com.sarthi.controller.finalmaterial;
 
 import com.sarthi.dto.IcDtos.CreateFinalInspectionCallRequestDto;
+import com.sarthi.dto.rawmaterial.RmIcCertWithDateDto;
+import com.sarthi.dto.processmaterial.ProcessIcCertWithDateDto;
 import com.sarthi.dto.po.PoDataForSectionsDto;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.util.ResponseBuilder;
@@ -235,7 +237,7 @@ public class FinalInspectionCallController {
     @Operation(summary = "Get Process IC certificate numbers", description = "Get certificate numbers for Process ICs (EP prefix) filtered by vendor")
     public ResponseEntity<Object> getProcessIcCertificates(@RequestParam String vendorId) {
         logger.info("Fetching Process IC certificates for vendor: {}", vendorId);
-        List<String> certificates = finalInspectionCallService.getProcessIcCertificateNumbers(vendorId);
+        List<ProcessIcCertWithDateDto> certificates = finalInspectionCallService.getProcessIcCertificateNumbers(vendorId);
         logger.info("Found {} certificates", certificates.size());
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(certificates), HttpStatus.OK);
     }
@@ -278,7 +280,7 @@ public class FinalInspectionCallController {
     @Operation(summary = "Get RM IC certificate numbers", description = "Get RM IC certificate numbers from completed inspections, filtered by PO Serial Number")
     public ResponseEntity<Object> getRmIcCertificates(@RequestParam String poSerialNo) {
         logger.info("Fetching RM IC certificate numbers for PO Serial No: {}", poSerialNo);
-        List<String> certificateNumbers = finalInspectionCallService.getRmIcCertificateNumbers(poSerialNo);
+        List<RmIcCertWithDateDto> certificateNumbers = finalInspectionCallService.getRmIcCertificateNumbers(poSerialNo);
         logger.info("Found {} RM IC certificate numbers", certificateNumbers.size());
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(certificateNumbers), HttpStatus.OK);
     }
@@ -293,7 +295,7 @@ public class FinalInspectionCallController {
     @Operation(summary = "Get Process IC certificates by RM IC", description = "Get Process IC certificate numbers that used the given RM IC certificate")
     public ResponseEntity<Object> getProcessIcByRmCertificate(@RequestParam String rmCertificateNo) {
         logger.info("Fetching Process IC certificate numbers for RM certificate: {}", rmCertificateNo);
-        List<String> certificateNumbers = finalInspectionCallService
+        List<ProcessIcCertWithDateDto> certificateNumbers = finalInspectionCallService
                 .getProcessIcCertificateNumbersByRmCertificate(rmCertificateNo);
         logger.info("Found {} Process IC certificate numbers", certificateNumbers.size());
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(certificateNumbers), HttpStatus.OK);
@@ -343,7 +345,7 @@ public class FinalInspectionCallController {
     public ResponseEntity<Object> getProcessIcByMultipleRmCertificates(
             @RequestParam List<String> rmCertificateNos) {
         logger.info("Fetching Process IC certificate numbers for multiple RM certificates: {}", rmCertificateNos);
-        List<String> certificateNumbers = finalInspectionCallService
+        List<ProcessIcCertWithDateDto> certificateNumbers = finalInspectionCallService
                 .getProcessIcCertificateNumbersByMultipleRmCertificates(rmCertificateNos);
         logger.info("Found {} Process IC certificate numbers", certificateNumbers.size());
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(certificateNumbers), HttpStatus.OK);

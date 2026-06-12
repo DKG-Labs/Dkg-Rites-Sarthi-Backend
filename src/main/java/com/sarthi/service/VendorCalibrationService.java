@@ -6,8 +6,11 @@ import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
 import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
 
 import java.util.List;
+import java.util.Map;
 
 public interface VendorCalibrationService {
+
+    void submitBulkRegistration(Map<String, Object> payload, String userId);
 
     VendorCalibrationHeaderResponseDto createOrUpdateCalibrationGroup(VendorCalibrationHeaderRequestDto requestDto, String userId);
 
