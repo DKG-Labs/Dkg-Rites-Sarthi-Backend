@@ -271,7 +271,7 @@ FROM final_cumulative_results
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate);
 
-    @Query(value = """
+  /*  @Query(value = """
 
     SELECT
         ph.case_no                                   AS caseNumber,
@@ -328,6 +328,69 @@ FROM final_cumulative_results
        OR icr.status = 'Failed'
 
     """,
+            nativeQuery = true)
+    List<Object[]> getFinalInspectionCalls();*/
+
+    @Query(value = """
+
+SELECT
+    ph.case_no                                   AS caseNumber,
+
+    DATE(ic.created_at)                          AS callDate,
+
+    ic.place_of_inspection                       AS placeOfInspection,
+
+    CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
+
+    'IC Generated'                               AS callStatus,
+
+    ic.po_serial_no                              AS poItemSerialNumber,
+
+    CAST(f.book_no AS CHAR)                      AS bkNumber,
+
+    CAST(f.set_no AS CHAR)                       AS setNumber,
+
+    DATE(f.created_at)                           AS icDate,
+
+    COALESCE(fr.qty_now_offered,0)
+                                                    AS quantityOffered,
+
+    COALESCE(fr.qty_now_passed,0)
+                                                    AS quantityPassed,
+
+    COALESCE(fr.qty_now_rejected,0)
+                                                    AS quantityRejected,
+
+    ic.ic_number                                 AS callNo
+
+FROM final_ic_edit f
+
+INNER JOIN inspection_calls ic
+        ON ic.ic_number COLLATE utf8mb4_unicode_ci =
+           SUBSTRING_INDEX(
+                SUBSTRING_INDEX(f.ic_number,'/',2),
+                '/',
+                -1
+           ) COLLATE utf8mb4_unicode_ci
+
+INNER JOIN po_header ph
+        ON ph.po_no = ic.po_no
+
+INNER JOIN user_master um
+        ON um.userid = f.created_by
+
+LEFT JOIN final_cumulative_results fr
+        ON fr.inspection_call_no COLLATE utf8mb4_unicode_ci
+         = ic.ic_number COLLATE utf8mb4_unicode_ci
+
+LEFT JOIN ibs_call_registration icr
+        ON icr.call_number COLLATE utf8mb4_unicode_ci
+         = ic.ic_number COLLATE utf8mb4_unicode_ci
+
+WHERE icr.call_number IS NULL
+   OR icr.status = 'Failed'
+
+""",
             nativeQuery = true)
     List<Object[]> getFinalInspectionCalls();
 }
