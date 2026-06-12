@@ -19,6 +19,9 @@ public class VendorPlant {
     private String plantName;
     private String plantId;
 
+    private String plantPincode;
+    private String rio;
+
     private String zonalRailway;
 
 

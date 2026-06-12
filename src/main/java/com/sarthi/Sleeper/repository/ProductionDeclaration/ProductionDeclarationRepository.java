@@ -398,7 +398,7 @@ WHERE d.batch_number = :batchNo
     List<Object[]> getProduction(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
-
+/*
     @Query(value = """
             SELECT 
                 vp.plant_id,
@@ -420,7 +420,20 @@ WHERE d.batch_number = :batchNo
             GROUP BY vp.plant_id, sp.company_name, im.rio
             """, nativeQuery = true)
     List<Object[]> getPlantMasterData();
+*/
+@Query(value = """
+        SELECT 
+            vp.plant_id,
 
+            CONCAT(vp.company_name, ' - ', vp.plant_id) AS plant_name,
+
+            vp.rio AS inspected_by
+
+        FROM vendor_plant vp
+
+        GROUP BY vp.plant_id, vp.company_name, vp.rio
+        """, nativeQuery = true)
+List<Object[]> getPlantMasterData();
 
     @Query(value = """
                 SELECT pd.total_casted_sleepers AS totalCastedSleepers,
