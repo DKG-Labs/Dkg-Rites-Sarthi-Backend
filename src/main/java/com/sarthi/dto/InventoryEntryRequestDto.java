@@ -42,5 +42,7 @@ public class InventoryEntryRequestDto {
     private BigDecimal baseValuePo;
     private BigDecimal totalPo;
     private Integer numberOfBundles;
+    private String tcFileBase64;
+    private String tcFileName;
 }
 
