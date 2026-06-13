@@ -53,6 +53,15 @@ public class VendorController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
 
+    @GetMapping("/po-pdf-path")
+    public ResponseEntity<Object> getPoPdfPath(@RequestParam String rawPoNo) {
+        String pdfPath = vService.getPdfPathByRawPoNo(rawPoNo);
+        if (pdfPath == null || pdfPath.isEmpty()) {
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(null), HttpStatus.OK);
+        }
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(pdfPath), HttpStatus.OK);
+    }
+
     @GetMapping("/proxy-pdf")
     public ResponseEntity<byte[]> proxyPdf(@RequestParam String url) {
         logger.info("Received request to proxy PDF from url: {}", url);

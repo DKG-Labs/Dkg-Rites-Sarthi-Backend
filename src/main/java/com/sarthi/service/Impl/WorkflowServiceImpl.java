@@ -4093,6 +4093,18 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                         return false;
                     }
                     
+                    // Exclude completed/disposed/withdrawn/cancelled/withheld statuses from verified/open list
+                    if ("INSPECTION_COMPLETE_CONFIRM".equals(status) ||
+                        "GENERATE_IC".equals(status) ||
+                        "DSC_SIGN_IC".equals(status) ||
+                        "WITHDRAW".equals(status) ||
+                        "WITHDRAWN".equals(status) ||
+                        "CANCELLED".equals(status) ||
+                        "CANCEL".equals(status) ||
+                        "WITHHELD".equals(status)) {
+                        return false;
+                    }
+
                     // Include calls in active stages: VERIFIED, SCHEDULED, INITIATED, etc.
                     return status.contains("VERIFIED") || 
                            status.contains("REGISTERED") || 
@@ -4199,6 +4211,116 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
     // Pass 3: Assemble DTOs
     final Map<Integer, UserMaster> finalUserMap = userMap;
     return verified.stream()
+            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
+            .collect(Collectors.toList());
+}
+
+@Override
+public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
+    log.info("🔍 Fetching All Disposed Transitions for RIO: {}", rio);
+    
+    // 1. Fetch latest transitions for the RIO
+    List<WorkflowTransition> latest = workflowTransitionRepository.findLatestByRio(rio);
+    
+    // 2. Filter for "Disposed" calls
+    // These are calls that have status = INSPECTION_COMPLETE_CONFIRM, GENERATE_IC, DSC_SIGN_IC, WITHDRAW, WITHDRAWN, CANCELLED, CANCEL, or WITHHELD
+    List<WorkflowTransition> disposed = latest.stream()
+            .filter(wt -> {
+                String status = wt.getStatus() != null ? wt.getStatus().toUpperCase() : "";
+                return "INSPECTION_COMPLETE_CONFIRM".equals(status) || 
+                       "GENERATE_IC".equals(status) || 
+                       "DSC_SIGN_IC".equals(status) ||
+                       "WITHDRAW".equals(status) ||
+                       "WITHDRAWN".equals(status) ||
+                       "CANCELLED".equals(status) ||
+                       "CANCEL".equals(status) ||
+                       "WITHHELD".equals(status);
+            })
+            .collect(Collectors.toList());
+
+    if (disposed.isEmpty()) {
+        return Collections.emptyList();
+    }
+
+    // 3. Map to DTOs using bulk-fetching logic
+    List<String> requestIds = disposed.stream()
+            .map(WorkflowTransition::getRequestId)
+            .distinct()
+            .collect(Collectors.toList());
+
+    List<Integer> wtIds = disposed.stream()
+            .map(WorkflowTransition::getWorkflowTransitionId)
+            .collect(Collectors.toList());
+
+    Map<String, InspectionDataDto> inspectionMap =
+            inspectionCallRepository.findLiteByIcNumberIn(requestIds)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            InspectionDataDto::icNumber,
+                            Function.identity(),
+                            (a, b) -> a
+                    ));
+
+    List<String> poNos = inspectionMap.values().stream()
+            .map(InspectionDataDto::poNo)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+    Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos).stream()
+            .collect(Collectors.toMap(PoHeader::getPoNo, Function.identity(), (a, b) -> a));
+
+    List<String> vendorCodes = inspectionMap.values().stream()
+            .map(InspectionDataDto::vendorId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+    Map<String, VendorMaster> vendorMap = vendorMasterRepository.findByVendorCodeIn(vendorCodes).stream()
+            .collect(Collectors.toMap(VendorMaster::getVendorCode, Function.identity(), (a, b) -> a));
+
+    Map<Integer, List<Integer>> finalIeMap =
+            finalIeMappingRepository.findByWorkflowTransitionIdIn(wtIds)
+                    .stream()
+                    .collect(Collectors.groupingBy(
+                            FinalIeMapping::getWorkflowTransitionId,
+                            Collectors.mapping(
+                                    FinalIeMapping::getIeUserId,
+                                    Collectors.toList()
+                            )
+                    ));
+
+    Map<Integer, List<Integer>> wtProcessIeMap = new HashMap<>();
+    Set<Integer> allTargetUserIds = new HashSet<>();
+
+    for (WorkflowTransition wt : disposed) {
+        if (wt.getAssignedToUser() != null) allTargetUserIds.add(wt.getAssignedToUser());
+        
+        if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP")) {
+            Integer processIe = wt.getProcessIeUserId();
+            InspectionDataDto i = inspectionMap.get(wt.getRequestId());
+            if (i != null) {
+                String poi = i.placeOfInspection();
+                List<Integer> ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+                List<Integer> finalIeUsers = new ArrayList<>(ieUsers);
+                if (processIe != null) {
+                    finalIeUsers.add(processIe);
+                }
+                wtProcessIeMap.put(wt.getWorkflowTransitionId(), finalIeUsers);
+                allTargetUserIds.addAll(finalIeUsers);
+            }
+        }
+        
+        List<Integer> finalIes = finalIeMap.getOrDefault(wt.getWorkflowTransitionId(), Collections.emptyList());
+        allTargetUserIds.addAll(finalIes);
+    }
+
+    Map<Integer, UserMaster> userMap = Collections.emptyMap();
+    if (!allTargetUserIds.isEmpty()) {
+        userMap = userMasterRepository.findByUserIdIn(new ArrayList<>(allTargetUserIds)).stream()
+                .collect(Collectors.toMap(UserMaster::getUserId, Function.identity(), (a, b) -> a));
+    }
+
+    final Map<Integer, UserMaster> finalUserMap = userMap;
+    return disposed.stream()
             .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
             .collect(Collectors.toList());
 }

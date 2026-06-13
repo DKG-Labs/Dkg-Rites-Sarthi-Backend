@@ -60,6 +60,13 @@ public class VendorPoServiceImpl implements VendorPoService {
         return poHeaders.stream().map(po -> mapToHeaderDto(po, vendorCalls)).toList();
     }
 
+    public String getPdfPathByRawPoNo(String rawPoNo) {
+        if (rawPoNo == null || rawPoNo.isEmpty()) return null;
+        return poHeaderRepository.findByPoNo(rawPoNo)
+                .map(com.sarthi.entity.PoHeader::getPdfPath)
+                .orElse(null);
+    }
+
     private VendorPoHeaderResponseDto mapToHeaderDto(PoHeader poHeader, List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls) {
 
         VendorPoHeaderResponseDto dto = new VendorPoHeaderResponseDto();

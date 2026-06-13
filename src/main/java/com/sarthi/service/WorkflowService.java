@@ -30,6 +30,8 @@ public interface WorkflowService {
     
     public List<WorkflowTransitionDto> allVerifiedWorkflowTransitions(String rio);
 
+    public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio);
+
     public WorkflowDto workflowByWorkflowName(String workflowName);
 
     public List<TransitionDto> transitionsByWorkflowId(Integer workflowId);
