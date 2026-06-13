@@ -90,4 +90,9 @@ public class WorkflowController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allVerifiedWorkflowTransitions(rio)), HttpStatus.OK);
     }
 
+    @GetMapping("/allDisposedWorkflowTransitions")
+    public ResponseEntity<Object> allDisposedWorkflowTransitions(@RequestParam(required = false) String rio) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allDisposedWorkflowTransitions(rio)), HttpStatus.OK);
+    }
+
 }
