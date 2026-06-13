@@ -61,6 +61,9 @@ public class InventoryEntryController {
 
             // Extract blob name from the Azure URL (last path segment)
             String blobName = tcFilePath.substring(tcFilePath.lastIndexOf('/') + 1);
+            
+            // URL decode the blob name to handle URL encoded characters like %3A (for :)
+            blobName = java.net.URLDecoder.decode(blobName, java.nio.charset.StandardCharsets.UTF_8);
 
             byte[] pdfBytes = azureBlobStorageService.downloadFile(blobName);
 
