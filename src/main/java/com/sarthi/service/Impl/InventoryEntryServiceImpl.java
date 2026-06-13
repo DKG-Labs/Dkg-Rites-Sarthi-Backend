@@ -8,6 +8,7 @@ import com.sarthi.entity.InventoryEntry;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.InventoryEntryRepository;
+import com.sarthi.service.AzureBlobStorageService;
 import com.sarthi.service.InventoryEntryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -35,6 +35,9 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     @Autowired
     private InventoryEntryRepository inventoryEntryRepository;
 
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
     @Override
     public InventoryEntryResponseDto createInventoryEntry(InventoryEntryRequestDto requestDto) {
         logger.info("Creating inventory entry for vendor: {}", requestDto.getVendorCode());
@@ -46,6 +49,27 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
             // Create entity from DTO
             InventoryEntry entry = new InventoryEntry();
             mapRequestToEntity(requestDto, entry);
+
+            // Upload TC file if present
+            if (requestDto.getTcFileBase64() != null && !requestDto.getTcFileBase64().isEmpty()) {
+                try {
+                    String blobName = String.format("tc_%s_%s_%d.pdf",
+                            requestDto.getVendorCode(),
+                            requestDto.getTcNumber().replaceAll("[^a-zA-Z0-9_-]", "_"),
+                            System.currentTimeMillis());
+                    if (requestDto.getTcFileName() != null && !requestDto.getTcFileName().isEmpty()) {
+                        String ext = requestDto.getTcFileName().contains(".") ? requestDto.getTcFileName().substring(requestDto.getTcFileName().lastIndexOf(".")) : ".pdf";
+                        blobName = String.format("tc_%s_%s_%d%s",
+                                requestDto.getVendorCode(),
+                                requestDto.getTcNumber().replaceAll("[^a-zA-Z0-9_-]", "_"),
+                                System.currentTimeMillis(), ext);
+                    }
+                    String tcFilePath = azureBlobStorageService.uploadBase64File(requestDto.getTcFileBase64(), blobName);
+                    entry.setTcFilePath(tcFilePath);
+                } catch (Exception e) {
+                    logger.error("Error uploading TC file to Azure during single create: {}", e.getMessage());
+                }
+            }
 
             // Set default status
             entry.setStatus(InventoryEntry.InventoryStatus.FRESH_PO);
@@ -73,16 +97,29 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
         logger.info("Creating multiple inventory entries (bulk) for vendor: {}", bulkRequestDto.getVendorCode());
 
         String finalTcFilePath = tcFilePath;
-        if (bulkRequestDto.getTcFileBase64() != null && !bulkRequestDto.getTcFileBase64().isEmpty()) {
+        String tcFileBase64 = bulkRequestDto.getTcFileBase64();
+        String tcFileName = bulkRequestDto.getTcFileName();
+
+        if (tcFileBase64 != null && !tcFileBase64.isEmpty()) {
             try {
-                // Determine a base path for TC files
-                String basePath = "uploads/tc_files";
-                String fileName = com.sarthi.util.CommonUtils.saveBase64Image(bulkRequestDto.getTcFileBase64(),
-                        basePath);
-                finalTcFilePath = basePath + "/" + fileName;
-                logger.info("TC file saved at: {}", finalTcFilePath);
-            } catch (IOException e) {
-                logger.error("Error saving TC file: {}", e.getMessage());
+                // Build a unique blob name: tc_{vendorCode}_{tcNumber}_{timestamp}.pdf
+                String blobName = String.format("tc_%s_%s_%d.pdf",
+                        bulkRequestDto.getVendorCode(),
+                        bulkRequestDto.getTcNumber().replaceAll("[^a-zA-Z0-9_-]", "_"),
+                        System.currentTimeMillis());
+                if (tcFileName != null && !tcFileName.isEmpty()) {
+                    // Use the original filename suffix if provided
+                    String ext = tcFileName.contains(".") ? tcFileName.substring(tcFileName.lastIndexOf(".")) : ".pdf";
+                    blobName = String.format("tc_%s_%s_%d%s",
+                            bulkRequestDto.getVendorCode(),
+                            bulkRequestDto.getTcNumber().replaceAll("[^a-zA-Z0-9_-]", "_"),
+                            System.currentTimeMillis(), ext);
+                }
+                finalTcFilePath = azureBlobStorageService.uploadBase64File(tcFileBase64, blobName);
+                logger.info("TC file uploaded to Azure. Blob name: {}, URL: {}", blobName, finalTcFilePath);
+            } catch (Exception e) {
+                logger.error("Error uploading TC file to Azure: {}", e.getMessage());
+                // Do not fail the entire request — inventory entries are still saved
             }
         }
 
@@ -245,6 +282,27 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
 
         // Update entity with new data
         mapRequestToEntity(requestDto, existingEntry);
+
+        // Upload TC file if a new one is uploaded during edit
+        if (requestDto.getTcFileBase64() != null && !requestDto.getTcFileBase64().isEmpty()) {
+            try {
+                String blobName = String.format("tc_%s_%s_%d.pdf",
+                        requestDto.getVendorCode(),
+                        requestDto.getTcNumber().replaceAll("[^a-zA-Z0-9_-]", "_"),
+                        System.currentTimeMillis());
+                if (requestDto.getTcFileName() != null && !requestDto.getTcFileName().isEmpty()) {
+                    String ext = requestDto.getTcFileName().contains(".") ? requestDto.getTcFileName().substring(requestDto.getTcFileName().lastIndexOf(".")) : ".pdf";
+                    blobName = String.format("tc_%s_%s_%d%s",
+                            requestDto.getVendorCode(),
+                            requestDto.getTcNumber().replaceAll("[^a-zA-Z0-9_-]", "_"),
+                            System.currentTimeMillis(), ext);
+                }
+                String tcFilePath = azureBlobStorageService.uploadBase64File(requestDto.getTcFileBase64(), blobName);
+                existingEntry.setTcFilePath(tcFilePath);
+            } catch (Exception e) {
+                logger.error("Error uploading TC file to Azure during update: {}", e.getMessage());
+            }
+        }
 
         // Save updated entry
         InventoryEntry updatedEntry = inventoryEntryRepository.save(existingEntry);

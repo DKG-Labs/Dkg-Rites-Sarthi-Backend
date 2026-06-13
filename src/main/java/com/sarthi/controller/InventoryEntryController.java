@@ -5,12 +5,16 @@ import com.sarthi.dto.InventoryEntryRequestDto;
 import com.sarthi.dto.InventoryBulkEntryRequestDto;
 import com.sarthi.dto.InventoryEntryResponseDto;
 import com.sarthi.exception.ErrorDetails;
+import com.sarthi.repository.InventoryEntryRepository;
+import com.sarthi.service.AzureBlobStorageService;
 import com.sarthi.service.InventoryEntryService;
 import com.sarthi.util.ResponseBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +32,49 @@ public class InventoryEntryController {
 
     @Autowired
     private InventoryEntryService inventoryEntryService;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
+    @Autowired
+    private InventoryEntryRepository inventoryEntryRepository;
+
+    /**
+     * View the TC file (PDF) for a given TC number — streams from Azure Blob
+     * GET /api/vendor/inventory/tc-file?tcNumber=xxx&vendorCode=xxx
+     */
+    @GetMapping("/tc-file")
+    public ResponseEntity<?> viewTcFile(
+            @RequestParam String tcNumber,
+            @RequestParam String vendorCode) {
+        logger.info("Request to view TC file for tcNumber={}, vendor={}", tcNumber, vendorCode);
+        try {
+            // Find any inventory entry for this TC number to get the stored blob URL
+            var entries = inventoryEntryRepository.findByTcNumberAndVendorCode(tcNumber, vendorCode);
+            if (entries == null || entries.isEmpty()) {
+                return ResponseEntity.status(404).body("No inventory entry found for TC: " + tcNumber);
+            }
+            String tcFilePath = entries.get(0).getTcFilePath();
+            if (tcFilePath == null || tcFilePath.isBlank()) {
+                return ResponseEntity.status(404).body("No TC file uploaded for TC: " + tcNumber);
+            }
+
+            // Extract blob name from the Azure URL (last path segment)
+            String blobName = tcFilePath.substring(tcFilePath.lastIndexOf('/') + 1);
+
+            byte[] pdfBytes = azureBlobStorageService.downloadFile(blobName);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + blobName + "\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .contentLength(pdfBytes.length)
+                    .body(pdfBytes);
+
+        } catch (Exception e) {
+            logger.error("Error fetching TC file: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body("Failed to fetch TC file: " + e.getMessage());
+        }
+    }
 
     /**
      * Create a new inventory entry

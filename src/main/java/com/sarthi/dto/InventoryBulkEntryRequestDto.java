@@ -29,6 +29,8 @@ public class InventoryBulkEntryRequestDto {
     private String tcDate; // Format: yyyy-MM-dd
     private String unitOfMeasurement;
     private String tcFileBase64;
+    private String tcFileName; // original filename from frontend (e.g. "tc-001.pdf")
+
 
     private List<HeatDetailsDto> heatEntries;
 

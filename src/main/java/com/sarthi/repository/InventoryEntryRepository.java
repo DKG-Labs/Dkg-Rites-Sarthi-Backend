@@ -96,5 +96,14 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
      */
     List<InventoryEntry> findByHeatNumberIn(List<String> heatNumbers);
 
+    /**
+     * Find all inventory entries by TC number and vendor code
+     * Used to retrieve the tc_file_path (Azure blob URL) for viewing
+     *
+     * @param tcNumber   The TC number
+     * @param vendorCode The vendor code
+     * @return List of inventory entries for this TC
+     */
+    List<InventoryEntry> findByTcNumberAndVendorCode(String tcNumber, String vendorCode);
 
     }
