@@ -9,6 +9,8 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.VendorInspectionRequestRepository;
+import com.sarthi.repository.rawmaterial.RmIcEditRepository;
+import com.sarthi.entity.rawmaterial.RmIcEdit;
 import com.sarthi.service.VendorInspectionRequestService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +39,9 @@ public class VendorInspectionRequestServiceImpl implements VendorInspectionReque
 
     @Autowired
     private VendorInspectionRequestRepository inspectionRequestRepository;
+
+    @Autowired
+    private RmIcEditRepository rmIcEditRepository;
 
     @Override
     public VendorInspectionRequestDto createInspectionRequest(VendorInspectionRequestDto requestDto) {
@@ -385,7 +390,20 @@ public class VendorInspectionRequestServiceImpl implements VendorInspectionReque
         dto.setInvoiceDate(formatDate(entity.getInvoiceDate()));
 
         dto.setSubPoNumber(entity.getSubPoNumber());
-        dto.setSubPoDate(formatDate(entity.getSubPoDate()));
+        
+        String rmIcDateStr = null;
+        if (entity.getSubPoNumber() != null && !entity.getSubPoNumber().trim().isEmpty()) {
+            java.util.Optional<RmIcEdit> editOpt = rmIcEditRepository.findByIcNumber(entity.getSubPoNumber().trim());
+            if (editOpt.isPresent() && editOpt.get().getCreatedAt() != null) {
+                rmIcDateStr = editOpt.get().getCreatedAt().toLocalDate().toString();
+            }
+        }
+        if (rmIcDateStr != null) {
+            dto.setSubPoDate(rmIcDateStr);
+        } else {
+            dto.setSubPoDate(formatDate(entity.getSubPoDate()));
+        }
+
         dto.setSubPoQty(entity.getSubPoQty());
         dto.setSubPoTotalValue(entity.getSubPoTotalValue());
 

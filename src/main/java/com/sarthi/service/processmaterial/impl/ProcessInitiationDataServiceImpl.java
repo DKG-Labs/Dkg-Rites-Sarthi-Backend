@@ -18,6 +18,8 @@ import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.processmaterial.ProcessRmIcMappingRepository;
 import com.sarthi.service.processmaterial.ProcessInitiationDataService;
+import com.sarthi.repository.rawmaterial.RmIcEditRepository;
+import com.sarthi.entity.rawmaterial.RmIcEdit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -49,6 +52,9 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
 
     @Autowired
     private InventoryEntryRepository inventoryEntryRepository;
+
+    @Autowired
+    private RmIcEditRepository rmIcEditRepository;
 
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -207,7 +213,7 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         dto.setUnitAddress(ic.getUnitAddress());
 
         // RM IC Number, Lot Number, Heat Number, and Offered Qty - from process_inspection_details table
-        dto.setRmIcNumber(processDetails.getRmIcNumber() != null ? processDetails.getRmIcNumber() : "N/A");
+        dto.setRmIcNumber(getFormattedRmIcsWithDates(processDetails.getRmIcNumber()));
         dto.setLotNumber(processDetails.getLotNumber() != null ? processDetails.getLotNumber() : "N/A");
         dto.setHeatNumber(processDetails.getHeatNumber() != null ? processDetails.getHeatNumber() : "N/A");
         dto.setOfferedQty(processDetails.getOfferedQty() != null ? processDetails.getOfferedQty() : 0); // CALL QTY for Section B
@@ -216,7 +222,7 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         List<ProcessInitiationDataDto.LotDetailsInfo> lotDetailsList = new ArrayList<>();
         for (ProcessInspectionDetails lot : processDetailsList) {
             ProcessInitiationDataDto.LotDetailsInfo lotInfo = new ProcessInitiationDataDto.LotDetailsInfo();
-            lotInfo.setRmIcNumber(lot.getRmIcNumber() != null ? lot.getRmIcNumber() : "N/A");
+            lotInfo.setRmIcNumber(getFormattedRmIcsWithDates(lot.getRmIcNumber()));
             lotInfo.setLotNumber(lot.getLotNumber() != null ? lot.getLotNumber() : "N/A");
             lotInfo.setHeatNumber(lot.getHeatNumber() != null ? lot.getHeatNumber() : "N/A");
             lotInfo.setManufacturer(lot.getManufacturer() != null ? lot.getManufacturer() : "N/A");
@@ -272,6 +278,37 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
 
         log.info("Successfully fetched initiation data for Process call: {}", callNo);
         return dto;
+    }
+
+    private String getRmIcDateFromEditTable(String icNumber) {
+        if (icNumber == null || icNumber.isEmpty() || "N/A".equals(icNumber)) {
+            return null;
+        }
+        String cleanIc = icNumber.trim();
+        Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(cleanIc);
+        if (rmIcEditOpt.isPresent() && rmIcEditOpt.get().getCreatedAt() != null) {
+            return rmIcEditOpt.get().getCreatedAt().format(DATE_TIME_FORMATTER);
+        }
+        return null;
+    }
+
+    private String getFormattedRmIcsWithDates(String rmIcNumberField) {
+        if (rmIcNumberField == null || rmIcNumberField.trim().isEmpty() || "N/A".equals(rmIcNumberField.trim())) {
+            return "N/A";
+        }
+        String[] parts = rmIcNumberField.split(",");
+        List<String> formattedParts = new ArrayList<>();
+        for (String part : parts) {
+            String trimmedPart = part.trim();
+            if (trimmedPart.isEmpty()) continue;
+            String dateStr = getRmIcDateFromEditTable(trimmedPart);
+            if (dateStr != null) {
+                formattedParts.add(trimmedPart + " dated " + dateStr);
+            } else {
+                formattedParts.add(trimmedPart);
+            }
+        }
+        return String.join(", ", formattedParts);
     }
 }
 
