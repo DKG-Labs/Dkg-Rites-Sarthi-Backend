@@ -188,8 +188,8 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
             GROUP BY p.declaration_id
         ) batch_counts ON batch_counts.declaration_id = d.id
         WHERE v.casting_date BETWEEN :startDate AND :endDate
-          AND (:vendorCode IS NULL OR :vendorCode = 'All Manufacturers' OR d.vendor_code = :vendorCode)
-          AND (:plantId IS NULL OR :plantId = 'All Places' OR d.plant_id = :plantId)
+          AND (:vendorCode IS NULL OR :vendorCode = 'All Manufacturers' OR d.vendor_code COLLATE utf8mb4_unicode_ci = :vendorCode COLLATE utf8mb4_unicode_ci)
+          AND (:plantId IS NULL OR :plantId = 'All Places' OR d.plant_id COLLATE utf8mb4_unicode_ci = :plantId COLLATE utf8mb4_unicode_ci)
         GROUP BY v.casting_date, v.shift
         ORDER BY v.casting_date DESC, v.shift ASC
     """, nativeQuery = true)
@@ -211,7 +211,7 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
         SELECT DISTINCT d.plant_id
         FROM rail_production_declaration d
         WHERE d.plant_id IS NOT NULL
-          AND (:vendorCode IS NULL OR :vendorCode = '' OR d.vendor_code = :vendorCode)
+          AND (:vendorCode IS NULL OR :vendorCode = '' OR d.vendor_code COLLATE utf8mb4_unicode_ci = :vendorCode COLLATE utf8mb4_unicode_ci)
         ORDER BY d.plant_id ASC
     """, nativeQuery = true)
     java.util.List<String> findDistinctPlants(@org.springframework.data.repository.query.Param("vendorCode") String vendorCode);

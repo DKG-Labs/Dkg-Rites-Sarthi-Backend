@@ -62,8 +62,8 @@ where r.vendorCode = :vendorCode
                    END = :zone)
             GROUP BY r.plant_id
         ) fin ON fin.plant_id = rvp.plant_id
-        WHERE (:rio IS NULL OR :rio = '' OR ifm.rio = :rio)
-          AND (:vendor IS NULL OR :vendor = '' OR rvp.company_name = :vendor)
+        WHERE (:rio IS NULL OR :rio = '' OR ifm.rio COLLATE utf8mb4_unicode_ci = :rio COLLATE utf8mb4_unicode_ci)
+          AND (:vendor IS NULL OR :vendor = '' OR rvp.company_name COLLATE utf8mb4_unicode_ci = :vendor COLLATE utf8mb4_unicode_ci)
         ORDER BY rvp.plant_name
     """, nativeQuery = true)
     java.util.List<Object[]> fetchRailPadMonthlyAnalysis(

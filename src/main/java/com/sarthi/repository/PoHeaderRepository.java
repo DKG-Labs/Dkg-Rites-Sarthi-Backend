@@ -194,24 +194,24 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
             COALESCE((
                 SELECT SUM(r.accepted_qty)
                 FROM rail_final_inspection_lot_results r
-                JOIN rail_inspection_call ic ON r.call_no = ic.call_no
-                WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) = ph.po_no
+                JOIN rail_inspection_call ic ON r.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci = ph.po_no COLLATE utf8mb4_unicode_ci
                   AND r.date_of_inspection BETWEEN :startDate AND :endDate
             ), 0) AS dispatchedMonthly,
             COALESCE((
                 SELECT SUM(r.accepted_qty)
                 FROM rail_final_inspection_lot_results r
-                JOIN rail_inspection_call ic ON r.call_no = ic.call_no
-                WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) = ph.po_no
+                JOIN rail_inspection_call ic ON r.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci = ph.po_no COLLATE utf8mb4_unicode_ci
             ), 0) AS totalDispatched
         FROM po_header ph
-        LEFT JOIN pincode_poi_mapping p ON p.vendor_code = ph.vendor_code OR p.company_name = ph.firm_details
-        LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
-        LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
+        LEFT JOIN pincode_poi_mapping p ON p.vendor_code COLLATE utf8mb4_unicode_ci = ph.vendor_code COLLATE utf8mb4_unicode_ci OR p.company_name COLLATE utf8mb4_unicode_ci = ph.firm_details COLLATE utf8mb4_unicode_ci
+        LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code COLLATE utf8mb4_unicode_ci = p.poi_code COLLATE utf8mb4_unicode_ci AND ipm.ie_type = 'PRIMARY'
+        LEFT JOIN ie_profile ip ON ip.employee_code COLLATE utf8mb4_unicode_ci = ipm.employee_code COLLATE utf8mb4_unicode_ci
         WHERE LOWER(ph.item_cat_descr) LIKE '%rail pad%'
-          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-          AND (:vendor IS NULL OR :vendor = '' OR ph.firm_details = :vendor OR SUBSTRING_INDEX(ph.vendor_details, '~', 1) = :vendor)
-          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+          AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name COLLATE utf8mb4_unicode_ci = :zone COLLATE utf8mb4_unicode_ci)
+          AND (:vendor IS NULL OR :vendor = '' OR ph.firm_details COLLATE utf8mb4_unicode_ci = :vendor COLLATE utf8mb4_unicode_ci OR SUBSTRING_INDEX(ph.vendor_details, '~', 1) COLLATE utf8mb4_unicode_ci = :vendor COLLATE utf8mb4_unicode_ci)
+          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) COLLATE utf8mb4_unicode_ci = UPPER(:rio) COLLATE utf8mb4_unicode_ci)
         GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.firm_details, ph.vendor_details
         ORDER BY ph.po_date DESC, ph.id DESC
     """, nativeQuery = true)
