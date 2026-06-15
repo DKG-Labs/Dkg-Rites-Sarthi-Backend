@@ -2,6 +2,7 @@ package com.sarthi;
 
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.processmaterial.ProcessTurningDataRepository;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,7 @@ class SarthiBackendApplicationTests {
     @Autowired
     private ProcessTurningDataRepository processTurningDataRepository;
 
+    @Disabled("Requires a running database with mock data")
     @Test
     void testCompactToFile() throws Exception {
         try (PrintWriter out = new PrintWriter(new FileWriter("compact_list.txt"))) {
