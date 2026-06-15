@@ -178,7 +178,7 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
             GROUP_CONCAT(DISTINCT d.vendor_name ORDER BY d.vendor_name SEPARATOR ', ') AS vendorName,
             GROUP_CONCAT(DISTINCT d.vendor_code ORDER BY d.vendor_code SEPARATOR ', ') AS vendorCode,
             GROUP_CONCAT(DISTINCT d.plant_id ORDER BY d.plant_id SEPARATOR ', ') AS plantId,
-            GROUP_CONCAT(DISTINCT (SELECT plant_name FROM rail_vendor_plant rvp WHERE rvp.plant_id = d.plant_id LIMIT 1) SEPARATOR ', ') AS plantName
+            GROUP_CONCAT(DISTINCT (SELECT plant_name FROM rail_vendor_plant rvp WHERE CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(d.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci LIMIT 1) SEPARATOR ', ') AS plantName
         FROM rail_ie_production_verification v
         JOIN rail_production_declaration d ON v.request_id = d.id
         LEFT JOIN (
@@ -188,8 +188,8 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
             GROUP BY p.declaration_id
         ) batch_counts ON batch_counts.declaration_id = d.id
         WHERE v.casting_date BETWEEN :startDate AND :endDate
-          AND (:vendorCode IS NULL OR :vendorCode = 'All Manufacturers' OR d.vendor_code COLLATE utf8mb4_unicode_ci = :vendorCode COLLATE utf8mb4_unicode_ci)
-          AND (:plantId IS NULL OR :plantId = 'All Places' OR d.plant_id COLLATE utf8mb4_unicode_ci = :plantId COLLATE utf8mb4_unicode_ci)
+          AND (:vendorCode IS NULL OR :vendorCode = 'All Manufacturers' OR CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorCode USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+          AND (:plantId IS NULL OR :plantId = 'All Places' OR CONVERT(d.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:plantId USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         GROUP BY v.casting_date, v.shift
         ORDER BY v.casting_date DESC, v.shift ASC
     """, nativeQuery = true)
@@ -211,7 +211,7 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
         SELECT DISTINCT d.plant_id
         FROM rail_production_declaration d
         WHERE d.plant_id IS NOT NULL
-          AND (:vendorCode IS NULL OR :vendorCode = '' OR d.vendor_code COLLATE utf8mb4_unicode_ci = :vendorCode COLLATE utf8mb4_unicode_ci)
+          AND (:vendorCode IS NULL OR :vendorCode = '' OR CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorCode USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         ORDER BY d.plant_id ASC
     """, nativeQuery = true)
     java.util.List<String> findDistinctPlants(@org.springframework.data.repository.query.Param("vendorCode") String vendorCode);
@@ -300,7 +300,7 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
     @Query(value = """
         SELECT 
             GROUP_CONCAT(DISTINCT d.vendor_name ORDER BY d.vendor_name SEPARATOR ', ') AS companyName,
-            GROUP_CONCAT(DISTINCT (SELECT plant_name FROM rail_vendor_plant rvp WHERE rvp.plant_id = d.plant_id LIMIT 1) SEPARATOR ', ') AS plantName,
+            GROUP_CONCAT(DISTINCT (SELECT plant_name FROM rail_vendor_plant rvp WHERE CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(d.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci LIMIT 1) SEPARATOR ', ') AS plantName,
             SUM(COALESCE(v.total_pieces_produced, 0)) AS totalInspected,
             SUM(COALESCE(v.total_accepted_pieces, 0)) AS totalAccepted,
             SUM(COALESCE(v.total_pieces_rejected, 0)) AS totalRejected

@@ -31,8 +31,8 @@ where r.vendorCode = :vendorCode
             COALESCE(proc.proc_rej_qty, 0) AS processRejection,
             COALESCE(fin.final_rej_qty, 0) AS finalRejection
         FROM rail_vendor_plant rvp
-        LEFT JOIN railpad_pincode_poi_mapping ppm ON ppm.vendor_code = rvp.vendor_code
-        LEFT JOIN ie_fields_mapping ifm ON ifm.pin_code = ppm.pin_code AND ifm.product = 'Rail Pad'
+        LEFT JOIN railpad_pincode_poi_mapping ppm ON CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN ie_fields_mapping ifm ON CONVERT(ifm.pin_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ppm.pin_code USING utf8mb4) COLLATE utf8mb4_unicode_ci AND ifm.product = 'Rail Pad'
         LEFT JOIN (
             SELECT rpd.plant_id, SUM(COALESCE(rpb.quantity, 0)) AS prod_qty
             FROM rail_production_declaration rpd
@@ -41,7 +41,7 @@ where r.vendorCode = :vendorCode
             WHERE (:startDate IS NULL OR rpd.production_date >= :startDate)
               AND (:endDate IS NULL OR rpd.production_date <= :endDate)
             GROUP BY rpd.plant_id
-        ) prod ON prod.plant_id = rvp.plant_id
+        ) prod ON CONVERT(prod.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
         LEFT JOIN (
             SELECT v.production_unit AS plant_id, SUM(COALESCE(re.rejected_qty, 0)) AS proc_rej_qty
             FROM rail_ie_production_verification v
@@ -49,21 +49,21 @@ where r.vendorCode = :vendorCode
             WHERE (:startDate IS NULL OR v.casting_date >= :startDate)
               AND (:endDate IS NULL OR v.casting_date <= :endDate)
             GROUP BY v.production_unit
-        ) proc ON proc.plant_id = rvp.plant_id
+        ) proc ON CONVERT(proc.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
         LEFT JOIN (
             SELECT r.plant_id, SUM(COALESCE(r.accepted_qty, 0)) AS accept_qty, SUM(COALESCE(r.rejected_qty, 0)) AS final_rej_qty
             FROM rail_final_inspection_lot_results r
             WHERE (:startDate IS NULL OR r.date_of_inspection >= :startDate)
               AND (:endDate IS NULL OR r.date_of_inspection <= :endDate)
               AND (:zone IS NULL OR :zone = '' OR 
-                   CASE 
+                   CONVERT((CASE 
                        WHEN r.rly_po_sr_no LIKE '%/%' THEN SUBSTRING_INDEX(r.rly_po_sr_no, '/', 1) 
                        ELSE r.rly_po_sr_no 
-                   END = :zone)
+                   END) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)
             GROUP BY r.plant_id
-        ) fin ON fin.plant_id = rvp.plant_id
-        WHERE (:rio IS NULL OR :rio = '' OR ifm.rio COLLATE utf8mb4_unicode_ci = :rio COLLATE utf8mb4_unicode_ci)
-          AND (:vendor IS NULL OR :vendor = '' OR rvp.company_name COLLATE utf8mb4_unicode_ci = :vendor COLLATE utf8mb4_unicode_ci)
+        ) fin ON CONVERT(fin.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE (:rio IS NULL OR :rio = '' OR CONVERT(ifm.rio USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:rio USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+          AND (:vendor IS NULL OR :vendor = '' OR CONVERT(rvp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendor USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         ORDER BY rvp.plant_name
     """, nativeQuery = true)
     java.util.List<Object[]> fetchRailPadMonthlyAnalysis(
