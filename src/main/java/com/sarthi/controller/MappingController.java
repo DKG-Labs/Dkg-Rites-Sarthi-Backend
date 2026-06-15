@@ -45,4 +45,37 @@ public class MappingController {
             );
         }
     }
+
+    @GetMapping("/all")
+    public ResponseEntity<Object> getAllMappings() {
+        try {
+            return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(mappingService.getAllMappings()));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
+                            HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                            5000,
+                            "error",
+                            "Failed to retrieve mappings: " + ex.getMessage()
+                    ))
+            );
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Object> deleteMapping(@PathVariable("id") String id) {
+        try {
+            mappingService.deleteMapping(id);
+            return ResponseEntity.ok(ResponseBuilder.getSuccessResponse("Mapping deleted successfully"));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
+                            HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                            5000,
+                            "error",
+                            "Failed to delete mapping: " + ex.getMessage()
+                    ))
+            );
+        }
+    }
 }
