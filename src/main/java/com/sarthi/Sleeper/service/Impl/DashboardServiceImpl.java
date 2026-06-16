@@ -1479,6 +1479,10 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
 
+    public SleeperIcProjection getSleeperIcData(String callNo) {
+        return inspectionCallRepository.getSleeperIcData(callNo);
+    }
+
 
 
 }

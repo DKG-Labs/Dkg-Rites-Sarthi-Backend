@@ -77,4 +77,5 @@ public class FinalCallInspectionHeader {
 
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
+
 }

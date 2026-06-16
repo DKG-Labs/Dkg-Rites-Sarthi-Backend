@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.repository.FinalInspectionRepository;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level1Projection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.MprProjection;
+import com.sarthi.Sleeper.dto.SleeperDashboardDtos.SleeperIcProjection;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -844,7 +845,152 @@ ORDER BY um.employee_code
     );
 
 
+    @Query(value = """
 
+    SELECT
 
+        NULL AS certificateNo,
+
+        NULL AS date,
+
+        (
+            SELECT COUNT(*)
+            FROM sleeper_inspection_call sic2
+            WHERE sic2.po_no = sic.po_no
+        ) AS offeredInstallmentNumber,
+
+        NULL AS passedInstallmentNumber,
+
+        ph.vendor_details AS contractor,
+
+        ph.vendor_details AS placeOfInspection,
+
+        CONCAT(sic.po_no, ' / ', sic.created_at) AS contractRefAndDate,
+
+        ph.bill_pay_off_name AS billPayingOffice,
+
+        pi.consignee_detail AS consignee,
+
+        ph.purchaser_detail AS purchasingAuthority,
+
+        sic.sr_no AS itemNo,
+
+        pi.item_desc AS descriptionOfStores,
+
+        CONCAT(
+            pi.uom,
+            ' - ',
+            pi.qty
+        ) AS quantityOnOrder,
+
+        CONCAT(
+            pi.uom,
+            ' - ',
+            COALESCE(
+                (
+                    SELECT SUM(sic2.total_offered)
+                    FROM sleeper_inspection_call sic2
+                    WHERE sic2.po_no = sic.po_no
+                    AND sic2.sr_no = sic.sr_no
+                    AND sic2.created_at < sic.created_at
+                ),
+                0
+            )
+        ) AS cumulativeQtyOfferedPreviously,
+
+        CONCAT(
+            pi.uom,
+            ' - ',
+            COALESCE(
+                (
+                    SELECT SUM(
+                        sic2.total_offered - sic2.total_rejected
+                    )
+                    FROM sleeper_inspection_call sic2
+                    WHERE sic2.po_no = sic.po_no
+                    AND sic2.sr_no = sic.sr_no
+                    AND sic2.created_at < sic.created_at
+                ),
+                0
+            )
+        ) AS quantityPreviouslyPassed,
+
+        CONCAT(
+            pi.uom,
+            ' - ',
+            sic.total_offered
+        ) AS qtyNowOffered,
+
+        CONCAT(
+            pi.uom,
+            ' - ',
+            COALESCE(fcih.accepted_qty, 0)
+        ) AS qtyNowPassed,
+
+        CONCAT(
+            pi.uom,
+            ' - ',
+            COALESCE(fcih.rejected_qty, 0)
+        ) AS qtyNowRejected,
+
+        CONCAT(
+            pi.uom,
+            ' - ',
+            (
+                COALESCE(pi.qty, 0)
+
+                -
+
+                COALESCE(
+                    (
+                        SELECT SUM(
+                            sic2.total_offered - sic2.total_rejected
+                        )
+                        FROM sleeper_inspection_call sic2
+                        WHERE sic2.po_no = sic.po_no
+                        AND sic2.sr_no = sic.sr_no
+                        AND sic2.created_at < sic.created_at
+                    ),
+                    0
+                )
+
+                -
+
+                COALESCE(fcih.accepted_qty, 0)
+            )
+        ) AS qtyStillDue,
+
+        sic.desired_inspection_date AS dateOfCall,
+
+        1 AS noOfVisits,
+
+        fcih.created_date AS dateOfInspection,
+
+        (
+            SELECT GROUP_CONCAT(
+                DISTINCT ibs2.batch_no
+                SEPARATOR ', '
+            )
+            FROM ie_batch_summary ibs2
+            WHERE ibs2.call_no = sic.call_no
+        ) AS quantityNowPassedBatchNos
+
+    FROM sleeper_inspection_call sic
+
+    LEFT JOIN po_header ph
+        ON ph.po_no = sic.po_no
+
+    LEFT JOIN po_item pi
+        ON pi.po_header_id = ph.id
+        AND pi.item_sr_no = sic.sr_no
+
+    LEFT JOIN final_call_inspection_header fcih
+        ON fcih.call_no = sic.call_no
+
+    WHERE sic.call_no = :callNo
+
+    """, nativeQuery = true)
+    SleeperIcProjection getSleeperIcData(
+            @Param("callNo") String callNo);
 
 }

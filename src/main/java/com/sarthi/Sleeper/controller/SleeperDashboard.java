@@ -403,5 +403,12 @@ public class SleeperDashboard {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
+    @GetMapping("sleeperIc/{callNo}")
+    public SleeperIcProjection getSleeperIcData(
+            @PathVariable String callNo) {
+
+        return dashboardService.getSleeperIcData(callNo);
+    }
+
 
 }
