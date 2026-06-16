@@ -46,6 +46,7 @@ public class MappingController {
         }
     }
 
+
     @GetMapping("/all")
     public ResponseEntity<Object> getAllMappings() {
         try {
@@ -78,4 +79,5 @@ public class MappingController {
             );
         }
     }
+
 }
