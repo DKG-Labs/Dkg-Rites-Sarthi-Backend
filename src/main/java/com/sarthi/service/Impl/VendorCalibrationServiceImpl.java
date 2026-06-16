@@ -13,6 +13,8 @@ import com.sarthi.entity.VendorCalibrationDetail;
 import com.sarthi.entity.VendorCalibrationHeader;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
+import com.sarthi.exception.InvalidInputException;
+import java.time.format.DateTimeParseException;
 import com.sarthi.repository.IeVendorCalibrationInspectionRepository;
 import com.sarthi.repository.VendorCalibrationDetailRepository;
 import com.sarthi.repository.VendorCalibrationHeaderRepository;
@@ -464,105 +466,171 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
     @Override
     @Transactional
     public void submitBulkRegistration(Map<String, Object> payload, String userId) {
-        logger.info("Processing bulk registration payload via service");
-        String vendorCode = (String) payload.get("vendorCode");
-        if (vendorCode == null || vendorCode.trim().isEmpty()) {
-            vendorCode = userId;
-        }
-        if (vendorCode == null || vendorCode.trim().isEmpty()) {
-            throw new IllegalArgumentException("Vendor code is required");
-        }
-
-        String fileData = (String) payload.get("fileData"); // Combined certificate base64
-        String fileName = (String) payload.get("fileName"); // File name
-
-        List<Map<String, Object>> items = (List<Map<String, Object>>) payload.get("items");
-        if (items == null || items.isEmpty()) {
-            throw new IllegalArgumentException("No calibration items provided");
-        }
-
-        // Group items by category (Document, Instrument, Gauge)
-        Map<String, List<Map<String, Object>>> itemsByCategory = items.stream()
-                .filter(item -> item.get("category") != null)
-                .collect(Collectors.groupingBy(item -> (String) item.get("category")));
-
-        for (Map.Entry<String, List<Map<String, Object>>> entry : itemsByCategory.entrySet()) {
-            String category = entry.getKey();
-            List<Map<String, Object>> categoryItems = entry.getValue();
-
-            // Find or create VendorCalibrationHeader
-            VendorCalibrationHeader header;
-            Optional<VendorCalibrationHeader> existingOpt = headerRepository.findByVendorCodeAndCategory(vendorCode, category);
-            if (existingOpt.isPresent()) {
-                header = existingOpt.get();
-                header.getDetails().clear();
-                headerRepository.saveAndFlush(header);
-            } else {
-                header = new VendorCalibrationHeader();
-                header.setVendorCode(vendorCode);
-                header.setCategory(category);
+        try {
+            logger.info("Processing bulk registration payload via service");
+            String vendorCode = safeString(payload.get("vendorCode"));
+            if (vendorCode == null || vendorCode.trim().isEmpty()) {
+                vendorCode = userId;
+            }
+            if (vendorCode == null || vendorCode.trim().isEmpty()) {
+                throw new InvalidInputException(new ErrorDetails(
+                        AppConstant.USER_INVALID_INPUT,
+                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "Vendor code is required"
+                ));
             }
 
-            // Set the certificate file data (since it's a combined certificate, we set it on all categories)
-            header.setCertificateFilePath(fileData);
-            header.setCreatedBy(userId);
-            header.setUpdatedBy(userId);
+            String fileData = safeString(payload.get("fileData")); // Combined certificate base64
+            String fileName = safeString(payload.get("fileName")); // File name
 
-            for (Map<String, Object> itemMap : categoryItems) {
-                VendorCalibrationDetail detail = new VendorCalibrationDetail();
-                detail.setInstrumentName((String) itemMap.get("instrumentName"));
-                detail.setCapacity((String) itemMap.get("capacity"));
-                detail.setDescription((String) itemMap.get("description"));
-                detail.setUsedFor((String) itemMap.get("usedFor"));
-                detail.setSerialNumber((String) itemMap.get("serialNumber"));
-                detail.setCalibrationCertificateNo((String) itemMap.get("calibrationCertificateNo"));
+            List<Map<String, Object>> items = (List<Map<String, Object>>) payload.get("items");
+            if (items == null || items.isEmpty()) {
+                throw new InvalidInputException(new ErrorDetails(
+                        AppConstant.USER_INVALID_INPUT,
+                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "No calibration items provided"
+                ));
+            }
 
-                // Parse dates
-                String calDateStr = (String) itemMap.get("calibrationDate");
-                if (calDateStr != null && !calDateStr.trim().isEmpty()) {
-                    detail.setCalibrationDate(LocalDate.parse(calDateStr));
+            // Group items by category (Document, Instrument, Gauge)
+            Map<String, List<Map<String, Object>>> itemsByCategory = items.stream()
+                    .filter(item -> item.get("category") != null)
+                    .collect(Collectors.groupingBy(item -> safeString(item.get("category"))));
+
+            for (Map.Entry<String, List<Map<String, Object>>> entry : itemsByCategory.entrySet()) {
+                String category = entry.getKey();
+                List<Map<String, Object>> categoryItems = entry.getValue();
+
+                // Find or create VendorCalibrationHeader
+                VendorCalibrationHeader header;
+                Optional<VendorCalibrationHeader> existingOpt = headerRepository.findByVendorCodeAndCategory(vendorCode, category);
+                if (existingOpt.isPresent()) {
+                    header = existingOpt.get();
+                    header.getDetails().clear();
+                    headerRepository.saveAndFlush(header);
+                } else {
+                    header = new VendorCalibrationHeader();
+                    header.setVendorCode(vendorCode);
+                    header.setCategory(category);
                 }
-                String dueDateStr = (String) itemMap.get("calibrationDueDate");
-                LocalDate dueDate = null;
-                if (dueDateStr != null && !dueDateStr.trim().isEmpty()) {
-                    dueDate = LocalDate.parse(dueDateStr);
-                    detail.setCalibrationDueDate(dueDate);
-                }
 
-                detail.setCertifyingLabName((String) itemMap.get("certifyingLabName"));
-                detail.setAccreditationAgency((String) itemMap.get("accreditationAgency"));
-                detail.setMakeModel((String) itemMap.get("makeModel"));
-                detail.setMasterEquipNoCertValidity((String) itemMap.get("masterEquipNoCertValidity"));
-                detail.setMasterEquipNablDetails((String) itemMap.get("masterEquipNablDetails"));
+                // Set the certificate file data (since it's a combined certificate, we set it on all categories)
+                header.setCertificateFilePath(fileData);
+                header.setCreatedBy(userId);
+                header.setUpdatedBy(userId);
 
-                // Notification days
-                Object notifDaysObj = itemMap.get("notificationDays");
-                int notifDays = 30;
-                if (notifDaysObj instanceof Number) {
-                    notifDays = ((Number) notifDaysObj).intValue();
-                } else if (notifDaysObj instanceof String) {
-                    try {
-                        notifDays = Integer.parseInt((String) notifDaysObj);
-                    } catch (NumberFormatException e) {
-                        // ignore
+                for (Map<String, Object> itemMap : categoryItems) {
+                    VendorCalibrationDetail detail = new VendorCalibrationDetail();
+                    detail.setInstrumentName(safeString(itemMap.get("instrumentName")));
+                    detail.setCapacity(safeString(itemMap.get("capacity")));
+                    detail.setDescription(safeString(itemMap.get("description")));
+                    detail.setUsedFor(safeString(itemMap.get("usedFor")));
+                    detail.setSerialNumber(safeString(itemMap.get("serialNumber")));
+                    detail.setCalibrationCertificateNo(safeString(itemMap.get("calibrationCertificateNo")));
+
+                    // Parse dates
+                    String calDateStr = safeString(itemMap.get("calibrationDate"));
+                    if (calDateStr != null && !calDateStr.trim().isEmpty()) {
+                        try {
+                            LocalDate calDate = LocalDate.parse(calDateStr);
+                            if (calDate.getYear() < 2000 || calDate.getYear() > 2099) {
+                                String instrument = safeString(itemMap.get("instrumentName"));
+                                throw new InvalidInputException(new ErrorDetails(
+                                        AppConstant.USER_INVALID_INPUT,
+                                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "Calibration date year must be between 2000 and 2099 for instrument '" + instrument + "'."
+                                ));
+                            }
+                            detail.setCalibrationDate(calDate);
+                        } catch (DateTimeParseException e) {
+                            String instrument = safeString(itemMap.get("instrumentName"));
+                            throw new InvalidInputException(new ErrorDetails(
+                                    AppConstant.USER_INVALID_INPUT,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Invalid calibration date format '" + calDateStr + "' for instrument '" + instrument + "'. Expected format is YYYY-MM-DD."
+                            ));
+                        }
                     }
+                    String dueDateStr = safeString(itemMap.get("calibrationDueDate"));
+                    LocalDate dueDate = null;
+                    if (dueDateStr != null && !dueDateStr.trim().isEmpty()) {
+                        try {
+                            dueDate = LocalDate.parse(dueDateStr);
+                            if (dueDate.getYear() < 2000 || dueDate.getYear() > 2099) {
+                                String instrument = safeString(itemMap.get("instrumentName"));
+                                throw new InvalidInputException(new ErrorDetails(
+                                        AppConstant.USER_INVALID_INPUT,
+                                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "Calibration due date year must be between 2000 and 2099 for instrument '" + instrument + "'."
+                                ));
+                            }
+                            detail.setCalibrationDueDate(dueDate);
+                        } catch (DateTimeParseException e) {
+                            String instrument = safeString(itemMap.get("instrumentName"));
+                            throw new InvalidInputException(new ErrorDetails(
+                                    AppConstant.USER_INVALID_INPUT,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Invalid calibration due date format '" + dueDateStr + "' for instrument '" + instrument + "'. Expected format is YYYY-MM-DD."
+                            ));
+                        }
+                    }
+
+                    detail.setCertifyingLabName(safeString(itemMap.get("certifyingLabName")));
+                    detail.setAccreditationAgency(safeString(itemMap.get("accreditationAgency")));
+                    detail.setMakeModel(safeString(itemMap.get("makeModel")));
+                    detail.setMasterEquipNoCertValidity(safeString(itemMap.get("masterEquipNoCertValidity")));
+                    detail.setMasterEquipNablDetails(safeString(itemMap.get("masterEquipNablDetails")));
+
+                    // Notification days
+                    Object notifDaysObj = itemMap.get("notificationDays");
+                    int notifDays = 30;
+                    if (notifDaysObj instanceof Number) {
+                        notifDays = ((Number) notifDaysObj).intValue();
+                    } else if (notifDaysObj instanceof String) {
+                        try {
+                            notifDays = Integer.parseInt((String) notifDaysObj);
+                        } catch (NumberFormatException e) {
+                            // ignore
+                        }
+                    }
+                    detail.setNotificationDays(notifDays);
+
+                    // Auto calculate status
+                    String status = "Valid";
+                    if (dueDate != null && dueDate.isBefore(LocalDate.now())) {
+                        status = "Expired";
+                    }
+                    detail.setCalibrationStatus(status);
+
+                    detail.setCreatedBy(userId);
+                    detail.setUpdatedBy(userId);
+
+                    header.addDetail(detail);
                 }
-                detail.setNotificationDays(notifDays);
 
-                // Auto calculate status
-                String status = "Valid";
-                if (dueDate != null && dueDate.isBefore(LocalDate.now())) {
-                    status = "Expired";
-                }
-                detail.setCalibrationStatus(status);
-
-                detail.setCreatedBy(userId);
-                detail.setUpdatedBy(userId);
-
-                header.addDetail(detail);
+                headerRepository.save(header);
             }
-
-            headerRepository.save(header);
+        } catch (InvalidInputException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("Error processing bulk registration: {}", e.getMessage(), e);
+            throw new InvalidInputException(new ErrorDetails(
+                    AppConstant.USER_INVALID_INPUT,
+                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                    AppConstant.ERROR_TYPE_VALIDATION,
+                    "Failed to process bulk registration: " + e.getMessage()
+            ));
         }
+    }
+
+    private String safeString(Object value) {
+        if (value == null) return null;
+        return String.valueOf(value);
     }
 }
