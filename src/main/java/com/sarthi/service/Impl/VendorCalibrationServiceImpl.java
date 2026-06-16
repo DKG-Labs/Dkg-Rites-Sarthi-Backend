@@ -124,6 +124,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
                     detail.setCalibrationDueDate(detailDto.getCalibrationDueDate());
                     detail.setCertifyingLabName(detailDto.getCertifyingLabName());
                     detail.setAccreditationAgency(detailDto.getAccreditationAgency());
+                    detail.setMakeModel(detailDto.getMakeModel());
+                    detail.setMasterEquipNoCertValidity(detailDto.getMasterEquipNoCertValidity());
+                    detail.setMasterEquipNablDetails(detailDto.getMasterEquipNablDetails());
                     detail.setNotificationDays(detailDto.getNotificationDays() != null ? detailDto.getNotificationDays() : 30);
                     
                     // Auto calculate calibration status
@@ -241,6 +244,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
                 dDto.setCalibrationDueDate(detail.getCalibrationDueDate());
                 dDto.setCertifyingLabName(detail.getCertifyingLabName());
                 dDto.setAccreditationAgency(detail.getAccreditationAgency());
+                dDto.setMakeModel(detail.getMakeModel());
+                dDto.setMasterEquipNoCertValidity(detail.getMasterEquipNoCertValidity());
+                dDto.setMasterEquipNablDetails(detail.getMasterEquipNablDetails());
                 dDto.setNotificationDays(detail.getNotificationDays());
                 dDto.setCalibrationStatus(detail.getCalibrationStatus());
                 detailsList.add(dDto);
@@ -323,6 +329,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
                         newDetail.setCapacity(reqDetail.getCapacity());
                         newDetail.setSerialNumber(reqDetail.getSerialNumber());
                         newDetail.setCalibrationCertificateNo(reqDetail.getCalibrationCertificateNo());
+                        newDetail.setMakeModel(reqDetail.getMakeModel());
+                        newDetail.setMasterEquipNoCertValidity(reqDetail.getMasterEquipNoCertValidity());
+                        newDetail.setMasterEquipNablDetails(reqDetail.getMasterEquipNablDetails());
                         newDetail.setInspectionStatus(reqDetail.getInspectionStatus());
                         newDetail.setInspectionRemark(reqDetail.getInspectionRemark());
                         newDetail.setCalibrationStatus(reqDetail.getInspectionStatus()); // fallback
@@ -351,6 +360,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
                             inspectionDetail.setCalibrationDueDate(detail.getCalibrationDueDate());
                             inspectionDetail.setCertifyingLabName(detail.getCertifyingLabName());
                             inspectionDetail.setAccreditationAgency(detail.getAccreditationAgency());
+                            inspectionDetail.setMakeModel(detail.getMakeModel());
+                            inspectionDetail.setMasterEquipNoCertValidity(detail.getMasterEquipNoCertValidity());
+                            inspectionDetail.setMasterEquipNablDetails(detail.getMasterEquipNablDetails());
                             inspectionDetail.setNotificationDays(detail.getNotificationDays());
                             inspectionDetail.setCalibrationStatus(detail.getCalibrationStatus());
                             
@@ -423,6 +435,10 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
 
                     d.setAccreditationAgency(
                             detail.getAccreditationAgency());
+
+                    d.setMakeModel(detail.getMakeModel());
+                    d.setMasterEquipNoCertValidity(detail.getMasterEquipNoCertValidity());
+                    d.setMasterEquipNablDetails(detail.getMasterEquipNablDetails());
 
                     d.setNotificationDays(
                             detail.getNotificationDays());
@@ -515,6 +531,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
 
                 detail.setCertifyingLabName((String) itemMap.get("certifyingLabName"));
                 detail.setAccreditationAgency((String) itemMap.get("accreditationAgency"));
+                detail.setMakeModel((String) itemMap.get("makeModel"));
+                detail.setMasterEquipNoCertValidity((String) itemMap.get("masterEquipNoCertValidity"));
+                detail.setMasterEquipNablDetails((String) itemMap.get("masterEquipNablDetails"));
 
                 // Notification days
                 Object notifDaysObj = itemMap.get("notificationDays");

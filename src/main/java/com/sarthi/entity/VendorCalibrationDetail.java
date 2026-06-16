@@ -53,6 +53,15 @@ public class VendorCalibrationDetail extends BaseAuditEntity {
     @Column(name = "accreditation_agency", length = 50)
     private String accreditationAgency;
 
+    @Column(name = "make_model", length = 150)
+    private String makeModel;
+
+    @Column(name = "master_equip_no_cert_validity", length = 255)
+    private String masterEquipNoCertValidity;
+
+    @Column(name = "master_equip_nabl_details", length = 255)
+    private String masterEquipNablDetails;
+
     @Column(name = "notification_days")
     private Integer notificationDays = 30;
 

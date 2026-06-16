@@ -4062,8 +4062,9 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
             updatedOffered = BigDecimal.ZERO; // safety
         }
 
-        // add to qty_left_for_inspection
-        BigDecimal updatedInspection = inspectionQty.add(qty);
+        // Recalculate qty_left_for_inspection to maintain the invariant: qtyLeft = tcQuantity - offeredQuantity
+        BigDecimal tcQty = inv.getTcQuantity() != null ? inv.getTcQuantity() : BigDecimal.ZERO;
+        BigDecimal updatedInspection = tcQty.subtract(updatedOffered);
 
 
         inv.setOfferedQuantity(updatedOffered);

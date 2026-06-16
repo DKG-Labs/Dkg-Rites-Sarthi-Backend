@@ -47,6 +47,15 @@ public class IeVendorCalibrationInspectionDetail extends BaseAuditEntity {
     @Column(name = "accreditation_agency")
     private String accreditationAgency;
 
+    @Column(name = "make_model")
+    private String makeModel;
+
+    @Column(name = "master_equip_no_cert_validity")
+    private String masterEquipNoCertValidity;
+
+    @Column(name = "master_equip_nabl_details")
+    private String masterEquipNablDetails;
+
     @Column(name = "notification_days")
     private Integer notificationDays;
 
