@@ -22,6 +22,8 @@ public class IbsInspectionDto {
 
                 private String callStatus;
 
+                private String typeOfCall;
+
                 private List<String> poItemSerialNumbers;
 
                 private Integer quantityOffered;
