@@ -16,6 +16,9 @@ public class VendorCalibrationDetailDto {
     private LocalDate calibrationDueDate;
     private String certifyingLabName;
     private String accreditationAgency;
+    private String makeModel;
+    private String masterEquipNoCertValidity;
+    private String masterEquipNablDetails;
     private Integer notificationDays;
     private String calibrationStatus;
 }

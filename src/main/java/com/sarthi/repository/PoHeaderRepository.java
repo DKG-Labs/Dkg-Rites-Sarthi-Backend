@@ -209,9 +209,9 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
         LEFT JOIN ie_pincode_poi_mapping ipm ON CONVERT(ipm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci AND ipm.ie_type = 'PRIMARY'
         LEFT JOIN ie_profile ip ON CONVERT(ip.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ipm.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE LOWER(ph.item_cat_descr) LIKE '%rail pad%'
-          AND (:zone IS NULL OR :zone = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)
-          AND (:vendor IS NULL OR :vendor = '' OR CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendor USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(SUBSTRING_INDEX(ph.vendor_details, '~', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendor USING utf8mb4) COLLATE utf8mb4_unicode_ci)
-          AND (:rio IS NULL OR :rio = '' OR CONVERT(UPPER(ip.rio) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(UPPER(:rio) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+          AND (:zone IS NULL OR :zone = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = :zone)
+          AND (:vendor IS NULL OR :vendor = '' OR CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci = :vendor OR CONVERT(SUBSTRING_INDEX(ph.vendor_details, '~', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = :vendor)
+          AND (:rio IS NULL OR :rio = '' OR CONVERT(UPPER(ip.rio) USING utf8mb4) COLLATE utf8mb4_unicode_ci = UPPER(:rio))
         GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.firm_details, ph.vendor_details
         ORDER BY ph.po_date DESC, ph.id DESC
     """, nativeQuery = true)

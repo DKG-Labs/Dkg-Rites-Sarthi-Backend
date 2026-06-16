@@ -30,6 +30,12 @@ public class IeVendorCalibrationInspectionDetailResponseDto {
 
     private String accreditationAgency;
 
+    private String makeModel;
+
+    private String masterEquipNoCertValidity;
+
+    private String masterEquipNablDetails;
+
     private Integer notificationDays;
 
     private String calibrationStatus;
