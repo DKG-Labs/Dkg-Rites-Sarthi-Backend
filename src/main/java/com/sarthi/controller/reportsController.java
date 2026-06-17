@@ -399,5 +399,37 @@ public class reportsController {
 
         }
 
+        @GetMapping("/railpad/performance")
+        public ResponseEntity<Object> getRailPadPerformance(
+                @RequestParam int page,
+                @RequestParam int size,
+                @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate startDate,
+                @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate endDate,
+                @RequestParam(required = false) String rio,
+                @RequestParam(required = false) String zone,
+                @RequestParam(required = false) String vendor) {
+
+            try {
+                if (endDate == null) {
+                    endDate = java.time.LocalDate.now();
+                }
+                if (startDate == null) {
+                    startDate = endDate.minusMonths(6);
+                }
+
+                com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> result = 
+                        reportService.getRailPadPerformanceReport(page, size, startDate, endDate, rio, zone, vendor);
+                return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+            } catch (Exception e) {
+                e.printStackTrace();
+                ErrorDetails errorDetails = new ErrorDetails(
+                        500,
+                        500,
+                        "ERROR",
+                        "Error fetching Rail Pad performance matrix: " + e.getMessage()
+                );
+                return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+        }
 }
 
