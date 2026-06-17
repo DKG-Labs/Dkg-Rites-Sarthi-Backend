@@ -127,5 +127,13 @@ public interface reports {
 
     public com.sarthi.dto.reports.RailPadLotClosedLoopDto getRailPadLotClosedLoopDetails(Long lotId);
 
+    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> getRailPadPerformanceReport(
+            int page,
+            int size,
+            java.time.LocalDate startDate,
+            java.time.LocalDate endDate,
+            String rio,
+            String zone,
+            String vendor);
 }
 

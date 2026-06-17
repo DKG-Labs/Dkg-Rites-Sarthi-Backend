@@ -7874,5 +7874,92 @@ public class reportsImpl implements reports {
 
                 return result;
         }
+
+        @Override
+        public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> getRailPadPerformanceReport(
+                int page,
+                int size,
+                java.time.LocalDate startDate,
+                java.time.LocalDate endDate,
+                String rio,
+                String zone,
+                String vendor) {
+
+                String zoneParam = (zone != null && !zone.trim().isEmpty() && !zone.equalsIgnoreCase("all")) ? zone.trim() : null;
+                String vendorParam = (vendor != null && !vendor.trim().isEmpty() && !vendor.equalsIgnoreCase("all")) ? vendor.trim() : null;
+                String rioParam = (rio != null && !rio.trim().isEmpty() && !rio.equalsIgnoreCase("all")) ? rio.trim() : null;
+
+                List<Object[]> processRows = railIEProductionVerificationRepository.fetchProcessPerformance(startDate, endDate, rioParam, zoneParam, vendorParam);
+                List<Object[]> finalRows = railFinalInspectionLotResultsRepository.fetchFinalPerformance(startDate, endDate, rioParam, zoneParam, vendorParam);
+
+                List<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> allList = new ArrayList<>();
+
+                if (processRows != null) {
+                        for (Object[] row : processRows) {
+                                com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO dto = new com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO();
+                                dto.setManufacturerName(row[0] != null ? row[0].toString() : "");
+                                dto.setRio(row[1] != null ? row[1].toString() : "N/A");
+                                dto.setUsername(row[2] != null ? row[2].toString() : "N/A");
+                                dto.setStage(row[3] != null ? row[3].toString() : "PROCESS");
+                                double inspected = row[4] != null ? ((Number) row[4]).doubleValue() : 0.0;
+                                double accepted = row[5] != null ? ((Number) row[5]).doubleValue() : 0.0;
+                                double rejected = row[6] != null ? ((Number) row[6]).doubleValue() : 0.0;
+                                dto.setInspectedQty(inspected);
+                                dto.setAcceptedQty(accepted);
+                                dto.setRejectedQty(rejected);
+                                if (inspected > 0) {
+                                        dto.setRejectionPercentage((rejected * 100.0) / inspected);
+                                } else {
+                                        dto.setRejectionPercentage(0.0);
+                                }
+                                allList.add(dto);
+                        }
+                }
+
+                if (finalRows != null) {
+                        for (Object[] row : finalRows) {
+                                com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO dto = new com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO();
+                                dto.setManufacturerName(row[0] != null ? row[0].toString() : "");
+                                dto.setRio(row[1] != null ? row[1].toString() : "N/A");
+                                dto.setUsername(row[2] != null ? row[2].toString() : "N/A");
+                                dto.setStage(row[3] != null ? row[3].toString() : "FINAL");
+                                double inspected = row[4] != null ? ((Number) row[4]).doubleValue() : 0.0;
+                                double accepted = row[5] != null ? ((Number) row[5]).doubleValue() : 0.0;
+                                double rejected = row[6] != null ? ((Number) row[6]).doubleValue() : 0.0;
+                                dto.setInspectedQty(inspected);
+                                dto.setAcceptedQty(accepted);
+                                dto.setRejectedQty(rejected);
+                                if (inspected > 0) {
+                                        dto.setRejectionPercentage((rejected * 100.0) / inspected);
+                                } else {
+                                        dto.setRejectionPercentage(0.0);
+                                }
+                                allList.add(dto);
+                        }
+                }
+
+                // In-memory pagination
+                int totalElements = allList.size();
+                int totalPages = (int) Math.ceil((double) totalElements / size);
+                if (totalPages == 0) totalPages = 1;
+
+                int startIdx = page * size;
+                int endIdx = Math.min(startIdx + size, totalElements);
+                List<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> content = new ArrayList<>();
+                if (startIdx < totalElements) {
+                        content = allList.subList(startIdx, endIdx);
+                }
+
+                com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> response = 
+                        new com.sarthi.dto.summaryDtos.PageResponseDTO<>();
+                response.setContent(content);
+                response.setPage(page);
+                response.setSize(size);
+                response.setTotalElements(totalElements);
+                response.setTotalPages(totalPages);
+                response.setLast(page >= totalPages - 1);
+
+                return response;
+        }
 }
 

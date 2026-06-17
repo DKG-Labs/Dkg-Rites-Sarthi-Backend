@@ -113,4 +113,33 @@ public interface RailFinalInspectionLotResultsRepository extends JpaRepository<R
     """, nativeQuery = true)
     List<Object[]> findDistinctRailpadTypesGroupByPo();
 
+    @Query(value = """
+        SELECT 
+            rvp.plant_name AS plantName,
+            COALESCE(ip.rio, 'N/A') AS rio,
+            COALESCE(um.full_name, um.username, 'N/A') AS ieName,
+            'FINAL' AS stage,
+            SUM(COALESCE(r.offered_qty, 0)) AS inspectedQty,
+            SUM(COALESCE(r.accepted_qty, 0)) AS acceptedQty,
+            SUM(COALESCE(r.rejected_qty, 0)) AS rejectedQty
+        FROM rail_final_inspection_lot_results r
+        LEFT JOIN rail_inspection_call ic ON CONVERT(r.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN USER_MASTER um ON um.USERID = ic.created_by
+        LEFT JOIN ie_profile ip ON ip.employee_code = um.EMPLOYEE_CODE
+        LEFT JOIN rail_vendor_plant rvp ON CONVERT(r.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN po_header ph ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE (:startDate IS NULL OR r.date_of_inspection >= :startDate)
+          AND (:endDate IS NULL OR r.date_of_inspection <= :endDate)
+          AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+          AND (:zone IS NULL OR :zone = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+          AND (:vendor IS NULL OR :vendor = '' OR CONVERT(rvp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendor USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        GROUP BY rvp.plant_name, ip.rio, um.full_name, um.username
+        ORDER BY rvp.plant_name ASC
+    """, nativeQuery = true)
+    List<Object[]> fetchFinalPerformance(
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+        @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
+        @org.springframework.data.repository.query.Param("rio") String rio,
+        @org.springframework.data.repository.query.Param("zone") String zone,
+        @org.springframework.data.repository.query.Param("vendor") String vendor);
 }
