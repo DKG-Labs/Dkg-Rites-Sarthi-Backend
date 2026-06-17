@@ -476,7 +476,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             @Param("toDate") LocalDate toDate
     );
 
-    @Query(value = """
+    /*  @Query(value = """
 
         SELECT
             defect_category,
@@ -488,7 +488,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                VISUAL DEMOULDING
                ========================================= */
 
-            SELECT
+        /*    SELECT
                 'Visual (Dem)' AS defect_category
 
             FROM demoulding_defective_sleepers dds
@@ -524,7 +524,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                DIMENSION DEMOULDING
                ========================================= */
 
-            SELECT
+          /*  SELECT
                 'Dimension (Dem)' AS defect_category
 
             FROM demoulding_defective_sleepers dds
@@ -560,7 +560,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                FINAL VISUAL
                ========================================= */
 
-            SELECT
+        /*    SELECT
                 'Final (Visual)' AS defect_category
 
             FROM inspection_test_result itr
@@ -585,7 +585,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                FINAL CRITICAL
                ========================================= */
 
-            SELECT
+        /*    SELECT
                 'Final (Critical)' AS defect_category
 
             FROM inspection_test_result itr
@@ -610,7 +610,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                FINAL NON CRITICAL
                ========================================= */
 
-            SELECT
+        /*    SELECT
                 'Final (Non-Critical)' AS defect_category
 
             FROM inspection_test_result itr
@@ -639,7 +639,161 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
     List<Object[]> getParetoAnalysis(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate
-    );
+    );  */
+        @Query(value = """
+
+    SELECT
+        defects.defect_reason,
+        COUNT(*) AS defect_count
+
+    FROM (
+
+        /* DEMOULDING VISUAL */
+
+        SELECT
+            dds.visual_reason AS defect_reason
+
+        FROM demoulding_defective_sleepers dds
+
+        INNER JOIN demoulding_inspection di
+            ON di.id = dds.inspection_id
+
+        INNER JOIN production_declaration pd
+            ON pd.batch_number = di.batch_no
+
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+          AND dds.visual_reason IS NOT NULL
+          AND dds.visual_reason <> ''
+
+          AND EXISTS (
+
+                SELECT 1
+
+                FROM inspection_test_header ith
+
+                WHERE ith.batch_id = pd.id
+                  AND ith.module_id IN (1,2,3)
+
+                GROUP BY ith.batch_id
+
+                HAVING COUNT(DISTINCT ith.module_id) = 3
+          )
+
+        UNION ALL
+
+        /* DEMOULDING DIMENSION */
+
+        SELECT
+            dds.dim_reason AS defect_reason
+
+        FROM demoulding_defective_sleepers dds
+
+        INNER JOIN demoulding_inspection di
+            ON di.id = dds.inspection_id
+
+        INNER JOIN production_declaration pd
+            ON pd.batch_number = di.batch_no
+
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+          AND dds.dim_reason IS NOT NULL
+          AND dds.dim_reason <> ''
+
+          AND EXISTS (
+
+                SELECT 1
+
+                FROM inspection_test_header ith
+
+                WHERE ith.batch_id = pd.id
+                  AND ith.module_id IN (1,2,3)
+
+                GROUP BY ith.batch_id
+
+                HAVING COUNT(DISTINCT ith.module_id) = 3
+          )
+
+        UNION ALL
+
+        /* FINAL VISUAL */
+
+        SELECT
+            itr.rejection_reason AS defect_reason
+
+        FROM inspection_test_result itr
+
+        INNER JOIN inspection_test_header ith
+            ON ith.id = itr.test_header_id
+
+        INNER JOIN production_declaration pd
+            ON pd.id = ith.batch_id
+
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+          AND itr.module_id = 1
+          AND itr.result = 'REJECTED'
+
+          AND itr.rejection_reason IS NOT NULL
+          AND itr.rejection_reason <> ''
+
+        UNION ALL
+
+        /* FINAL CRITICAL */
+
+        SELECT
+            itr.rejection_reason AS defect_reason
+
+        FROM inspection_test_result itr
+
+        INNER JOIN inspection_test_header ith
+            ON ith.id = itr.test_header_id
+
+        INNER JOIN production_declaration pd
+            ON pd.id = ith.batch_id
+
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+          AND itr.module_id = 2
+          AND itr.result = 'REJECTED'
+
+          AND itr.rejection_reason IS NOT NULL
+          AND itr.rejection_reason <> ''
+
+        UNION ALL
+
+        /* FINAL NON CRITICAL */
+
+        SELECT
+            itr.rejection_reason AS defect_reason
+
+        FROM inspection_test_result itr
+
+        INNER JOIN inspection_test_header ith
+            ON ith.id = itr.test_header_id
+
+        INNER JOIN production_declaration pd
+            ON pd.id = ith.batch_id
+
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+
+          AND itr.module_id = 3
+          AND itr.result = 'REJECTED'
+
+          AND itr.rejection_reason IS NOT NULL
+          AND itr.rejection_reason <> ''
+
+    ) defects
+
+    GROUP BY defects.defect_reason
+
+    ORDER BY defect_count DESC
+
+    """, nativeQuery = true)
+        List<Object[]> getParetoAnalysis(
+                @Param("fromDate") LocalDate fromDate,
+                @Param("toDate") LocalDate toDate
+        );
 
     @Query(value = """
 

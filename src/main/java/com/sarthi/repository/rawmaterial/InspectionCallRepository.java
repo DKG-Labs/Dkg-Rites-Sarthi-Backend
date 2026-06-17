@@ -452,49 +452,57 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
             @Param("vendor") String vendor,
             Pageable pageable);*/
 @Query(value = """
-        SELECT
-            poi.company_name AS manufacturer,
+    SELECT
+        poi.company_name AS manufacturer,
+        ie.rio AS rio,
 
-            COALESCE(SUM(
-                CASE
-                    WHEN f.qty_now_offered IS NOT NULL
-                         THEN f.qty_now_offered
-                    ELSE p.manufacture_qty
-                END
-            ),0) AS manufactured,
+        COALESCE(SUM(
+            CASE
+                WHEN f.qty_now_offered IS NOT NULL
+                     THEN f.qty_now_offered
+                ELSE p.manufacture_qty
+            END
+        ),0) AS manufactured,
 
-            COALESCE(SUM(f.qty_now_passed),0) AS inspected,
-            COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
+        COALESCE(SUM(f.qty_now_passed),0) AS inspected,
+        COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
 
-            COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
-            COALESCE(SUM(p.rejected_qty),0) AS processRejected,
-            COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected
+        COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
+        COALESCE(SUM(p.rejected_qty),0) AS processRejected,
+        COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected
 
-        FROM inspection_calls ic
+    FROM inspection_calls ic
 
-        LEFT JOIN final_cumulative_results f
-               ON f.inspection_call_no = ic.ic_number
+    LEFT JOIN final_cumulative_results f
+           ON f.inspection_call_no = ic.ic_number
 
-        LEFT JOIN rm_heat_final_result r
-               ON r.inspection_call_no = ic.ic_number
+    LEFT JOIN rm_heat_final_result r
+           ON r.inspection_call_no = ic.ic_number
 
-        LEFT JOIN process_ie_qty p
-               ON p.REQUEST_ID = ic.ic_number
+    LEFT JOIN process_ie_qty p
+           ON p.REQUEST_ID = ic.ic_number
 
-        JOIN pincode_poi_mapping poi
-               ON poi.poi_code = ic.place_of_inspection
+    JOIN pincode_poi_mapping poi
+           ON poi.poi_code = ic.place_of_inspection
 
-        WHERE ic.created_at BETWEEN :startDate AND :endDate
+    LEFT JOIN ie_fields_mapping ie
+           ON ie.pin_code = poi.pin_code
+          AND ie.product = 'ERC'
 
-        GROUP BY poi.company_name
-        """,
+    WHERE ic.created_at BETWEEN :startDate AND :endDate
+
+    GROUP BY poi.company_name, ie.rio
+    """,
         countQuery = """
-        SELECT COUNT(DISTINCT poi.company_name)
-        FROM inspection_calls ic
-        JOIN pincode_poi_mapping poi
-               ON poi.poi_code = ic.place_of_inspection
-        WHERE ic.created_at BETWEEN :startDate AND :endDate
-        """,
+    SELECT COUNT(DISTINCT CONCAT(poi.company_name,'-',COALESCE(ie.rio,'')))
+    FROM inspection_calls ic
+    JOIN pincode_poi_mapping poi
+           ON poi.poi_code = ic.place_of_inspection
+    LEFT JOIN ie_fields_mapping ie
+           ON ie.pin_code = poi.pin_code
+          AND ie.product = 'ERC'
+    WHERE ic.created_at BETWEEN :startDate AND :endDate
+    """,
         nativeQuery = true)
 Page<Object[]> fetchManufacturerSummary(
         @Param("startDate") LocalDate startDate,

@@ -69,6 +69,7 @@ import org.springframework.stereotype.Service;
 
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -6027,8 +6028,47 @@ public class reportsImpl implements reports {
 
 
                         finalResponse.add(dto);
+                        BigDecimal totalRmRejection =
+                                rmVmDefect
+                                        .add(rmDimentionalDefect)
+                                        .add(rmInclusionDefect)
+                                        .add(rmGrainSizeDefect)
+                                        .add(rmDecarbDefect);
+
+                        BigDecimal totalProcessRejection =
+                                BigDecimal.valueOf(
+                                        processQty.getShearingRejectionQty()
+                                                + processQty.getTurningRejectionQty()
+                                                + processQty.getMpiRejectionQty()
+                                                + processQty.getForgingRejectionQty()
+                                                + processQty.getQuenchingRejectionQty()
+                                                + processQty.getTemperingRejectionQty()
+                                );
+
+                        BigDecimal totalFinalRejection =
+                                finalVisualDimDefect
+                                        .add(finalHardnessDefect)
+                                        .add(finalInclusionDefect)
+                                        .add(finalDeflectionDefect)
+                                        .add(finalToeLoadDefect);
+
+                        BigDecimal totalRejection =
+                                totalRmRejection
+                                        .add(totalProcessRejection)
+                                        .add(totalFinalRejection);
+
+                        BigDecimal agePercentage = BigDecimal.ZERO;
+
+                        if (inspectedQty.compareTo(BigDecimal.ZERO) > 0) {
+                                agePercentage = totalRejection
+                                        .multiply(BigDecimal.valueOf(100))
+                                        .divide(inspectedQty, 2, RoundingMode.HALF_UP);
+                        }
+
+                        dto.setAgePercentage(agePercentage);
 
                 }
+
 
 
 
