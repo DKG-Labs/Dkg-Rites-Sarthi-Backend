@@ -16,6 +16,7 @@ public class ChemicalAnalysisRowDTO {
     private String date;
     private String heatNo;
     private Integer sampleNo;
+    private String tcNumber;
     private BigDecimal quantity;
     
     // Chemical composition

@@ -200,7 +200,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .consigneeRailway(buildConsigneeRailway(poItems))
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
-                .description(buildDescription(inspectionCall))
+                .description(buildItemDescription(inspectionCall, poItems))
                 .drgNo("") // Keep blank
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No.4.11.2 & 4.11.3 of Indian Railway Standard Specification for Elastic Rail Clip, IRS T-31-2025")
@@ -400,6 +400,58 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
+     * Build Item Description from PO Item list matching PO Sr No
+     */
+    private String buildItemDescription(InspectionCall inspectionCall, List<PoItem> poItems) {
+        if (inspectionCall == null || poItems == null || poItems.isEmpty()) {
+            return "";
+        }
+        try {
+            String poSerialNo = inspectionCall.getPoSerialNo();
+            if (poSerialNo == null || poSerialNo.isBlank()) {
+                return poItems.get(0).getItemDesc() != null ? poItems.get(0).getItemDesc() : "";
+            }
+
+            String itemSrNo = poSerialNo.trim();
+            if (itemSrNo.contains("/")) {
+                String[] parts = itemSrNo.split("/");
+                itemSrNo = parts[parts.length - 1].trim();
+            }
+
+            final String targetSrNo = itemSrNo;
+            
+            // 1. Exact match search
+            for (PoItem item : poItems) {
+                if (item.getItemSrNo() != null && item.getItemSrNo().trim().equals(targetSrNo)) {
+                    return item.getItemDesc() != null ? item.getItemDesc() : "";
+                }
+            }
+
+            // 2. Numeric match fallback (e.g. "001" vs "1")
+            try {
+                int targetInt = Integer.parseInt(targetSrNo);
+                for (PoItem item : poItems) {
+                    if (item.getItemSrNo() != null) {
+                        try {
+                            int itemInt = Integer.parseInt(item.getItemSrNo().trim());
+                            if (targetInt == itemInt) {
+                                return item.getItemDesc() != null ? item.getItemDesc() : "";
+                            }
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+            } catch (NumberFormatException ignored) {}
+
+            // 3. Fallback: If no match found, use the first item's description
+            return poItems.get(0).getItemDesc() != null ? poItems.get(0).getItemDesc() : "";
+
+        } catch (Exception e) {
+            logger.warn("Error resolving item description for IC: {}", inspectionCall.getIcNumber(), e);
+            return poItems.get(0).getItemDesc() != null ? poItems.get(0).getItemDesc() : "";
+        }
+    }
+
+    /**
      * Build Result based on Heat Final Results
      */
     private String buildResult(List<RmHeatFinalResult> heatResults) {
@@ -473,7 +525,7 @@ public class CertificateServiceImpl implements CertificateService {
         String callDate = formatDate(inspectionCall.getCreatedAt() != null ?
                 inspectionCall.getCreatedAt().toLocalDate() : null);
         String desiredDate = formatDate(inspectionCall.getDesiredInspectionDate());
-        return "Call Date: " + callDate + ", Desired Date: " + desiredDate;
+        return callDate + ", Desired Date: " + desiredDate;
     }
 
         /**
@@ -697,7 +749,7 @@ public class CertificateServiceImpl implements CertificateService {
         PoHeader poHeader = poHeaderRepository.findByPoNo(inspectionCall.getPoNo()).orElse(null);
         List<PoItem> poItems = new ArrayList<>();
         if (poHeader != null) {
-            poItemRepository.findByPoHeader_Id(poHeader.getId());
+            poItems = poItemRepository.findByPoHeader_Id(poHeader.getId());
         }
         List<MainPoInformation> mainPoInfos = mainPoInformationRepository.findByPoNo(inspectionCall.getPoNo());
         MainPoInformation mainPoInfo = mainPoInfos.isEmpty() ? null : mainPoInfos.get(0);
@@ -734,7 +786,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .consigneeRailway(buildConsigneeRailway(poItems))
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
-                .description(buildProcessDescription(inspectionCall))
+                .description(buildItemDescription(inspectionCall, poItems))
                 .ercType(inspectionCall.getErcType())
                 .drgNo(getDrgNoForErc(inspectionCall))
                 .specNo("IRS T-31-2025")
@@ -1014,7 +1066,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .consigneeRailway(buildConsigneeRailway(poItems))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .itemNo(poItems.isEmpty() ? "" : poItems.get(0).getItemSrNo())
-                .description(buildDescription(inspectionCall))
+                .description(buildItemDescription(inspectionCall, poItems))
                 .totalLots(finalDetails != null && finalDetails.getTotalLots() != null ? finalDetails.getTotalLots() : 0)
                 .qtyOnOrder(qtyOnOrder)
                 .qtyOfferedPreviously((int) offeredPrev)

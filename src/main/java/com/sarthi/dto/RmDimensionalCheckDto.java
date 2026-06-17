@@ -14,6 +14,7 @@ public class RmDimensionalCheckDto {
     private String inspectionCallNo;
     private String heatNo;
     private Integer heatIndex;
+    private String tcNumber;
 
     // Array of 20 sample diameters
     private List<BigDecimal> sampleDiameters;
