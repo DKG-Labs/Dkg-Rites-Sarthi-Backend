@@ -155,6 +155,29 @@ public class AnnexureService {
         List<RmMaterialTesting> samples = rmMaterialTestingRepository.findByInspectionCallNo(callNo);
         List<ChemicalAnalysisRowDTO> rows = new ArrayList<>();
         
+        // Build heat to tcNumber map
+        Map<String, String> heatToTcMap = new java.util.HashMap<>();
+        Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
+        if (callOpt.isPresent() && callOpt.get().getRmInspectionDetails() != null) {
+            List<RmHeatQuantity> hqList = rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(callOpt.get().getRmInspectionDetails().getId()));
+            for (RmHeatQuantity hq : hqList) {
+                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
+                    heatToTcMap.put(hq.getHeatNumber(), hq.getTcNumber());
+                }
+            }
+        }
+        if (heatToTcMap.isEmpty()) {
+            List<RmHeatQuantity> fallbackHq = rmHeatFinalResultRepository.findByInspectionCallNo(callNo)
+                    .stream()
+                    .flatMap(f -> rmHeatQuantityRepository.findByHeatNumber(f.getHeatNo()).stream())
+                    .collect(Collectors.toList());
+            for (RmHeatQuantity hq : fallbackHq) {
+                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
+                    heatToTcMap.putIfAbsent(hq.getHeatNumber(), hq.getTcNumber());
+                }
+            }
+        }
+
         int sNo = 1;
         for (RmMaterialTesting sample : samples) {
             // Find statuses for this heat to populate row-level statuses
@@ -176,6 +199,7 @@ public class AnnexureService {
                     .date(inspectionDate)
                     .heatNo(sample.getHeatNo())
                     .sampleNo(sample.getSampleNumber())
+                    .tcNumber(heatToTcMap.getOrDefault(sample.getHeatNo(), "N/A"))
                     .quantity(heatResultOpt.map(RmHeatFinalResult::getWeightOfferedMt).orElse(null))
                     .carbon(sample.getCarbonPercent())
                     .manganese(sample.getManganesePercent())
@@ -250,12 +274,36 @@ public class AnnexureService {
         List<com.sarthi.entity.RmDimensionalCheck> dimChecks = rmDimensionalCheckRepository.findByInspectionCallNo(callNo);
         List<RmDimensionalCheckDto> rows = new ArrayList<>();
         
+        // Build heat to tcNumber map
+        Map<String, String> heatToTcMap = new java.util.HashMap<>();
+        Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
+        if (callOpt.isPresent() && callOpt.get().getRmInspectionDetails() != null) {
+            List<RmHeatQuantity> hqList = rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(callOpt.get().getRmInspectionDetails().getId()));
+            for (RmHeatQuantity hq : hqList) {
+                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
+                    heatToTcMap.put(hq.getHeatNumber(), hq.getTcNumber());
+                }
+            }
+        }
+        if (heatToTcMap.isEmpty()) {
+            List<RmHeatQuantity> fallbackHq = rmHeatFinalResultRepository.findByInspectionCallNo(callNo)
+                    .stream()
+                    .flatMap(f -> rmHeatQuantityRepository.findByHeatNumber(f.getHeatNo()).stream())
+                    .collect(Collectors.toList());
+            for (RmHeatQuantity hq : fallbackHq) {
+                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
+                    heatToTcMap.putIfAbsent(hq.getHeatNumber(), hq.getTcNumber());
+                }
+            }
+        }
+
         for (com.sarthi.entity.RmDimensionalCheck check : dimChecks) {
             RmDimensionalCheckDto dto = new RmDimensionalCheckDto();
             dto.setInspectionCallNo(check.getInspectionCallNo());
             dto.setHeatNo(check.getHeatNo());
             dto.setHeatIndex(check.getHeatIndex());
             dto.setDefectCount(check.getDefectCount());
+            dto.setTcNumber(heatToTcMap.getOrDefault(check.getHeatNo(), "N/A"));
             
             // Map dimensional status from heat result
             Optional<RmHeatFinalResult> heatResultOpt = rmHeatFinalResultRepository.findByInspectionCallNoAndHeatNo(callNo, check.getHeatNo())
