@@ -152,7 +152,7 @@ public class FinalCertificateDto {
     private String noOfItemsChecked;
 
     /**
-     * Date of call: Derived from InspectionCall (format: Call Date: X, Desired Date: Y)
+     * Date of call: Derived from InspectionCall (format: X, Desired Date: Y)
      */
     private String dateOfCall;
 
