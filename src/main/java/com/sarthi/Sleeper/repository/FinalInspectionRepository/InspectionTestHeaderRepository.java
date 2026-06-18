@@ -319,7 +319,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                 ON di.id = dds.inspection_id
 
             INNER JOIN production_declaration pd
-                ON pd.batch_number = di.batch_no
+                ON pd.batch_number COLLATE utf8mb4_unicode_ci = di.batch_no COLLATE utf8mb4_unicode_ci
 
             WHERE pd.casting_date BETWEEN :fromDate AND :toDate
 
@@ -358,7 +358,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                 ON di.id = dds.inspection_id
 
             INNER JOIN production_declaration pd
-                ON pd.batch_number = di.batch_no
+                ON pd.batch_number COLLATE utf8mb4_unicode_ci = di.batch_no COLLATE utf8mb4_unicode_ci
 
             WHERE pd.casting_date BETWEEN :fromDate AND :toDate
 
@@ -403,7 +403,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             WHERE pd.casting_date BETWEEN :fromDate AND :toDate
 
               AND itr.module_id = 1
-              AND itr.result = 'REJECTED'
+              AND itr.result COLLATE utf8mb4_unicode_ci = 'REJECTED'
 
               AND itr.rejection_reason IS NOT NULL
               AND itr.rejection_reason <> ''
@@ -430,7 +430,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             WHERE pd.casting_date BETWEEN :fromDate AND :toDate
 
               AND itr.module_id = 2
-              AND itr.result = 'REJECTED'
+              AND itr.result COLLATE utf8mb4_unicode_ci = 'REJECTED'
 
               AND itr.rejection_reason IS NOT NULL
               AND itr.rejection_reason <> ''
@@ -457,7 +457,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             WHERE pd.casting_date BETWEEN :fromDate AND :toDate
 
               AND itr.module_id = 3
-              AND itr.result = 'REJECTED'
+              AND itr.result COLLATE utf8mb4_unicode_ci = 'REJECTED'
 
               AND itr.rejection_reason IS NOT NULL
               AND itr.rejection_reason <> ''
