@@ -1442,9 +1442,9 @@ public class reportsImpl implements reports {
 
                         // ===== Workflow =====
 
-                        Date startDate = null;
+                        java.util.Date startDate = null;
 
-                        Date completionDate = null;
+                        java.util.Date completionDate = null;
 
 
 
@@ -1454,9 +1454,10 @@ public class reportsImpl implements reports {
 
                         if (wf != null) {
 
-                                startDate = (Date) wf[1];
+                                // createdDate is stored as Timestamp in DB; Timestamp extends java.util.Date
+                                startDate = wf[1] != null ? new java.util.Date(((java.util.Date) wf[1]).getTime()) : null;
 
-                                completionDate = (Date) wf[2];
+                                completionDate = wf[2] != null ? new java.util.Date(((java.util.Date) wf[2]).getTime()) : null;
 
                         }
 

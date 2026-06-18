@@ -188,8 +188,8 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
             GROUP BY p.declaration_id
         ) batch_counts ON batch_counts.declaration_id = d.id
         WHERE v.casting_date BETWEEN :startDate AND :endDate
-          AND (:vendorCode IS NULL OR :vendorCode = 'All Manufacturers' OR CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorCode USING utf8mb4) COLLATE utf8mb4_unicode_ci)
-          AND (:plantId IS NULL OR :plantId = 'All Places' OR CONVERT(d.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:plantId USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+          AND (:vendorCode IS NULL OR :vendorCode = 'All Manufacturers' OR CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = :vendorCode)
+          AND (:plantId IS NULL OR :plantId = 'All Places' OR CONVERT(d.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = :plantId)
         GROUP BY v.casting_date, v.shift
         ORDER BY v.casting_date DESC, v.shift ASC
     """, nativeQuery = true)
@@ -211,7 +211,7 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
         SELECT DISTINCT d.plant_id
         FROM rail_production_declaration d
         WHERE d.plant_id IS NOT NULL
-          AND (:vendorCode IS NULL OR :vendorCode = '' OR CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorCode USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+          AND (:vendorCode IS NULL OR :vendorCode = '' OR CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = :vendorCode)
         ORDER BY d.plant_id ASC
     """, nativeQuery = true)
     java.util.List<String> findDistinctPlants(@org.springframework.data.repository.query.Param("vendorCode") String vendorCode);

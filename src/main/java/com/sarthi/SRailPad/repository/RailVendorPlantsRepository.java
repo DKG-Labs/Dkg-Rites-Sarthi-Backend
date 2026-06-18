@@ -59,11 +59,11 @@ where r.vendorCode = :vendorCode
                    CONVERT((CASE 
                        WHEN r.rly_po_sr_no LIKE '%/%' THEN SUBSTRING_INDEX(r.rly_po_sr_no, '/', 1) 
                        ELSE r.rly_po_sr_no 
-                   END) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                   END) USING utf8mb4) COLLATE utf8mb4_unicode_ci = :zone)
             GROUP BY r.plant_id
         ) fin ON CONVERT(fin.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
-        WHERE (:rio IS NULL OR :rio = '' OR CONVERT(ifm.rio USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:rio USING utf8mb4) COLLATE utf8mb4_unicode_ci)
-          AND (:vendor IS NULL OR :vendor = '' OR CONVERT(rvp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendor USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        WHERE (:rio IS NULL OR :rio = '' OR CONVERT(ifm.rio USING utf8mb4) COLLATE utf8mb4_unicode_ci = :rio)
+          AND (:vendor IS NULL OR :vendor = '' OR CONVERT(rvp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = :vendor)
         ORDER BY rvp.plant_name
     """, nativeQuery = true)
     java.util.List<Object[]> fetchRailPadMonthlyAnalysis(
