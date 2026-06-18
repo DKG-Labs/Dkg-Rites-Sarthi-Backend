@@ -7,6 +7,7 @@ public class MonthlyAnalysisDTO {
 
     private String manufacturer;
 
+    private String rio;
     private Double manufactured;
     private Double inspected;
     private Double rejected;

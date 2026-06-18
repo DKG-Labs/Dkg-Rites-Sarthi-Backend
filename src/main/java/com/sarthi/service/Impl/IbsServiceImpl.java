@@ -669,6 +669,7 @@ public class IbsServiceImpl implements IbsService {
 
         return responseList;
     }
+
     private List<IbsInspectionDto> mapResult(
             List<Object[]> rows
     ) {
@@ -698,38 +699,42 @@ public class IbsServiceImpl implements IbsService {
             );
 
             dto.setCallStatus(
-                    (String) row[4]
+                    String.valueOf(row[4])
+            );
+
+            dto.setTypeOfCall(
+                    String.valueOf(row[5])
             );
 
             dto.setPoItemSerialNumbers(
-                    List.of((String) row[5])
+                    List.of((String) row[6])
             );
 
             dto.setBkNumber(
-                    (String) row[6]
-            );
-
-            dto.setSetNumber(
                     (String) row[7]
             );
 
+            dto.setSetNumber(
+                    (String) row[8]
+            );
+
             dto.setIcDate(
-                    ((java.sql.Date) row[8]).toLocalDate()
+                    ((java.sql.Date) row[9]).toLocalDate()
             );
 
             dto.setQuantityOffered(
-                    ((Number) row[9]).intValue()
-            );
-
-            dto.setQuantityPassed(
                     ((Number) row[10]).intValue()
             );
 
-            dto.setQuantityRejected(
+            dto.setQuantityPassed(
                     ((Number) row[11]).intValue()
             );
 
-            String callNumber = (String) row[12];
+            dto.setQuantityRejected(
+                    ((Number) row[12]).intValue()
+            );
+
+            String callNumber = (String) row[13];
 
             dto.setIcFileLink(
                     "https://sarthibackendservice-bfe2eag3byfkbsa6.canadacentral-01.azurewebsites.net"
@@ -737,6 +742,7 @@ public class IbsServiceImpl implements IbsService {
                             + callNumber
                             + ".pdf"
             );
+
             list.add(dto);
         }
 

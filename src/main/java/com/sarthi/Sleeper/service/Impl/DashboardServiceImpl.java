@@ -700,7 +700,7 @@ public class DashboardServiceImpl implements DashboardService {
         return response;
     }
 
-
+/*
     @Override
     public DefectDistributionResponseDto
     getDefectReasonDistribution(
@@ -756,9 +756,125 @@ public class DashboardServiceImpl implements DashboardService {
         response.setDefects(list);
 
         return response;
-    }
+    }  */
 
     @Override
+    public DefectDistributionResponseDto getDefectReasonDistribution(
+            LocalDate fromDate,
+            LocalDate toDate) {
+
+        List<Object[]> rows =
+                inspectionTestHeaderRepository.getDefectReasonDistribution(
+                        fromDate,
+                        toDate
+                );
+
+        Map<String, Long> groupedDefects = new LinkedHashMap<>();
+
+        for (Object[] row : rows) {
+
+            String category = (String) row[0];
+            String defectReason = row[1] != null
+                    ? row[1].toString().toLowerCase()
+                    : "";
+
+            Long defectCount = ((Number) row[2]).longValue();
+
+            //  Demoulding Rejection
+            if ("Visual (Demoulding)".equals(category)
+                    || "Dimension (Demoulding)".equals(category)) {
+
+                groupedDefects.merge(
+                        "Demoulding Rejection",
+                        defectCount,
+                        Long::sum
+                );
+                continue;
+            }
+
+            //  Visual Defects
+            if (defectReason.contains("surface")
+                    || defectReason.contains("honeycomb")
+                    || defectReason.contains("crack")
+                    || defectReason.contains("insert missing")
+                    || defectReason.contains("tilt")
+                    || defectReason.contains("sink")
+                    || defectReason.contains("dowel")) {
+
+                groupedDefects.merge(
+                        "Visual Defects",
+                        defectCount,
+                        Long::sum
+                );
+                continue;
+            }
+
+            //  General Dimensional Defect
+            if (defectReason.contains("outer gauge")) {
+
+                groupedDefects.merge(
+                        "General Dimensional Defect",
+                        defectCount,
+                        Long::sum
+                );
+                continue;
+            }
+
+            //  Critical Dimensions
+            if ("Final (Critical)".equals(category)) {
+
+                groupedDefects.merge(
+                        "Critical Dimensions",
+                        defectCount,
+                        Long::sum
+                );
+                continue;
+            }
+
+            //  Non Critical
+            if ("Final (Non-Critical)".equals(category)) {
+
+                groupedDefects.merge(
+                        "Non Critical",
+                        defectCount,
+                        Long::sum
+                );
+            }
+        }
+
+        long total = groupedDefects.values()
+                .stream()
+                .mapToLong(Long::longValue)
+                .sum();
+
+        List<DefectReasonDistributionDto> list =
+                new ArrayList<>();
+
+        for (Map.Entry<String, Long> entry : groupedDefects.entrySet()) {
+
+            double percentage = total == 0
+                    ? 0
+                    : (entry.getValue() * 100.0) / total;
+
+            list.add(
+                    new DefectReasonDistributionDto(
+                            entry.getKey(),      // category
+                            null,                // defectReason not needed
+                            entry.getValue(),    // count
+                            Math.round(percentage * 100.0) / 100.0
+                    )
+            );
+        }
+
+        DefectDistributionResponseDto response =
+                new DefectDistributionResponseDto();
+
+        response.setDefects(list);
+
+        return response;
+    }
+
+  /*  @Override
     public ParetoAnalysisResponseDto
     getParetoAnalysis(
             LocalDate fromDate,
@@ -808,6 +924,185 @@ public class DashboardServiceImpl implements DashboardService {
                     )
             );
         }
+
+        ParetoAnalysisResponseDto response =
+                new ParetoAnalysisResponseDto();
+
+        response.setDefects(list);
+
+        return response;
+    }  */
+
+    @Override
+    public ParetoAnalysisResponseDto getParetoAnalysis(
+            LocalDate fromDate,
+            LocalDate toDate) {
+
+        List<Object[]> rows =
+                inspectionTestHeaderRepository.getParetoAnalysis(
+                        fromDate,
+                        toDate
+                );
+
+        Map<String, Long> groupedDefects =
+                new LinkedHashMap<>();
+
+        for (Object[] row : rows) {
+
+            String reason = row[0] == null
+                    ? ""
+                    : row[0].toString().toLowerCase();
+
+            Long count =
+                    ((Number) row[1]).longValue();
+
+            String category = "Others";
+
+            if (reason.contains("surface defect")
+                    || reason.contains("surface damage")) {
+
+                category = "Surface Defect";
+            }
+            else if (reason.contains("honeycomb")) {
+
+                category = "Honeycomb";
+            }
+            else if (reason.contains("crack")) {
+
+                category = "Crack";
+            }
+            else if (reason.contains("insert missing")
+                    || reason.contains("tilt")
+                    || reason.contains("sink")) {
+
+                category = "Insert Missing / Tilt / Sink";
+            }
+            else if (reason.contains("dowel missing")) {
+
+                category = "Dowel Missing / Tilt / Sink";
+            }
+            else if (reason.contains("outer gauge")) {
+
+                category = "Outer Gauge";
+            }
+            else if (reason.contains("rail seat")) {
+
+                category = "Rail Seat";
+            }
+            else if (reason.contains("toegap")
+                    || reason.contains("toe gap")) {
+
+                category = "Toe Gap";
+            }
+            else if (reason.contains("slope gauge")
+                    || reason.contains("rail seat slope")) {
+
+                category = "Rail Seat Slope";
+            }
+            else if (reason.contains("position error")) {
+
+                category = "Location of Inserts in Turn Outs";
+            }
+            else if (reason.contains("distance error")) {
+
+                category = "Angularity in Inserts of Turn Outs";
+            }
+            else if (reason.contains("location of dowel")) {
+
+                category = "Location of Dowel";
+            }
+            else if (reason.contains("height gauge")) {
+
+                category = "Height Gauge";
+            }
+            else if (reason.contains("wind gauge")) {
+
+                category = "Wind Gauge";
+            }
+            else if (reason.contains("length")) {
+
+                category = "Length of Sleeper";
+            }
+            else if (reason.contains("width")) {
+
+                category = "Width of Sleeper";
+            }
+            else if (reason.contains("camber")) {
+
+                category = "Camber";
+            }
+            else if (reason.contains("hts")) {
+
+                category = "HTS Wire Position";
+            }
+            else if (reason.contains("water cube")) {
+
+                category = "Water Cube Strength";
+            }
+            else if (reason.contains("steam cube")) {
+
+                category = "Steam Cube Strength";
+            }
+            else if (reason.contains("moment of resistance")) {
+
+                category = "Moment of Resistance";
+            }
+            else if (reason.contains("moment of failure")) {
+
+                category = "Moment of Failure";
+            }
+            else if (reason.contains("modulus of rupture")) {
+
+                category = "Modulus of Rupture";
+            }
+            else if (reason.contains("nftc")
+                    || reason.contains("ftc")) {
+
+                category = "FTC";
+            }
+
+            groupedDefects.merge(
+                    category,
+                    count,
+                    Long::sum
+            );
+        }
+
+        long total = groupedDefects.values()
+                .stream()
+                .mapToLong(Long::longValue)
+                .sum();
+
+        List<ParetoAnalysisDto> list =
+                new ArrayList<>();
+
+        double cumulative = 0.0;
+
+        for (Map.Entry<String, Long> entry
+                : groupedDefects.entrySet()) {
+
+            double percentage =
+                    total == 0
+                            ? 0
+                            : (entry.getValue() * 100.0) / total;
+
+            cumulative += percentage;
+
+            list.add(
+                    new ParetoAnalysisDto(
+                            entry.getKey(),
+                            entry.getValue(),
+                            Math.round(percentage * 100.0) / 100.0,
+                            Math.round(cumulative * 100.0) / 100.0
+                    )
+            );
+        }
+
+        list.sort(
+                Comparator.comparing(
+                        ParetoAnalysisDto::getDefectCount
+                ).reversed()
+        );
 
         ParetoAnalysisResponseDto response =
                 new ParetoAnalysisResponseDto();
@@ -977,6 +1272,7 @@ public class DashboardServiceImpl implements DashboardService {
                                 toDate,
                                 plantId
                         );
+        System.out.println("rows" );
 
                 List<ShiftWiseProductionReportDto> response =
                         new ArrayList<>();

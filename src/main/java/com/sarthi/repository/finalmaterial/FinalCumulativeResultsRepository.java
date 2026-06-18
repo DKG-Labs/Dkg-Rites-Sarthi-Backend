@@ -342,7 +342,9 @@ SELECT
 
     CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
 
-    'IC Generated'                               AS callStatus,
+    'A'                                          AS callStatus,
+    
+    'F'                                          AS typeOfCall,
 
     ic.po_serial_no                              AS poItemSerialNumber,
 
