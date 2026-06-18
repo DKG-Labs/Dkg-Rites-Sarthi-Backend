@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.Optional;
 
 import java.util.List;
@@ -395,4 +396,14 @@ WHERE icr.call_number IS NULL
 """,
             nativeQuery = true)
     List<Object[]> getFinalInspectionCalls();
+
+    @Query(value = """
+    SELECT
+        inspection_call_no,
+        qty_now_offered,
+        qty_now_passed
+    FROM final_cumulative_results
+    WHERE inspection_call_no IN (:callNos)
+""", nativeQuery = true)
+    List<Object[]> findFinalSummaryByCallNos(@Param("callNos") List<String> callNos);
 }

@@ -1407,6 +1407,12 @@ public class reportsImpl implements reports {
                                 r -> r[0].toString(),
 
                                 r -> r));
+                Map<String, Object[]> finalMap = finalCumulativeResultsRepository
+                        .findFinalSummaryByCallNos(callNos)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                r -> r[0].toString(),
+                                r -> r));
 
 
 
@@ -1642,6 +1648,35 @@ public class reportsImpl implements reports {
 
                                 }
 
+                        }
+
+                        // FINAL
+                        else if (callType != null &&
+                                callType.toUpperCase().contains("FINAL")) {
+
+                                Object[] row = finalMap.get(callNo);
+
+                                if (row != null) {
+
+                                        double offered = row[1] != null
+                                                ? ((Number) row[1]).doubleValue()
+                                                : 0;
+
+                                        double accepted = row[2] != null
+                                                ? ((Number) row[2]).doubleValue()
+                                                : 0;
+
+                                        double balance = offered - accepted;
+
+                                        offeredQty = offered;
+                                        acceptedQty = accepted;
+                                        balanceQty = balance;
+
+                                        if (offered > 0) {
+                                                rejectionPct = (balance * 100.0) / offered;
+                                                rejectionPct = Math.round(rejectionPct * 100.0) / 100.0;
+                                        }
+                                }
                         }
 
 
