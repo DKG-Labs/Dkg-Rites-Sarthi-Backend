@@ -1272,6 +1272,7 @@ public class DashboardServiceImpl implements DashboardService {
                                 toDate,
                                 plantId
                         );
+        System.out.println("rows" );
 
                 List<ShiftWiseProductionReportDto> response =
                         new ArrayList<>();
