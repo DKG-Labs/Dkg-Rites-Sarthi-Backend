@@ -362,14 +362,15 @@ public class SummaryServiceImpl implements SummaryService {
         MonthlyAnalysisDTO dto = new MonthlyAnalysisDTO();
 
         dto.setManufacturer((String) row[0]);
+        dto.setRio((String) row[1]);   // new field
 
-        Double manufactured = getDouble(row[1]);
-        Double inspected = getDouble(row[2]);
-        Double rejected = getDouble(row[3]);
+        Double manufactured = getDouble(row[2]);
+        Double inspected = getDouble(row[3]);
+        Double rejected = getDouble(row[4]);
 
-        Double rmRejected = getDouble(row[4]);
-        Double processRejected = getDouble(row[5]);
-        Double finalRejected = getDouble(row[6]);
+        Double rmRejected = getDouble(row[5]);
+        Double processRejected = getDouble(row[6]);
+        Double finalRejected = getDouble(row[7]);
 
         dto.setManufactured(manufactured);
         dto.setInspected(inspected);
@@ -379,7 +380,6 @@ public class SummaryServiceImpl implements SummaryService {
         dto.setProcessRejected(processRejected);
         dto.setFinalRejected(finalRejected);
 
-        // Percentages
         dto.setRmRejPercent(calcPercent(rmRejected, manufactured));
         dto.setProcessRejPercent(calcPercent(processRejected, manufactured));
         dto.setFinalRejPercent(calcPercent(finalRejected, manufactured));

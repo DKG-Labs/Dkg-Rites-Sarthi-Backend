@@ -31,4 +31,7 @@ public class PoWiseDefectsData {
     private BigDecimal finalDeflectionDefect = BigDecimal.ZERO;
     private BigDecimal finalToeLoadDefect = BigDecimal.ZERO;
 
+    private BigDecimal agePercentage;
+
+
 }
