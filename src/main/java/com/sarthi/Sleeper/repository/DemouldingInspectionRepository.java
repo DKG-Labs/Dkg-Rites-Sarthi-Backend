@@ -66,7 +66,7 @@ WHERE d.inspection.batchNo = :batchNo
     Long countDemouldingRejected(String batchNo);
 
 
-    @Query(value = """
+   /* @Query(value = """
     SELECT di.inspection_date AS inspectionDate,
            COUNT(dds.id) AS rejectedCount
     FROM demoulding_inspection di
@@ -76,7 +76,24 @@ WHERE d.inspection.batchNo = :batchNo
     GROUP BY di.inspection_date
     LIMIT 1
 """, nativeQuery = true)
-    DemouldingProjection getDemouldingData(String batchNo);
+    DemouldingProjection getDemouldingData(String batchNo);*/
+   @Query(value = """
+    SELECT di.inspection_date AS inspectionDate,
+           COUNT(dds.id) AS rejectedCount
+    FROM demoulding_inspection di
+    JOIN demoulding_defective_sleepers dds
+         ON di.id = dds.inspection_id
+    WHERE di.batch_no = :batchNo
+      AND (
+            TRIM(COALESCE(dds.visual_reason, '')) <> ''
+            OR
+            TRIM(COALESCE(dds.dim_reason, '')) <> ''
+          )
+    GROUP BY di.inspection_date
+    ORDER BY di.inspection_date DESC
+    LIMIT 1
+""", nativeQuery = true)
+   DemouldingProjection getDemouldingData(String batchNo);
 
 
     @Query(value = """
