@@ -33,6 +33,7 @@ public class FinalApplicationDeflectionResponseDTO {
         private String sampleSize;
         private Integer samplingNo;
         private Integer noOfDefectives;
+        private Integer cumulativeDefectives;
         private String testResult; // Satisfactory / Not Satisfactory
         private String status;     // Accepted / Rejected / Second sampling required
     }

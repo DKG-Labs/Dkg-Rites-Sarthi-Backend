@@ -821,17 +821,21 @@ public class AnnexureService {
             if (test.getFirstSampleGoGaugeFail() != null || test.getFirstSampleNoGoFail() != null) {
                 pages.add(createDimensionalPage(test, 1, finalDetailId, sampleSize, 0));
             }
-            
+            int d1 = (test.getFirstSampleGoGaugeFail() != null ? test.getFirstSampleGoGaugeFail() : 0) +
+                     (test.getFirstSampleNoGoFail() != null ? test.getFirstSampleNoGoFail() : 0) +
+                     (test.getFirstSampleFlatBearingFail() != null ? test.getFirstSampleFlatBearingFail() : 0);
+
             // 2nd Sampling Page (if exists)
-            boolean hasSecond = (test.getSecondSampleGoGaugeFail() != null || test.getSecondSampleNoGoFail() != null);
+            // We consider the second sample to exist if there were defectives in the first sample (d1 > 0)
+            // OR if the second sample explicitly recorded defectives itself (d2 > 0).
+            // If d1 == 0, a second sample is never required, so we prevent duplicating the page.
+            int d2 = (test.getSecondSampleGoGaugeFail() != null ? test.getSecondSampleGoGaugeFail() : 0) +
+                     (test.getSecondSampleNoGoFail() != null ? test.getSecondSampleNoGoFail() : 0) +
+                     (test.getSecondSampleFlatBearingFail() != null ? test.getSecondSampleFlatBearingFail() : 0);
+                     
+            boolean hasSecond = (d1 > 0 || d2 > 0);
+            
             if (hasSecond) {
-                int d1 = (test.getFirstSampleGoGaugeFail() != null ? test.getFirstSampleGoGaugeFail() : 0) +
-                         (test.getFirstSampleNoGoFail() != null ? test.getFirstSampleNoGoFail() : 0) +
-                         (test.getFirstSampleFlatBearingFail() != null ? test.getFirstSampleFlatBearingFail() : 0);
-                int d2 = (test.getSecondSampleGoGaugeFail() != null ? test.getSecondSampleGoGaugeFail() : 0) +
-                         (test.getSecondSampleNoGoFail() != null ? test.getSecondSampleNoGoFail() : 0) +
-                         (test.getSecondSampleFlatBearingFail() != null ? test.getSecondSampleFlatBearingFail() : 0);
-                
                 int cumulative2 = d1 + d2;
                 pages.add(createDimensionalPage(test, 2, finalDetailId, sampleSize, cumulative2));
             }
@@ -1250,11 +1254,16 @@ public class AnnexureService {
             List<FinalApplicationDeflectionSample> samples = test.getSamples();
             if (samples == null) samples = new ArrayList<>();
             
+            // Sort samples by samplingNo to ensure cumulative calculation is correct
+            samples.sort(java.util.Comparator.comparing(s -> s.getSamplingNo() == null ? 1 : s.getSamplingNo()));
+
             // Check if second sampling exists for this lot
             boolean hasSecondSampling = samples.stream().anyMatch(s -> s.getSamplingNo() != null && s.getSamplingNo() > 1);
 
+            int cumulativeDefectives = 0;
             for (FinalApplicationDeflectionSample sample : samples) {
                 int defectives = sample.getNoOfSamplesFailed() != null ? sample.getNoOfSamplesFailed() : 0;
+                cumulativeDefectives += defectives;
                 String testResult = (defectives == 0) ? "Satisfactory" : "Not Satisfactory";
                 
                 String statusText;
@@ -1272,6 +1281,7 @@ public class AnnexureService {
                         .sampleSize(test.getSampleSize() != null ? test.getSampleSize().toString() : "0")
                         .samplingNo(sample.getSamplingNo())
                         .noOfDefectives(defectives)
+                        .cumulativeDefectives(cumulativeDefectives)
                         .testResult(testResult)
                         .status(statusText)
                         .build());
