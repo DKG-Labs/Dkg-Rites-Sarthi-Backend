@@ -17,6 +17,7 @@ public class IbsInspectionDto {
                 private LocalDate callDate;
 
                 private String placeOfInspection;
+                private String ibsManufacturedCode;
 
                 private String ieEmployeeNumber;
 

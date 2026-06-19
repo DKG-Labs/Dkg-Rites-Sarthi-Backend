@@ -9,4 +9,5 @@ public class IbsAcknowledgementDto {
     private String callNumber;
 
     private String status;
+    private String reason;
 }
