@@ -155,25 +155,36 @@ public class AnnexureService {
         List<RmMaterialTesting> samples = rmMaterialTestingRepository.findByInspectionCallNo(callNo);
         List<ChemicalAnalysisRowDTO> rows = new ArrayList<>();
         
-        // Build heat to tcNumber map
+        // Build heat to tcNumber map and colorCode map
         Map<String, String> heatToTcMap = new java.util.HashMap<>();
+        Map<String, String> heatToColorCodeMap = new java.util.HashMap<>();
         Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
         if (callOpt.isPresent() && callOpt.get().getRmInspectionDetails() != null) {
             List<RmHeatQuantity> hqList = rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(callOpt.get().getRmInspectionDetails().getId()));
             for (RmHeatQuantity hq : hqList) {
-                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
-                    heatToTcMap.put(hq.getHeatNumber(), hq.getTcNumber());
+                if (hq.getHeatNumber() != null) {
+                    if (hq.getTcNumber() != null) {
+                        heatToTcMap.put(hq.getHeatNumber(), hq.getTcNumber());
+                    }
+                    if (hq.getColorCode() != null) {
+                        heatToColorCodeMap.put(hq.getHeatNumber(), hq.getColorCode());
+                    }
                 }
             }
         }
-        if (heatToTcMap.isEmpty()) {
+        if (heatToTcMap.isEmpty() && heatToColorCodeMap.isEmpty()) {
             List<RmHeatQuantity> fallbackHq = rmHeatFinalResultRepository.findByInspectionCallNo(callNo)
                     .stream()
                     .flatMap(f -> rmHeatQuantityRepository.findByHeatNumber(f.getHeatNo()).stream())
                     .collect(Collectors.toList());
             for (RmHeatQuantity hq : fallbackHq) {
-                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
-                    heatToTcMap.putIfAbsent(hq.getHeatNumber(), hq.getTcNumber());
+                if (hq.getHeatNumber() != null) {
+                    if (hq.getTcNumber() != null) {
+                        heatToTcMap.putIfAbsent(hq.getHeatNumber(), hq.getTcNumber());
+                    }
+                    if (hq.getColorCode() != null) {
+                        heatToColorCodeMap.putIfAbsent(hq.getHeatNumber(), hq.getColorCode());
+                    }
                 }
             }
         }
@@ -200,6 +211,7 @@ public class AnnexureService {
                     .heatNo(sample.getHeatNo())
                     .sampleNo(sample.getSampleNumber())
                     .tcNumber(heatToTcMap.getOrDefault(sample.getHeatNo(), "N/A"))
+                    .coilCode(heatToColorCodeMap.getOrDefault(sample.getHeatNo(), "N/A"))
                     .quantity(heatResultOpt.map(RmHeatFinalResult::getWeightOfferedMt).orElse(null))
                     .carbon(sample.getCarbonPercent())
                     .manganese(sample.getManganesePercent())
@@ -274,25 +286,36 @@ public class AnnexureService {
         List<com.sarthi.entity.RmDimensionalCheck> dimChecks = rmDimensionalCheckRepository.findByInspectionCallNo(callNo);
         List<RmDimensionalCheckDto> rows = new ArrayList<>();
         
-        // Build heat to tcNumber map
+        // Build heat to tcNumber map and colorCode map
         Map<String, String> heatToTcMap = new java.util.HashMap<>();
+        Map<String, String> heatToColorCodeMap = new java.util.HashMap<>();
         Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
         if (callOpt.isPresent() && callOpt.get().getRmInspectionDetails() != null) {
             List<RmHeatQuantity> hqList = rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(callOpt.get().getRmInspectionDetails().getId()));
             for (RmHeatQuantity hq : hqList) {
-                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
-                    heatToTcMap.put(hq.getHeatNumber(), hq.getTcNumber());
+                if (hq.getHeatNumber() != null) {
+                    if (hq.getTcNumber() != null) {
+                        heatToTcMap.put(hq.getHeatNumber(), hq.getTcNumber());
+                    }
+                    if (hq.getColorCode() != null) {
+                        heatToColorCodeMap.put(hq.getHeatNumber(), hq.getColorCode());
+                    }
                 }
             }
         }
-        if (heatToTcMap.isEmpty()) {
+        if (heatToTcMap.isEmpty() && heatToColorCodeMap.isEmpty()) {
             List<RmHeatQuantity> fallbackHq = rmHeatFinalResultRepository.findByInspectionCallNo(callNo)
                     .stream()
                     .flatMap(f -> rmHeatQuantityRepository.findByHeatNumber(f.getHeatNo()).stream())
                     .collect(Collectors.toList());
             for (RmHeatQuantity hq : fallbackHq) {
-                if (hq.getHeatNumber() != null && hq.getTcNumber() != null) {
-                    heatToTcMap.putIfAbsent(hq.getHeatNumber(), hq.getTcNumber());
+                if (hq.getHeatNumber() != null) {
+                    if (hq.getTcNumber() != null) {
+                        heatToTcMap.putIfAbsent(hq.getHeatNumber(), hq.getTcNumber());
+                    }
+                    if (hq.getColorCode() != null) {
+                        heatToColorCodeMap.putIfAbsent(hq.getHeatNumber(), hq.getColorCode());
+                    }
                 }
             }
         }
@@ -304,6 +327,7 @@ public class AnnexureService {
             dto.setHeatIndex(check.getHeatIndex());
             dto.setDefectCount(check.getDefectCount());
             dto.setTcNumber(heatToTcMap.getOrDefault(check.getHeatNo(), "N/A"));
+            dto.setCoilCode(heatToColorCodeMap.getOrDefault(check.getHeatNo(), "N/A"));
             
             // Map dimensional status from heat result
             Optional<RmHeatFinalResult> heatResultOpt = rmHeatFinalResultRepository.findByInspectionCallNoAndHeatNo(callNo, check.getHeatNo())

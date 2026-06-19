@@ -104,6 +104,11 @@ public class RawMaterialCertificateDto {
     private String description;
     
     /**
+     * The exact ERC type from inspection_calls table (e.g. MK-III, MK-V)
+     */
+    private String ercType;
+    
+    /**
      * Drawing Number: Leave it blank
      */
     private String drgNo;

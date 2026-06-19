@@ -201,6 +201,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .description(buildItemDescription(inspectionCall, poItems))
+                .ercType(inspectionCall.getErcType())
                 .drgNo("") // Keep blank
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No.4.11.2 & 4.11.3 of Indian Railway Standard Specification for Elastic Rail Clip, IRS T-31-2025")
