@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProcessIcEditDTO {
+public class FinalIcSaveChangesDTO {
     private String icNumber;
     private Long certificateId;
     private String bookNo;
@@ -18,12 +18,13 @@ public class ProcessIcEditDTO {
     private String offeredInstallmentNo;
     private String passedInstallmentNo;
     private String consignee;
-    private String contractRef;
+    private String cummQtyOfferedPrev;
+    private String qtyPrevPassed;
+    private String qtyStillDue;
     private String maNumberAndDate;
-    private String billPayingOfficer;
     private String purchasingAuthority;
     private String description;
-    private String qapNo;
+    private String trRecDate;
     
     // Read-only audit fields
     private String createdBy;

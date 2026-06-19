@@ -5,15 +5,15 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * Entity for storing manual modifications to Raw Material Inspection Calls.
- * Only specific fields are persisted as per RITES requirements.
+ * Entity for storing intermediate draft modifications to Raw Material Inspection Calls.
+ * Persisted when the user clicks "Save Changes".
  */
 @Entity
-@Table(name = "rm_ic_edit", indexes = {
-    @Index(name = "idx_rm_ic_edit_ic_no", columnList = "ic_number", unique = true)
+@Table(name = "rm_ic_save_changes", indexes = {
+    @Index(name = "idx_rm_ic_save_changes_ic_no", columnList = "ic_number", unique = true)
 })
 @Data
-public class RmIcEdit {
+public class RmIcSaveChanges {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

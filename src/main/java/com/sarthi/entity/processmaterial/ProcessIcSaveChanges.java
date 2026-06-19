@@ -1,4 +1,4 @@
-package com.sarthi.entity.finalmaterial;
+package com.sarthi.entity.processmaterial;
 
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -7,10 +7,14 @@ import org.hibernate.annotations.UpdateTimestamp;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/**
+ * Entity for storing intermediate draft modifications to Process Inspection Calls.
+ * Persisted when the user clicks "Save Changes".
+ */
 @Entity
-@Table(name = "FINAL_IC_EDIT")
+@Table(name = "PROCESS_IC_SAVE_CHANGES")
 @Data
-public class FinalIcEdit {
+public class ProcessIcSaveChanges {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,17 +41,14 @@ public class FinalIcEdit {
     @Column(name = "CONSIGNEE")
     private String consignee;
 
-    @Column(name = "CUMM_QTY_OFFERED_PREV")
-    private String cummQtyOfferedPrev;
-
-    @Column(name = "QTY_PREV_PASSED")
-    private String qtyPrevPassed;
-
-    @Column(name = "QTY_STILL_DUE")
-    private String qtyStillDue;
+    @Column(name = "CONTRACT_REF")
+    private String contractRef;
 
     @Column(name = "MA_NUMBER_AND_DATE")
     private String maNumberAndDate;
+
+    @Column(name = "BILL_PAYING_OFFICER")
+    private String billPayingOfficer;
 
     @Column(name = "PURCHASING_AUTHORITY")
     private String purchasingAuthority;
@@ -55,8 +56,8 @@ public class FinalIcEdit {
     @Column(name = "DESCRIPTION")
     private String description;
 
-    @Column(name = "TR_REC_DATE")
-    private String trRecDate;
+    @Column(name = "QAP_NO")
+    private String qapNo;
 
     @Column(name = "CREATED_BY")
     private String createdBy;

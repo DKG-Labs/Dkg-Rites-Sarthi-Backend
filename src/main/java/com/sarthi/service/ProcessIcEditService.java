@@ -34,12 +34,18 @@ public class ProcessIcEditService {
         entity.setOfferedInstallmentNo(dto.getOfferedInstallmentNo());
         entity.setPassedInstallmentNo(dto.getPassedInstallmentNo());
         entity.setConsignee(dto.getConsignee());
+        entity.setContractRef(dto.getContractRef());
+        entity.setMaNumberAndDate(dto.getMaNumberAndDate());
+        entity.setBillPayingOfficer(dto.getBillPayingOfficer());
+        entity.setPurchasingAuthority(dto.getPurchasingAuthority());
+        entity.setDescription(dto.getDescription());
+        entity.setQapNo(dto.getQapNo());
         
         // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
         }
-        entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : "SYSTEM_USER");
+        entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : (dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER"));
 
         ProcessIcEdit saved = processIcEditRepository.save(entity);
         return mapToDTO(saved);
@@ -54,6 +60,12 @@ public class ProcessIcEditService {
                 .offeredInstallmentNo(entity.getOfferedInstallmentNo())
                 .passedInstallmentNo(entity.getPassedInstallmentNo())
                 .consignee(entity.getConsignee())
+                .contractRef(entity.getContractRef())
+                .maNumberAndDate(entity.getMaNumberAndDate())
+                .billPayingOfficer(entity.getBillPayingOfficer())
+                .purchasingAuthority(entity.getPurchasingAuthority())
+                .description(entity.getDescription())
+                .qapNo(entity.getQapNo())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

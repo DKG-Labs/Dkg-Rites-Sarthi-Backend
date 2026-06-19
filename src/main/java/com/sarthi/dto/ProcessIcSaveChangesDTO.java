@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProcessIcEditDTO {
+public class ProcessIcSaveChangesDTO {
     private String icNumber;
     private Long certificateId;
     private String bookNo;

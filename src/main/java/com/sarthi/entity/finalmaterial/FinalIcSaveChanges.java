@@ -7,10 +7,14 @@ import org.hibernate.annotations.UpdateTimestamp;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/**
+ * Entity for storing intermediate draft modifications to Final Product Inspection Calls.
+ * Persisted when the user clicks "Save Changes".
+ */
 @Entity
-@Table(name = "FINAL_IC_EDIT")
+@Table(name = "FINAL_IC_SAVE_CHANGES")
 @Data
-public class FinalIcEdit {
+public class FinalIcSaveChanges {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

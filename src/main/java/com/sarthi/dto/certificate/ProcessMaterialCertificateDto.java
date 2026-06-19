@@ -86,6 +86,8 @@ public class ProcessMaterialCertificateDto {
      */
     private String purchasingAuthority;
     
+    private String maNumberAndDate;
+    
     private String facsimileText;
     private String reasonsForRejection;
     private String inspectingEngineer;

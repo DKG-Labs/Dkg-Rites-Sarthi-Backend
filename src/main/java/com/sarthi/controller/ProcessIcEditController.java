@@ -18,7 +18,14 @@ public class ProcessIcEditController {
 
     @GetMapping("/{icNumber}")
     public ResponseEntity<ProcessIcEditDTO> getByIcNumber(@PathVariable String icNumber) {
-        log.info("REST request to get Process IC Edit for IC: {}", icNumber);
+        log.info("REST request to get Process IC Edit for IC (path): {}", icNumber);
+        ProcessIcEditDTO dto = processIcEditService.getByIcNumber(icNumber);
+        return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.noContent().build();
+    }
+
+    @GetMapping
+    public ResponseEntity<ProcessIcEditDTO> getByIcNumberQuery(@RequestParam String icNumber) {
+        log.info("REST request to get Process IC Edit for IC (query): {}", icNumber);
         ProcessIcEditDTO dto = processIcEditService.getByIcNumber(icNumber);
         return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.noContent().build();
     }

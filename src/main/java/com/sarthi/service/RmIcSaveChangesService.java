@@ -1,33 +1,31 @@
 package com.sarthi.service;
 
-import com.sarthi.dto.RmIcEditDTO;
-import com.sarthi.entity.rawmaterial.RmIcEdit;
-import com.sarthi.repository.rawmaterial.RmIcEditRepository;
+import com.sarthi.dto.RmIcSaveChangesDTO;
+import com.sarthi.entity.rawmaterial.RmIcSaveChanges;
+import com.sarthi.repository.rawmaterial.RmIcSaveChangesRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class RmIcEditService {
+public class RmIcSaveChangesService {
 
-    private final RmIcEditRepository rmIcEditRepository;
+    private final RmIcSaveChangesRepository rmIcSaveChangesRepository;
 
     @Transactional(readOnly = true)
-    public RmIcEditDTO getByIcNumber(String icNumber) {
-        return rmIcEditRepository.findByIcNumber(icNumber)
+    public RmIcSaveChangesDTO getByIcNumber(String icNumber) {
+        return rmIcSaveChangesRepository.findByIcNumber(icNumber)
                 .map(this::mapToDTO)
                 .orElse(null);
     }
 
     @Transactional
-    public RmIcEditDTO saveOrUpdate(RmIcEditDTO dto) {
-        RmIcEdit entity = rmIcEditRepository.findByIcNumber(dto.getIcNumber())
-                .orElse(new RmIcEdit());
+    public RmIcSaveChangesDTO saveOrUpdate(RmIcSaveChangesDTO dto) {
+        RmIcSaveChanges entity = rmIcSaveChangesRepository.findByIcNumber(dto.getIcNumber())
+                .orElse(new RmIcSaveChanges());
 
         entity.setIcNumber(dto.getIcNumber());
         entity.setCertificateId(dto.getCertificateId());
@@ -46,18 +44,17 @@ public class RmIcEditService {
         entity.setQapNo(dto.getQapNo());
         entity.setChpClause(dto.getChpClause());
         
-        // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
         }
         entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : (dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER"));
 
-        RmIcEdit saved = rmIcEditRepository.save(entity);
+        RmIcSaveChanges saved = rmIcSaveChangesRepository.save(entity);
         return mapToDTO(saved);
     }
 
-    private RmIcEditDTO mapToDTO(RmIcEdit entity) {
-        return RmIcEditDTO.builder()
+    private RmIcSaveChangesDTO mapToDTO(RmIcSaveChanges entity) {
+        return RmIcSaveChangesDTO.builder()
                 .icNumber(entity.getIcNumber())
                 .certificateId(entity.getCertificateId())
                 .bookNo(entity.getBookNo())

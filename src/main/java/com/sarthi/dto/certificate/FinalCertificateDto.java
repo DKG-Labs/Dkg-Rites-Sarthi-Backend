@@ -77,6 +77,8 @@ public class FinalCertificateDto {
     private String consigneeRailway;
     private String consigneeManufacturer;
     
+    private String maNumberAndDate;
+    
     /**
      * Purchasing Authority: Same as RM IC (for now display blank)
      */

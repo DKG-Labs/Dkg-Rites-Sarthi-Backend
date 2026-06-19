@@ -21,6 +21,10 @@ public class FinalIcEditDTO {
     private String cummQtyOfferedPrev;
     private String qtyPrevPassed;
     private String qtyStillDue;
+    private String maNumberAndDate;
+    private String purchasingAuthority;
+    private String description;
+    private String trRecDate;
     
     // Read-only audit fields
     private String createdBy;
