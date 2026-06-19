@@ -32,6 +32,9 @@ import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.processmaterial.ProcessRmIcMappingRepository;
 import com.sarthi.entity.processmaterial.ProcessRmIcMapping;
+import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
+import com.sarthi.entity.rawmaterial.RmIcEdit;
+import com.sarthi.repository.rawmaterial.RmIcEditRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
@@ -53,6 +56,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -92,6 +96,9 @@ public class CertificateServiceImpl implements CertificateService {
 
     @Autowired
     private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
+
+    @Autowired
+    private RmIcEditRepository rmIcEditRepository;
 
     @Autowired
     private ProcessLineFinalResultRepository processLineFinalResultRepository;
@@ -793,7 +800,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No. of QAP")
                 .chpClause("Clause No. of QAP")
-                .inspectionType("Process Inspection as per QAP")
+                .inspectionType("Checking Length of cut bars/ Turning length/ MPI Test/  Checking of Die/ Quenching temperature & duration/ Quenching hardness/ Tempering temperature & duration/ Dimensional check/ Hardness of finished ERC/ Documentaion")
                 .lots(lots)
                 .reference(buildProcessReference(inspectionCall))
                 .dateOfCall(buildDateOfCall(inspectionCall))
@@ -867,32 +874,60 @@ public class CertificateServiceImpl implements CertificateService {
      * Build process reference
      */
     private String buildProcessReference(InspectionCall inspectionCall) {
-        // Try to gather RM IC mappings for this process call
-        List<ProcessRmIcMapping> mappings = processRmIcMappingRepository.findByProcessIcId(Long.valueOf(inspectionCall.getId()));
+        // Fetch Process Inspection Details to get RM IC numbers
+        List<ProcessInspectionDetails> detailsList = processInspectionDetailsRepository.findByIcId(
+                Long.valueOf(inspectionCall.getId()));
 
-        if (mappings == null || mappings.isEmpty()) {
-            return "Call No: " + inspectionCall.getIcNumber();
+        List<String> rmIcNumbers = new ArrayList<>();
+        if (detailsList != null) {
+            rmIcNumbers = detailsList.stream()
+                    .map(ProcessInspectionDetails::getRmIcNumber)
+                    .filter(ic -> ic != null && !ic.trim().isEmpty())
+                    .distinct()
+                    .collect(Collectors.toList());
         }
 
-        // Use the process call's createdAt as the date to display for all RM IC entries
-        LocalDate processCallDate = inspectionCall.getCreatedAt() != null ? inspectionCall.getCreatedAt().toLocalDate() : null;
-        String processDateStr = formatDate(processCallDate);
+        if (rmIcNumbers.isEmpty()) {
+            return "Call No: " + inspectionCall.getIcNumber();
+        }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Raw Material STAGE IC No. ");
 
-        for (int i = 0; i < mappings.size(); i++) {
-            ProcessRmIcMapping m = mappings.get(i);
-            String rmIc = m.getRmIcNumber() != null ? m.getRmIcNumber() : "";
-
+        for (int i = 0; i < rmIcNumbers.size(); i++) {
+            String rmIc = rmIcNumbers.get(i).trim();
             sb.append(rmIc);
-            if (!processDateStr.isBlank()) sb.append(", Dt.").append(processDateStr);
 
-            if (m.getBookSetNo() != null && !m.getBookSetNo().isBlank()) {
-                sb.append(" (Book/Set No - ").append(m.getBookSetNo()).append(")");
+            Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(rmIc);
+            if (rmIcEditOpt.isPresent()) {
+                RmIcEdit rmIcEdit = rmIcEditOpt.get();
+                if (rmIcEdit.getCreatedAt() != null) {
+                    sb.append(", Dated ").append(formatDate(rmIcEdit.getCreatedAt().toLocalDate()));
+                } else {
+                    Optional<InspectionCall> rmIcCallOpt = inspectionCallRepository.findByIcNumber(rmIc);
+                    if (rmIcCallOpt.isPresent() && rmIcCallOpt.get().getCreatedAt() != null) {
+                        sb.append(", Dated ").append(formatDate(rmIcCallOpt.get().getCreatedAt().toLocalDate()));
+                    }
+                }
+
+                String bNo = rmIcEdit.getBookNo() != null ? rmIcEdit.getBookNo() : "";
+                String sNo = rmIcEdit.getSetNo() != null ? rmIcEdit.getSetNo() : "";
+                if (!bNo.isBlank() || !sNo.isBlank()) {
+                    sb.append(" ( Book/Set No.-").append(bNo).append("/").append(sNo).append(")");
+                }
+            } else {
+                Optional<InspectionCall> rmIcCallOpt = inspectionCallRepository.findByIcNumber(rmIc);
+                if (rmIcCallOpt.isPresent()) {
+                    InspectionCall rmCall = rmIcCallOpt.get();
+                    if (rmCall.getCreatedAt() != null) {
+                        sb.append(", Dated ").append(formatDate(rmCall.getCreatedAt().toLocalDate()));
+                    }
+                }
             }
 
-            if (i < mappings.size() - 1) sb.append("; ");
+            if (i < rmIcNumbers.size() - 1) {
+                sb.append("; ");
+            }
         }
 
         return sb.toString();
@@ -1389,6 +1424,7 @@ public class CertificateServiceImpl implements CertificateService {
         mainGrid.addCell(rowCB);
 
         mainGrid.addCell(createThreeColRow("विवरण / Description", getDtoValue(dto, "description"), "ड्रॉइंग सं. / Drg. No.", getDtoValue(dto, "drgNo"), "Spec No.", getDtoValue(dto, "specNo"), normalFont, tinyBold));
+        mainGrid.addCell(createLabelValueCell("किए गए निरीक्षण/परीक्षण विवरण / Type of inspection/tests conducted", getDtoValue(dto, "inspectionType"), normalFont, tinyBold));
         document.add(mainGrid);
 
         // Body Table
