@@ -121,13 +121,16 @@ WHERE d.inspection.batchNo = :batchNo
                 )
             )                                      AS shiftsWorked,
 
-            COUNT(
-                CASE
-                    WHEN dds.visual_reason IS NOT NULL
-                      OR dds.dim_reason IS NOT NULL
-                    THEN dds.id
-                END
-            )                                      AS rejectedSleepers
+           COUNT(
+                   CASE
+                       WHEN (
+                           TRIM(COALESCE(dds.visual_reason, '')) <> ''
+                           OR
+                           TRIM(COALESCE(dds.dim_reason, '')) <> ''
+                       )
+                       THEN dds.id
+                   END
+               ) AS rejectedSleepers
 
         FROM demoulding_inspection di
 
