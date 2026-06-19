@@ -581,6 +581,7 @@ SELECT
     DATE(ic.created_at)                          AS callDate,
 
     ic.place_of_inspection                       AS placeOfInspection,
+    pm.ibs_vendor_code                           AS ibsManufacturedCode,
 
     CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
 
@@ -629,6 +630,8 @@ LEFT JOIN process_line_final_result pr
 LEFT JOIN ibs_call_registration icr
         ON icr.call_number COLLATE utf8mb4_unicode_ci
          = ic.ic_number COLLATE utf8mb4_unicode_ci
+LEFT JOIN sarthi_ibs_poi_mapping pm
+       ON pm.poi_code = ic.place_of_inspection
 
 WHERE icr.call_number IS NULL
    OR icr.status = 'Failed'
@@ -637,6 +640,7 @@ GROUP BY
     ph.case_no,
     ic.created_at,
     ic.place_of_inspection,
+    pm.ibs_vendor_code,
     um.employee_code,
     ic.po_serial_no,
     p.book_no,
@@ -647,4 +651,6 @@ GROUP BY
 """,
           nativeQuery = true)
   List<Object[]> getProcessInspectionCalls();
+
+
 }

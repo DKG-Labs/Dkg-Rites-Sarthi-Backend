@@ -693,48 +693,51 @@ public class IbsServiceImpl implements IbsService {
             dto.setPlaceOfInspection(
                     (String) row[2]
             );
+            dto.setIbsManufacturedCode(
+                    row[3] != null ? row[3].toString() : null
+            );
 
             dto.setIeEmployeeNumber(
-                    (String) row[3]
+                    (String) row[4]
             );
 
             dto.setCallStatus(
-                    String.valueOf(row[4])
-            );
-
-            dto.setTypeOfCall(
                     String.valueOf(row[5])
             );
 
+            dto.setTypeOfCall(
+                    String.valueOf(row[6])
+            );
+
             dto.setPoItemSerialNumbers(
-                    List.of((String) row[6])
+                    List.of((String) row[7])
             );
 
             dto.setBkNumber(
-                    (String) row[7]
-            );
-
-            dto.setSetNumber(
                     (String) row[8]
             );
 
+            dto.setSetNumber(
+                    (String) row[9]
+            );
+
             dto.setIcDate(
-                    ((java.sql.Date) row[9]).toLocalDate()
+                    ((java.sql.Date) row[10]).toLocalDate()
             );
 
             dto.setQuantityOffered(
-                    ((Number) row[10]).intValue()
-            );
-
-            dto.setQuantityPassed(
                     ((Number) row[11]).intValue()
             );
 
-            dto.setQuantityRejected(
+            dto.setQuantityPassed(
                     ((Number) row[12]).intValue()
             );
 
-            String callNumber = (String) row[13];
+            dto.setQuantityRejected(
+                    ((Number) row[13]).intValue()
+            );
+
+            String callNumber = (String) row[14];
 
             dto.setIcFileLink(
                     "https://sarthibackendservice-bfe2eag3byfkbsa6.canadacentral-01.azurewebsites.net"
@@ -788,6 +791,8 @@ public class IbsServiceImpl implements IbsService {
         entity.setStatus(
                 dto.getStatus()
         );
+
+        entity.setReason(dto.getReason());
 
         entity.setAcknowledgedAt(
                 LocalDateTime.now()
