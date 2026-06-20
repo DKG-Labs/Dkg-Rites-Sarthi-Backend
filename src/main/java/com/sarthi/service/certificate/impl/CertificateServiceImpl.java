@@ -229,7 +229,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .contractorPo(inspectionCall.getPoNo())
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
-                .consigneeRailway(buildConsigneeRailway(poItems))
+                .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .description(buildItemDescription(inspectionCall, poItems))
@@ -467,12 +467,36 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Build Consignee Railway from PO Items
      */
-    private String buildConsigneeRailway(List<PoItem> poItems) {
-        if (poItems.isEmpty()) return "";
+    private String buildConsigneeRailway(InspectionCall inspectionCall, List<PoItem> poItems) {
+        if (inspectionCall == null || poItems == null || poItems.isEmpty()) {
+            return "";
+        }
 
-        // Get consignee from first item (assuming same for all items in PO)
-        PoItem firstItem = poItems.get(0);
-        return firstItem.getConsigneeDetail() != null ? firstItem.getConsigneeDetail() : "";
+        try {
+            String poSerialNo = inspectionCall.getPoSerialNo();
+            String itemSrNo = poSerialNo;
+            if (poSerialNo != null && poSerialNo.contains("/")) {
+                String[] parts = poSerialNo.split("/");
+                itemSrNo = parts[parts.length - 1].trim();
+            }
+
+            final String targetSrNo = itemSrNo;
+            
+            String result = poItems.stream()
+                    .filter(item -> targetSrNo != null && targetSrNo.equals(item.getItemSrNo()))
+                    .map(item -> item.getConsigneeDetail() != null ? item.getConsigneeDetail() : "")
+                    .findFirst()
+                    .orElse("");
+
+            if (result.isBlank()) {
+                result = poItems.get(0).getConsigneeDetail() != null ? poItems.get(0).getConsigneeDetail() : "";
+            }
+
+            return result;
+        } catch (Exception e) {
+            logger.warn("Error processing consignee railway for IC: {}", inspectionCall.getIcNumber(), e);
+            return poItems.get(0).getConsigneeDetail() != null ? poItems.get(0).getConsigneeDetail() : "";
+        }
     }
 
     /**
@@ -883,6 +907,22 @@ public class CertificateServiceImpl implements CertificateService {
         return date != null ? date.format(DATE_FORMATTER) : "";
     }
 
+    /**
+     * Helper to get IC Date (Creation Date or Edit Date)
+     */
+    private String getIcDate(String icNumber) {
+        if (icNumber == null || icNumber.isBlank()) return "";
+        Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(icNumber);
+        if (rmIcEditOpt.isPresent() && rmIcEditOpt.get().getCreatedAt() != null) {
+            return formatDate(rmIcEditOpt.get().getCreatedAt().toLocalDate());
+        }
+        Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(icNumber);
+        if (callOpt.isPresent() && callOpt.get().getCreatedAt() != null) {
+            return formatDate(callOpt.get().getCreatedAt().toLocalDate());
+        }
+        return "";
+    }
+
     /* ==================== PROCESS MATERIAL CERTIFICATE METHODS ==================== */
 
     @Override
@@ -955,7 +995,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .poDetails(inspectionCall.getPoNo() + " dated " + (poHeader != null && poHeader.getPoDate() != null ? formatDate(poHeader.getPoDate().toLocalDate()) : ""))
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
-                .consigneeRailway(buildConsigneeRailway(poItems))
+                .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .description(buildItemDescription(inspectionCall, poItems))
@@ -1324,6 +1364,25 @@ public class CertificateServiceImpl implements CertificateService {
         long end = System.currentTimeMillis();
         logger.info("Fetched visit dates for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
 
+        // Fetch RM and PM IC Details for remarks
+        String rmIcNoStr = finalDetails != null && finalDetails.getRmIcNumber() != null ? finalDetails.getRmIcNumber() : "";
+        String processIcNoStr = finalDetails != null && finalDetails.getProcessIcNumber() != null ? finalDetails.getProcessIcNumber() : "";
+        String rmIcDateStr = "";
+        String processIcDateStr = "";
+
+        if (!rmIcNoStr.isBlank()) {
+            String[] rmIcs = rmIcNoStr.split(",");
+            if (rmIcs.length > 0) {
+                rmIcDateStr = getIcDate(rmIcs[0].trim());
+            }
+        }
+        if (!processIcNoStr.isBlank()) {
+            String[] pmIcs = processIcNoStr.split(",");
+            if (pmIcs.length > 0) {
+                processIcDateStr = getIcDate(pmIcs[0].trim());
+            }
+        }
+
         // 9. Build Certificate DTO
         start = System.currentTimeMillis();
         
@@ -1343,7 +1402,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .contractRefDate(poHeader != null && poHeader.getPoDate() != null ? formatDate(poHeader.getPoDate().toLocalDate()) : "")
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
-                .consigneeRailway(buildConsigneeRailway(poItems))
+                .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .itemNo(poItems.isEmpty() ? "" : poItems.get(0).getItemSrNo())
                 .description(buildItemDescription(inspectionCall, poItems))
@@ -1363,6 +1422,10 @@ public class CertificateServiceImpl implements CertificateService {
                 .inspectionDates(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
                 .sealingPattern(sealingPattern)
                 .quantityNowPassedText("")
+                .rmIcNo(rmIcNoStr)
+                .rmIcDate(rmIcDateStr)
+                .processIcNo(processIcNoStr)
+                .processIcDate(processIcDateStr)
                 .lotDetails(buildFinalLotDetails(lotDetails))
                 .build();
         end = System.currentTimeMillis();

@@ -181,6 +181,11 @@ public class FinalCertificateDto {
     private String facsimileText;
     private String reasonsForRejection;
     private String inspectingEngineer;
+    private String rmIcNo;
+    private String rmIcDate;
+    private String processIcNo;
+    private String processIcDate;
+    private String rejectedReason;
     
     /* ==================== Lot Details ==================== */
     
