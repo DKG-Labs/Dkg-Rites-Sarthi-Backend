@@ -139,7 +139,7 @@ List<Object[]> findCertificateNosByCallNos(
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(rm.created_at, icd.CREATED_ON) AS createdAt " +
             "FROM inspection_complete_details icd " +
             "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
-            "LEFT JOIN rm_ic_edit rm ON icd.CERTIFICATE_NO = rm.ic_number " +
+            "LEFT JOIN rm_ic_edit rm ON icd.CERTIFICATE_NO = rm.ic_number COLLATE utf8mb4_unicode_ci " +
             "WHERE icd.CALL_NO LIKE 'ER-%' " +
             "AND ic.po_serial_no = :poSerialNo " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
@@ -148,7 +148,7 @@ List<Object[]> findCertificateNosByCallNos(
 
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(rm.created_at, icd.CREATED_ON) AS createdAt " +
             "FROM inspection_complete_details icd " +
-            "LEFT JOIN rm_ic_edit rm ON icd.CERTIFICATE_NO = rm.ic_number " +
+            "LEFT JOIN rm_ic_edit rm ON icd.CERTIFICATE_NO = rm.ic_number COLLATE utf8mb4_unicode_ci " +
             "WHERE icd.CALL_NO LIKE 'ER-%' " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
             nativeQuery = true)
@@ -157,7 +157,7 @@ List<Object[]> findCertificateNosByCallNos(
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
             "FROM inspection_complete_details icd " +
             "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
-            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER " +
+            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
             "WHERE icd.CALL_NO LIKE 'EP%' " +
             "AND ic.vendor_id = :vendorId " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
@@ -166,7 +166,7 @@ List<Object[]> findCertificateNosByCallNos(
 
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
             "FROM inspection_complete_details icd " +
-            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER " +
+            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
             "WHERE icd.CALL_NO IN (" +
             "    SELECT DISTINCT ic2.ic_number " +
             "    FROM process_inspection_details pid " +
@@ -180,7 +180,7 @@ List<Object[]> findCertificateNosByCallNos(
 
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
             "FROM inspection_complete_details icd " +
-            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER " +
+            "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
             "WHERE icd.CALL_NO IN (" +
             "    SELECT DISTINCT ic2.ic_number " +
             "    FROM process_inspection_details pid " +
