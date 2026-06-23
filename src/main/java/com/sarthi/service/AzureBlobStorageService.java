@@ -245,6 +245,38 @@ public class AzureBlobStorageService {
         }
     }
 
+    /**
+     * Downloads a file from a specific Azure Blob Storage container as byte array.
+     * Used by the image proxy endpoint to serve inspection images
+     * from ercinspectionimages-uat container (which has public access disabled).
+     *
+     * @param fileName  The blob file name (e.g. ER_03090004_abc123.jpg)
+     * @param targetContainerName  The container name to fetch from
+     * @return byte array of the file content
+     */
+    public byte[] downloadFileFromContainer(String fileName, String targetContainerName) {
+        try {
+            BlobContainerClient targetContainer = getContainerClient(targetContainerName);
+            BlobClient blobClient = targetContainer.getBlobClient(fileName);
+
+            if (!blobClient.exists()) {
+                throw new RuntimeException("Image not found in container '" + targetContainerName + "': " + fileName);
+            }
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            blobClient.download(outputStream);
+
+            log.info("Downloaded image {} from container {} ({} bytes)",
+                    fileName, targetContainerName, outputStream.size());
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Error downloading image {} from container {}: {}",
+                    fileName, targetContainerName, e.getMessage(), e);
+            throw new RuntimeException("Failed to download image from Azure", e);
+        }
+    }
+
 
 
 

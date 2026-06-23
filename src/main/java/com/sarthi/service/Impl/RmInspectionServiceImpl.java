@@ -24,8 +24,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -244,31 +246,58 @@ public class RmInspectionServiceImpl implements RmInspectionService {
 
     private void saveCapturedImages(String callNo, String typeOfCall, List<ImageCaptureDto> images, String shift, String dateOfInspection) {
         logger.info("Saving captured images for call: {} type: {}", callNo, typeOfCall);
-        
-        // Delete existing images for RM
-        inspectionImageRepository.deleteByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
-        
+
+        // Separate existing images (proxy URLs already on Azure) from new base64 images.
+        // Proxy URLs look like: /api/images/ER_xxxxx.jpg
+        // New images are base64 data URLs: data:image/jpeg;base64,...
+        Set<String> existingImageNames = new HashSet<>();
+        List<ImageCaptureDto> newImages = new ArrayList<>();
+
         for (ImageCaptureDto imageDto : images) {
             if (imageDto.getBase64Data() != null && !imageDto.getBase64Data().isEmpty()) {
-                String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + UUID.randomUUID().toString() + ".jpg";
-                
-                String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
-                
-                InspectionImage imageEntity = new InspectionImage();
-                imageEntity.setInspectionCallNo(callNo);
-                imageEntity.setTypeOfCall(typeOfCall);
-                imageEntity.setImageName(fileName);
-                imageEntity.setImageUrl(imageUrl);
-                imageEntity.setLatitude(imageDto.getLatitude());
-                imageEntity.setLongitude(imageDto.getLongitude());
-                imageEntity.setShift(shift);
-                imageEntity.setDateOfInspection(dateOfInspection);
-                imageEntity.setCreatedBy(getCurrentUser());
-                imageEntity.setUpdatedBy(getCurrentUser());
-                
-                inspectionImageRepository.save(imageEntity);
+                if (imageDto.getBase64Data().startsWith("/api/images/")) {
+                    // Already saved to Azure - just retain in DB
+                    String existingName = imageDto.getBase64Data().substring("/api/images/".length());
+                    existingImageNames.add(existingName);
+                } else {
+                    // New base64 image - needs to be uploaded
+                    newImages.add(imageDto);
+                }
             }
         }
+
+        // Delete only images that are no longer in the payload (removed by user)
+        List<InspectionImage> currentDbImages = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+        for (InspectionImage dbImage : currentDbImages) {
+            if (!existingImageNames.contains(dbImage.getImageName())) {
+                inspectionImageRepository.delete(dbImage);
+                logger.info("Deleted removed image: {}", dbImage.getImageName());
+            }
+        }
+
+        // Upload and save only truly new images
+        for (ImageCaptureDto imageDto : newImages) {
+            String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + UUID.randomUUID().toString() + ".jpg";
+
+            String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+
+            InspectionImage imageEntity = new InspectionImage();
+            imageEntity.setInspectionCallNo(callNo);
+            imageEntity.setTypeOfCall(typeOfCall);
+            imageEntity.setImageName(fileName);
+            imageEntity.setImageUrl(imageUrl);
+            imageEntity.setLatitude(imageDto.getLatitude());
+            imageEntity.setLongitude(imageDto.getLongitude());
+            imageEntity.setShift(shift);
+            imageEntity.setDateOfInspection(dateOfInspection);
+            imageEntity.setCreatedBy(getCurrentUser());
+            imageEntity.setUpdatedBy(getCurrentUser());
+
+            inspectionImageRepository.save(imageEntity);
+        }
+
+        logger.info("Images saved for call {}: {} new uploaded, {} existing retained",
+                    callNo, newImages.size(), existingImageNames.size());
     }
 
     private void saveHeatFinalResults(String callNo, List<RmHeatFinalResultDto> results) {
@@ -890,12 +919,16 @@ public class RmInspectionServiceImpl implements RmInspectionService {
         dto.setCalibrationDocumentsData(calibrationDtos);
 
         // 8. Fetch Captured Images
+        // Return proxy URL (/api/images/{imageName}) instead of raw Azure blob URL
+        // because Azure Blob Storage has public access disabled (returns 409 to browser).
         List<InspectionImage> images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, "RM");
         List<ImageCaptureDto> imageDtos = new ArrayList<>();
         if (images != null) {
             for (InspectionImage img : images) {
                 ImageCaptureDto imgDto = new ImageCaptureDto();
-                imgDto.setBase64Data(img.getImageUrl());
+                // Use backend proxy URL so the browser fetches through our authenticated endpoint
+                String proxyUrl = "/api/images/" + img.getImageName();
+                imgDto.setBase64Data(proxyUrl);
                 imgDto.setLatitude(img.getLatitude());
                 imgDto.setLongitude(img.getLongitude());
                 imageDtos.add(imgDto);
