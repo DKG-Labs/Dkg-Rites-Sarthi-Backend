@@ -27,6 +27,12 @@ public class ProductionLongLineGang {
 
     private Integer mouldsPerGang;
 
+    private String sleeperCategory;
+
+    private Integer totalSleepers;
+
+    private Double rft;
+
     @ManyToOne
     @JoinColumn(name="declaration_id")
     private ProductionDeclaration declaration;

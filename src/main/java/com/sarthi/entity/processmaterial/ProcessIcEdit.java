@@ -37,6 +37,24 @@ public class ProcessIcEdit {
     @Column(name = "CONSIGNEE")
     private String consignee;
 
+    @Column(name = "CONTRACT_REF")
+    private String contractRef;
+
+    @Column(name = "MA_NUMBER_AND_DATE")
+    private String maNumberAndDate;
+
+    @Column(name = "BILL_PAYING_OFFICER")
+    private String billPayingOfficer;
+
+    @Column(name = "PURCHASING_AUTHORITY")
+    private String purchasingAuthority;
+
+    @Column(name = "DESCRIPTION")
+    private String description;
+
+    @Column(name = "QAP_NO")
+    private String qapNo;
+
     @Column(name = "CREATED_BY")
     private String createdBy;
 

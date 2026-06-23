@@ -22,6 +22,11 @@ public class AppConstant {
     public static final int ERROR_CODE_RESOURCE = 5;
     public static final int ERROR_TYPE_CODE_INVALID = 6;
 
+    public static final int ERROR_CODE_MISSING_FIELDS = 7;
+
+
+    public static final int ERROR_TYPE_CODE_MISSING_FIELDS = 10;
+
     // Error Type
     public static final String ERROR_TYPE_ERROR = "error";
     public static final String ERROR_TYPE_VALIDATION = "validation";
@@ -66,5 +71,16 @@ public class AppConstant {
     public static final int RECORD_ALREADY_EXIST = 4002;
     public static final int NO_RECORD_FOUND = 4003;
 
+    public static final int USER_ALREADY_EXISTS = 1002;
+
+    public static final int ERROR_CODE_VALIDATION = 10;
+    public static final String ERROR_TYPE_MISSING_FIELDS = "missing fields";
+
+    public static final String SMS_2 = "SMS 2";
+    public static final String SMS_3 = "SMS 3";
+
+    public static final int INTERNAL_SERVER_ERROR = 1000;
     //Folder Path
 }
+
+

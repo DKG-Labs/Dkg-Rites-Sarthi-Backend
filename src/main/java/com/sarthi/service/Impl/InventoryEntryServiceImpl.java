@@ -38,6 +38,12 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     @Autowired
     private AzureBlobStorageService azureBlobStorageService;
 
+    @Autowired
+    private com.sarthi.repository.rawmaterial.RmHeatQuantityRepository rmHeatQuantityRepository;
+
+    @Autowired
+    private com.sarthi.repository.certificate.CertificateStorageRepository certificateStorageRepository;
+
     @Override
     public InventoryEntryResponseDto createInventoryEntry(InventoryEntryRequestDto requestDto) {
         logger.info("Creating inventory entry for vendor: {}", requestDto.getVendorCode());
@@ -340,17 +346,17 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     }
 
     @Override
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Transactional
     public InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, BigDecimal offeredQty) {
         logger.info("Updating offered quantity for heat: {}, TC: {}, offered: {}", heatNumber, tcNumber, offeredQty);
 
         // Find inventory entry by heat number and TC number
-        InventoryEntry entry = inventoryEntryRepository.findByHeatNumberAndTcNumber(heatNumber, tcNumber)
-                .orElseThrow(() -> new BusinessException(
-                        new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_RESOURCE,
-                                "Inventory entry not found for heat: " + heatNumber + ", TC: " + tcNumber)));
+        java.util.Optional<InventoryEntry> entryOpt = inventoryEntryRepository.findByHeatNumberAndTcNumber(heatNumber, tcNumber);
+        if (entryOpt.isEmpty()) {
+            logger.warn("Inventory entry not found for heat: {}, TC: {}", heatNumber, tcNumber);
+            return null;
+        }
+        InventoryEntry entry = entryOpt.get();
 
         // Validate that offered quantity doesn't exceed TC Qty Remaining
         BigDecimal tcQtyRemaining = entry.getQtyLeftForInspection() != null ? entry.getQtyLeftForInspection()
@@ -518,5 +524,48 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     public boolean existsByTcNumber(String tcNumber, String vendorCode) {
         logger.info("Checking if TC number {} exists for vendor: {}", tcNumber, vendorCode);
         return inventoryEntryRepository.existsByTcNumberAndVendorCode(tcNumber, vendorCode);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.sarthi.dto.InventoryHistoryDto> getInventoryHistory(Long id) {
+        logger.info("Fetching inventory history for entry ID: {}", id);
+        
+        InventoryEntry entry = inventoryEntryRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_RESOURCE,
+                                "Inventory entry not found with ID: " + id)));
+
+        String heatNumber = entry.getHeatNumber();
+        // Since different inventory items might have same heat number but different TC number,
+        // it's better to fetch by heat number and TC number if available, but currently we have findByHeatNumber.
+        // Let's filter by TC number if needed, or just by HeatNumber. RmHeatQuantity has both.
+        List<com.sarthi.entity.rawmaterial.RmHeatQuantity> heatQuantities = rmHeatQuantityRepository.findByHeatNumber(heatNumber);
+
+        return heatQuantities.stream()
+                .filter(hq -> entry.getTcNumber().equals(hq.getTcNumber())) // ensure TC matches
+                .map(hq -> {
+                    com.sarthi.dto.InventoryHistoryDto dto = new com.sarthi.dto.InventoryHistoryDto();
+                    dto.setOfferedQuantity(hq.getOfferedQty());
+                    
+                    com.sarthi.entity.rawmaterial.RmInspectionDetails details = hq.getRmInspectionDetails();
+                    if (details != null && details.getInspectionCall() != null) {
+                        com.sarthi.entity.rawmaterial.InspectionCall ic = details.getInspectionCall();
+                        dto.setInspectionCallNo(ic.getIcNumber());
+                        dto.setInspectionDate(ic.getActualInspectionDate() != null ? ic.getActualInspectionDate() : ic.getDesiredInspectionDate());
+                        dto.setStatus(ic.getStatus());
+                        
+                        // Check for certificate
+                        java.util.Optional<com.sarthi.entity.certificate.CertificateStorage> certOpt = certificateStorageRepository.findByIcNumber(ic.getIcNumber());
+                        if (certOpt.isPresent()) {
+                            dto.setInspectionCertificateNo(ic.getIcNumber());
+                            dto.setCertificateUrl("/api/certificate-storage/view/" + ic.getIcNumber() + ".pdf");
+                        }
+                    }
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 }

@@ -15,6 +15,7 @@ public class RmDimensionalCheckDto {
     private String heatNo;
     private Integer heatIndex;
     private String tcNumber;
+    private String coilCode;
 
     // Array of 20 sample diameters
     private List<BigDecimal> sampleDiameters;

@@ -46,6 +46,18 @@ public class FinalIcEdit {
     @Column(name = "QTY_STILL_DUE")
     private String qtyStillDue;
 
+    @Column(name = "MA_NUMBER_AND_DATE")
+    private String maNumberAndDate;
+
+    @Column(name = "PURCHASING_AUTHORITY")
+    private String purchasingAuthority;
+
+    @Column(name = "DESCRIPTION")
+    private String description;
+
+    @Column(name = "TR_REC_DATE")
+    private String trRecDate;
+
     @Column(name = "CREATED_BY")
     private String createdBy;
 

@@ -86,6 +86,8 @@ public class ProcessMaterialCertificateDto {
      */
     private String purchasingAuthority;
     
+    private String maNumberAndDate;
+    
     private String facsimileText;
     private String reasonsForRejection;
     private String inspectingEngineer;
@@ -123,7 +125,7 @@ public class ProcessMaterialCertificateDto {
     
     /**
      * Inspection Type: Type of inspection/tests conducted
-     * Example: Process Inspection as per QAP
+     * Example: Checking Length of cut bars/ Turning length/ MPI Test/  Checking of Die/ Quenching temperature & duration/ Quenching hardness/ Tempering temperature & duration/ Dimensional check/ Hardness of finished ERC/ Documentaion
      */
     private String inspectionType;
     

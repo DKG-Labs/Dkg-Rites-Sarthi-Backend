@@ -77,6 +77,8 @@ public class FinalCertificateDto {
     private String consigneeRailway;
     private String consigneeManufacturer;
     
+    private String maNumberAndDate;
+    
     /**
      * Purchasing Authority: Same as RM IC (for now display blank)
      */
@@ -179,6 +181,11 @@ public class FinalCertificateDto {
     private String facsimileText;
     private String reasonsForRejection;
     private String inspectingEngineer;
+    private String rmIcNo;
+    private String rmIcDate;
+    private String processIcNo;
+    private String processIcDate;
+    private String rejectedReason;
     
     /* ==================== Lot Details ==================== */
     

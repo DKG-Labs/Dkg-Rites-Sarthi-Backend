@@ -227,7 +227,7 @@ public class ProcessRegisterServiceImpl implements ProcessRegisterService {
                 mapHourly(lotQuenching, d -> formatCombinedReadings(d.getQuenchingTemperature1(), d.getQuenchingDuration1())),
                 sumRejected(lotQuenching, d -> (d.getQuenchingTemperatureRejected() != null ? d.getQuenchingTemperatureRejected() : 0) + (d.getQuenchingDurationRejected() != null ? d.getQuenchingDurationRejected() : 0))));
 
-            rows.add(createRow(8, "Quenching Hardness (2 ERCs/Hr.)", 
+            rows.add(createRow(8, "Quenching Hardness (2 ERCs/Hr., Random)", 
                 mapHourly(lotQuenching, d -> formatReadings(d.getQuenchingHardness1(), d.getQuenchingHardness2())),
                 hardnessRej));
 
@@ -235,15 +235,15 @@ public class ProcessRegisterServiceImpl implements ProcessRegisterService {
                 mapHourly(lotTempering, d -> formatCombinedReadings(d.getTemperingTemperature1(), d.getTemperingDuration1())),
                 sumRejected(lotTempering, d -> (d.getTemperingTemperatureRejected() != null ? d.getTemperingTemperatureRejected() : 0) + (d.getTemperingDurationRejected() != null ? d.getTemperingDurationRejected() : 0))));
 
-            rows.add(createRow(10, "Dimension Check (2 ERCs/Hr.)", 
+            rows.add(createRow(10, "Dimension Check (2 ERCs/Hr., Random)", 
                 mapHourly(lotQuenching, d -> formatReadings(d.getBoxGauge1(), d.getFallingGauge1())),
                 dimRej));
 
-            rows.add(createRow(11, "Hardness of finished ERC (2 ERCs/Hr.)", 
+            rows.add(createRow(11, "Hardness of finished ERC (2 ERCs/Hr., Random)", 
                 mapHourly(lotFinalCheck, d -> formatReadings(d.getTemperingHardness1(), d.getTemperingHardness2())),
                 hardnessRej));
 
-            rows.add(createRow(12, "Toe load of finished ERC (2 ERCs/Hr.)", 
+            rows.add(createRow(12, "Toe load of finished ERC (2 ERCs/Hr., Random)", 
                 mapHourly(lotFinishing, d -> formatReadings(d.getToeLoad1(), d.getToeLoad2())),
                 sumRejected(lotFinishing, ProcessTestingFinishingData::getToeLoadRejected)));
 
@@ -278,7 +278,28 @@ public class ProcessRegisterServiceImpl implements ProcessRegisterService {
             }
 
             int row13RedCount = (int) row13Data.stream().filter("Red"::equals).count();
-            rows.add(createRow(13, "Confirmation of yellow and green paint", row13Data, row13RedCount));
+            rows.add(createRow(13, "Confirmation of Yellow and green paint on the end face of ERC MK-III & MK-V respectively (Cl. No. 6.1)", row13Data, row13RedCount));
+
+            // Row 14 Documentation
+            List<String> row14Data = new ArrayList<>();
+            for (int i = 1; i <= 8; i++) {
+                final int hIdxFinal = i;
+                Optional<ProcessQuenchingData> qd = lotQuenching.stream().filter(d -> Integer.valueOf(hIdxFinal).equals(getHourIndex(d))).reduce((first, second) -> second);
+                Optional<ProcessFinalCheckData> fcd = lotFinalCheck.stream().filter(d -> Integer.valueOf(hIdxFinal).equals(getHourIndex(d))).reduce((first, second) -> second);
+                Optional<ProcessTestingFinishingData> tfd = lotFinishing.stream().filter(d -> Integer.valueOf(hIdxFinal).equals(getHourIndex(d))).reduce((first, second) -> second);
+
+                boolean hasHourData = (qd.isPresent() && (qd.get().getBoxGauge1() != null || qd.get().getFallingGauge1() != null)) ||
+                                      (fcd.isPresent() && (fcd.get().getTemperingHardness1() != null || fcd.get().getTemperingHardness2() != null)) ||
+                                      (tfd.isPresent() && (tfd.get().getToeLoad1() != null || tfd.get().getToeLoad2() != null));
+
+                if (!hasHourData) {
+                    row14Data.add("-");
+                } else {
+                    row14Data.add("OK");
+                }
+            }
+            rows.add(createRow(14, "Documentation (100%)", row14Data, "-"));
+
             dto.setRows(rows);
             
             // Sort rows safely before returning

@@ -18,6 +18,12 @@ public class ProcessIcEditDTO {
     private String offeredInstallmentNo;
     private String passedInstallmentNo;
     private String consignee;
+    private String contractRef;
+    private String maNumberAndDate;
+    private String billPayingOfficer;
+    private String purchasingAuthority;
+    private String description;
+    private String qapNo;
     
     // Read-only audit fields
     private String createdBy;

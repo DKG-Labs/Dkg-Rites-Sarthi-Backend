@@ -18,7 +18,14 @@ public class FinalIcEditController {
 
     @GetMapping("/{icNumber}")
     public ResponseEntity<FinalIcEditDTO> getByIcNumber(@PathVariable String icNumber) {
-        log.info("REST request to get Final IC Edit for IC: {}", icNumber);
+        log.info("REST request to get Final IC Edit for IC (path): {}", icNumber);
+        FinalIcEditDTO dto = finalIcEditService.getByIcNumber(icNumber);
+        return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.noContent().build();
+    }
+
+    @GetMapping
+    public ResponseEntity<FinalIcEditDTO> getByIcNumberQuery(@RequestParam String icNumber) {
+        log.info("REST request to get Final IC Edit for IC (query): {}", icNumber);
         FinalIcEditDTO dto = finalIcEditService.getByIcNumber(icNumber);
         return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.noContent().build();
     }

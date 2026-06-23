@@ -573,7 +573,8 @@ GROUP BY p.inspectionCallNo
     """,
             nativeQuery = true)
     List<Object[]> getProcessInspectionCalls();  */
-  @Query(value = """
+
+    @Query(value = """
 
 SELECT
     ph.case_no                                   AS caseNumber,
@@ -597,13 +598,13 @@ SELECT
     DATE(p.created_at)                           AS icDate,
 
     COALESCE(SUM(DISTINCT pr.offered_qty),0)
-                                                    AS quantityOffered,
+                                                AS quantityOffered,
 
     COALESCE(SUM(pr.total_accepted),0)
-                                                    AS quantityPassed,
+                                                AS quantityPassed,
 
     COALESCE(SUM(pr.total_rejected),0)
-                                                    AS quantityRejected,
+                                                AS quantityRejected,
 
     ic.ic_number                                 AS callNo
 
@@ -627,14 +628,27 @@ LEFT JOIN process_line_final_result pr
         ON pr.inspection_call_no COLLATE utf8mb4_unicode_ci
          = ic.ic_number COLLATE utf8mb4_unicode_ci
 
-LEFT JOIN ibs_call_registration icr
+LEFT JOIN (
+    SELECT icr1.*
+    FROM ibs_call_registration icr1
+    INNER JOIN (
+        SELECT
+            call_number,
+            MAX(version) AS max_version
+        FROM ibs_call_registration
+        GROUP BY call_number
+    ) latest
+        ON latest.call_number = icr1.call_number
+       AND latest.max_version = icr1.version
+) icr
         ON icr.call_number COLLATE utf8mb4_unicode_ci
          = ic.ic_number COLLATE utf8mb4_unicode_ci
+
 LEFT JOIN sarthi_ibs_poi_mapping pm
        ON pm.poi_code = ic.place_of_inspection
 
 WHERE icr.call_number IS NULL
-   OR icr.status = 'Failed'
+   OR UPPER(icr.status) = 'FAILED'
 
 GROUP BY
     ph.case_no,
@@ -648,9 +662,8 @@ GROUP BY
     p.created_at,
     ic.ic_number
 
-""",
-          nativeQuery = true)
-  List<Object[]> getProcessInspectionCalls();
+""", nativeQuery = true)
+    List<Object[]> getProcessInspectionCalls();
 
 
 }

@@ -23,6 +23,10 @@ public class ProductionBenchGroup {
 
     private Double rft;
 
+    private String sleeperCategory;
+
+    private Integer totalSleepers;
+
     @ManyToOne
     @JoinColumn(name="chamber_id")
     private ProductionStressChamber chamber;

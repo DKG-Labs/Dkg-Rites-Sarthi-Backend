@@ -179,6 +179,26 @@ public class InventoryEntryController {
     }
 
     /**
+     * Get inventory consumption history by ID
+     * GET /api/vendor/inventory/entries/{id}/history
+     */
+    @GetMapping("/entries/{id}/history")
+    public ResponseEntity<Object> getInventoryHistory(@PathVariable Long id) {
+        logger.info("Received request to fetch inventory history for entry ID: {}", id);
+
+        try {
+            List<com.sarthi.dto.InventoryHistoryDto> history = inventoryEntryService.getInventoryHistory(id);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(history), HttpStatus.OK);
+
+        } catch (Exception e) {
+            logger.error("Error fetching inventory history: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.NOT_FOUND);
+        }
+    }
+
+    /**
      * Update inventory entry status
      * PUT /api/vendor/inventory/entries/{id}/status
      */

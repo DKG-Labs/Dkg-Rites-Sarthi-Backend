@@ -36,12 +36,21 @@ public class RmIcEditService {
         entity.setOfferedInstallmentNo(dto.getOfferedInstallmentNo());
         entity.setPassedInstallmentNo(dto.getPassedInstallmentNo());
         entity.setDrawingNo(dto.getDrawingNo());
+        entity.setManufacturer(dto.getManufacturer());
+        entity.setContractorPo(dto.getContractorPo());
+        entity.setConsigneeRailway(dto.getConsigneeRailway());
+        entity.setConsigneeManufacturer(dto.getConsigneeManufacturer());
+        entity.setPurchasingAuthority(dto.getPurchasingAuthority());
+        entity.setDescription(dto.getDescription());
+        entity.setSpecNo(dto.getSpecNo());
+        entity.setQapNo(dto.getQapNo());
+        entity.setChpClause(dto.getChpClause());
         
         // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
         }
-        entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : "SYSTEM_USER");
+        entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : (dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER"));
 
         RmIcEdit saved = rmIcEditRepository.save(entity);
         return mapToDTO(saved);
@@ -56,6 +65,15 @@ public class RmIcEditService {
                 .offeredInstallmentNo(entity.getOfferedInstallmentNo())
                 .passedInstallmentNo(entity.getPassedInstallmentNo())
                 .drawingNo(entity.getDrawingNo())
+                .manufacturer(entity.getManufacturer())
+                .contractorPo(entity.getContractorPo())
+                .consigneeRailway(entity.getConsigneeRailway())
+                .consigneeManufacturer(entity.getConsigneeManufacturer())
+                .purchasingAuthority(entity.getPurchasingAuthority())
+                .description(entity.getDescription())
+                .specNo(entity.getSpecNo())
+                .qapNo(entity.getQapNo())
+                .chpClause(entity.getChpClause())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

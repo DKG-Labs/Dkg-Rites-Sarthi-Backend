@@ -99,4 +99,9 @@ public interface InventoryEntryService {
      * @return true if exists, false otherwise
      */
     boolean existsByTcNumber(String tcNumber, String vendorCode);
+
+    /**
+     * Get consumption history for an inventory entry
+     */
+    List<com.sarthi.dto.InventoryHistoryDto> getInventoryHistory(Long id);
 }

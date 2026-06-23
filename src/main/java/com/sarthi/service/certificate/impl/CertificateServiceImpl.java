@@ -32,6 +32,19 @@ import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.processmaterial.ProcessRmIcMappingRepository;
 import com.sarthi.entity.processmaterial.ProcessRmIcMapping;
+import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
+import com.sarthi.entity.rawmaterial.RmIcEdit;
+import com.sarthi.repository.rawmaterial.RmIcEditRepository;
+import com.sarthi.entity.rawmaterial.RmIcSaveChanges;
+import com.sarthi.repository.rawmaterial.RmIcSaveChangesRepository;
+import com.sarthi.entity.processmaterial.ProcessIcSaveChanges;
+import com.sarthi.repository.processmaterial.ProcessIcSaveChangesRepository;
+import com.sarthi.entity.finalmaterial.FinalIcSaveChanges;
+import com.sarthi.repository.finalmaterial.FinalIcSaveChangesRepository;
+import com.sarthi.entity.processmaterial.ProcessIcEdit;
+import com.sarthi.repository.processmaterial.ProcessIcEditRepository;
+import com.sarthi.entity.finalmaterial.FinalIcEdit;
+import com.sarthi.repository.finalmaterial.FinalIcEditRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
@@ -53,6 +66,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -92,6 +106,24 @@ public class CertificateServiceImpl implements CertificateService {
 
     @Autowired
     private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
+
+    @Autowired
+    private RmIcEditRepository rmIcEditRepository;
+
+    @Autowired
+    private RmIcSaveChangesRepository rmIcSaveChangesRepository;
+
+    @Autowired
+    private ProcessIcEditRepository processIcEditRepository;
+
+    @Autowired
+    private ProcessIcSaveChangesRepository processIcSaveChangesRepository;
+
+    @Autowired
+    private FinalIcEditRepository finalIcEditRepository;
+
+    @Autowired
+    private FinalIcSaveChangesRepository finalIcSaveChangesRepository;
 
     @Autowired
     private ProcessLineFinalResultRepository processLineFinalResultRepository;
@@ -186,7 +218,7 @@ public class CertificateServiceImpl implements CertificateService {
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
         
         // 10. Build Certificate DTO
-        return RawMaterialCertificateDto.builder()
+        RawMaterialCertificateDto dto = RawMaterialCertificateDto.builder()
                 .certificateNo(generateCertificateNumber(inspectionCall))
                 .certificateDate(formatDate(LocalDate.now()))
                 .offeredInstNo(calculateOfferedInstallment(inspectionCall.getPoNo()))
@@ -197,10 +229,11 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .contractorPo(inspectionCall.getPoNo())
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
-                .consigneeRailway(buildConsigneeRailway(poItems))
+                .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .description(buildItemDescription(inspectionCall, poItems))
+                .ercType(inspectionCall.getErcType())
                 .drgNo("") // Keep blank
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No.4.11.2 & 4.11.3 of Indian Railway Standard Specification for Elastic Rail Clip, IRS T-31-2025")
@@ -220,6 +253,103 @@ public class CertificateServiceImpl implements CertificateService {
                 .inspectingEngineer("") // Keep blank for now (DSC signature)
                 .heatDetails(buildHeatDetails(heatQuantities, heatResults))
                 .build();
+
+        // Merge saved draft edits if available, else fallback to final edits
+        Optional<RmIcSaveChanges> rmIcSaveChangesOpt = rmIcSaveChangesRepository.findByIcNumber(inspectionCall.getIcNumber());
+        if (rmIcSaveChangesOpt.isPresent()) {
+            RmIcSaveChanges saveChanges = rmIcSaveChangesOpt.get();
+            if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
+                dto.setBookNo(saveChanges.getBookNo());
+            }
+            if (saveChanges.getSetNo() != null && !saveChanges.getSetNo().isBlank()) {
+                dto.setSetNo(saveChanges.getSetNo());
+            }
+            if (saveChanges.getOfferedInstallmentNo() != null && !saveChanges.getOfferedInstallmentNo().isBlank()) {
+                dto.setOfferedInstNo(saveChanges.getOfferedInstallmentNo());
+            }
+            if (saveChanges.getPassedInstallmentNo() != null && !saveChanges.getPassedInstallmentNo().isBlank()) {
+                dto.setPassedInstNo(saveChanges.getPassedInstallmentNo());
+            }
+            if (saveChanges.getDrawingNo() != null && !saveChanges.getDrawingNo().isBlank()) {
+                dto.setDrgNo(saveChanges.getDrawingNo());
+            }
+            if (saveChanges.getManufacturer() != null && !saveChanges.getManufacturer().isBlank()) {
+                dto.setManufacturer(saveChanges.getManufacturer());
+            }
+            if (saveChanges.getContractorPo() != null && !saveChanges.getContractorPo().isBlank()) {
+                dto.setContractorPo(saveChanges.getContractorPo());
+            }
+            if (saveChanges.getConsigneeRailway() != null && !saveChanges.getConsigneeRailway().isBlank()) {
+                dto.setConsigneeRailway(saveChanges.getConsigneeRailway());
+            }
+            if (saveChanges.getConsigneeManufacturer() != null && !saveChanges.getConsigneeManufacturer().isBlank()) {
+                dto.setConsigneeManufacturer(saveChanges.getConsigneeManufacturer());
+            }
+            if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) {
+                dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
+            }
+            if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
+                dto.setDescription(saveChanges.getDescription());
+            }
+            if (saveChanges.getSpecNo() != null && !saveChanges.getSpecNo().isBlank()) {
+                dto.setSpecNo(saveChanges.getSpecNo());
+            }
+            if (saveChanges.getQapNo() != null && !saveChanges.getQapNo().isBlank()) {
+                dto.setQapNo(saveChanges.getQapNo());
+            }
+            if (saveChanges.getChpClause() != null && !saveChanges.getChpClause().isBlank()) {
+                dto.setChpClause(saveChanges.getChpClause());
+            }
+        } else {
+            Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
+            if (rmIcEditOpt.isPresent()) {
+                RmIcEdit rmIcEdit = rmIcEditOpt.get();
+                if (rmIcEdit.getBookNo() != null && !rmIcEdit.getBookNo().isBlank()) {
+                    dto.setBookNo(rmIcEdit.getBookNo());
+                }
+                if (rmIcEdit.getSetNo() != null && !rmIcEdit.getSetNo().isBlank()) {
+                    dto.setSetNo(rmIcEdit.getSetNo());
+                }
+                if (rmIcEdit.getOfferedInstallmentNo() != null && !rmIcEdit.getOfferedInstallmentNo().isBlank()) {
+                    dto.setOfferedInstNo(rmIcEdit.getOfferedInstallmentNo());
+                }
+                if (rmIcEdit.getPassedInstallmentNo() != null && !rmIcEdit.getPassedInstallmentNo().isBlank()) {
+                    dto.setPassedInstNo(rmIcEdit.getPassedInstallmentNo());
+                }
+                if (rmIcEdit.getDrawingNo() != null && !rmIcEdit.getDrawingNo().isBlank()) {
+                    dto.setDrgNo(rmIcEdit.getDrawingNo());
+                }
+                if (rmIcEdit.getManufacturer() != null && !rmIcEdit.getManufacturer().isBlank()) {
+                    dto.setManufacturer(rmIcEdit.getManufacturer());
+                }
+                if (rmIcEdit.getContractorPo() != null && !rmIcEdit.getContractorPo().isBlank()) {
+                    dto.setContractorPo(rmIcEdit.getContractorPo());
+                }
+                if (rmIcEdit.getConsigneeRailway() != null && !rmIcEdit.getConsigneeRailway().isBlank()) {
+                    dto.setConsigneeRailway(rmIcEdit.getConsigneeRailway());
+                }
+                if (rmIcEdit.getConsigneeManufacturer() != null && !rmIcEdit.getConsigneeManufacturer().isBlank()) {
+                    dto.setConsigneeManufacturer(rmIcEdit.getConsigneeManufacturer());
+                }
+                if (rmIcEdit.getPurchasingAuthority() != null && !rmIcEdit.getPurchasingAuthority().isBlank()) {
+                    dto.setPurchasingAuthority(rmIcEdit.getPurchasingAuthority());
+                }
+                if (rmIcEdit.getDescription() != null && !rmIcEdit.getDescription().isBlank()) {
+                    dto.setDescription(rmIcEdit.getDescription());
+                }
+                if (rmIcEdit.getSpecNo() != null && !rmIcEdit.getSpecNo().isBlank()) {
+                    dto.setSpecNo(rmIcEdit.getSpecNo());
+                }
+                if (rmIcEdit.getQapNo() != null && !rmIcEdit.getQapNo().isBlank()) {
+                    dto.setQapNo(rmIcEdit.getQapNo());
+                }
+                if (rmIcEdit.getChpClause() != null && !rmIcEdit.getChpClause().isBlank()) {
+                    dto.setChpClause(rmIcEdit.getChpClause());
+                }
+            }
+        }
+
+        return dto;
     }
 
     /* ==================== Helper Methods for Building Certificate Fields ==================== */
@@ -337,12 +467,36 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Build Consignee Railway from PO Items
      */
-    private String buildConsigneeRailway(List<PoItem> poItems) {
-        if (poItems.isEmpty()) return "";
+    private String buildConsigneeRailway(InspectionCall inspectionCall, List<PoItem> poItems) {
+        if (inspectionCall == null || poItems == null || poItems.isEmpty()) {
+            return "";
+        }
 
-        // Get consignee from first item (assuming same for all items in PO)
-        PoItem firstItem = poItems.get(0);
-        return firstItem.getConsigneeDetail() != null ? firstItem.getConsigneeDetail() : "";
+        try {
+            String poSerialNo = inspectionCall.getPoSerialNo();
+            String itemSrNo = poSerialNo;
+            if (poSerialNo != null && poSerialNo.contains("/")) {
+                String[] parts = poSerialNo.split("/");
+                itemSrNo = parts[parts.length - 1].trim();
+            }
+
+            final String targetSrNo = itemSrNo;
+            
+            String result = poItems.stream()
+                    .filter(item -> targetSrNo != null && targetSrNo.equals(item.getItemSrNo()))
+                    .map(item -> item.getConsigneeDetail() != null ? item.getConsigneeDetail() : "")
+                    .findFirst()
+                    .orElse("");
+
+            if (result.isBlank()) {
+                result = poItems.get(0).getConsigneeDetail() != null ? poItems.get(0).getConsigneeDetail() : "";
+            }
+
+            return result;
+        } catch (Exception e) {
+            logger.warn("Error processing consignee railway for IC: {}", inspectionCall.getIcNumber(), e);
+            return poItems.get(0).getConsigneeDetail() != null ? poItems.get(0).getConsigneeDetail() : "";
+        }
     }
 
     /**
@@ -579,9 +733,24 @@ public class CertificateServiceImpl implements CertificateService {
         }
 
         java.util.Set<String> uniqueHolograms = new java.util.LinkedHashSet<>();
+        java.util.Set<String> uniqueStamps = new java.util.LinkedHashSet<>();
+        boolean hasHologram = false;
+        boolean hasSteelPunch = false;
+
         for (RmHeatFinalResult hr : heatResults) {
+            String sType = hr.getSealingType();
+            if (sType != null) {
+                if (sType.toUpperCase().contains("HOLOGRAM")) {
+                    hasHologram = true;
+                }
+                if (sType.toUpperCase().contains("STEEL") || sType.toUpperCase().contains("PUNCH")) {
+                    hasSteelPunch = true;
+                }
+            }
+
             String details = hr.getHologramDetails();
             if (details != null && !details.isEmpty()) {
+                hasHologram = true;
                 String[] entries = details.split(", ");
                 for (String entry : entries) {
                     String cleaned = entry.replace("Range: ", "").replace("Single: ", "").trim();
@@ -590,14 +759,41 @@ public class CertificateServiceImpl implements CertificateService {
                     }
                 }
             }
+
+            String stamp = hr.getSteelStampNumber();
+            if (stamp != null && !stamp.trim().isEmpty()) {
+                hasSteelPunch = true;
+                uniqueStamps.add(stamp.trim());
+            }
         }
 
-        if (uniqueHolograms.isEmpty()) {
+        if (hasHologram && hasSteelPunch) {
+            String holoPart;
+            if (!uniqueHolograms.isEmpty()) {
+                holoPart = "RITES HOLOGRAM FROM SL. NO. " + String.join(", ", uniqueHolograms) + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE";
+            } else {
+                holoPart = "RITES HOLOGRAM FROM SL. NO. W-XXXXXXX TO W-XXXXXXX AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE";
+            }
+
+            String stampPart;
+            if (!uniqueStamps.isEmpty()) {
+                stampPart = "RITES STEEL PUNCH WITH STAMP NUMBER(S) " + String.join(", ", uniqueStamps);
+            } else {
+                stampPart = "RITES STEEL PUNCH";
+            }
+            return holoPart + " AS WELL AS " + stampPart + " FOR SEALING OF MATERIAL.";
+        } else if (hasSteelPunch) {
+            if (!uniqueStamps.isEmpty()) {
+                return "RITES STEEL PUNCH WITH STAMP NUMBER(S) " + String.join(", ", uniqueStamps) + " FOR SEALING OF MATERIAL.";
+            }
+            return "RITES STEEL PUNCH FOR SEALING OF MATERIAL.";
+        } else {
+            if (!uniqueHolograms.isEmpty()) {
+                String aggregatedDetails = String.join(", ", uniqueHolograms);
+                return "RITES HOLOGRAM FROM SL. NO. " + aggregatedDetails + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
+            }
             return "RITES HOLOGRAM FROM SL. NO. W-XXXXXXX TO W-XXXXXXX AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
         }
-
-        String aggregatedDetails = String.join(", ", uniqueHolograms);
-        return "RITES HOLOGRAM FROM SL. NO. " + aggregatedDetails + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
     }
 
     /**
@@ -711,6 +907,22 @@ public class CertificateServiceImpl implements CertificateService {
         return date != null ? date.format(DATE_FORMATTER) : "";
     }
 
+    /**
+     * Helper to get IC Date (Creation Date or Edit Date)
+     */
+    private String getIcDate(String icNumber) {
+        if (icNumber == null || icNumber.isBlank()) return "";
+        Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(icNumber);
+        if (rmIcEditOpt.isPresent() && rmIcEditOpt.get().getCreatedAt() != null) {
+            return formatDate(rmIcEditOpt.get().getCreatedAt().toLocalDate());
+        }
+        Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(icNumber);
+        if (callOpt.isPresent() && callOpt.get().getCreatedAt() != null) {
+            return formatDate(callOpt.get().getCreatedAt().toLocalDate());
+        }
+        return "";
+    }
+
     /* ==================== PROCESS MATERIAL CERTIFICATE METHODS ==================== */
 
     @Override
@@ -772,7 +984,7 @@ public class CertificateServiceImpl implements CertificateService {
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
 
         // 7. Build Certificate DTO
-        return ProcessMaterialCertificateDto.builder()
+        ProcessMaterialCertificateDto dto = ProcessMaterialCertificateDto.builder()
                 .certificateNo(generateCertificateNumber(inspectionCall))
                 .certificateDate(formatDate(LocalDate.now()))
                 .offeredInstNo(calculateOfferedInstallment(inspectionCall.getPoNo()))
@@ -783,7 +995,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .poDetails(inspectionCall.getPoNo() + " dated " + (poHeader != null && poHeader.getPoDate() != null ? formatDate(poHeader.getPoDate().toLocalDate()) : ""))
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
-                .consigneeRailway(buildConsigneeRailway(poItems))
+                .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .description(buildItemDescription(inspectionCall, poItems))
@@ -792,7 +1004,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No. of QAP")
                 .chpClause("Clause No. of QAP")
-                .inspectionType("Process Inspection as per QAP")
+                .inspectionType("Checking Length of cut bars/ Turning length/ MPI Test/  Checking of Die/ Quenching temperature & duration/ Quenching hardness/ Tempering temperature & duration/ Dimensional check/ Hardness of finished ERC/ Documentaion")
                 .lots(lots)
                 .reference(buildProcessReference(inspectionCall))
                 .dateOfCall(buildDateOfCall(inspectionCall))
@@ -802,6 +1014,86 @@ public class CertificateServiceImpl implements CertificateService {
                 .sealingPattern(buildProcessSealingPattern())
                 .inspectingEngineer(inspectionCall.getCreatedBy() != null ? inspectionCall.getCreatedBy() : "")
                 .build();
+
+        // Merge saved draft edits if available, else fallback to final edits
+        Optional<ProcessIcSaveChanges> processIcSaveChangesOpt = processIcSaveChangesRepository.findByIcNumber(inspectionCall.getIcNumber());
+        if (processIcSaveChangesOpt.isPresent()) {
+            ProcessIcSaveChanges saveChanges = processIcSaveChangesOpt.get();
+            if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
+                dto.setBookNo(saveChanges.getBookNo());
+            }
+            if (saveChanges.getSetNo() != null && !saveChanges.getSetNo().isBlank()) {
+                dto.setSetNo(saveChanges.getSetNo());
+            }
+            if (saveChanges.getOfferedInstallmentNo() != null && !saveChanges.getOfferedInstallmentNo().isBlank()) {
+                dto.setOfferedInstNo(saveChanges.getOfferedInstallmentNo());
+            }
+            if (saveChanges.getPassedInstallmentNo() != null && !saveChanges.getPassedInstallmentNo().isBlank()) {
+                dto.setPassedInstNo(saveChanges.getPassedInstallmentNo());
+            }
+            if (saveChanges.getConsignee() != null && !saveChanges.getConsignee().isBlank()) {
+                dto.setConsigneeRailway(saveChanges.getConsignee());
+            }
+            if (saveChanges.getContractRef() != null && !saveChanges.getContractRef().isBlank()) {
+                dto.setContractRef(saveChanges.getContractRef());
+            }
+            if (saveChanges.getMaNumberAndDate() != null && !saveChanges.getMaNumberAndDate().isBlank()) {
+                dto.setMaNumberAndDate(saveChanges.getMaNumberAndDate());
+            }
+            if (saveChanges.getBillPayingOfficer() != null && !saveChanges.getBillPayingOfficer().isBlank()) {
+                dto.setBillPayingOfficer(saveChanges.getBillPayingOfficer());
+            }
+            if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) {
+                dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
+            }
+            if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
+                dto.setDescription(saveChanges.getDescription());
+            }
+            if (saveChanges.getQapNo() != null && !saveChanges.getQapNo().isBlank()) {
+                dto.setQapNo(saveChanges.getQapNo());
+                dto.setChpClause(saveChanges.getQapNo());
+            }
+        } else {
+            Optional<ProcessIcEdit> processIcEditOpt = processIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
+            if (processIcEditOpt.isPresent()) {
+                ProcessIcEdit processIcEdit = processIcEditOpt.get();
+                if (processIcEdit.getBookNo() != null && !processIcEdit.getBookNo().isBlank()) {
+                    dto.setBookNo(processIcEdit.getBookNo());
+                }
+                if (processIcEdit.getSetNo() != null && !processIcEdit.getSetNo().isBlank()) {
+                    dto.setSetNo(processIcEdit.getSetNo());
+                }
+                if (processIcEdit.getOfferedInstallmentNo() != null && !processIcEdit.getOfferedInstallmentNo().isBlank()) {
+                    dto.setOfferedInstNo(processIcEdit.getOfferedInstallmentNo());
+                }
+                if (processIcEdit.getPassedInstallmentNo() != null && !processIcEdit.getPassedInstallmentNo().isBlank()) {
+                    dto.setPassedInstNo(processIcEdit.getPassedInstallmentNo());
+                }
+                if (processIcEdit.getConsignee() != null && !processIcEdit.getConsignee().isBlank()) {
+                    dto.setConsigneeRailway(processIcEdit.getConsignee());
+                }
+                if (processIcEdit.getContractRef() != null && !processIcEdit.getContractRef().isBlank()) {
+                    dto.setContractRef(processIcEdit.getContractRef());
+                }
+                if (processIcEdit.getMaNumberAndDate() != null && !processIcEdit.getMaNumberAndDate().isBlank()) {
+                    dto.setMaNumberAndDate(processIcEdit.getMaNumberAndDate());
+                }
+                if (processIcEdit.getBillPayingOfficer() != null && !processIcEdit.getBillPayingOfficer().isBlank()) {
+                    dto.setBillPayingOfficer(processIcEdit.getBillPayingOfficer());
+                }
+                if (processIcEdit.getPurchasingAuthority() != null && !processIcEdit.getPurchasingAuthority().isBlank()) {
+                    dto.setPurchasingAuthority(processIcEdit.getPurchasingAuthority());
+                }
+                if (processIcEdit.getDescription() != null && !processIcEdit.getDescription().isBlank()) {
+                    dto.setDescription(processIcEdit.getDescription());
+                }
+                if (processIcEdit.getQapNo() != null && !processIcEdit.getQapNo().isBlank()) {
+                    dto.setQapNo(processIcEdit.getQapNo());
+                    dto.setChpClause(processIcEdit.getQapNo());
+                }
+            }
+        }
+        return dto;
     }
 
     /**
@@ -866,32 +1158,60 @@ public class CertificateServiceImpl implements CertificateService {
      * Build process reference
      */
     private String buildProcessReference(InspectionCall inspectionCall) {
-        // Try to gather RM IC mappings for this process call
-        List<ProcessRmIcMapping> mappings = processRmIcMappingRepository.findByProcessIcId(Long.valueOf(inspectionCall.getId()));
+        // Fetch Process Inspection Details to get RM IC numbers
+        List<ProcessInspectionDetails> detailsList = processInspectionDetailsRepository.findByIcId(
+                Long.valueOf(inspectionCall.getId()));
 
-        if (mappings == null || mappings.isEmpty()) {
-            return "Call No: " + inspectionCall.getIcNumber();
+        List<String> rmIcNumbers = new ArrayList<>();
+        if (detailsList != null) {
+            rmIcNumbers = detailsList.stream()
+                    .map(ProcessInspectionDetails::getRmIcNumber)
+                    .filter(ic -> ic != null && !ic.trim().isEmpty())
+                    .distinct()
+                    .collect(Collectors.toList());
         }
 
-        // Use the process call's createdAt as the date to display for all RM IC entries
-        LocalDate processCallDate = inspectionCall.getCreatedAt() != null ? inspectionCall.getCreatedAt().toLocalDate() : null;
-        String processDateStr = formatDate(processCallDate);
+        if (rmIcNumbers.isEmpty()) {
+            return "Call No: " + inspectionCall.getIcNumber();
+        }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Raw Material STAGE IC No. ");
 
-        for (int i = 0; i < mappings.size(); i++) {
-            ProcessRmIcMapping m = mappings.get(i);
-            String rmIc = m.getRmIcNumber() != null ? m.getRmIcNumber() : "";
-
+        for (int i = 0; i < rmIcNumbers.size(); i++) {
+            String rmIc = rmIcNumbers.get(i).trim();
             sb.append(rmIc);
-            if (!processDateStr.isBlank()) sb.append(", Dt.").append(processDateStr);
 
-            if (m.getBookSetNo() != null && !m.getBookSetNo().isBlank()) {
-                sb.append(" (Book/Set No - ").append(m.getBookSetNo()).append(")");
+            Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(rmIc);
+            if (rmIcEditOpt.isPresent()) {
+                RmIcEdit rmIcEdit = rmIcEditOpt.get();
+                if (rmIcEdit.getCreatedAt() != null) {
+                    sb.append(", Dated ").append(formatDate(rmIcEdit.getCreatedAt().toLocalDate()));
+                } else {
+                    Optional<InspectionCall> rmIcCallOpt = inspectionCallRepository.findByIcNumber(rmIc);
+                    if (rmIcCallOpt.isPresent() && rmIcCallOpt.get().getCreatedAt() != null) {
+                        sb.append(", Dated ").append(formatDate(rmIcCallOpt.get().getCreatedAt().toLocalDate()));
+                    }
+                }
+
+                String bNo = rmIcEdit.getBookNo() != null ? rmIcEdit.getBookNo() : "";
+                String sNo = rmIcEdit.getSetNo() != null ? rmIcEdit.getSetNo() : "";
+                if (!bNo.isBlank() || !sNo.isBlank()) {
+                    sb.append(" ( Book/Set No.-").append(bNo).append("/").append(sNo).append(")");
+                }
+            } else {
+                Optional<InspectionCall> rmIcCallOpt = inspectionCallRepository.findByIcNumber(rmIc);
+                if (rmIcCallOpt.isPresent()) {
+                    InspectionCall rmCall = rmIcCallOpt.get();
+                    if (rmCall.getCreatedAt() != null) {
+                        sb.append(", Dated ").append(formatDate(rmCall.getCreatedAt().toLocalDate()));
+                    }
+                }
             }
 
-            if (i < mappings.size() - 1) sb.append("; ");
+            if (i < rmIcNumbers.size() - 1) {
+                sb.append("; ");
+            }
         }
 
         return sb.toString();
@@ -1044,6 +1364,25 @@ public class CertificateServiceImpl implements CertificateService {
         long end = System.currentTimeMillis();
         logger.info("Fetched visit dates for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
 
+        // Fetch RM and PM IC Details for remarks
+        String rmIcNoStr = finalDetails != null && finalDetails.getRmIcNumber() != null ? finalDetails.getRmIcNumber() : "";
+        String processIcNoStr = finalDetails != null && finalDetails.getProcessIcNumber() != null ? finalDetails.getProcessIcNumber() : "";
+        String rmIcDateStr = "";
+        String processIcDateStr = "";
+
+        if (!rmIcNoStr.isBlank()) {
+            String[] rmIcs = rmIcNoStr.split(",");
+            if (rmIcs.length > 0) {
+                rmIcDateStr = getIcDate(rmIcs[0].trim());
+            }
+        }
+        if (!processIcNoStr.isBlank()) {
+            String[] pmIcs = processIcNoStr.split(",");
+            if (pmIcs.length > 0) {
+                processIcDateStr = getIcDate(pmIcs[0].trim());
+            }
+        }
+
         // 9. Build Certificate DTO
         start = System.currentTimeMillis();
         
@@ -1063,7 +1402,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .contractRefDate(poHeader != null && poHeader.getPoDate() != null ? formatDate(poHeader.getPoDate().toLocalDate()) : "")
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
-                .consigneeRailway(buildConsigneeRailway(poItems))
+                .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .itemNo(poItems.isEmpty() ? "" : poItems.get(0).getItemSrNo())
                 .description(buildItemDescription(inspectionCall, poItems))
@@ -1083,10 +1422,111 @@ public class CertificateServiceImpl implements CertificateService {
                 .inspectionDates(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
                 .sealingPattern(sealingPattern)
                 .quantityNowPassedText("")
+                .rmIcNo(rmIcNoStr)
+                .rmIcDate(rmIcDateStr)
+                .processIcNo(processIcNoStr)
+                .processIcDate(processIcDateStr)
                 .lotDetails(buildFinalLotDetails(lotDetails))
                 .build();
         end = System.currentTimeMillis();
         logger.info("Built FinalCertificateDto for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
+
+        // Merge saved draft edits if available, else fallback to final edits
+        Optional<FinalIcSaveChanges> finalIcSaveChangesOpt = finalIcSaveChangesRepository.findByIcNumber(inspectionCall.getIcNumber());
+        if (finalIcSaveChangesOpt.isPresent()) {
+            FinalIcSaveChanges saveChanges = finalIcSaveChangesOpt.get();
+            if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
+                dto.setBookNo(saveChanges.getBookNo());
+            }
+            if (saveChanges.getSetNo() != null && !saveChanges.getSetNo().isBlank()) {
+                dto.setSetNo(saveChanges.getSetNo());
+            }
+            if (saveChanges.getOfferedInstallmentNo() != null && !saveChanges.getOfferedInstallmentNo().isBlank()) {
+                dto.setOfferedInstNo(saveChanges.getOfferedInstallmentNo());
+            }
+            if (saveChanges.getPassedInstallmentNo() != null && !saveChanges.getPassedInstallmentNo().isBlank()) {
+                dto.setPassedInstNo(saveChanges.getPassedInstallmentNo());
+            }
+            if (saveChanges.getConsignee() != null && !saveChanges.getConsignee().isBlank()) {
+                dto.setConsignee(saveChanges.getConsignee());
+                dto.setConsigneeRailway(saveChanges.getConsignee());
+            }
+            if (saveChanges.getCummQtyOfferedPrev() != null) {
+                try {
+                    dto.setQtyOfferedPreviously(Integer.parseInt(saveChanges.getCummQtyOfferedPrev()));
+                } catch (NumberFormatException ignored) {}
+            }
+            if (saveChanges.getQtyPrevPassed() != null) {
+                try {
+                    dto.setQtyPassedPreviously(Integer.parseInt(saveChanges.getQtyPrevPassed()));
+                } catch (NumberFormatException ignored) {}
+            }
+            if (saveChanges.getQtyStillDue() != null) {
+                try {
+                    dto.setQtyStillDue(Integer.parseInt(saveChanges.getQtyStillDue()));
+                } catch (NumberFormatException ignored) {}
+            }
+            if (saveChanges.getMaNumberAndDate() != null && !saveChanges.getMaNumberAndDate().isBlank()) {
+                dto.setMaNumberAndDate(saveChanges.getMaNumberAndDate());
+            }
+            if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) {
+                dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
+            }
+            if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
+                dto.setDescription(saveChanges.getDescription());
+            }
+            if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) {
+                dto.setTrRecDate(saveChanges.getTrRecDate());
+            }
+        } else {
+            Optional<FinalIcEdit> finalIcEditOpt = finalIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
+            if (finalIcEditOpt.isPresent()) {
+                FinalIcEdit finalIcEdit = finalIcEditOpt.get();
+                if (finalIcEdit.getBookNo() != null && !finalIcEdit.getBookNo().isBlank()) {
+                    dto.setBookNo(finalIcEdit.getBookNo());
+                }
+                if (finalIcEdit.getSetNo() != null && !finalIcEdit.getSetNo().isBlank()) {
+                    dto.setSetNo(finalIcEdit.getSetNo());
+                }
+                if (finalIcEdit.getOfferedInstallmentNo() != null && !finalIcEdit.getOfferedInstallmentNo().isBlank()) {
+                    dto.setOfferedInstNo(finalIcEdit.getOfferedInstallmentNo());
+                }
+                if (finalIcEdit.getPassedInstallmentNo() != null && !finalIcEdit.getPassedInstallmentNo().isBlank()) {
+                    dto.setPassedInstNo(finalIcEdit.getPassedInstallmentNo());
+                }
+                if (finalIcEdit.getConsignee() != null && !finalIcEdit.getConsignee().isBlank()) {
+                    dto.setConsignee(finalIcEdit.getConsignee());
+                    dto.setConsigneeRailway(finalIcEdit.getConsignee());
+                }
+                if (finalIcEdit.getCummQtyOfferedPrev() != null) {
+                    try {
+                        dto.setQtyOfferedPreviously(Integer.parseInt(finalIcEdit.getCummQtyOfferedPrev()));
+                    } catch (NumberFormatException ignored) {}
+                }
+                if (finalIcEdit.getQtyPrevPassed() != null) {
+                    try {
+                        dto.setQtyPassedPreviously(Integer.parseInt(finalIcEdit.getQtyPrevPassed()));
+                    } catch (NumberFormatException ignored) {}
+                }
+                if (finalIcEdit.getQtyStillDue() != null) {
+                    try {
+                        dto.setQtyStillDue(Integer.parseInt(finalIcEdit.getQtyStillDue()));
+                    } catch (NumberFormatException ignored) {}
+                }
+                if (finalIcEdit.getMaNumberAndDate() != null && !finalIcEdit.getMaNumberAndDate().isBlank()) {
+                    dto.setMaNumberAndDate(finalIcEdit.getMaNumberAndDate());
+                }
+                if (finalIcEdit.getPurchasingAuthority() != null && !finalIcEdit.getPurchasingAuthority().isBlank()) {
+                    dto.setPurchasingAuthority(finalIcEdit.getPurchasingAuthority());
+                }
+                if (finalIcEdit.getDescription() != null && !finalIcEdit.getDescription().isBlank()) {
+                    dto.setDescription(finalIcEdit.getDescription());
+                }
+                if (finalIcEdit.getTrRecDate() != null && !finalIcEdit.getTrRecDate().isBlank()) {
+                    dto.setTrRecDate(finalIcEdit.getTrRecDate());
+                }
+            }
+        }
         
         return dto;
     }
@@ -1388,6 +1828,7 @@ public class CertificateServiceImpl implements CertificateService {
         mainGrid.addCell(rowCB);
 
         mainGrid.addCell(createThreeColRow("विवरण / Description", getDtoValue(dto, "description"), "ड्रॉइंग सं. / Drg. No.", getDtoValue(dto, "drgNo"), "Spec No.", getDtoValue(dto, "specNo"), normalFont, tinyBold));
+        mainGrid.addCell(createLabelValueCell("किए गए निरीक्षण/परीक्षण विवरण / Type of inspection/tests conducted", getDtoValue(dto, "inspectionType"), normalFont, tinyBold));
         document.add(mainGrid);
 
         // Body Table

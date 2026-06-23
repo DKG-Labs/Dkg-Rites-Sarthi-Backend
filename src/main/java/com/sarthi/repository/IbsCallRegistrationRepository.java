@@ -3,6 +3,7 @@ package com.sarthi.repository;
 import com.sarthi.entity.IBS.IbsCallRegistration;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Set;
@@ -17,4 +18,7 @@ public interface IbsCallRegistrationRepository
        FROM IbsCallRegistration i
        """)
     Set<String> findAllCallNumbers();
+
+    @Query("SELECT COALESCE(MAX(i.version), 0) FROM IbsCallRegistration i WHERE i.callNumber = :callNumber")
+    Integer getLatestVersion(@Param("callNumber") String callNumber);
 }

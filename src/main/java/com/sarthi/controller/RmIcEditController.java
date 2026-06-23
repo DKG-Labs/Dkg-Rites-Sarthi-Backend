@@ -18,7 +18,14 @@ public class RmIcEditController {
 
     @GetMapping("/{icNumber}")
     public ResponseEntity<RmIcEditDTO> getByIcNumber(@PathVariable String icNumber) {
-        log.info("REST request to get RM IC Edit for IC: {}", icNumber);
+        log.info("REST request to get RM IC Edit for IC (path): {}", icNumber);
+        RmIcEditDTO dto = rmIcEditService.getByIcNumber(icNumber);
+        return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.noContent().build();
+    }
+
+    @GetMapping
+    public ResponseEntity<RmIcEditDTO> getByIcNumberQuery(@RequestParam String icNumber) {
+        log.info("REST request to get RM IC Edit for IC (query): {}", icNumber);
         RmIcEditDTO dto = rmIcEditService.getByIcNumber(icNumber);
         return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.noContent().build();
     }
