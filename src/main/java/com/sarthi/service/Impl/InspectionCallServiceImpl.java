@@ -174,28 +174,32 @@ public class InspectionCallServiceImpl implements InspectionCallService {
 
                 // ================== UPDATE INVENTORY ==================
                 // Update inventory offered quantity for this heat/TC combination
-                // This runs in a separate transaction (REQUIRES_NEW) to avoid rollback issues
+                // This joins the main transaction so it rolls back if workflow fails.
                 try {
                     if (heatReq.getHeatNumber() != null && heatReq.getTcNumber() != null
                             && heatReq.getOfferedQty() != null) {
-                        logger.info("Updating inventory for Heat: {}, TC: {}, Offered: {}",
-                                heatReq.getHeatNumber(), heatReq.getTcNumber(), heatReq.getOfferedQty());
+                        
+                        // Check if inventory entry exists first to avoid exception marking transaction as rollbackOnly
+                        com.sarthi.dto.InventoryEntryResponseDto existingEntry = inventoryEntryService.getInventoryEntryByHeatAndTc(heatReq.getHeatNumber(), heatReq.getTcNumber());
+                        
+                        if (existingEntry != null) {
+                            logger.info("Updating inventory for Heat: {}, TC: {}, Offered: {}",
+                                    heatReq.getHeatNumber(), heatReq.getTcNumber(), heatReq.getOfferedQty());
 
-                        inventoryEntryService.updateOfferedQuantity(
-                                heatReq.getHeatNumber(),
-                                heatReq.getTcNumber(),
-                                toBigDecimal(heatReq.getOfferedQty()));
+                            inventoryEntryService.updateOfferedQuantity(
+                                    heatReq.getHeatNumber(),
+                                    heatReq.getTcNumber(),
+                                    toBigDecimal(heatReq.getOfferedQty()));
 
-                        logger.info("✅ Inventory updated successfully for Heat: {}", heatReq.getHeatNumber());
+                            logger.info("✅ Inventory updated successfully for Heat: {}", heatReq.getHeatNumber());
+                        } else {
+                            logger.warn("⚠️ Inventory entry not found for Heat: {}, TC: {}. Skipping inventory update. Inspection call will still be created.", heatReq.getHeatNumber(), heatReq.getTcNumber());
+                        }
                     }
                 } catch (Exception e) {
                     // Log error but don't fail the inspection call creation
-                    // Inventory update runs in separate transaction, so this won't affect main
-                    // transaction
                     logger.warn("⚠️ Failed to update inventory for Heat: {}, TC: {}. Error: {}",
                             heatReq.getHeatNumber(), heatReq.getTcNumber(), e.getMessage());
-                    logger.warn(
-                            "⚠️ This is expected if inventory entry doesn't exist yet. Inspection call will still be created.");
                 }
             }
         }
