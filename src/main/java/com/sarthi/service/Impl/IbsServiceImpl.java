@@ -814,10 +814,10 @@ public class IbsServiceImpl implements IbsService {
       entity.setCallNumber(dto.getCallNumber());
       entity.setStatus(dto.getStatus());
       entity.setReason(dto.getReason());
-      entity.setVersion(latestVersion + 1);
+      entity.setVersion((latestVersion == null ? 0 : latestVersion) + 1);
       entity.setAcknowledgedAt(LocalDateTime.now());
 
-      ibsCallRegistrationRepository.save(entity);
+       ibsCallRegistrationRepository.save(entity);
 
       return "Acknowledgement saved successfully";
   }
