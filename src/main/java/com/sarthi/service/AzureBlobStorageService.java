@@ -17,6 +17,12 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Base64;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriter;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.stream.ImageOutputStream;
+import java.util.Iterator;
 
 @Service
 @Slf4j
@@ -25,7 +31,7 @@ public class AzureBlobStorageService {
     @Value("${azure.storage.connection-string}")
     private String connectionString;
 
-    @Value("${azure.storage.container-name:certificates}")
+    @Value("${azure.storage.container-name}")
     private String containerName;
 
     private BlobContainerClient containerClient;
@@ -43,6 +49,13 @@ public class AzureBlobStorageService {
         return containerClient;
     }
 
+    private BlobContainerClient getContainerClient(String targetContainerName) {
+        BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                .connectionString(connectionString)
+                .buildClient();
+        return blobServiceClient.createBlobContainerIfNotExists(targetContainerName);
+    }
+
     /**
      * Uploads a base64 encoded PDF to Azure Blob Storage
      * 
@@ -51,18 +64,39 @@ public class AzureBlobStorageService {
      * @return The URL of the uploaded blob
      */
     public String uploadBase64File(String base64Data, String fileName) {
+        return uploadBase64File(base64Data, fileName, this.containerName);
+    }
+
+    /**
+     * Uploads a base64 encoded file to a specific Azure Blob Storage container
+     * 
+     * @param base64Data          The base64 encoded file content
+     * @param fileName            The name of the file to store
+     * @param targetContainerName The specific container to upload to
+     * @return The URL of the uploaded blob
+     */
+    public String uploadBase64File(String base64Data, String fileName, String targetContainerName) {
         try {
-            log.info("Uploading file to Azure Blob Storage: {}", fileName);
+            log.info("Uploading file to Azure Blob Storage container '{}': {}", targetContainerName, fileName);
             
-            // Remove header if present (e.g., data:application/pdf;base64,)
+            // Remove header if present (e.g., data:image/png;base64,)
             if (base64Data.contains(",")) {
                 base64Data = base64Data.split(",")[1];
             }
             
             byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
+            
+            boolean isImage = fileName.toLowerCase().endsWith(".jpg") || 
+                              fileName.toLowerCase().endsWith(".jpeg") || 
+                              fileName.toLowerCase().endsWith(".png");
+            
+            if (isImage) {
+                decodedBytes = compressImage(decodedBytes);
+            }
+            
             ByteArrayInputStream inputStream = new ByteArrayInputStream(decodedBytes);
             
-            BlobClient blobClient = getContainerClient().getBlobClient(fileName);
+            BlobClient blobClient = getContainerClient(targetContainerName).getBlobClient(fileName);
             blobClient.upload(inputStream, decodedBytes.length, true);
             
             String blobUrl = blobClient.getBlobUrl();
@@ -72,6 +106,84 @@ public class AzureBlobStorageService {
         } catch (Exception e) {
             log.error("Error uploading file to Azure: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to upload file to Azure storage", e);
+        }
+    }
+
+    private byte[] compressImage(byte[] imageBytes) {
+        try {
+            // Read image from byte array
+            ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes);
+            BufferedImage image = ImageIO.read(bis);
+            if (image == null) {
+                log.warn("Could not read image for compression. Uploading raw bytes.");
+                return imageBytes;
+            }
+
+            // Paint transparent background to white if image has transparency channel (for JPEG compatibility)
+            if (image.getType() == BufferedImage.TYPE_INT_ARGB || image.getColorModel().hasAlpha()) {
+                BufferedImage rgbImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+                java.awt.Graphics2D g2d = rgbImage.createGraphics();
+                g2d.setColor(java.awt.Color.WHITE);
+                g2d.fillRect(0, 0, image.getWidth(), image.getHeight());
+                g2d.drawImage(image, 0, 0, null);
+                g2d.dispose();
+                image = rgbImage;
+            }
+
+            // Target size in bytes: 50 KB
+            int targetSize = 50 * 1024;
+            
+            // If the original image is already smaller than target, return as-is
+            if (imageBytes.length <= targetSize) {
+                log.info("Image size ({} KB) is below target. Skipping compression.", imageBytes.length / 1024);
+                return imageBytes;
+            }
+
+            byte[] compressedBytes = imageBytes;
+            float quality = 0.8f;
+            
+            Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
+            if (!writers.hasNext()) {
+                log.warn("No JPEG writer found. Uploading raw bytes.");
+                return imageBytes;
+            }
+            ImageWriter writer = writers.next();
+
+            while (quality >= 0.1f) {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                ImageOutputStream ios = ImageIO.createImageOutputStream(bos);
+                writer.setOutput(ios);
+
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                if (param.canWriteCompressed()) {
+                    param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                    param.setCompressionType(param.getCompressionTypes()[0]);
+                    param.setCompressionQuality(quality);
+                }
+
+                writer.write(null, new javax.imageio.IIOImage(image, null, null), param);
+                ios.flush();
+                ios.close();
+                
+                byte[] tempBytes = bos.toByteArray();
+                
+                // If it meets the target size, or we are at minimum quality, we use it
+                if (tempBytes.length <= targetSize || quality <= 0.15f) {
+                    compressedBytes = tempBytes;
+                    break;
+                }
+                
+                // Otherwise reduce quality
+                quality -= 0.15f;
+            }
+            
+            writer.dispose();
+            log.info("Compressed image from {} KB to {} KB", imageBytes.length / 1024, compressedBytes.length / 1024);
+            return compressedBytes;
+
+        } catch (Exception e) {
+            log.error("Failed to compress image: {}", e.getMessage(), e);
+            return imageBytes;
         }
     }
 

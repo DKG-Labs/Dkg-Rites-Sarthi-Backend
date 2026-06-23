@@ -5,11 +5,16 @@ import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
+import com.sarthi.repository.InspectionImageRepository;
+import com.sarthi.entity.InspectionImage;
 import com.sarthi.service.*;
+import java.util.UUID;
+import java.time.LocalDate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,6 +72,15 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
     @Autowired
     private ProcessOilTankCounterService oilTankService;
 
+    @Autowired
+    private InspectionImageRepository inspectionImageRepository;
+
+    @Value("${azure.storage.images-container-name}")
+    private String imagesContainerName;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
     @Override
     @Transactional
     public String finishInspection(ProcessFinishInspectionDto dto, String userId) {
@@ -102,6 +116,11 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
      */
     private void saveInspectionData(ProcessFinishInspectionDto dto, String userId) {
         String callNo = dto.getInspectionCallNo();
+
+        // Save Captured Images
+        if (dto.getCapturedImages() != null && !dto.getCapturedImages().isEmpty()) {
+            saveCapturedImages(callNo, "PROCESS", dto.getCapturedImages(), dto.getShiftCode(), LocalDate.now().toString(), userId);
+        }
 
         if (dto.getLinesData() == null || dto.getLinesData().isEmpty()) {
             logger.warn("No line data provided for call: {}", callNo);
@@ -270,6 +289,35 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
         }
     }
 
+    private void saveCapturedImages(String callNo, String typeOfCall, List<com.sarthi.dto.ImageCaptureDto> images, String shift, String dateOfInspection, String userId) {
+        logger.info("Saving captured images for call: {} type: {}", callNo, typeOfCall);
+        
+        // Delete existing images for PROCESS to avoid duplicate rows
+        inspectionImageRepository.deleteByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+        
+        for (com.sarthi.dto.ImageCaptureDto imageDto : images) {
+            if (imageDto.getBase64Data() != null && !imageDto.getBase64Data().isEmpty()) {
+                String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + UUID.randomUUID().toString() + ".jpg";
+                
+                String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+                
+                InspectionImage imageEntity = new InspectionImage();
+                imageEntity.setInspectionCallNo(callNo);
+                imageEntity.setTypeOfCall(typeOfCall);
+                imageEntity.setImageName(fileName);
+                imageEntity.setImageUrl(imageUrl);
+                imageEntity.setLatitude(imageDto.getLatitude());
+                imageEntity.setLongitude(imageDto.getLongitude());
+                imageEntity.setShift(shift);
+                imageEntity.setDateOfInspection(dateOfInspection);
+                imageEntity.setCreatedBy(userId);
+                imageEntity.setUpdatedBy(userId);
+                
+                inspectionImageRepository.save(imageEntity);
+            }
+        }
+    }
+
     /**
      * Update inspection call status.
      */
@@ -343,6 +391,20 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
         }
 
         dto.setLinesData(linesData);
+
+        // Fetch Captured Images
+        List<InspectionImage> images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, "PROCESS");
+        List<com.sarthi.dto.ImageCaptureDto> imageDtos = new ArrayList<>();
+        if (images != null) {
+            for (InspectionImage img : images) {
+                com.sarthi.dto.ImageCaptureDto imgDto = new com.sarthi.dto.ImageCaptureDto();
+                imgDto.setBase64Data(img.getImageUrl());
+                imgDto.setLatitude(img.getLatitude());
+                imgDto.setLongitude(img.getLongitude());
+                imageDtos.add(imgDto);
+            }
+        }
+        dto.setCapturedImages(imageDtos);
 
         logger.info("Fetched data for {} lines for call: {}", linesData.size(), callNo);
         return dto;

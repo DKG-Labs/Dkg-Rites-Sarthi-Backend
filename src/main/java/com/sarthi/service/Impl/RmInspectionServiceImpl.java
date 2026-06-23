@@ -8,9 +8,13 @@ import com.sarthi.repository.*;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository;
 import com.sarthi.service.RmInspectionService;
+import com.sarthi.service.AzureBlobStorageService;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +52,9 @@ public class RmInspectionServiceImpl implements RmInspectionService {
     @Autowired
     private RmDimensionalCheckRepository dimensionalRepository;
 
+    @Value("${azure.storage.images-container-name}")
+    private String imagesContainerName;
+
     @Autowired
     private RmMaterialTestingRepository materialTestingRepository;
 
@@ -62,6 +69,12 @@ public class RmInspectionServiceImpl implements RmInspectionService {
 
     @Autowired
     private InspectionCallRepository inspectionCallRepository;
+
+    @Autowired
+    private InspectionImageRepository inspectionImageRepository;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
 
     @Override
     @Transactional
@@ -113,6 +126,11 @@ public class RmInspectionServiceImpl implements RmInspectionService {
             // 7. Save Calibration Documents Data
             if (dto.getCalibrationDocumentsData() != null) {
                 saveCalibrationDocuments(callNo, dto.getCalibrationDocumentsData());
+            }
+
+            // 7.5. Save Captured Images
+            if (dto.getCapturedImages() != null && !dto.getCapturedImages().isEmpty()) {
+                saveCapturedImages(dto.getInspectionCallNo(), "RM", dto.getCapturedImages(), dto.getInspectorDetails() != null ? dto.getInspectorDetails().getShiftOfInspection() : null, dto.getInspectorDetails() != null ? dto.getInspectorDetails().getInspectionDate() : null);
             }
 
             // 8. Update Inspection Call Status to COMPLETED
@@ -176,6 +194,11 @@ public class RmInspectionServiceImpl implements RmInspectionService {
                 saveCalibrationDocuments(callNo, dto.getCalibrationDocumentsData());
             }
 
+            // 7.5. Save Captured Images
+            if (dto.getCapturedImages() != null && !dto.getCapturedImages().isEmpty()) {
+                saveCapturedImages(dto.getInspectionCallNo(), "RM", dto.getCapturedImages(), dto.getInspectorDetails() != null ? dto.getInspectorDetails().getShiftOfInspection() : null, dto.getInspectorDetails() != null ? dto.getInspectorDetails().getInspectionDate() : null);
+            }
+
             // NOTE: Do NOT update inspection call status - it remains as is
             logger.info("RM inspection data saved (paused) for call: {}", callNo);
             return "Raw Material Inspection data saved successfully";
@@ -217,6 +240,35 @@ public class RmInspectionServiceImpl implements RmInspectionService {
         }
 
         summaryRepository.save(summary);
+    }
+
+    private void saveCapturedImages(String callNo, String typeOfCall, List<ImageCaptureDto> images, String shift, String dateOfInspection) {
+        logger.info("Saving captured images for call: {} type: {}", callNo, typeOfCall);
+        
+        // Delete existing images for RM
+        inspectionImageRepository.deleteByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+        
+        for (ImageCaptureDto imageDto : images) {
+            if (imageDto.getBase64Data() != null && !imageDto.getBase64Data().isEmpty()) {
+                String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + UUID.randomUUID().toString() + ".jpg";
+                
+                String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+                
+                InspectionImage imageEntity = new InspectionImage();
+                imageEntity.setInspectionCallNo(callNo);
+                imageEntity.setTypeOfCall(typeOfCall);
+                imageEntity.setImageName(fileName);
+                imageEntity.setImageUrl(imageUrl);
+                imageEntity.setLatitude(imageDto.getLatitude());
+                imageEntity.setLongitude(imageDto.getLongitude());
+                imageEntity.setShift(shift);
+                imageEntity.setDateOfInspection(dateOfInspection);
+                imageEntity.setCreatedBy(getCurrentUser());
+                imageEntity.setUpdatedBy(getCurrentUser());
+                
+                inspectionImageRepository.save(imageEntity);
+            }
+        }
     }
 
     private void saveHeatFinalResults(String callNo, List<RmHeatFinalResultDto> results) {
@@ -836,6 +888,20 @@ public class RmInspectionServiceImpl implements RmInspectionService {
             calibrationDtos.add(calDto);
         }
         dto.setCalibrationDocumentsData(calibrationDtos);
+
+        // 8. Fetch Captured Images
+        List<InspectionImage> images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, "RM");
+        List<ImageCaptureDto> imageDtos = new ArrayList<>();
+        if (images != null) {
+            for (InspectionImage img : images) {
+                ImageCaptureDto imgDto = new ImageCaptureDto();
+                imgDto.setBase64Data(img.getImageUrl());
+                imgDto.setLatitude(img.getLatitude());
+                imgDto.setLongitude(img.getLongitude());
+                imageDtos.add(imgDto);
+            }
+        }
+        dto.setCapturedImages(imageDtos);
 
         logger.info("Successfully fetched RM inspection data for call: {}", callNo);
         return dto;

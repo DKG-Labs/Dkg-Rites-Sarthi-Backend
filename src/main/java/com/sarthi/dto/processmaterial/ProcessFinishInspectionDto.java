@@ -2,6 +2,7 @@ package com.sarthi.dto.processmaterial;
 
 import lombok.Data;
 import java.util.List;
+import com.sarthi.dto.ImageCaptureDto;
 
 /**
  * Main DTO for receiving Process Material inspection finish payload.
@@ -16,5 +17,8 @@ public class ProcessFinishInspectionDto {
     private String createdBy; // User ID who is finishing the inspection
     private String updatedBy; // User ID who is updating the inspection
     private String shiftCode;
+
+    // Images captured with geofence data
+    private List<ImageCaptureDto> capturedImages;
 }
 

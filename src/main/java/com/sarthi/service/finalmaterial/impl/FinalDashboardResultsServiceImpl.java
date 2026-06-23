@@ -9,9 +9,13 @@ import com.sarthi.entity.finalmaterial.FinalInspectionLotResults;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionSummaryRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotResultsRepository;
+import com.sarthi.repository.InspectionImageRepository;
+import com.sarthi.entity.InspectionImage;
+import com.sarthi.service.AzureBlobStorageService;
 import com.sarthi.service.finalmaterial.FinalDashboardResultsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +23,9 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.ArrayList;
+import com.sarthi.dto.ImageCaptureDto;
 
 /**
  * Implementation of FinalDashboardResultsService
@@ -36,6 +43,15 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
 
     @Autowired
     private FinalInspectionLotResultsRepository lotResultsRepository;
+
+    @Autowired
+    private InspectionImageRepository inspectionImageRepository;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
+    @Value("${azure.storage.images-container-name}")
+    private String imagesContainerName;
 
     // ===== CUMULATIVE RESULTS =====
     @Override
@@ -129,6 +145,11 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
     public FinalInspectionSummary saveInspectionSummary(FinalInspectionSummaryDto dto, String userId) {
         log.info("Saving inspection summary for call: {}", dto.getInspectionCallNo());
 
+        // Save Captured Images
+        if (dto.getCapturedImages() != null && !dto.getCapturedImages().isEmpty()) {
+            saveCapturedImages(dto.getInspectionCallNo(), "FINAL", dto.getCapturedImages(), LocalDate.now().toString(), userId);
+        }
+
         // Check if record already exists (upsert pattern)
         Optional<FinalInspectionSummary> existing = inspectionSummaryRepository.findByInspectionCallNo(dto.getInspectionCallNo());
 
@@ -158,10 +179,66 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
         return inspectionSummaryRepository.save(entity);
     }
 
+    private void saveCapturedImages(String callNo, String typeOfCall, List<com.sarthi.dto.ImageCaptureDto> images, String dateOfInspection, String userId) {
+        log.info("Saving captured images for call: {} type: {}", callNo, typeOfCall);
+        
+        // Delete existing images for FINAL
+        inspectionImageRepository.deleteByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+        
+        for (com.sarthi.dto.ImageCaptureDto imageDto : images) {
+            if (imageDto.getBase64Data() != null && !imageDto.getBase64Data().isEmpty()) {
+                String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + UUID.randomUUID().toString() + ".jpg";
+                
+                String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+                
+                InspectionImage imageEntity = new InspectionImage();
+                imageEntity.setInspectionCallNo(callNo);
+                imageEntity.setTypeOfCall(typeOfCall);
+                imageEntity.setImageName(fileName);
+                imageEntity.setImageUrl(imageUrl);
+                imageEntity.setLatitude(imageDto.getLatitude());
+                imageEntity.setLongitude(imageDto.getLongitude());
+                imageEntity.setShift(null); // Final doesn't have shift in this context
+                imageEntity.setDateOfInspection(dateOfInspection);
+                imageEntity.setCreatedBy(userId);
+                imageEntity.setUpdatedBy(userId);
+                
+                inspectionImageRepository.save(imageEntity);
+            }
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public Optional<FinalInspectionSummary> getInspectionSummaryByCallNo(String inspectionCallNo) {
-        return inspectionSummaryRepository.findByInspectionCallNo(inspectionCallNo);
+    public Optional<FinalInspectionSummaryDto> getInspectionSummaryByCallNo(String inspectionCallNo) {
+        return inspectionSummaryRepository.findByInspectionCallNo(inspectionCallNo)
+            .map(entity -> {
+                FinalInspectionSummaryDto dto = FinalInspectionSummaryDto.builder()
+                    .inspectionCallNo(entity.getInspectionCallNo())
+                    .packedInHdpe(entity.getPackedInHdpe())
+                    .cleanedWithCoating(entity.getCleanedWithCoating())
+                    .inspectionStatus(entity.getInspectionStatus())
+                    .createdBy(entity.getCreatedBy())
+                    .createdAt(entity.getCreatedAt())
+                    .updatedBy(entity.getUpdatedBy())
+                    .updatedAt(entity.getUpdatedAt())
+                    .build();
+                
+                // Fetch Captured Images
+                List<InspectionImage> images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(inspectionCallNo, "FINAL");
+                List<ImageCaptureDto> imageDtos = new ArrayList<>();
+                if (images != null) {
+                    for (InspectionImage img : images) {
+                        ImageCaptureDto imgDto = new ImageCaptureDto();
+                        imgDto.setBase64Data(img.getImageUrl());
+                        imgDto.setLatitude(img.getLatitude());
+                        imgDto.setLongitude(img.getLongitude());
+                        imageDtos.add(imgDto);
+                    }
+                }
+                dto.setCapturedImages(imageDtos);
+                return dto;
+            });
     }
 
     @Override
