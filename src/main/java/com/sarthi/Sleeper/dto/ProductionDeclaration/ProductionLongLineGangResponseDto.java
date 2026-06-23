@@ -20,6 +20,12 @@ public class ProductionLongLineGangResponseDto {
 
     private Integer mouldsPerGang;
 
+    private String sleeperCategory;
+
+    private Integer totalSleepers;
+
+    private Double rft;
+
    // private List<String> sleepers;
    private List<ProductionSleeperResponseDto> sleeperList;
 

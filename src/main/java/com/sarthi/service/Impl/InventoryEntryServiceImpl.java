@@ -346,17 +346,17 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     }
 
     @Override
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Transactional
     public InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, BigDecimal offeredQty) {
         logger.info("Updating offered quantity for heat: {}, TC: {}, offered: {}", heatNumber, tcNumber, offeredQty);
 
         // Find inventory entry by heat number and TC number
-        InventoryEntry entry = inventoryEntryRepository.findByHeatNumberAndTcNumber(heatNumber, tcNumber)
-                .orElseThrow(() -> new BusinessException(
-                        new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_RESOURCE,
-                                "Inventory entry not found for heat: " + heatNumber + ", TC: " + tcNumber)));
+        java.util.Optional<InventoryEntry> entryOpt = inventoryEntryRepository.findByHeatNumberAndTcNumber(heatNumber, tcNumber);
+        if (entryOpt.isEmpty()) {
+            logger.warn("Inventory entry not found for heat: {}, TC: {}", heatNumber, tcNumber);
+            return null;
+        }
+        InventoryEntry entry = entryOpt.get();
 
         // Validate that offered quantity doesn't exceed TC Qty Remaining
         BigDecimal tcQtyRemaining = entry.getQtyLeftForInspection() != null ? entry.getQtyLeftForInspection()

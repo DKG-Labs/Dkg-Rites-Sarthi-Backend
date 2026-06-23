@@ -93,6 +93,8 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                     bench.setSleeperType(benchDto.getSleeperType());
                     bench.setMouldPerBench(benchDto.getMouldPerBench());
                     bench.setRft(benchDto.getRft());
+                    bench.setSleeperCategory(benchDto.getSleeperCategory());
+                    bench.setTotalSleepers(benchDto.getTotalSleepers());
 
                     bench.setChamber(chamber);
 
@@ -151,6 +153,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 gang.setGangNo(gangDto.getGangNo());
                 gang.setSleeperType(gangDto.getSleeperType());
                 gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+                gang.setSleeperCategory(gangDto.getSleeperCategory());
+                gang.setTotalSleepers(gangDto.getTotalSleepers());
+                gang.setRft(gangDto.getRft());
 
                 gang.setDeclaration(entity);
 
@@ -489,6 +494,8 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                 bench.setSleeperType(benchDto.getSleeperType());
                 bench.setMouldPerBench(benchDto.getMouldPerBench());
                 bench.setRft(benchDto.getRft());
+                bench.setSleeperCategory(benchDto.getSleeperCategory());
+                bench.setTotalSleepers(benchDto.getTotalSleepers());
 
                 // ================= SLEEPERS =================
 
@@ -574,6 +581,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             gang.setGangNo(gangDto.getGangNo());
             gang.setSleeperType(gangDto.getSleeperType());
             gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+            gang.setSleeperCategory(gangDto.getSleeperCategory());
+            gang.setTotalSleepers(gangDto.getTotalSleepers());
+            gang.setRft(gangDto.getRft());
 
             // ================= SLEEPERS =================
 
@@ -686,6 +696,8 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                         benchDto.setSleeperType(bench.getSleeperType());
                         benchDto.setMouldPerBench(bench.getMouldPerBench());
                         benchDto.setRft(bench.getRft());
+                        benchDto.setSleeperCategory(bench.getSleeperCategory());
+                        benchDto.setTotalSleepers(bench.getTotalSleepers());
 
                        /* List<String> sleeperNumbers = new ArrayList<>();
 
@@ -740,6 +752,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                     gangDto.setGangNo(gang.getGangNo());
                     gangDto.setSleeperType(gang.getSleeperType());
                     gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+                    gangDto.setSleeperCategory(gang.getSleeperCategory());
+                    gangDto.setTotalSleepers(gang.getTotalSleepers());
+                    gangDto.setRft(gang.getRft());
 
 
                   /*  List<String> sleeperNumbers = new ArrayList<>();

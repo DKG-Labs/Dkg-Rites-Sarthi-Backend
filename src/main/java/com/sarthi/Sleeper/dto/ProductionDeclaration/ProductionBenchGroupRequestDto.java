@@ -17,6 +17,10 @@ public class ProductionBenchGroupRequestDto {
 
     private Double rft;
 
+    private String sleeperCategory;
+
+    private Integer totalSleepers;
+
     private List<String> sleepers;
     private List<ProductionSleeperResponseDto> sleeperList;
 
