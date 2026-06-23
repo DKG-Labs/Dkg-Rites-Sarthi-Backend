@@ -345,7 +345,7 @@ SELECT
     CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
 
     'A'                                          AS callStatus,
-    
+
     'F'                                          AS typeOfCall,
 
     ic.po_serial_no                              AS poItemSerialNumber,
@@ -357,13 +357,13 @@ SELECT
     DATE(f.created_at)                           AS icDate,
 
     COALESCE(fr.qty_now_offered,0)
-                                                    AS quantityOffered,
+                                                AS quantityOffered,
 
     COALESCE(fr.qty_now_passed,0)
-                                                    AS quantityPassed,
+                                                AS quantityPassed,
 
     COALESCE(fr.qty_now_rejected,0)
-                                                    AS quantityRejected,
+                                                AS quantityRejected,
 
     ic.ic_number                                 AS callNo
 
@@ -387,17 +387,29 @@ LEFT JOIN final_cumulative_results fr
         ON fr.inspection_call_no COLLATE utf8mb4_unicode_ci
          = ic.ic_number COLLATE utf8mb4_unicode_ci
 
-LEFT JOIN ibs_call_registration icr
+LEFT JOIN (
+    SELECT icr1.*
+    FROM ibs_call_registration icr1
+    INNER JOIN (
+        SELECT
+            call_number,
+            MAX(version) AS max_version
+        FROM ibs_call_registration
+        GROUP BY call_number
+    ) latest
+        ON latest.call_number = icr1.call_number
+       AND latest.max_version = icr1.version
+) icr
         ON icr.call_number COLLATE utf8mb4_unicode_ci
          = ic.ic_number COLLATE utf8mb4_unicode_ci
+
 LEFT JOIN sarthi_ibs_poi_mapping pm
        ON pm.poi_code = ic.place_of_inspection
 
 WHERE icr.call_number IS NULL
-   OR icr.status = 'Failed'
+   OR UPPER(icr.status) = 'FAILED'
 
-""",
-            nativeQuery = true)
+""", nativeQuery = true)
     List<Object[]> getFinalInspectionCalls();
 
     @Query(value = """

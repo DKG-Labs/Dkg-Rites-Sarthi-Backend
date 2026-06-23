@@ -530,8 +530,8 @@ SELECT
 
     CAST(um.employee_code AS CHAR)              AS ieEmployeeNumber,
 
-    'A'                                          AS callStatus,
-    'S'                                          AS typeOfCall,
+    'A'                                         AS callStatus,
+    'S'                                         AS typeOfCall,
     ic.po_serial_no                             AS poItemSerialNumber,
 
     CAST(rm.book_no AS CHAR)                    AS bkNumber,
@@ -540,14 +540,14 @@ SELECT
 
     DATE(rm.created_at)                         AS icDate,
 
-    COALESCE(SUM(DISTINCT rmr.total_qty_offered_mt),0)
-                                                    AS quantityOffered,
+    COALESCE(SUM(DISTINCT rmr.total_qty_offered_mt), 0)
+                                                AS quantityOffered,
 
-    COALESCE(SUM(rmr.accepted_qty_mt),0)
-                                                    AS quantityPassed,
+    COALESCE(SUM(rmr.accepted_qty_mt), 0)
+                                                AS quantityPassed,
 
-    COALESCE(SUM(rmr.weight_rejected_mt),0)
-                                                    AS quantityRejected,
+    COALESCE(SUM(rmr.weight_rejected_mt), 0)
+                                                AS quantityRejected,
 
     ic.ic_number                                AS callNo
 
@@ -556,7 +556,7 @@ FROM rm_ic_edit rm
 INNER JOIN inspection_calls ic
         ON ic.ic_number COLLATE utf8mb4_unicode_ci =
            SUBSTRING_INDEX(
-                SUBSTRING_INDEX(rm.ic_number,'/',2),
+                SUBSTRING_INDEX(rm.ic_number, '/', 2),
                 '/',
                 -1
            ) COLLATE utf8mb4_unicode_ci
@@ -568,17 +568,30 @@ INNER JOIN user_master um
         ON um.userid = rm.created_by
 
 LEFT JOIN rm_heat_final_result rmr
-        ON rmr.inspection_call_no COLLATE utf8mb4_unicode_ci
-         = ic.ic_number COLLATE utf8mb4_unicode_ci
+        ON rmr.inspection_call_no COLLATE utf8mb4_unicode_ci =
+           ic.ic_number COLLATE utf8mb4_unicode_ci
 
-LEFT JOIN ibs_call_registration icr
-        ON icr.call_number COLLATE utf8mb4_unicode_ci
-         = ic.ic_number COLLATE utf8mb4_unicode_ci
+LEFT JOIN (
+    SELECT icr1.*
+    FROM ibs_call_registration icr1
+    INNER JOIN (
+        SELECT
+            call_number,
+            MAX(version) AS max_version
+        FROM ibs_call_registration
+        GROUP BY call_number
+    ) latest
+        ON latest.call_number = icr1.call_number
+       AND latest.max_version = icr1.version
+) icr
+        ON icr.call_number COLLATE utf8mb4_unicode_ci =
+           ic.ic_number COLLATE utf8mb4_unicode_ci
+
 LEFT JOIN sarthi_ibs_poi_mapping pm
        ON pm.poi_code = ic.place_of_inspection
 
 WHERE icr.call_number IS NULL
-   OR icr.status = 'Failed'
+   OR UPPER(icr.status) = 'FAILED'
 
 GROUP BY
     ph.case_no,

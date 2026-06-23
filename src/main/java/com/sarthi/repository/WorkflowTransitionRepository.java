@@ -387,7 +387,7 @@ List<Object[]> getInspectionCallStatusBreakdownExcludingDummyPo(
         @Param("excludePo") String excludePo);
 
 
-  @Query(value = """
+ /* @Query(value = """
 
 SELECT
     ic.ic_number AS inspectionCallNumber,
@@ -517,7 +517,174 @@ ORDER BY ic.created_at DESC
 """, nativeQuery = true)
   List<Object[]> getInspectionCallStatusDetailsRaw(
           @Param("stage") String stage,
-          @Param("status") String status);
+          @Param("status") String status);*/
+ @Query(value = """
+
+SELECT
+    ic.ic_number AS inspectionCallNumber,
+
+    ic.company_name AS vendor,
+
+    DATE_FORMAT(
+        ic.created_at,
+        '%d/%m/%Y %H:%i:%s'
+    ) AS callSubmissionDateTime,
+
+    CASE
+        WHEN ic.ic_number LIKE '%ER%' THEN 'RM Stage'
+        WHEN ic.ic_number LIKE '%EP%' THEN 'Process Stage'
+        WHEN ic.ic_number LIKE '%EF%' THEN 'Final Stage'
+        ELSE 'Other'
+    END AS stageOfInspection,
+
+    CONCAT(
+        COALESCE(ph.rly_short_name, ph.rly_cd, 'N/A'),
+        '/',
+        ic.po_no,
+        '/',
+        COALESCE(ic.po_serial_no, 'N/A')
+    ) AS poSrNo,
+
+    DATE_FORMAT(
+        pi.delivery_date,
+        '%d/%m/%Y'
+    ) AS dpDate,
+
+    CASE
+        WHEN UPPER(wt.STATUS) IN (
+            'CREATED',
+            'VERIFIED',
+            'RETURNED',
+            'CALL_REGISTERED',
+            'IE_SCHEDULED'
+        )
+        THEN 'Pending'
+
+        WHEN UPPER(wt.STATUS) IN (
+            'INITIATE_INSPECTION',
+            'VERIFY_PO_DETAILS',
+            'PAUSED',
+            'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+            'WITHHELD'
+        )
+        THEN 'Under Inspection'
+
+        ELSE 'Pending'
+    END AS mainStatus,
+
+    CASE
+        WHEN UPPER(wt.STATUS) = 'CREATED'
+            THEN 'Call Raised'
+
+        WHEN UPPER(wt.STATUS) = 'VERIFIED'
+            THEN 'Call Registered'
+
+        WHEN UPPER(wt.STATUS) = 'RETURNED'
+            THEN 'Returned to Vendor'
+
+        WHEN UPPER(wt.STATUS) = 'CALL_REGISTERED'
+            THEN 'Call Registered'
+
+        WHEN UPPER(wt.STATUS) = 'IE_SCHEDULED'
+            THEN 'Call Scheduled'
+
+        WHEN UPPER(wt.STATUS) IN (
+            'INITIATE_INSPECTION',
+            'VERIFY_PO_DETAILS'
+        )
+            THEN 'Inspection Started'
+
+        WHEN UPPER(wt.STATUS) = 'PAUSED'
+            THEN 'Paused for Next Schedule'
+
+        WHEN UPPER(wt.STATUS) = 'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
+            THEN 'Under Inspection'
+
+        WHEN UPPER(wt.STATUS) = 'WITHHELD'
+            THEN 'Withheld'
+
+        ELSE wt.STATUS
+    END AS subStatus
+
+FROM inspection_calls ic
+
+INNER JOIN (
+    SELECT
+        REQUESTID,
+        MAX(WORKFLOWTRANSITIONID) AS latest_transition_id
+    FROM workflow_transition
+    GROUP BY REQUESTID
+) latest
+    ON latest.REQUESTID = ic.ic_number
+
+INNER JOIN workflow_transition wt
+    ON wt.WORKFLOWTRANSITIONID =
+       latest.latest_transition_id
+
+LEFT JOIN po_header ph
+    ON ph.po_no = ic.po_no
+
+LEFT JOIN po_item pi
+    ON pi.po_header_id = ph.id
+   AND pi.item_sr_no = ic.po_serial_no
+
+WHERE
+
+    ic.po_no <> 'DummyPo_001'
+
+    AND UPPER(wt.STATUS) NOT IN (
+        'INSPECTION_COMPLETE_CONFIRM',
+        'WITHDRAW',
+        'CANCELLED'
+    )
+
+    AND (
+        (:stage = 'RM'
+            AND ic.ic_number LIKE '%ER%')
+        OR
+        (:stage = 'Process'
+            AND ic.ic_number LIKE '%EP%')
+        OR
+        (:stage = 'Final'
+            AND ic.ic_number LIKE '%EF%')
+    )
+
+    AND (
+        :status = 'ALL'
+
+        OR
+
+        (
+            :status = 'Under Inspection'
+            AND UPPER(wt.STATUS) IN (
+                'INITIATE_INSPECTION',
+                'VERIFY_PO_DETAILS',
+                'PAUSED',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                'WITHHELD'
+            )
+        )
+
+        OR
+
+        (
+            :status = 'Pending'
+            AND UPPER(wt.STATUS) IN (
+                'CREATED',
+                'VERIFIED',
+                'RETURNED',
+                'CALL_REGISTERED',
+                'IE_SCHEDULED'
+            )
+        )
+    )
+
+ORDER BY ic.created_at DESC
+
+""", nativeQuery = true)
+ List<Object[]> getInspectionCallStatusDetailsRaw(
+         @Param("stage") String stage,
+         @Param("status") String status);
   /*@Query(value = """
         SELECT 
             ic.ic_number AS inspectionCallNumber,

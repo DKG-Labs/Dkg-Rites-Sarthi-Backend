@@ -18,6 +18,7 @@ public class IbsCallRegistration {
 
     private String reason;
     private String status;
+    private Integer version;
 
     private LocalDateTime acknowledgedAt;
 }

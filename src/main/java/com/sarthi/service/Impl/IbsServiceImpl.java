@@ -746,6 +746,7 @@ public class IbsServiceImpl implements IbsService {
                             + ".pdf"
             );
 
+            dto.setCallNumber(callNumber);
             list.add(dto);
         }
 
@@ -765,7 +766,7 @@ public class IbsServiceImpl implements IbsService {
 
 
 
-    @Override
+  /*  @Override
     public String acknowledgeCallData(
             IbsAcknowledgementDto dto
     ) {
@@ -801,7 +802,25 @@ public class IbsServiceImpl implements IbsService {
         ibsCallRegistrationRepository.save(entity);
 
         return "Acknowledgement received successfully";
-    }
+    }*/
+  @Override
+  public String acknowledgeCallData(IbsAcknowledgementDto dto) {
+
+      Integer latestVersion =
+              ibsCallRegistrationRepository.getLatestVersion(dto.getCallNumber());
+
+      IbsCallRegistration entity = new IbsCallRegistration();
+
+      entity.setCallNumber(dto.getCallNumber());
+      entity.setStatus(dto.getStatus());
+      entity.setReason(dto.getReason());
+      entity.setVersion(latestVersion + 1);
+      entity.setAcknowledgedAt(LocalDateTime.now());
+
+      ibsCallRegistrationRepository.save(entity);
+
+      return "Acknowledgement saved successfully";
+  }
 
 
 

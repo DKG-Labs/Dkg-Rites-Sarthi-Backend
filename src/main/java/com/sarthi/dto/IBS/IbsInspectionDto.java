@@ -40,6 +40,7 @@ public class IbsInspectionDto {
                 private String icFileLink;
 
                 private LocalDate icDate;
+                private String callNumber;
 
 
 }
