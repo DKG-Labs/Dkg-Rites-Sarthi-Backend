@@ -804,6 +804,7 @@ public class IbsServiceImpl implements IbsService {
         return "Acknowledgement received successfully";
     }*/
   @Override
+  @Transactional
   public String acknowledgeCallData(IbsAcknowledgementDto dto) {
 
       Integer latestVersion =
@@ -817,9 +818,18 @@ public class IbsServiceImpl implements IbsService {
       entity.setVersion((latestVersion == null ? 0 : latestVersion) + 1);
       entity.setAcknowledgedAt(LocalDateTime.now());
 
-       ibsCallRegistrationRepository.save(entity);
+      IbsCallRegistration savedEntity =
+              ibsCallRegistrationRepository.saveAndFlush(entity);
 
-      return "Acknowledgement saved successfully";
+      if (savedEntity.getId() != null) {
+          return "Acknowledgement saved successfully for Call No : "
+                  + savedEntity.getCallNumber();
+      }
+
+      throw new RuntimeException(
+              "Failed to save acknowledgement for Call No : "
+                      + dto.getCallNumber()
+      );
   }
 
 
