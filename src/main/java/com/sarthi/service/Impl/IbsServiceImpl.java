@@ -813,8 +813,24 @@ public class IbsServiceImpl implements IbsService {
       IbsCallRegistration entity = new IbsCallRegistration();
 
       entity.setCallNumber(dto.getCallNumber());
-      entity.setStatus(dto.getStatus());
-      entity.setReason(dto.getReason());
+
+      // Validate SR No for SUCCESS status
+      if ("SUCCESS".equalsIgnoreCase(dto.getStatus())) {
+
+          if (dto.getSrNo() == null || dto.getSrNo().trim().isEmpty()) {
+              entity.setStatus("FAILED");
+              entity.setReason("SR No is mandatory for SUCCESS status");
+          } else {
+              entity.setStatus("SUCCESS");
+              entity.setSrNo(dto.getSrNo());
+              entity.setReason(dto.getReason());
+          }
+
+      } else {
+          entity.setStatus(dto.getStatus());
+          entity.setReason(dto.getReason());
+      }
+
       entity.setVersion((latestVersion == null ? 0 : latestVersion) + 1);
       entity.setAcknowledgedAt(LocalDateTime.now());
 

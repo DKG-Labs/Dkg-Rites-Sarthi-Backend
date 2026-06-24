@@ -7,6 +7,7 @@ import lombok.Data;
 public class IbsAcknowledgementDto {
 
     private String callNumber;
+    private String srNo;
 
     private String status;
     private String reason;
