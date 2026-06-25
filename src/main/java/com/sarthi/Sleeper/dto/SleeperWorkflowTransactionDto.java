@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -51,4 +52,11 @@ public class SleeperWorkflowTransactionDto {
 
     private LocalDateTime updatedDate;
 
+    private String productionUnit;
+
+    private String batchNumber;
+
+    private LocalDate castingDate;
+
+    private Integer totalCastedSleepers;
 }

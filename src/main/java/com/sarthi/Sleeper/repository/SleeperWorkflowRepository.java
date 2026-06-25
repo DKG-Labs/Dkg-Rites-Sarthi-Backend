@@ -1,6 +1,8 @@
 package com.sarthi.Sleeper.repository;
 
 import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,6 +43,25 @@ public interface SleeperWorkflowRepository
     AND t.nextRole = :roleName
 """)
    List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
+
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId = (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.requestId = t.requestId
+          AND t2.moduleId = :moduleId
+    )
+      AND t.moduleId = :moduleId
+      AND t.status IN ('Created', 'PENDING')
+      AND t.nextRole = :roleName
+""")
+    Page<SleeperWorkflowTransaction> findLastPendingRequestsByRole(
+            @Param("roleName") String roleName,
+            @Param("moduleId") Integer moduleId,
+            Pageable pageable);
+
 
     @Query("""
 SELECT t FROM SleeperWorkflowTransaction t
@@ -87,6 +108,21 @@ AND t.nextRole = :roleName
     AND t.status = 'Completed'
 """)
    List<SleeperWorkflowTransaction> findCompletedRequests();
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId = (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.requestId = t.requestId
+          AND t2.moduleId = :moduleId
+    )
+      AND t.moduleId = :moduleId
+      AND t.status = 'Completed'
+""")
+    Page<SleeperWorkflowTransaction> findCompletedRequests(
+            @Param("moduleId") Integer moduleId,
+            Pageable pageable);
 
     @Query("""
     SELECT t FROM SleeperWorkflowTransaction t

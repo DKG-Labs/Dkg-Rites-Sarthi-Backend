@@ -7,6 +7,7 @@ import com.sarthi.Sleeper.entity.SleeperPoiIeMapping;
 import com.sarthi.Sleeper.entity.SleeperTransitionMaster;
 import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.Sleeper.repository.*;
+import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.entity.*;
@@ -14,8 +15,16 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
+import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -48,6 +57,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private IeFieldsMappingRepository ieFieldsMappingRepository;
     @Autowired
     private RioUserRepository rioUserRepository;
+    @Autowired
+    private ProductionDeclarationRepository productionDeclarationRepository;
 
     public void validateUser(Integer userId) {
         UserMaster userMaster = userMasterRepository.findById(userId).orElseThrow(() -> new InvalidInputException(new ErrorDetails(AppConstant.USER_NOT_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION,
@@ -677,6 +688,104 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                 .toList();
     }
 
+    @Override
+    public Page<SleeperWorkflowTransactionDto> allPendingWorkflowTransitionsBasedOnModule(
+            String roleName,
+            int moduleId,
+            Pageable pageable) {
+
+        Page<SleeperWorkflowTransaction> page =
+                repository.findLastPendingRequestsByRole(roleName, moduleId, pageable);
+
+        return page.map(this::mapToModuleWisePendingResponse);
+    }
+
+    private SleeperWorkflowTransactionDto mapToModuleWisePendingResponse(SleeperWorkflowTransaction tx) {
+
+        SleeperWorkflowTransactionDto dto = new SleeperWorkflowTransactionDto();
+
+        dto.setWorkflowTransitionId(Long.valueOf(tx.getWorkflowTransitionId()));
+        dto.setWorkflowId(tx.getWorkflowId());
+        dto.setModuleId(tx.getModuleId());
+        dto.setRequestId(tx.getRequestId());
+        dto.setAction(tx.getAction());
+        dto.setStatus(tx.getStatus());
+        dto.setRemarks(tx.getRemarks());
+        dto.setJobStatus(tx.getJobStatus());
+
+        dto.setCurrentRole(tx.getCurrentRole());
+        dto.setNextRole(tx.getNextRole());
+        dto.setShift(tx.getShift());
+
+        dto.setVendorCode(tx.getVendorCode());
+        dto.setPlantId(tx.getPlantId());
+        dto.setPoiCode(tx.getPoiCode());
+
+        dto.setAssignedToUser(tx.getAssignedToUser());
+        dto.setCreatedBy(tx.getCreatedBy());
+        dto.setModifiedBy(tx.getModifiedBy());
+
+        dto.setCreatedDate(tx.getCreatedDate());
+        dto.setUpdatedDate(tx.getUpdatedDate());
+
+        dto.setRio(tx.getRio());
+        System.out.println(tx.getPoiCode());
+        // Fetch users who can access this POI
+
+        List<SleeperPoiIeMapping> mappings = null;
+        String vendorId = null;
+        if (tx.getModuleId() != null && tx.getModuleId() == 11) {
+
+            productionDeclarationRepository
+                    .findProductionDetailsByRequestId(Long.valueOf(tx.getRequestId()))
+                    .ifPresent(p -> {
+                        dto.setProductionUnit(p.getProductionUnit());
+                        dto.setBatchNumber(p.getBatchNumber());
+                        dto.setCastingDate(p.getCastingDate());
+                        dto.setTotalCastedSleepers(p.getTotalCastedSleepers());
+                    });
+        }
+        List<Integer> userIds = new ArrayList<>();
+        if (tx.getWorkflowId().equals(2L)) {
+            // Only Main IE for workflow 2
+            // mappings = poiIeMappingRepository.findByPoiCodeAndIeType(tx.getPoiCode(), "Main IE");
+
+            mappings = poiIeMappingRepository
+                    .findByPoiCodeAndPlantIdAndIeType(
+                            tx.getPoiCode(),
+                            tx.getPlantId(),
+                            "Main IE"
+                    );
+        } else {
+            if("Vendor".equalsIgnoreCase(tx.getNextRole())){
+                vendorId = sleeperPincodePoIMappingRepository
+                        .findVendorCodeByPoiCode(tx.getPoiCode())
+                        .orElseThrow(() -> new RuntimeException("Vendor not found for POI " ));
+            }else{
+                // Existing logic
+                //  mappings = poiIeMappingRepository.findByPoiCode(tx.getPoiCode());
+
+                mappings = poiIeMappingRepository
+                        .findByPoiCodeAndPlantId(
+                                tx.getPoiCode(),
+                                tx.getPlantId()
+                        );
+            }
+        }
+        if (mappings != null) {
+            userIds = mappings.stream()
+                    .map(SleeperPoiIeMapping::getIeUserId)
+                    .toList();
+        }
+        if(vendorId != null){
+            dto.setAssignedToUser(Long.valueOf(vendorId));
+        }
+
+        dto.setAccessibleUserIds(userIds);
+
+        return dto;
+    }
+
 /*
     @Override
     public List<SleeperWorkflowTransactionDto> getCompletedRequests() {
@@ -712,6 +821,17 @@ public SleeperWorkflowTransactionDto performTransitionAction(
     }
 
     @Override
+    public Page<SleeperWorkflowTransactionDto> allCompletedWorkflowTransitions(
+            Integer moduleId,
+            Pageable pageable) {
+
+        Page<SleeperWorkflowTransaction> page =
+                repository.findCompletedRequests(moduleId, pageable);
+
+        return page.map(this::mapToModuleWisePendingResponse);
+    }
+
+    @Override
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions() {
 
         List<SleeperWorkflowTransaction> list =
@@ -721,6 +841,8 @@ public SleeperWorkflowTransactionDto performTransitionAction(
                 .map(this::mapToResponse)
                 .toList();
     }
+
+
 
 
 
