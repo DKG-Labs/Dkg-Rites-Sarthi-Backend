@@ -133,4 +133,19 @@ public class RailInspectionCallController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/ic-details")
+    public ResponseEntity<Object> getRailpadIcDetails(@RequestParam String callNo) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(service.getRailpadIcDetails(callNo)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(500, 1, "ERROR", e.getMessage())),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
 }
