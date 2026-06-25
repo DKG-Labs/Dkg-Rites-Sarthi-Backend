@@ -8,4 +8,5 @@ public interface RailInspectionCallService {
     List<RailInspectionCall> getAllByVendorCode(String vendorCode);
     RailInspectionCall getById(Long id);
     RailInspectionCall getByCallNo(String callNo);
+    com.sarthi.SRailPad.dto.RailpadIcCertificateDto getRailpadIcDetails(String callNo);
 }
