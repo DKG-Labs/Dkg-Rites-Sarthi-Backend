@@ -16,6 +16,11 @@ import com.sarthi.entity.RoleMaster;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
+import com.sarthi.entity.UserMaster;
+import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCompleteDetails;
+import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository;
+import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
+import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +51,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private IeFieldsMappingRepository ieFieldsMappingRepository;
 
     private RioUserRepository rioUserRepository;
+
+    private RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
+    private RailInspectionCallRepository railInspectionCallRepository;
+    private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
 
 
     @Override
@@ -624,7 +633,34 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         RailWorkflowTransaction saved =
                 railWorkflowTransactionRepository.save(tx);
 
+        // --- Save to inspection_complete_details when Railpad inspection is FINISHED ---
+        if (current.getWorkflowId().equals(2L) && "COMPLETED".equalsIgnoreCase(tx.getStatus())) {
+            Optional<RailInspectionCall> callOpt = railInspectionCallRepository.findByCallNo(tx.getRequestId());
+            if (callOpt.isPresent()) {
+                RailInspectionCall ic = callOpt.get();
+                UserMaster user = userMasterRepository.findById(Math.toIntExact(req.getActionBy())).orElse(null);
+                
+                String rio = tx.getRio() != null ? tx.getRio() : current.getRio();
+                String userShortName = user != null && user.getShortName() != null ? user.getShortName() : "XX";
+                
+                RailInspectionCompleteDetails details = new RailInspectionCompleteDetails();
+                details.setCallNo(ic.getCallNo());
+                details.setPoNo(ic.getPoNo());
+                details.setCertificateNo(generateCertificateNo(rio, ic.getCallNo(), userShortName));
+                details.setCreatedOn(LocalDateTime.now());
+                
+                railInspectionCompleteDetailsRepository.save(details);
+            }
+        }
+
         return mapToResponse(saved);
+    }
+
+    private String generateCertificateNo(String rioName, String callNo, String userShortName) {
+        String rioFirstLetter = (rioName != null && !rioName.isEmpty())
+                ? rioName.substring(0, 1).toUpperCase()
+                : "X";
+        return rioFirstLetter + "/" + callNo + "/" + userShortName.toUpperCase();
     }
 
     private String determineJobStatus(String action) {
@@ -700,6 +736,15 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         dto.setNextRole(tx.getNextRole());
         dto.setShift(tx.getShift());
         dto.setVendorCode(tx.getVendorCode());
+        if (tx.getVendorCode() != null && !tx.getVendorCode().isEmpty()) {
+            String vendorNameCacheKey = "vendorName_" + tx.getVendorCode();
+            String vName = (String) cache.computeIfAbsent(vendorNameCacheKey, k ->
+                vendorMasterRepository.findByVendorCode(tx.getVendorCode())
+                    .map(com.sarthi.entity.VendorMaster::getVendorName)
+                    .orElse(null)
+            );
+            dto.setVendorName(vName);
+        }
         dto.setPlantId(tx.getPlantId());
         dto.setPoiCode(tx.getPoiCode());
 
