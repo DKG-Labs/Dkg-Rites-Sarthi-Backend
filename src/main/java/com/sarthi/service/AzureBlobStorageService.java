@@ -7,6 +7,7 @@ import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.sarthi.entity.certificate.CertificateStorage;
 import com.sarthi.repository.certificate.CertificateStorageRepository;
 import lombok.extern.slf4j.Slf4j;
+import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -14,15 +15,18 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Base64;
 import java.awt.image.BufferedImage;
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriter;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.stream.ImageOutputStream;
-import java.util.Iterator;
+
 
 @Service
 @Slf4j
@@ -67,14 +71,43 @@ public class AzureBlobStorageService {
         return uploadBase64File(base64Data, fileName, this.containerName);
     }
 
-    /**
-     * Uploads a base64 encoded file to a specific Azure Blob Storage container
-     * 
-     * @param base64Data          The base64 encoded file content
-     * @param fileName            The name of the file to store
-     * @param targetContainerName The specific container to upload to
-     * @return The URL of the uploaded blob
-     */
+
+
+    public byte[] decodeBase64(String base64) {
+
+        if(base64.contains(",")){
+            base64 = base64.split(",")[1];
+        }
+
+        return java.util.Base64.getDecoder().decode(base64);
+
+    }
+
+    private BufferedImage resizeImage(BufferedImage image)
+            throws IOException {
+
+        if(image.getWidth() <= 1024){
+            return image;
+        }
+
+        double ratio =
+                (double) image.getHeight() / image.getWidth();
+
+        int newHeight =
+                (int)(1024 * ratio);
+
+        ByteArrayOutputStream bos =
+                new ByteArrayOutputStream();
+
+        Thumbnails.of(image)
+                .size(1024,newHeight)
+                .outputFormat("jpg")
+                .toOutputStream(bos);
+
+        return ImageIO.read(
+                new ByteArrayInputStream(
+                        bos.toByteArray()));
+    }
     public String uploadBase64File(String base64Data, String fileName, String targetContainerName) {
         try {
             log.info("Uploading file to Azure Blob Storage container '{}': {}", targetContainerName, fileName);
@@ -84,14 +117,20 @@ public class AzureBlobStorageService {
                 base64Data = base64Data.split(",")[1];
             }
             
-            byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
+           // byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
             
             boolean isImage = fileName.toLowerCase().endsWith(".jpg") || 
                               fileName.toLowerCase().endsWith(".jpeg") || 
                               fileName.toLowerCase().endsWith(".png");
             
+//            if (isImage) {
+//                decodedBytes = compressImage(decodedBytes);
+//            }
+
+            byte[] decodedBytes = decodeBase64(base64Data);
+
             if (isImage) {
-                decodedBytes = compressImage(decodedBytes);
+                decodedBytes = compressToTargetSize(decodedBytes, 20); // target 20 KB
             }
             
             ByteArrayInputStream inputStream = new ByteArrayInputStream(decodedBytes);
@@ -109,6 +148,155 @@ public class AzureBlobStorageService {
         }
     }
 
+    private byte[] compressToTargetSize(byte[] imageBytes, int targetKB) {
+
+        try {
+
+            int targetBytes = targetKB * 1024;
+
+            BufferedImage image =
+                    ImageIO.read(new ByteArrayInputStream(imageBytes));
+
+            if (image == null) {
+                return imageBytes;
+            }
+
+            // Convert PNG with transparency to RGB
+            if (image.getColorModel().hasAlpha()) {
+
+                BufferedImage rgb =
+                        new BufferedImage(
+                                image.getWidth(),
+                                image.getHeight(),
+                                BufferedImage.TYPE_INT_RGB);
+
+                Graphics2D g = rgb.createGraphics();
+                g.setColor(Color.WHITE);
+                g.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
+                g.drawImage(image, 0, 0, null);
+                g.dispose();
+
+                image = rgb;
+            }
+
+            // Resize to max width 1024
+            image = resizeImage(image);
+
+            byte[] bestImage = imageBytes;
+
+            while (true) {
+
+                float low = 0.10f;
+                float high = 1.00f;
+
+                byte[] candidate = null;
+
+                // Binary Search
+                while (high - low > 0.02f) {
+
+                    float quality = (low + high) / 2;
+
+                    byte[] compressed =
+                            compressWithQuality(image, quality);
+
+                    if (compressed.length > targetBytes) {
+
+                        high = quality;
+
+                    } else {
+
+                        candidate = compressed;
+                        low = quality;
+                    }
+
+                }
+
+                if (candidate != null) {
+
+                    bestImage = candidate;
+
+                    if (candidate.length <= targetBytes) {
+                        break;
+                    }
+                }
+
+                // Still larger than target?
+                // Reduce image dimensions by 10%
+
+                int newWidth =
+                        (int) (image.getWidth() * 0.9);
+
+                int newHeight =
+                        (int) (image.getHeight() * 0.9);
+
+                if (newWidth < 300 || newHeight < 300) {
+                    break;
+                }
+
+                ByteArrayOutputStream bos =
+                        new ByteArrayOutputStream();
+
+                Thumbnails.of(image)
+                        .size(newWidth, newHeight)
+                        .outputFormat("jpg")
+                        .toOutputStream(bos);
+
+                image = ImageIO.read(
+                        new ByteArrayInputStream(
+                                bos.toByteArray()));
+
+            }
+
+            return bestImage;
+
+        } catch (Exception e) {
+
+            log.error("Compression Failed", e);
+
+            return imageBytes;
+
+        }
+
+    }
+
+    private byte[] compressWithQuality(
+            BufferedImage image,
+            float quality) throws Exception {
+
+        ByteArrayOutputStream bos =
+                new ByteArrayOutputStream();
+
+        ImageWriter writer =
+                ImageIO.getImageWritersByFormatName("jpg").next();
+
+        ImageWriteParam param =
+                writer.getDefaultWriteParam();
+
+        param.setCompressionMode(
+                ImageWriteParam.MODE_EXPLICIT);
+
+        param.setCompressionQuality(quality);
+
+        ImageOutputStream ios =
+                ImageIO.createImageOutputStream(bos);
+
+        writer.setOutput(ios);
+
+        writer.write(
+                null,
+                new IIOImage(image, null, null),
+                param);
+
+        ios.close();
+
+        writer.dispose();
+
+        return bos.toByteArray();
+
+    }
+
+
+/*
     private byte[] compressImage(byte[] imageBytes) {
         try {
             // Read image from byte array
@@ -185,7 +373,7 @@ public class AzureBlobStorageService {
             log.error("Failed to compress image: {}", e.getMessage(), e);
             return imageBytes;
         }
-    }
+    }*/
 
     /**
      * Downloads a file from Azure Blob Storage as base64
