@@ -7,6 +7,8 @@ import com.sarthi.dto.WorkflowDtos.TransitionActionReqDto;
 import com.sarthi.service.WorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +39,24 @@ public class SleeperWorkflow {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName)), HttpStatus.OK);
     }
 
+    @GetMapping("/allPendingWorkflowTransitionModuelWise")
+    public ResponseEntity<Object> allPendingWorkflowTransition(
+            @RequestParam String roleName,
+            @RequestParam Integer moduleId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        workflowService.allPendingWorkflowTransitionsBasedOnModule(
+                                roleName,
+                                moduleId,
+                                pageable)),
+                HttpStatus.OK);
+    }
+
     @GetMapping("/WorkflowTransitionHistory")
     public ResponseEntity<Object> WorkflowTransitionHistory(@RequestParam String requestId)  {
 
@@ -53,6 +73,20 @@ public class SleeperWorkflow {
     public ResponseEntity<Object> AllFinalCallCompletedTransition()  {
 
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions()), HttpStatus.OK);
+    }
+
+    @GetMapping("/allCompletedWorkflowTransitionModuleWise")
+    public ResponseEntity<Object> allCompletedWorkflowTransition(
+            @RequestParam Integer moduleId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        workflowService.allCompletedWorkflowTransitions(moduleId, pageable)),
+                HttpStatus.OK);
     }
 
 }

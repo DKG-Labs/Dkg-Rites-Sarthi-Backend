@@ -5,7 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.List;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.sarthi.dto.ImageCaptureDto;
 
 /**
  * DTO for Final Inspection Summary
@@ -26,6 +28,9 @@ public class FinalInspectionSummaryDto {
     // ---- STATUS ----
     private String inspectionStatus;
 
+    // Images captured with geofence data
+    private List<ImageCaptureDto> capturedImages;
+
     // ---- AUDIT FIELDS ----
     private String createdBy;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
@@ -34,4 +39,3 @@ public class FinalInspectionSummaryDto {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
     private LocalDateTime updatedAt;
 }
-

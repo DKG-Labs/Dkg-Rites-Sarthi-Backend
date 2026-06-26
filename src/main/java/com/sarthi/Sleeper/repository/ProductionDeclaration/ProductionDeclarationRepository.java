@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.repository.ProductionDeclaration;
 
 import com.sarthi.Sleeper.dto.BatchWithIdProjection;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto;
+import com.sarthi.Sleeper.dto.ProductionDeclarationProjection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.BatchProjection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.Level2Projection;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.ProductionProjection;
@@ -20,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ProductionDeclarationRepository extends JpaRepository<ProductionDeclaration, Long> {
@@ -1706,5 +1708,14 @@ ORDER BY
           LocalDate endDate);
 
 
-
+    @Query("""
+    SELECT
+        p.productionUnit AS productionUnit,
+        p.batchNumber AS batchNumber,
+        p.castingDate AS castingDate,
+        p.totalCastedSleepers AS totalCastedSleepers
+    FROM ProductionDeclaration p
+    WHERE p.id = :requestId
+""")
+    Optional<ProductionDeclarationProjection> findProductionDetailsByRequestId(Long requestId);
 }

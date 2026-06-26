@@ -25,7 +25,7 @@ public interface FinalDashboardResultsService {
 
     // ===== INSPECTION SUMMARY =====
     FinalInspectionSummary saveInspectionSummary(FinalInspectionSummaryDto dto, String userId);
-    Optional<FinalInspectionSummary> getInspectionSummaryByCallNo(String inspectionCallNo);
+    Optional<FinalInspectionSummaryDto> getInspectionSummaryByCallNo(String inspectionCallNo);
     FinalInspectionSummary updateInspectionSummary(FinalInspectionSummaryDto dto, String userId);
     void deleteInspectionSummary(String inspectionCallNo);
 

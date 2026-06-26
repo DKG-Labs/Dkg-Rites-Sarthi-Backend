@@ -9,9 +9,13 @@ import com.sarthi.entity.finalmaterial.FinalInspectionLotResults;
 import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionSummaryRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotResultsRepository;
+import com.sarthi.repository.InspectionImageRepository;
+import com.sarthi.entity.InspectionImage;
+import com.sarthi.service.AzureBlobStorageService;
 import com.sarthi.service.finalmaterial.FinalDashboardResultsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +23,11 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.UUID;
+import java.util.ArrayList;
+import com.sarthi.dto.ImageCaptureDto;
 
 /**
  * Implementation of FinalDashboardResultsService
@@ -36,6 +45,15 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
 
     @Autowired
     private FinalInspectionLotResultsRepository lotResultsRepository;
+
+    @Autowired
+    private InspectionImageRepository inspectionImageRepository;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
+    @Value("${azure.storage.images-container-name}")
+    private String imagesContainerName;
 
     // ===== CUMULATIVE RESULTS =====
     @Override
@@ -129,6 +147,11 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
     public FinalInspectionSummary saveInspectionSummary(FinalInspectionSummaryDto dto, String userId) {
         log.info("Saving inspection summary for call: {}", dto.getInspectionCallNo());
 
+        // Save Captured Images
+        if (dto.getCapturedImages() != null && !dto.getCapturedImages().isEmpty()) {
+            saveCapturedImages(dto.getInspectionCallNo(), "FINAL", dto.getCapturedImages(), LocalDate.now().toString(), userId);
+        }
+
         // Check if record already exists (upsert pattern)
         Optional<FinalInspectionSummary> existing = inspectionSummaryRepository.findByInspectionCallNo(dto.getInspectionCallNo());
 
@@ -158,10 +181,97 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
         return inspectionSummaryRepository.save(entity);
     }
 
+    private void saveCapturedImages(String callNo, String typeOfCall, List<com.sarthi.dto.ImageCaptureDto> images, String dateOfInspection, String userId) {
+        log.info("Saving captured images for call: {} type: {}", callNo, typeOfCall);
+
+        // Separate existing images (proxy URLs already on Azure) from new base64 images.
+        // Proxy URLs look like: /api/images/ER_xxxxx.jpg
+        // New images are base64 data URLs: data:image/jpeg;base64,...
+        Set<String> existingImageNames = new HashSet<>();
+        List<com.sarthi.dto.ImageCaptureDto> newImages = new ArrayList<>();
+
+        for (com.sarthi.dto.ImageCaptureDto imageDto : images) {
+            if (imageDto.getBase64Data() != null && !imageDto.getBase64Data().isEmpty()) {
+                if (imageDto.getBase64Data().startsWith("/api/images/")) {
+                    // Already saved to Azure - just retain in DB
+                    String existingName = imageDto.getBase64Data().substring("/api/images/".length());
+                    existingImageNames.add(existingName);
+                } else {
+                    // New base64 image - needs to be uploaded
+                    newImages.add(imageDto);
+                }
+            }
+        }
+
+        // Delete only images that are no longer in the payload (removed by user)
+        List<com.sarthi.entity.InspectionImage> currentDbImages = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+        for (com.sarthi.entity.InspectionImage dbImage : currentDbImages) {
+            if (!existingImageNames.contains(dbImage.getImageName())) {
+                inspectionImageRepository.delete(dbImage);
+                log.info("Deleted removed image: {}", dbImage.getImageName());
+            }
+        }
+
+        // Upload and save only truly new images
+        for (com.sarthi.dto.ImageCaptureDto imageDto : newImages) {
+            String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + UUID.randomUUID().toString() + ".jpg";
+
+            String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+
+            com.sarthi.entity.InspectionImage imageEntity = new com.sarthi.entity.InspectionImage();
+            imageEntity.setInspectionCallNo(callNo);
+            imageEntity.setTypeOfCall(typeOfCall);
+            imageEntity.setImageName(fileName);
+            imageEntity.setImageUrl(imageUrl);
+            imageEntity.setLatitude(imageDto.getLatitude());
+            imageEntity.setLongitude(imageDto.getLongitude());
+            imageEntity.setShift(null);
+            imageEntity.setDateOfInspection(dateOfInspection);
+            imageEntity.setCreatedBy(userId);
+            imageEntity.setUpdatedBy(userId);
+
+            inspectionImageRepository.save(imageEntity);
+        }
+
+        log.info("Images saved for call {}: {} new uploaded, {} existing retained",
+                    callNo, newImages.size(), existingImageNames.size());
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public Optional<FinalInspectionSummary> getInspectionSummaryByCallNo(String inspectionCallNo) {
-        return inspectionSummaryRepository.findByInspectionCallNo(inspectionCallNo);
+    public Optional<FinalInspectionSummaryDto> getInspectionSummaryByCallNo(String inspectionCallNo) {
+        return inspectionSummaryRepository.findByInspectionCallNo(inspectionCallNo)
+            .map(entity -> {
+                FinalInspectionSummaryDto dto = FinalInspectionSummaryDto.builder()
+                    .inspectionCallNo(entity.getInspectionCallNo())
+                    .packedInHdpe(entity.getPackedInHdpe())
+                    .cleanedWithCoating(entity.getCleanedWithCoating())
+                    .inspectionStatus(entity.getInspectionStatus())
+                    .createdBy(entity.getCreatedBy())
+                    .createdAt(entity.getCreatedAt())
+                    .updatedBy(entity.getUpdatedBy())
+                    .updatedAt(entity.getUpdatedAt())
+                    .build();
+                
+                // Fetch Captured Images
+                // Return proxy URL (/api/images/{imageName}) instead of raw Azure blob URL
+                // because Azure Blob Storage has public access disabled (returns 409 to browser).
+                List<InspectionImage> images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(inspectionCallNo, "FINAL");
+                List<ImageCaptureDto> imageDtos = new ArrayList<>();
+                if (images != null) {
+                    for (InspectionImage img : images) {
+                        ImageCaptureDto imgDto = new ImageCaptureDto();
+                        // Use backend proxy URL so the browser fetches through our authenticated endpoint
+                        String proxyUrl = "/api/images/" + img.getImageName();
+                        imgDto.setBase64Data(proxyUrl);
+                        imgDto.setLatitude(img.getLatitude());
+                        imgDto.setLongitude(img.getLongitude());
+                        imageDtos.add(imgDto);
+                    }
+                }
+                dto.setCapturedImages(imageDtos);
+                return dto;
+            });
     }
 
     @Override

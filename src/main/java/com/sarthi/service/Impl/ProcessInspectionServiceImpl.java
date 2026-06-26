@@ -5,17 +5,24 @@ import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
+import com.sarthi.repository.InspectionImageRepository;
+import com.sarthi.entity.InspectionImage;
 import com.sarthi.service.*;
+import java.util.UUID;
+import java.time.LocalDate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -67,6 +74,15 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
     @Autowired
     private ProcessOilTankCounterService oilTankService;
 
+    @Autowired
+    private InspectionImageRepository inspectionImageRepository;
+
+    @Value("${azure.storage.images-container-name}")
+    private String imagesContainerName;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
     @Override
     @Transactional
     public String finishInspection(ProcessFinishInspectionDto dto, String userId) {
@@ -102,6 +118,11 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
      */
     private void saveInspectionData(ProcessFinishInspectionDto dto, String userId) {
         String callNo = dto.getInspectionCallNo();
+
+        // Save Captured Images
+        if (dto.getCapturedImages() != null && !dto.getCapturedImages().isEmpty()) {
+            saveCapturedImages(callNo, "PROCESS", dto.getCapturedImages(), dto.getShiftCode(), LocalDate.now().toString(), userId);
+        }
 
         if (dto.getLinesData() == null || dto.getLinesData().isEmpty()) {
             logger.warn("No line data provided for call: {}", callNo);
@@ -270,6 +291,62 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
         }
     }
 
+    private void saveCapturedImages(String callNo, String typeOfCall, List<com.sarthi.dto.ImageCaptureDto> images, String shift, String dateOfInspection, String userId) {
+        logger.info("Saving captured images for call: {} type: {}", callNo, typeOfCall);
+
+        // Separate existing images (proxy URLs already on Azure) from new base64 images.
+        // Proxy URLs look like: /api/images/ER_xxxxx.jpg
+        // New images are base64 data URLs: data:image/jpeg;base64,...
+        Set<String> existingImageNames = new HashSet<>();
+        List<com.sarthi.dto.ImageCaptureDto> newImages = new ArrayList<>();
+
+        for (com.sarthi.dto.ImageCaptureDto imageDto : images) {
+            if (imageDto.getBase64Data() != null && !imageDto.getBase64Data().isEmpty()) {
+                if (imageDto.getBase64Data().startsWith("/api/images/")) {
+                    // Already saved to Azure - just retain in DB
+                    String existingName = imageDto.getBase64Data().substring("/api/images/".length());
+                    existingImageNames.add(existingName);
+                } else {
+                    // New base64 image - needs to be uploaded
+                    newImages.add(imageDto);
+                }
+            }
+        }
+
+        // Delete only images that are no longer in the payload (removed by user)
+        List<InspectionImage> currentDbImages = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+        for (InspectionImage dbImage : currentDbImages) {
+            if (!existingImageNames.contains(dbImage.getImageName())) {
+                inspectionImageRepository.delete(dbImage);
+                logger.info("Deleted removed image: {}", dbImage.getImageName());
+            }
+        }
+
+        // Upload and save only truly new images
+        for (com.sarthi.dto.ImageCaptureDto imageDto : newImages) {
+            String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + UUID.randomUUID().toString() + ".jpg";
+
+            String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+
+            InspectionImage imageEntity = new InspectionImage();
+            imageEntity.setInspectionCallNo(callNo);
+            imageEntity.setTypeOfCall(typeOfCall);
+            imageEntity.setImageName(fileName);
+            imageEntity.setImageUrl(imageUrl);
+            imageEntity.setLatitude(imageDto.getLatitude());
+            imageEntity.setLongitude(imageDto.getLongitude());
+            imageEntity.setShift(shift);
+            imageEntity.setDateOfInspection(dateOfInspection);
+            imageEntity.setCreatedBy(userId);
+            imageEntity.setUpdatedBy(userId);
+
+            inspectionImageRepository.save(imageEntity);
+        }
+
+        logger.info("Images saved for call {}: {} new uploaded, {} existing retained",
+                    callNo, newImages.size(), existingImageNames.size());
+    }
+
     /**
      * Update inspection call status.
      */
@@ -343,6 +420,24 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
         }
 
         dto.setLinesData(linesData);
+
+        // Fetch Captured Images
+        // Return proxy URL (/api/images/{imageName}) instead of raw Azure blob URL
+        // because Azure Blob Storage has public access disabled (returns 409 to browser).
+        List<InspectionImage> images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, "PROCESS");
+        List<com.sarthi.dto.ImageCaptureDto> imageDtos = new ArrayList<>();
+        if (images != null) {
+            for (InspectionImage img : images) {
+                com.sarthi.dto.ImageCaptureDto imgDto = new com.sarthi.dto.ImageCaptureDto();
+                // Use backend proxy URL so the browser fetches through our authenticated endpoint
+                String proxyUrl = "/api/images/" + img.getImageName();
+                imgDto.setBase64Data(proxyUrl);
+                imgDto.setLatitude(img.getLatitude());
+                imgDto.setLongitude(img.getLongitude());
+                imageDtos.add(imgDto);
+            }
+        }
+        dto.setCapturedImages(imageDtos);
 
         logger.info("Fetched data for {} lines for call: {}", linesData.size(), callNo);
         return dto;
