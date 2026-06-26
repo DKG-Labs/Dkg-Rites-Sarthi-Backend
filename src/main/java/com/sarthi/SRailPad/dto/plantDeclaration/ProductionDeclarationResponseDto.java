@@ -22,6 +22,7 @@ public class ProductionDeclarationResponseDto {
     public static class ProductResponseDto {
         private Long id;
         private String productType;
+        private String drawingNo;
         private String measurementMode;
         private List<BatchResponseDto> batches;
     }

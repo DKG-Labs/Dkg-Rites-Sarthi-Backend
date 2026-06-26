@@ -87,4 +87,7 @@ public class RailPoSummaryDto {
 
     /** Total quantity offered in this call from rail_inspection_call.total_qty */
     private Integer totalOfferedQty;
+
+    /** Drawing number from rail_process_call_details.drawing_no (set during vendor call raising) */
+    private String drawingNo;
 }

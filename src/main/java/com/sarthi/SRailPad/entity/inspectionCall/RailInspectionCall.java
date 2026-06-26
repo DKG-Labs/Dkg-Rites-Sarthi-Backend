@@ -46,6 +46,9 @@ public class RailInspectionCall {
     @Column(name = "status")
     private String status = "PENDING";
 
+    @Column(name = "call_type")
+    private String callType = "FINAL"; // Default to FINAL for backwards compatibility
+
     @Column(name = "created_by")
     private Long createdBy;
 
@@ -66,6 +69,31 @@ public class RailInspectionCall {
 
     @Transient
     private String rlyPoSrNo;
+
+    // Database fields for Drawing and Process IC reference
+    @Column(name = "drawing_no")
+    private String drawingNo;
+
+    @Column(name = "process_ic_no")
+    private String processIcNo;
+
+    @Transient
+    private String uom;
+
+    @Transient
+    private Integer qtyOnOrder;
+
+    @Transient
+    private Integer qtyAcceptedTillNow;
+
+    @Transient
+    private Integer qtyDesiredForFinal;
+
+    @Transient
+    private Integer qtyDue;
+
+    @Transient
+    private LocalDate productionInitiationDate;
 
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RailInspectionLot> lots;

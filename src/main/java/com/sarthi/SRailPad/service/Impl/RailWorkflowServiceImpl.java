@@ -55,6 +55,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
     private RailInspectionCallRepository railInspectionCallRepository;
     private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
+    private PoHeaderRepository poHeaderRepository;
 
 
     @Override
@@ -640,13 +641,24 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 RailInspectionCall ic = callOpt.get();
                 UserMaster user = userMasterRepository.findById(Math.toIntExact(req.getActionBy())).orElse(null);
                 
-                String rio = tx.getRio() != null ? tx.getRio() : current.getRio();
                 String userShortName = user != null && user.getShortName() != null ? user.getShortName() : "XX";
+                
+                String rlyShortName = "X";
+                if (ic.getPoNo() != null) {
+                    String basePoNo = ic.getPoNo();
+                    if (basePoNo.contains("/")) {
+                        basePoNo = basePoNo.substring(0, basePoNo.indexOf("/"));
+                    }
+                    com.sarthi.entity.PoHeader poHeader = poHeaderRepository.findByPoNo(basePoNo).orElse(null);
+                    if (poHeader != null && poHeader.getRlyShortName() != null) {
+                        rlyShortName = poHeader.getRlyShortName();
+                    }
+                }
                 
                 RailInspectionCompleteDetails details = new RailInspectionCompleteDetails();
                 details.setCallNo(ic.getCallNo());
                 details.setPoNo(ic.getPoNo());
-                details.setCertificateNo(generateCertificateNo(rio, ic.getCallNo(), userShortName));
+                details.setCertificateNo(generateCertificateNo(rlyShortName, ic.getCallNo(), userShortName));
                 details.setCreatedOn(LocalDateTime.now());
                 
                 railInspectionCompleteDetailsRepository.save(details);
@@ -656,11 +668,16 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         return mapToResponse(saved);
     }
 
-    private String generateCertificateNo(String rioName, String callNo, String userShortName) {
-        String rioFirstLetter = (rioName != null && !rioName.isEmpty())
-                ? rioName.substring(0, 1).toUpperCase()
+    private String generateCertificateNo(String rlyShortName, String callNo, String userShortName) {
+        String rlyPrefix = (rlyShortName != null && !rlyShortName.isEmpty())
+                ? rlyShortName.toUpperCase()
                 : "X";
-        return rioFirstLetter + "/" + callNo + "/" + userShortName.toUpperCase();
+        // Convert user short name to Title Case or just use it as-is if it's already correctly cased
+        // We'll capitalize the first letter to ensure it matches "Suryaprakash" format
+        if (userShortName != null && userShortName.length() > 0) {
+            userShortName = userShortName.substring(0, 1).toUpperCase() + userShortName.substring(1).toLowerCase();
+        }
+        return rlyPrefix + "/" + callNo + "/" + userShortName;
     }
 
     private String determineJobStatus(String action) {
