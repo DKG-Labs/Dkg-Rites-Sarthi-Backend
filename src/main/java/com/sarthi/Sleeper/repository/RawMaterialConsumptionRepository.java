@@ -12,4 +12,6 @@ import org.springframework.data.domain.Pageable;
 public interface RawMaterialConsumptionRepository extends JpaRepository<RawMaterialConsumption, Long> {
     Page<RawMaterialConsumption> findByPlantIdAndRawMaterial(String plantId, String rawMaterial, Pageable pageable);
     Page<RawMaterialConsumption> findByPlantId(String plantId, Pageable pageable);
+    Page<RawMaterialConsumption> findByPlantIdAndRawMaterialAndStatusIn(String plantId, String rawMaterial, List<String> statuses, Pageable pageable);
+    List<RawMaterialConsumption> findByPlantIdAndRawMaterialAndStatusIn(String plantId, String rawMaterial, List<String> statuses);
 }

@@ -21,6 +21,9 @@ public class RawMaterialConsumptionServiceImpl implements RawMaterialConsumption
     @Autowired
     private RawMaterialConsumptionRepository repository;
 
+    @Autowired
+    private com.sarthi.Sleeper.repository.SleeperWorkflowRepository workflowRepository;
+
     @Override
     public RawMaterialConsumptionDto saveConsumption(RawMaterialConsumptionDto dto) {
         RawMaterialConsumption entity = new RawMaterialConsumption();
@@ -72,10 +75,23 @@ public class RawMaterialConsumptionServiceImpl implements RawMaterialConsumption
     }
 
     @Override
-    public Page<RawMaterialConsumptionDto> getAllConsumptionByPlantAndMaterial(String plantId, String rawMaterial, int page, int size) {
+    public Page<RawMaterialConsumptionDto> getAllConsumptionByPlantAndMaterial(String plantId, String rawMaterial, List<String> statuses, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdDate"));
+        if (statuses != null && !statuses.isEmpty()) {
+            return repository.findByPlantIdAndRawMaterialAndStatusIn(plantId, rawMaterial, statuses, pageable)
+                    .map(this::mapToDto);
+        }
         return repository.findByPlantIdAndRawMaterial(plantId, rawMaterial, pageable)
                 .map(this::mapToDto);
+    }
+
+    @Override
+    public List<RawMaterialConsumptionDto> getAllVerifiedConsumptionByPlantAndMaterial(String plantId, String rawMaterial) {
+        List<String> verifiedStatuses = java.util.Arrays.asList("Completed", "Verified", "Locked");
+        return repository.findByPlantIdAndRawMaterialAndStatusIn(plantId, rawMaterial, verifiedStatuses)
+                .stream()
+                .map(this::mapToDto)
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Override
@@ -90,8 +106,53 @@ public class RawMaterialConsumptionServiceImpl implements RawMaterialConsumption
         repository.deleteById(id);
     }
 
+    private Long getModuleIdForMaterial(String materialName) {
+        if (materialName == null) return 13L; // Default fallback
+        switch (materialName.toLowerCase()) {
+            case "hts wire":
+            case "hts-wire":
+                return 13L; // HTS RM Consumption Records
+            case "cement":
+                return 14L; // CEMENT RM Consumption Records
+            case "admixture":
+                return 15L; // ADMIXTURE RM Consumption Records
+            case "aggregates":
+            case "aggregate":
+                return 16L; // AGGREGATE RM Consumption Records
+            case "sgci insert":
+            case "sgci-insert":
+                return 17L; // SGCI Insert RM Consumption Records
+            case "dowel":
+                return 18L; // DOWEL RM Consumption Records
+            default:
+                return 13L; // Default to HTS if unknown for now
+        }
+    }
+
     private RawMaterialConsumptionDto mapToDto(RawMaterialConsumption entity) {
         String frontendId = "USED-" + (entity.getRawMaterial() != null ? entity.getRawMaterial().toUpperCase().substring(0, Math.min(entity.getRawMaterial().length(), 3)) : "GEN") + "-ID-" + entity.getId();
+        
+        String wfStatus = null;
+        String wfRemarks = null;
+        if (entity.getId() != null) {
+            try {
+                Long expectedModuleId = getModuleIdForMaterial(entity.getRawMaterial());
+                List<com.sarthi.Sleeper.entity.SleeperWorkflowTransaction> transactions = workflowRepository.findByRequestIdOrderByCreatedDateAsc(String.valueOf(entity.getId()));
+                if (transactions != null && !transactions.isEmpty()) {
+                    com.sarthi.Sleeper.entity.SleeperWorkflowTransaction latest = transactions.stream()
+                        .filter(t -> t.getModuleId() != null && t.getModuleId().equals(expectedModuleId))
+                        .reduce((first, second) -> second)
+                        .orElse(null);
+                    if (latest != null) {
+                        wfStatus = latest.getStatus();
+                        wfRemarks = latest.getRemarks();
+                    }
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
         return RawMaterialConsumptionDto.builder()
                 .id(frontendId)
                 .numericId(entity.getId())
@@ -107,6 +168,8 @@ public class RawMaterialConsumptionServiceImpl implements RawMaterialConsumption
                 .vendorCode(entity.getVendorCode())
                 .createdBy(entity.getCreatedBy() != null ? entity.getCreatedBy().intValue() : null)
                 .updatedBy(entity.getUpdatedBy() != null ? entity.getUpdatedBy().intValue() : null)
+                .workflowStatus(wfStatus)
+                .workflowRemarks(wfRemarks)
                 .build();
     }
 }

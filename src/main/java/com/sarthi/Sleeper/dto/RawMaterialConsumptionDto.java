@@ -25,4 +25,6 @@ public class RawMaterialConsumptionDto {
     private String vendorCode;
     private Integer createdBy;
     private Integer updatedBy;
+    private String workflowStatus;
+    private String workflowRemarks;
 }

@@ -131,15 +131,31 @@ public class RawMaterialConsumptionController {
     public ResponseEntity<Map<String, Object>> getAllByPlantAndMaterial(
             @RequestParam("plantId") String plantId, 
             @RequestParam("material") String material,
+            @RequestParam(value = "statuses", required = false) List<String> statuses,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         Map<String, Object> response = new HashMap<>();
         try {
-            org.springframework.data.domain.Page<RawMaterialConsumptionDto> pageResult = service.getAllConsumptionByPlantAndMaterial(plantId, material, page, size);
+            org.springframework.data.domain.Page<RawMaterialConsumptionDto> pageResult = service.getAllConsumptionByPlantAndMaterial(plantId, material, statuses, page, size);
             response.put("responseData", pageResult.getContent());
             response.put("currentPage", pageResult.getNumber());
             response.put("totalItems", pageResult.getTotalElements());
             response.put("totalPages", pageResult.getTotalPages());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("message", "Failed to fetch records: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    @GetMapping("/by-plant-material/all-verified")
+    public ResponseEntity<Map<String, Object>> getAllVerifiedByPlantAndMaterial(
+            @RequestParam("plantId") String plantId, 
+            @RequestParam("material") String material) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            List<RawMaterialConsumptionDto> listResult = service.getAllVerifiedConsumptionByPlantAndMaterial(plantId, material);
+            response.put("responseData", listResult);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             response.put("message", "Failed to fetch records: " + e.getMessage());
