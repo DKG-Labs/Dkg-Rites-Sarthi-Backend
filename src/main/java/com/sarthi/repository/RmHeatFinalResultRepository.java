@@ -100,18 +100,32 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
      * @Param("callNos") List<String> callNos
      * );
      */
+//    @Query("""
+//            SELECT
+//                r.inspectionCallNo,
+//                r.totalQtyOfferedMt,
+//                SUM(r.weightAcceptedMt),
+//                SUM(r.weightRejectedMt)
+//            FROM RmHeatFinalResult r
+//            WHERE r.inspectionCallNo IN :callNos
+//            GROUP BY r.inspectionCallNo
+//            """)
+//    List<Object[]> findRmSummaryByCallNos(
+//            @Param("callNos") List<String> callNos);
+
     @Query("""
-            SELECT
-                r.inspectionCallNo,
-                r.totalQtyOfferedMt,
-                SUM(r.weightAcceptedMt),
-                SUM(r.weightRejectedMt)
-            FROM RmHeatFinalResult r
-            WHERE r.inspectionCallNo IN :callNos
-            GROUP BY r.inspectionCallNo
-            """)
+    SELECT
+        r.inspectionCallNo,
+        MAX(r.totalQtyOfferedMt),
+        SUM(r.weightAcceptedMt),
+        SUM(r.weightRejectedMt)
+    FROM RmHeatFinalResult r
+    WHERE r.inspectionCallNo IN :callNos
+    GROUP BY r.inspectionCallNo
+    """)
     List<Object[]> findRmSummaryByCallNos(
             @Param("callNos") List<String> callNos);
+
     /*
         @Query(value = """
                 SELECT
