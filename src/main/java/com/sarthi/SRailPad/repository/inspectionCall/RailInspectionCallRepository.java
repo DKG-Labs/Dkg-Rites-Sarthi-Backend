@@ -1,9 +1,13 @@
 package com.sarthi.SRailPad.repository.inspectionCall;
 
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +22,23 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
     Integer findTotalQtyByPoNo(String poNo);
 
     List<RailInspectionCall> findAllByVendorCode(String vendorCode);
+
+    List<RailInspectionCall> findAllByPlantId(String plantId);
+
+    Page<RailInspectionCall> findByVendorCodeOrderByCreatedAtDesc(String vendorCode, Pageable pageable);
+
+    Page<RailInspectionCall> findByPlantIdOrderByCreatedAtDesc(String plantId, Pageable pageable);
+
+    @Query(value = "SELECT c.* FROM rail_inspection_call c WHERE c.plant_id = :plantId AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) NOT IN (:statuses) ORDER BY c.created_at DESC",
+           countQuery = "SELECT count(c.id) FROM rail_inspection_call c WHERE c.plant_id = :plantId AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) NOT IN (:statuses)",
+           nativeQuery = true)
+    Page<RailInspectionCall> findPendingCallsForPlantNative(@Param("plantId") String plantId, @Param("statuses") List<String> statuses, Pageable pageable);
+    
+    @Query(value = "SELECT c.* FROM rail_inspection_call c WHERE c.plant_id = :plantId AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) IN (:statuses) ORDER BY c.created_at DESC",
+           countQuery = "SELECT count(c.id) FROM rail_inspection_call c WHERE c.plant_id = :plantId AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) IN (:statuses)",
+           nativeQuery = true)
+    Page<RailInspectionCall> findCompletedCallsForPlantNative(@Param("plantId") String plantId, @Param("statuses") List<String> statuses, Pageable pageable);
+
 
     Optional<RailInspectionCall> findByCallNo(String callNo);
 
@@ -50,4 +71,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             AND ic.created_at < :createdAt
     """, nativeQuery = true)
     Double sumTotalQtyByPoAndSrBeforeDate(@org.springframework.data.repository.query.Param("poNo") String poNo, @org.springframework.data.repository.query.Param("poSr") String poSr, @org.springframework.data.repository.query.Param("createdAt") java.time.LocalDateTime createdAt);
+
+    @Query("SELECT c FROM RailInspectionCall c JOIN RailProcessCallDetails d ON d.inspectionCall.id = c.id WHERE c.callType = 'PROCESS' AND c.railPadType = :railPadType AND d.drawingNo = :drawingNo AND c.plantId = :plantId")
+    List<RailInspectionCall> findProcessCallsByTypeAndDrawingAndPlant(@Param("railPadType") String railPadType, @Param("drawingNo") String drawingNo, @Param("plantId") String plantId);
 }

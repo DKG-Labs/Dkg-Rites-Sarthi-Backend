@@ -8,6 +8,9 @@ import com.sarthi.SRailPad.service.inspectionCall.RailPoSummaryService;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,14 +30,17 @@ public class RailInspectionCallController {
      * Does NOT use the shared Sleeper PoDataService — completely isolated.
      */
     private final RailPoSummaryService railPoSummaryService;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository;
 
     @Autowired
     public RailInspectionCallController(RailInspectionCallService service,
                                         RailWorkflowService railWorkflowService,
-                                        RailPoSummaryService railPoSummaryService) {
+                                        RailPoSummaryService railPoSummaryService,
+                                        com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository) {
         this.service = service;
         this.railWorkflowService = railWorkflowService;
         this.railPoSummaryService = railPoSummaryService;
+        this.processCallDetailsRepository = processCallDetailsRepository;
     }
 
     /**
@@ -83,6 +89,18 @@ public class RailInspectionCallController {
             summary.setPoSerialNo(call.getPoSr());
         }
 
+        // If it's a PROCESS call, overlay the drawing number from details
+        if ("PROCESS".equalsIgnoreCase(call.getCallType())) {
+            com.sarthi.SRailPad.entity.inspectionCall.RailProcessCallDetails details = 
+                processCallDetailsRepository.findByInspectionCall_CallNo(callNo).orElse(null);
+            if (details != null) {
+                summary.setDrawingNo(details.getDrawingNo());
+                if (details.getDrawingNo() != null) {
+                    summary.setItemDesc("Drawing: " + details.getDrawingNo() + (summary.getItemDesc() != null ? " (" + summary.getItemDesc() + ")" : ""));
+                }
+            }
+        }
+
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(summary),
                 HttpStatus.OK
@@ -118,6 +136,60 @@ public class RailInspectionCallController {
         );
     }
 
+    @GetMapping("/plant/{plantId}")
+    public ResponseEntity<Object> getByPlant(@PathVariable String plantId) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getAllByPlantId(plantId)),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/vendor-paginated")
+    public ResponseEntity<Object> getPaginatedByVendor(
+            @RequestParam String vendorCode,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<RailInspectionCall> paginatedData = service.getPaginatedCallsByVendor(vendorCode, pageable);
+        
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(paginatedData),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/plant-paginated")
+    public ResponseEntity<Object> getPaginatedByPlant(
+            @RequestParam String plantId,
+            @RequestParam(required = false, defaultValue = "all") String statusType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<RailInspectionCall> paginatedData = service.getPaginatedCallsByPlant(plantId, statusType, pageable);
+        
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(paginatedData),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/plant-completed-paginated")
+    public ResponseEntity<Object> getCompletedPaginatedByPlant(
+            @RequestParam String plantId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<RailInspectionCall> paginatedData = service.getCompletedPaginatedCallsByPlant(plantId, pageable);
+        
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(paginatedData),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Object> getById(@PathVariable Long id) {
         return new ResponseEntity<>(
@@ -139,6 +211,24 @@ public class RailInspectionCallController {
         try {
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(service.getRailpadIcDetails(callNo)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(500, 1, "ERROR", e.getMessage())),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @GetMapping("/process-calls")
+    public ResponseEntity<Object> getProcessCalls(
+            @RequestParam String railPadType,
+            @RequestParam String drawingNo,
+            @RequestParam String plantId) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(service.getProcessCallsByTypeDrawingAndPlant(railPadType, drawingNo, plantId)),
                     HttpStatus.OK
             );
         } catch (Exception e) {

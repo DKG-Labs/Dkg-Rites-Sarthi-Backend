@@ -25,6 +25,9 @@ public class RailProductionProduct {
     @Column(name = "product_type")
     private String productType;
 
+    @Column(name = "drawing_no")
+    private String drawingNo;
+
     @Column(name = "measurement_mode")
     private String measurementMode; // Pieces, Sets
 

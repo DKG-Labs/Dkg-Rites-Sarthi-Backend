@@ -103,7 +103,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
     @Query("""
             SELECT
                 r.inspectionCallNo,
-                SUM(r.totalQtyOfferedMt),
+                r.totalQtyOfferedMt,
                 SUM(r.weightAcceptedMt),
                 SUM(r.weightRejectedMt)
             FROM RmHeatFinalResult r

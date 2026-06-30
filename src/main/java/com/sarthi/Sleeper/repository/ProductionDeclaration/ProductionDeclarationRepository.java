@@ -647,7 +647,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
             GROUP BY di.batch_no
 
         ) dem
-            ON dem.batch_no = pd.batch_number
+            ON dem.batch_no COLLATE utf8mb4_unicode_ci = pd.batch_number COLLATE utf8mb4_unicode_ci
 
         /* =========================================
            INSPECTION REJECTION
@@ -705,7 +705,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
 
                 FROM steam_cube_sample_declaration s
 
-                WHERE s.batch_no = pd.batch_number
+                WHERE s.batch_no COLLATE utf8mb4_unicode_ci = pd.batch_number COLLATE utf8mb4_unicode_ci
           )
 
         /* =========================================
@@ -719,7 +719,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
 
                 FROM water_cube_strength_test w
 
-                WHERE w.batch_number = pd.batch_number
+                WHERE w.batch_number COLLATE utf8mb4_unicode_ci = pd.batch_number COLLATE utf8mb4_unicode_ci
           )
 
         GROUP BY

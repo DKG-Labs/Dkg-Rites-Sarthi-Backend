@@ -21,6 +21,7 @@ public class IEProductionVerificationRequestDto {
     @Data
     public static class ProductionInfoRequestDto {
         private String productType;
+        private String drawingNo;
         private String batchNo;
         private Double initialWt;
         private Double finalWt;

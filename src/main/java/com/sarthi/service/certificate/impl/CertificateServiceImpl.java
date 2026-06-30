@@ -729,7 +729,7 @@ public class CertificateServiceImpl implements CertificateService {
      */
     private String buildSealingPattern(List<RmHeatFinalResult> heatResults) {
         if (heatResults == null || heatResults.isEmpty()) {
-            return "RITES HOLOGRAM FROM SL. NO. W-XXXXXXX TO W-XXXXXXX AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
+            return "RITES HOLOGRAM FROM SL NO. C0000599 TO C0001604 HAS BEEN AFFIXED ON THE LEAD SEAL ,TIED WITH SEALING WIRE TO THE PACKING STRIP OF EACH CORRUGATED BOX";
         }
 
         java.util.Set<String> uniqueHolograms = new java.util.LinkedHashSet<>();
@@ -772,7 +772,7 @@ public class CertificateServiceImpl implements CertificateService {
             if (!uniqueHolograms.isEmpty()) {
                 holoPart = "RITES HOLOGRAM FROM SL. NO. " + String.join(", ", uniqueHolograms) + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE";
             } else {
-                holoPart = "RITES HOLOGRAM FROM SL. NO. W-XXXXXXX TO W-XXXXXXX AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE";
+                holoPart = "RITES HOLOGRAM FROM SL NO. C0000599 TO C0001604 HAS BEEN AFFIXED ON THE LEAD SEAL ,TIED WITH SEALING WIRE TO THE PACKING STRIP OF EACH CORRUGATED BOX";
             }
 
             String stampPart;
@@ -792,7 +792,7 @@ public class CertificateServiceImpl implements CertificateService {
                 String aggregatedDetails = String.join(", ", uniqueHolograms);
                 return "RITES HOLOGRAM FROM SL. NO. " + aggregatedDetails + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
             }
-            return "RITES HOLOGRAM FROM SL. NO. W-XXXXXXX TO W-XXXXXXX AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
+            return "RITES HOLOGRAM FROM SL NO. C0000599 TO C0001604 HAS BEEN AFFIXED ON THE LEAD SEAL ,TIED WITH SEALING WIRE TO THE PACKING STRIP OF EACH CORRUGATED BOX";
         }
     }
 

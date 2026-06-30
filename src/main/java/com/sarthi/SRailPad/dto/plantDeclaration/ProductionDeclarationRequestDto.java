@@ -21,6 +21,7 @@ public class ProductionDeclarationRequestDto {
     @Data
     public static class ProductDto {
         private String productType;
+        private String drawingNo;
         private String measurementMode;
         private List<BatchDto> batches;
     }

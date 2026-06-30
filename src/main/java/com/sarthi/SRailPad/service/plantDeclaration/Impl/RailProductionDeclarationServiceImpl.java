@@ -48,6 +48,7 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
             for (ProductionDeclarationRequestDto.ProductDto pDto : requestDto.getProducts()) {
                 RailProductionProduct product = new RailProductionProduct();
                 product.setProductType(pDto.getProductType());
+                product.setDrawingNo(pDto.getDrawingNo());
                 product.setMeasurementMode(pDto.getMeasurementMode());
                 product.setDeclaration(entity);
 
@@ -98,6 +99,7 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
             for (ProductionDeclarationRequestDto.ProductDto pDto : requestDto.getProducts()) {
                 RailProductionProduct product = new RailProductionProduct();
                 product.setProductType(pDto.getProductType());
+                product.setDrawingNo(pDto.getDrawingNo());
                 product.setMeasurementMode(pDto.getMeasurementMode());
                 product.setDeclaration(entity);
 
@@ -147,6 +149,7 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
                 ProductionDeclarationResponseDto.ProductResponseDto pd = new ProductionDeclarationResponseDto.ProductResponseDto();
                 pd.setId(p.getId());
                 pd.setProductType(p.getProductType());
+                pd.setDrawingNo(p.getDrawingNo());
                 pd.setMeasurementMode(p.getMeasurementMode());
 
                 if (p.getBatches() != null) {

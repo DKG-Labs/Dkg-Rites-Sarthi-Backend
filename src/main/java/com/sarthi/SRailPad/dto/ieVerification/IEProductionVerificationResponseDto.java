@@ -25,6 +25,7 @@ public class IEProductionVerificationResponseDto {
     public static class ProductionInfoResponseDto {
         private Long id;
         private String productType;
+        private String drawingNo;
         private String batchNo;
         private Double initialWt;
         private Double finalWt;

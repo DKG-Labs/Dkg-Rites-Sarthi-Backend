@@ -63,6 +63,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
         List<RailIEProductionInfo> infos = requestDto.getProductionInfos().stream().map(dto -> {
             RailIEProductionInfo info = new RailIEProductionInfo();
             info.setProductType(dto.getProductType());
+            info.setDrawingNo(dto.getDrawingNo());
             info.setBatchNo(dto.getBatchNo());
             info.setInitialWt(dto.getInitialWt());
             info.setFinalWt(dto.getFinalWt());
@@ -134,6 +135,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
                 IEProductionVerificationResponseDto.ProductionInfoResponseDto dto = new IEProductionVerificationResponseDto.ProductionInfoResponseDto();
                 dto.setId(i.getId());
                 dto.setProductType(i.getProductType());
+                dto.setDrawingNo(i.getDrawingNo());
                 dto.setBatchNo(i.getBatchNo());
                 dto.setInitialWt(i.getInitialWt());
                 dto.setFinalWt(i.getFinalWt());

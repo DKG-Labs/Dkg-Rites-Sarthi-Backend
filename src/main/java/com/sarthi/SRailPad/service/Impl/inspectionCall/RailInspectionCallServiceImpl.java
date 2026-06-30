@@ -6,9 +6,12 @@ import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionBatch;
 import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository;
+import com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCompleteDetails;
 import com.sarthi.SRailPad.service.inspectionCall.RailInspectionCallService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +19,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -24,6 +28,7 @@ import java.util.stream.Collectors;
 public class RailInspectionCallServiceImpl implements RailInspectionCallService {
 
     private final RailInspectionCallRepository repository;
+    private final RailProcessCallDetailsRepository processCallDetailsRepository;
     private final com.sarthi.repository.PoHeaderRepository poHeaderRepository;
     private final com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
     private final RailWorkflowTransactionRepository railWorkflowTransactionRepository;
@@ -49,9 +54,12 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     @Override
     @Transactional
     public RailInspectionCall create(RailInspectionCall call) {
-        // Generate Call No: RPF-MMDD001
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("MMdd"));
-        String pattern = "RPF-" + datePart + "%";
+        // Determine prefix based on call type
+        String prefix = "PROCESS".equalsIgnoreCase(call.getCallType()) ? "RPP-" : "RPF-";
+
+        // Generate Call No: PREFIX-MMDDYY001
+        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("MMddyy"));
+        String pattern = prefix + datePart + "%";
         Optional<String> lastCallNo = repository.findLastCallNoByPattern(pattern);
         
         int seq = 1;
@@ -64,7 +72,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
         
-        String generatedCallNo = String.format("RPF-%s%03d", datePart, seq);
+        String generatedCallNo = String.format("%s%s%03d", prefix, datePart, seq);
         call.setCallNo(generatedCallNo);
         
         // Ensure bidirectional links are set for JPA cascade
@@ -79,7 +87,26 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
         
-        return repository.save(call);
+        RailInspectionCall savedCall = repository.save(call);
+
+        // If it's a PROCESS call, save the child details
+        if ("PROCESS".equalsIgnoreCase(savedCall.getCallType())) {
+            com.sarthi.SRailPad.entity.inspectionCall.RailProcessCallDetails details = new com.sarthi.SRailPad.entity.inspectionCall.RailProcessCallDetails();
+            details.setInspectionCall(savedCall);
+            details.setDrawingNo(call.getDrawingNo());
+            details.setUom(call.getUom());
+            details.setQtyOnOrder(call.getQtyOnOrder());
+            details.setQtyAcceptedTillNow(call.getQtyAcceptedTillNow());
+            details.setQtyDesiredForFinal(call.getQtyDesiredForFinal());
+            details.setQtyDue(call.getQtyDue());
+            details.setProductionInitiationDate(call.getProductionInitiationDate());
+            details.setCreatedBy(call.getCreatedBy());
+            details.setUpdatedBy(call.getUpdatedBy());
+            
+            processCallDetailsRepository.save(details);
+        }
+
+        return savedCall;
     }
 
     @Override
@@ -87,6 +114,52 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         List<RailInspectionCall> calls = repository.findAllByVendorCode(vendorCode);
         calls.forEach(this::enrichCallData);
         return calls;
+    }
+
+    @Override
+    public List<RailInspectionCall> getAllByPlantId(String plantId) {
+        List<RailInspectionCall> calls = repository.findAllByPlantId(plantId);
+        calls.forEach(this::enrichCallData);
+        return calls;
+    }
+
+    @Override
+    public Page<RailInspectionCall> getPaginatedCallsByVendor(String vendorCode, Pageable pageable) {
+        Page<RailInspectionCall> callsPage = repository.findByVendorCodeOrderByCreatedAtDesc(vendorCode, pageable);
+        callsPage.forEach(this::enrichCallData);
+        return callsPage;
+    }
+
+    @Override
+    public Page<RailInspectionCall> getPaginatedCallsByPlant(String plantId, String statusType, Pageable pageable) {
+        List<String> terminalStatuses = Arrays.asList(
+                "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
+                "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
+                "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
+                "CANCEL", "Cancel", "FINISH", "Finish"
+        );
+        Page<RailInspectionCall> page;
+        if ("pending".equalsIgnoreCase(statusType)) {
+            page = repository.findPendingCallsForPlantNative(plantId, terminalStatuses, pageable);
+        } else {
+            page = repository.findByPlantIdOrderByCreatedAtDesc(plantId, pageable);
+        }
+
+        page.forEach(this::enrichCallData);
+        return page;
+    }
+
+    @Override
+    public Page<RailInspectionCall> getCompletedPaginatedCallsByPlant(String plantId, Pageable pageable) {
+        List<String> exactStatuses = Arrays.asList(
+                "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
+                "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
+                "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
+                "CANCEL", "Cancel", "FINISH", "Finish"
+        );
+        Page<RailInspectionCall> page = repository.findCompletedCallsForPlantNative(plantId, exactStatuses, pageable);
+        page.forEach(this::enrichCallData);
+        return page;
     }
 
     @Override
@@ -302,5 +375,10 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setReasonOfRejection(rejectionReasonTemplate);
 
         return dto;
+    }
+
+    @Override
+    public List<RailInspectionCall> getProcessCallsByTypeDrawingAndPlant(String railPadType, String drawingNo, String plantId) {
+        return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
     }
 }
