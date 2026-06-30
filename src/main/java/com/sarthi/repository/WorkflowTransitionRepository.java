@@ -303,8 +303,11 @@ SELECT
     COUNT(
         CASE
             WHEN stage.latest_status IN (
+                'INITIATE_INSPECTION',
+                'VERIFY_PO_DETAILS',
+                'PAUSED',
                 'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
-                'PAUSED'
+                'WITHHELD'
             )
             THEN 1
         END
@@ -315,11 +318,9 @@ SELECT
             WHEN stage.latest_status IN (
                 'CREATED',
                 'VERIFIED',
+                'RETURNED',
                 'CALL_REGISTERED',
-                'IE_SCHEDULED',
-                'INITIATE_INSPECTION',
-                'VERIFY_PO_DETAILS',
-                'WITHHELD'
+                'IE_SCHEDULED'
             )
             THEN 1
         END
