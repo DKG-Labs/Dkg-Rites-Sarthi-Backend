@@ -10,17 +10,12 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 
-@ControllerAdvice
-public class SmsExceptionHelper {
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 
-     // Generic Exception Handler
-     @ExceptionHandler(value = { Exception.class })
-     public ResponseEntity<Object> handleGlobalException(Exception ex, WebRequest request) {
-        System.out.println(ex);
-        System.out.println(request);
-        return new ResponseEntity<>(SmsResponseBuilder.getErrorResponse(new SmsErrorDetails(AppConstant.INTERNAL_SERVER_ERROR, AppConstant.ERROR_TYPE_CODE_INTERNAL, AppConstant.ERROR_TYPE_INTERNAL, "Internal Server Error. Please contact support.")), HttpStatus.INTERNAL_SERVER_ERROR);
-     }
-    
+@ControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
+public class SmsExceptionHelper {
     @ExceptionHandler(value = { SmsResourceNotFoundException.class })
     public ResponseEntity<Object> handleResourceNotFoundException(SmsResourceNotFoundException ex, WebRequest request){
         return new ResponseEntity<Object>(SmsResponseBuilder.getErrorResponse(ex.getErrorDetails()), HttpStatus.NOT_FOUND);

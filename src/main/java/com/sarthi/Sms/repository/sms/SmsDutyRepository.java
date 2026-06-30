@@ -13,13 +13,13 @@ import java.util.Optional;
 @Repository
 public interface SmsDutyRepository extends JpaRepository<SmsDutyEntity, String> {
     @Query(value="SELECT * FROM sms_duty WHERE user_id=:userId AND end_time IS NULL", nativeQuery = true)
-    Optional<SmsDutyEntity> findOngoingDuty(@Param("userId") String userId);
+    Optional<SmsDutyEntity> findOngoingDuty(@Param("userId") Integer userId);
 
     @Query(value="SELECT duty_id FROM sms_duty WHERE user_id=:userId AND end_time IS NULL", nativeQuery = true)
-    String checkDutyStatus(@Param("userId") String userId);
+    String checkDutyStatus(@Param("userId") Integer userId);
 
     Optional<SmsDutyEntity> findByDutyId(String dutyId);
 
     @Query(value="SELECT * FROM sms_duty WHERE user_id=:userId AND end_time IS NULL", nativeQuery = true)
-    Optional<SmsDutyEntity> getOngoingDutyDtls(@Param("userId") String userId);
+    Optional<SmsDutyEntity> getOngoingDutyDtls(@Param("userId") Integer userId);
 }
