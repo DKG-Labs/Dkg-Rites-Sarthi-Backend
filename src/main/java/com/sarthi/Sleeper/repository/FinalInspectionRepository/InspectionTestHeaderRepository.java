@@ -91,7 +91,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                 ON di.id = dds.inspection_id
 
             INNER JOIN production_declaration pd
-                ON pd.batch_number = di.batch_no
+                ON pd.batch_number COLLATE utf8mb4_unicode_ci = di.batch_no COLLATE utf8mb4_unicode_ci
 
             WHERE pd.casting_date BETWEEN :fromDate AND :toDate
               AND pd.plant_id = :plantId
@@ -130,7 +130,7 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                 ON di.id = dds.inspection_id
 
             INNER JOIN production_declaration pd
-                ON pd.batch_number = di.batch_no
+                ON pd.batch_number COLLATE utf8mb4_unicode_ci = di.batch_no COLLATE utf8mb4_unicode_ci
 
             WHERE pd.casting_date BETWEEN :fromDate AND :toDate
               AND pd.plant_id = :plantId
