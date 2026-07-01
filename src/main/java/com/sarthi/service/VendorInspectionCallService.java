@@ -17,5 +17,11 @@ public interface VendorInspectionCallService {
      * @return List of inspection calls with workflow status
      */
     List<VendorInspectionCallStatusDto> getVendorInspectionCallsWithStatus(String vendorId);
-}
 
+    /**
+     * Fetch and merge TC Documents for a given call.
+     * @param callNo The call number (icNumber)
+     * @return byte[] of the merged PDF
+     */
+    byte[] getTcDocsByCallNo(String callNo);
+}

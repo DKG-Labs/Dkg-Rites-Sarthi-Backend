@@ -27,7 +27,7 @@ public interface SleeperWorkflowService {
    public List<SleeperWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName);
 
-   public Page<SleeperWorkflowTransactionDto> allPendingWorkflowTransitionsBasedOnModule(String roleName, int moduleId, Pageable pageable) ;
+   public Page<SleeperWorkflowTransactionDto> allPendingWorkflowTransitionsBasedOnModule(String roleName, int moduleId, String plantId, Pageable pageable) ;
 
         public List<SleeperWorkflowTransactionDto> workflowTransitionHistory(
             String requestId);
@@ -39,6 +39,7 @@ public interface SleeperWorkflowService {
 
     public Page<SleeperWorkflowTransactionDto> allCompletedWorkflowTransitions(
             Integer moduleId,
+            String plantId,
             Pageable pageable);
 
 }

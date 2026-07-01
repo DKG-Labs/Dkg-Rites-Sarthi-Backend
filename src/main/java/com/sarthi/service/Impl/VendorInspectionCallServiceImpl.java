@@ -14,7 +14,16 @@ import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.PoHeaderRepository;
 import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
+import com.sarthi.repository.InventoryEntryRepository;
+import com.sarthi.service.AzureBlobStorageService;
 import com.sarthi.service.VendorInspectionCallService;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
+import com.sarthi.constant.AppConstant;
+import com.lowagie.text.Document;
+import com.lowagie.text.pdf.PdfCopy;
+import com.lowagie.text.pdf.PdfReader;
+import java.io.ByteArrayOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +61,12 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
     @Autowired
     private FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
+
+    @Autowired
+    private InventoryEntryRepository inventoryEntryRepository;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -269,4 +284,55 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
     }
 
     // Deprecated methods replaced by optimized versions
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getTcDocsByCallNo(String callNo) {
+        logger.info("Fetching TC docs for call number: {}", callNo);
+        List<String> tcFilePaths = inventoryEntryRepository.findTcFilePathsByCallNo(callNo);
+        if (tcFilePaths == null || tcFilePaths.isEmpty()) {
+            throw new BusinessException(new ErrorDetails(AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION, "No TC Documents found for this call number"));
+        }
+
+        List<byte[]> pdfBytesList = new ArrayList<>();
+        for (String path : tcFilePaths) {
+            try {
+                if (path == null || path.isBlank()) continue;
+                String blobName = path.substring(path.lastIndexOf('/') + 1);
+                blobName = java.net.URLDecoder.decode(blobName, java.nio.charset.StandardCharsets.UTF_8);
+                byte[] pdfBytes = azureBlobStorageService.downloadFile(blobName);
+                if (pdfBytes != null && pdfBytes.length > 0) {
+                    pdfBytesList.add(pdfBytes);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to download TC document from blob: {}", path, e);
+            }
+        }
+
+        if (pdfBytesList.isEmpty()) {
+            throw new BusinessException(new ErrorDetails(AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION, "Failed to download any TC Documents"));
+        }
+        
+        if (pdfBytesList.size() == 1) {
+            return pdfBytesList.get(0);
+        }
+
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Document document = new Document();
+            PdfCopy copy = new PdfCopy(document, baos);
+            document.open();
+            for (byte[] pdf : pdfBytesList) {
+                PdfReader reader = new PdfReader(pdf);
+                for (int i = 1; i <= reader.getNumberOfPages(); i++) {
+                    copy.addPage(copy.getImportedPage(reader, i));
+                }
+                reader.close();
+            }
+            document.close();
+            return baos.toByteArray();
+        } catch (Exception e) {
+            logger.error("Error merging PDF documents for call: {}", callNo, e);
+            throw new BusinessException(new ErrorDetails(AppConstant.INTERNAL_SERVER_ERROR, AppConstant.ERROR_TYPE_CODE_INTERNAL, AppConstant.ERROR_TYPE_INTERNAL, "Error merging TC documents"));
+        }
+    }
 }
