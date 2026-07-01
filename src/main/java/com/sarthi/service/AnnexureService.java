@@ -195,7 +195,7 @@ public class AnnexureService {
             Optional<RmHeatFinalResult> heatResultOpt = rmHeatFinalResultRepository.findByInspectionCallNoAndHeatNo(callNo, sample.getHeatNo())
                     .stream().findFirst();
 
-            String visualStatus = heatResultOpt.map(r -> "ACCEPTED".equalsIgnoreCase(r.getVisualStatus()) ? "OK" : "NOT OK").orElse("N/A");
+            String visualStatus = heatResultOpt.map(RmHeatFinalResult::getVisualStatus).orElse("N/A");
             String overallStatus = heatResultOpt.map(RmHeatFinalResult::getOverallStatus).orElse("PENDING");
 
             // Format Inclusion Rating (A: 1.5, B: 1.2, C: 0.8, D: 1.0)
