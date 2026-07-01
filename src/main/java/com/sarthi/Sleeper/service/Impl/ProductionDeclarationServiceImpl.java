@@ -43,6 +43,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
 
     @Override
+    @Transactional
     public ProductionDeclarationResponseDto create(
             ProductionDeclarationRequestDto dto) {
 

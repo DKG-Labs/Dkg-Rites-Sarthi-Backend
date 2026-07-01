@@ -47,19 +47,21 @@ public interface SleeperWorkflowRepository
 
     @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
-    WHERE t.workflowTransitionId = (
+    WHERE t.workflowTransitionId IN (
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
-        WHERE t2.requestId = t.requestId
-          AND t2.moduleId = :moduleId
+        WHERE t2.moduleId = :moduleId
+        GROUP BY t2.requestId
     )
       AND t.moduleId = :moduleId
       AND t.status IN ('Created', 'PENDING')
       AND t.nextRole = :roleName
+      AND (:plantId IS NULL OR t.plantId = :plantId)
 """)
     Page<SleeperWorkflowTransaction> findLastPendingRequestsByRole(
             @Param("roleName") String roleName,
             @Param("moduleId") Integer moduleId,
+            @Param("plantId") String plantId,
             Pageable pageable);
 
 
@@ -111,17 +113,19 @@ AND t.nextRole = :roleName
 
     @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
-    WHERE t.workflowTransitionId = (
+    WHERE t.workflowTransitionId IN (
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
-        WHERE t2.requestId = t.requestId
-          AND t2.moduleId = :moduleId
+        WHERE t2.moduleId = :moduleId
+        GROUP BY t2.requestId
     )
       AND t.moduleId = :moduleId
       AND t.status = 'Completed'
+      AND (:plantId IS NULL OR t.plantId = :plantId)
 """)
     Page<SleeperWorkflowTransaction> findCompletedRequests(
             @Param("moduleId") Integer moduleId,
+            @Param("plantId") String plantId,
             Pageable pageable);
 
     @Query("""
@@ -165,10 +169,12 @@ AND t.status = 'Completed'
     @Query(value = """
                 SELECT status 
                 FROM sleeper_workflow_transaction 
-                WHERE request_id = :requestId 
-                  AND module_id = :moduleId
-                ORDER BY workflow_transition_id DESC 
-                LIMIT 1
+                WHERE workflow_transition_id = (
+                    SELECT MAX(workflow_transition_id)
+                    FROM sleeper_workflow_transaction
+                    WHERE request_id = :requestId 
+                      AND module_id = :moduleId
+                )
             """, nativeQuery = true)
     Optional<String> findLatestStatusByRequestIdAndModuleId(
             @Param("requestId") String requestId,
