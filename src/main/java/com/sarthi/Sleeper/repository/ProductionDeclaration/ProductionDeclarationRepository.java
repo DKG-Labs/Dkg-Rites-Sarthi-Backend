@@ -612,7 +612,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
 """, nativeQuery = true)
     List<Level2Projection> getLevel2Data(String poNo);
 
-    @Query(value = """
+  /*  @Query(value = """
 
         SELECT
 
@@ -628,10 +628,6 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
 
         FROM production_declaration pd
 
-        /* =========================================
-           DEMOULDING REJECTION
-           uses batch_number
-           ========================================= */
 
         LEFT JOIN (
 
@@ -649,10 +645,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
         ) dem
             ON dem.batch_no COLLATE utf8mb4_unicode_ci = pd.batch_number COLLATE utf8mb4_unicode_ci
 
-        /* =========================================
-           INSPECTION REJECTION
-           uses pd.id
-           ========================================= */
+
 
         LEFT JOIN (
 
@@ -675,10 +668,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
         WHERE pd.casting_date BETWEEN :fromDate AND :toDate
           AND pd.plant_id = :plantId
 
-        /* =========================================
-           VISUAL + CRITICAL + NON CRITICAL
-           inspection tables use pd.id
-           ========================================= */
+
 
           AND EXISTS (
 
@@ -694,10 +684,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
                 HAVING COUNT(DISTINCT ith.module_id) = 3
           )
 
-        /* =========================================
-           STEAM CUBE EXISTS
-           uses batch_number
-           ========================================= */
+
 
           AND EXISTS (
 
@@ -708,10 +695,7 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
                 WHERE s.batch_no COLLATE utf8mb4_unicode_ci = pd.batch_number COLLATE utf8mb4_unicode_ci
           )
 
-        /* =========================================
-           WATER CUBE EXISTS
-           uses batch_number
-           ========================================= */
+
 
           AND EXISTS (
 
@@ -730,6 +714,84 @@ WHERE ph.po_no = :poNo COLLATE utf8mb4_unicode_ci
             DATE_FORMAT(pd.casting_date, '%Y-%m')
 
         """, nativeQuery = true)
+    List<Object[]> getMonthlyPerformance(
+            @Param("plantId") String plantId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );  */
+
+    @Query(value = """
+
+    SELECT
+
+        DATE_FORMAT(pd.casting_date, '%b %Y') AS month,
+
+        SUM(pd.total_casted_sleepers) AS inspectedNos,
+
+        (
+            COALESCE(SUM(dem.reject_count),0)
+            +
+            COALESCE(SUM(test.reject_count),0)
+        ) AS rejectedNos
+
+    FROM production_declaration pd
+
+    /* =========================================
+       DEMOULDING REJECTION
+       uses batch_number
+       ========================================= */
+
+    LEFT JOIN (
+
+        SELECT
+            di.batch_no,
+            COUNT(dds.id) AS reject_count
+
+        FROM demoulding_inspection di
+
+        LEFT JOIN demoulding_defective_sleepers dds
+            ON dds.inspection_id = di.id
+
+        GROUP BY di.batch_no
+
+    ) dem
+        ON dem.batch_no COLLATE utf8mb4_unicode_ci =
+           pd.batch_number COLLATE utf8mb4_unicode_ci
+
+    /* =========================================
+       INSPECTION REJECTION
+       uses pd.id
+       ========================================= */
+
+    LEFT JOIN (
+
+        SELECT
+            ith.batch_id,
+            COUNT(itr.id) AS reject_count
+
+        FROM inspection_test_result itr
+
+        INNER JOIN inspection_test_header ith
+            ON ith.id = itr.test_header_id
+
+        WHERE itr.result = 'REJECTED'
+
+        GROUP BY ith.batch_id
+
+    ) test
+        ON test.batch_id = pd.id
+
+    WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+      AND pd.plant_id = :plantId
+
+    GROUP BY
+        DATE_FORMAT(pd.casting_date, '%Y-%m'),
+        DATE_FORMAT(pd.casting_date, '%b %Y')
+
+    ORDER BY
+        DATE_FORMAT(pd.casting_date, '%Y-%m')
+
+    """, nativeQuery = true)
     List<Object[]> getMonthlyPerformance(
             @Param("plantId") String plantId,
             @Param("fromDate") LocalDate fromDate,
