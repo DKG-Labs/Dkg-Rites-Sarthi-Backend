@@ -558,30 +558,65 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         // LONG_LINE (new)
         list.addAll(productionDeclarationRepository.getLongLineBatchTesting(plantId));
 
+        if (list.isEmpty()) {
+            return list;
+        }
+
+        List<String> allBatchIdsStr = list.stream()
+                .map(d -> String.valueOf(d.getBatchId()))
+                .distinct()
+                .collect(Collectors.toList());
+                
+        Set<String> completedBatchIds = new java.util.HashSet<>();
+        
+        for (int i = 0; i < allBatchIdsStr.size(); i += 1000) {
+            List<String> chunk = allBatchIdsStr.subList(i, Math.min(i + 1000, allBatchIdsStr.size()));
+            completedBatchIds.addAll(sleeperWorkflowRepository.findCompletedWorkflowsByRequestIds(chunk));
+        }
+
+        List<BatchTestingListResponseDto> workflowsCompletedList = list.stream()
+                .filter(dto -> completedBatchIds.contains(String.valueOf(dto.getBatchId())))
+                .collect(Collectors.toList());
+
+        if (workflowsCompletedList.isEmpty()) {
+            return workflowsCompletedList;
+        }
+
+        List<Long> batchIds = workflowsCompletedList.stream()
+                .map(BatchTestingListResponseDto::getBatchId)
+                .distinct()
+                .collect(Collectors.toList());
+                
+        List<String> batchNumbers = workflowsCompletedList.stream()
+                .map(BatchTestingListResponseDto::getBatchNumber)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, Long> testedCounts = new java.util.HashMap<>();
+        for (int i = 0; i < batchIds.size(); i += 1000) {
+            List<Long> chunk = batchIds.subList(i, Math.min(i + 1000, batchIds.size()));
+            List<Object[]> results = resultRepository.countTestedSleepersByBatchIds(chunk, moduleId);
+            for (Object[] row : results) {
+                testedCounts.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+            }
+        }
+
+        Map<String, Long> demouldRejectedCounts = new java.util.HashMap<>();
+        for (int i = 0; i < batchNumbers.size(); i += 1000) {
+            List<String> chunk = batchNumbers.subList(i, Math.min(i + 1000, batchNumbers.size()));
+            List<Object[]> results = demouldingInspectionRepository.countDemouldingRejectedByBatchNos(chunk);
+            for (Object[] row : results) {
+                demouldRejectedCounts.put((String) row[0], ((Number) row[1]).longValue());
+            }
+        }
+
         List<BatchTestingListResponseDto> filteredList = new ArrayList<>();
 
-        for (BatchTestingListResponseDto dto : list) {
+        for (BatchTestingListResponseDto dto : workflowsCompletedList) {
 
-            // Check workflow completed
-            Long isCompleted =
-                    sleeperWorkflowRepository.isWorkflowCompleted(dto.getBatchId());
+            Long testedCount = testedCounts.getOrDefault(dto.getBatchId(), 0L);
+            Long demouldRejected = demouldRejectedCounts.getOrDefault(dto.getBatchNumber(), 0L);
 
-            if (isCompleted != 1) {
-                continue;
-            }
-
-           // Long testedCount =resultRepository.countTestedSleepers(dto.getBatchId(), moduleId);
-            Long testedCount =
-                    resultRepository.countTestedSleepers(
-                            dto.getBatchId(),
-                            moduleId,
-                            dto.getSleeperType()
-                    );
-
-            Long demouldRejected =
-                    demouldingInspectionRepository.countDemouldingRejected(dto.getBatchNumber());
-
-           // double percent = (testedCount * 100.0) / dto.getNoOfSleepers();
             double denominator = dto.getNoOfSleepers() - demouldRejected;
 
             double percent = 0;
@@ -590,7 +625,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 percent = (testedCount * 100.0) / denominator;
             }
 
-
             dto.setTestedPercentage(percent);
 
          /*   if (percent == 0)
@@ -598,7 +632,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             else if (percent == 100)
                 dto.setTestingStatus("Completed");
             else
-                dto.setTestingStatus("Under Inspection");*/
+                dto.setTestingStatus("Under Inspection"); */
+
             boolean completed = false;
 
 // MODULE 1 → VISUAL
