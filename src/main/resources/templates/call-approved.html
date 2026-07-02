@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<h3>Inspection Call Approved</h3>
+
+<p>Dear <span th:text="${vendorName}"></span>,</p>
+
+<p>
+    Your inspection call
+    <b th:text="${callNumber}"></b>
+    has been approved.
+</p>
+
+<p>Status:
+    <b th:text="${status}"></b>
+</p>
+
+</body>
+</html>

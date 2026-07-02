@@ -3190,6 +3190,136 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         return dto;
     }
 
+    @Override
+    public List<WorkflowTransitionDto> getPendingWorkflowByPoi(
+            String roleName,
+            String poi) {
+
+        long t1 = System.currentTimeMillis();
+
+        List<WorkflowTransition> pending =
+                "IE".equalsIgnoreCase(roleName)
+                        ? workflowTransitionRepository
+                        .findPendingByRolesAndPoi(
+                                poi,
+                                List.of("IE", "Process IE"))
+                        : workflowTransitionRepository
+                        .findPendingByRoleAndPoi(
+                                poi,
+                                roleName);
+
+        log.info("Workflow query time = {} ms",
+                System.currentTimeMillis() - t1);
+
+        if (pending.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> requestIds = pending.stream()
+                .map(WorkflowTransition::getRequestId)
+                .distinct()
+                .toList();
+
+        List<Integer> wtIds = pending.stream()
+                .map(WorkflowTransition::getWorkflowTransitionId)
+                .toList();
+
+        Map<String, InspectionDataDto> inspectionMap =
+                inspectionCallRepository.findLiteByIcNumberIn(requestIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                InspectionDataDto::icNumber,
+                                Function.identity(),
+                                (a, b) -> a
+                        ));
+
+        List<String> poNos = inspectionMap.values().stream()
+                .map(InspectionDataDto::poNo)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, PoHeader> poMap =
+                poHeaderRepository.findByPoNoIn(poNos)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                PoHeader::getPoNo,
+                                Function.identity(),
+                                (a, b) -> a
+                        ));
+
+        List<String> vendorCodes = inspectionMap.values().stream()
+                .map(InspectionDataDto::vendorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, VendorMaster> vendorMap =
+                vendorMasterRepository.findByVendorCodeIn(vendorCodes)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                VendorMaster::getVendorCode,
+                                Function.identity(),
+                                (a, b) -> a
+                        ));
+
+        Map<Integer, List<Integer>> finalIeMap =
+                finalIeMappingRepository.findByWorkflowTransitionIdIn(wtIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                FinalIeMapping::getWorkflowTransitionId,
+                                Collectors.mapping(
+                                        FinalIeMapping::getIeUserId,
+                                        Collectors.toList()
+                                )
+                        ));
+
+        Set<Integer> allTargetUserIds = new HashSet<>();
+        Map<Integer, List<Integer>> wtProcessIeMap = new HashMap<>();
+
+        for (WorkflowTransition wt : pending) {
+
+            if (wt.getAssignedToUser() != null) {
+                allTargetUserIds.add(wt.getAssignedToUser());
+            }
+
+            List<Integer> finalIes =
+                    finalIeMap.getOrDefault(
+                            wt.getWorkflowTransitionId(),
+                            Collections.emptyList());
+
+            allTargetUserIds.addAll(finalIes);
+        }
+
+        Map<Integer, UserMaster> userMap = Collections.emptyMap();
+
+        if (!allTargetUserIds.isEmpty()) {
+            userMap =
+                    userMasterRepository.findByUserIdIn(
+                                    new ArrayList<>(allTargetUserIds))
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    UserMaster::getUserId,
+                                    Function.identity(),
+                                    (a, b) -> a
+                            ));
+        }
+
+        final Map<Integer, UserMaster> finalUserMap = userMap;
+
+        return pending.stream()
+                .map(wt -> mapWorkflow(
+                        wt,
+                        inspectionMap,
+                        finalIeMap,
+                        poMap,
+                        vendorMap,
+                        wtProcessIeMap.get(
+                                wt.getWorkflowTransitionId()),
+                        finalUserMap))
+                .collect(Collectors.toList());
+    }
+
 
 
     @Override
