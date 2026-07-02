@@ -59,4 +59,12 @@ public class SleeperWorkflowTransactionDto {
     private LocalDate castingDate;
 
     private Integer totalCastedSleepers;
+
+//mix design
+    private String mixId;
+    private String concreteGrade;
+    private String authorityOfApproval;
+
+
+
 }
