@@ -753,4 +753,68 @@ ORDER BY ic.created_at DESC
         ORDER BY rawCreatedDate DESC
         """, nativeQuery = true)
   List<Object[]> findDownloadIcAnnexuresReportRaw();
+
+
+    @Query("""
+    SELECT wt
+    FROM WorkflowTransition wt
+    WHERE wt.workflowTransitionId IN (
+        SELECT MAX(wt2.workflowTransitionId)
+        FROM WorkflowTransition wt2
+        WHERE wt2.transitionId NOT IN (42,44,45)
+          AND wt2.requestId IN (
+              SELECT ic.icNumber
+              FROM InspectionCall ic
+              WHERE ic.placeOfInspection = :poi
+          )
+        GROUP BY wt2.requestId
+    )
+    AND wt.nextRoleName IN :roleNames
+    AND wt.jobStatus IN (
+        'IN_PROGRESS',
+        'VERIFIED',
+        'APPROVED',
+        'REGISTERED',
+        'Created',
+        'ASSIGNED',
+        'REJECTED',
+        'PAUSED'
+    )
+    """)
+    List<WorkflowTransition> findPendingByRolesAndPoi(
+            @Param("poi") String poi,
+            @Param("roleNames") List<String> roleNames
+    );
+
+    @Query("""
+    SELECT wt
+    FROM WorkflowTransition wt
+    WHERE wt.workflowTransitionId IN (
+        SELECT MAX(wt2.workflowTransitionId)
+        FROM WorkflowTransition wt2
+        WHERE wt2.transitionId NOT IN (42,44,45)
+          AND wt2.requestId IN (
+              SELECT ic.icNumber
+              FROM InspectionCall ic
+              WHERE ic.placeOfInspection = :poi
+          )
+        GROUP BY wt2.requestId
+    )
+    AND wt.nextRoleName = :roleName
+    AND wt.jobStatus IN (
+        'IN_PROGRESS',
+        'VERIFIED',
+        'APPROVED',
+        'REGISTERED',
+        'Created',
+        'ASSIGNED',
+        'REJECTED',
+        'PAUSED'
+    )
+    """)
+    List<WorkflowTransition> findPendingByRoleAndPoi(
+            @Param("poi") String poi,
+            @Param("roleName") String roleName
+    );
+
 }

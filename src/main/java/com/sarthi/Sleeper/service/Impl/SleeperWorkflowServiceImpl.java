@@ -60,6 +60,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Autowired
     private ProductionDeclarationRepository productionDeclarationRepository;
 
+    @Autowired
+    private MixDesignRepository mixDesignRepository;
+
     public void validateUser(Integer userId) {
         UserMaster userMaster = userMasterRepository.findById(userId)
                 .orElseThrow(() -> new InvalidInputException(
@@ -716,6 +719,21 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         dto.setTotalCastedSleepers(p.getTotalCastedSleepers());
                     });
         }
+
+        if (tx.getModuleId() != null && tx.getModuleId() == 4) {
+
+            mixDesignRepository.findById(Long.valueOf(tx.getRequestId()))
+                    .ifPresent(mix -> {
+
+                        dto.setMixId(mix.getIdentification());
+                        dto.setConcreteGrade(mix.getConcreteGrade());
+                        dto.setAuthorityOfApproval(mix.getAuthorityOfApproval());
+
+                    });
+        }
+
+
+
         List<Integer> userIds = new ArrayList<>();
         if (tx.getWorkflowId().equals(2L)) {
             // Only Main IE for workflow 2

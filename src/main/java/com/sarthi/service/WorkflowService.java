@@ -41,4 +41,8 @@ public interface WorkflowService {
     public List<IcWorkflowTransitionDto> getSignedInspectionByModifiedUser(Integer modifiedBy);
 
     public String withdrawCall(TransitionActionReqDto dto);
+
+    public List<WorkflowTransitionDto> getPendingWorkflowByPoi(
+            String roleName,
+            String poi);
 }

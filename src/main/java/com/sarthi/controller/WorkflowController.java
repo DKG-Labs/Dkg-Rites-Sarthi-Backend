@@ -33,6 +33,13 @@ public class WorkflowController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransition(roleName)), HttpStatus.OK);
     }
 
+    @GetMapping("/allPendingWorkflowTransitionByPoi")
+    public ResponseEntity<Object> allPendingWorkflowTransitionByPoi(@RequestParam String roleName, @RequestParam String poi)  {
+        if(roleName.equalsIgnoreCase("Process IE")){
+            roleName="IE";
+        }
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getPendingWorkflowByPoi(roleName, poi)), HttpStatus.OK);
+    }
     @GetMapping("/allPendingQtyEditTransitions")
     public ResponseEntity<Object> allPendingQtyEditTransitions(@RequestParam String roleName)  {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingQtyEditTransitions(roleName)), HttpStatus.OK);
