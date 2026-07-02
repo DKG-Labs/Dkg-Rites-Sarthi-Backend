@@ -72,7 +72,7 @@ public class SmsServiceImpl implements SmsService {
     @Transactional
     public StartDutyResDto startDuty(String ah, StartDutyReqDto req) {
         SmsDutyEntity se = new SmsDutyEntity();
-        String userId = SmsCommonUtils.getUserIdFromAuthHeader(ah);
+        Integer userId = SmsCommonUtils.getUserIdFromAuthHeader(ah);
 
         // check if a duty is already in progres
         DutyStatusResDto dsrd = checkDutyStatus(ah);
@@ -129,7 +129,7 @@ public class SmsServiceImpl implements SmsService {
 
     @Override
     public DutyStatusResDto checkDutyStatus(String ah) {
-        String userId = SmsCommonUtils.getUserIdFromAuthHeader(ah);
+        Integer userId = SmsCommonUtils.getUserIdFromAuthHeader(ah);
         String dutyId = sdr.checkDutyStatus(userId);
         DutyStatusResDto dsrd = new DutyStatusResDto();
         dsrd.setDutyId(dutyId);
@@ -140,7 +140,7 @@ public class SmsServiceImpl implements SmsService {
 
     @Override
     public StartDutyResDto getOngoingDutyDtls(String ah) {
-        String userId = SmsCommonUtils.getUserIdFromAuthHeader(ah);
+        Integer userId = SmsCommonUtils.getUserIdFromAuthHeader(ah);
         Optional<SmsDutyEntity> sdeOpt = sdr.getOngoingDutyDtls(userId);
 
         StartDutyResDto sdrd = new StartDutyResDto();
@@ -760,7 +760,7 @@ public class SmsServiceImpl implements SmsService {
 
             // }
 
-            if (!hds2e.getHeatStage().equalsIgnoreCase(SmsHeatStageEnum.BLOOM.getDescription())) {
+            if (!SmsHeatStageEnum.BLOOM.getDescription().equalsIgnoreCase(hds2e.getHeatStage())) {
                 throw new SmsInvalidArgumentException(
                         new SmsErrorDetails(
                                 AppConstant.ERROR_CODE_VALIDATION,
@@ -779,7 +779,7 @@ public class SmsServiceImpl implements SmsService {
 
             // }
 
-            if (!hds3e.getHeatStage().equalsIgnoreCase(SmsHeatStageEnum.BLOOM.getDescription())) {
+            if (!SmsHeatStageEnum.BLOOM.getDescription().equalsIgnoreCase(hds3e.getHeatStage())) {
                 throw new SmsInvalidArgumentException(
                         new SmsErrorDetails(
                                 AppConstant.ERROR_CODE_VALIDATION,

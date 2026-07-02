@@ -43,6 +43,7 @@ public class SleeperWorkflow {
     public ResponseEntity<Object> allPendingWorkflowTransition(
             @RequestParam String roleName,
             @RequestParam Integer moduleId,
+            @RequestParam(required = false) String plantId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
@@ -53,6 +54,7 @@ public class SleeperWorkflow {
                         workflowService.allPendingWorkflowTransitionsBasedOnModule(
                                 roleName,
                                 moduleId,
+                                plantId,
                                 pageable)),
                 HttpStatus.OK);
     }
@@ -78,6 +80,7 @@ public class SleeperWorkflow {
     @GetMapping("/allCompletedWorkflowTransitionModuleWise")
     public ResponseEntity<Object> allCompletedWorkflowTransition(
             @RequestParam Integer moduleId,
+            @RequestParam(required = false) String plantId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
@@ -85,7 +88,7 @@ public class SleeperWorkflow {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        workflowService.allCompletedWorkflowTransitions(moduleId, pageable)),
+                        workflowService.allCompletedWorkflowTransitions(moduleId, plantId, pageable)),
                 HttpStatus.OK);
     }
 

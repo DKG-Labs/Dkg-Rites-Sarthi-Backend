@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Table(name="sms_duty")
 public class SmsDutyEntity {
     @Column(name = "user_id")
-    private String userId;
+    private Integer userId;
 
     @Id
     @Column(name="duty_id")

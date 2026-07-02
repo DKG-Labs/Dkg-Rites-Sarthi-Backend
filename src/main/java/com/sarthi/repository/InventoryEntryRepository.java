@@ -4,6 +4,7 @@ import com.sarthi.entity.InventoryEntry;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -106,4 +107,24 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
      */
     List<InventoryEntry> findByTcNumberAndVendorCode(String tcNumber, String vendorCode);
 
-    }
+        @Query(value = "SELECT DISTINCT ie.tc_file_path " +
+                   "FROM inventory_entries ie " +
+                   "WHERE ie.tc_file_path IS NOT NULL AND ie.heat_number IN (" +
+                   "    SELECT rhq.heat_number " +
+                   "    FROM inspection_calls ic " +
+                   "    JOIN rm_inspection_details rid ON rid.ic_id = ic.id " +
+                   "    JOIN rm_heat_quantities rhq ON rhq.rm_detail_id = rid.id " +
+                   "    WHERE ic.ic_number = :callNo " +
+                   "    UNION " +
+                   "    SELECT prim.heat_number " +
+                   "    FROM inspection_calls ic " +
+                   "    JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic.id " +
+                   "    WHERE ic.ic_number = :callNo " +
+                   "    UNION " +
+                   "    SELECT fpim.heat_number " +
+                   "    FROM inspection_calls ic " +
+                   "    JOIN final_process_ic_mapping fpim ON fpim.final_ic_id = ic.id " +
+                   "    WHERE ic.ic_number = :callNo" +
+                   ")", nativeQuery = true)
+    List<String> findTcFilePathsByCallNo(@Param("callNo") String callNo);
+}

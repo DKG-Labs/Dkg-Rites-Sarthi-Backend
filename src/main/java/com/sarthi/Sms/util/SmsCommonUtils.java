@@ -1,6 +1,8 @@
 package com.sarthi.Sms.util;
 
 
+import com.sarthi.repository.UserMasterRepository;
+import com.sarthi.entity.UserMaster;
 import com.sarthi.Sms.exception.SmsErrorDetails;
 import com.sarthi.Sms.exception.SmsInvalidArgumentException;
 import com.sarthi.constant.AppConstant;
@@ -20,6 +22,7 @@ import java.util.Objects;
 @Component
 public class SmsCommonUtils implements ApplicationContextAware {
     private static JwtService jwtService;
+    private static UserMasterRepository userMasterRepository;
 
     @Autowired
     private ApplicationContext context;
@@ -28,9 +31,10 @@ public class SmsCommonUtils implements ApplicationContextAware {
     public void setApplicationContext(ApplicationContext applicationContext) {
         context = applicationContext;
         jwtService = context.getBean(JwtService.class);
+        userMasterRepository = context.getBean(UserMasterRepository.class);
     }
 
-    public static String getUserIdFromAuthHeader(String authHeader){
+    public static Integer getUserIdFromAuthHeader(String authHeader){
         if((authHeader == null) || (!authHeader.startsWith("Bearer "))){
             throw new SmsInvalidArgumentException(
                 new SmsErrorDetails(AppConstant.INVALID_TOKEN_CODE,
@@ -40,7 +44,14 @@ public class SmsCommonUtils implements ApplicationContextAware {
                                 );
         }
         String username = jwtService.extractUserId(authHeader.substring(7));
-        return username;
+        UserMaster user = userMasterRepository.findByUserName(username)
+                            .orElseThrow(() -> new SmsInvalidArgumentException(
+                                    new SmsErrorDetails(AppConstant.ERROR_CODE_VALIDATION,
+                                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                            AppConstant.ERROR_TYPE_VALIDATION,
+                                            "User not found")
+                            ));
+        return user.getUserId();
     }
 
     public static LocalDate convertStringToDateObject(String dateString){
