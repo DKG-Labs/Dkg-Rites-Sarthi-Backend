@@ -8,5 +8,5 @@ import java.util.Optional;
 @Repository
 public interface IeVendorCalibrationInspectionRepository extends JpaRepository<IeVendorCalibrationInspection, Long> {
 
-    Optional<IeVendorCalibrationInspection> findByCallNo(String callNo);
+    Optional<IeVendorCalibrationInspection> findFirstByCallNoOrderByCreatedDateDesc(String callNo);
 }

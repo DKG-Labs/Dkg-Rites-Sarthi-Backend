@@ -38,25 +38,25 @@ public class ProcessIcSaveChanges {
     @Column(name = "PASSED_INSTALLMENT_NO")
     private String passedInstallmentNo;
 
-    @Column(name = "CONSIGNEE")
+    @Column(name = "CONSIGNEE", columnDefinition = "TEXT")
     private String consignee;
 
-    @Column(name = "CONTRACT_REF")
+    @Column(name = "CONTRACT_REF", columnDefinition = "TEXT")
     private String contractRef;
 
-    @Column(name = "MA_NUMBER_AND_DATE")
+    @Column(name = "MA_NUMBER_AND_DATE", columnDefinition = "TEXT")
     private String maNumberAndDate;
 
-    @Column(name = "BILL_PAYING_OFFICER")
+    @Column(name = "BILL_PAYING_OFFICER", columnDefinition = "TEXT")
     private String billPayingOfficer;
 
-    @Column(name = "PURCHASING_AUTHORITY")
+    @Column(name = "PURCHASING_AUTHORITY", columnDefinition = "TEXT")
     private String purchasingAuthority;
 
-    @Column(name = "DESCRIPTION")
+    @Column(name = "DESCRIPTION", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "QAP_NO")
+    @Column(name = "QAP_NO", columnDefinition = "TEXT")
     private String qapNo;
 
     @Column(name = "CREATED_BY")

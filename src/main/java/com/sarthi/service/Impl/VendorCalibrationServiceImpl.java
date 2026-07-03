@@ -11,6 +11,7 @@ import com.sarthi.entity.IeVendorCalibrationInspection;
 import com.sarthi.entity.IeVendorCalibrationInspectionDetail;
 import com.sarthi.entity.VendorCalibrationDetail;
 import com.sarthi.entity.VendorCalibrationHeader;
+import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
@@ -18,6 +19,7 @@ import java.time.format.DateTimeParseException;
 import com.sarthi.repository.IeVendorCalibrationInspectionRepository;
 import com.sarthi.repository.VendorCalibrationDetailRepository;
 import com.sarthi.repository.VendorCalibrationHeaderRepository;
+import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.VendorCalibrationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
 
     @Autowired
     private IeVendorCalibrationInspectionRepository inspectionRepository;
+
+    @Autowired
+    private InspectionCallRepository inspectionCallRepository;
 
     @Override
     public VendorCalibrationHeaderResponseDto createOrUpdateCalibrationGroup(VendorCalibrationHeaderRequestDto requestDto, String userId) {
@@ -100,9 +105,9 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
             // Set/update parent fields
             header.setCertificateFilePath(savedFilePath);
             if (isNew) {
-                header.setCreatedBy(userId);
+                header.setCreatedBy(requestDto.getCreatedBy() != null ? requestDto.getCreatedBy() : userId);
             }
-            header.setUpdatedBy(userId);
+            header.setUpdatedBy(requestDto.getUpdatedBy() != null ? requestDto.getUpdatedBy() : userId);
 
             // Handle details. We'll clear the old ones if updating to support orphan removal.
             if (!isNew) {
@@ -141,11 +146,11 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
                     detail.setCalibrationStatus(status);
                     
                     if (isNew) {
-                        detail.setCreatedBy(userId);
+                        detail.setCreatedBy(detailDto.getCreatedBy() != null ? detailDto.getCreatedBy() : (requestDto.getCreatedBy() != null ? requestDto.getCreatedBy() : userId));
                     } else {
-                        detail.setCreatedBy(userId); // Or preserve original creator
+                        detail.setCreatedBy(detailDto.getCreatedBy() != null ? detailDto.getCreatedBy() : (requestDto.getCreatedBy() != null ? requestDto.getCreatedBy() : userId)); // Or preserve original creator
                     }
-                    detail.setUpdatedBy(userId);
+                    detail.setUpdatedBy(detailDto.getUpdatedBy() != null ? detailDto.getUpdatedBy() : (requestDto.getUpdatedBy() != null ? requestDto.getUpdatedBy() : userId));
 
                     header.addDetail(detail);
                 }
@@ -184,6 +189,53 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<VendorCalibrationHeaderResponseDto> getCalibrationsByCreatedBy(String createdBy) {
+        logger.info("Fetching calibration records by createdBy: {}", createdBy);
+        try {
+            List<VendorCalibrationHeader> headers = headerRepository.findByCreatedBy(createdBy);
+            return headers.stream().map(this::mapToResponseDto).collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("Error fetching calibration records by createdBy: {}", e.getMessage(), e);
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Failed to fetch calibration records by createdBy: " + e.getMessage()));
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VendorCalibrationHeaderResponseDto> getCalibrationsByCallNo(String callNo) {
+        logger.info("Fetching calibration records by callNo: {}", callNo);
+        try {
+            String vendorId = null;
+            Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
+            if (callOpt.isPresent()) {
+                vendorId = callOpt.get().getVendorId();
+            } else {
+                logger.warn("Could not find InspectionCall for callNo: {}", callNo);
+                return new ArrayList<>();
+            }
+
+            if (vendorId == null || vendorId.isEmpty()) {
+                logger.warn("vendorId is null/empty for callNo: {}", callNo);
+                return new ArrayList<>();
+            }
+
+            return getCalibrationsByVendor(vendorId);
+        } catch (Exception e) {
+            logger.error("Error fetching calibration records by callNo: {}", e.getMessage(), e);
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Failed to fetch calibration records by callNo: " + e.getMessage()));
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public VendorCalibrationHeaderResponseDto getCalibrationGroupById(Long id) {
         logger.info("Fetching calibration record by ID: {}", id);
         VendorCalibrationHeader header = headerRepository.findById(id)
@@ -217,6 +269,47 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
                         AppConstant.ERROR_TYPE_RESOURCE,
                         "Calibration detail record not found with ID: " + detailId)));
         detailRepository.delete(detail);
+    }
+
+    @Override
+    public VendorCalibrationHeaderResponseDto updateCalibrationDetail(Long detailId, VendorCalibrationDetailDto detailDto, String userId) {
+        logger.info("Updating individual calibration detail with ID: {}", detailId);
+        
+        VendorCalibrationDetail detail = detailRepository.findById(detailId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_RESOURCE,
+                        "Calibration detail record not found with ID: " + detailId)));
+        
+        detail.setInstrumentName(detailDto.getInstrumentName());
+        detail.setCapacity(detailDto.getCapacity());
+        detail.setDescription(detailDto.getDescription());
+        detail.setUsedFor(detailDto.getUsedFor());
+        detail.setSerialNumber(detailDto.getSerialNumber());
+        detail.setCalibrationCertificateNo(detailDto.getCalibrationCertificateNo());
+        detail.setCalibrationDate(detailDto.getCalibrationDate());
+        detail.setCalibrationDueDate(detailDto.getCalibrationDueDate());
+        detail.setCertifyingLabName(detailDto.getCertifyingLabName());
+        detail.setAccreditationAgency(detailDto.getAccreditationAgency());
+        detail.setMakeModel(detailDto.getMakeModel());
+        detail.setMasterEquipNoCertValidity(detailDto.getMasterEquipNoCertValidity());
+        detail.setMasterEquipNablDetails(detailDto.getMasterEquipNablDetails());
+        detail.setNotificationDays(detailDto.getNotificationDays() != null ? detailDto.getNotificationDays() : 30);
+        
+        String status = "Valid";
+        if (detailDto.getCalibrationDueDate() != null) {
+            if (detailDto.getCalibrationDueDate().isBefore(LocalDate.now())) {
+                status = "Expired";
+            }
+        }
+        detail.setCalibrationStatus(status);
+        
+        detail.setUpdatedBy(detailDto.getUpdatedBy() != null ? detailDto.getUpdatedBy() : userId);
+        
+        detailRepository.save(detail);
+        
+        return mapToResponseDto(detail.getVendorCalibrationHeader());
     }
 
     private VendorCalibrationHeaderResponseDto mapToResponseDto(VendorCalibrationHeader header) {
@@ -279,7 +372,7 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
 
             // Check if an inspection already exists for this callNo
             Optional<IeVendorCalibrationInspection> existingOpt =
-                    inspectionRepository.findByCallNo(requestDto.getCallNo());
+                    inspectionRepository.findFirstByCallNoOrderByCreatedDateDesc(requestDto.getCallNo());
 
             IeVendorCalibrationInspection inspection;
             boolean isNew = false;
@@ -386,7 +479,7 @@ public class VendorCalibrationServiceImpl implements VendorCalibrationService {
         @Override
         public IeVendorCalibrationInspectionResponseDto getInspectionByCallNo(String callNo) {
             Optional<IeVendorCalibrationInspection> inspectionOpt =
-                    inspectionRepository.findByCallNo(callNo);
+                    inspectionRepository.findFirstByCallNoOrderByCreatedDateDesc(callNo);
             
             return inspectionOpt.map(this::mapToResponseDto).orElse(null);
         }

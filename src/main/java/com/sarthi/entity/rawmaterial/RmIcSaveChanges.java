@@ -40,31 +40,31 @@ public class RmIcSaveChanges {
     @Column(name = "drawing_no")
     private String drawingNo;
 
-    @Column(name = "manufacturer")
+    @Column(name = "manufacturer", columnDefinition = "TEXT")
     private String manufacturer;
 
-    @Column(name = "contractor_po")
+    @Column(name = "contractor_po", columnDefinition = "TEXT")
     private String contractorPo;
 
-    @Column(name = "consignee_railway")
+    @Column(name = "consignee_railway", columnDefinition = "TEXT")
     private String consigneeRailway;
 
-    @Column(name = "consignee_manufacturer")
+    @Column(name = "consignee_manufacturer", columnDefinition = "TEXT")
     private String consigneeManufacturer;
 
-    @Column(name = "purchasing_authority")
+    @Column(name = "purchasing_authority", columnDefinition = "TEXT")
     private String purchasingAuthority;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "spec_no")
+    @Column(name = "spec_no", columnDefinition = "TEXT")
     private String specNo;
 
-    @Column(name = "qap_no")
+    @Column(name = "qap_no", columnDefinition = "TEXT")
     private String qapNo;
 
-    @Column(name = "chp_clause")
+    @Column(name = "chp_clause", columnDefinition = "TEXT")
     private String chpClause;
 
     // Audit Fields

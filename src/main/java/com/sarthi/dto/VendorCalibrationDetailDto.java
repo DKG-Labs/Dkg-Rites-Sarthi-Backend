@@ -21,4 +21,6 @@ public class VendorCalibrationDetailDto {
     private String masterEquipNablDetails;
     private Integer notificationDays;
     private String calibrationStatus;
+    private String createdBy;
+    private String updatedBy;
 }
