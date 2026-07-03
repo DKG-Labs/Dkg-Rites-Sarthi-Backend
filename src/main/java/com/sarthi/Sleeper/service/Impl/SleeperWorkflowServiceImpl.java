@@ -62,6 +62,13 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
     @Autowired
     private MixDesignRepository mixDesignRepository;
+    @Autowired
+    private PlantProfileRepository plantProfileRepository;
+    @Autowired
+    private RawMaterialSourceRepository rawMaterialSourceRepository;
+
+
+
 
     public void validateUser(Integer userId) {
         UserMaster userMaster = userMasterRepository.findById(userId)
@@ -731,6 +738,39 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
                     });
         }
+
+
+
+        if (tx.getModuleId() != null && tx.getModuleId() == 1) {
+
+            plantProfileRepository.findById(Long.valueOf(tx.getRequestId()))
+                    .ifPresent(profile -> {
+
+                        dto.setPlantName(profile.getPlantNameLocation());
+                        dto.setVendorCode(profile.getVendorCode());
+                        dto.setPlantType(profile.getPlantType());
+                        dto.setNumberOfSheds(profile.getNumberOfSheds());
+
+                    });
+        }
+
+        if (tx.getModuleId() != null && tx.getModuleId() == 3) {
+
+            rawMaterialSourceRepository
+                    .findById(Long.valueOf(tx.getRequestId()))
+                    .ifPresent(raw -> {
+
+                        dto.setRawMaterialType(raw.getRawMaterialType());
+                        dto.setSupplierName(raw.getSupplierName());
+                        dto.setApprovalReference(raw.getApprovalReference());
+                        dto.setValidFrom(raw.getValidFrom());
+                        dto.setValidTo(raw.getValidTo());
+
+                    });
+        }
+
+
+
 
 
 

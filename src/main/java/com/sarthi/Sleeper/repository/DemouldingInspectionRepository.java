@@ -65,6 +65,13 @@ WHERE d.inspection.batchNo = :batchNo
 """)
     Long countDemouldingRejected(String batchNo);
 
+    @Query("""
+SELECT d.inspection.batchNo, COUNT(d.id)
+FROM DemouldingDefectiveSleeper d
+WHERE d.inspection.batchNo IN :batchNos
+GROUP BY d.inspection.batchNo
+""")
+    List<Object[]> countDemouldingRejectedByBatchNos(@Param("batchNos") List<String> batchNos);
 
    /* @Query(value = """
     SELECT di.inspection_date AS inspectionDate,

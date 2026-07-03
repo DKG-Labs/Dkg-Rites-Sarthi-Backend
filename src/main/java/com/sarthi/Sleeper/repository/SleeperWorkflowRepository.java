@@ -194,6 +194,9 @@ AND t.status = 'Completed'
             """, nativeQuery = true)
     Long isWorkflowCompleted(@Param("requestId") Long requestId);
 
+    @Query("SELECT s.requestId FROM SleeperWorkflowTransaction s WHERE s.moduleId = 11 AND s.status = 'COMPLETED' AND s.requestId IN :requestIds")
+    List<String> findCompletedWorkflowsByRequestIds(@Param("requestIds") List<String> requestIds);
+
     @Query("SELECT s FROM SleeperWorkflowTransaction s " +
             "WHERE s.moduleId = :moduleId AND s.requestId = :requestId " +
             "ORDER BY s.workflowTransitionId DESC LIMIT 1")

@@ -65,6 +65,18 @@ public class SleeperWorkflowTransactionDto {
     private String concreteGrade;
     private String authorityOfApproval;
 
+//plant profile
+    private String plantName;
+   // private String vendorCode;
+    private String plantType;
+    private Integer numberOfSheds;
 
+//rawmaterial
+
+    private String rawMaterialType;
+    private String supplierName;
+    private String approvalReference;
+    private LocalDate validFrom;
+    private LocalDate validTo;
 
 }

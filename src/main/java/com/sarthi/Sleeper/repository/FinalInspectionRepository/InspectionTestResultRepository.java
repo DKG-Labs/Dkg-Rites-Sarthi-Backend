@@ -65,6 +65,21 @@ AND h.module.id = :moduleId
             String sleeperType
     );
 
+    @Query("""
+       SELECT h.batchId, COUNT(DISTINCT r.sleeperId)
+       FROM InspectionTestResult r
+       JOIN r.testHeader h
+       WHERE h.batchId IN :batchIds
+       AND h.module.id = :moduleId
+       AND r.active = true
+       AND r.result <> 'PENDING'
+       GROUP BY h.batchId
+       """)
+    List<Object[]> countTestedSleepersByBatchIds(
+            @Param("batchIds") List<Long> batchIds,
+            @Param("moduleId") Long moduleId
+    );
+
   @Query("""
           SELECT r
           FROM InspectionTestResult r
