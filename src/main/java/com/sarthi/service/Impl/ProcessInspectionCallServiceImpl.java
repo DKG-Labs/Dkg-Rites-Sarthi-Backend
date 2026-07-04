@@ -118,8 +118,8 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
 
             // Extract call number from certificate number if needed
             String callNumber = rmIcNumberFromRequest;
-            if (rmIcNumberFromRequest != null && rmIcNumberFromRequest.startsWith("N/")) {
-                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("N/([^/]+)/");
+            if (rmIcNumberFromRequest != null && rmIcNumberFromRequest.matches("^[A-Z]/.*")) {
+                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^[A-Z]/([^/]+)/");
                 java.util.regex.Matcher matcher = pattern.matcher(rmIcNumberFromRequest);
                 if (matcher.find()) {
                     callNumber = matcher.group(1);
@@ -198,8 +198,8 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
 
                     // Extract call number from certificate format "N/ER-xxxxx/RAJK"
                     String singleCallNo = singleCertNo;
-                    if (singleCertNo.startsWith("N/")) {
-                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("N/([^/]+)/");
+                    if (singleCertNo.matches("^[A-Z]/.*")) {
+                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("^[A-Z]/([^/]+)/");
                         java.util.regex.Matcher m = p.matcher(singleCertNo);
                         if (m.find()) {
                             singleCallNo = m.group(1);
@@ -339,11 +339,18 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                     newLot.setCreatedAt(LocalDateTime.now());
                     newLot.setUpdatedAt(LocalDateTime.now());
                     
+                    // Set company details from DTO
+                    newLot.setCompanyId(dto.getCompanyId());
+                    newLot.setCompanyName(dto.getCompanyName());
+                    newLot.setUnitId(dto.getUnitId());
+                    newLot.setUnitName(dto.getUnitName());
+                    newLot.setUnitAddress(dto.getUnitAddress());
+                    
                     // Extract RM IC reference if exists
                     if (dto.getRmIcNumber() != null) {
                         String callNo = dto.getRmIcNumber();
-                        if (callNo.startsWith("N/")) {
-                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("N/([^/]+)/");
+                        if (callNo.matches("^[A-Z]/.*")) {
+                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^[A-Z]/([^/]+)/");
                             java.util.regex.Matcher matcher = pattern.matcher(callNo);
                             if (matcher.find()) {
                                 callNo = matcher.group(1);
@@ -352,11 +359,12 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                         Optional<InspectionCall> rmIc = inspectionCallRepository.findByIcNumber(callNo);
                         if (rmIc.isPresent()) {
                             newLot.setRmIcId(rmIc.get().getId());
-                            newLot.setCompanyId(rmIc.get().getCompanyId());
-                            newLot.setCompanyName(rmIc.get().getCompanyName());
-                            newLot.setUnitId(rmIc.get().getUnitId());
-                            newLot.setUnitName(rmIc.get().getUnitName());
-                            newLot.setUnitAddress(rmIc.get().getUnitAddress());
+                            // Fallback to RM IC if DTO didn't have company details
+                            if (newLot.getCompanyId() == null) newLot.setCompanyId(rmIc.get().getCompanyId());
+                            if (newLot.getCompanyName() == null) newLot.setCompanyName(rmIc.get().getCompanyName());
+                            if (newLot.getUnitId() == null) newLot.setUnitId(rmIc.get().getUnitId());
+                            if (newLot.getUnitName() == null) newLot.setUnitName(rmIc.get().getUnitName());
+                            if (newLot.getUnitAddress() == null) newLot.setUnitAddress(rmIc.get().getUnitAddress());
                         }
                     }
                     
@@ -376,8 +384,8 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                 for (String rawRmIcEntry : allRmIcNumbers) {
                     String singleCertNo = rawRmIcEntry.trim();
                     String singleCallNo = singleCertNo;
-                    if (singleCertNo.startsWith("N/")) {
-                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("N/([^/]+)/");
+                    if (singleCertNo.matches("^[A-Z]/.*")) {
+                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("^[A-Z]/([^/]+)/");
                         java.util.regex.Matcher m = p.matcher(singleCertNo);
                         if (m.find()) {
                             singleCallNo = m.group(1);
