@@ -144,7 +144,7 @@ GROUP BY
 
     @Query(value = """
 SELECT
-    p.id,
+    MAX(p.id) AS id,
     p.company_name,
     p.poi_code,
     u.username,
@@ -190,7 +190,6 @@ WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
   AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
 
 GROUP BY
-    p.id,
     p.company_name,
     p.poi_code,
     u.username,
