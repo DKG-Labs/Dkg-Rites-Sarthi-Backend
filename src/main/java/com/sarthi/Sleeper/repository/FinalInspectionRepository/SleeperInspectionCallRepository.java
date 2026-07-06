@@ -988,6 +988,7 @@ ORDER BY um.employee_code
         ON fcih.call_no = sic.call_no
 
     WHERE sic.call_no = :callNo
+    LIMIT 1
 
     """, nativeQuery = true)
     SleeperIcProjection getSleeperIcData(
