@@ -47,6 +47,7 @@ import com.sarthi.repository.finalmaterial.FinalApplicationDeflectionRepository;
 import com.sarthi.repository.finalmaterial.FinalApplicationDeflectionSampleRepository;
 import com.sarthi.repository.finalmaterial.FinalDimensionalInspectionFlatRepository;
 import com.sarthi.repository.finalmaterial.FinalDimensionalInspectionRepository;
+import com.sarthi.repository.RmVisualInspectionRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -102,6 +103,7 @@ public class AnnexureService {
     private final FinalApplicationDeflectionSampleRepository finalApplicationDeflectionSampleRepository;
     private final FinalDimensionalInspectionFlatRepository finalDimensionalInspectionFlatRepository;
     private final FinalDimensionalInspectionRepository finalDimensionalInspectionRepository;
+    private final RmVisualInspectionRepository rmVisualInspectionRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -198,6 +200,36 @@ public class AnnexureService {
             String visualStatus = heatResultOpt.map(RmHeatFinalResult::getVisualStatus).orElse("N/A");
             String overallStatus = heatResultOpt.map(RmHeatFinalResult::getOverallStatus).orElse("PENDING");
 
+            String freedomFromDefects = "N/A";
+            if ("OK".equalsIgnoreCase(visualStatus) || "PASS".equalsIgnoreCase(visualStatus) || "ACCEPTED".equalsIgnoreCase(visualStatus)) {
+                freedomFromDefects = "OK";
+            } else if ("PARTIAL".equalsIgnoreCase(visualStatus) || "PARTIALLY_ACCEPTED".equalsIgnoreCase(visualStatus) || "PARTIALLY ACCEPTED".equalsIgnoreCase(visualStatus)) {
+                Optional<RmVisualInspection> visualOpt = rmVisualInspectionRepository
+                        .findByInspectionCallNoAndHeatNo(callNo, sample.getHeatNo())
+                        .stream().findFirst();
+                if (visualOpt.isPresent() && heatResultOpt.isPresent()) {
+                    BigDecimal rejected = visualOpt.get().getWeightRejected();
+                    BigDecimal offered = heatResultOpt.get().getWeightOfferedMt();
+                    if (rejected != null && offered != null) {
+                        if (rejected.compareTo(offered) >= 0) {
+                            freedomFromDefects = "NOT OK";
+                        } else if (rejected.compareTo(BigDecimal.ZERO) > 0) {
+                            freedomFromDefects = "Partially OK";
+                        } else {
+                            freedomFromDefects = "OK";
+                        }
+                    } else {
+                        freedomFromDefects = "Partially OK";
+                    }
+                } else {
+                    freedomFromDefects = "Partially OK";
+                }
+            } else if ("NOT OK".equalsIgnoreCase(visualStatus) || "FAIL".equalsIgnoreCase(visualStatus) || "REJECTED".equalsIgnoreCase(visualStatus)) {
+                freedomFromDefects = "NOT OK";
+            } else {
+                freedomFromDefects = visualStatus;
+            }
+
             // Format Inclusion Rating (A: 1.5, B: 1.2, C: 0.8, D: 1.0)
             String inclusionStr = String.format("A:%s, B:%s, C:%s, D:%s", 
                     formatValue(sample.getInclusionA()), 
@@ -222,7 +254,7 @@ public class AnnexureService {
                     .inclusion(inclusionStr)
                     .hardness(sample.getHardness())
                     .decarb(sample.getDecarb())
-                    .freedomFromDefects(visualStatus)
+                    .freedomFromDefects(freedomFromDefects)
                     .acceptedOrNot(capitalize(overallStatus))
                     .build());
         }
