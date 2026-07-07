@@ -14,6 +14,8 @@ import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
+import com.sarthi.entity.UserProfileAuditLog;
+import com.sarthi.repository.UserProfileAuditRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -98,6 +100,8 @@ public class UserServiceImpl implements UserService {
 
         userMaster.setUserName(userDto.getUserName());
         userMaster.setMobileNumber(userDto.getMobileNumber());
+        userMaster.setAlternateMobileNumber(userDto.getAlternateMobileNumber());
+        userMaster.setNotificationPreferences(userDto.getNotificationPreferences());
         if (userDto.getPassword() != null && !userDto.getPassword().isEmpty()) {
             userMaster.setPassword(userDto.getPassword());
         }
@@ -116,6 +120,9 @@ public class UserServiceImpl implements UserService {
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
         userMaster.setRio(userDto.getRio());
+        if (userDto.getProfilePhotoPath() != null) {
+            userMaster.setProfilePhotoPath(userDto.getProfilePhotoPath());
+        }
 
         String rolesAsString = String.join(",", userDto.getRoleNames());
         userMaster.setRoleName(rolesAsString);
@@ -339,6 +346,12 @@ public class UserServiceImpl implements UserService {
         userDto.setEmploymentType(userMaster.getEmploymentType());
         userDto.setDateOfBirth(userMaster.getDateOfBirth());
         userDto.setRio(userMaster.getRio());
+        userDto.setEmail(userMaster.getEmail());
+        userDto.setAlternateMobileNumber(userMaster.getAlternateMobileNumber());
+        userDto.setNotificationPreferences(userMaster.getNotificationPreferences());
+        userDto.setShortName(userMaster.getShortName());
+        userDto.setProductType(userMaster.getProductType());
+        userDto.setProfilePhotoPath(userMaster.getProfilePhotoPath());
 
         return userDto;
     }
@@ -389,6 +402,9 @@ public class UserServiceImpl implements UserService {
                 vendorName = vendorOpt.get().getVendorName();
             }
         }
+
+        user.setLastLoginDate(LocalDateTime.now());
+        userMasterRepository.save(user);
 
         return new LoginResponseDto(
                 user.getUserId(),
@@ -468,7 +484,7 @@ public class UserServiceImpl implements UserService {
         String token = jwtService.generateToken(user);
 
         String vendorName = null;
-        if ("VENDOR".equalsIgnoreCase(loginType)) {
+        if (roleNames.contains("Vendor") || roleNames.contains("Sleeper Vendor")) {
             Optional<VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername());
             if (vendorOpt.isEmpty() && user.getUsername().startsWith(":")) {
                 vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername().substring(1));
@@ -478,11 +494,14 @@ public class UserServiceImpl implements UserService {
             }
         }
 
+        user.setLastLoginDate(LocalDateTime.now());
+        userMasterRepository.save(user);
+
         return new LoginResponseDto(
                 user.getUserId(),
                 user.getUsername(),
                 vendorName,
-               roleNames,
+                roleNames,
                 token,
                 rio,
                 user.getShortName(),
@@ -507,6 +526,8 @@ public class UserServiceImpl implements UserService {
 
         userMaster.setUserName(userDto.getUserName());
         userMaster.setMobileNumber(userDto.getMobileNumber());
+        userMaster.setAlternateMobileNumber(userDto.getAlternateMobileNumber());
+        userMaster.setNotificationPreferences(userDto.getNotificationPreferences());
         if (userDto.getPassword() != null && !userDto.getPassword().isEmpty()) {
             userMaster.setPassword(userDto.getPassword());
         }
@@ -968,7 +989,45 @@ public class UserServiceImpl implements UserService {
     @Transactional
     @Override
     public void deleteUser(Integer userId) {
-        userMasterRepository.deleteById(userId);
+        UserMaster user = userMasterRepository.findById(userId).orElse(null);
+        if (user != null) {
+            userRoleMasterRepository.deleteByUserId(userId);
+            if (user.getEmployeeCode() != null) {
+                try {
+                    ieProfileRepository.deleteByEmployeeCode(user.getEmployeeCode());
+                } catch (Exception e) {
+                    // Ignore if no profile found or error deleting profile
+                }
+            }
+            userMasterRepository.deleteById(userId);
+        }
+    }
+
+    @Autowired
+    private UserProfileAuditRepository userProfileAuditRepository;
+
+    @Transactional
+    @Override
+    public void forgotPassword(ForgotPasswordRequestDto requestDto) {
+        String identifier = requestDto.getIdentifier();
+        UserMaster user = userMasterRepository.findFirstByUserName(identifier)
+                .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(identifier)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                        404, 404, "ERROR", "User not found for " + identifier))));
+
+        user.setPassword(requestDto.getNewPassword());
+        userMasterRepository.save(user);
+
+        UserProfileAuditLog auditLog = new UserProfileAuditLog();
+        auditLog.setUserId(user.getUserId());
+        auditLog.setAction("FORGOT_PASSWORD");
+        auditLog.setModifiedFields("Password");
+        auditLog.setOldValues("[REDACTED]");
+        auditLog.setNewValues("[REDACTED]");
+        auditLog.setTimestamp(LocalDateTime.now());
+        auditLog.setIpAddress("0.0.0.0"); // placeholder or could be pulled from context
+        
+        userProfileAuditRepository.save(auditLog);
     }
 
     @Transactional

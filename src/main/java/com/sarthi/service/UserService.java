@@ -1,6 +1,7 @@
 package com.sarthi.service;
 
 import com.sarthi.dto.*;
+import com.sarthi.dto.ForgotPasswordRequestDto;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.entity.IePincodePoiMapping;
 import com.sarthi.entity.PincodePoIMapping;
@@ -18,6 +19,8 @@ public interface UserService {
     public LoginResponseDto login(LoginRequestDto loginRequestDto);
 
     public LoginResponseDto loginBasedOnType(LoginRequestBasedTypeDto loginDto);
+
+    public void forgotPassword(ForgotPasswordRequestDto requestDto);
 
     public Object mapProcessIe(Long userId,
             ProcessIeMappingRequestDto dto,

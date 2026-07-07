@@ -94,7 +94,7 @@ public class CallLetterServiceImpl implements CallLetterService {
 
         // Fetch contact details from UserMaster based on vendorId
         if (ic.getVendorId() != null) {
-            Optional<UserMaster> vendorUserOpt = userMasterRepository.findByUserName(ic.getVendorId());
+            Optional<UserMaster> vendorUserOpt = userMasterRepository.findFirstByUserName(ic.getVendorId());
             if (vendorUserOpt.isPresent()) {
                 UserMaster vendorUser = vendorUserOpt.get();
                 dto.setContactPersonName(vendorUser.getFullName());

@@ -362,7 +362,7 @@ public class crisServiceImpl implements crisService {
 
         //  Fetch user
         Optional<UserMaster> userOpt =
-                userMasterRepository.findByUserName(vendorCode);
+                userMasterRepository.findFirstByUserName(vendorCode);
 
         if (userOpt.isEmpty()) return;
 

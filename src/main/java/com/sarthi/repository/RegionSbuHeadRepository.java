@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface RegionSbuHeadRepository extends JpaRepository<RegionSbuHead, Integer> {
 
     Optional<RegionSbuHead> findByRegionName(String regionName);
+    void deleteBySbuHeadUserId(Integer sbuHeadUserId);
 }

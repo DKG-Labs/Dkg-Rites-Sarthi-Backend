@@ -38,6 +38,12 @@ public class UserMasterController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Object> forgotPassword(@RequestBody ForgotPasswordRequestDto requestDto) {
+        userService.forgotPassword(requestDto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse("Password updated successfully"), HttpStatus.OK);
+    }
+
     @PostMapping("/api/OnlyRoleBasedCreation")
     public ResponseEntity<Object> createUserAndRole(@RequestBody userRequestDto userRequestDto) {
         UserDto user = userService.createUserAndRole(userRequestDto);

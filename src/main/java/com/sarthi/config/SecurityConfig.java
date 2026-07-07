@@ -9,12 +9,19 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
@@ -72,7 +79,8 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/api/ibs/callData",
-                                "/api/ibs/acknowledge"
+                                "/api/ibs/acknowledge",
+                                "/api/v1/profile/**"
                         ).authenticated()
                         // All other requests - permit for now (can be changed to authenticated() later)
                         .anyRequest().permitAll()
