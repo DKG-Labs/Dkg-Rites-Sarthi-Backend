@@ -1357,22 +1357,43 @@ public List<String> getBatchNumbers(Long vendorId,
 //    public List<String> getSleeperTypes(String batchNo, Integer benchNo) {
 //        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
 //    }
-@Override
-public List<String> getSleeperTypes(String batchNo, Integer benchNo, String productionUnit) {
+    @Override
+    public List<String> getSleeperTypes(String batchNo, Integer benchNo, String productionUnit) {
 
-   // ProductionDeclaration declaration =repository.findByBatchNumber(batchNo);
+        ProductionDeclaration declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
 
-    ProductionDeclaration declaration =repository.findByBatchNumberAndProductionUnit(batchNo,productionUnit);;
+        Set<String> sleeperTypes = new LinkedHashSet<>();
 
-    if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+            if (declaration.getChambers() != null) {
+                for (ProductionStressChamber chamber : declaration.getChambers()) {
+                    if (chamber.getBenchGroups() != null) {
+                        for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
+                            if (benchNo.equals(bench.getBenchNo()) && bench.getSleeperType() != null) {
+                                sleeperTypes.add(bench.getSleeperType());
+                            }
+                        }
+                    }
+                }
+            }
+        } else { // LONG_LINE
+            if (declaration.getGangs() != null) {
+                for (ProductionLongLineGang gang : declaration.getGangs()) {
+                    boolean matchesBench = false;
+                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchNo >= gang.getGangFrom() && benchNo <= gang.getGangTo()) {
+                        matchesBench = true;
+                    } else if (gang.getGangNo() != null && gang.getGangNo().equals(benchNo)) {
+                        matchesBench = true;
+                    }
+                    if (matchesBench && gang.getSleeperType() != null) {
+                        sleeperTypes.add(gang.getSleeperType());
+                    }
+                }
+            }
+        }
 
-        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
-
-    } else { // LONG_LINE
-
-        return repository.findSleeperTypes(batchNo, benchNo);
+        return new ArrayList<>(sleeperTypes);
     }
-}
 
 //    @Override
 //    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType) {
@@ -1380,19 +1401,59 @@ public List<String> getSleeperTypes(String batchNo, Integer benchNo, String prod
 //    }
 
     @Override
-    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType) {
+    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType, String productionUnit) {
 
-        ProductionDeclaration declaration =
-                repository.findByBatchNumber(batchNo);
+        ProductionDeclaration declaration;
+        if (productionUnit != null && !productionUnit.isEmpty()) {
+            declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
+        } else {
+            declaration = repository.findByBatchNumber(batchNo);
+        }
+
+        List<String> sleepers = new ArrayList<>();
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
-
-            return productionSleeperRepository.findSleepers(batchNo, benchNo, sleeperType);
-
+            if (declaration.getChambers() != null) {
+                for (ProductionStressChamber chamber : declaration.getChambers()) {
+                    if (chamber.getBenchGroups() != null) {
+                        for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
+                            if (benchNo.equals(bench.getBenchNo()) && sleeperType.equals(bench.getSleeperType())) {
+                                if (bench.getSleepers() != null) {
+                                    for (ProductionSleeper sleeper : bench.getSleepers()) {
+                                        if (sleeper.getSleeperNo() != null) {
+                                            sleepers.add(sleeper.getSleeperNo());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         } else { // LONG_LINE
-
-            return productionSleeperRepository.findLongLineSleepers(batchNo, benchNo, sleeperType);
+            if (declaration.getGangs() != null) {
+                for (ProductionLongLineGang gang : declaration.getGangs()) {
+                    boolean matchesBench = false;
+                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchNo >= gang.getGangFrom() && benchNo <= gang.getGangTo()) {
+                        matchesBench = true;
+                    } else if (gang.getGangNo() != null && gang.getGangNo().equals(benchNo)) {
+                        matchesBench = true;
+                    }
+                    
+                    if (matchesBench && sleeperType.equals(gang.getSleeperType())) {
+                        if (gang.getSleepers() != null) {
+                            for (ProductionSleeper sleeper : gang.getSleepers()) {
+                                if (sleeper.getSleeperNo() != null) {
+                                    sleepers.add(sleeper.getSleeperNo());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+
+        return sleepers;
     }
 
 

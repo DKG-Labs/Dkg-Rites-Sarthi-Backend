@@ -182,8 +182,18 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
             ON b.chamber_id = c.id
         JOIN production_declaration d
             ON c.declaration_id = d.id
+        JOIN sleeper_workflow_transaction w 
+            ON w.request_id = d.id
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
+        AND w.module_id = 11
+        AND LOWER(w.status) = 'completed'
+        AND w.workflow_transition_id = (
+            SELECT MAX(w2.workflow_transition_id)
+            FROM sleeper_workflow_transaction w2
+            WHERE w2.request_id = d.id
+              AND w2.module_id = 11
+        )
         """, nativeQuery = true)
     List<String> findBenchNumbers(String batchNo, String productionUnit);
 
@@ -213,7 +223,23 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
     );
 
 
-    ProductionDeclaration findByBatchNumber(String batchNo);
+    @Query(value = """
+            SELECT p.*
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.batch_number = :batchNo
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            LIMIT 1
+            """, nativeQuery = true)
+    ProductionDeclaration findByBatchNumber(@Param("batchNo") String batchNo);
 
 
     @Query(value = """
@@ -284,8 +310,18 @@ WHERE d.batch_number = :batchNo
         FROM production_longline_gang g
         JOIN production_declaration d
             ON g.declaration_id = d.id
+        JOIN sleeper_workflow_transaction w 
+            ON w.request_id = d.id
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
+        AND w.module_id = 11
+        AND LOWER(w.status) = 'completed'
+        AND w.workflow_transition_id = (
+            SELECT MAX(w2.workflow_transition_id)
+            FROM sleeper_workflow_transaction w2
+            WHERE w2.request_id = d.id
+              AND w2.module_id = 11
+        )
         """, nativeQuery = true)
     List<Object[]> findGangRanges(String batchNo, String productionUnit);
 
@@ -316,7 +352,24 @@ WHERE d.batch_number = :batchNo
             String productionUnit
     );
 
-    ProductionDeclaration findByBatchNumberAndProductionUnit(String batchNo, String productionUnit);
+    @Query(value = """
+            SELECT p.*
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.batch_number = :batchNo
+              AND p.production_unit = :productionUnit
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            LIMIT 1
+            """, nativeQuery = true)
+    ProductionDeclaration findByBatchNumberAndProductionUnit(@Param("batchNo") String batchNo, @Param("productionUnit") String productionUnit);
 
     @Query(value = """
                 SELECT pd.* FROM production_declaration pd
