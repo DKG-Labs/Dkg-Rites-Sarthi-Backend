@@ -122,7 +122,7 @@ public class CrisPoAsyncService {
                     Map<String, Object> data =
                             maDetailsService.getMaDetails(ma.get("RLY"), ma.get("MAKEY"));
 
-                    maPersistService.saveMa(data);
+                  //  maPersistService.saveMa(data);
 
                     status.setStatus("SAVED");
                     status.setProcessedAt(LocalDateTime.now());

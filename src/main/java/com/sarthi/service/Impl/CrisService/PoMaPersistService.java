@@ -21,7 +21,7 @@ public class PoMaPersistService {
     @Autowired
     private PoMaDetailRepository detailRepo;
 
-    public void saveMa(Map<String, Object> data) {
+  /*  public void saveMa(Map<String, Object> data) {
 
         Map<String, Object> hdr =
                 (Map<String, Object>) data.get("MMP_POMA_HDR");
@@ -40,8 +40,8 @@ public class PoMaPersistService {
         h.setPoNo((String) hdr.get("PO_NO"));
         h.setMaNo((String) hdr.get("MA_NO"));
         h.setSubject((String) hdr.get("SUBJECT"));
-        h.setOldPoValue(new BigDecimal(hdr.get("OLD_PO_VALUE").toString()));
-        h.setNewPoValue(new BigDecimal(hdr.get("NEW_PO_VALUE").toString()));
+       // h.setOldPoValue(new BigDecimal(hdr.get("OLD_PO_VALUE").toString()));
+       // h.setNewPoValue(new BigDecimal(hdr.get("NEW_PO_VALUE").toString()));
 
         headerRepo.save(h);
 
@@ -59,6 +59,6 @@ public class PoMaPersistService {
                 detailRepo.save(d);
             }
         }
-    }
+    }*/
 }
 

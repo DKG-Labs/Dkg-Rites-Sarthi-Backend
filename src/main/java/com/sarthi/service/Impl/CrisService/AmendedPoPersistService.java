@@ -1,7 +1,5 @@
 package com.sarthi.service.Impl.CrisService;
 
-import com.sarthi.entity.CricsPos.AmendmentPoHeader;
-import com.sarthi.entity.CricsPos.AmendmentPoItem;
 import com.sarthi.repository.AmendmentPoHeaderRepository;
 import com.sarthi.repository.AmendmentPoItemRepository;
 import jakarta.transaction.Transactional;
@@ -32,14 +30,14 @@ public class AmendedPoPersistService {
 
         String pokey = hdr.get("POKEY").toString();
 
-        if (headerRepo.existsByPokey(pokey)) {
+        if (headerRepo.existsByPoKey(pokey)) {
             return;
         }
 
         List<Map<String, Object>> dtls =
                 (List<Map<String, Object>>) data.get("PoDtl");
 
-        AmendmentPoHeader h = new AmendmentPoHeader();
+      /*  AmendmentPoHeader h = new AmendmentPoHeader();
         h.setPokey(pokey);
         h.setPoNo((String) hdr.get("PO_NO"));
         h.setL5noPo((String) hdr.get("L5NO_PO"));
@@ -53,8 +51,8 @@ public class AmendedPoPersistService {
         h.setItemCatDescr((String) hdr.get("ITEM_CAT_DESCR"));
         h.setPoPdfPath((String) hdr.get("PO_PDF_PATH"));
 
-        headerRepo.save(h);
-
+        headerRepo.save(h);*/
+/*
         if (dtls != null) {
             for (Map<String, Object> m : dtls) {
 
@@ -73,12 +71,12 @@ public class AmendedPoPersistService {
                 item.setExtDeliveryDate(parsePoDate(m.get("EXT_DELV_DT")));
 
                 itemRepo.save(item);
-            }
-        }
+            }*/
+        //}
     }
 
 
-    private BigDecimal toBD(Object v) {
+ /*   private BigDecimal toBD(Object v) {
         return v == null ? null : new BigDecimal(v.toString());
     }
 
@@ -96,7 +94,7 @@ public class AmendedPoPersistService {
                 v.toString(),
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S")
         );
-    }
+    }*/
 
 
 }

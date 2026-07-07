@@ -5,78 +5,89 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "po_ma_header")
 @Data
 public class PoMaHeader {
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+        private String rly;
+        private String maKey;
+        private LocalDate maKeyDate;
 
-    @Column(name = "ma_key", unique = true)
-    private String maKey;
+        private String poKey;
+        private String poNo;
 
-    private String rly;
-    private LocalDate maKeyDate;
+        private String maNo;
+        private LocalDate maDate;
 
-    private String poKey;
-    private String poNo;
+        private String maType;
 
-    private String maNo;
-    private LocalDate maDate;
-    private String maType;
+        private String vendorCode;
 
-    private String vcode;
-    private String subject;
-    private String remarks;
+        @Column(length = 3000)
+        private String subject;
 
-    private String maSignOff;
-    private String finStatus;
-    private String status;
+        private String refNo;
 
-    private String purDiv;
-    private String purSec;
+        private LocalDate refDate;
 
-    private BigDecimal oldPoValue;
-    private BigDecimal newPoValue;
+        @Column(length = 3000)
+        private String remarks;
 
-    private String poMaSrno;
-    private String publishFlag;
+        private String maSignOff;
 
-    private LocalDate sent4vet;
-    private LocalDate vetDate;
-    private String vetBy;
+        private String requestId;
 
-    private String sourceSystem = "CRIS";
+        private String authSeq;
 
-    private String refNo;
-    private LocalDate refDate;
+        private String authSeqFin;
 
-    private String requestId;
+        private String curUser;
 
-    private String authSeq;
-    private String authSeqFin;
+        private String curUserInd;
 
-  //  private String curUser;
-  //  private String curUserInd;
+        private String signId;
 
-    @Column(name = "curuser")
-    private String curUser;
+        private String reqId;
 
-    @Column(name = "curuser_ind")
-    private String curUserInd;
+        private String finStatus;
 
-    private String signId;
-    private String reqId;
+        private String recInd;
 
-    private String recInd;
-    private String flag;
+        private String flag;
 
-    private String reqFlag;
+        private String status;
 
-    @OneToMany(mappedBy = "maHeader", cascade = CascadeType.ALL)
-    private List<PoMaDetail> details;
+        private String purDiv;
+
+        private String purSec;
+
+        private String oldPoValue;
+
+        private String newPoValue;
+
+        private String poMaSrNo;
+
+        private String publishFlag;
+
+        private String sent4Vet;
+
+        private LocalDate vetDate;
+
+        private String vetBy;
+
+        private String reqFlag;
+
+        @OneToMany(
+                mappedBy = "maPoHeader",
+                cascade = CascadeType.ALL,
+                orphanRemoval = true)
+        private List<PoMaDetail> items = new ArrayList<>();
+
 }

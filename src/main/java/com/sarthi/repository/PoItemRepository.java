@@ -1,12 +1,14 @@
 package com.sarthi.repository;
 
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
+import com.sarthi.entity.PoHeader;
 import com.sarthi.entity.PoItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -79,4 +81,12 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         GROUP BY ph.poNo
     """)
     List<com.sarthi.dto.reports.PoIssuedDetailDto> getPoIssuedDetails(@Param("itemCatDescr") String itemCatDescr);
+
+
+
+    List<PoItem> findByPoHeader(PoHeader poHeader);
+
+    Optional<PoItem> findByPoHeaderAndItemSrNo(
+            PoHeader poHeader,
+            String itemSrNo);
 }

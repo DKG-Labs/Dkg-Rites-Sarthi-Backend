@@ -7,6 +7,7 @@ import com.sarthi.entity.CricsPos.*;
 import com.sarthi.repository.*;
 import com.sarthi.service.UserService;
 import com.sarthi.service.crisService;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +20,10 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class crisServiceImpl implements crisService {
@@ -56,6 +60,10 @@ public class crisServiceImpl implements crisService {
 
     @Autowired
     private PoCancellationDetailRepository poCancellationDetailRepo;
+    @Autowired
+    private AmendmentPoHeaderRepository amendmentPoHeaderRepository;
+    @Autowired
+    private AmendmentPoItemRepository amendmentPoItemRepository;
 
     @Autowired
     private CrisSyncStatusRepository statusRepo;
@@ -385,7 +393,7 @@ public class crisServiceImpl implements crisService {
         }
     }
 
-    @Transactional
+ /*   @Transactional
     public void saveMaFromFrontend(MaRequestDto request) {
 
         MaHeaderDto hdr = request.getMMP_POMA_HDR();
@@ -530,7 +538,465 @@ public class crisServiceImpl implements crisService {
 
             throw e;
         }
+    } */
+
+/*
+    @Transactional
+    public void saveMaPo(MaPoRequestDTO request) {
+
+        MaPoHeaderDTO hdr =
+                request.getData().getMmpPomaHdr();
+
+        PoMaHeader header = new PoMaHeader();
+
+        BeanUtils.copyProperties(hdr, header);
+
+        if (hdr.getMaDate() != null) {
+            header.setMaDate(LocalDate.parse(hdr.getMaDate()));
+        }
+
+        if (hdr.getRefDate() != null) {
+            header.setRefDate(LocalDate.parse(hdr.getRefDate()));
+        }
+
+        if (hdr.getMaKeyDate() != null) {
+            header.setMaKeyDate(LocalDate.parse(hdr.getMaKeyDate()));
+        }
+
+        if (hdr.getVetDate() != null) {
+            header.setVetDate(LocalDate.parse(hdr.getVetDate()));
+        }
+
+        PoMaHeader savedHeader =
+                poMaHeaderRepository.save(header);
+
+        List<PoMaDetail> items =
+                request.getData()
+                        .getMmpPomaDtl()
+                        .stream()
+                        .map(dto -> {
+
+                            PoMaDetail item = new PoMaDetail();
+
+                            BeanUtils.copyProperties(
+                                    dto,
+                                    item);
+
+                            item.setMaPoHeader(
+                                    savedHeader);
+
+                            return item;
+                        })
+                        .toList();
+
+        poMaDetailRepository.saveAll(items);
     }
+
+*/
+@Transactional(rollbackFor = Exception.class)
+public void saveMaPo(MaPoRequestDTO request) {
+
+    try {
+
+        // ======================================
+        // SAVE MA HEADER
+        // ======================================
+
+        PoMaHeader savedMaHeader =
+                saveMaHeader(
+                        request.getData()
+                                .getMmpPomaHdr());
+
+        // ======================================
+        // SAVE MA DETAILS
+        // ======================================
+
+        saveMaDetails(
+                savedMaHeader,
+                request.getData()
+                        .getMmpPomaDtl());
+
+        // ======================================
+        // SAVE AMENDED HEADER
+        // ======================================
+
+        AmendedPoHeader amendedHeader =
+                saveAmendedPoHeader(
+                        request.getData()
+                                .getMmpPoHdr());
+
+        // ======================================
+        // SAVE AMENDED ITEMS
+        // ======================================
+
+        saveAmendedPoItems(
+                amendedHeader,
+                request.getData()
+                        .getMmpPoItem());
+
+        // ======================================
+        // UPDATE LIVE PO HEADER
+        // ======================================
+
+        syncPoHeader(amendedHeader);
+
+        // ======================================
+        // UPDATE LIVE PO ITEMS
+        // ======================================
+
+        syncPoItems(
+                amendedHeader);
+
+    } catch (Exception e) {
+
+        throw new RuntimeException(
+                "Failed to save MA PO",
+                e);
+    }
+}
+
+    private PoMaHeader saveMaHeader(
+            MaPoHeaderDTO hdr) {
+
+        PoMaHeader header =
+                new PoMaHeader();
+
+        BeanUtils.copyProperties(
+                hdr,
+                header);
+
+        if (hdr.getMaDate() != null) {
+            header.setMaDate(
+                    LocalDate.parse(
+                            hdr.getMaDate()));
+        }
+
+        if (hdr.getRefDate() != null) {
+            header.setRefDate(
+                    LocalDate.parse(
+                            hdr.getRefDate()));
+        }
+
+        if (hdr.getMaKeyDate() != null) {
+            header.setMaKeyDate(
+                    LocalDate.parse(
+                            hdr.getMaKeyDate()));
+        }
+
+        if (hdr.getVetDate() != null) {
+            header.setVetDate(
+                    LocalDate.parse(
+                            hdr.getVetDate()));
+        }
+
+        return poMaHeaderRepository.save(
+                header);
+    }
+
+    private void saveMaDetails(
+            PoMaHeader header,
+            List<MaPoItemDTO> dtos) {
+
+        List<PoMaDetail> items =
+                dtos.stream()
+                        .map(dto -> {
+
+                            PoMaDetail item =
+                                    new PoMaDetail();
+
+                            BeanUtils.copyProperties(
+                                    dto,
+                                    item);
+
+                            item.setMaPoHeader(
+                                    header);
+
+                            return item;
+                        })
+                        .toList();
+
+        poMaDetailRepository.saveAll(
+                items);
+    }
+
+
+    private AmendedPoHeader saveAmendedPoHeader(
+            AmendedPoHeaderDTO dto) {
+
+        AmendedPoHeader entity =
+                new AmendedPoHeader();
+
+        entity.setPoKey(dto.getPoKey());
+        entity.setPoNo(dto.getPoNo());
+        entity.setRlyCd(dto.getRlyCd());
+
+        entity.setVendorCode(
+                dto.getVendorCode());
+
+        entity.setInspectingAgency(
+                dto.getInspectingAgency());
+
+        entity.setPoStatus(
+                dto.getPoStatus());
+
+        entity.setBillPayOff(
+                dto.getBillPayOff());
+
+        entity.setRegionCode(
+                dto.getPurDiv());
+
+        if (dto.getPoDate() != null) {
+
+            entity.setPoDate(
+                    LocalDate.parse(
+                                    dto.getPoDate())
+                            .atStartOfDay());
+        }
+
+        return amendmentPoHeaderRepository.save(
+                entity);
+    }
+
+    private void saveAmendedPoItems(
+            AmendedPoHeader header,
+            List<AmendedPoItemDTO> dtos) {
+
+        List<AmendedPoItem> items =
+                new ArrayList<>();
+
+        for (AmendedPoItemDTO dto : dtos) {
+
+            AmendedPoItem item =
+                    new AmendedPoItem();
+
+            item.setAmendedPoHeader(
+                    header);
+
+            item.setRly(dto.getRly());
+
+            item.setItemSrNo(
+                    dto.getPoSr());
+
+            item.setPlNo(
+                    dto.getPlNo());
+
+            item.setConsigneeCd(
+                    dto.getConsigneeCd());
+
+            item.setAllocation(
+                    dto.getAllocation());
+
+            item.setBillPayOff(
+                    dto.getBillPayOff());
+
+            item.setBillPassOff(
+                    dto.getBillPassOff());
+
+            item.setConsigneeRly(
+                    dto.getConsigneeRly());
+
+            item.setPRly(
+                    dto.getPRly());
+
+            if (dto.getPoQty() != null) {
+
+                item.setQty(
+                        Integer.parseInt(
+                                dto.getPoQty()));
+            }
+
+            if (dto.getQtyCancelled() != null) {
+
+                item.setQtyCancelled(
+                        Integer.parseInt(
+                                dto.getQtyCancelled()));
+            }
+
+            if (dto.getRate() != null) {
+
+                item.setRate(
+                        new BigDecimal(
+                                dto.getRate()));
+            }
+
+            items.add(item);
+        }
+
+        amendmentPoItemRepository.saveAll(
+                items);
+    }
+
+    private void syncPoHeader(
+            AmendedPoHeader amendedHeader) {
+
+        PoHeader poHeader =
+                headerRepo.findByPoKey(
+                                amendedHeader.getPoKey())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "PO not found"));
+
+        poHeader.setPoNo(
+                amendedHeader.getPoNo());
+
+        poHeader.setRlyCd(
+                amendedHeader.getRlyCd());
+
+        poHeader.setVendorCode(
+                amendedHeader.getVendorCode());
+
+        poHeader.setInspectingAgency(
+                amendedHeader.getInspectingAgency());
+
+        poHeader.setPoStatus(
+                amendedHeader.getPoStatus());
+
+        poHeader.setBillPayOff(
+                amendedHeader.getBillPayOff());
+
+        poHeader.setRegionCode(
+                amendedHeader.getRegionCode());
+
+        poHeader.setPoDate(
+                amendedHeader.getPoDate());
+
+        headerRepo.save(
+                poHeader);
+    }
+
+    private void syncPoItems(
+            AmendedPoHeader amendedHeader) {
+
+        PoHeader poHeader =
+              headerRepo
+                        .findByPoKey(
+                                amendedHeader.getPoKey())
+                        .orElseThrow();
+
+        List<AmendedPoItem> amendedItems =
+                amendmentPoItemRepository
+                        .findByAmendedPoHeader(
+                                amendedHeader);
+
+        Map<String, PoItem> existingItems =
+                itemRepo
+                        .findByPoHeader(
+                                poHeader)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                PoItem::getItemSrNo,
+                                Function.identity()));
+
+        for (AmendedPoItem amendedItem :
+                amendedItems) {
+
+            PoItem poItem =
+                    existingItems.get(
+                            amendedItem.getItemSrNo());
+
+            if (poItem == null) {
+
+                poItem = new PoItem();
+
+                poItem.setPoHeader(
+                        poHeader);
+
+                poItem.setItemSrNo(
+                        amendedItem.getItemSrNo());
+            }
+
+            copyAmendedItemToPo(
+                    amendedItem,
+                    poItem);
+
+            itemRepo.save(
+                    poItem);
+        }
+    }
+
+    private void copyAmendedItemToPo(
+            AmendedPoItem source,
+            PoItem target) {
+
+        if (source.getRly() != null)
+            target.setRly(source.getRly());
+
+        if (source.getPlNo() != null)
+            target.setPlNo(source.getPlNo());
+
+        if (source.getQty() != null)
+            target.setQty(source.getQty());
+
+        if (source.getRate() != null)
+            target.setRate(source.getRate());
+
+        if (source.getAllocation() != null)
+            target.setAllocation(source.getAllocation());
+
+        if (source.getBillPayOff() != null)
+            target.setBillPayOff(source.getBillPayOff());
+
+        if (source.getBillPassOff() != null)
+            target.setBillPassOff(source.getBillPassOff());
+
+        if (source.getConsigneeRly() != null)
+            target.setConsigneeRly(source.getConsigneeRly());
+
+        if (source.getPRly() != null)
+            target.setPRly(source.getPRly());
+
+        if (source.getExtendedDeliveryDate() != null)
+            target.setExtendedDeliveryDate(
+                    source.getExtendedDeliveryDate());
+
+        if (source.getCrisTimestamp() != null)
+            target.setCrisTimestamp(
+                    source.getCrisTimestamp());
+    }
+
+
+    private void copyAmendedHeaderToPo(
+            AmendedPoHeader source,
+            PoHeader target) {
+
+        if (source.getPoNo() != null) {
+            target.setPoNo(source.getPoNo());
+        }
+
+        if (source.getRlyCd() != null) {
+            target.setRlyCd(source.getRlyCd());
+        }
+
+        if (source.getVendorCode() != null) {
+            target.setVendorCode(source.getVendorCode());
+        }
+
+        if (source.getInspectingAgency() != null) {
+            target.setInspectingAgency(
+                    source.getInspectingAgency());
+        }
+
+        if (source.getPoStatus() != null) {
+            target.setPoStatus(
+                    source.getPoStatus());
+        }
+
+        if (source.getBillPayOff() != null) {
+            target.setBillPayOff(
+                    source.getBillPayOff());
+        }
+
+        if (source.getPoDate() != null) {
+            target.setPoDate(
+                    source.getPoDate());
+        }
+
+        if (source.getCrisTimestamp() != null) {
+            target.setCrisTimestamp(
+                    source.getCrisTimestamp());
+        }
+    }
+
 
     @Transactional
     public void savePoCancellationFromFrontend(PoCancellationRequestDto request) {

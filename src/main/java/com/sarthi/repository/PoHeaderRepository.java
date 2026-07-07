@@ -227,4 +227,8 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
 	List<Object[]> findDistinctRailPadVendors();
 
     List<PoHeader> findByCaseNoIsNull();
+
+    Optional<PoHeader> findByPoKey(String poKey);
+
+
 }
