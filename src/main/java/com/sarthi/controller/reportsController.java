@@ -81,11 +81,23 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
+    @GetMapping("/newPoWise")
+    public ResponseEntity<Object> getNewPoWise(    @RequestParam(defaultValue = "0") int page,
+
+                                                   @RequestParam(defaultValue = "20") int size,
+                                                   @RequestParam(required = false) LocalDate startDate,
+                                            @RequestParam(required = false) LocalDate endDate) {
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getPoInspectionTracking(page,size,startDate,endDate)), HttpStatus.OK);
+    }
+
     @GetMapping("/dashboardSummary")
     public ResponseEntity<Object> getDashboardSummary() {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDashboardSummary()),
                 HttpStatus.OK);
     }
+
+
 
     @GetMapping("/railpad-final-accepted-rejected")
     public ResponseEntity<Object> getRailPadFinalAcceptedRejected() {
@@ -431,5 +443,40 @@ public class reportsController {
                 return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
             }
         }
+
+
+
+    @GetMapping("/ercDashboardTotalCalls")
+    public ResponseEntity<Object> getTotalCallsDashboardSummary() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getTotalCallsSummary()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/ercDashboardOpenCalls")
+    public ResponseEntity<Object> getOpenCalls() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        reportService.getOpenCalls()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/ercDashboardUnderInspectionCalls")
+    public ResponseEntity<Object> getUnderInspectionCalls() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        reportService.getUnderInspectionCalls()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/ercDashboardPendingCalls")
+    public ResponseEntity<Object> getPendingCalls() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        reportService.getPendingCalls()),
+                HttpStatus.OK);
+    }
+
+
+
 }
 

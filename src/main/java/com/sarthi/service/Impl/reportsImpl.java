@@ -14,11 +14,7 @@ import com.sarthi.dto.reports.InspectionCallStatusDto;
 
 import com.sarthi.dto.reports.*;
 
-import com.sarthi.dto.summaryDtos.CallCalculationDto;
-
-import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
-
-import com.sarthi.dto.summaryDtos.ProcessSummaryDto;
+import com.sarthi.dto.summaryDtos.*;
 
 import com.sarthi.entity.*;
 
@@ -5001,6 +4997,230 @@ public class reportsImpl implements reports {
 
 
 
+        @Override
+        public PageResponseDTO<PoWiseInspectionTrackingDTO> getPoInspectionTracking(
+                int page,
+                int size,
+                LocalDate startDate,
+                LocalDate endDate) {
+
+                Pageable pageable = PageRequest.of(page, size);
+
+                Page<Object[]> poPage =
+                        inspectionCallRepository.fetchPoInspectionTracking(
+                                startDate,
+                                endDate,
+                                pageable);
+
+                AtomicInteger counter = new AtomicInteger(page * size + 1);
+
+                List<PoWiseInspectionTrackingDTO> content =
+                        poPage.getContent()
+                                .stream()
+                                .map(row -> {
+
+                                        PoWiseInspectionTrackingDTO dto =
+                                                new PoWiseInspectionTrackingDTO();
+
+                                        dto.setSno(counter.getAndIncrement());
+
+                                        dto.setZonalRailway((String) row[0]);
+                                        dto.setVendor((String) row[1]);
+                                        dto.setErcType((String) row[2]);
+                                        dto.setPoNumber((String) row[3]);
+
+                                        if (row[4] instanceof java.sql.Timestamp ts) {
+                                                dto.setPoDate(ts.toLocalDateTime().toLocalDate());
+                                        } else if (row[4] instanceof java.sql.Date dt) {
+                                                dto.setPoDate(dt.toLocalDate());
+                                        }
+
+                                        dto.setSpecification((String) row[5]);
+
+                                        dto.setPoQty(
+                                                row[6] == null ? 0D :
+                                                        ((Number) row[6]).doubleValue());
+
+                                        dto.setProcessInspectedQty(
+                                                row[7] == null ? 0D :
+                                                        ((Number) row[7]).doubleValue());
+
+                                        dto.setProcessAcceptedQty(
+                                                row[8] == null ? 0D :
+                                                        ((Number) row[8]).doubleValue());
+
+                                        dto.setOfferedForFinalInspectionQty(
+                                                row[9] == null ? 0D :
+                                                        ((Number) row[9]).doubleValue());
+
+                                        dto.setFinalAcceptedQty(
+                                                row[10] == null ? 0D :
+                                                        ((Number) row[10]).doubleValue());
+
+                                        dto.setNoOfIcIssued(
+                                                row[11] == null ? 0L :
+                                                        ((Number) row[11]).longValue());
+
+                                        if (row[12] != null) {
+
+                                                if (row[12] instanceof java.sql.Date dt) {
+                                                        dto.setLastIcIssuedDate(dt.toLocalDate());
+                                                } else if (row[12] instanceof java.sql.Timestamp ts) {
+                                                        dto.setLastIcIssuedDate(
+                                                                ts.toLocalDateTime().toLocalDate());
+                                                }
+                                        }
+
+                                        /* Raw Material Defects */
+
+                                        dto.setChemicalCompositionRej(
+                                                row[13] == null ? 0L :
+                                                        ((Number) row[13]).longValue());
+
+                                        dto.setDiameterBarRej(
+                                                row[14] == null ? 0L :
+                                                        ((Number) row[14]).longValue());
+
+                                        dto.setGrainSizeRej(
+                                                row[15] == null ? 0L :
+                                                        ((Number) row[15]).longValue());
+
+                                        dto.setInclusionRatingRej(
+                                                row[16] == null ? 0L :
+                                                        ((Number) row[16]).longValue());
+
+                                        dto.setDepthOfDecarbRej(
+                                                row[17] == null ? 0L :
+                                                        ((Number) row[17]).longValue());
+
+                                        dto.setHardnessRawRej(
+                                                row[18] == null ? 0L :
+                                                        ((Number) row[18]).longValue());
+
+                                        dto.setShearingRej(
+                                                row[19] == null ? 0L :
+                                                        ((Number) row[19]).longValue());
+
+                                        dto.setMpiRej(
+                                                row[20] == null ? 0L :
+                                                        ((Number) row[20]).longValue());
+
+                                        dto.setTurningRej(
+                                                row[21] == null ? 0L :
+                                                        ((Number) row[21]).longValue());
+
+                                        dto.setForgingRej(
+                                                row[22] == null ? 0L :
+                                                        ((Number) row[22]).longValue());
+
+                                        dto.setQuenchingRej(
+                                                row[23] == null ? 0L :
+                                                        ((Number) row[23]).longValue());
+
+                                        dto.setTemperingRej(
+                                                row[24] == null ? 0L :
+                                                        ((Number) row[24]).longValue());
+
+                                        dto.setDimensionFinishedErcRej(
+                                                row[25] == null ? 0L :
+                                                        ((Number) row[25]).longValue());
+
+                                        dto.setHardnessProcessRej(
+                                                row[26] == null ? 0L :
+                                                        ((Number) row[26]).longValue());
+
+                                        dto.setDepthOfDecarburizationRej(
+                                                row[26] == null ? 0L : ((Number) row[26]).longValue());
+
+                                        dto.setDimensionToleranceRej(
+                                                row[27] == null ? 0L : ((Number) row[27]).longValue());
+
+                                        dto.setApplicationAndDeflectionTestRej(
+                                                row[28] == null ? 0L : ((Number) row[28]).longValue());
+
+                                        dto.setToeLoadTestRej(
+                                                row[29] == null ? 0L : ((Number) row[29]).longValue());
+
+                                        dto.setWeightRej(
+                                                row[30] == null ? 0L : ((Number) row[30]).longValue());
+
+                                        dto.setVisualTestRej(
+                                                row[31] == null ? 0L : ((Number) row[31]).longValue());
+
+                                        dto.setMicroStructureRej(
+                                                row[32] == null ? 0L : ((Number) row[32]).longValue());
+
+                                        dto.setFreedomFromDefectsRej(
+                                                row[33] == null ? 0L : ((Number) row[33]).longValue());
+
+                                        dto.setOtherRejections(
+                                                row[34] == null ? 0L : ((Number) row[34]).longValue());
+
+                                        dto.setRemarks(
+                                                row[35] == null ? null : row[35].toString());
+
+                                        Long totalRejections =
+
+                                                dto.getChemicalCompositionRej()
+                                                        + dto.getDiameterBarRej()
+                                                        + dto.getGrainSizeRej()
+                                                        + dto.getInclusionRatingRej()
+                                                        + dto.getDepthOfDecarbRej()
+                                                        + dto.getHardnessRawRej()
+
+                                                        + dto.getShearingRej()
+                                                        + dto.getMpiRej()
+                                                        + dto.getTurningRej()
+                                                        + dto.getForgingRej()
+                                                        + dto.getQuenchingRej()
+                                                        + dto.getTemperingRej()
+                                                        + dto.getDimensionFinishedErcRej()
+                                                        + dto.getHardnessProcessRej()
+
+                                                        + dto.getDepthOfDecarburizationRej()
+                                                        + dto.getDimensionToleranceRej()
+                                                        + dto.getApplicationAndDeflectionTestRej()
+                                                        + dto.getToeLoadTestRej()
+                                                        + dto.getWeightRej()
+                                                        + dto.getVisualTestRej()
+                                                        + dto.getMicroStructureRej()
+                                                        + dto.getFreedomFromDefectsRej()
+                                                        + dto.getOtherRejections();
+
+                                        dto.setTotalRejections(totalRejections);
+
+                                        Double processInspectedQty =
+                                                dto.getProcessInspectedQty() == null
+                                                        ? 0D
+                                                        : dto.getProcessInspectedQty();
+
+                                        double rejectionPercentage = 0D;
+
+                                        if (processInspectedQty > 0) {
+                                                rejectionPercentage =
+                                                        (totalRejections * 100.0) / processInspectedQty;
+                                        }
+
+                                        dto.setRejectionPercentage(
+                                                Math.round(rejectionPercentage * 100.0) / 100.0
+                                        );
+                                        return dto;
+                                })
+                                .toList();
+
+                PageResponseDTO<PoWiseInspectionTrackingDTO> response =
+                        new PageResponseDTO<>();
+
+                response.setContent(content);
+                response.setPage(page);
+                response.setSize(size);
+                response.setTotalElements(poPage.getTotalElements());
+                response.setTotalPages(poPage.getTotalPages());
+
+                return response;
+        }
+
+
 
 
         @Override
@@ -5844,6 +6064,7 @@ public class reportsImpl implements reports {
                                         processQty.getShearingRejectionQty()
 
                                                 + p.getShearingRejectionQty());
+
 
 
 
@@ -8076,6 +8297,140 @@ public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallSta
                 response.setLast(page >= totalPages - 1);
 
                 return response;
+        }
+
+
+        @Override
+        public TotalCallsSummaryDTO getTotalCallsSummary() {
+
+                Long totalOpenCalls =
+                        workflowTransitionRepository.getTotalOpenCalls();
+
+                Long totalUnderInspectionCalls =
+                        workflowTransitionRepository.getTotalUnderInspectionCalls();
+
+                Long totalPendingCalls = workflowTransitionRepository.getTotalPendingCalls();
+
+                return new TotalCallsSummaryDTO(
+                        totalOpenCalls,
+                        totalUnderInspectionCalls,
+                        totalPendingCalls);
+        }
+
+
+        @Override
+        public List<InspectionCallDetailDto> getUnderInspectionCalls() {
+
+                List<Object[]> results =
+                        workflowTransitionRepository.getUnderInspectionCalls();
+
+                return results.stream()
+                        .map(this::convertToInspectionCallDto)
+                        .toList();
+        }
+
+        @Override
+        public List<InspectionCallDetailDto> getPendingCalls() {
+
+                List<Object[]> results =
+                        workflowTransitionRepository.getPendingCalls();
+
+                return results.stream()
+                        .map(this::convertToInspectionCallDto)
+                        .toList();
+        }
+
+        @Override
+        public List<InspectionCallDetailDto> getOpenCalls() {
+
+                List<Object[]> results =
+                        workflowTransitionRepository.getOpenCalls();
+
+                return results.stream()
+                        .map(this::convertToInspectionCallDto)
+                        .toList();
+        }
+
+        private InspectionCallDetailDto convertToInspectionCallDto(Object[] row) {
+
+                String status = row[6] != null ? row[6].toString() : "";
+
+                return InspectionCallDetailDto.builder()
+                        .inspectionCallNumber((String) row[0])
+                        .vendor((String) row[1])
+                        .callSubmissionDateTime((String) row[2])
+                        .stageOfInspection(determineStage((String) row[0]))
+                        .poSrNo((String) row[4])
+                        .dpDate((String) row[5])
+                        .status(status)
+                        .mainStatus(getMainStatus(status))
+                        .subStatus(getSubStatus(status))
+                        .build();
+        }
+
+        private String determineStage(String inspectionCallNumber) {
+
+                if (inspectionCallNumber == null) {
+                        return "-";
+                }
+
+                if (inspectionCallNumber.startsWith("ER")) {
+                        return "RM Stage";
+                }
+
+                if (inspectionCallNumber.startsWith("EP")) {
+                        return "Process Stage";
+                }
+
+                if (inspectionCallNumber.startsWith("EF")) {
+                        return "Final Stage";
+                }
+
+                return "-";
+        }
+
+        private String getMainStatus(String status) {
+
+                return switch (status) {
+
+                        case "Created",
+                                "VERIFIED",
+                                "RETURNED",
+                                "CALL_REGISTERED",
+                                "IE_SCHEDULED",
+                                "INITIATE_INSPECTION",
+                                "REQUEST_CORRECTION_TO_CM"
+                                -> "Pending";
+
+                        case "VERIFY_PO_DETAILS",
+                                "PAUSE_INSPECTION_RESUME_NEXT_DAY",
+                                "ENTER_SHIFT_DETAILS_AND_START_INSPECTION",
+                                "WITHHELD"
+                                -> "Under Inspection";
+
+                        default -> "Completed";
+                };
+        }
+
+        private String getSubStatus(String status) {
+
+                return switch (status) {
+
+                        case "Created" -> "Call Raised";
+                        case "VERIFIED", "CALL_REGISTERED" -> "Call Registered";
+                        case "RETURNED" -> "Returned To Vendor";
+                        case "IE_SCHEDULED" -> "Call Scheduled";
+                        case "INITIATE_INSPECTION" -> "Call Initiated";
+                        case "VERIFY_PO_DETAILS" -> "Inspection Started";
+                        case "PAUSE_INSPECTION_RESUME_NEXT_DAY" -> "Paused For Next Schedule";
+                        case "ENTER_SHIFT_DETAILS_AND_START_INSPECTION" -> "Under Inspection";
+                        case "INSPECTION_COMPLETE_CONFIRM" -> "IC Issuance Pending";
+                        case "GENERATE_IC", "DSC_SIGN_IC" -> "IC Issued";
+                        case "CANCELLED" -> "Cancelled";
+                        case "WITHHELD" -> "Withheld";
+
+                        default -> status;
+                };
         }
 }
 

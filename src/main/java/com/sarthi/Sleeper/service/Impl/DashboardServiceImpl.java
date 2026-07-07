@@ -101,6 +101,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
+
         LocalDateTime start = LocalDate.parse(startDate, formatter).atStartOfDay();
         LocalDateTime end = LocalDate.parse(endDate, formatter).atTime(23, 59, 59);
 
@@ -112,12 +113,17 @@ public class DashboardServiceImpl implements DashboardService {
         List<Object[]> masterList = productionDeclarationRepository.getPlantMasterData();
 
 
+        List<Object[]> poList = productionDeclarationRepository.getPoDetailsByPlant();
         Map<String, Long> productionMap = new HashMap<>();
         Map<String, Long> processMap = new HashMap<>();
         Map<String, Long> finalMap = new HashMap<>();
 
         Map<String, String> plantNameMap = new HashMap<>();
         Map<String, String> rioMap = new HashMap<>();
+
+        Map<String, Long> noOfPosMap = new HashMap<>();
+        Map<String, Long> poQtyMap = new HashMap<>();
+        Map<String, String> uomMap = new HashMap<>();
 
         for (Object[] o : prodList) {
             String plantId = (String) o[0];
@@ -136,6 +142,25 @@ public class DashboardServiceImpl implements DashboardService {
             String plantId = (String) o[0];
             plantNameMap.put(plantId, (String) o[1]); // company - plantId
             rioMap.put(plantId, (String) o[2]);       // RIO
+        }
+        for (Object[] o : poList) {
+
+            String plantId = (String) o[0];
+
+            noOfPosMap.put(
+                    plantId,
+                    o[1] != null ? ((Number) o[1]).longValue() : 0L
+            );
+
+            poQtyMap.put(
+                    plantId,
+                    o[2] != null ? ((Number) o[2]).longValue() : 0L
+            );
+
+            uomMap.put(
+                    plantId,
+                    o[3] != null ? o[3].toString() : ""
+            );
         }
 
         List<MonthlyAnalysisDto> result = new ArrayList<>();
@@ -161,6 +186,91 @@ public class DashboardServiceImpl implements DashboardService {
             dto.setFinalRejection(finalR);
             dto.setAcceptance(acceptance);
             dto.setRejectionPercentage(rejectionPercentage);
+
+            dto.setNoOfPos(noOfPosMap.getOrDefault(plantId, 0L));
+            dto.setPoQty(poQtyMap.getOrDefault(plantId, 0L));
+            dto.setUom(uomMap.getOrDefault(plantId, ""));
+            result.add(dto);
+        }
+
+
+
+        return result;
+    }
+
+
+    public List<SleeperPoWiseAnalysisDTO> getPoWiseAnalysis(
+            String plantId,
+            String startDate,
+            String endDate) {
+
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        LocalDateTime start =
+                LocalDate.parse(startDate, formatter).atStartOfDay();
+
+        LocalDateTime end =
+                LocalDate.parse(endDate, formatter).atTime(23,59,59);
+
+        List<Object[]> rows =
+                productionDeclarationRepository.getPoWiseAnalysis(
+                        plantId,start,end);
+
+        List<SleeperPoWiseAnalysisDTO> result = new ArrayList<>();
+
+        for(Object[] row : rows){
+
+            Long production =
+                    row[6] == null ? 0L :
+                            ((Number)row[6]).longValue();
+
+            Long processRejection =
+                    row[7] == null ? 0L :
+                            ((Number)row[7]).longValue();
+
+            Long finalRejection =
+                    row[8] == null ? 0L :
+                            ((Number)row[8]).longValue();
+
+            Long acceptance =
+                    production - processRejection - finalRejection;
+
+            SleeperPoWiseAnalysisDTO dto = new SleeperPoWiseAnalysisDTO();
+
+            dto.setRlyZone((String) row[0]);
+            dto.setPoNumber((String) row[1]);
+
+            if(row[2] != null){
+                if(row[2] instanceof java.sql.Date d){
+                    dto.setPoDate(d.toLocalDate());
+                } else if(row[2] instanceof java.sql.Timestamp t){
+                    dto.setPoDate(t.toLocalDateTime().toLocalDate());
+                }
+            }
+
+            dto.setPoQty(
+                    row[3] == null ? 0L :
+                            ((Number)row[3]).longValue());
+
+            dto.setPlantName((String) row[4]);
+            dto.setInspectedBy((String) row[5]);
+
+            dto.setProduction(production);
+            dto.setProcessRejection(processRejection);
+            dto.setFinalRejection(finalRejection);
+            dto.setAcceptance(acceptance);
+
+            dto.setRejectionPercentage(
+                    production == 0 ? 0 :
+                            ((processRejection + finalRejection) * 100.0) / production
+            );
+
+            dto.setNoOfPos(
+                    row[9] == null ? 0L :
+                            ((Number)row[9]).longValue());
+
+            dto.setUom(row[10] == null ? "" : row[10].toString());
 
             result.add(dto);
         }

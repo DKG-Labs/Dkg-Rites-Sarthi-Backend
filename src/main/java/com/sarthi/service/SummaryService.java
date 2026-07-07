@@ -19,6 +19,12 @@ public interface SummaryService {
                         LocalDate startDate,
                         LocalDate endDate, String rio, String zone, String vendor);
 
+        public PageResponseDTO<PlantPoWiseDTO> getPlantPoWiseReport(
+                int page,
+                int size,
+                String poiCode,
+                LocalDate startDate,
+                LocalDate endDate);
         public PageResponseDTO<MonthlyAnalysisDTO> getMonthlyAnalysis(
                         int page,
                         int size,
@@ -50,4 +56,12 @@ public interface SummaryService {
         public List<java.util.Map<String, String>> getPoNumbersByManufacturer(String manufacturer);
 
         public List<String> getCallNumbersByPoAndManufacturer(String poNo, String manufacturer);
+
+
+        public PageResponseDTO<PoWiseAnalysisDTO> getPoWiseAnalysis(
+                int page,
+                int size,
+                String poiCode,
+                LocalDate startDate,
+                LocalDate endDate);
 }

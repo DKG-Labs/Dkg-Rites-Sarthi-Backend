@@ -817,4 +817,169 @@ ORDER BY ic.created_at DESC
             @Param("roleName") String roleName
     );
 
+
+  @Query(value = """
+    SELECT COUNT(*)
+    FROM workflow_transition wt
+    INNER JOIN (
+        SELECT requestid,
+               MAX(workflowtransitionid) latest_id
+        FROM workflow_transition
+        GROUP BY requestid
+    ) x
+    ON wt.workflowtransitionid = x.latest_id
+    WHERE wt.status NOT IN (
+        'INSPECTION_COMPLETE_CONFIRM',
+        'GENERATE_IC',
+        'DSC_SIGN_IC',
+        'CANCELLED',
+        'WITHDRAW'
+    )
+    """, nativeQuery = true)
+  Long getTotalOpenCalls();
+
+
+  @Query(value = """
+            SELECT COUNT(*)
+            FROM workflow_transition wt
+            INNER JOIN (
+                SELECT requestid,
+                       MAX(workflowtransitionid) latest_id
+                FROM workflow_transition
+                GROUP BY requestid
+            ) x
+              ON wt.workflowtransitionid = x.latest_id
+            WHERE wt.status IN (
+                'VERIFY_PO_DETAILS',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                'PAUSE_INSPECTION_RESUME_NEXT_DAY'
+            )
+            """,
+          nativeQuery = true)
+  Long getTotalUnderInspectionCalls();
+
+
+  @Query(value = """
+    SELECT COUNT(*)
+    FROM workflow_transition wt
+    INNER JOIN (
+        SELECT requestid,
+               MAX(workflowtransitionid) latest_id
+        FROM workflow_transition
+        GROUP BY requestid
+    ) x
+    ON wt.workflowtransitionid = x.latest_id
+    WHERE wt.status IN (
+        'Created',
+        'VERIFIED',
+        'RETURNED',
+        'CALL_REGISTERED',
+        'IE_SCHEDULED',
+        'INITIATE_INSPECTION'
+    )
+    """, nativeQuery = true)
+  Long getTotalPendingCalls();
+
+  @Query(value = """
+    SELECT
+        ic.ic_number AS inspectionCallNumber,
+        ic.vendor_id AS vendor,
+        DATE_FORMAT(ic.created_at,'%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+        '' AS stageOfInspection,
+        CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
+        DATE_FORMAT(ic.desired_inspection_date,'%d/%m/%Y') AS dpDate,
+        wt.status AS status
+    FROM inspection_calls ic
+    JOIN (
+        SELECT t.*
+        FROM workflow_transition t
+        INNER JOIN (
+            SELECT requestid,
+                   MAX(workflowtransitionid) latest_id
+            FROM workflow_transition
+            GROUP BY requestid
+        ) x
+        ON t.workflowtransitionid = x.latest_id
+    ) wt
+      ON wt.requestid = ic.ic_number
+    WHERE wt.status NOT IN (
+        'INSPECTION_COMPLETE_CONFIRM',
+        'GENERATE_IC',
+        'DSC_SIGN_IC',
+        'CANCELLED',
+        'WITHDRAW'
+    )
+    ORDER BY ic.created_at DESC
+    """,
+          nativeQuery = true)
+  List<Object[]> getOpenCalls();
+
+  @Query(value = """
+    SELECT
+        ic.ic_number AS inspectionCallNumber,
+        ic.vendor_id AS vendor,
+        DATE_FORMAT(ic.created_at,'%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+        '' AS stageOfInspection,
+        CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
+        DATE_FORMAT(ic.desired_inspection_date,'%d/%m/%Y') AS dpDate,
+        wt.status AS status
+    FROM inspection_calls ic
+    JOIN (
+        SELECT t.*
+        FROM workflow_transition t
+        INNER JOIN (
+            SELECT requestid,
+                   MAX(workflowtransitionid) latest_id
+            FROM workflow_transition
+            GROUP BY requestid
+        ) x
+        ON t.workflowtransitionid = x.latest_id
+    ) wt
+      ON wt.requestid = ic.ic_number
+    WHERE wt.status IN (
+        'VERIFY_PO_DETAILS',
+        'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+        'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+        'WITHHELD'
+    )
+    ORDER BY ic.created_at DESC
+    """,
+          nativeQuery = true)
+  List<Object[]> getUnderInspectionCalls();
+
+  @Query(value = """
+    SELECT
+        ic.ic_number AS inspectionCallNumber,
+        ic.vendor_id AS vendor,
+        DATE_FORMAT(ic.created_at,'%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+        '' AS stageOfInspection,
+        CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
+        DATE_FORMAT(ic.desired_inspection_date,'%d/%m/%Y') AS dpDate,
+        wt.status AS status
+    FROM inspection_calls ic
+    JOIN (
+        SELECT t.*
+        FROM workflow_transition t
+        INNER JOIN (
+            SELECT requestid,
+                   MAX(workflowtransitionid) latest_id
+            FROM workflow_transition
+            GROUP BY requestid
+        ) x
+        ON t.workflowtransitionid = x.latest_id
+    ) wt
+      ON wt.requestid = ic.ic_number
+    WHERE wt.status IN (
+        'Created',
+        'VERIFIED',
+        'RETURNED',
+        'CALL_REGISTERED',
+        'IE_SCHEDULED',
+        'INITIATE_INSPECTION',
+        'REQUEST_CORRECTION_TO_CM'
+    )
+    ORDER BY ic.created_at DESC
+    """,
+          nativeQuery = true)
+  List<Object[]> getPendingCalls();
 }

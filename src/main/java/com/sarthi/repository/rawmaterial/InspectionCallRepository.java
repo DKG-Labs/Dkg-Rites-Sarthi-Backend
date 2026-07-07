@@ -388,6 +388,85 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
             @Param("zone") String zone,
             @Param("vendor") String vendor,
             Pageable pageable);
+
+    @Query(value = """
+SELECT
+
+    CONCAT(
+        p.company_name,
+        ' - ',
+        p.unit_name
+    ) AS plantName,
+
+    COUNT(DISTINCT ic.po_no) AS noOfPos,
+
+    COALESCE(SUM(
+        DISTINCT (
+            SELECT COALESCE(SUM(pi.qty),0)
+            FROM po_item pi
+            JOIN po_header ph
+                ON ph.id = pi.po_header_id
+            WHERE ph.po_no = ic.po_no
+        )
+    ),0) AS poQty,
+
+    COALESCE(SUM(r.accepted_qty_mt),0) AS rawMaterialAccepted,
+
+    COALESCE(SUM(pl.total_manufactured - pl.total_rejected),0)
+        AS processInspectionAcceptance,
+
+    COALESCE(SUM(f.qty_now_passed),0)
+        AS finalAcceptance,
+
+    COALESCE(SUM(f.qty_now_passed),0)
+        AS totalFinalAccepted,
+
+    (
+        COALESCE(SUM(
+            DISTINCT (
+                SELECT COALESCE(SUM(pi.qty),0)
+                FROM po_item pi
+                JOIN po_header ph
+                    ON ph.id = pi.po_header_id
+                WHERE ph.po_no = ic.po_no
+            )
+        ),0)
+        -
+        COALESCE(SUM(f.qty_now_passed),0)
+    ) AS balance
+
+FROM inspection_calls ic
+
+JOIN pincode_poi_mapping p
+    ON p.poi_code = ic.place_of_inspection
+
+LEFT JOIN rm_heat_final_result r
+    ON r.inspection_call_no = ic.ic_number
+
+LEFT JOIN process_line_final_result pl
+    ON pl.inspection_call_no = ic.ic_number
+
+LEFT JOIN final_cumulative_results f
+    ON f.inspection_call_no = ic.ic_number
+
+WHERE ic.place_of_inspection = :poiCode
+  AND ic.created_at BETWEEN :startDate AND :endDate
+
+GROUP BY
+    p.company_name,
+    p.unit_name
+""",
+            countQuery = """
+SELECT COUNT(*)
+FROM pincode_poi_mapping p
+WHERE p.poi_code = :poiCode
+""",
+            nativeQuery = true)
+    Page<Object[]> fetchPlantPoWiseSummary(
+            @Param("poiCode") String poiCode,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
 /*
     @Query(value = """
             SELECT
@@ -451,6 +530,8 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
             @Param("zone") String zone,
             @Param("vendor") String vendor,
             Pageable pageable);*/
+
+    /*
 @Query(value = """
     SELECT
         poi.company_name AS manufacturer,
@@ -508,7 +589,84 @@ Page<Object[]> fetchManufacturerSummary(
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate,
         Pageable pageable);
+*/
+    @Query(value = """
+    SELECT
+        poi.company_name AS manufacturer,
+        ie.rio AS rio,
 
+        COALESCE(SUM(
+            CASE
+                WHEN f.qty_now_offered IS NOT NULL
+                     THEN f.qty_now_offered
+                ELSE p.manufacture_qty
+            END
+        ),0) AS manufactured,
+
+        COALESCE(SUM(f.qty_now_passed),0) AS inspected,
+        COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
+
+        COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
+        COALESCE(SUM(p.rejected_qty),0) AS processRejected,
+        COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected,
+
+        (
+            SELECT COUNT(DISTINCT ph.id)
+            FROM po_header ph
+            WHERE ph.vendor_code = poi.vendor_code
+        ) AS noOfPos,
+
+        (
+            SELECT COALESCE(SUM(pi.qty),0)
+            FROM po_header ph
+            JOIN po_item pi ON pi.po_header_id = ph.id
+            WHERE ph.vendor_code = poi.vendor_code
+        ) AS poQty,
+
+        (
+            SELECT GROUP_CONCAT(DISTINCT pi.uom)
+            FROM po_header ph
+            JOIN po_item pi ON pi.po_header_id = ph.id
+            WHERE ph.vendor_code = poi.vendor_code
+        ) AS uom
+
+    FROM inspection_calls ic
+
+    LEFT JOIN final_cumulative_results f
+           ON f.inspection_call_no = ic.ic_number
+
+    LEFT JOIN rm_heat_final_result r
+           ON r.inspection_call_no = ic.ic_number
+
+    LEFT JOIN process_ie_qty p
+           ON p.REQUEST_ID = ic.ic_number
+
+    JOIN pincode_poi_mapping poi
+           ON poi.poi_code = ic.place_of_inspection
+
+    LEFT JOIN ie_fields_mapping ie
+           ON ie.pin_code = poi.pin_code
+          AND ie.product = 'ERC'
+
+    WHERE ic.created_at BETWEEN :startDate AND :endDate
+
+    GROUP BY poi.company_name, ie.rio, poi.vendor_code
+    """,
+            countQuery = """
+    SELECT COUNT(DISTINCT CONCAT(poi.company_name,'-',COALESCE(ie.rio,'')))
+    FROM inspection_calls ic
+    JOIN pincode_poi_mapping poi
+           ON poi.poi_code = ic.place_of_inspection
+    LEFT JOIN ie_fields_mapping ie
+           ON ie.pin_code = poi.pin_code
+          AND ie.product = 'ERC'
+    WHERE ic.created_at BETWEEN :startDate AND :endDate
+    """,
+            nativeQuery = true)
+    Page<Object[]> fetchManufacturerSummary(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
   /*  @Query(value = """
             SELECT DISTINCT ic.ic_number
             FROM inspection_calls ic
@@ -1840,8 +1998,458 @@ ORDER BY um.employee_code
             @Param("cmEmployeeCode") String cmEmployeeCode
     );
 
+    @Query(value = """
+SELECT
+    NULL AS rlyZone,
+    ph.po_no AS poNumber,
+    ph.po_date AS poDate,
+
+    (
+        SELECT COALESCE(SUM(pi.qty),0)
+        FROM po_item pi
+        WHERE pi.po_header_id = ph.id
+    ) AS poQty,
+
+    COALESCE(SUM(
+        CASE
+            WHEN f.qty_now_offered IS NOT NULL
+                THEN f.qty_now_offered
+            ELSE COALESCE(p.manufacture_qty,0)
+        END
+    ),0) AS manufactured,
+
+    COALESCE(SUM(f.qty_now_passed),0) AS inspected,
+    COALESCE(SUM(f.qty_now_rejected),0) AS rejected,
+
+    COALESCE(SUM(r.weight_rejected_mt),0) AS rmRejected,
+    COALESCE(SUM(p.rejected_qty),0) AS processRejected,
+    COALESCE(SUM(f.qty_now_rejected),0) AS finalRejected
+
+FROM inspection_calls ic
+
+JOIN pincode_poi_mapping poi
+    ON poi.poi_code = ic.place_of_inspection
+
+JOIN po_header ph
+    ON ph.po_no = ic.po_no
+
+LEFT JOIN final_cumulative_results f
+    ON f.inspection_call_no = ic.ic_number
+
+LEFT JOIN rm_heat_final_result r
+    ON r.inspection_call_no = ic.ic_number
+
+LEFT JOIN process_ie_qty p
+    ON p.request_id = ic.ic_number
+
+WHERE poi.poi_code = :poiCode
+  AND ic.created_at BETWEEN :startDate AND :endDate
+
+GROUP BY ph.id, ph.po_no, ph.po_date
+
+ORDER BY ph.po_date DESC
+""",
+            countQuery = """
+SELECT COUNT(DISTINCT ph.id)
+FROM inspection_calls ic
+JOIN pincode_poi_mapping poi
+    ON poi.poi_code = ic.place_of_inspection
+JOIN po_header ph
+    ON ph.po_no = ic.po_no
+WHERE poi.poi_code = :poiCode
+  AND ic.created_at BETWEEN :startDate AND :endDate
+""",
+            nativeQuery = true)
+    Page<Object[]> fetchPoWiseSummary(
+            @Param("poiCode") String poiCode,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
 
 
+    @Query(value = """
+
+SELECT
+
+    ph.rly_short_name AS zonalRailway,
+
+    ph.firm_details AS vendor,
+
+    MAX(ic.erc_type) AS ercType,
+
+    ph.po_no AS poNumber,
+
+    ph.po_date AS poDate,
+
+    NULL AS specification,
+
+    COALESCE(SUM(pi.qty),0) AS poQty,
+
+    /* Process Inspection Qty */
+    COALESCE((
+        SELECT SUM(pl.shearing_manufactured)
+        FROM process_line_final_result pl
+        WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+              ph.po_no COLLATE utf8mb4_unicode_ci
+    ),0) AS processInspectedQty,
+
+    /* Process Accepted Qty */
+    COALESCE((
+        SELECT SUM(pl.tempering_accepted)
+        FROM process_line_final_result pl
+        WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+              ph.po_no COLLATE utf8mb4_unicode_ci
+    ),0) AS processAcceptedQty,
+
+    /* Offered For Final Inspection */
+    COALESCE((
+        SELECT SUM(f.qty_now_offered)
+        FROM final_cumulative_results f
+        WHERE f.inspection_call_no IN
+        (
+            SELECT ic2.ic_number
+            FROM inspection_calls ic2
+            JOIN final_ic_edit fie
+              ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
+                 ic2.ic_number COLLATE utf8mb4_unicode_ci
+            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        )
+    ),0) AS offeredForFinalInspectionQty,
+
+    /* Final Accepted Qty */
+    COALESCE((
+        SELECT SUM(f.qty_now_passed)
+        FROM final_cumulative_results f
+        WHERE f.inspection_call_no IN
+        (
+            SELECT ic2.ic_number
+            FROM inspection_calls ic2
+            JOIN final_ic_edit fie
+              ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
+                 ic2.ic_number COLLATE utf8mb4_unicode_ci
+            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        )
+    ),0) AS finalAcceptedQty,
+
+    /* Total IC Issued */
+    (
+        COALESCE((
+            SELECT COUNT(DISTINCT rie.ic_number)
+            FROM inspection_calls ic2
+            JOIN rm_ic_edit rie
+              ON rie.ic_number COLLATE utf8mb4_unicode_ci =
+                 ic2.ic_number COLLATE utf8mb4_unicode_ci
+            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        ),0)
+
+        +
+
+        COALESCE((
+            SELECT COUNT(DISTINCT pie.ic_number)
+            FROM inspection_calls ic2
+            JOIN process_ic_edit pie
+              ON pie.ic_number COLLATE utf8mb4_unicode_ci =
+                 ic2.ic_number COLLATE utf8mb4_unicode_ci
+            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        ),0)
+
+        +
+
+        COALESCE((
+            SELECT COUNT(DISTINCT fie.IC_NUMBER)
+            FROM inspection_calls ic2
+            JOIN final_ic_edit fie
+              ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
+                 ic2.ic_number COLLATE utf8mb4_unicode_ci
+            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        ),0)
+
+    ) AS noOfIcIssued,
+
+    /* Last Final IC Issued Date */
+    (
+        SELECT DATE(MAX(fie.CREATED_AT))
+        FROM inspection_calls ic2
+        JOIN final_ic_edit fie
+          ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
+             ic2.ic_number COLLATE utf8mb4_unicode_ci
+        WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+              ph.po_no COLLATE utf8mb4_unicode_ci
+    ) AS lastIcIssuedDate,
+
+    /* ========================= */
+    /* RAW MATERIAL DEFECTS      */
+    /* ========================= */
+
+    NULL AS chemicalCompositionRej,
+
+    NULL AS diameterBarRej,
+
+    /* Grain Size */
+    COALESCE((
+        SELECT COUNT(DISTINCT rmt.inspection_call_no)
+        FROM rm_material_testing rmt
+        WHERE rmt.inspection_call_no IN (
+            SELECT ic3.ic_number
+            FROM inspection_calls ic3
+            WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        )
+        AND rmt.grain_size IS NOT NULL
+    ),0) AS grainSizeRej,
+
+    /* Inclusion Rating */
+    COALESCE((
+        SELECT COUNT(DISTINCT rmt.inspection_call_no)
+        FROM rm_material_testing rmt
+        WHERE rmt.inspection_call_no IN (
+            SELECT ic3.ic_number
+            FROM inspection_calls ic3
+            WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        )
+        AND (
+              rmt.inclusion_a IS NOT NULL
+           OR rmt.inclusion_b IS NOT NULL
+           OR rmt.inclusion_c IS NOT NULL
+           OR rmt.inclusion_d IS NOT NULL
+        )
+    ),0) AS inclusionRatingRej,
+
+    /* Decarb */
+    COALESCE((
+        SELECT COUNT(DISTINCT rmt.inspection_call_no)
+        FROM rm_material_testing rmt
+        WHERE rmt.inspection_call_no IN (
+            SELECT ic3.ic_number
+            FROM inspection_calls ic3
+            WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        )
+        AND rmt.decarb IS NOT NULL
+    ),0) AS depthOfDecarbRej,
+
+    /* Hardness */
+    COALESCE((
+        SELECT COUNT(DISTINCT rmt.inspection_call_no)
+        FROM rm_material_testing rmt
+        WHERE rmt.inspection_call_no IN (
+            SELECT ic3.ic_number
+            FROM inspection_calls ic3
+            WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                  ph.po_no COLLATE utf8mb4_unicode_ci
+        )
+        AND rmt.hardness IS NOT NULL
+    ),0) AS hardnessRawRej ,
+    
+    /* ========================= */
+                /* PROCESS DEFECTS           */
+                /* ========================= */
+                
+                /* Shearing Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.shearing_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS shearingRej,
+                
+                /* MPI Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.mpi_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS mpiRej,
+                
+                /* Turning Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.turning_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS turningRej,
+                
+                /* Forging Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.forging_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS forgingRej,
+                
+                /* Quenching Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.quenching_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS quenchingRej,
+                
+                /* Tempering Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.tempering_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS temperingRej,
+                
+                /* Dimension Finished ERC Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.dimensions_check_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS dimensionFinishedErcRej,
+                
+                /* Hardness Process Rejection */
+                COALESCE((
+                    SELECT SUM(COALESCE(pl.hardness_check_rejected,0))
+                    FROM process_line_final_result pl
+                    WHERE pl.po_no COLLATE utf8mb4_unicode_ci =
+                          ph.po_no COLLATE utf8mb4_unicode_ci
+                ),0) AS hardnessProcessRej ,
+                /* ========================= */
+                            /* FINAL ACCEPTANCE DEFECTS  */
+                            /* ========================= */
+                            
+                            /* Depth Of Decarburization */
+                            COALESCE((
+                                SELECT SUM(fd.rejected)
+                                FROM final_depth_of_decarburization fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS depthOfDecarburizationRej,
+                            
+                            /* Dimension Tolerance */
+                            COALESCE((
+                                SELECT SUM(fd.rejected)
+                                FROM final_dimensional_inspection fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS dimensionToleranceRej,
+                            
+                            /* Application & Deflection */
+                            COALESCE((
+                                SELECT SUM(fd.rejected)
+                                FROM final_application_deflection fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS applicationAndDeflectionTestRej,
+                            
+                            /* Toe Load Test */
+                            COALESCE((
+                                SELECT SUM(fd.rejected)
+                                FROM final_toe_load_test fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS toeLoadTestRej,
+                            
+                            /* Weight Test */
+                            COALESCE((
+                                SELECT SUM(fd.rejected)
+                                FROM final_weight_test fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS weightRej,
+                            
+                            /* Visual Test */
+                            COALESCE((
+                                SELECT SUM(fd.total_rejected)
+                                FROM final_visual_inspection fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS visualTestRej,
+                            
+                            /* Micro Structure */
+                            COALESCE((
+                                SELECT SUM(fd.rejected)
+                                FROM final_microstructure_test fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS microStructureRej,
+                            
+                            /* Freedom From Defects */
+                            COALESCE((
+                                SELECT SUM(fd.rejected)
+                                FROM final_freedom_from_defects_test fd
+                                WHERE fd.inspection_call_no IN (
+                                    SELECT ic3.ic_number
+                                    FROM inspection_calls ic3
+                                    WHERE ic3.po_no COLLATE utf8mb4_unicode_ci =
+                                          ph.po_no COLLATE utf8mb4_unicode_ci
+                                )
+                            ),0) AS freedomFromDefectsRej,
+                            
+                            NULL AS otherRejections,
+                            
+                            NULL AS remarks
+
+FROM inspection_calls ic
+
+JOIN po_header ph
+  ON ph.po_no COLLATE utf8mb4_unicode_ci =
+     ic.po_no COLLATE utf8mb4_unicode_ci
+
+LEFT JOIN po_item pi
+  ON pi.po_header_id = ph.id
+
+WHERE ic.created_at BETWEEN :startDate AND :endDate
+
+GROUP BY
+    ph.rly_short_name,
+    ph.firm_details,
+    ph.po_no,
+    ph.po_date
+
+ORDER BY ph.po_date DESC
+
+""",
+            countQuery = """
+
+SELECT COUNT(DISTINCT ic.po_no)
+FROM inspection_calls ic
+WHERE ic.created_at BETWEEN :startDate AND :endDate
+
+""",
+            nativeQuery = true)
+    Page<Object[]> fetchPoInspectionTracking(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
 
 }
 

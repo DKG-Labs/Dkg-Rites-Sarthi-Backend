@@ -52,6 +52,21 @@ public class SummaryReportController {
                 summaryService.getMonthlyProgress(page, size, startDate, endDate, rio, zone, vendor));
     }
 
+    @GetMapping("/po-wise-monthly-progress")
+    public APIResponse getPoWiseMonthlyProgress(
+            @RequestParam int page,
+            @RequestParam int size,
+            @RequestParam String poiCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+           ) {
+
+        return ResponseBuilder.getSuccessResponse(
+                summaryService.getPlantPoWiseReport(page,size,poiCode,startDate, endDate));
+    }
+
+
+
     @GetMapping("/Manufature_wise_analysis")
     public APIResponse getMonthlyManufatureWiseAnalysis(
             @RequestParam int page,
@@ -65,6 +80,19 @@ public class SummaryReportController {
         return ResponseBuilder.getSuccessResponse(
                 summaryService.getMonthlyAnalysis(page, size, startDate, endDate, rio, zone, vendor));
     }
+
+    @GetMapping("/po-wise-Manufature_wise_analysis")
+    public APIResponse getPoWiseMonthlyManufatureWiseAnalysis(
+            @RequestParam int page,
+            @RequestParam int size,
+            @RequestParam String poiCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        return ResponseBuilder.getSuccessResponse(
+                summaryService.getPoWiseAnalysis(page, size,poiCode, startDate, endDate));
+    }
+
 
     @GetMapping("/lot-closed-loop")
     public ResponseEntity<?> getLotClosedLoop(

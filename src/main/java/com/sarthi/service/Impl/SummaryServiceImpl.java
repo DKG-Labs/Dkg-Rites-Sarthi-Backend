@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -120,6 +121,8 @@ public class SummaryServiceImpl implements SummaryService {
         Page<Object[]> poPage = inspectionCallRepository.fetchMonthlyProgress(startDate, endDate, rio, zone, vendor,
                 pageable);
 
+
+
         List<MonthlyProgressReportDTO> content = poPage.getContent()
                 .stream()
                 .map(this::mapMonthlyRow)
@@ -134,6 +137,86 @@ public class SummaryServiceImpl implements SummaryService {
         response.setTotalPages(poPage.getTotalPages());
 
         return response;
+    }
+
+    @Override
+    public PageResponseDTO<PlantPoWiseDTO> getPlantPoWiseReport(
+            int page,
+            int size,
+            String poiCode,
+            LocalDate startDate,
+            LocalDate endDate) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Object[]> reportPage =
+                inspectionCallRepository.fetchPlantPoWiseSummary(
+                        poiCode,
+                        startDate,
+                        endDate,
+                        pageable);
+
+        List<PlantPoWiseDTO> content =
+                reportPage.getContent()
+                        .stream()
+                        .map(this::mapPlantPoWiseRow)
+                        .toList();
+
+        PageResponseDTO<PlantPoWiseDTO> response =
+                new PageResponseDTO<>();
+
+        response.setContent(content);
+        response.setPage(page);
+        response.setSize(size);
+        response.setTotalElements(reportPage.getTotalElements());
+        response.setTotalPages(reportPage.getTotalPages());
+
+        return response;
+    }
+
+    private PlantPoWiseDTO mapPlantPoWiseRow(Object[] row) {
+
+        PlantPoWiseDTO dto = new PlantPoWiseDTO();
+
+        dto.setPlantName(
+                row[0] != null ? row[0].toString() : "");
+
+        dto.setNoOfPos(
+                row[1] != null
+                        ? ((Number) row[1]).longValue()
+                        : 0L);
+
+        dto.setPoQty(
+                row[2] != null
+                        ? ((Number) row[2]).doubleValue()
+                        : 0D);
+
+        dto.setRawMaterialAccepted(
+                row[3] != null
+                        ? ((Number) row[3]).doubleValue()
+                        : 0D);
+
+        dto.setProcessInspectionAcceptance(
+                row[4] != null
+                        ? ((Number) row[4]).doubleValue()
+                        : 0D);
+
+        dto.setFinalAcceptance(
+                row[5] != null
+                        ? ((Number) row[5]).doubleValue()
+                        : 0D);
+
+        dto.setTotalFinalAccepted(
+                row[6] != null
+                        ? ((Number) row[6]).doubleValue()
+                        : 0D);
+
+        dto.setBalance(
+                row[7] != null
+                        ? ((Number) row[7]).doubleValue()
+                        : 0D);
+
+        return dto;
     }
 
     private MonthlyProgressReportDTO mapMonthlyRow(Object[] row) {
@@ -199,6 +282,75 @@ public class SummaryServiceImpl implements SummaryService {
         response.setTotalPages(dbPage.getTotalPages());
 
         return response;
+    }
+
+    @Override
+    public PageResponseDTO<PoWiseAnalysisDTO> getPoWiseAnalysis(
+            int page,
+            int size,
+            String poiCode,
+            LocalDate startDate,
+            LocalDate endDate) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Object[]> dbPage =
+                inspectionCallRepository.fetchPoWiseSummary(
+                        poiCode,
+                        startDate,
+                        endDate,
+                        pageable);
+
+        System.out.println("Rows fetched = " + dbPage.getContent().size());
+
+        List<PoWiseAnalysisDTO> content = dbPage.getContent()
+                .stream()
+                .map(this::mapPoWiseRow)
+                .toList();
+
+        PageResponseDTO<PoWiseAnalysisDTO> response =
+                new PageResponseDTO<>();
+
+        response.setContent(content);
+        response.setPage(page);
+        response.setSize(size);
+        response.setTotalElements(dbPage.getTotalElements());
+        response.setTotalPages(dbPage.getTotalPages());
+
+        return response;
+    }
+
+    private PoWiseAnalysisDTO mapPoWiseRow(Object[] row) {
+
+        PoWiseAnalysisDTO dto = new PoWiseAnalysisDTO();
+
+        dto.setRlyZone((String) row[0]);
+        dto.setPoNumber((String) row[1]);
+        Object poDateObj = row[2];
+
+        if (poDateObj instanceof Timestamp ts) {
+            dto.setPoDate(ts.toLocalDateTime().toLocalDate());
+        }
+
+        double poQty = getDouble(row[3]);
+        double manufactured = getDouble(row[4]);
+        double inspected = getDouble(row[5]);
+        double rejected = getDouble(row[6]);
+
+        double rmRejected = getDouble(row[7]);
+        double processRejected = getDouble(row[8]);
+        double finalRejected = getDouble(row[9]);
+
+        dto.setPoQty(poQty);
+        dto.setManufactured(manufactured);
+        dto.setInspected(inspected);
+        dto.setRejected(rejected);
+
+        dto.setRmRejPercent(calcPercent(rmRejected, manufactured));
+        dto.setProcessRejPercent(calcPercent(processRejected, manufactured));
+        dto.setFinalRejPercent(calcPercent(finalRejected, manufactured));
+
+        return dto;
     }
 
     @Override
@@ -383,6 +535,11 @@ public class SummaryServiceImpl implements SummaryService {
         dto.setRmRejPercent(calcPercent(rmRejected, manufactured));
         dto.setProcessRejPercent(calcPercent(processRejected, manufactured));
         dto.setFinalRejPercent(calcPercent(finalRejected, manufactured));
+
+        // New Fields
+        dto.setNoOfPos(row[8] != null ? ((Number) row[8]).longValue() : 0L);
+        dto.setPoQty(getDouble(row[9]));
+        dto.setUom((String) row[10]);
 
         return dto;
     }

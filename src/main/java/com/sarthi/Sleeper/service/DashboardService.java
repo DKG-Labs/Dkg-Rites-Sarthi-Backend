@@ -88,4 +88,9 @@ public interface DashboardService {
             String endDate);
 
     public SleeperIcProjection getSleeperIcData(String callNo);
+
+    public List<SleeperPoWiseAnalysisDTO> getPoWiseAnalysis(
+            String plantId,
+            String startDate,
+            String endDate);
 }

@@ -71,6 +71,25 @@ public class SleeperDashboard {
         );
     }
 
+    @GetMapping("/sleeper-powise-monthly-analysis")
+    public ResponseEntity<Object> getPoWiseMonthlyAnalysis(
+            @RequestParam String plantId,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getPoWiseAnalysis(
+                               plantId,
+                               startDate,
+                                endDate)
+                ),
+                HttpStatus.OK
+        );
+    }
+
+
+
     @GetMapping("/LifeCycle/LotWise")
     public ResponseEntity<Object> getLifeCycleLotWise(
             @RequestParam Long id,

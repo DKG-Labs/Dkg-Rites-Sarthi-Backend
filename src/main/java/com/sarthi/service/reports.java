@@ -2,7 +2,9 @@ package com.sarthi.service;
 
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
 import com.sarthi.dto.reports.*;
+import com.sarthi.dto.summaryDtos.PageResponseDTO;
 import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
+import com.sarthi.dto.summaryDtos.PoWiseInspectionTrackingDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -58,6 +60,12 @@ public interface reports {
     public long getSleeperPoCount();
 
     public List<PoWiseDefectsData> getPoWiseDefectsReport(
+            LocalDate startDate,
+            LocalDate endDate);
+
+    public PageResponseDTO<PoWiseInspectionTrackingDTO> getPoInspectionTracking(
+            int page,
+            int size,
             LocalDate startDate,
             LocalDate endDate);
     public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status);
@@ -135,5 +143,12 @@ public interface reports {
             String rio,
             String zone,
             String vendor);
+
+
+   public TotalCallsSummaryDTO getTotalCallsSummary();
+
+    public List<InspectionCallDetailDto> getUnderInspectionCalls();
+    public List<InspectionCallDetailDto> getPendingCalls();
+    public List<InspectionCallDetailDto> getOpenCalls();
 }
 
