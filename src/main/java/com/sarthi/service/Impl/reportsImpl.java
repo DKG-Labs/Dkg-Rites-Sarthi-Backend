@@ -3672,22 +3672,27 @@ public class reportsImpl implements reports {
 
 
         @Override
-
         public DashboardSummaryDto getDashboardSummary() {
+                return getDashboardSummary(null, null, null, null);
+        }
+
+        public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDateStr, String endDateStr) {
+                String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
+                String zCode = (vCode.isEmpty() || zonalRailway == null) ? "" : zonalRailway;
+                String startDate = (vCode.isEmpty() || startDateStr == null) ? "" : startDateStr;
+                String endDate = (vCode.isEmpty() || endDateStr == null) ? "" : endDateStr;
 
                 // Modified Logic: Filter PO Issued and PO Quantity specifically for 'Elastic Rail Clips'
 
                 // Implementation specifically placed at the bottom of this file as requested.
 
-                long poIssued = getFilteredPoIssuedCount();
+                long poIssued = poHeaderRepository.countFilteredPoByItemCatDescr("Elastic Rail Clips", startDate, endDate, vCode, zCode);
 
-                Long qtyNos = getFilteredPoQuantityNos();
+                Long qtyNos = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", startDate, endDate, vCode, zCode);
 
-                Double qtyMt = getFilteredPoQuantityMt();
+                Double qtyMt = poItemRepository.sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", startDate, endDate, vCode, zCode);
 
-
-
-                Long finalQtyPassed = finalCumulativeResultsRepository.sumTotalQtyNowPassed();
+                Long finalQtyPassed = finalCumulativeResultsRepository.sumFilteredTotalQtyNowPassed(startDate, endDate, vCode, zCode);
 
 
 
@@ -3910,9 +3915,12 @@ public class reportsImpl implements reports {
         @Override
 
         public double getAvgProductionPerDay() {
-
                 return calculateAvgProductionPerDayNewLogic();
+        }
 
+        @Override
+        public double getAvgProductionPerDayWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate, String vendorPlantCode, String zonalRailway) {
+                return calculateAvgProductionPerDayNewLogicWithFilters(startDate, endDate, vendorPlantCode, zonalRailway);
         }
 
 
@@ -4316,12 +4324,11 @@ public class reportsImpl implements reports {
 
 
         @Override
-
-        public List<InspectionCallStatusDto> getInspectionCallStatus() {
+        public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
 
                 // Updated to exclude Dummy PO data as requested
 
-                return getInspectionCallStatusWithExclLogic();
+                return getInspectionCallStatusWithExclLogic(vendorPlantCode, zonalRailway, startDate, endDate);
 
         }
 
@@ -4368,27 +4375,28 @@ public class reportsImpl implements reports {
         // Logic: (Sum of total tempering produced in the last 30 days / active production days in the last 30 days)
 
         private double calculateAvgProductionPerDayNewLogic() {
-
                 LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-
                 Long temperingSum = processLineFinalResultRepository.sumTemperingManufacturedLast30Days(thirtyDaysAgo);
-
                 if (temperingSum == null || temperingSum == 0) {
-
                         return 0.0;
-
                 }
-
                 Long activeDays = processLineFinalResultRepository.countDistinctProductionDaysLast30Days(thirtyDaysAgo);
-
                 if (activeDays == null || activeDays == 0) {
-
                         return 0.0;
-
                 }
-
                 return temperingSum / (double) activeDays;
+        }
 
+        private double calculateAvgProductionPerDayNewLogicWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate, String vendorPlantCode, String zonalRailway) {
+                Long temperingSum = processLineFinalResultRepository.sumTemperingManufacturedWithFilters(startDate, endDate, vendorPlantCode, zonalRailway);
+                if (temperingSum == null || temperingSum == 0) {
+                        return 0.0;
+                }
+                Long activeDays = processLineFinalResultRepository.countDistinctProductionDaysWithFilters(startDate, endDate, vendorPlantCode, zonalRailway);
+                if (activeDays == null || activeDays == 0) {
+                        return 0.0;
+                }
+                return temperingSum / (double) activeDays;
         }
 
 
@@ -4573,7 +4581,7 @@ public class reportsImpl implements reports {
 
         public List<InspectionDetailsDto> getInspectionDetails() {
 
-                return getInspectionDetails(null, null);
+                return getInspectionDetails(null, null, null, null);
 
         }
 
@@ -4587,11 +4595,16 @@ public class reportsImpl implements reports {
 
          */
 
-        private List<InspectionCallStatusDto> getInspectionCallStatusWithExclLogic() {
+        private List<InspectionCallStatusDto> getInspectionCallStatusWithExclLogic(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
 
                 String excludePo = "DummyPo_001";
 
-                List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdownExcludingDummyPo(excludePo);
+                List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdownExcludingDummyPo(
+                        excludePo,
+                        vendorPlantCode == null ? "" : vendorPlantCode,
+                        zonalRailway == null ? "" : zonalRailway,
+                        startDate == null ? "" : startDate,
+                        (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
 
                 List<InspectionCallStatusDto> list = new ArrayList<>();
 
@@ -4675,11 +4688,15 @@ public class reportsImpl implements reports {
 
         @Override
 
-        public List<InspectionDetailsDto> getInspectionDetails(String startDateStr, String endDateStr) {
+        public List<InspectionDetailsDto> getInspectionDetails(String startDateStr, String endDateStr, String vendorPlantCode, String zonalRailway) {
 
                 LocalDate startDate = startDateStr != null ? LocalDate.parse(startDateStr) : LocalDate.of(2000, 1, 1);
 
                 LocalDate endDate = endDateStr != null ? LocalDate.parse(endDateStr) : LocalDate.now();
+
+                String vendor = vendorPlantCode == null ? "" : vendorPlantCode;
+
+                String zone = zonalRailway == null ? "" : zonalRailway;
 
 
 
@@ -4689,7 +4706,7 @@ public class reportsImpl implements reports {
 
                 // 1. RM: accepted_qty_mt, weight_rejected_mt
 
-                List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone);
 
                 double rmAcc = 0, rmRej = 0;
 
@@ -4709,7 +4726,7 @@ public class reportsImpl implements reports {
 
                 List<Object[]> procData = processLineFinalResultRepository
 
-                        .sumProcessAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                        .sumProcessAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone);
 
                 double procAcc = 0, procRej = 0;
 
@@ -4729,7 +4746,7 @@ public class reportsImpl implements reports {
 
                 List<Object[]> finalData = finalCumulativeResultsRepository
 
-                        .sumFinalAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                        .sumFinalAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone);
 
                 double finalAcc = 0, finalRej = 0;
 
@@ -4980,10 +4997,16 @@ public class reportsImpl implements reports {
 
 
     @Override
+    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr, String vendorPlantCode, String zonalRailway, String startDateStr, String endDateStr) {
+        String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
+        String zCode = (vCode.isEmpty() || zonalRailway == null) ? "" : zonalRailway;
+        String startDStr = (vCode.isEmpty() || startDateStr == null) ? "" : startDateStr;
+        String endDStr = (vCode.isEmpty() || endDateStr == null) ? "" : endDateStr;
+        
+        java.time.LocalDateTime startDate = startDStr.isEmpty() ? java.time.LocalDateTime.of(1970, 1, 1, 0, 0) : java.time.LocalDate.parse(startDStr).atStartOfDay();
+        java.time.LocalDateTime endDate = endDStr.isEmpty() ? java.time.LocalDateTime.of(2100, 12, 31, 23, 59) : java.time.LocalDate.parse(endDStr).atTime(23, 59, 59);
 
-    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr) {
-
-        List<PoIssuedDetailDto> list = poItemRepository.getPoIssuedDetails(itemCatDescr);
+        List<PoIssuedDetailDto> list = poItemRepository.getPoIssuedDetails(itemCatDescr, vCode, zCode, startDate, endDate);
         if (list != null) {
             for (PoIssuedDetailDto dto : list) {
                 long poQty = dto.getPoQuantity() != null ? dto.getPoQuantity() : 0L;
@@ -6431,12 +6454,20 @@ public class reportsImpl implements reports {
 */
 public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(
         String stage,
-        String status) {
+        String status,
+        String vendorPlantCode, 
+        String zonalRailway, 
+        String startDate, 
+        String endDate) {
 
         List<Object[]> rawList =
                 workflowTransitionRepository.getInspectionCallStatusDetailsRaw(
                         stage,
-                        status);
+                        status,
+                        vendorPlantCode == null ? "" : vendorPlantCode,
+                        zonalRailway == null ? "" : zonalRailway,
+                        startDate == null ? "" : startDate,
+                        (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
 
         List<InspectionCallDetailDto> dtoList = new ArrayList<>();
 

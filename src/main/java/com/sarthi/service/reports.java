@@ -29,12 +29,14 @@ public interface reports {
     public List<FourthLevelInspectionDto> getFourthLevelReport(String callId);
 
     public DashboardSummaryDto getDashboardSummary();
+    public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
 
-    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr);
+    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr, String vendorPlantCode, String zonalRailway, String startDate, String endDate);
 
     public List<String> getProcessIcNumbersByUserId(Long userId);
 
     public double getAvgProductionPerDay();
+    public double getAvgProductionPerDayWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate, String vendorPlantCode, String zonalRailway);
 
     public List<StageRejectionDto> getStageWiseRejection();
 
@@ -46,7 +48,7 @@ public interface reports {
 
     public List<StageRejectionDto> getManufacturingStepWiseRejection();
 
-    public List<InspectionCallStatusDto> getInspectionCallStatus();
+    public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
 
     public List<StageRejectionDto> getParetoAnalysis();
     public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate, String product);
@@ -55,7 +57,7 @@ public interface reports {
     public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate, String product);
     public List<InspectionDetailsDto> getInspectionDetails();
 
-    public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate);
+    public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate, String vendorPlantCode, String zonalRailway);
     
     public long getSleeperPoCount();
 
@@ -68,7 +70,7 @@ public interface reports {
             int size,
             LocalDate startDate,
             LocalDate endDate);
-    public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status);
+    public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status, String vendorPlantCode, String zonalRailway, String startDate, String endDate);
     public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(String status);
 
     public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport();

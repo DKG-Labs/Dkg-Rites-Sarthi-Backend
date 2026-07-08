@@ -421,11 +421,17 @@ FROM rm_heat_final_result
             SUM(COALESCE(r.accepted_qty_mt, 0)), 
             SUM(COALESCE(r.weight_rejected_mt, 0)) 
         FROM rm_heat_final_result r 
+        LEFT JOIN inspection_calls ic ON r.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
         WHERE (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
     """, nativeQuery = true)
     List<Object[]> sumRmAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate);
+            @Param("endDate") java.time.LocalDate endDate,
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway);
 
     List<RmHeatFinalResult> findByInspectionCallNoIn(List<String> callNos);
 

@@ -24,6 +24,12 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
 	List<PoHeader> findByPoNoIn(List<String> poNos);
 
+	@Query(value = "SELECT DISTINCT ph.rly_short_name " +
+			"FROM po_header ph " +
+			"JOIN inspection_calls ic ON ph.po_no = ic.po_no " +
+			"WHERE ic.place_of_inspection = :poiCode AND ph.rly_short_name IS NOT NULL", nativeQuery = true)
+	List<String> findZonalRailwaysByPoiCode(@Param("poiCode") String poiCode);
+
 	/**
 	 * Find PO Header by PO Number with items eagerly loaded (JOIN FETCH).
 	 * Use this when item data is needed to avoid LazyInitializationException.
@@ -163,6 +169,23 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
     @Query("SELECT COUNT(ph.poNo) FROM PoHeader ph WHERE ph.itemCatDescr = :itemCatDescr")
     long countPoByItemCatDescr(@Param("itemCatDescr") String itemCatDescr);
+
+    @Query(value = """
+        SELECT COUNT(DISTINCT ph.po_no) 
+        FROM po_header ph 
+        WHERE ph.item_cat_descr = :itemCatDescr
+        AND (:startDate = '' OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ph.vendor_code IN (
+            SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode
+        ))
+    """, nativeQuery = true)
+    long countFilteredPoByItemCatDescr(
+            @Param("itemCatDescr") String itemCatDescr,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate,
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway);
 
     @Query("""
     SELECT DISTINCT p.rlyCd AS rlyCd, p.rlyShortName AS rlyShortName
