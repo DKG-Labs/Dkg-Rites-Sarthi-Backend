@@ -194,4 +194,10 @@ WHERE ppm.poi_code = :poiCode
 
     @Query("SELECT DISTINCT p.companyName FROM PincodePoIMapping p WHERE p.companyName IS NOT NULL AND p.companyName <> '' ORDER BY p.companyName")
     List<String> getAllCompanies();
+
+
+
+        @Query("SELECT p.vendorCode FROM PincodePoIMapping p WHERE p.poiCode = :poiCode")
+        String findVendorCodeByPoiCode(@Param("poiCode") String poiCode);
+
 }
