@@ -63,7 +63,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         FROM po_item pi 
         JOIN po_header ph ON pi.po_header_id = ph.id
         WHERE ph.item_cat_descr = :itemCatDescr AND pi.uom = 'Nos.'
-        AND (:startDate = '' OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
+        AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ph.vendor_code IN (
             SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode
@@ -87,7 +87,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         FROM po_item pi 
         JOIN po_header ph ON pi.po_header_id = ph.id
         WHERE ph.item_cat_descr = :itemCatDescr AND pi.uom IN ('Mt', 'Mts', 'Mts.')
-        AND (:startDate = '' OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
+        AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ph.vendor_code IN (
             SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode

@@ -859,6 +859,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
     SELECT COUNT(*)
     FROM workflow_transition wt
+    INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
     INNER JOIN (
         SELECT requestid,
                MAX(workflowtransitionid) latest_id
@@ -873,6 +874,7 @@ ORDER BY ic.created_at DESC
         'CANCELLED',
         'WITHDRAW'
     )
+    AND ic.po_no <> 'DummyPo_001'
     """, nativeQuery = true)
   Long getTotalOpenCalls();
 
@@ -880,6 +882,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
             SELECT COUNT(*)
             FROM workflow_transition wt
+            INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
             INNER JOIN (
                 SELECT requestid,
                        MAX(workflowtransitionid) latest_id
@@ -892,6 +895,7 @@ ORDER BY ic.created_at DESC
                 'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
                 'PAUSE_INSPECTION_RESUME_NEXT_DAY'
             )
+            AND ic.po_no <> 'DummyPo_001'
             """,
           nativeQuery = true)
   Long getTotalUnderInspectionCalls();
@@ -900,6 +904,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
     SELECT COUNT(*)
     FROM workflow_transition wt
+    INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
     INNER JOIN (
         SELECT requestid,
                MAX(workflowtransitionid) latest_id
@@ -915,6 +920,7 @@ ORDER BY ic.created_at DESC
         'IE_SCHEDULED',
         'INITIATE_INSPECTION'
     )
+    AND ic.po_no <> 'DummyPo_001'
     """, nativeQuery = true)
   Long getTotalPendingCalls();
 
@@ -947,6 +953,7 @@ ORDER BY ic.created_at DESC
         'CANCELLED',
         'WITHDRAW'
     )
+    AND ic.po_no <> 'DummyPo_001'
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)
@@ -980,6 +987,7 @@ ORDER BY ic.created_at DESC
         'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
         'WITHHELD'
     )
+    AND ic.po_no <> 'DummyPo_001'
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)
@@ -1016,6 +1024,7 @@ ORDER BY ic.created_at DESC
         'INITIATE_INSPECTION',
         'REQUEST_CORRECTION_TO_CM'
     )
+    AND ic.po_no <> 'DummyPo_001'
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)

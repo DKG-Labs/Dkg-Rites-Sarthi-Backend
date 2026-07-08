@@ -245,7 +245,7 @@ FROM final_cumulative_results
         FROM final_cumulative_results fcr 
         LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
         LEFT JOIN po_header ph ON fcr.po_no = ph.po_no
-        WHERE (:startDate = '' OR :endDate = '' OR (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate)
+        WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
     """, nativeQuery = true)

@@ -174,7 +174,7 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
         SELECT COUNT(DISTINCT ph.po_no) 
         FROM po_header ph 
         WHERE ph.item_cat_descr = :itemCatDescr
-        AND (:startDate = '' OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
+        AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ph.vendor_code IN (
             SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode

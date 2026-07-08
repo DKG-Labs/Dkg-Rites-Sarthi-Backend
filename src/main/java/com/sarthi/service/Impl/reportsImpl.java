@@ -3679,8 +3679,8 @@ public class reportsImpl implements reports {
         public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDateStr, String endDateStr) {
                 String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
                 String zCode = (vCode.isEmpty() || zonalRailway == null) ? "" : zonalRailway;
-                String startDate = (vCode.isEmpty() || startDateStr == null) ? "" : startDateStr;
-                String endDate = (vCode.isEmpty() || endDateStr == null) ? "" : endDateStr;
+                String startDate = (vCode.isEmpty() || startDateStr == null || startDateStr.isEmpty()) ? null : startDateStr;
+                String endDate = (vCode.isEmpty() || endDateStr == null || endDateStr.isEmpty()) ? null : endDateStr;
 
                 // Modified Logic: Filter PO Issued and PO Quantity specifically for 'Elastic Rail Clips'
 
