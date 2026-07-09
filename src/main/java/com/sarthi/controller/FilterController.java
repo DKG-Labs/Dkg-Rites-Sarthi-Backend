@@ -32,4 +32,16 @@ public class FilterController {
         List<String> list = poHeaderRepository.findZonalRailwaysByPoiCode(poiCode);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
+
+    @GetMapping("/all-zonal-railways")
+    public ResponseEntity<Object> getAllZonalRailways() {
+        List<String> list = poHeaderRepository.findAllZonalRailways();
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/vendor-plants-by-zone")
+    public ResponseEntity<Object> getVendorPlantsByZone(@RequestParam String zone) {
+        List<PincodePoIMapping> list = pincodePoIMappingRepository.findVendorPlantsByZone(zone);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
 }

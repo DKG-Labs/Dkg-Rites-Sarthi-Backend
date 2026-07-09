@@ -193,6 +193,24 @@ GROUP BY p.inspectionCallNo
 
     @Query(value = """
         SELECT 
+            SUM(COALESCE(p.total_rejected, 0)),
+            SUM(COALESCE(p.shearing_manufactured, p.total_manufactured, 0))
+        FROM process_line_final_result p
+        LEFT JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+        WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+    """, nativeQuery = true)
+    List<Object[]> sumProcessRejectionRevisedLogicWithFilters(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
+            @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+            @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
+
+
+    @Query(value = """
+        SELECT 
             ic.company_name AS name,
             SUM(COALESCE(p.shearing_rejected, 0) + 
                 COALESCE(p.turning_rejected, 0) + 
