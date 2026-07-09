@@ -240,6 +240,21 @@ FROM final_cumulative_results
     @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowPassed) FROM FinalCumulativeResults fcr")
     Long sumTotalQtyNowPassed();
 
+    @org.springframework.data.jpa.repository.Query(value = """
+        SELECT SUM(fcr.qty_now_passed) 
+        FROM final_cumulative_results fcr 
+        LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON fcr.po_no = ph.po_no
+        WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+    """, nativeQuery = true)
+    Long sumFilteredTotalQtyNowPassed(
+            @org.springframework.data.repository.query.Param("startDate") String startDate,
+            @org.springframework.data.repository.query.Param("endDate") String endDate,
+            @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+            @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
+
     @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowPassed) FROM FinalCumulativeResults fcr WHERE fcr.createdAt >= :date")
     Long sumTotalQtyNowPassedLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
@@ -265,11 +280,17 @@ FROM final_cumulative_results
             SUM(COALESCE(f.qty_now_passed, 0)), 
             SUM(COALESCE(f.qty_now_rejected, 0)) 
         FROM final_cumulative_results f 
+        LEFT JOIN inspection_calls ic ON f.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
         WHERE (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
     """, nativeQuery = true)
     List<Object[]> sumFinalAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate);
+            @Param("endDate") java.time.LocalDate endDate,
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway);
 
   /*  @Query(value = """
 

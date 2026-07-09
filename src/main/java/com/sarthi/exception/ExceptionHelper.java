@@ -44,6 +44,16 @@ public class ExceptionHelper {
 
     @ExceptionHandler(value = { Exception.class })
     public ResponseEntity<Object> handleException(Exception ex, WebRequest request) {
+        String exceptionName = ex.getClass().getName();
+        String causeName = ex.getCause() != null ? ex.getCause().getClass().getName() : "";
+        
+        if (exceptionName.contains("ClientAbortException") || 
+            exceptionName.contains("AsyncRequestNotUsableException") || 
+            causeName.contains("ClientAbortException")) {
+            logger.warn("Client aborted the connection (ignored): {}", ex.getMessage());
+            return null;
+        }
+
         ex.printStackTrace();
         System.out.println("EXCEPTION EX: " + ex);
 

@@ -28,7 +28,7 @@ public class JwtServiceImpl implements JwtService {
     @Override
     public String generateToken(UserMaster user) {
         return Jwts.builder()
-                .subject(user.getUsername())
+                .subject(String.valueOf(user.getUserId()))
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + validity))
                 .signWith(getKey())
@@ -62,9 +62,12 @@ public class JwtServiceImpl implements JwtService {
 
     @Override
     public boolean isValid(String token, UserDetails user) {
-        String username = extractUserName(token);
-        return username.equals(user.getUsername()) &&
-                !extractClaim(token, Claims::getExpiration).before(new Date());
+        if (user instanceof UserMaster) {
+            String tokenUserId = extractUserId(token);
+            return tokenUserId.equals(String.valueOf(((UserMaster) user).getUserId())) &&
+                    !extractClaim(token, Claims::getExpiration).before(new Date());
+        }
+        return false;
     }
 
     public void validateToken(String authHeader) {

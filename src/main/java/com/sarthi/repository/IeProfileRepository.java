@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface IeProfileRepository extends JpaRepository<IeProfile,Long> {
+    void deleteByEmployeeCode(String employeeCode);
 }

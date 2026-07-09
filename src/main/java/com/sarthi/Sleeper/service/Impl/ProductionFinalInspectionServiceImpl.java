@@ -973,9 +973,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         String parsedUserId = userId.replace(":", "");
         //  Long vendorId = Long.parseLong(parsedUserId);
 
-        Optional<UserMaster> userOpt = userMasterRepository.findByUserName(userId);
+        Optional<UserMaster> userOpt = userMasterRepository.findFirstByUserName(userId);
         if (userOpt.isEmpty()) {
-            userOpt = userMasterRepository.findByUserName(parsedUserId);
+            userOpt = userMasterRepository.findFirstByUserName(parsedUserId);
         }
 
         Long vendorId =0L;

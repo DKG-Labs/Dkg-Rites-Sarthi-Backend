@@ -77,6 +77,27 @@ public class UserMaster implements UserDetails {
     @Column(name = "CREATEDDATE")
     private LocalDateTime createdDate = LocalDateTime.now();
 
+    @Column(name = "ALTERNATE_MOBILE_NUMBER", length = 15)
+    private String alternateMobileNumber;
+
+    @Column(name = "PROFILE_PHOTO_PATH", columnDefinition = "LONGTEXT")
+    private String profilePhotoPath;
+
+    @Column(name = "NOTIFICATION_PREFERENCES")
+    private String notificationPreferences;
+
+    @Column(name = "LOGIN_SECURITY_ENABLED")
+    private Boolean loginSecurityEnabled = false;
+
+    @Column(name = "UPDATEDBY")
+    private String updatedBy;
+
+    @Column(name = "UPDATEDDATE")
+    private LocalDateTime updatedDate;
+
+    @Column(name = "LAST_LOGIN_DATE")
+    private LocalDateTime lastLoginDate;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
 

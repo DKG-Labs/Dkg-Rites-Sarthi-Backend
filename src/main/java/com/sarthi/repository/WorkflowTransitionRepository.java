@@ -8,10 +8,30 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 
 @Repository
 public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTransition, Integer> {
   WorkflowTransition findByWorkflowIdAndRequestId(Integer workflowId, String requestId);
+
+  @Query(value = "SELECT " +
+          "SUM(CASE WHEN wt.REQUESTID LIKE 'ER-%' THEN 1 ELSE 0 END) AS rmCount, " +
+          "SUM(CASE WHEN wt.REQUESTID LIKE 'EP-%' THEN 1 ELSE 0 END) AS processCount, " +
+          "SUM(CASE WHEN wt.REQUESTID LIKE 'EF-%' THEN 1 ELSE 0 END) AS finalCount " +
+          "FROM WORKFLOW_TRANSITION wt " +
+          "JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number " +
+          "JOIN po_header ph ON ic.po_no = ph.po_no " +
+          "WHERE wt.STATUS = 'DSC_SIGN_IC' " +
+          "AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode) " +
+          "AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName) " +
+          "AND (:startDate IS NULL OR :startDate = '' OR wt.CREATEDDATE >= :startDate) " +
+          "AND (:endDate IS NULL OR :endDate = '' OR wt.CREATEDDATE <= :endDate)", nativeQuery = true)
+  Map<String, Object> getIcIssuedCounts(
+          @Param("poiCode") String poiCode, 
+          @Param("rlyShortName") String rlyShortName, 
+          @Param("startDate") String startDate, 
+          @Param("endDate") String endDate);
+
 
   @Query(value = "SELECT * FROM WORKFLOW_TRANSITION WHERE WORKFLOWTRANSITIONID IN (" +
           "  SELECT MAX(WORKFLOWTRANSITIONID) " +
@@ -293,7 +313,12 @@ AND wt.status = 'DSC_SIGN_IC'
             GROUP BY requestId
         ) t3
         """, nativeQuery = true)
-  List<Object[]> getInspectionCallStatusBreakdownExcludingDummyPo(@Param("excludePo") String excludePo);
+  List<Object[]> getInspectionCallStatusBreakdownExcludingDummyPo(
+          @Param("excludePo") String excludePo,
+          @Param("poiCode") String poiCode,
+          @Param("rlyShortName") String rlyShortName,
+          @Param("startDate") String startDate,
+          @Param("endDate") String endDate);
 */
 @Query(value = """
 
@@ -353,19 +378,19 @@ FROM (
 
     ) latest
         ON latest.REQUESTID = ic.ic_number
-
     INNER JOIN workflow_transition wt
-        ON wt.WORKFLOWTRANSITIONID =
-           latest.latest_transition_id
-
+        ON wt.WORKFLOWTRANSITIONID = latest.latest_transition_id
+    LEFT JOIN po_header ph ON ic.po_no = ph.po_no
     WHERE ic.po_no <> :excludePo
-
+      AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
+      AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
+      AND (:startDate IS NULL OR :startDate = '' OR wt.CREATEDDATE >= :startDate)
+      AND (:endDate IS NULL OR :endDate = '' OR wt.CREATEDDATE <= :endDate)
       AND UPPER(wt.STATUS) NOT IN (
             'INSPECTION_COMPLETE_CONFIRM',
             'WITHDRAW',
             'CANCELLED'
       )
-
       AND (
             ic.ic_number LIKE '%ER%'
          OR ic.ic_number LIKE '%EP%'
@@ -385,7 +410,11 @@ ORDER BY
 
 """, nativeQuery = true)
 List<Object[]> getInspectionCallStatusBreakdownExcludingDummyPo(
-        @Param("excludePo") String excludePo);
+        @Param("excludePo") String excludePo,
+        @Param("poiCode") String poiCode,
+        @Param("rlyShortName") String rlyShortName,
+        @Param("startDate") String startDate,
+        @Param("endDate") String endDate);
 
 
  /* @Query(value = """
@@ -632,6 +661,11 @@ LEFT JOIN po_item pi
 WHERE
 
     ic.po_no <> 'DummyPo_001'
+    
+    AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
+    AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
+    AND (:startDate IS NULL OR :startDate = '' OR wt.CREATEDDATE >= :startDate)
+    AND (:endDate IS NULL OR :endDate = '' OR wt.CREATEDDATE <= :endDate)
 
     AND UPPER(wt.STATUS) NOT IN (
         'INSPECTION_COMPLETE_CONFIRM',
@@ -685,7 +719,11 @@ ORDER BY ic.created_at DESC
 """, nativeQuery = true)
  List<Object[]> getInspectionCallStatusDetailsRaw(
          @Param("stage") String stage,
-         @Param("status") String status);
+         @Param("status") String status,
+         @Param("poiCode") String poiCode,
+         @Param("rlyShortName") String rlyShortName,
+         @Param("startDate") String startDate,
+         @Param("endDate") String endDate);
   /*@Query(value = """
         SELECT 
             ic.ic_number AS inspectionCallNumber,
@@ -821,6 +859,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
     SELECT COUNT(*)
     FROM workflow_transition wt
+    INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
     INNER JOIN (
         SELECT requestid,
                MAX(workflowtransitionid) latest_id
@@ -835,6 +874,7 @@ ORDER BY ic.created_at DESC
         'CANCELLED',
         'WITHDRAW'
     )
+    AND ic.po_no <> 'DummyPo_001'
     """, nativeQuery = true)
   Long getTotalOpenCalls();
 
@@ -842,6 +882,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
             SELECT COUNT(*)
             FROM workflow_transition wt
+            INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
             INNER JOIN (
                 SELECT requestid,
                        MAX(workflowtransitionid) latest_id
@@ -854,6 +895,7 @@ ORDER BY ic.created_at DESC
                 'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
                 'PAUSE_INSPECTION_RESUME_NEXT_DAY'
             )
+            AND ic.po_no <> 'DummyPo_001'
             """,
           nativeQuery = true)
   Long getTotalUnderInspectionCalls();
@@ -862,6 +904,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
     SELECT COUNT(*)
     FROM workflow_transition wt
+    INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
     INNER JOIN (
         SELECT requestid,
                MAX(workflowtransitionid) latest_id
@@ -877,6 +920,7 @@ ORDER BY ic.created_at DESC
         'IE_SCHEDULED',
         'INITIATE_INSPECTION'
     )
+    AND ic.po_no <> 'DummyPo_001'
     """, nativeQuery = true)
   Long getTotalPendingCalls();
 
@@ -909,6 +953,7 @@ ORDER BY ic.created_at DESC
         'CANCELLED',
         'WITHDRAW'
     )
+    AND ic.po_no <> 'DummyPo_001'
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)
@@ -942,6 +987,7 @@ ORDER BY ic.created_at DESC
         'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
         'WITHHELD'
     )
+    AND ic.po_no <> 'DummyPo_001'
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)
@@ -978,6 +1024,7 @@ ORDER BY ic.created_at DESC
         'INITIATE_INSPECTION',
         'REQUEST_CORRECTION_TO_CM'
     )
+    AND ic.po_no <> 'DummyPo_001'
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)

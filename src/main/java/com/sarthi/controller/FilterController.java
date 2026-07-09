@@ -1,0 +1,35 @@
+package com.sarthi.controller;
+
+import com.sarthi.entity.PincodePoIMapping;
+import com.sarthi.repository.PincodePoIMappingRepository;
+import com.sarthi.repository.PoHeaderRepository;
+import com.sarthi.util.ResponseBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/filters")
+public class FilterController {
+
+    @Autowired
+    private PincodePoIMappingRepository pincodePoIMappingRepository;
+
+    @Autowired
+    private PoHeaderRepository poHeaderRepository;
+
+    @GetMapping("/vendor-plants")
+    public ResponseEntity<Object> getVendorPlants() {
+        List<PincodePoIMapping> list = pincodePoIMappingRepository.findVendorPlantsWithPo();
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/zonal-railways")
+    public ResponseEntity<Object> getZonalRailways(@RequestParam String poiCode) {
+        List<String> list = poHeaderRepository.findZonalRailwaysByPoiCode(poiCode);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+}

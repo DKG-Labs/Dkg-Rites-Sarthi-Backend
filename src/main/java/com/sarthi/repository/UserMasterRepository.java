@@ -13,8 +13,6 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     Optional<UserMaster> findFirstByUserName(String username);
 
-    Optional<UserMaster> findByUserName(String username);
-
     Optional<UserMaster> findByUserId(Integer userId);
 
     java.util.List<UserMaster> findByUserIdIn(java.util.List<Integer> userIds);

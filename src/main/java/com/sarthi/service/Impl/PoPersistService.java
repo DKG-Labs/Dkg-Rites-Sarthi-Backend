@@ -258,7 +258,7 @@ public class PoPersistService {
         userService.createUser(dto);
         //  String role = getVendorRole((String) hdrMap.get("ITEM_CAT_DESCR"));
 
-        Optional<UserMaster> userOpt = userMasterRepository.findByUserName(vendorCode);
+        Optional<UserMaster> userOpt = userMasterRepository.findFirstByUserName(vendorCode);
 
         if (userOpt.isPresent() && role != null && !role.equals("Vendor")) {
 

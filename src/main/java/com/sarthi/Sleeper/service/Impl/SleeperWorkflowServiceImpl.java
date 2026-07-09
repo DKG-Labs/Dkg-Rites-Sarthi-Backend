@@ -345,11 +345,11 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Workflow transition not found")));
 
-        if (current.getWorkflowId() == 1 && current.getNextRole().equalsIgnoreCase("IE")) {
+        if (current.getWorkflowId() == 1 && "IE".equalsIgnoreCase(current.getNextRole())) {
             // validateUserForPoi(current.getPoiCode(), req.getActionBy());
             validateUserForPoi(current.getPoiCode(), current.getPlantId(), req.getActionBy());
         } else if (current.getWorkflowId() == 2
-                && current.getNextRole().equalsIgnoreCase("RIO Help Desk")) {
+                && "RIO Help Desk".equalsIgnoreCase(current.getNextRole())) {
 
             // Get employee code from user_master
             String employeeCode = userMasterRepository
@@ -376,7 +376,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                                 "User is not mapped to this RIO"));
             }
         } else if (current.getWorkflowId() == 2
-                && current.getNextRole().equalsIgnoreCase("Main IE")) {
+                && "Main IE".equalsIgnoreCase(current.getNextRole())) {
 
             /*
              * boolean exists = poiIeMappingRepository
@@ -439,15 +439,16 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 transition = transitions.get(0);
             } else {
                 List<SleeperTransitionMaster> trans = null;
-                if (req.getAction().equalsIgnoreCase("PO_VERIFICATION")
-                        || req.getAction().equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL")) {
+                if ("PO_VERIFICATION".equalsIgnoreCase(req.getAction())
+                        || "MAIN_IE_SCHEDULE_CALL".equalsIgnoreCase(req.getAction())
+                        || "IC_ISSUE".equalsIgnoreCase(req.getAction())) {
                     trans = sleeperTransitionMasterRepository
                             .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
                                     current.getWorkflowId().intValue(),
                                     getRoleId(current.getCurrentRole()),
-                                    current.getAction());
+                                    current.getStatus());
                     transition = trans.stream()
-                            .filter(t -> t.getNextAction().equalsIgnoreCase(req.getAction()))
+                            .filter(t -> req.getAction().equalsIgnoreCase(t.getNextAction()))
                             .findFirst()
                             .orElseThrow(() -> new RuntimeException("Transition not configured"));
                     tx.setCurrentRole(current.getNextRole());

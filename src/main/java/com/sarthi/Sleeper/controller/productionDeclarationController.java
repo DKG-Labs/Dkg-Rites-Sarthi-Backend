@@ -169,11 +169,12 @@ public class productionDeclarationController {
         public ResponseEntity<Object> getSleepers(
                 @RequestParam String batchNo,
                 @RequestParam Integer benchNo,
-                @RequestParam String sleeperType) {
+                @RequestParam String sleeperType,
+                @RequestParam(required = false) String productionUnit) {
 
                 return new ResponseEntity<>(
                         ResponseBuilder.getSuccessResponse(
-                                service.getSleepers(batchNo, benchNo, sleeperType)),
+                                service.getSleepers(batchNo, benchNo, sleeperType, productionUnit)),
                         HttpStatus.OK);
         }
 }

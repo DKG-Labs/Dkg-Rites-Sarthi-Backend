@@ -133,7 +133,7 @@ public class ProcessRegisterServiceImpl implements ProcessRegisterService {
                 try {
                     return userMasterRepository.findByUserId(Integer.parseInt(id)).map(UserMaster::getFullName).orElse(id);
                 } catch(Exception e) {
-                    return userMasterRepository.findByUserName(id).map(UserMaster::getFullName).orElse(id);
+                    return userMasterRepository.findFirstByUserName(id).map(UserMaster::getFullName).orElse(id);
                 }
             }).filter(Objects::nonNull).distinct().collect(Collectors.joining(", "));
 
