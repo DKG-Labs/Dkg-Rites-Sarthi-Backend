@@ -328,11 +328,10 @@ SELECT
     COUNT(
         CASE
             WHEN stage.latest_status IN (
-                'INITIATE_INSPECTION',
                 'VERIFY_PO_DETAILS',
                 'PAUSED',
-                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
-                'WITHHELD'
+                'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
             )
             THEN 1
         END
@@ -342,10 +341,12 @@ SELECT
         CASE
             WHEN stage.latest_status IN (
                 'CREATED',
+                'Created',
                 'VERIFIED',
                 'RETURNED',
                 'CALL_REGISTERED',
-                'IE_SCHEDULED'
+                'IE_SCHEDULED',
+                'INITIATE_INSPECTION'
             )
             THEN 1
         END
@@ -878,6 +879,39 @@ ORDER BY ic.created_at DESC
     """, nativeQuery = true)
   Long getTotalOpenCalls();
 
+  @Query(value = """
+    SELECT COUNT(*)
+    FROM workflow_transition wt
+    INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
+    INNER JOIN (
+        SELECT requestid,
+               MAX(workflowtransitionid) latest_id
+        FROM workflow_transition
+        GROUP BY requestid
+    ) x
+    ON wt.workflowtransitionid = x.latest_id
+    LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+    WHERE wt.status NOT IN (
+        'INSPECTION_COMPLETE_CONFIRM',
+        'GENERATE_IC',
+        'DSC_SIGN_IC',
+        'CANCELLED',
+        'WITHDRAW'
+    )
+    AND ic.po_no <> 'DummyPo_001'
+    AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+    AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+    AND (:startDate IS NULL OR wt.createddate >= :startDate)
+    AND (:endDate IS NULL OR wt.createddate <= :endDate)
+    AND (ic.ic_number LIKE '%ER%' OR ic.ic_number LIKE '%EP%' OR ic.ic_number LIKE '%EF%')
+    """, nativeQuery = true)
+  Long getTotalOpenCallsWithFilters(
+          @Param("startDate") String startDate,
+          @Param("endDate") String endDate,
+          @Param("vendorPlantCode") String vendorPlantCode,
+          @Param("zonalRailway") String zonalRailway
+  );
+
 
   @Query(value = """
             SELECT COUNT(*)
@@ -890,15 +924,49 @@ ORDER BY ic.created_at DESC
                 GROUP BY requestid
             ) x
               ON wt.workflowtransitionid = x.latest_id
-            WHERE wt.status IN (
+            WHERE UPPER(wt.status) IN (
                 'VERIFY_PO_DETAILS',
-                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
-                'PAUSE_INSPECTION_RESUME_NEXT_DAY'
+                'PAUSED',
+                'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
             )
             AND ic.po_no <> 'DummyPo_001'
             """,
           nativeQuery = true)
   Long getTotalUnderInspectionCalls();
+
+  @Query(value = """
+            SELECT COUNT(*)
+            FROM workflow_transition wt
+            INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
+            INNER JOIN (
+                SELECT requestid,
+                       MAX(workflowtransitionid) latest_id
+                FROM workflow_transition
+                GROUP BY requestid
+            ) x
+              ON wt.workflowtransitionid = x.latest_id
+            LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+            WHERE UPPER(wt.status) IN (
+                'VERIFY_PO_DETAILS',
+                'PAUSED',
+                'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
+            )
+            AND ic.po_no <> 'DummyPo_001'
+            AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+            AND (:startDate IS NULL OR wt.createddate >= :startDate)
+            AND (:endDate IS NULL OR wt.createddate <= :endDate)
+            AND (ic.ic_number LIKE '%ER%' OR ic.ic_number LIKE '%EP%' OR ic.ic_number LIKE '%EF%')
+            """,
+          nativeQuery = true)
+  Long getTotalUnderInspectionCallsWithFilters(
+          @Param("startDate") String startDate,
+          @Param("endDate") String endDate,
+          @Param("vendorPlantCode") String vendorPlantCode,
+          @Param("zonalRailway") String zonalRailway
+  );
 
 
   @Query(value = """
@@ -912,8 +980,8 @@ ORDER BY ic.created_at DESC
         GROUP BY requestid
     ) x
     ON wt.workflowtransitionid = x.latest_id
-    WHERE wt.status IN (
-        'Created',
+    WHERE UPPER(wt.status) IN (
+        'CREATED',
         'VERIFIED',
         'RETURNED',
         'CALL_REGISTERED',
@@ -925,6 +993,40 @@ ORDER BY ic.created_at DESC
   Long getTotalPendingCalls();
 
   @Query(value = """
+    SELECT COUNT(*)
+    FROM workflow_transition wt
+    INNER JOIN inspection_calls ic ON ic.ic_number = wt.requestid
+    INNER JOIN (
+        SELECT requestid,
+               MAX(workflowtransitionid) latest_id
+        FROM workflow_transition
+        GROUP BY requestid
+    ) x
+    ON wt.workflowtransitionid = x.latest_id
+    LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+    WHERE UPPER(wt.status) IN (
+        'CREATED',
+        'VERIFIED',
+        'RETURNED',
+        'CALL_REGISTERED',
+        'IE_SCHEDULED',
+        'INITIATE_INSPECTION'
+    )
+    AND ic.po_no <> 'DummyPo_001'
+    AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+    AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+    AND (:startDate IS NULL OR wt.createddate >= :startDate)
+    AND (:endDate IS NULL OR wt.createddate <= :endDate)
+    AND (ic.ic_number LIKE '%ER%' OR ic.ic_number LIKE '%EP%' OR ic.ic_number LIKE '%EF%')
+    """, nativeQuery = true)
+  Long getTotalPendingCallsWithFilters(
+          @Param("startDate") String startDate,
+          @Param("endDate") String endDate,
+          @Param("vendorPlantCode") String vendorPlantCode,
+          @Param("zonalRailway") String zonalRailway
+  );
+
+  @Query(value = """
     SELECT
         ic.ic_number AS inspectionCallNumber,
         ic.vendor_id AS vendor,
@@ -946,6 +1048,7 @@ ORDER BY ic.created_at DESC
         ON t.workflowtransitionid = x.latest_id
     ) wt
       ON wt.requestid = ic.ic_number
+    JOIN po_header ph ON ic.po_no = ph.po_no
     WHERE wt.status NOT IN (
         'INSPECTION_COMPLETE_CONFIRM',
         'GENERATE_IC',
@@ -954,10 +1057,14 @@ ORDER BY ic.created_at DESC
         'WITHDRAW'
     )
     AND ic.po_no <> 'DummyPo_001'
+    AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
+    AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
+    AND (:startDate IS NULL OR wt.CREATEDDATE >= :startDate)
+    AND (:endDate IS NULL OR wt.CREATEDDATE <= :endDate)
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)
-  List<Object[]> getOpenCalls();
+  List<Object[]> getOpenCalls(@Param("poiCode") String poiCode, @Param("rlyShortName") String rlyShortName, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
   @Query(value = """
     SELECT
@@ -981,17 +1088,22 @@ ORDER BY ic.created_at DESC
         ON t.workflowtransitionid = x.latest_id
     ) wt
       ON wt.requestid = ic.ic_number
-    WHERE wt.status IN (
+    JOIN po_header ph ON ic.po_no = ph.po_no
+    WHERE UPPER(wt.status) IN (
         'VERIFY_PO_DETAILS',
+        'PAUSED',
         'PAUSE_INSPECTION_RESUME_NEXT_DAY',
-        'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
-        'WITHHELD'
+        'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
     )
     AND ic.po_no <> 'DummyPo_001'
+    AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
+    AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
+    AND (:startDate IS NULL OR wt.CREATEDDATE >= :startDate)
+    AND (:endDate IS NULL OR wt.CREATEDDATE <= :endDate)
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)
-  List<Object[]> getUnderInspectionCalls();
+  List<Object[]> getUnderInspectionCalls(@Param("poiCode") String poiCode, @Param("rlyShortName") String rlyShortName, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
   @Query(value = """
     SELECT
@@ -1015,18 +1127,21 @@ ORDER BY ic.created_at DESC
         ON t.workflowtransitionid = x.latest_id
     ) wt
       ON wt.requestid = ic.ic_number
-    WHERE wt.status IN (
-        'Created',
+    JOIN po_header ph ON ic.po_no = ph.po_no
+    WHERE UPPER(wt.status) IN (
+        'CREATED',
         'VERIFIED',
         'RETURNED',
         'CALL_REGISTERED',
-        'IE_SCHEDULED',
-        'INITIATE_INSPECTION',
-        'REQUEST_CORRECTION_TO_CM'
+        'IE_SCHEDULED'
     )
     AND ic.po_no <> 'DummyPo_001'
+    AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
+    AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
+    AND (:startDate IS NULL OR wt.CREATEDDATE >= :startDate)
+    AND (:endDate IS NULL OR wt.CREATEDDATE <= :endDate)
     ORDER BY ic.created_at DESC
     """,
           nativeQuery = true)
-  List<Object[]> getPendingCalls();
+  List<Object[]> getPendingCalls(@Param("poiCode") String poiCode, @Param("rlyShortName") String rlyShortName, @Param("startDate") String startDate, @Param("endDate") String endDate);
 }

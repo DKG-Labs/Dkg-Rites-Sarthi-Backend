@@ -3678,90 +3678,55 @@ public class reportsImpl implements reports {
 
         public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDateStr, String endDateStr) {
                 String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
-                String zCode = (vCode.isEmpty() || zonalRailway == null) ? "" : zonalRailway;
-                String startDate = (vCode.isEmpty() || startDateStr == null || startDateStr.isEmpty()) ? null : startDateStr;
-                String endDate = (vCode.isEmpty() || endDateStr == null || endDateStr.isEmpty()) ? null : endDateStr;
+                String zCode = zonalRailway == null ? "" : zonalRailway;
+                String startDate = (startDateStr == null || startDateStr.isEmpty()) ? null : startDateStr;
+                String endDate = (endDateStr == null || endDateStr.isEmpty()) ? null : endDateStr;
 
                 // Modified Logic: Filter PO Issued and PO Quantity specifically for 'Elastic Rail Clips'
 
                 // Implementation specifically placed at the bottom of this file as requested.
 
-                long poIssued = poHeaderRepository.countFilteredPoByItemCatDescr("Elastic Rail Clips", startDate, endDate, vCode, zCode);
+                long poIssued = poHeaderRepository.countFilteredPoByItemCatDescr("Elastic Rail Clips", null, null, vCode, zCode);
 
-                Long qtyNos = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", startDate, endDate, vCode, zCode);
+                Long qtyNos = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", null, null, vCode, zCode);
 
-                Double qtyMt = poItemRepository.sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", startDate, endDate, vCode, zCode);
+                Double qtyMt = poItemRepository.sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", null, null, vCode, zCode);
 
-                Long finalQtyPassed = finalCumulativeResultsRepository.sumFilteredTotalQtyNowPassed(startDate, endDate, vCode, zCode);
+                Long finalQtyPassed = finalCumulativeResultsRepository.sumFilteredTotalQtyNowPassed(null, null, vCode, zCode);
+                LocalDate parsedStartDate = (startDateStr == null || startDateStr.isEmpty()) ? null : LocalDate.parse(startDateStr);
+                LocalDate parsedEndDate = (endDateStr == null || endDateStr.isEmpty()) ? null : LocalDate.parse(endDateStr);
 
+                // 1. Avg Production / Day (based on last 30 days) - Now with Filters!
+                double avgProductionPerDayWithFilters = getAvgProductionPerDayWithFilters(parsedStartDate, parsedEndDate, vCode, zCode);
 
+                // 2. Process Rejection (Revised Logic) - Updated to Filters
+                double processRejectionPctValue = calculateProcessRejectionPercentageRevisedLogicWithFilters(parsedStartDate, parsedEndDate, vCode, zCode);
 
-                // New calculations
-
-                LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-
-                LocalDateTime wholeDataStart = LocalDateTime.of(2000, 1, 1, 0, 0);
-
-
-
-                // 1. Avg Production / Day (based on last 30 days) - No change here
-
-
-
-                // 2. Process Rejection (Revised Logic) - Updated to Whole Data
-
-                double processRejectionPctValue = calculateProcessRejectionPercentageRevisedLogic(wholeDataStart);
-
-
-
-                // 3. Final Rejection % - Updated to Whole Data
-
+                // 3. Final Rejection % - Updated to Filters
                 List<Object[]> finalRejResults = finalCumulativeResultsRepository
-
-                        .sumFinalRejectionLast30Days(wholeDataStart);
-
+                        .sumFinalRejectionWithFilters(parsedStartDate, parsedEndDate, vCode, zCode);
                 double finalRejectionPctValue = 0.0;
-
                 if (finalRejResults != null && !finalRejResults.isEmpty() && finalRejResults.get(0) != null) {
-
                         Object[] row = finalRejResults.get(0);
-
                         double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
-
                         double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-
                         if (offered > 0) {
-
                                 finalRejectionPctValue = (rejected * 100.0) / offered;
-
                         }
-
                 }
 
-
-
-                // 4. Raw Material Rejection % - Updated to Whole Data
-
-                List<Object[]> rmRejResults = rmHeatFinalResultRepository.sumRmRejectionLast30Days(wholeDataStart);
-
+                // 4. Raw Material Rejection % - Updated to Filters
+                List<Object[]> rmRejResults = rmHeatFinalResultRepository
+                        .sumRmRejectionWithFilters(parsedStartDate, parsedEndDate, vCode, zCode);
                 double rmRejectionPctValue = 0.0;
-
                 if (rmRejResults != null && !rmRejResults.isEmpty() && rmRejResults.get(0) != null) {
-
                         Object[] row = rmRejResults.get(0);
-
                         double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
-
                         double offered = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-
                         if (offered > 0) {
-
                                 rmRejectionPctValue = (rejected * 100.0) / offered;
-
                         }
-
-                }
-
+                }     
 
 
                 DashboardSummaryDto dto = new DashboardSummaryDto();
@@ -3776,7 +3741,7 @@ public class reportsImpl implements reports {
 
 
 
-                dto.setAvgProductionPerDay(getAvgProductionPerDay());
+                dto.setAvgProductionPerDay(avgProductionPerDayWithFilters);
 
                 dto.setProcessRejectionPercentage(processRejectionPctValue);
 
@@ -4603,8 +4568,8 @@ public class reportsImpl implements reports {
                         excludePo,
                         vendorPlantCode == null ? "" : vendorPlantCode,
                         zonalRailway == null ? "" : zonalRailway,
-                        startDate == null ? "" : startDate,
-                        (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
+                        (startDate == null || startDate.isEmpty()) ? null : startDate,
+                        (endDate == null || endDate.isEmpty()) ? null : endDate + " 23:59:59");
 
                 List<InspectionCallStatusDto> list = new ArrayList<>();
 
@@ -4659,29 +4624,31 @@ public class reportsImpl implements reports {
         // Uses the totalRejected field from process_line_final_result
 
         private double calculateProcessRejectionPercentageRevisedLogic(LocalDateTime thirtyDaysAgo) {
-
                 List<Object[]> results = processLineFinalResultRepository
-
                         .sumProcessRejectionRevisedLogicLast30Days(thirtyDaysAgo);
-
                 if (results != null && !results.isEmpty() && results.get(0) != null) {
-
                         Object[] row = results.get(0);
-
                         double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
-
                         double shearingProduced = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-
                         if (shearingProduced > 0) {
-
                                 return (rejected * 100.0) / shearingProduced;
-
                         }
-
                 }
-
                 return 0.0;
+        }
 
+        private double calculateProcessRejectionPercentageRevisedLogicWithFilters(LocalDate startDate, LocalDate endDate, String vendorPlantCode, String zonalRailway) {
+                List<Object[]> results = processLineFinalResultRepository
+                        .sumProcessRejectionRevisedLogicWithFilters(startDate, endDate, vendorPlantCode, zonalRailway);
+                if (results != null && !results.isEmpty() && results.get(0) != null) {
+                        Object[] row = results.get(0);
+                        double rejected = row[0] != null ? ((Number) row[0]).doubleValue() : 0.0;
+                        double shearingProduced = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                        if (shearingProduced > 0) {
+                                return (rejected * 100.0) / shearingProduced;
+                        }
+                }
+                return 0.0;
         }
 
 
@@ -4999,9 +4966,9 @@ public class reportsImpl implements reports {
     @Override
     public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr, String vendorPlantCode, String zonalRailway, String startDateStr, String endDateStr) {
         String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
-        String zCode = (vCode.isEmpty() || zonalRailway == null) ? "" : zonalRailway;
-        String startDStr = (vCode.isEmpty() || startDateStr == null) ? "" : startDateStr;
-        String endDStr = (vCode.isEmpty() || endDateStr == null) ? "" : endDateStr;
+        String zCode = zonalRailway == null ? "" : zonalRailway;
+        String startDStr = startDateStr == null ? "" : startDateStr;
+        String endDStr = endDateStr == null ? "" : endDateStr;
         
         java.time.LocalDateTime startDate = startDStr.isEmpty() ? java.time.LocalDateTime.of(1970, 1, 1, 0, 0) : java.time.LocalDate.parse(startDStr).atStartOfDay();
         java.time.LocalDateTime endDate = endDStr.isEmpty() ? java.time.LocalDateTime.of(2100, 12, 31, 23, 59) : java.time.LocalDate.parse(endDStr).atTime(23, 59, 59);
@@ -6466,8 +6433,8 @@ public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallSta
                         status,
                         vendorPlantCode == null ? "" : vendorPlantCode,
                         zonalRailway == null ? "" : zonalRailway,
-                        startDate == null ? "" : startDate,
-                        (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
+                        (startDate == null || startDate.isEmpty()) ? null : startDate,
+                        (endDate == null || endDate.isEmpty()) ? null : endDate + " 23:59:59");
 
         List<InspectionCallDetailDto> dtoList = new ArrayList<>();
 
@@ -8332,15 +8299,20 @@ public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallSta
 
 
         @Override
-        public TotalCallsSummaryDTO getTotalCallsSummary() {
+        public TotalCallsSummaryDTO getTotalCallsSummary(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
+
+                String parsedStartDate = (startDate == null || startDate.isEmpty()) ? null : startDate;
+                String parsedEndDate = (endDate == null || endDate.isEmpty()) ? null : endDate + " 23:59:59";
+                String parsedVendor = vendorPlantCode == null ? "" : vendorPlantCode;
+                String parsedZone = zonalRailway == null ? "" : zonalRailway;
 
                 Long totalOpenCalls =
-                        workflowTransitionRepository.getTotalOpenCalls();
+                        workflowTransitionRepository.getTotalOpenCallsWithFilters(parsedStartDate, parsedEndDate, parsedVendor, parsedZone);
 
                 Long totalUnderInspectionCalls =
-                        workflowTransitionRepository.getTotalUnderInspectionCalls();
+                        workflowTransitionRepository.getTotalUnderInspectionCallsWithFilters(parsedStartDate, parsedEndDate, parsedVendor, parsedZone);
 
-                Long totalPendingCalls = workflowTransitionRepository.getTotalPendingCalls();
+                Long totalPendingCalls = workflowTransitionRepository.getTotalPendingCallsWithFilters(parsedStartDate, parsedEndDate, parsedVendor, parsedZone);
 
                 return new TotalCallsSummaryDTO(
                         totalOpenCalls,
@@ -8350,10 +8322,14 @@ public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallSta
 
 
         @Override
-        public List<InspectionCallDetailDto> getUnderInspectionCalls() {
+        public List<InspectionCallDetailDto> getUnderInspectionCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
+                String vCode = (vendorPlantCode == null || vendorPlantCode.trim().isEmpty()) ? null : vendorPlantCode;
+                String zCode = (zonalRailway == null || zonalRailway.trim().isEmpty()) ? null : zonalRailway;
+                String sDate = (startDate == null || startDate.trim().isEmpty()) ? null : startDate;
+                String eDate = (endDate == null || endDate.trim().isEmpty()) ? null : endDate + " 23:59:59";
 
                 List<Object[]> results =
-                        workflowTransitionRepository.getUnderInspectionCalls();
+                        workflowTransitionRepository.getUnderInspectionCalls(vCode, zCode, sDate, eDate);
 
                 return results.stream()
                         .map(this::convertToInspectionCallDto)
@@ -8361,10 +8337,14 @@ public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallSta
         }
 
         @Override
-        public List<InspectionCallDetailDto> getPendingCalls() {
+        public List<InspectionCallDetailDto> getPendingCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
+                String vCode = (vendorPlantCode == null || vendorPlantCode.trim().isEmpty()) ? null : vendorPlantCode;
+                String zCode = (zonalRailway == null || zonalRailway.trim().isEmpty()) ? null : zonalRailway;
+                String sDate = (startDate == null || startDate.trim().isEmpty()) ? null : startDate;
+                String eDate = (endDate == null || endDate.trim().isEmpty()) ? null : endDate + " 23:59:59";
 
                 List<Object[]> results =
-                        workflowTransitionRepository.getPendingCalls();
+                        workflowTransitionRepository.getPendingCalls(vCode, zCode, sDate, eDate);
 
                 return results.stream()
                         .map(this::convertToInspectionCallDto)
@@ -8372,10 +8352,14 @@ public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallSta
         }
 
         @Override
-        public List<InspectionCallDetailDto> getOpenCalls() {
+        public List<InspectionCallDetailDto> getOpenCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
+                String vCode = (vendorPlantCode == null || vendorPlantCode.trim().isEmpty()) ? null : vendorPlantCode;
+                String zCode = (zonalRailway == null || zonalRailway.trim().isEmpty()) ? null : zonalRailway;
+                String sDate = (startDate == null || startDate.trim().isEmpty()) ? null : startDate;
+                String eDate = (endDate == null || endDate.trim().isEmpty()) ? null : endDate + " 23:59:59";
 
                 List<Object[]> results =
-                        workflowTransitionRepository.getOpenCalls();
+                        workflowTransitionRepository.getOpenCalls(vCode, zCode, sDate, eDate);
 
                 return results.stream()
                         .map(this::convertToInspectionCallDto)

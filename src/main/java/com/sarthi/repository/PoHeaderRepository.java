@@ -24,11 +24,15 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
 	List<PoHeader> findByPoNoIn(List<String> poNos);
 
-	@Query(value = "SELECT DISTINCT ph.rly_short_name " +
-			"FROM po_header ph " +
-			"JOIN inspection_calls ic ON ph.po_no = ic.po_no " +
-			"WHERE ic.place_of_inspection = :poiCode AND ph.rly_short_name IS NOT NULL", nativeQuery = true)
+	@Query("SELECT DISTINCT ph.rlyShortName " +
+			"FROM PoHeader ph " +
+			"JOIN PincodePoIMapping ppm ON ph.vendorCode = ppm.vendorCode " +
+			"WHERE ppm.poiCode = :poiCode AND ph.rlyShortName IS NOT NULL " +
+			"ORDER BY ph.rlyShortName ASC")
 	List<String> findZonalRailwaysByPoiCode(@Param("poiCode") String poiCode);
+
+	@Query(value = "SELECT DISTINCT ph.rly_short_name FROM po_header ph WHERE ph.rly_short_name IS NOT NULL ORDER BY ph.rly_short_name ASC", nativeQuery = true)
+	List<String> findAllZonalRailways();
 
 	/**
 	 * Find PO Header by PO Number with items eagerly loaded (JOIN FETCH).
