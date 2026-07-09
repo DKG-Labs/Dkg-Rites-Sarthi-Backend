@@ -21,7 +21,7 @@ public class FeedbackWorkflowTransitionDto {
 
     private String vendorCode;
 
-    private Integer plantId;
+    private String plantId;
 
     private Integer currentRoleId;
 

@@ -11,6 +11,7 @@ import com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> {
@@ -46,4 +47,7 @@ public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> 
 
     @Query("SELECT DISTINCT new com.sarthi.Sleeper.dto.SleeperDashboardDtos.PlantDTO(v.plantName, v.plantId) FROM VendorPlant v WHERE v.companyName = :companyName AND v.plantId IS NOT NULL AND v.plantId <> '' ORDER BY v.plantName")
     List<PlantDTO> findPlantsByCompanyName(@Param("companyName") String companyName);
+
+    @Query("select vp.vendorCode from VendorPlant vp where vp.plantId = :plantId")
+    Optional<String> findVendorCodeByPlantId(@Param("plantId") String plantId);
 }

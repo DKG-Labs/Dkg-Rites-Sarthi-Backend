@@ -16,7 +16,8 @@ public interface FeedbackWorkflowService {
             Integer createdBy,
             String productType,
             String poiCode,
-            Integer plantId);
+            String plantId,
+            Integer roleId);
 
 
     public FeedbackWorkflowTransitionDto feedbackPerformTransition(
