@@ -46,10 +46,10 @@ public class reportsController {
             @RequestParam(required = false) String endDate) {
         
         Map<String, Object> result = workflowTransitionRepository.getIcIssuedCounts(
-                vendorPlantCode == null ? "" : vendorPlantCode, 
-                zonalRailway == null ? "" : zonalRailway, 
-                startDate == null ? "" : startDate, 
-                (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
+                (vendorPlantCode != null && vendorPlantCode.trim().isEmpty()) ? null : vendorPlantCode, 
+                (zonalRailway != null && zonalRailway.trim().isEmpty()) ? null : zonalRailway, 
+                (startDate != null && startDate.trim().isEmpty()) ? null : startDate, 
+                (endDate != null && !endDate.trim().isEmpty()) ? endDate + " 23:59:59" : null);
         
         IcIssuedCountDto dto = new IcIssuedCountDto();
         if (result != null) {
@@ -510,32 +510,48 @@ public class reportsController {
 
 
     @GetMapping("/ercDashboardTotalCalls")
-    public ResponseEntity<Object> getTotalCallsDashboardSummary() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getTotalCallsSummary()),
+    public ResponseEntity<Object> getTotalCallsDashboardSummary(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getTotalCallsSummary(vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
 
     @GetMapping("/ercDashboardOpenCalls")
-    public ResponseEntity<Object> getOpenCalls() {
+    public ResponseEntity<Object> getOpenCalls(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        reportService.getOpenCalls()),
+                        reportService.getOpenCalls(vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
 
     @GetMapping("/ercDashboardUnderInspectionCalls")
-    public ResponseEntity<Object> getUnderInspectionCalls() {
+    public ResponseEntity<Object> getUnderInspectionCalls(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        reportService.getUnderInspectionCalls()),
+                        reportService.getUnderInspectionCalls(vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
 
     @GetMapping("/ercDashboardPendingCalls")
-    public ResponseEntity<Object> getPendingCalls() {
+    public ResponseEntity<Object> getPendingCalls(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        reportService.getPendingCalls()),
+                        reportService.getPendingCalls(vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
 

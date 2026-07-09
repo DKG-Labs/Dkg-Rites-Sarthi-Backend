@@ -147,10 +147,9 @@ public interface reports {
             String vendor);
 
 
-   public TotalCallsSummaryDTO getTotalCallsSummary();
+   public TotalCallsSummaryDTO getTotalCallsSummary(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
 
-    public List<InspectionCallDetailDto> getUnderInspectionCalls();
-    public List<InspectionCallDetailDto> getPendingCalls();
-    public List<InspectionCallDetailDto> getOpenCalls();
+    public List<InspectionCallDetailDto> getOpenCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
+    public List<InspectionCallDetailDto> getUnderInspectionCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
+    public List<InspectionCallDetailDto> getPendingCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
 }
-

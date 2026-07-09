@@ -263,6 +263,23 @@ FROM final_cumulative_results
     List<Object[]> sumFinalRejectionLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
+    @Query(value = """
+        SELECT 
+            SUM(COALESCE(fcr.qty_now_rejected, 0)), 
+            SUM(COALESCE(fcr.qty_now_offered, 0)) 
+        FROM final_cumulative_results fcr
+        LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+        WHERE (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+    """, nativeQuery = true)
+    List<Object[]> sumFinalRejectionWithFilters(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
+            @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+            @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
+
     @Query("""
              SELECT
                  SUM(f.qtyNowPassed),
