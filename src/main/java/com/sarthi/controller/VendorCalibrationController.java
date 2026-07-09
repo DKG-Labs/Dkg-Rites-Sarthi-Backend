@@ -4,6 +4,8 @@ import com.sarthi.dto.Calibration.CreateIeVendorCalibrationInspectionRequestDto;
 import com.sarthi.dto.Calibration.IeVendorCalibrationInspectionResponseDto;
 import com.sarthi.dto.VendorCalibrationHeaderRequestDto;
 import com.sarthi.dto.VendorCalibrationHeaderResponseDto;
+import com.sarthi.dto.VendorCalibrationDetailDto;
+import com.sarthi.exception.BusinessException;
 import com.sarthi.entity.VendorMaster;
 import com.sarthi.repository.VendorMasterRepository;
 import com.sarthi.service.VendorCalibrationService;
@@ -79,6 +81,42 @@ public class VendorCalibrationController {
     }
 
     /**
+     * Get all calibration groups for a specific createdBy user
+     * GET /api/vendor/calibration/createdBy/{createdBy}
+     */
+    @GetMapping("/createdBy/{createdBy}")
+    public ResponseEntity<Object> getCalibrationsByCreatedBy(@PathVariable String createdBy) {
+        logger.info("Received request to fetch calibration groups for createdBy: {}", createdBy);
+        try {
+            List<VendorCalibrationHeaderResponseDto> calibrations = calibrationService.getCalibrationsByCreatedBy(createdBy);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(calibrations), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error fetching calibrations by createdBy: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Get all calibration groups for a specific inspection call no
+     * GET /api/vendor/calibration/by-call/{callNo}
+     */
+    @GetMapping("/by-call/{callNo}")
+    public ResponseEntity<Object> getCalibrationsByCallNo(@PathVariable String callNo) {
+        logger.info("Received request to fetch calibration groups for callNo: {}", callNo);
+        try {
+            List<VendorCalibrationHeaderResponseDto> calibrations = calibrationService.getCalibrationsByCallNo(callNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(calibrations), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error fetching calibrations by callNo: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * Get a calibration group by ID
      * GET /api/vendor/calibration/detail/{id}
      */
@@ -126,6 +164,43 @@ public class VendorCalibrationController {
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse("Calibration detail record deleted successfully"), HttpStatus.OK);
         } catch (Exception e) {
             logger.error("Error deleting calibration detail: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Update an individual calibration detail record
+     * PUT /api/vendor/calibration/detail/{detailId}
+     */
+    @PutMapping("/detail/{detailId}")
+    public ResponseEntity<Object> updateCalibrationDetail(
+            @PathVariable Long detailId,
+            @RequestBody VendorCalibrationDetailDto detailDto,
+            @RequestParam(required = false) String userId,
+            Principal principal) {
+        
+        logger.info("Received request to update calibration detail with ID: {}", detailId);
+        
+        try {
+            String finalUserId = userId;
+            if (principal != null && principal.getName() != null && !principal.getName().isEmpty()) {
+                finalUserId = principal.getName();
+            } else if (finalUserId == null || "vendor".equals(finalUserId) || finalUserId.trim().isEmpty()) {
+                finalUserId = detailDto.getUpdatedBy() != null ? detailDto.getUpdatedBy() : "vendor"; // Fallback
+            }
+
+            VendorCalibrationHeaderResponseDto response = calibrationService.updateCalibrationDetail(detailId, detailDto, finalUserId);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+            
+        } catch (BusinessException e) {
+            logger.error("Business error updating calibration detail: {}", e.getMessage());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(null),
+                    HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("Error updating calibration detail: {}", e.getMessage(), e);
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(null),
                     HttpStatus.INTERNAL_SERVER_ERROR);

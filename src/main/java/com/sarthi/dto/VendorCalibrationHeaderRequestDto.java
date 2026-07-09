@@ -10,5 +10,7 @@ public class VendorCalibrationHeaderRequestDto {
     private String category;
     private String certificateFilePath;
     private String certificateFileBase64; // Option for base64 file upload
+    private String createdBy;
+    private String updatedBy;
     private List<VendorCalibrationDetailDto> details;
 }

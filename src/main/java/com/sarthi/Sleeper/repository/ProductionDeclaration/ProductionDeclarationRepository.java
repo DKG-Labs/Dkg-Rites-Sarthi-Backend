@@ -182,8 +182,18 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
             ON b.chamber_id = c.id
         JOIN production_declaration d
             ON c.declaration_id = d.id
+        JOIN sleeper_workflow_transaction w 
+            ON w.request_id = d.id
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
+        AND w.module_id = 11
+        AND LOWER(w.status) = 'completed'
+        AND w.workflow_transition_id = (
+            SELECT MAX(w2.workflow_transition_id)
+            FROM sleeper_workflow_transaction w2
+            WHERE w2.request_id = d.id
+              AND w2.module_id = 11
+        )
         """, nativeQuery = true)
     List<String> findBenchNumbers(String batchNo, String productionUnit);
 
@@ -213,7 +223,23 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
     );
 
 
-    ProductionDeclaration findByBatchNumber(String batchNo);
+    @Query(value = """
+            SELECT p.*
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.batch_number = :batchNo
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            LIMIT 1
+            """, nativeQuery = true)
+    ProductionDeclaration findByBatchNumber(@Param("batchNo") String batchNo);
 
 
     @Query(value = """
@@ -284,8 +310,18 @@ WHERE d.batch_number = :batchNo
         FROM production_longline_gang g
         JOIN production_declaration d
             ON g.declaration_id = d.id
+        JOIN sleeper_workflow_transaction w 
+            ON w.request_id = d.id
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
+        AND w.module_id = 11
+        AND LOWER(w.status) = 'completed'
+        AND w.workflow_transition_id = (
+            SELECT MAX(w2.workflow_transition_id)
+            FROM sleeper_workflow_transaction w2
+            WHERE w2.request_id = d.id
+              AND w2.module_id = 11
+        )
         """, nativeQuery = true)
     List<Object[]> findGangRanges(String batchNo, String productionUnit);
 
@@ -316,7 +352,24 @@ WHERE d.batch_number = :batchNo
             String productionUnit
     );
 
-    ProductionDeclaration findByBatchNumberAndProductionUnit(String batchNo, String productionUnit);
+    @Query(value = """
+            SELECT p.*
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.batch_number = :batchNo
+              AND p.production_unit = :productionUnit
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            LIMIT 1
+            """, nativeQuery = true)
+    ProductionDeclaration findByBatchNumberAndProductionUnit(@Param("batchNo") String batchNo, @Param("productionUnit") String productionUnit);
 
     @Query(value = """
                 SELECT pd.* FROM production_declaration pd
@@ -1772,4 +1825,121 @@ ORDER BY
     WHERE p.id = :requestId
 """)
     Optional<ProductionDeclarationProjection> findProductionDetailsByRequestId(Long requestId);
+
+    @Query(value = """
+    SELECT
+        vp.plant_id,
+        COUNT(DISTINCT ph.id) AS noOfPos,
+        COALESCE(SUM(pi.qty),0) AS poQty,
+        GROUP_CONCAT(DISTINCT pi.uom) AS uom
+    FROM vendor_plant vp
+    LEFT JOIN po_header ph
+           ON ph.vendor_code = vp.vendor_code
+    LEFT JOIN po_item pi
+           ON pi.po_header_id = ph.id
+    GROUP BY vp.plant_id
+    """, nativeQuery = true)
+    List<Object[]> getPoDetailsByPlant();
+
+    @Query(value = """
+SELECT
+    vp.zonal_railway,
+
+    ph.po_no,
+
+    ph.po_date,
+
+    COALESCE(SUM(pi.qty),0) AS poQty,
+
+    CONCAT(vp.company_name,' - ',vp.plant_id) AS plantName,
+
+    vp.rio AS inspectedBy,
+
+    COALESCE(prod.production,0) AS production,
+
+    COALESCE(proc.processRejection,0) AS processRejection,
+
+    COALESCE(fin.finalRejection,0) AS finalRejection,
+
+    COUNT(DISTINCT ph.id) AS noOfPos,
+
+    GROUP_CONCAT(DISTINCT pi.uom) AS uom
+
+FROM vendor_plant vp
+
+LEFT JOIN po_header ph
+       ON ph.vendor_code COLLATE utf8mb4_unicode_ci =
+          vp.vendor_code COLLATE utf8mb4_unicode_ci
+
+LEFT JOIN po_item pi
+       ON pi.po_header_id = ph.id
+
+LEFT JOIN
+(
+    SELECT
+        pd.plant_id,
+        SUM(pd.total_casted_sleepers) AS production
+    FROM production_declaration pd
+    WHERE pd.created_date BETWEEN :startDate AND :endDate
+    GROUP BY pd.plant_id
+) prod
+ON prod.plant_id COLLATE utf8mb4_unicode_ci =
+   vp.plant_id COLLATE utf8mb4_unicode_ci
+
+LEFT JOIN
+(
+    SELECT
+        di.plant_id,
+        COUNT(ds.id) AS processRejection
+    FROM demoulding_inspection di
+    JOIN demoulding_defective_sleepers ds
+         ON ds.inspection_id = di.id
+    WHERE di.created_date BETWEEN :startDate AND :endDate
+      AND (
+            TRIM(COALESCE(ds.visual_reason,'')) <> ''
+         OR TRIM(COALESCE(ds.dim_reason,'')) <> ''
+      )
+    GROUP BY di.plant_id
+) proc
+ON proc.plant_id COLLATE utf8mb4_unicode_ci =
+   vp.plant_id COLLATE utf8mb4_unicode_ci
+
+LEFT JOIN
+(
+    SELECT
+        pd.plant_id,
+        COUNT(DISTINCT CONCAT(h.batch_id,'-',r.sleeper_id)) AS finalRejection
+    FROM production_declaration pd
+    JOIN inspection_test_header h
+         ON h.batch_id = pd.id
+    JOIN inspection_test_result r
+         ON r.test_header_id = h.id
+    WHERE h.created_date BETWEEN :startDate AND :endDate
+      AND r.result = 'REJECTED'
+      AND r.active = TRUE
+    GROUP BY pd.plant_id
+) fin
+ON fin.plant_id COLLATE utf8mb4_unicode_ci =
+   vp.plant_id COLLATE utf8mb4_unicode_ci
+
+WHERE vp.plant_id COLLATE utf8mb4_unicode_ci =
+      CAST(:plantId AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
+
+GROUP BY
+    vp.zonal_railway,
+    ph.po_no,
+    ph.po_date,
+    vp.company_name,
+    vp.plant_id,
+    vp.rio,
+    prod.production,
+    proc.processRejection,
+    fin.finalRejection
+
+ORDER BY ph.po_date DESC
+""", nativeQuery = true)
+    List<Object[]> getPoWiseAnalysis(
+            @Param("plantId") String plantId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

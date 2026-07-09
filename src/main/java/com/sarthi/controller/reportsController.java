@@ -20,15 +20,49 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import com.sarthi.repository.WorkflowTransitionRepository;
+import com.sarthi.dto.reports.IcIssuedCountDto;
+
 
 @RestController
 @RequestMapping("/api/reports")
 public class reportsController {
     @Autowired
     private reports reportService;
+
+    @Autowired
+    private WorkflowTransitionRepository workflowTransitionRepository;
+
+    @GetMapping("/icIssuedCounts")
+    public ResponseEntity<Object> getIcIssuedCounts(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        
+        Map<String, Object> result = workflowTransitionRepository.getIcIssuedCounts(
+                vendorPlantCode == null ? "" : vendorPlantCode, 
+                zonalRailway == null ? "" : zonalRailway, 
+                startDate == null ? "" : startDate, 
+                (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
+        
+        IcIssuedCountDto dto = new IcIssuedCountDto();
+        if (result != null) {
+            long rmCount = result.get("rmCount") != null ? ((Number) result.get("rmCount")).longValue() : 0;
+            long processCount = result.get("processCount") != null ? ((Number) result.get("processCount")).longValue() : 0;
+            long finalCount = result.get("finalCount") != null ? ((Number) result.get("finalCount")).longValue() : 0;
+            dto.setRmCount(rmCount);
+            dto.setProcessCount(processCount);
+            dto.setFinalCount(finalCount);
+            dto.setTotal(rmCount + processCount + finalCount);
+        }
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
+    }
 
     @GetMapping("/1stLevelReportPoData")
     public ResponseEntity<Object> get1stLevelReportPoData() {
@@ -81,11 +115,27 @@ public class reportsController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
+    @GetMapping("/newPoWise")
+    public ResponseEntity<Object> getNewPoWise(    @RequestParam(defaultValue = "0") int page,
+
+                                                   @RequestParam(defaultValue = "20") int size,
+                                                   @RequestParam(required = false) LocalDate startDate,
+                                            @RequestParam(required = false) LocalDate endDate) {
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getPoInspectionTracking(page,size,startDate,endDate)), HttpStatus.OK);
+    }
+
     @GetMapping("/dashboardSummary")
-    public ResponseEntity<Object> getDashboardSummary() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDashboardSummary()),
+    public ResponseEntity<Object> getDashboardSummary(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getDashboardSummary(vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
+
+
 
     @GetMapping("/railpad-final-accepted-rejected")
     public ResponseEntity<Object> getRailPadFinalAcceptedRejected() {
@@ -194,9 +244,19 @@ public class reportsController {
     }
 
     @GetMapping("/avgProductionPerDay")
-    public ResponseEntity<Object> getAvgProductionPerDay() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getAvgProductionPerDay()),
-                HttpStatus.OK);
+    public ResponseEntity<Object> getAvgProductionPerDay(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        if (startDate != null && endDate != null) {
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getAvgProductionPerDayWithFilters(startDate, endDate, vendorPlantCode, zonalRailway)),
+                    HttpStatus.OK);
+        } else {
+            return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getAvgProductionPerDay()),
+                    HttpStatus.OK);
+        }
     }
 
     @GetMapping("/qualityRejection")
@@ -231,8 +291,12 @@ public class reportsController {
     }
 
     @GetMapping("/inspectionCallStatus")
-    public ResponseEntity<Object> getInspectionCallStatus() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionCallStatus()),
+    public ResponseEntity<Object> getInspectionCallStatus(
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionCallStatus(vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
 
@@ -246,8 +310,10 @@ public class reportsController {
 
     @GetMapping("/inspectionDetails")
     public ResponseEntity<Object> getInspectionDetails(@RequestParam(required = false) String startDate,
-                                                        @RequestParam(required = false) String endDate) {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionDetails(startDate, endDate)),
+                                                        @RequestParam(required = false) String endDate,
+                                                        @RequestParam(required = false) String vendorPlantCode,
+                                                        @RequestParam(required = false) String zonalRailway) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getInspectionDetails(startDate, endDate, vendorPlantCode, zonalRailway)),
                 HttpStatus.OK);
     }
 
@@ -266,17 +332,26 @@ public class reportsController {
     }
 
     @GetMapping("/poIssuedDetails")
-    public ResponseEntity<Object> getPoIssuedDetails(@RequestParam String itemCatDescr) {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getPoIssuedDetails(itemCatDescr)),
+    public ResponseEntity<Object> getPoIssuedDetails(
+            @RequestParam String itemCatDescr,
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getPoIssuedDetails(itemCatDescr, vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
 
     @GetMapping("/inspectionCallStatusDetails")
     public ResponseEntity<Object> getInspectionCallStatusDetails(
             @RequestParam String stage, 
-            @RequestParam String status) {
+            @RequestParam String status,
+            @RequestParam(required = false) String vendorPlantCode,
+            @RequestParam(required = false) String zonalRailway,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         return new ResponseEntity<Object>(
-                ResponseBuilder.getSuccessResponse(reportService.getInspectionCallStatusDetails(stage, status)),
+                ResponseBuilder.getSuccessResponse(reportService.getInspectionCallStatusDetails(stage, status, vendorPlantCode, zonalRailway, startDate, endDate)),
                 HttpStatus.OK);
     }
 
@@ -431,5 +506,40 @@ public class reportsController {
                 return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
             }
         }
+
+
+
+    @GetMapping("/ercDashboardTotalCalls")
+    public ResponseEntity<Object> getTotalCallsDashboardSummary() {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getTotalCallsSummary()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/ercDashboardOpenCalls")
+    public ResponseEntity<Object> getOpenCalls() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        reportService.getOpenCalls()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/ercDashboardUnderInspectionCalls")
+    public ResponseEntity<Object> getUnderInspectionCalls() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        reportService.getUnderInspectionCalls()),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/ercDashboardPendingCalls")
+    public ResponseEntity<Object> getPendingCalls() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        reportService.getPendingCalls()),
+                HttpStatus.OK);
+    }
+
+
+
 }
 

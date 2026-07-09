@@ -1,6 +1,7 @@
 package com.sarthi.controller;
 
-import com.sarthi.dto.crisDtos.MaRequestDto;
+import com.sarthi.dto.crisDtos.MaPoRequestDTO;
+
 import com.sarthi.dto.crisDtos.PoCancellationRequestDto;
 import com.sarthi.dto.crisDtos.PoRequestDto;
 import com.sarthi.exception.ErrorDetails;
@@ -53,10 +54,10 @@ public class crisController {
     }
 
     @PostMapping("/savePoMa")
-    public ResponseEntity<Object> savePoMa(@RequestBody MaRequestDto request) {
+    public ResponseEntity<Object> savePoMa(@RequestBody MaPoRequestDTO request) {
 
         try {
-            crisService.saveMaFromFrontend(request);
+            crisService.saveMaPo(request);
 
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse("PO Ma saved successfully"),

@@ -16,6 +16,8 @@ public class userRequestDto {
     // private String roleName;
     private String email;
     private String mobileNumber;
+    private String alternateMobileNumber;
+    private String notificationPreferences;
     private String employeeId;
     private String createdBy;
 
@@ -53,5 +55,7 @@ public class userRequestDto {
     private List<IePoiMappingDto> iePoiMappings;
 
     private List<ProductCmDto> productCmMappings;
+
+    private String profilePhotoPath;
 
 }

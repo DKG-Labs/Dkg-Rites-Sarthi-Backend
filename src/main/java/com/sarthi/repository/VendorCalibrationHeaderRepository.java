@@ -12,6 +12,8 @@ public interface VendorCalibrationHeaderRepository extends JpaRepository<VendorC
 
     List<VendorCalibrationHeader> findByVendorCode(String vendorCode);
 
+    List<VendorCalibrationHeader> findByCreatedBy(String createdBy);
+
     Optional<VendorCalibrationHeader> findByVendorCodeAndCategory(String vendorCode, String category);
 
     boolean existsByVendorCodeAndCategory(String vendorCode, String category);

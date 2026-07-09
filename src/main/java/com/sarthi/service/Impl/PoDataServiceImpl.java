@@ -279,20 +279,20 @@ public class PoDataServiceImpl implements PoDataService {
                 maInfo.setMaDate(maHeader.getMaDate() != null ?
                         maHeader.getMaDate().format(DATE_FORMATTER) : null);
                 maInfo.setSubject(maHeader.getSubject());
-                maInfo.setOldPoValue(maHeader.getOldPoValue());
-                maInfo.setNewPoValue(maHeader.getNewPoValue());
+               // maInfo.setOldPoValue(maHeader.getOldPoValue());
+              //  maInfo.setNewPoValue(maHeader.getNewPoValue());
                 maInfo.setMaType(maHeader.getMaType());
                 maInfo.setStatus(maHeader.getStatus());
                 maList.add(maInfo);
             }
             dto.setMaList(maList);
 
-            // Get condition details from po_ma_detail if available
-            if (firstMa.getDetails() != null && !firstMa.getDetails().isEmpty()) {
-                dto.setPoCondSrNo(firstMa.getDetails().get(0).getCondSlno());
-                dto.setCondTitle(firstMa.getDetails().get(0).getMaFldDescr());
-                dto.setCondText(firstMa.getDetails().get(0).getNewValue());
-            }
+//            // Get condition details from po_ma_detail if available
+//            if (firstMa.getDetails() != null && !firstMa.getDetails().isEmpty()) {
+//                dto.setPoCondSrNo(firstMa.getDetails().get(0).getCondSlno());
+//                dto.setCondTitle(firstMa.getDetails().get(0).getMaFldDescr());
+//                dto.setCondText(firstMa.getDetails().get(0).getNewValue());
+//            }
         } else {
             // No MA records
             dto.setMaNo("N/A");

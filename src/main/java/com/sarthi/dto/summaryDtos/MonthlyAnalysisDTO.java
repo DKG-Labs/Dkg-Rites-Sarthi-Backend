@@ -19,4 +19,8 @@ public class MonthlyAnalysisDTO {
     private Double rmRejPercent;
     private Double processRejPercent;
     private Double finalRejPercent;
+
+    private Long noOfPos;
+    private Double poQty;
+    private String uom;
 }

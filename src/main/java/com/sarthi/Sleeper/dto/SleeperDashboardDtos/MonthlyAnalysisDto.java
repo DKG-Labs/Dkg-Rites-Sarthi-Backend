@@ -21,4 +21,8 @@ public class MonthlyAnalysisDto {
     private Long finalRejection;
 
     private Double rejectionPercentage;
+
+    private Long noOfPos;
+    private Long poQty;
+    private String uom;
 }

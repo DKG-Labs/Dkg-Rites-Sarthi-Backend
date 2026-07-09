@@ -311,6 +311,37 @@ GROUP BY p.inspectionCallNo
     Long countDistinctProductionDaysLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
+    @org.springframework.data.jpa.repository.Query(value = """
+        SELECT SUM(p.tempering_manufactured) 
+        FROM process_line_final_result p 
+        LEFT JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+        WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+    """, nativeQuery = true)
+    Long sumTemperingManufacturedWithFilters(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
+            @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+            @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
+
+    @org.springframework.data.jpa.repository.Query(value = """
+        SELECT COUNT(DISTINCT DATE(p.created_at)) 
+        FROM process_line_final_result p 
+        LEFT JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+        WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+        AND p.tempering_manufactured > 0
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+    """, nativeQuery = true)
+    Long countDistinctProductionDaysWithFilters(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
+            @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+            @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
+
     // ===== NEW: Pareto Analysis – aggregate rejections across all process tables =====
     @org.springframework.data.jpa.repository.Query(value = """
         SELECT 'Forging Temp' AS param_name, COALESCE(SUM(forging_temp_rejected), 0) AS total FROM process_forging_data
@@ -385,11 +416,17 @@ GROUP BY p.inspectionCallNo
             SUM(COALESCE(p.tempering_accepted, 0)), 
             SUM(COALESCE(p.total_rejected, 0)) 
         FROM process_line_final_result p 
+        LEFT JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
         WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
     """, nativeQuery = true)
     List<Object[]> sumProcessAcceptedAndRejectedRevisedLogic(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate, 
-            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
+            @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+            @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
     @Query(value = """
         SELECT 
             DATE_FORMAT(IFNULL(p.date_of_inspection, p.created_at), '%b-%y') AS Month_Year,

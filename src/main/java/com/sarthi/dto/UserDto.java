@@ -22,4 +22,10 @@ public class UserDto {
     private String employmentType;
     private String dateOfBirth;
     private String rio;
+    private String email;
+    private String alternateMobileNumber;
+    private String notificationPreferences;
+    private String shortName;
+    private String productType;
+    private String profilePhotoPath;
 }

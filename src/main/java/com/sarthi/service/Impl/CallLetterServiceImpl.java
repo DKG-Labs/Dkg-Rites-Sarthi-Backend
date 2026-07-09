@@ -94,7 +94,7 @@ public class CallLetterServiceImpl implements CallLetterService {
 
         // Fetch contact details from UserMaster based on vendorId
         if (ic.getVendorId() != null) {
-            Optional<UserMaster> vendorUserOpt = userMasterRepository.findByUserName(ic.getVendorId());
+            Optional<UserMaster> vendorUserOpt = userMasterRepository.findFirstByUserName(ic.getVendorId());
             if (vendorUserOpt.isPresent()) {
                 UserMaster vendorUser = vendorUserOpt.get();
                 dto.setContactPersonName(vendorUser.getFullName());
@@ -267,7 +267,17 @@ public class CallLetterServiceImpl implements CallLetterService {
         }
 
         // Call quantity
-        if (rm.getTotalOfferedQtyMt() != null) {
+        java.math.BigDecimal sumOfHeats = java.math.BigDecimal.ZERO;
+        if (rm.getHeatQuantities() != null && !rm.getHeatQuantities().isEmpty()) {
+            sumOfHeats = rm.getHeatQuantities().stream()
+                    .map(hq -> hq.getOfferedQty() != null ? hq.getOfferedQty() : java.math.BigDecimal.ZERO)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        }
+
+        if (sumOfHeats.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            dto.setCallQty(sumOfHeats.toPlainString());
+            dto.setCallUnit("MT");
+        } else if (rm.getTotalOfferedQtyMt() != null) {
             dto.setCallQty(rm.getTotalOfferedQtyMt().toPlainString());
             dto.setCallUnit("MT");
         } else if (rm.getOfferedQtyErc() != null) {

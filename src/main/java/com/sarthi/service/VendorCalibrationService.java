@@ -17,10 +17,16 @@ public interface VendorCalibrationService {
     List<VendorCalibrationHeaderResponseDto> getCalibrationsByVendor(String vendorCode);
 
     VendorCalibrationHeaderResponseDto getCalibrationGroupById(Long id);
+    
+    List<VendorCalibrationHeaderResponseDto> getCalibrationsByCreatedBy(String createdBy);
+    
+    List<VendorCalibrationHeaderResponseDto> getCalibrationsByCallNo(String callNo);
 
     void deleteCalibrationGroup(Long id);
 
     void deleteCalibrationDetail(Long detailId);
+
+    VendorCalibrationHeaderResponseDto updateCalibrationDetail(Long detailId, com.sarthi.dto.VendorCalibrationDetailDto detailDto, String userId);
 
     public IeVendorCalibrationInspectionResponseDto createInspection(
             CreateIeVendorCalibrationInspectionRequestDto requestDto);

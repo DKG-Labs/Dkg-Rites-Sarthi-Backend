@@ -14,11 +14,7 @@ import com.sarthi.dto.reports.InspectionCallStatusDto;
 
 import com.sarthi.dto.reports.*;
 
-import com.sarthi.dto.summaryDtos.CallCalculationDto;
-
-import com.sarthi.dto.summaryDtos.PoWiseDefectsData;
-
-import com.sarthi.dto.summaryDtos.ProcessSummaryDto;
+import com.sarthi.dto.summaryDtos.*;
 
 import com.sarthi.entity.*;
 
@@ -3676,22 +3672,27 @@ public class reportsImpl implements reports {
 
 
         @Override
-
         public DashboardSummaryDto getDashboardSummary() {
+                return getDashboardSummary(null, null, null, null);
+        }
+
+        public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDateStr, String endDateStr) {
+                String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
+                String zCode = (vCode.isEmpty() || zonalRailway == null) ? "" : zonalRailway;
+                String startDate = (vCode.isEmpty() || startDateStr == null || startDateStr.isEmpty()) ? null : startDateStr;
+                String endDate = (vCode.isEmpty() || endDateStr == null || endDateStr.isEmpty()) ? null : endDateStr;
 
                 // Modified Logic: Filter PO Issued and PO Quantity specifically for 'Elastic Rail Clips'
 
                 // Implementation specifically placed at the bottom of this file as requested.
 
-                long poIssued = getFilteredPoIssuedCount();
+                long poIssued = poHeaderRepository.countFilteredPoByItemCatDescr("Elastic Rail Clips", startDate, endDate, vCode, zCode);
 
-                Long qtyNos = getFilteredPoQuantityNos();
+                Long qtyNos = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", startDate, endDate, vCode, zCode);
 
-                Double qtyMt = getFilteredPoQuantityMt();
+                Double qtyMt = poItemRepository.sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", startDate, endDate, vCode, zCode);
 
-
-
-                Long finalQtyPassed = finalCumulativeResultsRepository.sumTotalQtyNowPassed();
+                Long finalQtyPassed = finalCumulativeResultsRepository.sumFilteredTotalQtyNowPassed(startDate, endDate, vCode, zCode);
 
 
 
@@ -3914,9 +3915,12 @@ public class reportsImpl implements reports {
         @Override
 
         public double getAvgProductionPerDay() {
-
                 return calculateAvgProductionPerDayNewLogic();
+        }
 
+        @Override
+        public double getAvgProductionPerDayWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate, String vendorPlantCode, String zonalRailway) {
+                return calculateAvgProductionPerDayNewLogicWithFilters(startDate, endDate, vendorPlantCode, zonalRailway);
         }
 
 
@@ -4320,12 +4324,11 @@ public class reportsImpl implements reports {
 
 
         @Override
-
-        public List<InspectionCallStatusDto> getInspectionCallStatus() {
+        public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
 
                 // Updated to exclude Dummy PO data as requested
 
-                return getInspectionCallStatusWithExclLogic();
+                return getInspectionCallStatusWithExclLogic(vendorPlantCode, zonalRailway, startDate, endDate);
 
         }
 
@@ -4372,27 +4375,28 @@ public class reportsImpl implements reports {
         // Logic: (Sum of total tempering produced in the last 30 days / active production days in the last 30 days)
 
         private double calculateAvgProductionPerDayNewLogic() {
-
                 LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-
                 Long temperingSum = processLineFinalResultRepository.sumTemperingManufacturedLast30Days(thirtyDaysAgo);
-
                 if (temperingSum == null || temperingSum == 0) {
-
                         return 0.0;
-
                 }
-
                 Long activeDays = processLineFinalResultRepository.countDistinctProductionDaysLast30Days(thirtyDaysAgo);
-
                 if (activeDays == null || activeDays == 0) {
-
                         return 0.0;
-
                 }
-
                 return temperingSum / (double) activeDays;
+        }
 
+        private double calculateAvgProductionPerDayNewLogicWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate, String vendorPlantCode, String zonalRailway) {
+                Long temperingSum = processLineFinalResultRepository.sumTemperingManufacturedWithFilters(startDate, endDate, vendorPlantCode, zonalRailway);
+                if (temperingSum == null || temperingSum == 0) {
+                        return 0.0;
+                }
+                Long activeDays = processLineFinalResultRepository.countDistinctProductionDaysWithFilters(startDate, endDate, vendorPlantCode, zonalRailway);
+                if (activeDays == null || activeDays == 0) {
+                        return 0.0;
+                }
+                return temperingSum / (double) activeDays;
         }
 
 
@@ -4577,7 +4581,7 @@ public class reportsImpl implements reports {
 
         public List<InspectionDetailsDto> getInspectionDetails() {
 
-                return getInspectionDetails(null, null);
+                return getInspectionDetails(null, null, null, null);
 
         }
 
@@ -4591,11 +4595,16 @@ public class reportsImpl implements reports {
 
          */
 
-        private List<InspectionCallStatusDto> getInspectionCallStatusWithExclLogic() {
+        private List<InspectionCallStatusDto> getInspectionCallStatusWithExclLogic(String vendorPlantCode, String zonalRailway, String startDate, String endDate) {
 
                 String excludePo = "DummyPo_001";
 
-                List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdownExcludingDummyPo(excludePo);
+                List<Object[]> results = workflowTransitionRepository.getInspectionCallStatusBreakdownExcludingDummyPo(
+                        excludePo,
+                        vendorPlantCode == null ? "" : vendorPlantCode,
+                        zonalRailway == null ? "" : zonalRailway,
+                        startDate == null ? "" : startDate,
+                        (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
 
                 List<InspectionCallStatusDto> list = new ArrayList<>();
 
@@ -4679,11 +4688,15 @@ public class reportsImpl implements reports {
 
         @Override
 
-        public List<InspectionDetailsDto> getInspectionDetails(String startDateStr, String endDateStr) {
+        public List<InspectionDetailsDto> getInspectionDetails(String startDateStr, String endDateStr, String vendorPlantCode, String zonalRailway) {
 
                 LocalDate startDate = startDateStr != null ? LocalDate.parse(startDateStr) : LocalDate.of(2000, 1, 1);
 
                 LocalDate endDate = endDateStr != null ? LocalDate.parse(endDateStr) : LocalDate.now();
+
+                String vendor = vendorPlantCode == null ? "" : vendorPlantCode;
+
+                String zone = zonalRailway == null ? "" : zonalRailway;
 
 
 
@@ -4693,7 +4706,7 @@ public class reportsImpl implements reports {
 
                 // 1. RM: accepted_qty_mt, weight_rejected_mt
 
-                List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                List<Object[]> rmData = rmHeatFinalResultRepository.sumRmAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone);
 
                 double rmAcc = 0, rmRej = 0;
 
@@ -4713,7 +4726,7 @@ public class reportsImpl implements reports {
 
                 List<Object[]> procData = processLineFinalResultRepository
 
-                        .sumProcessAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                        .sumProcessAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone);
 
                 double procAcc = 0, procRej = 0;
 
@@ -4733,7 +4746,7 @@ public class reportsImpl implements reports {
 
                 List<Object[]> finalData = finalCumulativeResultsRepository
 
-                        .sumFinalAcceptedAndRejectedRevisedLogic(startDate, endDate);
+                        .sumFinalAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone);
 
                 double finalAcc = 0, finalRej = 0;
 
@@ -4984,10 +4997,16 @@ public class reportsImpl implements reports {
 
 
     @Override
+    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr, String vendorPlantCode, String zonalRailway, String startDateStr, String endDateStr) {
+        String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
+        String zCode = (vCode.isEmpty() || zonalRailway == null) ? "" : zonalRailway;
+        String startDStr = (vCode.isEmpty() || startDateStr == null) ? "" : startDateStr;
+        String endDStr = (vCode.isEmpty() || endDateStr == null) ? "" : endDateStr;
+        
+        java.time.LocalDateTime startDate = startDStr.isEmpty() ? java.time.LocalDateTime.of(1970, 1, 1, 0, 0) : java.time.LocalDate.parse(startDStr).atStartOfDay();
+        java.time.LocalDateTime endDate = endDStr.isEmpty() ? java.time.LocalDateTime.of(2100, 12, 31, 23, 59) : java.time.LocalDate.parse(endDStr).atTime(23, 59, 59);
 
-    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr) {
-
-        List<PoIssuedDetailDto> list = poItemRepository.getPoIssuedDetails(itemCatDescr);
+        List<PoIssuedDetailDto> list = poItemRepository.getPoIssuedDetails(itemCatDescr, vCode, zCode, startDate, endDate);
         if (list != null) {
             for (PoIssuedDetailDto dto : list) {
                 long poQty = dto.getPoQuantity() != null ? dto.getPoQuantity() : 0L;
@@ -4999,6 +5018,230 @@ public class reportsImpl implements reports {
 
     }
 
+
+
+        @Override
+        public PageResponseDTO<PoWiseInspectionTrackingDTO> getPoInspectionTracking(
+                int page,
+                int size,
+                LocalDate startDate,
+                LocalDate endDate) {
+
+                Pageable pageable = PageRequest.of(page, size);
+
+                Page<Object[]> poPage =
+                        inspectionCallRepository.fetchPoInspectionTracking(
+                                startDate,
+                                endDate,
+                                pageable);
+
+                AtomicInteger counter = new AtomicInteger(page * size + 1);
+
+                List<PoWiseInspectionTrackingDTO> content =
+                        poPage.getContent()
+                                .stream()
+                                .map(row -> {
+
+                                        PoWiseInspectionTrackingDTO dto =
+                                                new PoWiseInspectionTrackingDTO();
+
+                                        dto.setSno(counter.getAndIncrement());
+
+                                        dto.setZonalRailway((String) row[0]);
+                                        dto.setVendor((String) row[1]);
+                                        dto.setErcType((String) row[2]);
+                                        dto.setPoNumber((String) row[3]);
+
+                                        if (row[4] instanceof java.sql.Timestamp ts) {
+                                                dto.setPoDate(ts.toLocalDateTime().toLocalDate());
+                                        } else if (row[4] instanceof java.sql.Date dt) {
+                                                dto.setPoDate(dt.toLocalDate());
+                                        }
+
+                                        dto.setSpecification((String) row[5]);
+
+                                        dto.setPoQty(
+                                                row[6] == null ? 0D :
+                                                        ((Number) row[6]).doubleValue());
+
+                                        dto.setProcessInspectedQty(
+                                                row[7] == null ? 0D :
+                                                        ((Number) row[7]).doubleValue());
+
+                                        dto.setProcessAcceptedQty(
+                                                row[8] == null ? 0D :
+                                                        ((Number) row[8]).doubleValue());
+
+                                        dto.setOfferedForFinalInspectionQty(
+                                                row[9] == null ? 0D :
+                                                        ((Number) row[9]).doubleValue());
+
+                                        dto.setFinalAcceptedQty(
+                                                row[10] == null ? 0D :
+                                                        ((Number) row[10]).doubleValue());
+
+                                        dto.setNoOfIcIssued(
+                                                row[11] == null ? 0L :
+                                                        ((Number) row[11]).longValue());
+
+                                        if (row[12] != null) {
+
+                                                if (row[12] instanceof java.sql.Date dt) {
+                                                        dto.setLastIcIssuedDate(dt.toLocalDate());
+                                                } else if (row[12] instanceof java.sql.Timestamp ts) {
+                                                        dto.setLastIcIssuedDate(
+                                                                ts.toLocalDateTime().toLocalDate());
+                                                }
+                                        }
+
+                                        /* Raw Material Defects */
+
+                                        dto.setChemicalCompositionRej(
+                                                row[13] == null ? 0L :
+                                                        ((Number) row[13]).longValue());
+
+                                        dto.setDiameterBarRej(
+                                                row[14] == null ? 0L :
+                                                        ((Number) row[14]).longValue());
+
+                                        dto.setGrainSizeRej(
+                                                row[15] == null ? 0L :
+                                                        ((Number) row[15]).longValue());
+
+                                        dto.setInclusionRatingRej(
+                                                row[16] == null ? 0L :
+                                                        ((Number) row[16]).longValue());
+
+                                        dto.setDepthOfDecarbRej(
+                                                row[17] == null ? 0L :
+                                                        ((Number) row[17]).longValue());
+
+                                        dto.setHardnessRawRej(
+                                                row[18] == null ? 0L :
+                                                        ((Number) row[18]).longValue());
+
+                                        dto.setShearingRej(
+                                                row[19] == null ? 0L :
+                                                        ((Number) row[19]).longValue());
+
+                                        dto.setMpiRej(
+                                                row[20] == null ? 0L :
+                                                        ((Number) row[20]).longValue());
+
+                                        dto.setTurningRej(
+                                                row[21] == null ? 0L :
+                                                        ((Number) row[21]).longValue());
+
+                                        dto.setForgingRej(
+                                                row[22] == null ? 0L :
+                                                        ((Number) row[22]).longValue());
+
+                                        dto.setQuenchingRej(
+                                                row[23] == null ? 0L :
+                                                        ((Number) row[23]).longValue());
+
+                                        dto.setTemperingRej(
+                                                row[24] == null ? 0L :
+                                                        ((Number) row[24]).longValue());
+
+                                        dto.setDimensionFinishedErcRej(
+                                                row[25] == null ? 0L :
+                                                        ((Number) row[25]).longValue());
+
+                                        dto.setHardnessProcessRej(
+                                                row[26] == null ? 0L :
+                                                        ((Number) row[26]).longValue());
+
+                                        dto.setDepthOfDecarburizationRej(
+                                                row[26] == null ? 0L : ((Number) row[26]).longValue());
+
+                                        dto.setDimensionToleranceRej(
+                                                row[27] == null ? 0L : ((Number) row[27]).longValue());
+
+                                        dto.setApplicationAndDeflectionTestRej(
+                                                row[28] == null ? 0L : ((Number) row[28]).longValue());
+
+                                        dto.setToeLoadTestRej(
+                                                row[29] == null ? 0L : ((Number) row[29]).longValue());
+
+                                        dto.setWeightRej(
+                                                row[30] == null ? 0L : ((Number) row[30]).longValue());
+
+                                        dto.setVisualTestRej(
+                                                row[31] == null ? 0L : ((Number) row[31]).longValue());
+
+                                        dto.setMicroStructureRej(
+                                                row[32] == null ? 0L : ((Number) row[32]).longValue());
+
+                                        dto.setFreedomFromDefectsRej(
+                                                row[33] == null ? 0L : ((Number) row[33]).longValue());
+
+                                        dto.setOtherRejections(
+                                                row[34] == null ? 0L : ((Number) row[34]).longValue());
+
+                                        dto.setRemarks(
+                                                row[35] == null ? null : row[35].toString());
+
+                                        Long totalRejections =
+
+                                                dto.getChemicalCompositionRej()
+                                                        + dto.getDiameterBarRej()
+                                                        + dto.getGrainSizeRej()
+                                                        + dto.getInclusionRatingRej()
+                                                        + dto.getDepthOfDecarbRej()
+                                                        + dto.getHardnessRawRej()
+
+                                                        + dto.getShearingRej()
+                                                        + dto.getMpiRej()
+                                                        + dto.getTurningRej()
+                                                        + dto.getForgingRej()
+                                                        + dto.getQuenchingRej()
+                                                        + dto.getTemperingRej()
+                                                        + dto.getDimensionFinishedErcRej()
+                                                        + dto.getHardnessProcessRej()
+
+                                                        + dto.getDepthOfDecarburizationRej()
+                                                        + dto.getDimensionToleranceRej()
+                                                        + dto.getApplicationAndDeflectionTestRej()
+                                                        + dto.getToeLoadTestRej()
+                                                        + dto.getWeightRej()
+                                                        + dto.getVisualTestRej()
+                                                        + dto.getMicroStructureRej()
+                                                        + dto.getFreedomFromDefectsRej()
+                                                        + dto.getOtherRejections();
+
+                                        dto.setTotalRejections(totalRejections);
+
+                                        Double processInspectedQty =
+                                                dto.getProcessInspectedQty() == null
+                                                        ? 0D
+                                                        : dto.getProcessInspectedQty();
+
+                                        double rejectionPercentage = 0D;
+
+                                        if (processInspectedQty > 0) {
+                                                rejectionPercentage =
+                                                        (totalRejections * 100.0) / processInspectedQty;
+                                        }
+
+                                        dto.setRejectionPercentage(
+                                                Math.round(rejectionPercentage * 100.0) / 100.0
+                                        );
+                                        return dto;
+                                })
+                                .toList();
+
+                PageResponseDTO<PoWiseInspectionTrackingDTO> response =
+                        new PageResponseDTO<>();
+
+                response.setContent(content);
+                response.setPage(page);
+                response.setSize(size);
+                response.setTotalElements(poPage.getTotalElements());
+                response.setTotalPages(poPage.getTotalPages());
+
+                return response;
+        }
 
 
 
@@ -5847,6 +6090,7 @@ public class reportsImpl implements reports {
 
 
 
+
                                 processQty.setTurningProductionQty(
 
                                         processQty.getTurningProductionQty()
@@ -6210,12 +6454,20 @@ public class reportsImpl implements reports {
 */
 public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(
         String stage,
-        String status) {
+        String status,
+        String vendorPlantCode, 
+        String zonalRailway, 
+        String startDate, 
+        String endDate) {
 
         List<Object[]> rawList =
                 workflowTransitionRepository.getInspectionCallStatusDetailsRaw(
                         stage,
-                        status);
+                        status,
+                        vendorPlantCode == null ? "" : vendorPlantCode,
+                        zonalRailway == null ? "" : zonalRailway,
+                        startDate == null ? "" : startDate,
+                        (endDate != null && !endDate.isEmpty()) ? endDate + " 23:59:59" : "");
 
         List<InspectionCallDetailDto> dtoList = new ArrayList<>();
 
@@ -8076,6 +8328,140 @@ public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallSta
                 response.setLast(page >= totalPages - 1);
 
                 return response;
+        }
+
+
+        @Override
+        public TotalCallsSummaryDTO getTotalCallsSummary() {
+
+                Long totalOpenCalls =
+                        workflowTransitionRepository.getTotalOpenCalls();
+
+                Long totalUnderInspectionCalls =
+                        workflowTransitionRepository.getTotalUnderInspectionCalls();
+
+                Long totalPendingCalls = workflowTransitionRepository.getTotalPendingCalls();
+
+                return new TotalCallsSummaryDTO(
+                        totalOpenCalls,
+                        totalUnderInspectionCalls,
+                        totalPendingCalls);
+        }
+
+
+        @Override
+        public List<InspectionCallDetailDto> getUnderInspectionCalls() {
+
+                List<Object[]> results =
+                        workflowTransitionRepository.getUnderInspectionCalls();
+
+                return results.stream()
+                        .map(this::convertToInspectionCallDto)
+                        .toList();
+        }
+
+        @Override
+        public List<InspectionCallDetailDto> getPendingCalls() {
+
+                List<Object[]> results =
+                        workflowTransitionRepository.getPendingCalls();
+
+                return results.stream()
+                        .map(this::convertToInspectionCallDto)
+                        .toList();
+        }
+
+        @Override
+        public List<InspectionCallDetailDto> getOpenCalls() {
+
+                List<Object[]> results =
+                        workflowTransitionRepository.getOpenCalls();
+
+                return results.stream()
+                        .map(this::convertToInspectionCallDto)
+                        .toList();
+        }
+
+        private InspectionCallDetailDto convertToInspectionCallDto(Object[] row) {
+
+                String status = row[6] != null ? row[6].toString() : "";
+
+                return InspectionCallDetailDto.builder()
+                        .inspectionCallNumber((String) row[0])
+                        .vendor((String) row[1])
+                        .callSubmissionDateTime((String) row[2])
+                        .stageOfInspection(determineStage((String) row[0]))
+                        .poSrNo((String) row[4])
+                        .dpDate((String) row[5])
+                        .status(status)
+                        .mainStatus(getMainStatus(status))
+                        .subStatus(getSubStatus(status))
+                        .build();
+        }
+
+        private String determineStage(String inspectionCallNumber) {
+
+                if (inspectionCallNumber == null) {
+                        return "-";
+                }
+
+                if (inspectionCallNumber.startsWith("ER")) {
+                        return "RM Stage";
+                }
+
+                if (inspectionCallNumber.startsWith("EP")) {
+                        return "Process Stage";
+                }
+
+                if (inspectionCallNumber.startsWith("EF")) {
+                        return "Final Stage";
+                }
+
+                return "-";
+        }
+
+        private String getMainStatus(String status) {
+
+                return switch (status) {
+
+                        case "Created",
+                                "VERIFIED",
+                                "RETURNED",
+                                "CALL_REGISTERED",
+                                "IE_SCHEDULED",
+                                "INITIATE_INSPECTION",
+                                "REQUEST_CORRECTION_TO_CM"
+                                -> "Pending";
+
+                        case "VERIFY_PO_DETAILS",
+                                "PAUSE_INSPECTION_RESUME_NEXT_DAY",
+                                "ENTER_SHIFT_DETAILS_AND_START_INSPECTION",
+                                "WITHHELD"
+                                -> "Under Inspection";
+
+                        default -> "Completed";
+                };
+        }
+
+        private String getSubStatus(String status) {
+
+                return switch (status) {
+
+                        case "Created" -> "Call Raised";
+                        case "VERIFIED", "CALL_REGISTERED" -> "Call Registered";
+                        case "RETURNED" -> "Returned To Vendor";
+                        case "IE_SCHEDULED" -> "Call Scheduled";
+                        case "INITIATE_INSPECTION" -> "Call Initiated";
+                        case "VERIFY_PO_DETAILS" -> "Inspection Started";
+                        case "PAUSE_INSPECTION_RESUME_NEXT_DAY" -> "Paused For Next Schedule";
+                        case "ENTER_SHIFT_DETAILS_AND_START_INSPECTION" -> "Under Inspection";
+                        case "INSPECTION_COMPLETE_CONFIRM" -> "IC Issuance Pending";
+                        case "GENERATE_IC", "DSC_SIGN_IC" -> "IC Issued";
+                        case "CANCELLED" -> "Cancelled";
+                        case "WITHHELD" -> "Withheld";
+
+                        default -> status;
+                };
         }
 }
 

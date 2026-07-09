@@ -38,7 +38,7 @@ public class FinalIcSaveChanges {
     @Column(name = "PASSED_INSTALLMENT_NO")
     private String passedInstallmentNo;
 
-    @Column(name = "CONSIGNEE")
+    @Column(name = "CONSIGNEE", columnDefinition = "TEXT")
     private String consignee;
 
     @Column(name = "CUMM_QTY_OFFERED_PREV")
@@ -50,13 +50,13 @@ public class FinalIcSaveChanges {
     @Column(name = "QTY_STILL_DUE")
     private String qtyStillDue;
 
-    @Column(name = "MA_NUMBER_AND_DATE")
+    @Column(name = "MA_NUMBER_AND_DATE", columnDefinition = "TEXT")
     private String maNumberAndDate;
 
-    @Column(name = "PURCHASING_AUTHORITY")
+    @Column(name = "PURCHASING_AUTHORITY", columnDefinition = "TEXT")
     private String purchasingAuthority;
 
-    @Column(name = "DESCRIPTION")
+    @Column(name = "DESCRIPTION", columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "TR_REC_DATE")

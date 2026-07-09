@@ -22,6 +22,9 @@ public interface PincodePoIMappingRepository extends JpaRepository<PincodePoIMap
     // @Query("SELECT DISTINCT p.companyName FROM PincodePoIMapping p")
     // List<String> findDistinctCompanyNames();
 
+    @Query("SELECT p FROM PincodePoIMapping p WHERE p.vendorCode IN (SELECT DISTINCT ph.vendorCode FROM PoHeader ph WHERE ph.vendorCode IS NOT NULL)")
+    List<PincodePoIMapping> findVendorPlantsWithPo();
+
     // @Query("""
     // SELECT DISTINCT p.companyName
     // FROM PincodePoIMapping p
@@ -194,4 +197,10 @@ WHERE ppm.poi_code = :poiCode
 
     @Query("SELECT DISTINCT p.companyName FROM PincodePoIMapping p WHERE p.companyName IS NOT NULL AND p.companyName <> '' ORDER BY p.companyName")
     List<String> getAllCompanies();
+
+
+
+        @Query("SELECT p.vendorCode FROM PincodePoIMapping p WHERE p.poiCode = :poiCode")
+        String findVendorCodeByPoiCode(@Param("poiCode") String poiCode);
+
 }

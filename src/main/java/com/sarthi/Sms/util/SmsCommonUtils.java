@@ -44,7 +44,7 @@ public class SmsCommonUtils implements ApplicationContextAware {
                                 );
         }
         String username = jwtService.extractUserId(authHeader.substring(7));
-        UserMaster user = userMasterRepository.findByUserName(username)
+        UserMaster user = userMasterRepository.findFirstByUserName(username)
                             .orElseThrow(() -> new SmsInvalidArgumentException(
                                     new SmsErrorDetails(AppConstant.ERROR_CODE_VALIDATION,
                                             AppConstant.ERROR_TYPE_CODE_VALIDATION,

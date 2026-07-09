@@ -10,53 +10,61 @@ import java.time.LocalDate;
 @Data
 public class PoMaDetail {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
 
-    private String rly;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "ma_po_header_id")
+        private PoMaHeader maPoHeader;
 
-    @Column(name = "ma_key", unique = true)
-    private String maKey;
+        private String rly;
 
-    private String slno;
-    private String maFld;
-    private String maFldDescr;
+        private String maKey;
 
-    private String oldValue;
-    private String newValue;
+        private String slNo;
 
-    private String newValueInd;
-    private String newValueFlag;
+        private String maFld;
 
-    private String plNo;
-    private String poSr;
+        private String maFldDescr;
 
-    private String condSlno;
-    private String condCode;
+        @Column(length = 4000)
+        private String oldValue;
 
-    private String maSrNo;
-    private String status;
+        @Column(length = 4000)
+        private String newValue;
 
-    private String sourceSystem = "CRIS";
+        private String newValueInd;
 
-    private String expSr;
-    private String expCode;
+        private String newValueFlag;
 
-    private String condNo;
+        private String plNo;
 
-    private LocalDate origDp;
+        private String poSr;
 
-    private String paymentYear;
-    private String newPosrData;
-    private String refPono;
-    private String consigneeRly;
+        private String expSr;
 
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "ma_key", referencedColumnName = "ma_key")
-//    private PoMaHeader maHeader;
+        private String expCode;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ma_header_id")
-    private PoMaHeader maHeader;
+        private String condSlNo;
+
+        private String condNo;
+
+        private String condCode;
+
+        private String status;
+
+        private String maSrNo;
+
+        private String origDp;
+
+        private String paymentYear;
+
+        @Column(length = 5000)
+        private String newPoSrData;
+
+        private String refPoNo;
+
+        private String consigneeRly;
+
 }
