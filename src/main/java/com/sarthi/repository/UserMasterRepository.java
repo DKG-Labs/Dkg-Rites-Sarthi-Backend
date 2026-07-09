@@ -69,4 +69,7 @@ WHERE ur.roleId = :roleId
 ORDER BY u.employeeCode
 """)
     List<UserMaster> findUsersByRoleId(Integer roleId);
+
+
+    Optional<UserMaster> findByUserName(String vendorCode);
 }
