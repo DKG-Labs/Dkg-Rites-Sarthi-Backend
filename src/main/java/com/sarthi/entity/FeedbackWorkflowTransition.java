@@ -36,7 +36,7 @@ public class FeedbackWorkflowTransition {
     private String vendorCode;
 
     @Column(name = "PLANT_ID")
-    private Integer plantId;
+    private String plantId;
 
     @Column(name = "PO_NUMBER")
     private String poNumber;

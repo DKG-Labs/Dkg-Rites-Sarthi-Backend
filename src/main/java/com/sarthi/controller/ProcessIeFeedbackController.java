@@ -20,8 +20,9 @@ public class ProcessIeFeedbackController {
                 @RequestParam String feedbackId,
                 @RequestParam Integer createdBy,
                 @RequestParam String productType,
-                @RequestParam String poiCode,
-                @RequestParam(required = false) Integer plantId) {
+                @RequestParam(required = false) String poiCode,
+                @RequestParam(required = false) String plantId,
+                @RequestParam Integer roleId) {
 
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(
@@ -30,7 +31,8 @@ public class ProcessIeFeedbackController {
                                     createdBy,
                                     productType,
                                     poiCode,
-                                    plantId
+                                    plantId,
+                                    roleId
                             )
                     ),
                     HttpStatus.OK

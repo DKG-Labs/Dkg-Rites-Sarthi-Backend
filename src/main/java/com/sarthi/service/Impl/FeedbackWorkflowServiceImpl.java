@@ -1,5 +1,8 @@
 package com.sarthi.service.Impl;
 
+import com.sarthi.Sleeper.entity.SleeperTransitionMaster;
+import com.sarthi.Sleeper.repository.SleeperTransitionMasterRepository;
+import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.FeedbackTransitionActionReqDto;
 import com.sarthi.dto.FeedbackWorkflowTransitionDto;
@@ -37,6 +40,11 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
     @Autowired
     private FeedbackWorkflowTransitionRepository feedbackWorkflowTransitionRepository;
 
+    @Autowired
+    private VendorPlantRepository  vendorPlantRepository;
+    @Autowired
+    private SleeperTransitionMasterRepository sleeperTransitionMasterRepository;
+
     private String roleNameById(Integer roleId) {
         if (Objects.nonNull(roleId)) {
             return roleMasterRepository.findById(roleId).orElse(new RoleMaster()).getRoleName();
@@ -70,6 +78,41 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
             );
         }
     }
+
+    private String getVendorCode(String productType,
+                                 String poiCode,
+                                 String plantId) {
+
+        if ("ERC".equalsIgnoreCase(productType)
+                || "RAILPAD".equalsIgnoreCase(productType)) {
+
+            return pincodePoIMappingRepository
+                    .findVendorCodeByPoiCode(poiCode);
+        }
+
+        if ("SLEEPER".equalsIgnoreCase(productType)) {
+
+            return vendorPlantRepository
+                    .findVendorCodeByPlantId(plantId)
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Vendor not found for plant"
+                            )));
+        }
+
+        throw new BusinessException(
+                new ErrorDetails(
+                        AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "Invalid product type"
+                ));
+    }
+
+
     @Override
     @Transactional
     public FeedbackWorkflowTransitionDto initiateFeedbackWorkflow(
@@ -77,12 +120,13 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
             Integer createdBy,
             String productType,
             String poiCode,
-            Integer plantId) {
+            String plantId, Integer roleId) {
 
+
+       // String vendorCode = pincodePoIMappingRepository.findVendorCodeByPoiCode(poiCode);
 
         String vendorCode =
-                pincodePoIMappingRepository.findVendorCodeByPoiCode(poiCode);
-
+                getVendorCode(productType, poiCode, plantId);
         // Validate User
         UserMaster user = userMasterRepository.findByUserId(createdBy)
                 .orElseThrow(() -> new InvalidInputException(
@@ -104,7 +148,7 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                         )));
 
         // First Transition
-        TransitionMaster transition = transitionMasterRepository
+        /* TransitionMaster transition = transitionMasterRepository
                 .findByWorkflowIdAndTransitionOrder(
                         workflow.getWorkflowId(),
                         1)
@@ -114,10 +158,90 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                                 AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Initial feedback transition not found"
-                        )));
+                        )));*/
+
+        FeedbackWorkflowTransition entry =
+                new FeedbackWorkflowTransition();
+        if ("SLEEPER".equalsIgnoreCase(productType)) {
+
+            SleeperTransitionMaster transition =
+                    sleeperTransitionMasterRepository
+                            .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                    3,
+                                    roleId,
+                                    getCreateAction(roleId))
+                            .stream()
+                            .findFirst()
+                            .orElseThrow(() -> new BusinessException(
+                                    new ErrorDetails(
+                                            AppConstant.ERROR_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_VALIDATION,
+                                            "Initial feedback transition not found"
+                                    )));
+            validateUserRoleForTransition(createdBy,transition.getCurrentRoleId(),transition.getTransitionName());
+
+            entry.setTransitionId(
+                    transition.getTransitionId());
+
+            entry.setCurrentRoleId(
+                    transition.getCurrentRoleId());
+
+            entry.setCurrentRoleName(
+                    roleNameById(
+                            transition.getCurrentRoleId()));
+
+            entry.setNextRoleId(
+                    transition.getNextRoleId());
+
+            entry.setNextRoleName(
+                    roleNameById(
+                            transition.getNextRoleId()));
+
+            entry.setAction(
+                    transition.getTransitionName());
+
+        } else {
+
+            TransitionMaster transition =
+                    transitionMasterRepository
+                            .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                    3,
+                                    roleId,
+                                    getCreateAction(roleId))
+                            .stream()
+                            .findFirst()
+                            .orElseThrow(() -> new BusinessException(
+                                    new ErrorDetails(
+                                            AppConstant.ERROR_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_VALIDATION,
+                                            "Initial feedback transition not found"
+                                    )));
+            validateUserRoleForTransition(createdBy,transition.getCurrentRoleId(),transition.getTransitionName());
+
+            entry.setTransitionId(
+                    transition.getTransitionId());
+
+            entry.setCurrentRoleId(
+                    transition.getCurrentRoleId());
+
+            entry.setCurrentRoleName(
+                    roleNameById(
+                            transition.getCurrentRoleId()));
+
+            entry.setNextRoleId(
+                    transition.getNextRoleId());
+
+            entry.setNextRoleName(
+                    roleNameById(
+                            transition.getNextRoleId()));
+
+            entry.setAction(
+                    transition.getTransitionName());
+        }
 
         // Role Validation
-     validateUserRoleForTransition(createdBy,transition.getCurrentRoleId(),transition.getTransitionName());
 
         // Prevent Duplicate Workflow
         boolean exists =
@@ -145,16 +269,13 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                        )));
 
 
-        // Create First Transition
-        FeedbackWorkflowTransition entry =
-                new FeedbackWorkflowTransition();
+
 
         entry.setFeedbackId(feedbackId);
 
         entry.setWorkflowId(workflow.getWorkflowId());
 
-        entry.setTransitionId(
-                transition.getTransitionId());
+
 
         entry.setProductType(productType);
 
@@ -164,22 +285,6 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         entry.setPlantId(plantId);
 
-        entry.setCurrentRoleId(
-                transition.getCurrentRoleId());
-
-        entry.setCurrentRoleName(
-                roleNameById(
-                        transition.getCurrentRoleId()));
-
-        entry.setNextRoleId(
-                transition.getNextRoleId());
-
-        entry.setNextRoleName(
-                roleNameById(
-                        transition.getNextRoleId()));
-
-        entry.setAction(
-                transition.getTransitionName());
 
         entry.setCurrentStatus("Created");
 
@@ -196,6 +301,35 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         return mapFeedbackWorkflowTransition(entry);
     }
+
+    private String getCreateAction(Integer roleId) {
+
+        if (roleId == 7) {
+            return "CREATE_DISCREPANCY";
+        }
+
+        if (roleId == 10) {
+            return "CREATE_DISCREPANCY_MAIN_IE";
+        }
+
+        if (roleId == 14) {
+            return "CREATE_DISCREPANCY_PROCESS_IE";
+        }
+
+        if (roleId == 16) {
+            return "CREATE_DISCREPANCY";
+        }
+
+        throw new BusinessException(
+                new ErrorDetails(
+                        AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "Invalid role for feedback creation"
+                ));
+    }
+
+
 
     private FeedbackWorkflowTransitionDto mapFeedbackWorkflowTransition(
             FeedbackWorkflowTransition entity) {
@@ -286,7 +420,7 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                                         AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                         AppConstant.ERROR_TYPE_VALIDATION,
                                         "Workflow transition not found")));
-
+/*
         List<TransitionMaster> transitions =
                 transitionMasterRepository
                         .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
@@ -303,7 +437,100 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Transition not configured")));
 
-        validateTransitionAccess(req.getActionBy(), transition);
+        validateTransitionAccess(req.getActionBy(), transition);*/
+
+        // =========================
+// Fetch Transition
+// =========================
+
+        Integer currentRoleId = current.getNextRoleId();
+
+        TransitionMaster transition = null;
+
+        FeedbackWorkflowTransition tx =
+                new FeedbackWorkflowTransition();
+
+        if ("SLEEPER".equalsIgnoreCase(current.getProductType())) {
+
+            // SLEEPER feedback transitions are stored in sleeper_transition_master
+
+            SleeperTransitionMaster sleeperTransition =
+                    sleeperTransitionMasterRepository
+                            .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                    current.getWorkflowId(),
+                                    currentRoleId,
+                                    req.getAction())
+                            .stream()
+                            .findFirst()
+                            .orElseThrow(() -> new BusinessException(
+                                    new ErrorDetails(
+                                            AppConstant.ERROR_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_VALIDATION,
+                                            "Sleeper transition not configured")));
+
+            // map SleeperTransitionMaster to common variables
+
+            validateUserRoleForTransition(
+                    req.getActionBy(),
+                    sleeperTransition.getCurrentRoleId(),
+                    sleeperTransition.getTransitionName());
+
+            tx.setTransitionId(sleeperTransition.getTransitionId());
+
+            tx.setCurrentRoleId(sleeperTransition.getCurrentRoleId());
+
+            tx.setCurrentRoleName(
+                    roleNameById(sleeperTransition.getCurrentRoleId()));
+
+            tx.setNextRoleId(sleeperTransition.getNextRoleId());
+
+            tx.setNextRoleName(
+                    sleeperTransition.getNextRoleId() != null
+                            ? roleNameById(sleeperTransition.getNextRoleId())
+                            : null);
+
+            tx.setNextStatus(sleeperTransition.getNextAction());
+
+        } else {
+
+            // ERC / RailPad transitions are stored in transition_master
+
+            transition =
+                    transitionMasterRepository
+                            .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                    current.getWorkflowId(),
+                                    currentRoleId,
+                                    req.getAction())
+                            .stream()
+                            .findFirst()
+                            .orElseThrow(() -> new BusinessException(
+                                    new ErrorDetails(
+                                            AppConstant.ERROR_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                            AppConstant.ERROR_TYPE_VALIDATION,
+                                            "Transition not configured")));
+
+            validateTransitionAccess(
+                    req.getActionBy(),
+                    transition);
+
+            tx.setTransitionId(transition.getTransitionId());
+
+            tx.setCurrentRoleId(transition.getCurrentRoleId());
+
+            tx.setCurrentRoleName(
+                    roleNameById(transition.getCurrentRoleId()));
+
+            tx.setNextRoleId(transition.getNextRoleId());
+
+            tx.setNextRoleName(
+                    transition.getNextRoleId() != null
+                            ? roleNameById(transition.getNextRoleId())
+                            : null);
+
+            tx.setNextStatus(transition.getNextAction());
+        }
 
 
 
@@ -317,8 +544,7 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                         )));
 
 
-        FeedbackWorkflowTransition tx =
-                new FeedbackWorkflowTransition();
+
 
         if(req.getAction().equalsIgnoreCase("RESEND_FOR_RECTIFICATION") ){
             tx.setAssignedToUser(um.getUserId());
@@ -327,7 +553,7 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         tx.setWorkflowId(current.getWorkflowId());
 
-        tx.setTransitionId(transition.getTransitionId());
+       // tx.setTransitionId(transition.getTransitionId());
 
         tx.setProductType(current.getProductType());
 
@@ -339,29 +565,23 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         tx.setProcessIeUserId(current.getProcessIeUserId());
 
-        tx.setCurrentRoleId(
-                transition.getCurrentRoleId());
+      //  tx.setCurrentRoleId(transition.getCurrentRoleId());
 
-        tx.setCurrentRoleName(
-                roleNameById(
-                        transition.getCurrentRoleId()));
+     //   tx.setCurrentRoleName(roleNameById(transition.getCurrentRoleId()));
 
-        tx.setNextRoleId(
-                transition.getNextRoleId());
+      //  tx.setNextRoleId(transition.getNextRoleId());
 
-        tx.setNextRoleName(
-                transition.getNextRoleId() != null
-                        ? roleNameById(
+    /*    tx.setNextRoleName(transition.getNextRoleId() != null
+                ? roleNameById(
                         transition.getNextRoleId())
                         : null);
-
+*/
         tx.setAction(req.getAction());
 
         tx.setCurrentStatus(
                 current.getNextStatus());
 
-        tx.setNextStatus(
-                transition.getNextAction());
+      //  tx.setNextStatus(transition.getNextAction());
 
         tx.setRemarks(req.getRemarks());
 
