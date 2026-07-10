@@ -86,13 +86,22 @@ public class ProcessInspectionDiscrepancyServiceImpl implements ProcessInspectio
 
         ProcessInspectionDiscrepancy saved = repository.save(discrepancy);
 
+        // Determine roleId based on productType
+        Integer roleId = 7; // Default to ERC Process IE
+        if ("Sleeper".equalsIgnoreCase(discrepancy.getProductType())) {
+            roleId = 14;
+        } else if ("Rail Pad".equalsIgnoreCase(discrepancy.getProductType()) || "RailPad".equalsIgnoreCase(discrepancy.getProductType())) {
+            roleId = 16;
+        }
+
         // Initiate workflow
         feedbackWorkflowService.initiateFeedbackWorkflow(
                 generatedNo,
                 discrepancy.getCreatedBy(),
                 discrepancy.getProductType(),
                 poiCode,
-                discrepancy.getPlantId()
+                String.valueOf(discrepancy.getPlantId()),
+                roleId
         );
 
         return saved;
