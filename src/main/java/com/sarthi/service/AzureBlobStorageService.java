@@ -148,6 +148,33 @@ public class AzureBlobStorageService {
         }
     }
 
+    /**
+     * Uploads raw bytes to Azure Blob Storage
+     *
+     * @param fileBytes The byte array to upload
+     * @param fileName The name of the file to store
+     * @param targetContainerName The container name
+     * @return The URL of the uploaded blob
+     */
+    public String uploadFileBytes(byte[] fileBytes, String fileName, String targetContainerName) {
+        try {
+            log.info("Uploading file bytes to Azure Blob Storage container '{}': {}", targetContainerName, fileName);
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(fileBytes);
+            BlobClient blobClient = getContainerClient(targetContainerName).getBlobClient(fileName);
+            blobClient.upload(inputStream, fileBytes.length, true);
+            String blobUrl = blobClient.getBlobUrl();
+            log.info("File uploaded successfully. URL: {}", blobUrl);
+            return blobUrl;
+        } catch (Exception e) {
+            log.error("Error uploading file bytes to Azure: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to upload file bytes to Azure storage", e);
+        }
+    }
+    
+    public String uploadFileBytes(byte[] fileBytes, String fileName) {
+        return uploadFileBytes(fileBytes, fileName, this.containerName);
+    }
+
     private byte[] compressToTargetSize(byte[] imageBytes, int targetKB) {
 
         try {
