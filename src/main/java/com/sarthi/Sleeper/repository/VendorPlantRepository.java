@@ -50,4 +50,13 @@ public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> 
 
     @Query("select vp.vendorCode from VendorPlant vp where vp.plantId = :plantId")
     Optional<String> findVendorCodeByPlantId(@Param("plantId") String plantId);
+
+    @Query(value = """
+    SELECT zonal_railway
+    FROM vendor_plant
+    WHERE plant_id = :plantId
+      AND zonal_railway IS NOT NULL
+    LIMIT 1
+    """, nativeQuery = true)
+    String findZonalRailwayByPlantId(@Param("plantId") String plantId);
 }

@@ -2,6 +2,7 @@ package com.sarthi.service;
 
 import com.sarthi.dto.FeedbackTransitionActionReqDto;
 import com.sarthi.dto.FeedbackWorkflowTransitionDto;
+import com.sarthi.dto.PendingFeedbackRequestDto;
 import com.sarthi.dto.WorkflowDtos.TransitionActionReqDto;
 import com.sarthi.dto.WorkflowDtos.WorkflowTransitionDto;
 import org.springframework.stereotype.Service;
@@ -26,5 +27,13 @@ public interface FeedbackWorkflowService {
     public List<FeedbackWorkflowTransitionDto> getPendingFeedbacks(
             Integer roleId,
             String productType);
+
+    public List<FeedbackWorkflowTransitionDto> getFeedbackStatus(
+            PendingFeedbackRequestDto request);
+
+    public List<FeedbackWorkflowTransitionDto> getPendingFeedbacks(String productType);
+
+    public List<FeedbackWorkflowTransitionDto> getCompletedFeedbacks(String productType);
+
 
 }

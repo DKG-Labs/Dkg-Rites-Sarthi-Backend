@@ -257,5 +257,14 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
 
     Optional<PoHeader> findByPoKey(String poKey);
 
+	@Query(value = """
+    SELECT rly_short_name
+    FROM po_header
+    WHERE vendor_code = :vendorCode
+      AND item_cat_descr = 'Elastic Rail Clips'
+    ORDER BY id DESC
+    LIMIT 1
+    """, nativeQuery = true)
+	String findRlyShortNameByVendorCode(@Param("vendorCode") String vendorCode);
 
 }

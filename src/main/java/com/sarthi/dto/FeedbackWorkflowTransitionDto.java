@@ -50,4 +50,6 @@ public class FeedbackWorkflowTransitionDto {
     private Date createdDate;
 
     private Date modifiedDate;
+
+    private String zonalRailway;
 }

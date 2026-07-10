@@ -87,4 +87,9 @@ public class FeedbackWorkflowTransition {
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "MODIFIED_DATE")
     private Date modifiedDate;
+
+    @Column(name = "ZONAL_RAILWAY")
+    private String zonalRailway;
+
+
 }

@@ -1,6 +1,8 @@
 package com.sarthi.controller;
 
 import com.sarthi.dto.FeedbackTransitionActionReqDto;
+import com.sarthi.dto.FeedbackWorkflowTransitionDto;
+import com.sarthi.dto.PendingFeedbackRequestDto;
 import com.sarthi.service.FeedbackWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
@@ -64,5 +66,37 @@ public class ProcessIeFeedbackController {
                                 productType)),
                 HttpStatus.OK);
     }
+
+    @GetMapping("/feedback-status")
+    public ResponseEntity<Object> getFeedbackStatus(
+            PendingFeedbackRequestDto request) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        feedbackWorkflowService.getFeedbackStatus(request)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/feedbacks/all-pending")
+    public  ResponseEntity<Object> getAllPendingFeedbacks(
+            @RequestParam String productType) {
+
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        feedbackWorkflowService.getPendingFeedbacks(productType)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/feedbacks/completed")
+    public  ResponseEntity<Object> getCompletedFeedbacks(
+            @RequestParam String productType) {
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        feedbackWorkflowService.getCompletedFeedbacks(productType)),
+                HttpStatus.OK);
+
+   }
 
 }

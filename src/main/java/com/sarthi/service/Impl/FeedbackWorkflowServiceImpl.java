@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.FeedbackTransitionActionReqDto;
 import com.sarthi.dto.FeedbackWorkflowTransitionDto;
+import com.sarthi.dto.PendingFeedbackRequestDto;
 import com.sarthi.entity.*;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
@@ -42,6 +43,8 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
     @Autowired
     private VendorPlantRepository  vendorPlantRepository;
+    @Autowired
+    private PoHeaderRepository poHeaderRepository;
     @Autowired
     private SleeperTransitionMasterRepository sleeperTransitionMasterRepository;
 
@@ -127,7 +130,8 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         String vendorCode =
                 getVendorCode(productType, poiCode, plantId);
-        // Validate User
+
+         // Validate User
         UserMaster user = userMasterRepository.findByUserId(createdBy)
                 .orElseThrow(() -> new InvalidInputException(
                         new ErrorDetails(
@@ -181,6 +185,9 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                                     )));
             validateUserRoleForTransition(createdBy,transition.getCurrentRoleId(),transition.getTransitionName());
 
+            String zonalRailway =
+                    vendorPlantRepository.findZonalRailwayByPlantId(plantId);
+            entry.setZonalRailway(zonalRailway);
             entry.setTransitionId(
                     transition.getTransitionId());
 
@@ -220,6 +227,9 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
                                     )));
             validateUserRoleForTransition(createdBy,transition.getCurrentRoleId(),transition.getTransitionName());
 
+            String zonalRailway = poHeaderRepository.findRlyShortNameByVendorCode(vendorCode);
+
+            entry.setZonalRailway(zonalRailway);
             entry.setTransitionId(
                     transition.getTransitionId());
 
@@ -345,6 +355,8 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         dto.setWorkflowId(
                 entity.getWorkflowId());
+
+        dto.setZonalRailway(entity.getZonalRailway());
 
         dto.setTransitionId(
                 entity.getTransitionId());
@@ -553,6 +565,7 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         tx.setWorkflowId(current.getWorkflowId());
 
+        tx.setZonalRailway(current.getZonalRailway());
        // tx.setTransitionId(transition.getTransitionId());
 
         tx.setProductType(current.getProductType());
@@ -636,6 +649,62 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
     }
 
 
+    @Override
+    public List<FeedbackWorkflowTransitionDto> getFeedbackStatus(
+            PendingFeedbackRequestDto request) {
+
+        String vendorCode = null;
+        Integer createdBy = null;
+
+        if ("ERC".equalsIgnoreCase(request.getProductType())) {
+
+            if (request.getRoleId() == 1) {
+                vendorCode = request.getVendorCode();
+            } else if (request.getRoleId() == 7) {
+                createdBy = request.getCreatedBy();
+            }
+
+        } else if ("SLEEPER".equalsIgnoreCase(request.getProductType())) {
+
+            if (request.getRoleId() == 12) {
+                vendorCode = request.getVendorCode();
+            } else if (request.getRoleId() == 10 || request.getRoleId() == 14) {
+                createdBy = request.getCreatedBy();
+            }
+        }
+
+        List<FeedbackWorkflowTransition> transitions =
+                feedbackWorkflowTransitionRepository.findFeedbackStatus(
+                        request.getRoleId(),
+                        request.getProductType(),
+                        vendorCode,
+                        createdBy);
+
+        return transitions.stream()
+                .map(this::mapFeedbackWorkflowTransition)
+                .toList();
+    }
+
+
+    @Override
+    public List<FeedbackWorkflowTransitionDto> getPendingFeedbacks(String productType) {
+
+        return feedbackWorkflowTransitionRepository
+                .findPendingFeedbacksByProductType(productType)
+                .stream()
+                .map(this::mapFeedbackWorkflowTransition)
+                .toList();
+    }
+
+    @Override
+    public List<FeedbackWorkflowTransitionDto> getCompletedFeedbacks(String productType) {
+
+        return feedbackWorkflowTransitionRepository
+                .findCompletedFeedbacksByProductType(productType)
+                .stream()
+                .map(this::mapFeedbackWorkflowTransition)
+                .toList();
+    }
 
 
 
