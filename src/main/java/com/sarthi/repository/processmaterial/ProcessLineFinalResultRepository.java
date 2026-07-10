@@ -89,7 +89,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             @org.springframework.data.repository.query.Param("lotNo") String lotNo);
 
 
-    @Query(value = """
+  /*  @Query(value = """
             SELECT 
             COALESCE(SUM(pt.tempering_temperature_rejected),0) +
             COALESCE(SUM(pt.tempering_duration_rejected),0) +
@@ -138,7 +138,56 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             String shift,
             LocalDateTime startDate,
             LocalDateTime endDate
-    );
+    ); */
+  @Query(value = """
+SELECT
+(
+    SELECT
+        COALESCE(SUM(tempering_temperature_rejected),0) +
+        COALESCE(SUM(tempering_duration_rejected),0)
+    FROM process_tempering_data
+    WHERE inspection_call_no = :callId
+      AND lot_no = :lotNumber
+      AND shift = :shift
+      AND created_at BETWEEN :startDate AND :endDate
+)
++
+(
+    SELECT
+        COALESCE(SUM(box_gauge_rejected),0) +
+        COALESCE(SUM(flat_bearing_area_rejected),0) +
+        COALESCE(SUM(falling_gauge_rejected),0) +
+        COALESCE(SUM(surface_defect_rejected),0) +
+        COALESCE(SUM(embossing_defect_rejected),0) +
+        COALESCE(SUM(marking_rejected),0) +
+        COALESCE(SUM(tempering_hardness_rejected),0)
+    FROM process_final_check_data
+    WHERE inspection_call_no = :callId
+      AND lot_no = :lotNumber
+      AND shift = :shift
+      AND created_at BETWEEN :startDate AND :endDate
+)
++
+(
+    SELECT
+        COALESCE(SUM(toe_load_rejected),0) +
+        COALESCE(SUM(weight_rejected),0) +
+        COALESCE(SUM(paint_identification_rejected),0) +
+        COALESCE(SUM(erc_coating_rejected),0)
+    FROM process_testing_finishing_data
+    WHERE inspection_call_no = :callId
+      AND lot_no = :lotNumber
+      AND shift = :shift
+      AND created_at BETWEEN :startDate AND :endDate
+)
+""", nativeQuery = true)
+  Integer getTotalTemperingRejected(
+          String callId,
+          String lotNumber,
+          String shift,
+          LocalDateTime startDate,
+          LocalDateTime endDate
+  );
 
 
     @org.springframework.data.jpa.repository.Query("SELECT SUM(p.shearingManufactured) FROM ProcessLineFinalResult p WHERE p.createdAt >= :date")
