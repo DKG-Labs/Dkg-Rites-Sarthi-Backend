@@ -325,6 +325,14 @@ public class reportsController {
                 HttpStatus.OK);
     }
 
+    @GetMapping("/processOverallRejection")
+    public ResponseEntity<Object> getProcessOverallRejection() {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(
+                        reportService.getProcessOverallRejectionAllTime()),
+                HttpStatus.OK);
+    }
+
     @GetMapping("/monthlyRejectionTrend")
     public ResponseEntity<Object> getMonthlyRejectionTrend(@RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,

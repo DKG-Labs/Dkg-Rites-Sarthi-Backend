@@ -543,6 +543,25 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
 
     @Query(value = """
                 SELECT
+                    SUM(COALESCE(p.tempering_accepted, 0)),
+                    SUM(COALESCE(p.total_rejected, 0))
+                FROM inspection_calls ic
+                INNER JOIN process_line_final_result p ON p.inspection_call_no = ic.ic_number
+                INNER JOIN (
+                    SELECT w.REQUESTID, w.STATUS
+                    FROM WORKFLOW_TRANSITION w
+                    INNER JOIN (
+                        SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                        FROM WORKFLOW_TRANSITION
+                        GROUP BY REQUESTID
+                    ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+                ) wf ON wf.REQUESTID = ic.ic_number
+                WHERE wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+            """, nativeQuery = true)
+    List<Object[]> sumProcessAcceptedAndRejectedAllTime();
+
+    @Query(value = """
+                SELECT
                     DATE_FORMAT(IFNULL(p.date_of_inspection, p.created_at), '%b-%y') AS Month_Year,
                     SUM(COALESCE(p.total_rejected, 0)) AS Total_Rejected,
                     SUM(COALESCE(p.shearing_manufactured, p.total_manufactured, 0)) AS Total_Produced,
