@@ -58,6 +58,8 @@ public interface reports {
 
         public List<StageRejectionDto> getParetoAnalysis();
 
+        public InspectionDetailsDto getProcessOverallRejectionAllTime();
+
         public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate, String product);
 
         public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate);

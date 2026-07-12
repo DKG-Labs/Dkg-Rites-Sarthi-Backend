@@ -4046,6 +4046,18 @@ public class reportsImpl implements reports {
 
 
         @Override
+        public InspectionDetailsDto getProcessOverallRejectionAllTime() {
+                List<Object[]> procData = processLineFinalResultRepository.sumProcessAcceptedAndRejectedAllTime();
+                double procAcc = 0, procRej = 0;
+                if (procData != null && !procData.isEmpty()) {
+                        Object[] row = procData.get(0);
+                        procAcc = row[0] != null ? ((Number) row[0]).doubleValue() : 0;
+                        procRej = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
+                }
+                return new InspectionDetailsDto("Process", (long) Math.round(procAcc), (long) Math.round(procRej));
+        }
+
+        @Override
 
         public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate) {
 
