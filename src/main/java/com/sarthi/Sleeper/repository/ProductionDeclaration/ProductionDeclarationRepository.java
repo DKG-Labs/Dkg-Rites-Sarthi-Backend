@@ -1834,7 +1834,7 @@ ORDER BY
         GROUP_CONCAT(DISTINCT pi.uom) AS uom
     FROM vendor_plant vp
     LEFT JOIN po_header ph
-           ON ph.vendor_code = vp.vendor_code
+           ON ph.vendor_code COLLATE utf8mb4_unicode_ci = vp.vendor_code COLLATE utf8mb4_unicode_ci
     LEFT JOIN po_item pi
            ON pi.po_header_id = ph.id
     GROUP BY vp.plant_id
