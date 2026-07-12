@@ -11,6 +11,9 @@ import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.WorkflowTransitionRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
+import com.sarthi.repository.RmHeatFinalResultRepository;
+import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.PoHeaderRepository;
 import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
@@ -67,6 +70,15 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
     @Autowired
     private AzureBlobStorageService azureBlobStorageService;
+
+    @Autowired
+    private RmHeatFinalResultRepository rmHeatFinalResultRepository;
+
+    @Autowired
+    private ProcessLineFinalResultRepository processLineFinalResultRepository;
+
+    @Autowired
+    private FinalCumulativeResultsRepository finalCumulativeResultsRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -153,11 +165,39 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         }
         logger.info("Step 3d: Fetched extra details (Heat count/Lots) in {}ms", (System.currentTimeMillis() - stepStart));
 
+        // 3e. Bulk-fetch actual accepted quantities from result tables
+        stepStart = System.currentTimeMillis();
+        List<String> rmIcNumbers = inspectionCalls.stream()
+                .filter(ic -> "Raw Material".equalsIgnoreCase(ic.getTypeOfCall()))
+                .map(InspectionCall::getIcNumber).collect(Collectors.toList());
+        List<String> processIcNumbers = inspectionCalls.stream()
+                .filter(ic -> "Process".equalsIgnoreCase(ic.getTypeOfCall()))
+                .map(InspectionCall::getIcNumber).collect(Collectors.toList());
+        List<String> finalIcNumbers = inspectionCalls.stream()
+                .filter(ic -> "Final".equalsIgnoreCase(ic.getTypeOfCall()))
+                .map(InspectionCall::getIcNumber).collect(Collectors.toList());
+
+        Map<String, Long> acceptedQtyMap = new HashMap<>();
+        if (!rmIcNumbers.isEmpty()) {
+            rmHeatFinalResultRepository.sumAcceptedQtyByIcNumbers(rmIcNumbers)
+                    .forEach(row -> acceptedQtyMap.put((String) row[0], ((Number) row[1]).longValue()));
+        }
+        if (!processIcNumbers.isEmpty()) {
+            processLineFinalResultRepository.sumAcceptedQtyByIcNumbers(processIcNumbers)
+                    .forEach(row -> acceptedQtyMap.put((String) row[0], ((Number) row[1]).longValue()));
+        }
+        if (!finalIcNumbers.isEmpty()) {
+            finalCumulativeResultsRepository.sumAcceptedQtyByIcNumbers(finalIcNumbers)
+                    .forEach(row -> acceptedQtyMap.put((String) row[0], ((Number) row[1]).longValue()));
+        }
+        logger.info("Step 3e: Fetched accepted qtys for {} calls in {}ms", acceptedQtyMap.size(), (System.currentTimeMillis() - stepStart));
+
         // 4. Map each inspection call to DTO using bulk-fetched data
         stepStart = System.currentTimeMillis();
         final Map<Integer, String> finalUserNamesMap = userNamesMap;
         final Map<Long, Long> finalRmHeatCountMap = rmHeatCountMap;
         final Map<Long, String> finalFinalLotNoMap = finalLotNoMap;
+        final Map<String, Long> finalAcceptedQtyMap = acceptedQtyMap;
 
         List<VendorInspectionCallStatusDto> results = inspectionCalls.stream()
                 .map(ic -> mapToVendorInspectionCallStatusDtoOptimized(
@@ -169,7 +209,8 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                         ic.getFinalInspectionDetails(),
                         finalUserNamesMap,
                         finalRmHeatCountMap,
-                        finalFinalLotNoMap))
+                        finalFinalLotNoMap,
+                        finalAcceptedQtyMap))
                 .collect(Collectors.toList());
 
         long endTime = System.currentTimeMillis();
@@ -190,7 +231,8 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
             FinalInspectionDetails finalDetails,
             Map<Integer, String> userNamesMap,
             Map<Long, Long> rmHeatCountMap,
-            Map<Long, String> finalLotNoMap) {
+            Map<Long, String> finalLotNoMap,
+            Map<String, Long> acceptedQtyMap) {
 
         // Get item name and quantity based on type of call
         String itemName = getItemNameOptimized(ic, rmDetails, processList, finalDetails);
@@ -258,6 +300,7 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                 .ieName(ieName)
                 .uom(uom)
                 .scheduledDate(scheduledDate)
+                .acceptedQty(acceptedQtyMap.getOrDefault(ic.getIcNumber(), 0L))
                 .build();
     }
 

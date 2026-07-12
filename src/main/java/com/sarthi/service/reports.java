@@ -14,142 +14,163 @@ import java.util.List;
 @Service
 public interface reports {
 
-    public List<PoInspection1stLevelStatusDto> getPoInspection1stLevelStatusList();
+        public List<PoInspection1stLevelStatusDto> getPoInspection1stLevelStatusList();
 
-    public List<PoInspection2ndLevelSerialStatusDto> getSerialStatusByPoNo(String poNo);
+        public List<PoInspection2ndLevelSerialStatusDto> getSerialStatusByPoNo(String poNo);
 
-    public List<PoInspection3rdLevelCallStatusDto> getCallWiseStatusBy(String poNo, String serialNo);
+        public List<PoInspection3rdLevelCallStatusDto> getCallWiseStatusBy(String poNo, String serialNo);
 
-    public Page<PoInspection3rdLevelCallStatusDto> getCallWiseStatusBySerialNo(
-            String poNo,
-            String serialNo,
-            int page,
-            int size);
+        public Page<PoInspection3rdLevelCallStatusDto> getCallWiseStatusBySerialNo(
+                        String poNo,
+                        String serialNo,
+                        int page,
+                        int size);
 
-    public List<FourthLevelInspectionDto> getFourthLevelReport(String callId);
+        public List<FourthLevelInspectionDto> getFourthLevelReport(String callId);
 
-    public DashboardSummaryDto getDashboardSummary();
-    public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
+        public DashboardSummaryDto getDashboardSummary();
 
-    public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr, String vendorPlantCode, String zonalRailway, String startDate, String endDate);
+        public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDate,
+                        String endDate);
 
-    public List<String> getProcessIcNumbersByUserId(Long userId);
+        public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr, String vendorPlantCode,
+                        String zonalRailway, String startDate, String endDate);
 
-    public double getAvgProductionPerDay();
-    public double getAvgProductionPerDayWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate, String vendorPlantCode, String zonalRailway);
+        public List<String> getProcessIcNumbersByUserId(Long userId);
 
-    public List<StageRejectionDto> getStageWiseRejection();
+        public double getAvgProductionPerDay();
 
-    public List<StageRejectionDto> getManufacturerRejection();
+        public double getAvgProductionPerDayWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate,
+                        String vendorPlantCode, String zonalRailway);
 
-    public ProcessPerformanceResponseDto getProcessPerformance();
+        public List<StageRejectionDto> getStageWiseRejection();
 
-    public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate);
+        public List<StageRejectionDto> getManufacturerRejection();
 
-    public List<StageRejectionDto> getManufacturingStepWiseRejection();
+        public ProcessPerformanceResponseDto getProcessPerformance();
 
-    public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
+        public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate);
 
-    public List<StageRejectionDto> getParetoAnalysis();
-    public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate, String product);
+        public List<StageRejectionDto> getManufacturingStepWiseRejection();
 
-    public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate);
-    public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate, String product);
-    public List<InspectionDetailsDto> getInspectionDetails();
+        public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway,
+                        String startDate, String endDate);
 
-    public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate, String vendorPlantCode, String zonalRailway);
-    
-    public long getSleeperPoCount();
+        public List<StageRejectionDto> getParetoAnalysis();
 
-    public List<PoWiseDefectsData> getPoWiseDefectsReport(
-            LocalDate startDate,
-            LocalDate endDate);
+        public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate, String product);
 
-    public PageResponseDTO<PoWiseInspectionTrackingDTO> getPoInspectionTracking(
-            int page,
-            int size,
-            LocalDate startDate,
-            LocalDate endDate);
-    public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage, String status, String vendorPlantCode, String zonalRailway, String startDate, String endDate);
-    public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(String status);
+        public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate);
 
-    public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport();
+        public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate, String product);
 
-    public List<com.sarthi.dto.reports.RailPadShiftWiseProductionDto> getRailPadShiftWiseProductionReport(
-            String startDate, String endDate, String vendorCode, String plantId);
+        public List<InspectionDetailsDto> getInspectionDetails();
 
-    public List<java.util.Map<String, String>> getRailPadDistinctVendors();
+        public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate, String vendorPlantCode,
+                        String zonalRailway);
 
-    public List<com.sarthi.dto.reports.RailPadVendorWiseQualityDto> getRailPadVendorWiseQualityReport(String startDate, String endDate);
+        public long getSleeperPoCount();
 
-    public List<String> getRailPadDistinctPlants(String vendorCode);
+        public List<PoWiseDefectsData> getPoWiseDefectsReport(
+                        LocalDate startDate,
+                        LocalDate endDate);
 
-    public List<com.sarthi.dto.reports.RailPadQualityReportDto> getRailPadQualityReport(
-            String startDate,
-            String endDate);
+        public PageResponseDTO<PoWiseInspectionTrackingDTO> getPoInspectionTracking(
+                        int page,
+                        int size,
+                        LocalDate startDate,
+                        LocalDate endDate);
 
+        public List<com.sarthi.dto.reports.InspectionCallDetailDto> getInspectionCallStatusDetails(String stage,
+                        String status, String vendorPlantCode, String zonalRailway, String startDate, String endDate);
 
-    public List<String> getAllCompanies();
+        public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(
+                        String status);
 
+        public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport();
 
-    public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product);
+        public List<com.sarthi.dto.reports.RailPadShiftWiseProductionDto> getRailPadShiftWiseProductionReport(
+                        String startDate, String endDate, String vendorCode, String plantId);
 
-    List<InspectionCallsReportDto> getInspectionCallsReport(String startDate, String endDate);
+        public List<java.util.Map<String, String>> getRailPadDistinctVendors();
 
-    public List<InspectionCallsReportDto> getOverduePendingInspectionCallsReport(
-            String startDate,
-            String endDate);
+        public List<com.sarthi.dto.reports.RailPadVendorWiseQualityDto> getRailPadVendorWiseQualityReport(
+                        String startDate, String endDate);
 
-    public List<IeWiseCallStatusWorkloadSummaryDto> getIeWiseCallStatusWorkloadSummary(
-            String cmEmployeeCode);
+        public List<String> getRailPadDistinctPlants(String vendorCode);
 
-    public List<IeOperationalSlaPerformanceSummaryDto> getIeOperationalSlaPerformanceSummary(
-            String cmEmployeeCode);
+        public List<com.sarthi.dto.reports.RailPadQualityReportDto> getRailPadQualityReport(
+                        String startDate,
+                        String endDate);
 
-    public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary();
+        public List<String> getAllCompanies();
 
-    public List<RailPadPoLifeCycle1stLevelDto> getRailPadPo1stLevelStatus();
-    public List<RailPadPoLifeCycle2ndLevelDto> getRailPadPo2ndLevelStatus(String poNo);
-    public List<RailPadPoLifeCycle3rdLevelDto> getRailPadPo3rdLevelStatus(String poNo, String serialNo);
-    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMprReportDto> getRailPadMprReport(
-            int page,
-            int size,
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate,
-            String rio,
-            String zone,
-            String vendor);
+        public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product, String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate, java.time.LocalDate endDate);
 
-    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMauReportDto> getRailPadMauReport(
-            int page,
-            int size,
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate,
-            String rio,
-            String zone,
-            String vendor);
+        List<InspectionCallsReportDto> getInspectionCallsReport(String startDate, String endDate);
 
-    public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopManufacturers();
+        public List<InspectionCallsReportDto> getOverduePendingInspectionCallsReport(
+                        String startDate,
+                        String endDate);
 
-    public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopPlants(String vendorCode);
+        public List<IeWiseCallStatusWorkloadSummaryDto> getIeWiseCallStatusWorkloadSummary(
+                        String cmEmployeeCode);
 
-    public java.util.List<java.util.Map<String, Object>> getRailPadClosedLoopLots(String plantId, int year);
+        public List<IeOperationalSlaPerformanceSummaryDto> getIeOperationalSlaPerformanceSummary(
+                        String cmEmployeeCode);
 
-    public com.sarthi.dto.reports.RailPadLotClosedLoopDto getRailPadLotClosedLoopDetails(Long lotId);
+        public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary();
 
-    public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> getRailPadPerformanceReport(
-            int page,
-            int size,
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate,
-            String rio,
-            String zone,
-            String vendor);
+        public List<RailPadPoLifeCycle1stLevelDto> getRailPadPo1stLevelStatus();
 
+        public List<RailPadPoLifeCycle2ndLevelDto> getRailPadPo2ndLevelStatus(String poNo);
 
-   public TotalCallsSummaryDTO getTotalCallsSummary(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
+        public List<RailPadPoLifeCycle3rdLevelDto> getRailPadPo3rdLevelStatus(String poNo, String serialNo);
 
-    public List<InspectionCallDetailDto> getOpenCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
-    public List<InspectionCallDetailDto> getUnderInspectionCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
-    public List<InspectionCallDetailDto> getPendingCalls(String vendorPlantCode, String zonalRailway, String startDate, String endDate);
+        public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMprReportDto> getRailPadMprReport(
+                        int page,
+                        int size,
+                        java.time.LocalDate startDate,
+                        java.time.LocalDate endDate,
+                        String rio,
+                        String zone,
+                        String vendor);
+
+        public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.reports.RailPadMauReportDto> getRailPadMauReport(
+                        int page,
+                        int size,
+                        java.time.LocalDate startDate,
+                        java.time.LocalDate endDate,
+                        String rio,
+                        String zone,
+                        String vendor);
+
+        public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopManufacturers();
+
+        public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopPlants(String vendorCode);
+
+        public java.util.List<java.util.Map<String, Object>> getRailPadClosedLoopLots(String plantId, int year);
+
+        public com.sarthi.dto.reports.RailPadLotClosedLoopDto getRailPadLotClosedLoopDetails(Long lotId);
+
+        public com.sarthi.dto.summaryDtos.PageResponseDTO<com.sarthi.dto.summaryDtos.ManufacturerInspectionSummaryDTO> getRailPadPerformanceReport(
+                        int page,
+                        int size,
+                        java.time.LocalDate startDate,
+                        java.time.LocalDate endDate,
+                        String rio,
+                        String zone,
+                        String vendor);
+
+        public TotalCallsSummaryDTO getTotalCallsSummary(String vendorPlantCode, String zonalRailway, String startDate,
+                        String endDate);
+
+        public List<InspectionCallDetailDto> getOpenCalls(String vendorPlantCode, String zonalRailway, String startDate,
+                        String endDate);
+
+        public List<InspectionCallDetailDto> getUnderInspectionCalls(String vendorPlantCode, String zonalRailway,
+                        String startDate, String endDate);
+
+        public List<InspectionCallDetailDto> getPendingCalls(String vendorPlantCode, String zonalRailway,
+                        String startDate, String endDate);
 }
