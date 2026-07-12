@@ -1,4 +1,203 @@
-git restore --staged src/main/resources/application.properties        final Map<String, Long> finalAcceptedQtyMap = acceptedQtyMap;
+package com.sarthi.service.Impl;
+
+import com.sarthi.dto.VendorInspectionCallStatusDto;
+import com.sarthi.entity.WorkflowTransition;
+import com.sarthi.entity.rawmaterial.InspectionCall;
+import com.sarthi.entity.rawmaterial.RmInspectionDetails;
+import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
+import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
+import com.sarthi.entity.PoHeader;
+import com.sarthi.entity.UserMaster;
+import com.sarthi.repository.WorkflowTransitionRepository;
+import com.sarthi.repository.rawmaterial.InspectionCallRepository;
+import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
+import com.sarthi.repository.RmHeatFinalResultRepository;
+import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
+import com.sarthi.repository.PoHeaderRepository;
+import com.sarthi.repository.UserMasterRepository;
+import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
+import com.sarthi.repository.InventoryEntryRepository;
+import com.sarthi.service.AzureBlobStorageService;
+import com.sarthi.service.VendorInspectionCallService;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
+import com.sarthi.constant.AppConstant;
+import com.lowagie.text.Document;
+import com.lowagie.text.pdf.PdfCopy;
+import com.lowagie.text.pdf.PdfReader;
+import java.io.ByteArrayOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+/**
+ * Service implementation for Vendor Inspection Call operations.
+ */
+@Service
+public class VendorInspectionCallServiceImpl implements VendorInspectionCallService {
+
+    private static final Logger logger = LoggerFactory.getLogger(VendorInspectionCallServiceImpl.class);
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    @Autowired
+    private InspectionCallRepository inspectionCallRepository;
+
+    @Autowired
+    private WorkflowTransitionRepository workflowTransitionRepository;
+
+    @Autowired
+    private PoHeaderRepository poHeaderRepository;
+
+    @Autowired
+    private UserMasterRepository userMasterRepository;
+
+    @Autowired
+    private RmHeatQuantityRepository rmHeatQuantityRepository;
+
+    @Autowired
+    private FinalInspectionLotDetailsRepository finalInspectionLotDetailsRepository;
+
+    @Autowired
+    private InventoryEntryRepository inventoryEntryRepository;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
+    @Autowired
+    private RmHeatFinalResultRepository rmHeatFinalResultRepository;
+
+    @Autowired
+    private ProcessLineFinalResultRepository processLineFinalResultRepository;
+
+    @Autowired
+    private FinalCumulativeResultsRepository finalCumulativeResultsRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VendorInspectionCallStatusDto> getVendorInspectionCallsWithStatus(String vendorId) {
+        logger.info("Fetching inspection calls with workflow status for vendor: {}", vendorId);
+
+        long startTime = System.currentTimeMillis();
+
+        // 1. Fetch all inspection calls for the vendor
+        long stepStart = System.currentTimeMillis();
+        List<InspectionCall> inspectionCalls = inspectionCallRepository.findByVendorIdOrderByCreatedAtDesc(vendorId);
+        logger.info("Step 1: Fetched {} inspection calls in {}ms", inspectionCalls.size(), (System.currentTimeMillis() - stepStart));
+
+        if (inspectionCalls.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. Collect all necessary IDs for bulk fetching
+        List<String> icNumbers = inspectionCalls.stream().map(InspectionCall::getIcNumber).collect(Collectors.toList());
+        List<String> poNos = inspectionCalls.stream().map(InspectionCall::getPoNo).distinct().collect(Collectors.toList());
+
+        // 3. Perform bulk fetches
+        // Latest Transitions
+        stepStart = System.currentTimeMillis();
+        Map<String, WorkflowTransition> transitionMap = workflowTransitionRepository.findLatestByRequestIds(icNumbers)
+                .stream().collect(Collectors.toMap(WorkflowTransition::getRequestId, wt -> wt, (wt1, wt2) -> wt1));
+        logger.info("Step 3a: Fetched {} latest transitions in {}ms", transitionMap.size(), (System.currentTimeMillis() - stepStart));
+
+        // PO Headers
+        stepStart = System.currentTimeMillis();
+        Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos)
+                .stream().collect(Collectors.toMap(PoHeader::getPoNo, ph -> ph, (ph1, ph2) -> ph1));
+        logger.info("Step 3b: Fetched {} PO headers in {}ms", poMap.size(), (System.currentTimeMillis() - stepStart));
+
+        // Note: Inspection Details (RM, Process, Final) are already eager-loaded via EntityGraph on findByVendorId
+
+        // User Details (IE Names)
+        stepStart = System.currentTimeMillis();
+        Set<Integer> userIds = transitionMap.values().stream()
+                .flatMap(wt -> Stream.of(wt.getAssignedToUser(), wt.getProcessIeUserId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Integer, String> userNamesMap = Collections.emptyMap();
+        if (!userIds.isEmpty()) {
+            userNamesMap = userMasterRepository.findByUserIdIn(new ArrayList<>(userIds))
+                    .stream().collect(Collectors.toMap(
+                            UserMaster::getUserId,
+                            u -> Optional.ofNullable(u.getFullName()).orElse("Unknown")
+                    ));
+        }
+        logger.info("Step 3c: Fetched {} user names in {}ms", userNamesMap.size(), (System.currentTimeMillis() - stepStart));
+
+        // Additional nested data
+        // RM Heat Quantities
+        stepStart = System.currentTimeMillis();
+        List<Long> rmDetailIds = inspectionCalls.stream()
+                .map(InspectionCall::getRmInspectionDetails)
+                .filter(Objects::nonNull)
+                .map(RmInspectionDetails::getId)
+                .collect(Collectors.toList());
+
+        Map<Long, Long> rmHeatCountMap = Collections.emptyMap();
+        if (!rmDetailIds.isEmpty()) {
+            rmHeatCountMap = rmHeatQuantityRepository.findByRmInspectionDetailsIdIn(rmDetailIds)
+                    .stream().collect(Collectors.groupingBy(hq -> hq.getRmInspectionDetails().getId(), Collectors.counting()));
+        }
+
+        // Final Lot Details
+        List<Long> finalDetailIds = inspectionCalls.stream()
+                .map(InspectionCall::getFinalInspectionDetails)
+                .filter(Objects::nonNull)
+                .map(FinalInspectionDetails::getId)
+                .collect(Collectors.toList());
+
+        Map<Long, String> finalLotNoMap = Collections.emptyMap();
+        if (!finalDetailIds.isEmpty()) {
+            finalLotNoMap = finalInspectionLotDetailsRepository.findByFinalDetailIdIn(finalDetailIds)
+                    .stream().collect(Collectors.toMap(
+                            ld -> ld.getFinalDetailId(),
+                            ld -> Optional.ofNullable(ld.getLotNumber()).orElse("N/A"),
+                            (ld1, ld2) -> ld1 // Take first lot
+                    ));
+        }
+        logger.info("Step 3d: Fetched extra details (Heat count/Lots) in {}ms", (System.currentTimeMillis() - stepStart));
+
+        // 3e. Bulk-fetch actual accepted quantities from result tables
+        stepStart = System.currentTimeMillis();
+        List<String> rmIcNumbers = inspectionCalls.stream()
+                .filter(ic -> "Raw Material".equalsIgnoreCase(ic.getTypeOfCall()))
+                .map(InspectionCall::getIcNumber).collect(Collectors.toList());
+        List<String> processIcNumbers = inspectionCalls.stream()
+                .filter(ic -> "Process".equalsIgnoreCase(ic.getTypeOfCall()))
+                .map(InspectionCall::getIcNumber).collect(Collectors.toList());
+        List<String> finalIcNumbers = inspectionCalls.stream()
+                .filter(ic -> "Final".equalsIgnoreCase(ic.getTypeOfCall()))
+                .map(InspectionCall::getIcNumber).collect(Collectors.toList());
+
+        Map<String, Long> acceptedQtyMap = new HashMap<>();
+        if (!rmIcNumbers.isEmpty()) {
+            rmHeatFinalResultRepository.sumAcceptedQtyByIcNumbers(rmIcNumbers)
+                    .forEach(row -> acceptedQtyMap.put((String) row[0], ((Number) row[1]).longValue()));
+        }
+        if (!processIcNumbers.isEmpty()) {
+            processLineFinalResultRepository.sumAcceptedQtyByIcNumbers(processIcNumbers)
+                    .forEach(row -> acceptedQtyMap.put((String) row[0], ((Number) row[1]).longValue()));
+        }
+        if (!finalIcNumbers.isEmpty()) {
+            finalCumulativeResultsRepository.sumAcceptedQtyByIcNumbers(finalIcNumbers)
+                    .forEach(row -> acceptedQtyMap.put((String) row[0], ((Number) row[1]).longValue()));
+        }
+        logger.info("Step 3e: Fetched accepted qtys for {} calls in {}ms", acceptedQtyMap.size(), (System.currentTimeMillis() - stepStart));
+
+        // 4. Map each inspection call to DTO using bulk-fetched data
+        stepStart = System.currentTimeMillis();
+        final Map<Integer, String> finalUserNamesMap = userNamesMap;
+        final Map<Long, Long> finalRmHeatCountMap = rmHeatCountMap;
+        final Map<Long, String> finalFinalLotNoMap = finalLotNoMap;
+        final Map<String, Long> finalAcceptedQtyMap = acceptedQtyMap;
 
         List<VendorInspectionCallStatusDto> results = inspectionCalls.stream()
                 .map(ic -> mapToVendorInspectionCallStatusDtoOptimized(
