@@ -38,168 +38,179 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
      */
     boolean existsByInspectionCallNo(String inspectionCallNo);
     /*
-        @Query(value = """
-                SELECT
-                    p.id,
-                    p.company_name,
-                    p.poi_code,
-                    u.username,
-                    ip.rio,
-                    'FINAL' AS stage,
-                    SUM(f.qty_now_offered),
-                    SUM(f.qty_now_passed),
-                    SUM(f.qty_now_rejected)
-
-                FROM final_cumulative_results f
-                JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
-                JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
-                LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
-                LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
-                LEFT JOIN po_header ph ON ph.po_no = f.po_no
-
-                JOIN user_master u ON u.userid = f.created_by
-
-                WHERE (:startDate IS NULL OR DATE(f.created_at) >= :startDate)
-                  AND (:endDate IS NULL OR DATE(f.created_at) <= :endDate)
-                  AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
-                  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-                  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
-
-                GROUP BY
-                    p.id,
-                    p.company_name,
-                    p.poi_code,
-                    u.username,
-                    ip.rio
-                """, countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping", nativeQuery = true)
-        Page<Object[]> fetchFinal(@Param("startDate") LocalDate startDate,
-                @Param("endDate") LocalDate endDate,
-                @Param("rio") String rio,
-                @Param("zone") String zone,
-                @Param("vendor") String vendor,
-                Pageable pageable);
-
+     * @Query(value = """
+     * SELECT
+     * p.id,
+     * p.company_name,
+     * p.poi_code,
+     * u.username,
+     * ip.rio,
+     * 'FINAL' AS stage,
+     * SUM(f.qty_now_offered),
+     * SUM(f.qty_now_passed),
+     * SUM(f.qty_now_rejected)
+     * 
+     * FROM final_cumulative_results f
+     * JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
+     * JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+     * LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND
+     * ipm.ie_type = 'PRIMARY'
+     * LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
+     * LEFT JOIN po_header ph ON ph.po_no = f.po_no
+     * 
+     * JOIN user_master u ON u.userid = f.created_by
+     * 
+     * WHERE (:startDate IS NULL OR DATE(f.created_at) >= :startDate)
+     * AND (:endDate IS NULL OR DATE(f.created_at) <= :endDate)
+     * AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+     * AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+     * AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+     * 
+     * GROUP BY
+     * p.id,
+     * p.company_name,
+     * p.poi_code,
+     * u.username,
+     * ip.rio
+     * """, countQuery = "SELECT COUNT(*) FROM pincode_poi_mapping", nativeQuery =
+     * true)
+     * Page<Object[]> fetchFinal(@Param("startDate") LocalDate startDate,
+     * 
+     * @Param("endDate") LocalDate endDate,
+     * 
+     * @Param("rio") String rio,
+     * 
+     * @Param("zone") String zone,
+     * 
+     * @Param("vendor") String vendor,
+     * Pageable pageable);
+     * 
      */
-  /*  @Query(value = """
-SELECT
-    p.id,
-    p.company_name,
-    p.poi_code,
-    u.username,
-    ip.rio,
-    'FINAL' AS stage,
-
-    (f.accepted_qty + f.rejected_qty) AS inspected_qty,
-    f.accepted_qty,
-    f.rejected_qty
-
-FROM (
-    SELECT
-        inspection_call_no,
-        created_by,
-
-        SUM(COALESCE(qty_now_passed,0)) AS accepted_qty,
-        SUM(COALESCE(qty_now_rejected,0)) AS rejected_qty
-
-    FROM final_cumulative_results
-    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
-      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
-
-    GROUP BY inspection_call_no, created_by
-) f
-
-JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
-JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
-LEFT JOIN ie_pincode_poi_mapping ipm 
-    ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
-LEFT JOIN ie_profile ip 
-    ON ip.employee_code = ipm.employee_code
-LEFT JOIN po_header ph 
-    ON ph.po_no = ic.po_no
-JOIN user_master u 
-    ON u.userid = f.created_by
-
-WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
-  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
-
-GROUP BY
-    p.id,
-    p.company_name,
-    p.poi_code,
-    u.username,
-    ip.rio,
-    f.accepted_qty,
-    f.rejected_qty
-""",
-            countQuery = "SELECT COUNT(*) FROM final_cumulative_results",
-            nativeQuery = true)
-    Page<Object[]> fetchFinal(
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            @Param("rio") String rio,
-            @Param("zone") String zone,
-            @Param("vendor") String vendor,
-            Pageable pageable); */
+    /*
+     * @Query(value = """
+     * SELECT
+     * p.id,
+     * p.company_name,
+     * p.poi_code,
+     * u.username,
+     * ip.rio,
+     * 'FINAL' AS stage,
+     * 
+     * (f.accepted_qty + f.rejected_qty) AS inspected_qty,
+     * f.accepted_qty,
+     * f.rejected_qty
+     * 
+     * FROM (
+     * SELECT
+     * inspection_call_no,
+     * created_by,
+     * 
+     * SUM(COALESCE(qty_now_passed,0)) AS accepted_qty,
+     * SUM(COALESCE(qty_now_rejected,0)) AS rejected_qty
+     * 
+     * FROM final_cumulative_results
+     * WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+     * AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
+     * 
+     * GROUP BY inspection_call_no, created_by
+     * ) f
+     * 
+     * JOIN inspection_calls ic ON ic.ic_number = f.inspection_call_no
+     * JOIN pincode_poi_mapping p ON p.poi_code = ic.place_of_inspection
+     * LEFT JOIN ie_pincode_poi_mapping ipm
+     * ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+     * LEFT JOIN ie_profile ip
+     * ON ip.employee_code = ipm.employee_code
+     * LEFT JOIN po_header ph
+     * ON ph.po_no = ic.po_no
+     * JOIN user_master u
+     * ON u.userid = f.created_by
+     * 
+     * WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+     * AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+     * AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+     * 
+     * GROUP BY
+     * p.id,
+     * p.company_name,
+     * p.poi_code,
+     * u.username,
+     * ip.rio,
+     * f.accepted_qty,
+     * f.rejected_qty
+     * """,
+     * countQuery = "SELECT COUNT(*) FROM final_cumulative_results",
+     * nativeQuery = true)
+     * Page<Object[]> fetchFinal(
+     * 
+     * @Param("startDate") LocalDate startDate,
+     * 
+     * @Param("endDate") LocalDate endDate,
+     * 
+     * @Param("rio") String rio,
+     * 
+     * @Param("zone") String zone,
+     * 
+     * @Param("vendor") String vendor,
+     * Pageable pageable);
+     */
 
     @Query(value = """
-SELECT
-    MAX(p.id) AS id,
-    p.company_name,
-    p.poi_code,
-    u.username,
-    ip.rio,
-    'FINAL' AS stage,
+            SELECT
+                MAX(p.id) AS id,
+                p.company_name,
+                p.poi_code,
+                u.username,
+                ip.rio,
+                'FINAL' AS stage,
 
-    SUM(f.accepted_qty + f.rejected_qty) AS inspected_qty,
-    SUM(f.accepted_qty) AS accepted_qty,
-    SUM(f.rejected_qty) AS rejected_qty
+                SUM(f.accepted_qty + f.rejected_qty) AS inspected_qty,
+                SUM(f.accepted_qty) AS accepted_qty,
+                SUM(f.rejected_qty) AS rejected_qty
 
-FROM (
+            FROM (
 
-    SELECT
-        inspection_call_no,
-        created_by,
-        SUM(COALESCE(qty_now_passed,0)) AS accepted_qty,
-        SUM(COALESCE(qty_now_rejected,0)) AS rejected_qty
-    FROM final_cumulative_results
-    WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
-      AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
-    GROUP BY inspection_call_no, created_by
-) f
-
-
-JOIN inspection_calls ic 
-    ON ic.ic_number = f.inspection_call_no
-
-JOIN pincode_poi_mapping p 
-    ON p.poi_code = ic.place_of_inspection
+                SELECT
+                    inspection_call_no,
+                    created_by,
+                    SUM(COALESCE(qty_now_passed,0)) AS accepted_qty,
+                    SUM(COALESCE(qty_now_rejected,0)) AS rejected_qty
+                FROM final_cumulative_results
+                WHERE (:startDate IS NULL OR DATE(created_at) >= :startDate)
+                  AND (:endDate IS NULL OR DATE(created_at) <= :endDate)
+                GROUP BY inspection_call_no, created_by
+            ) f
 
 
-JOIN user_master u 
-    ON u.userid = f.created_by
+            JOIN inspection_calls ic
+                ON ic.ic_number = f.inspection_call_no
 
-JOIN ie_profile ip 
-    ON ip.employee_code = u.employee_code
+            JOIN pincode_poi_mapping p
+                ON p.poi_code = ic.place_of_inspection
 
-LEFT JOIN po_header ph 
-    ON ph.po_no = ic.po_no
 
-WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
-  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
-  AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+            JOIN user_master u
+                ON u.userid = f.created_by
 
-GROUP BY
-    p.company_name,
-    p.poi_code,
-    u.username,
-    ip.rio
-""",
-            countQuery = """
-SELECT COUNT(DISTINCT inspection_call_no, created_by)
-FROM final_cumulative_results
-""",
-            nativeQuery = true)
+            JOIN ie_profile ip
+                ON ip.employee_code = u.employee_code
+
+            LEFT JOIN po_header ph
+                ON ph.po_no = ic.po_no
+
+            WHERE (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+              AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+              AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+
+            GROUP BY
+                p.company_name,
+                p.poi_code,
+                u.username,
+                ip.rio
+            """, countQuery = """
+            SELECT COUNT(DISTINCT inspection_call_no, created_by)
+            FROM final_cumulative_results
+            """, nativeQuery = true)
     Page<Object[]> fetchFinal(
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
@@ -241,14 +252,14 @@ FROM final_cumulative_results
     Long sumTotalQtyNowPassed();
 
     @org.springframework.data.jpa.repository.Query(value = """
-        SELECT SUM(fcr.qty_now_passed) 
-        FROM final_cumulative_results fcr 
-        LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
-        LEFT JOIN po_header ph ON fcr.po_no = ph.po_no
-        WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate)
-        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
-    """, nativeQuery = true)
+                SELECT SUM(fcr.qty_now_passed)
+                FROM final_cumulative_results fcr
+                LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+                LEFT JOIN po_header ph ON fcr.po_no = ph.po_no
+                WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate)
+                AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+                AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+            """, nativeQuery = true)
     Long sumFilteredTotalQtyNowPassed(
             @org.springframework.data.repository.query.Param("startDate") String startDate,
             @org.springframework.data.repository.query.Param("endDate") String endDate,
@@ -264,16 +275,16 @@ FROM final_cumulative_results
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
     @Query(value = """
-        SELECT 
-            SUM(COALESCE(fcr.qty_now_rejected, 0)), 
-            SUM(COALESCE(fcr.qty_now_offered, 0)) 
-        FROM final_cumulative_results fcr
-        LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
-        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
-        WHERE (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate
-        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
-        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-    """, nativeQuery = true)
+                SELECT
+                    SUM(COALESCE(fcr.qty_now_rejected, 0)),
+                    SUM(COALESCE(fcr.qty_now_offered, 0))
+                FROM final_cumulative_results fcr
+                LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+                LEFT JOIN po_header ph ON ic.po_no = ph.po_no
+                WHERE (CASE WHEN fcr.date_of_inspection IS NOT NULL THEN DATE(fcr.date_of_inspection) ELSE DATE(fcr.created_at) END) BETWEEN :startDate AND :endDate
+                AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+                AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+            """, nativeQuery = true)
     List<Object[]> sumFinalRejectionWithFilters(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
             @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
@@ -289,173 +300,205 @@ FROM final_cumulative_results
             """)
     List<Object[]> findFinalInspectionQty(@Param("callNos") List<String> callNos);
 
+    @Query("""
+             SELECT
+                 f.inspectionCallNo,
+                 SUM(f.qtyNowPassed),
+                 SUM(f.qtyNowRejected)
+             FROM FinalCumulativeResults f
+             WHERE f.inspectionCallNo IN :callNos
+             GROUP BY f.inspectionCallNo
+            """)
+    List<Object[]> findFinalInspectionQtyBatched(@Param("callNos") List<String> callNos);
+
     @Query("SELECT COALESCE(SUM(f.qtyNowPassed), 0), COALESCE(SUM(f.qtyNowRejected), 0) FROM FinalCumulativeResults f")
     List<Object[]> sumFinalAcceptedAndRejected();
 
     @Query(value = """
-        SELECT 
-            SUM(COALESCE(f.qty_now_passed, 0)), 
-            SUM(COALESCE(f.qty_now_rejected, 0)) 
-        FROM final_cumulative_results f 
-        LEFT JOIN inspection_calls ic ON f.inspection_call_no = ic.ic_number
-        LEFT JOIN po_header ph ON ic.po_no = ph.po_no
-        WHERE (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
-        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
-        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-    """, nativeQuery = true)
+                SELECT
+                    SUM(COALESCE(f.qty_now_passed, 0)),
+                    SUM(COALESCE(f.qty_now_rejected, 0))
+                FROM inspection_calls ic
+                INNER JOIN po_header ph ON ic.po_no = ph.po_no
+                INNER JOIN final_cumulative_results f ON f.inspection_call_no = ic.ic_number
+                INNER JOIN (
+                    SELECT w.REQUESTID, w.STATUS
+                    FROM WORKFLOW_TRANSITION w
+                    INNER JOIN (
+                        SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                        FROM WORKFLOW_TRANSITION
+                        GROUP BY REQUESTID
+                    ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+                ) wf ON wf.REQUESTID = ic.ic_number
+                WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+                AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+                AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                AND (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
+            """, nativeQuery = true)
     List<Object[]> sumFinalAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate,
             @Param("vendorPlantCode") String vendorPlantCode,
             @Param("zonalRailway") String zonalRailway);
 
-  /*  @Query(value = """
-
-    SELECT
-        ph.case_no                                   AS caseNumber,
-
-        DATE(ic.created_at)                          AS callDate,
-
-        ic.place_of_inspection                       AS placeOfInspection,
-
-        CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
-
-        'IC Generated'                               AS callStatus,
-
-        ic.po_serial_no                              AS poItemSerialNumber,
-
-        CAST(f.book_no AS CHAR)                      AS bkNumber,
-
-        CAST(f.set_no AS CHAR)                       AS setNumber,
-
-        DATE(f.created_at)                           AS icDate,
-
-        COALESCE(fr.qty_now_offered,0)
-                                                        AS quantityOffered,
-
-        COALESCE(fr.qty_now_passed,0)
-                                                        AS quantityPassed,
-
-        COALESCE(fr.qty_now_rejected,0)
-                                                        AS quantityRejected,
-        ic.ic_number                                    AS callNo
-
-    FROM final_ic_edit f
-
-    INNER JOIN inspection_calls ic
-            ON ic.ic_number =
-               SUBSTRING_INDEX(
-                           SUBSTRING_INDEX(f.ic_number,'/',2),
-                           '/',
-                           -1
-                       )
-
-    INNER JOIN po_header ph
-            ON ph.po_no = ic.po_no
-
-    INNER JOIN user_master um
-            ON um.userid = f.created_by
-
-    LEFT JOIN final_cumulative_results fr
-            ON fr.inspection_call_no = ic.ic_number
-
-    LEFT JOIN ibs_call_registration icr
-            ON icr.call_number = ic.ic_number
-
-    WHERE icr.call_number IS NULL
-       OR icr.status = 'Failed'
-
-    """,
-            nativeQuery = true)
-    List<Object[]> getFinalInspectionCalls();*/
+    /*
+     * @Query(value = """
+     * 
+     * SELECT
+     * ph.case_no AS caseNumber,
+     * 
+     * DATE(ic.created_at) AS callDate,
+     * 
+     * ic.place_of_inspection AS placeOfInspection,
+     * 
+     * CAST(um.employee_code AS CHAR) AS ieEmployeeNumber,
+     * 
+     * 'IC Generated' AS callStatus,
+     * 
+     * ic.po_serial_no AS poItemSerialNumber,
+     * 
+     * CAST(f.book_no AS CHAR) AS bkNumber,
+     * 
+     * CAST(f.set_no AS CHAR) AS setNumber,
+     * 
+     * DATE(f.created_at) AS icDate,
+     * 
+     * COALESCE(fr.qty_now_offered,0)
+     * AS quantityOffered,
+     * 
+     * COALESCE(fr.qty_now_passed,0)
+     * AS quantityPassed,
+     * 
+     * COALESCE(fr.qty_now_rejected,0)
+     * AS quantityRejected,
+     * ic.ic_number AS callNo
+     * 
+     * FROM final_ic_edit f
+     * 
+     * INNER JOIN inspection_calls ic
+     * ON ic.ic_number =
+     * SUBSTRING_INDEX(
+     * SUBSTRING_INDEX(f.ic_number,'/',2),
+     * '/',
+     * -1
+     * )
+     * 
+     * INNER JOIN po_header ph
+     * ON ph.po_no = ic.po_no
+     * 
+     * INNER JOIN user_master um
+     * ON um.userid = f.created_by
+     * 
+     * LEFT JOIN final_cumulative_results fr
+     * ON fr.inspection_call_no = ic.ic_number
+     * 
+     * LEFT JOIN ibs_call_registration icr
+     * ON icr.call_number = ic.ic_number
+     * 
+     * WHERE icr.call_number IS NULL
+     * OR icr.status = 'Failed'
+     * 
+     * """,
+     * nativeQuery = true)
+     * List<Object[]> getFinalInspectionCalls();
+     */
 
     @Query(value = """
 
-SELECT
-    ph.case_no                                   AS caseNumber,
+            SELECT
+                ph.case_no                                   AS caseNumber,
 
-    DATE(ic.created_at)                          AS callDate,
+                DATE(ic.created_at)                          AS callDate,
 
-    ic.place_of_inspection                       AS placeOfInspection,
-    pm.ibs_vendor_code                           AS ibsManufacturedCode,
+                ic.place_of_inspection                       AS placeOfInspection,
+                pm.ibs_vendor_code                           AS ibsManufacturedCode,
 
-    CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
+                CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
 
-    'A'                                          AS callStatus,
+                'A'                                          AS callStatus,
 
-    'F'                                          AS typeOfCall,
+                'F'                                          AS typeOfCall,
 
-    ic.po_serial_no                              AS poItemSerialNumber,
+                ic.po_serial_no                              AS poItemSerialNumber,
 
-    CAST(f.book_no AS CHAR)                      AS bkNumber,
+                CAST(f.book_no AS CHAR)                      AS bkNumber,
 
-    CAST(f.set_no AS CHAR)                       AS setNumber,
+                CAST(f.set_no AS CHAR)                       AS setNumber,
 
-    DATE(f.created_at)                           AS icDate,
+                DATE(f.created_at)                           AS icDate,
 
-    COALESCE(fr.qty_now_offered,0)
-                                                AS quantityOffered,
+                COALESCE(fr.qty_now_offered,0)
+                                                            AS quantityOffered,
 
-    COALESCE(fr.qty_now_passed,0)
-                                                AS quantityPassed,
+                COALESCE(fr.qty_now_passed,0)
+                                                            AS quantityPassed,
 
-    COALESCE(fr.qty_now_rejected,0)
-                                                AS quantityRejected,
+                COALESCE(fr.qty_now_rejected,0)
+                                                            AS quantityRejected,
 
-    ic.ic_number                                 AS callNo
+                ic.ic_number                                 AS callNo
 
-FROM final_ic_edit f
+            FROM final_ic_edit f
 
-INNER JOIN inspection_calls ic
-        ON ic.ic_number COLLATE utf8mb4_unicode_ci =
-           SUBSTRING_INDEX(
-                SUBSTRING_INDEX(f.ic_number,'/',2),
-                '/',
-                -1
-           ) COLLATE utf8mb4_unicode_ci
+            INNER JOIN inspection_calls ic
+                    ON ic.ic_number COLLATE utf8mb4_unicode_ci =
+                       SUBSTRING_INDEX(
+                            SUBSTRING_INDEX(f.ic_number,'/',2),
+                            '/',
+                            -1
+                       ) COLLATE utf8mb4_unicode_ci
 
-INNER JOIN po_header ph
-        ON ph.po_no = ic.po_no
+            INNER JOIN po_header ph
+                    ON ph.po_no = ic.po_no
 
-INNER JOIN user_master um
-        ON um.userid = f.created_by
+            INNER JOIN user_master um
+                    ON um.userid = f.created_by
 
-LEFT JOIN final_cumulative_results fr
-        ON fr.inspection_call_no COLLATE utf8mb4_unicode_ci
-         = ic.ic_number COLLATE utf8mb4_unicode_ci
+            LEFT JOIN final_cumulative_results fr
+                    ON fr.inspection_call_no COLLATE utf8mb4_unicode_ci
+                     = ic.ic_number COLLATE utf8mb4_unicode_ci
 
-LEFT JOIN (
-    SELECT icr1.*
-    FROM ibs_call_registration icr1
-    INNER JOIN (
-        SELECT
-            call_number,
-            MAX(version) AS max_version
-        FROM ibs_call_registration
-        GROUP BY call_number
-    ) latest
-        ON latest.call_number = icr1.call_number
-       AND latest.max_version = icr1.version
-) icr
-        ON icr.call_number COLLATE utf8mb4_unicode_ci
-         = ic.ic_number COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT icr1.*
+                FROM ibs_call_registration icr1
+                INNER JOIN (
+                    SELECT
+                        call_number,
+                        MAX(version) AS max_version
+                    FROM ibs_call_registration
+                    GROUP BY call_number
+                ) latest
+                    ON latest.call_number = icr1.call_number
+                   AND latest.max_version = icr1.version
+            ) icr
+                    ON icr.call_number COLLATE utf8mb4_unicode_ci
+                     = ic.ic_number COLLATE utf8mb4_unicode_ci
 
-LEFT JOIN sarthi_ibs_poi_mapping pm
-       ON pm.poi_code = ic.place_of_inspection
+            LEFT JOIN sarthi_ibs_poi_mapping pm
+                   ON pm.poi_code = ic.place_of_inspection
 
-WHERE icr.call_number IS NULL
-   OR UPPER(icr.status) = 'FAILED'
+            WHERE icr.call_number IS NULL
+               OR UPPER(icr.status) = 'FAILED'
 
-""", nativeQuery = true)
+            """, nativeQuery = true)
     List<Object[]> getFinalInspectionCalls();
 
     @Query(value = """
-    SELECT
-        inspection_call_no,
-        qty_now_offered,
-        qty_now_passed
-    FROM final_cumulative_results
-    WHERE inspection_call_no IN (:callNos)
-""", nativeQuery = true)
+                SELECT
+                    inspection_call_no,
+                    qty_now_offered,
+                    qty_now_passed
+                FROM final_cumulative_results
+                WHERE inspection_call_no IN (:callNos)
+            """, nativeQuery = true)
     List<Object[]> findFinalSummaryByCallNos(@Param("callNos") List<String> callNos);
+
+    /** Bulk fetch: SUM(qty_now_passed) per inspection_call_no for a list of Final call numbers */
+    @Query(value = """
+        SELECT f.inspection_call_no, COALESCE(SUM(f.qty_now_passed), 0)
+        FROM final_cumulative_results f
+        WHERE f.inspection_call_no IN :icNumbers
+        GROUP BY f.inspection_call_no
+        """, nativeQuery = true)
+    List<Object[]> sumAcceptedQtyByIcNumbers(@Param("icNumbers") List<String> icNumbers);
 }

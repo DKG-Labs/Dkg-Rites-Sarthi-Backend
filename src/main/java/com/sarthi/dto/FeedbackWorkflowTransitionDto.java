@@ -22,6 +22,18 @@ public class FeedbackWorkflowTransitionDto {
     private String vendorCode;
 
     private String plantId;
+    
+    private String poNumber;
+    
+    private String category;
+    
+    private String subCategory;
+    
+    private String urgency;
+    
+    private String description;
+    
+    private java.time.LocalDate dateOfRaising;
 
     private Integer currentRoleId;
 

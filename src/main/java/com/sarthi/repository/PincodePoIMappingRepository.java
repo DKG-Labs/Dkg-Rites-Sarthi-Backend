@@ -206,4 +206,6 @@ WHERE ppm.poi_code = :poiCode
         @Query("SELECT p.vendorCode FROM PincodePoIMapping p WHERE p.poiCode = :poiCode")
         String findVendorCodeByPoiCode(@Param("poiCode") String poiCode);
 
+        List<PincodePoIMapping> findByVendorCode(String vendorCode);
+
 }

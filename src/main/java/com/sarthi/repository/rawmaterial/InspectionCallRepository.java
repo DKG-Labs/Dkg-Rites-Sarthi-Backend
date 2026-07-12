@@ -160,6 +160,28 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
     Double findRmRejectionPct(@Param("poNo") String poNo);
 
     @Query("""
+                SELECT ic.poNo,
+                    CASE
+                        WHEN SUM(r.weightOfferedMt) = 0 THEN 0.0
+                        ELSE (SUM(r.weightRejectedMt) * 100.0) / SUM(r.weightOfferedMt)
+                    END
+                FROM InspectionCall ic
+                JOIN RmHeatFinalResult r
+                    ON r.inspectionCallNo = ic.icNumber
+                WHERE ic.poNo IN :poNos
+                GROUP BY ic.poNo
+            """)
+    List<Object[]> findRmRejectionPctForPos(@Param("poNos") List<String> poNos);
+
+    @Query("""
+                SELECT ic.poNo, ic.icNumber
+                FROM InspectionCall ic
+                WHERE ic.poNo IN :poNos
+            """)
+    List<Object[]> findCallNumbersByPos(@Param("poNos") List<String> poNos);
+
+
+    @Query("""
                 SELECT ic.icNumber
                 FROM InspectionCall ic
                 WHERE ic.poNo = :poNo

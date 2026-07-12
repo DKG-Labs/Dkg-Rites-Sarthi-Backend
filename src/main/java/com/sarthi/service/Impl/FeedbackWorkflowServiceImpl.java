@@ -40,6 +40,8 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
     private PincodePoIMappingRepository pincodePoIMappingRepository;
     @Autowired
     private FeedbackWorkflowTransitionRepository feedbackWorkflowTransitionRepository;
+    @Autowired
+    private ProcessInspectionDiscrepancyRepository processInspectionDiscrepancyRepository;
 
     @Autowired
     private VendorPlantRepository  vendorPlantRepository;
@@ -393,6 +395,19 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         dto.setNextStatus(
                 entity.getNextStatus());
+
+        // Fetch additional details from discrepancy table
+        if (entity.getFeedbackId() != null) {
+            Optional<ProcessInspectionDiscrepancy> discrepancyOpt = processInspectionDiscrepancyRepository.findByDiscrepancyNo(entity.getFeedbackId());
+            if (discrepancyOpt.isPresent()) {
+                dto.setPoNumber(discrepancyOpt.get().getPoNumber());
+                dto.setCategory(discrepancyOpt.get().getCategory());
+                dto.setSubCategory(discrepancyOpt.get().getSubCategory());
+                dto.setUrgency(discrepancyOpt.get().getUrgency());
+                dto.setDescription(discrepancyOpt.get().getDescription());
+                dto.setDateOfRaising(discrepancyOpt.get().getDateOfRaising());
+            }
+        }
 
         dto.setRemarks(
                 entity.getRemarks());

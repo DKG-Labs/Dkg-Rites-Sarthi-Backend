@@ -54,4 +54,6 @@ public class VendorInspectionCallStatusDto {
     private String unitName;
     private String createdAt;
     private String updatedAt;
+
+    private Long acceptedQty; // Actual accepted quantity from result tables
 }

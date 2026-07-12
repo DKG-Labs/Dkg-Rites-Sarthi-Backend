@@ -71,8 +71,8 @@ public class SummaryReportController {
     public APIResponse getMonthlyManufatureWiseAnalysis(
             @RequestParam int page,
             @RequestParam int size,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String rio,
             @RequestParam(required = false) String zone,
             @RequestParam(required = false) String vendor) {
@@ -86,8 +86,8 @@ public class SummaryReportController {
             @RequestParam int page,
             @RequestParam int size,
             @RequestParam String poiCode,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 
         return ResponseBuilder.getSuccessResponse(
                 summaryService.getPoWiseAnalysis(page, size,poiCode, startDate, endDate));

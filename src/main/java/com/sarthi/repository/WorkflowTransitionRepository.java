@@ -14,18 +14,25 @@ import java.util.Map;
 public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTransition, Integer> {
   WorkflowTransition findByWorkflowIdAndRequestId(Integer workflowId, String requestId);
 
-  @Query(value = "SELECT " +
-          "SUM(CASE WHEN wt.REQUESTID LIKE 'ER-%' THEN 1 ELSE 0 END) AS rmCount, " +
-          "SUM(CASE WHEN wt.REQUESTID LIKE 'EP-%' THEN 1 ELSE 0 END) AS processCount, " +
-          "SUM(CASE WHEN wt.REQUESTID LIKE 'EF-%' THEN 1 ELSE 0 END) AS finalCount " +
-          "FROM WORKFLOW_TRANSITION wt " +
-          "JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number " +
-          "JOIN po_header ph ON ic.po_no = ph.po_no " +
-          "WHERE wt.STATUS = 'DSC_SIGN_IC' " +
-          "AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode) " +
-          "AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName) " +
-          "AND (:startDate IS NULL OR :startDate = '' OR wt.CREATEDDATE >= :startDate) " +
-          "AND (:endDate IS NULL OR :endDate = '' OR wt.CREATEDDATE <= :endDate)", nativeQuery = true)
+  @Query(value = """
+          SELECT 
+              SUM(CASE WHEN wt.REQUESTID LIKE 'ER-%' THEN 1 ELSE 0 END) AS rmCount,
+              SUM(CASE WHEN wt.REQUESTID LIKE 'EP-%' THEN 1 ELSE 0 END) AS processCount,
+              SUM(CASE WHEN wt.REQUESTID LIKE 'EF-%' THEN 1 ELSE 0 END) AS finalCount
+          FROM workflow_transition wt
+          INNER JOIN (
+              SELECT requestid, MAX(workflowtransitionid) latest_id
+              FROM workflow_transition
+              GROUP BY requestid
+          ) x ON wt.workflowtransitionid = x.latest_id
+          JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
+          JOIN po_header ph ON ic.po_no = ph.po_no
+          WHERE wt.STATUS = 'DSC_SIGN_IC'
+          AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
+          AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
+          AND (:startDate IS NULL OR :startDate = '' OR wt.CREATEDDATE >= :startDate)
+          AND (:endDate IS NULL OR :endDate = '' OR wt.CREATEDDATE <= :endDate)
+          """, nativeQuery = true)
   Map<String, Object> getIcIssuedCounts(
           @Param("poiCode") String poiCode, 
           @Param("rlyShortName") String rlyShortName, 
@@ -789,9 +796,18 @@ ORDER BY ic.created_at DESC
         LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
         LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.call_no
         WHERE wt.STATUS = 'DSC_SIGN_IC'
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+        AND (:startDate IS NULL OR DATE(wt.CREATEDDATE) >= :startDate)
+        AND (:endDate IS NULL OR DATE(wt.CREATEDDATE) <= :endDate)
         ORDER BY rawCreatedDate DESC
         """, nativeQuery = true)
-  List<Object[]> findDownloadIcAnnexuresReportRaw();
+  List<Object[]> findDownloadIcAnnexuresReportRaw(
+          @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+          @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway,
+          @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+          @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate
+  );
 
 
     @Query("""
