@@ -42,5 +42,6 @@ WHERE (d.visual_reason IS NOT NULL AND d.visual_reason <> '')
 """, nativeQuery = true)
     Long countByWithReasons();
 
+    @Query(value = "SELECT COUNT(id) FROM demoulding_defective_sleepers", nativeQuery = true)
     Long countBy();
 }

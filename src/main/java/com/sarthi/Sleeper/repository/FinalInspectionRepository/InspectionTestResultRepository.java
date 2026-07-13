@@ -127,8 +127,7 @@ AND h.module.id = :moduleId
           Long sleeperId
   );
 
-  @Query("SELECT COUNT(r) FROM InspectionTestResult r " +
-          "WHERE r.result = 'REJECTED' AND r.active = true")
+  @Query(value = "SELECT COUNT(id) FROM inspection_test_result WHERE result = 'REJECTED' AND active = 1", nativeQuery = true)
   Long getTotalRejectedCount();
 /*
   @Query(value = """

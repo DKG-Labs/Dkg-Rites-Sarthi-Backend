@@ -73,26 +73,54 @@ public class DashboardServiceImpl implements DashboardService {
         return demouldingDefectiveSleeperRepository.countByWithReasons();
     }
 
+    private volatile Long totalRejectedCountCache = 0L;
+    private volatile Double rejectionPercentageCache = 0.0;
+    private volatile boolean isCacheInitialized = false;
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 300000)
+    public void updateDashboardMetrics() {
+        try {
+            Long rejected = inspectionTestResultRepository.getTotalRejectedCount();
+            Long productionCount = productionDeclarationRepository.getTotalProductionCount();
+            Long demouldRejected = demouldingDefectiveSleeperRepository.countByWithReasons();
+            Long totalRejected = (demouldRejected != null ? demouldRejected : 0L) + (rejected != null ? rejected : 0L);
+            
+            totalRejectedCountCache = rejected != null ? rejected : 0L;
+            
+            if (productionCount == null || productionCount == 0) {
+                rejectionPercentageCache = 0.0;
+            } else {
+                rejectionPercentageCache = (totalRejected * 100.0) / productionCount;
+            }
+            isCacheInitialized = true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public Long getTotalRejectedCount() {
-        return inspectionTestResultRepository.getTotalRejectedCount();
+        if (!isCacheInitialized) {
+            synchronized(this) {
+                if (!isCacheInitialized) {
+                    updateDashboardMetrics();
+                }
+            }
+        }
+        return totalRejectedCountCache;
     }
 
 
     @Override
     public Double getRejectionPercentage() {
-
-        Long productionCount = productionSleeperRepository.countBy();
-        Long demouldRejected = demouldingDefectiveSleeperRepository.countByWithReasons();
-        Long finalRejected = inspectionTestResultRepository.getTotalRejectedCount();
-
-        Long totalRejected = demouldRejected + finalRejected;
-
-        if (productionCount == 0) {
-            return 0.0;
+        if (!isCacheInitialized) {
+            synchronized(this) {
+                if (!isCacheInitialized) {
+                    updateDashboardMetrics();
+                }
+            }
         }
-
-        return (totalRejected * 100.0) / productionCount;
+        return rejectionPercentageCache;
     }
 
     @Override

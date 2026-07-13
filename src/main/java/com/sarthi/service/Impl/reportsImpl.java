@@ -2717,10 +2717,20 @@ public class reportsImpl implements reports {
                                 }
 
                                 quenching.setQuenchingHardness(
-
                                                 quenching.getQuenchingHardness()
-
                                                                 + (quenchingHardness != null ? quenchingHardness : 0));
+
+                                Integer qBoxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
+                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                quenching.setBoxGaugeRejected((quenching.getBoxGaugeRejected() != null ? quenching.getBoxGaugeRejected() : 0) + (qBoxGauge != null ? qBoxGauge : 0));
+
+                                Integer qFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
+                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                quenching.setFlatBearingAreaRejected((quenching.getFlatBearingAreaRejected() != null ? quenching.getFlatBearingAreaRejected() : 0) + (qFlat != null ? qFlat : 0));
+
+                                Integer qFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
+                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                quenching.setFallingGaugeRejected((quenching.getFallingGaugeRejected() != null ? quenching.getFallingGaugeRejected() : 0) + (qFall != null ? qFall : 0));
 
                                 dto.setQuenchingDefects(quenching);
 
@@ -3727,61 +3737,44 @@ public class reportsImpl implements reports {
 
         // =====
 
+        private volatile java.util.List<StageRejectionDto> paretoAnalysisCache = null;
+        private volatile long paretoCacheLastUpdated = 0;
+
         @Override
-
         public List<StageRejectionDto> getParetoAnalysis() {
-
-                List<Object[]> rows = processLineFinalResultRepository.getParetoAnalysisRejections();
-
-                List<StageRejectionDto> result = new ArrayList<>();
-
-                if (rows == null || rows.isEmpty()) {
-
-                        return result;
-
+                if (paretoAnalysisCache == null || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
+                        synchronized (this) {
+                                if (paretoAnalysisCache == null || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
+                                        List<Object[]> rows = processLineFinalResultRepository.getParetoAnalysisRejections();
+                                        List<StageRejectionDto> result = new ArrayList<>();
+                                        if (rows != null && !rows.isEmpty()) {
+                                                String[] palette = { "#2563eb", "#f59e0b", "#ef4444", "#10b981", "#8b5cf6",
+                                                                "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#14b8a6" };
+                                                long grandTotal = rows.stream()
+                                                                .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
+                                                                .sum();
+                                                long runningTotal = 0;
+                                                for (int i = 0; i < rows.size(); i++) {
+                                                        Object[] row = rows.get(i);
+                                                        String name = (String) row[0];
+                                                        long count = row[1] != null ? ((Number) row[1]).longValue() : 0;
+                                                        runningTotal += count;
+                                                        double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
+                                                        StageRejectionDto dto = new StageRejectionDto(name, (double) count,
+                                                                        palette[i % palette.length]);
+                                                        dto.setCumulative(Math.round(cumulative * 10.0) / 10.0);
+                                                        result.add(dto);
+                                                }
+                                        }
+                                        paretoAnalysisCache = result;
+                                        paretoCacheLastUpdated = System.currentTimeMillis();
+                                }
+                        }
                 }
-
-                // Colours cycling through a vibrant palette
-
-                String[] palette = { "#2563eb", "#f59e0b", "#ef4444", "#10b981", "#8b5cf6",
-
-                                "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#14b8a6" };
-
-                // Calculate total for cumulative % (Pareto line)
-
-                long grandTotal = rows.stream()
-
-                                .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
-
-                                .sum();
-
-                long runningTotal = 0;
-
-                for (int i = 0; i < rows.size(); i++) {
-
-                        Object[] row = rows.get(i);
-
-                        String name = (String) row[0];
-
-                        long count = row[1] != null ? ((Number) row[1]).longValue() : 0;
-
-                        runningTotal += count;
-
-                        double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
-
-                        StageRejectionDto dto = new StageRejectionDto(name, (double) count,
-
-                                        palette[i % palette.length]);
-
-                        dto.setCumulative(Math.round(cumulative * 10.0) / 10.0); // 1 decimal
-
-                        result.add(dto);
-
-                }
-
-                return result;
-
+                return paretoAnalysisCache;
         }
+
+
 
         @Override
 

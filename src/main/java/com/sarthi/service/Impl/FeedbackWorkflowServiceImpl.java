@@ -13,15 +13,13 @@ import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
 import com.sarthi.service.FeedbackWorkflowService;
+import com.sarthi.util.NotificationService;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
@@ -49,6 +47,8 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
     private PoHeaderRepository poHeaderRepository;
     @Autowired
     private SleeperTransitionMasterRepository sleeperTransitionMasterRepository;
+    @Autowired
+    private NotificationService  notificationService;
 
     private String roleNameById(Integer roleId) {
         if (Objects.nonNull(roleId)) {
@@ -311,7 +311,28 @@ public class FeedbackWorkflowServiceImpl implements FeedbackWorkflowService {
 
         feedbackWorkflowTransitionRepository.save(entry);
 
+
+        String vendorEmail = um.getEmail();
+
+        if (vendorEmail != null && !vendorEmail.isBlank()) {
+
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("vendorUserName", um.getUsername());
+            variables.put("feedbackId", feedbackId);
+            variables.put("vendorCode", vendorCode);
+            variables.put("status", "PENDING_RECTIFICATION");
+
+            notificationService.sendEmail(
+                    vendorEmail,
+                    "Discrepancy Raised - Action Required",
+                    "discrepancy-notification",
+                    variables
+            );
+        }
+
         return mapFeedbackWorkflowTransition(entry);
+
+
     }
 
     private String getCreateAction(Integer roleId) {
