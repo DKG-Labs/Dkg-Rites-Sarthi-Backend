@@ -3034,6 +3034,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
     // Pass 1: Resolve all IE IDs for each transition and collect all User IDs for name resolution
     Map<Integer, List<Integer>> wtProcessIeMap = new HashMap<>();
     Set<Integer> allTargetUserIds = new HashSet<>();
+    Map<String, List<Integer>> localPoiIeCache = new HashMap<>();
 
     for (WorkflowTransition wt : pending) {
         if (wt.getAssignedToUser() != null) allTargetUserIds.add(wt.getAssignedToUser());
@@ -3044,7 +3045,11 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             if (i != null) {
                 String poi = i.placeOfInspection();
                 // We use the direct repo call here as it contains the complex UNION logic
-                List<Integer> ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+                String cacheKey = processIe + "_" + poi;
+                List<Integer> ieUsers = localPoiIeCache.computeIfAbsent(
+                        cacheKey,
+                        k -> getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi)
+                );
                 List<Integer> finalIeUsers = new ArrayList<>(ieUsers);
                 if (processIe != null) {
                     finalIeUsers.add(processIe);
