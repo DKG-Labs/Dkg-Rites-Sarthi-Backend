@@ -573,7 +573,42 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                 // UPDATE ENTITY
                 // =================================================
 
-                entityField.set(entity, newValue);
+                Class<?> targetType = entityField.getType();
+                Object convertedValue = newValue;
+
+                if (newValue != null) {
+                    if (targetType.equals(LocalDate.class) && newValue instanceof String) {
+                        convertedValue = LocalDate.parse((String) newValue);
+                    } else if (targetType.equals(LocalDateTime.class) && newValue instanceof String) {
+                        convertedValue = LocalDateTime.parse((String) newValue);
+                    } else if (targetType.equals(BigDecimal.class)) {
+                        if (newValue instanceof Double) {
+                            convertedValue = BigDecimal.valueOf((Double) newValue);
+                        } else if (newValue instanceof Integer) {
+                            convertedValue = BigDecimal.valueOf((Integer) newValue);
+                        } else if (newValue instanceof String) {
+                            convertedValue = new BigDecimal((String) newValue);
+                        }
+                    } else if (targetType.equals(Long.class) || targetType.equals(long.class)) {
+                        if (newValue instanceof Integer) {
+                            convertedValue = ((Integer) newValue).longValue();
+                        } else if (newValue instanceof String) {
+                            convertedValue = Long.parseLong((String) newValue);
+                        }
+                    } else if (targetType.equals(Double.class) || targetType.equals(double.class)) {
+                        if (newValue instanceof Integer) {
+                            convertedValue = ((Integer) newValue).doubleValue();
+                        } else if (newValue instanceof String) {
+                            convertedValue = Double.parseDouble((String) newValue);
+                        }
+                    } else if (targetType.equals(Integer.class) || targetType.equals(int.class)) {
+                        if (newValue instanceof String) {
+                            convertedValue = Integer.parseInt((String) newValue);
+                        }
+                    }
+                }
+
+                entityField.set(entity, convertedValue);
 
                 // =================================================
                 // SAVE MODIFICATION HISTORY
