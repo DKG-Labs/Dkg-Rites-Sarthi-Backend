@@ -3131,9 +3131,9 @@ public class reportsImpl implements reports {
                 String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
                 String zCode = zonalRailway == null ? "" : zonalRailway;
 
-                LocalDate parsedStartDate = (startDateStr == null || startDateStr.isEmpty()) ? null
+                LocalDate parsedStartDate = (startDateStr == null || startDateStr.trim().isEmpty()) ? LocalDate.of(2000, 1, 1)
                                 : LocalDate.parse(startDateStr);
-                LocalDate parsedEndDate = (endDateStr == null || endDateStr.isEmpty()) ? null
+                LocalDate parsedEndDate = (endDateStr == null || endDateStr.trim().isEmpty()) ? LocalDate.now()
                                 : LocalDate.parse(endDateStr);
 
                 // ── Run all independent DB queries in PARALLEL to reduce latency ──────────────
@@ -3146,8 +3146,14 @@ public class reportsImpl implements reports {
                 CompletableFuture<Double> cfQtyMt = CompletableFuture.supplyAsync(() ->
                                 poItemRepository.sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", null, null, vCode, zCode));
 
-                CompletableFuture<Long> cfFinalQtyPassed = CompletableFuture.supplyAsync(() ->
-                                finalCumulativeResultsRepository.sumFilteredTotalQtyNowPassed(null, null, vCode, zCode));
+                CompletableFuture<Long> cfFinalQtyPassed = CompletableFuture.supplyAsync(() -> {
+                        List<Object[]> res = finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(parsedStartDate, parsedEndDate, vCode, zCode);
+                        if (res != null && !res.isEmpty() && res.get(0) != null) {
+                                Object[] row = res.get(0);
+                                return row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                        }
+                        return 0L;
+                });
 
                 CompletableFuture<Double> cfAvgProd = CompletableFuture.supplyAsync(() ->
                                 getAvgProductionPerDayWithFilters(parsedStartDate, parsedEndDate, vCode, zCode));
