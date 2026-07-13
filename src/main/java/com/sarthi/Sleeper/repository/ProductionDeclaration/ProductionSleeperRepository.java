@@ -134,6 +134,7 @@ WHERE g.declaration.id = :batchId
 """)
     List<String> getLongLineSleeperType(Long batchId);
 
+    @Query(value = "SELECT COUNT(id) FROM production_sleeper", nativeQuery = true)
     Long countBy();
 
     @Query("""

@@ -1045,7 +1045,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
     SELECT
         ic.ic_number AS inspectionCallNumber,
-        ic.vendor_id AS vendor,
+        COALESCE(vm.vendor_name, ic.vendor_id) AS vendor,
         DATE_FORMAT(ic.created_at,'%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
         '' AS stageOfInspection,
         CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
@@ -1065,6 +1065,7 @@ ORDER BY ic.created_at DESC
     ) wt
       ON wt.requestid = ic.ic_number
     JOIN po_header ph ON ic.po_no = ph.po_no
+    LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
     WHERE wt.status NOT IN (
         'INSPECTION_COMPLETE_CONFIRM',
         'GENERATE_IC',
@@ -1085,7 +1086,7 @@ ORDER BY ic.created_at DESC
   @Query(value = """
     SELECT
         ic.ic_number AS inspectionCallNumber,
-        ic.vendor_id AS vendor,
+        COALESCE(vm.vendor_name, ic.vendor_id) AS vendor,
         DATE_FORMAT(ic.created_at,'%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
         '' AS stageOfInspection,
         CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
@@ -1105,6 +1106,7 @@ ORDER BY ic.created_at DESC
     ) wt
       ON wt.requestid = ic.ic_number
     JOIN po_header ph ON ic.po_no = ph.po_no
+    LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
     WHERE UPPER(wt.status) IN (
         'VERIFY_PO_DETAILS',
         'PAUSED',

@@ -26,7 +26,8 @@ import java.util.Optional;
 @Repository
 public interface ProductionDeclarationRepository extends JpaRepository<ProductionDeclaration, Long> {
 
-    /*
+    @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p")
+    Long getTotalProductionCount();    /*
      * @Query("""
      * SELECT new
      * com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(
