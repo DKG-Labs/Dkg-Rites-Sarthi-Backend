@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Discrepancy Notification</title>
+</head>
+<body>
+
+<p>Dear <span th:text="${vendorUserName}">Vendor</span>,</p>
+
+<p>
+    A discrepancy has been raised and assigned to you for rectification.
+</p>
+
+<table border="1" cellpadding="8" cellspacing="0">
+    <tr>
+        <td><b>Feedback ID</b></td>
+        <td th:text="${feedbackId}"></td>
+    </tr>
+    <tr>
+        <td><b>Vendor Code</b></td>
+        <td th:text="${vendorCode}"></td>
+    </tr>
+    <tr>
+        <td><b>Status</b></td>
+        <td th:text="${status}"></td>
+    </tr>
+</table>
+
+<br/>
+
+<p>
+    Please login to SARTHI and submit the rectification details.
+</p>
+
+<p>
+    Regards,<br/>
+    SARTHI Team
+</p>
+
+</body>
+</html>
