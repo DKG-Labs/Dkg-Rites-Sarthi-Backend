@@ -33,15 +33,15 @@ public interface SleeperWorkflowRepository
     List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName); */
   @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
-    WHERE t.workflowTransitionId IN (
+    WHERE t.workflowTransitionId = (
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
-        GROUP BY t2.requestId, t2.moduleId
+        WHERE t2.requestId = t.requestId
+        AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
     )
-    AND (t.moduleId = t.moduleId OR (t.moduleId IS NULL AND t.moduleId IS NULL))
     AND t.status IN ('Created','PENDING')
     AND t.nextRole = :roleName
-""" )
+""")
    List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
 
 
@@ -67,10 +67,10 @@ public interface SleeperWorkflowRepository
 
     @Query("""
 SELECT t FROM SleeperWorkflowTransaction t
-WHERE t.workflowTransitionId IN (
+WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM SleeperWorkflowTransaction t2
-    GROUP BY t2.requestId
+    WHERE t2.requestId = t.requestId
 )
 AND UPPER(t.status) IN ('CREATED','PENDING')
 AND t.nextRole = :roleName
@@ -79,10 +79,10 @@ AND t.nextRole = :roleName
 
     @Query("""
                 SELECT t FROM SleeperWorkflowTransaction t
-                WHERE t.workflowTransitionId IN (
+                WHERE t.workflowTransitionId = (
                     SELECT MAX(t2.workflowTransitionId)
                     FROM SleeperWorkflowTransaction t2
-                    GROUP BY t2.requestId
+                    WHERE t2.requestId = t.requestId
                 )
                 AND t.status = 'COMPLETED'
             """)
@@ -101,10 +101,11 @@ AND t.nextRole = :roleName
 */
    @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
-    WHERE t.workflowTransitionId IN (
+    WHERE t.workflowTransitionId = (
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
-        GROUP BY t2.requestId, t2.moduleId
+        WHERE t2.requestId = t.requestId
+        AND t2.moduleId = t.moduleId   
     )
     AND t.status = 'Completed'
 """)
@@ -129,11 +130,12 @@ AND t.nextRole = :roleName
 
     @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
-    WHERE t.workflowTransitionId IN (
+    WHERE t.workflowTransitionId = (
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
-        WHERE t2.workflowId = 2
-        GROUP BY t2.requestId
+        WHERE t2.requestId = t.requestId
+        AND t2.workflowId = 2
+        AND t2.status = 'Completed'
     )
     AND t.status = 'Completed'
     AND t.workflowId = 2
@@ -142,10 +144,10 @@ AND t.nextRole = :roleName
 
     @Query("""
 SELECT t.requestId FROM SleeperWorkflowTransaction t
-WHERE t.workflowTransitionId IN (
+WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM SleeperWorkflowTransaction t2
-    GROUP BY t2.requestId
+    WHERE t2.requestId = t.requestId
 )
 AND t.moduleId = :moduleId
 AND t.status = 'Completed'

@@ -1152,42 +1152,24 @@ public void saveMaPo(MaPoRequestDTO request) {
     }
 
     @Override
-    public String getPoDateByPoNo(String poNo) {
-        PoHeader header = headerRepo.findByPoNo(poNo)
-                                    .orElseThrow(() -> new RuntimeException("PO not found in database for PO No: " + poNo));
-        if (header.getPoDate() != null) {
-            return header.getPoDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-        }
-        return null;
-    }
-
-    @Override
     public Object fetchPoData(java.util.Map<String, String> requestValues) {
         String token = getImmsToken();
         
         String urlEnding = "/purchase/getPOData";
-        java.util.Map<String, String> payload = new java.util.HashMap<>(requestValues);
-        
-        if (payload.containsKey("amended")) {
-            urlEnding = "/purchase/getAmendedPoData";
-            payload.remove("amended");
-        } else if (payload.containsKey("maNo")) {
+        if (requestValues.containsKey("maNo")) {
             urlEnding = "/purchase/getPoMaData";
-        } else if (payload.containsKey("caNo")) {
+        } else if (requestValues.containsKey("caNo")) {
             urlEnding = "/purchase/getPoCaData";
         }
         
         String url = crisBaseUrl + urlEnding;
-        System.out.println("Calling CRIS API: " + url);
-        System.out.println("Payload: " + payload);
 
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
         headers.setBearerAuth(token);
-        headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         org.springframework.http.HttpEntity<java.util.Map<String, String>> entity = 
-            new org.springframework.http.HttpEntity<>(payload, headers);
+            new org.springframework.http.HttpEntity<>(requestValues, headers);
 
         try {
             org.springframework.http.ResponseEntity<Object> response = 

@@ -127,16 +127,4 @@ public class crisController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
-
-    @org.springframework.web.bind.annotation.GetMapping("/po-date")
-    public ResponseEntity<Object> getPoDate(@org.springframework.web.bind.annotation.RequestParam String poNo) {
-        try {
-            String poDate = crisService.getPoDateByPoNo(poNo);
-            java.util.Map<String, String> response = new java.util.HashMap<>();
-            response.put("poDate", poDate);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        }
-    }
 }

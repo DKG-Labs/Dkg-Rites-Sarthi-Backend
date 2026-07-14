@@ -18,6 +18,4 @@ public interface crisService {
     public String getImmsToken();
 
     public Object fetchPoData(java.util.Map<String, String> requestValues);
-
-    public String getPoDateByPoNo(String poNo);
 }
