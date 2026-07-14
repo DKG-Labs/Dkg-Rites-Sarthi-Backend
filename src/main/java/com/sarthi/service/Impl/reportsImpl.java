@@ -3318,6 +3318,9 @@ public class reportsImpl implements reports {
         }
 
         @Override
+        public List<StageRejectionDto> getStageWiseRejection(String startDate, String endDate) {
+                return getStageWiseRejection();
+        }
 
         public List<StageRejectionDto> getStageWiseRejection() {
 
@@ -3384,6 +3387,9 @@ public class reportsImpl implements reports {
         }
 
         @Override
+        public List<StageRejectionDto> getManufacturerRejection(String startDate, String endDate) {
+                return getManufacturerRejection();
+        }
 
         public List<StageRejectionDto> getManufacturerRejection() {
 
@@ -3427,6 +3433,9 @@ public class reportsImpl implements reports {
         }
 
         @Override
+        public ProcessPerformanceResponseDto getProcessPerformance(String startDate, String endDate) {
+                return getProcessPerformance();
+        }
 
         public ProcessPerformanceResponseDto getProcessPerformance() {
 

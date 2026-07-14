@@ -306,6 +306,22 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     @Query(value = """
                 SELECT
                     ic.company_name AS name,
+                    SUM(COALESCE(p.total_rejected, 0)) * 100.0 /
+                    NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+                FROM process_line_final_result p
+                JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+                WHERE p.created_at BETWEEN :startDate AND :endDate
+                GROUP BY ic.company_name
+                ORDER BY rejectionPct ASC
+                LIMIT 10
+            """, nativeQuery = true)
+    List<Object[]> findTop5ProcessPerformanceRevisedLogicBetweenDates(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
+
+    @Query(value = """
+                SELECT
+                    ic.company_name AS name,
                     SUM(COALESCE(p.shearing_rejected, 0) +
                         COALESCE(p.turning_rejected, 0) +
                         COALESCE(p.mpi_rejected, 0) +
@@ -337,6 +353,22 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             """, nativeQuery = true)
     List<Object[]> findWorst5ProcessPerformanceRevisedLogic(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
+
+    @Query(value = """
+                SELECT
+                    ic.company_name AS name,
+                    SUM(COALESCE(p.total_rejected, 0)) * 100.0 /
+                    NULLIF(SUM(COALESCE(p.shearing_manufactured, 0)), 0) AS rejectionPct
+                FROM process_line_final_result p
+                JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+                WHERE p.created_at BETWEEN :startDate AND :endDate
+                GROUP BY ic.company_name
+                ORDER BY rejectionPct DESC
+                LIMIT 10
+            """, nativeQuery = true)
+    List<Object[]> findWorst5ProcessPerformanceRevisedLogicBetweenDates(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
 
     @Query(value = """
                 SELECT
@@ -679,6 +711,22 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             """, nativeQuery = true)
     List<Object[]> findMpiRejectionBySupplier(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate);
+
+    @Query(value = """
+                SELECT
+                    COALESCE(i.supplier_name, 'Other/Unknown') AS supplier_name,
+                    ROUND(SUM(COALESCE(p.mpi_rejected, 0)) * 100.0 /
+                          NULLIF(SUM(COALESCE(p.mpi_manufactured, p.total_manufactured, 0)), 0), 2) AS mpi_rejection_percentage
+                FROM process_line_final_result p
+                LEFT JOIN inventory_entries i ON TRIM(p.heat_number) = TRIM(i.heat_number)
+                WHERE p.created_at BETWEEN :startDate AND :endDate
+                GROUP BY supplier_name
+                ORDER BY mpi_rejection_percentage DESC
+                LIMIT 5
+            """, nativeQuery = true)
+    List<Object[]> findMpiRejectionBySupplierBetweenDates(
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate);
 
     @Query(value = """
                 SELECT
