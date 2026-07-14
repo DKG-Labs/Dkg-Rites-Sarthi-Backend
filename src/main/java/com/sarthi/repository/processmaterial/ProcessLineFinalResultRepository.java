@@ -385,6 +385,20 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     List<Object[]> sumStepWiseRejectionLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 
+    @Query(value = """
+        SELECT
+            SUM(COALESCE(p.shearing_rejected, 0)) AS shearing,
+            SUM(COALESCE(p.turning_rejected, 0)) AS turning,
+            SUM(COALESCE(p.mpi_rejected, 0)) AS mpi,
+            SUM(COALESCE(p.forging_rejected, 0)) AS forging,
+            SUM(COALESCE(p.quenching_rejected, 0)) AS quenching,
+            SUM(COALESCE(p.tempering_rejected, 0)) AS tempering
+        FROM process_line_final_result p
+        WHERE p.created_at BETWEEN :startDate AND :endDate
+        """, nativeQuery = true)
+    List<Object[]> sumStepWiseRejection(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
     @org.springframework.data.jpa.repository.Query("SELECT SUM(p.temperingManufactured) FROM ProcessLineFinalResult p WHERE p.createdAt >= :date")
     Long sumTemperingManufacturedLast30Days(
             @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
@@ -447,69 +461,141 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     // ===== NEW: Pareto Analysis – aggregate rejections across all process tables
     // =====
     @org.springframework.data.jpa.repository.Query(value = """
-            SELECT 'Forging Temp' AS param_name, COALESCE(SUM(forging_temp_rejected), 0) AS total FROM process_forging_data
+            SELECT 'Forging Temp' AS param_name, COALESCE(SUM(forging_temp_rejected), 0) AS total FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Forging Stabilisation', COALESCE(SUM(forging_stabilisation_rejection_rejected), 0) FROM process_forging_data
+            SELECT 'Forging Stabilisation', COALESCE(SUM(forging_stabilisation_rejection_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Improper Forging', COALESCE(SUM(improper_forging_rejected), 0) FROM process_forging_data
+            SELECT 'Improper Forging', COALESCE(SUM(improper_forging_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Forging Defect', COALESCE(SUM(forging_defect_rejected), 0) FROM process_forging_data
+            SELECT 'Forging Defect', COALESCE(SUM(forging_defect_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Embossing Defect', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_forging_data
+            SELECT 'Embossing Defect', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'MPI', COALESCE(SUM(mpi_rejected), 0) FROM process_mpi_data
+            SELECT 'MPI', COALESCE(SUM(mpi_rejected), 0) FROM process_mpi_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Length Cut Bar', COALESCE(SUM(length_cut_bar_rejected), 0) FROM process_shearing_data
+            SELECT 'Length Cut Bar', COALESCE(SUM(length_cut_bar_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Improper Dia', COALESCE(SUM(improper_dia_rejected), 0) FROM process_shearing_data
+            SELECT 'Improper Dia', COALESCE(SUM(improper_dia_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Sharp Edges', COALESCE(SUM(sharp_edges_rejected), 0) FROM process_shearing_data
+            SELECT 'Sharp Edges', COALESCE(SUM(sharp_edges_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Cracked Edges', COALESCE(SUM(cracked_edges_rejected), 0) FROM process_shearing_data
+            SELECT 'Cracked Edges', COALESCE(SUM(cracked_edges_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Parallel Length', COALESCE(SUM(parallel_length_rejected), 0) FROM process_turning_data
+            SELECT 'Parallel Length', COALESCE(SUM(parallel_length_rejected), 0) FROM process_turning_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Full Turning Length', COALESCE(SUM(full_turning_length_rejected), 0) FROM process_turning_data
+            SELECT 'Full Turning Length', COALESCE(SUM(full_turning_length_rejected), 0) FROM process_turning_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Turning Dia', COALESCE(SUM(turning_dia_rejected), 0) FROM process_turning_data
+            SELECT 'Turning Dia', COALESCE(SUM(turning_dia_rejected), 0) FROM process_turning_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL 
+            SELECT 'Quenching Hardness', COALESCE(SUM(quenching_hardness_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Quenching Hardness', COALESCE(SUM(quenching_hardness_rejected), 0) FROM process_quenching_data
+            SELECT 'Box Gauge (Quenching)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Box Gauge (Quenching)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_quenching_data
+            SELECT 'Flat Bearing Area (Quenching)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Flat Bearing Area (Quenching)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_quenching_data
+            SELECT 'Falling Gauge (Quenching)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Falling Gauge (Quenching)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_quenching_data
+            SELECT 'Tempering Temperature', COALESCE(SUM(tempering_temperature_rejected), 0) FROM process_tempering_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Tempering Temperature', COALESCE(SUM(tempering_temperature_rejected), 0) FROM process_tempering_data
+            SELECT 'Tempering Duration', COALESCE(SUM(tempering_duration_rejected), 0) FROM process_tempering_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Tempering Duration', COALESCE(SUM(tempering_duration_rejected), 0) FROM process_tempering_data
+            SELECT 'Box Gauge (Final)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Box Gauge (Final)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_final_check_data
+            SELECT 'Flat Bearing Area (Final)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Flat Bearing Area (Final)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_final_check_data
+            SELECT 'Falling Gauge (Final)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Falling Gauge (Final)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_final_check_data
+            SELECT 'Surface Defect', COALESCE(SUM(surface_defect_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Surface Defect', COALESCE(SUM(surface_defect_rejected), 0) FROM process_final_check_data
+            SELECT 'Embossing (Final)', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Embossing (Final)', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_final_check_data
+            SELECT 'Marking', COALESCE(SUM(marking_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Marking', COALESCE(SUM(marking_rejected), 0) FROM process_final_check_data
+            SELECT 'Tempering Hardness', COALESCE(SUM(tempering_hardness_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Tempering Hardness', COALESCE(SUM(tempering_hardness_rejected), 0) FROM process_final_check_data
+            SELECT 'Toe Load', COALESCE(SUM(toe_load_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Toe Load', COALESCE(SUM(toe_load_rejected), 0) FROM process_testing_finishing_data
+            SELECT 'Weight', COALESCE(SUM(weight_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Weight', COALESCE(SUM(weight_rejected), 0) FROM process_testing_finishing_data
+            SELECT 'Paint Identification', COALESCE(SUM(paint_identification_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
             UNION ALL
-            SELECT 'Paint Identification', COALESCE(SUM(paint_identification_rejected), 0) FROM process_testing_finishing_data
-            UNION ALL
-            SELECT 'ERC Coating', COALESCE(SUM(erc_coating_rejected), 0) FROM process_testing_finishing_data
+            SELECT 'ERC Coating', COALESCE(SUM(erc_coating_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
             ORDER BY total DESC
             LIMIT 10
             """, nativeQuery = true)
-    java.util.List<Object[]> getParetoAnalysisRejections();
+    java.util.List<Object[]> getParetoAnalysisRejections(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+
+    @Query(value = """
+    SELECT SUM(total)
+    FROM (
+     SELECT 'Forging Temp' AS param_name, COALESCE(SUM(forging_temp_rejected), 0) AS total FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Forging Stabilisation', COALESCE(SUM(forging_stabilisation_rejection_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Improper Forging', COALESCE(SUM(improper_forging_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Forging Defect', COALESCE(SUM(forging_defect_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Embossing Defect', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_forging_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'MPI', COALESCE(SUM(mpi_rejected), 0) FROM process_mpi_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Length Cut Bar', COALESCE(SUM(length_cut_bar_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Improper Dia', COALESCE(SUM(improper_dia_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Sharp Edges', COALESCE(SUM(sharp_edges_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Cracked Edges', COALESCE(SUM(cracked_edges_rejected), 0) FROM process_shearing_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Parallel Length', COALESCE(SUM(parallel_length_rejected), 0) FROM process_turning_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Full Turning Length', COALESCE(SUM(full_turning_length_rejected), 0) FROM process_turning_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Turning Dia', COALESCE(SUM(turning_dia_rejected), 0) FROM process_turning_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL 
+            SELECT 'Quenching Hardness', COALESCE(SUM(quenching_hardness_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Box Gauge (Quenching)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Flat Bearing Area (Quenching)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Falling Gauge (Quenching)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_quenching_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Tempering Temperature', COALESCE(SUM(tempering_temperature_rejected), 0) FROM process_tempering_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Tempering Duration', COALESCE(SUM(tempering_duration_rejected), 0) FROM process_tempering_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Box Gauge (Final)', COALESCE(SUM(box_gauge_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Flat Bearing Area (Final)', COALESCE(SUM(flat_bearing_area_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Falling Gauge (Final)', COALESCE(SUM(falling_gauge_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Surface Defect', COALESCE(SUM(surface_defect_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Embossing (Final)', COALESCE(SUM(embossing_defect_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Marking', COALESCE(SUM(marking_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Tempering Hardness', COALESCE(SUM(tempering_hardness_rejected), 0) FROM process_final_check_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Toe Load', COALESCE(SUM(toe_load_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Weight', COALESCE(SUM(weight_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'Paint Identification', COALESCE(SUM(paint_identification_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
+            UNION ALL
+            SELECT 'ERC Coating', COALESCE(SUM(erc_coating_rejected), 0) FROM process_testing_finishing_data WHERE created_at BETWEEN :startDate AND :endDate
+           
+    ) x
+    """, nativeQuery = true)
+    Long getTotalDefects(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.temperingAccepted), 0), COALESCE(SUM(p.totalRejected), 0) FROM ProcessLineFinalResult p")
     List<Object[]> sumProcessAcceptedAndRejected();

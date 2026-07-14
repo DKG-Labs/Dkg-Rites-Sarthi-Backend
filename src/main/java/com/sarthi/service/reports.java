@@ -51,12 +51,12 @@ public interface reports {
 
         public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate);
 
-        public List<StageRejectionDto> getManufacturingStepWiseRejection();
+        public List<StageRejectionDto> getManufacturingStepWiseRejection(String startDate, String endDate);
 
         public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway,
                         String startDate, String endDate);
 
-        public List<StageRejectionDto> getParetoAnalysis();
+        public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate);
 
         public InspectionDetailsDto getProcessOverallRejectionAllTime();
 

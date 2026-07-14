@@ -3566,14 +3566,16 @@ public class reportsImpl implements reports {
 
         @Override
 
-        public List<StageRejectionDto> getManufacturingStepWiseRejection() {
+        public List<StageRejectionDto> getManufacturingStepWiseRejection(String startDate, String endDate) {
 
                 List<StageRejectionDto> breakdown = new ArrayList<>();
 
-                LocalDateTime last30Days = LocalDateTime.now().minusDays(30);
-
-                List<Object[]> results = processLineFinalResultRepository.sumStepWiseRejectionLast30Days(last30Days);
-
+              //  LocalDateTime last30Days = LocalDateTime.now().minusDays(30);
+                LocalDateTime fromDate = LocalDate.parse(startDate).atStartOfDay();
+                LocalDateTime toDate = LocalDate.parse(endDate).atTime(23, 59, 59);
+               // List<Object[]> results = processLineFinalResultRepository.sumStepWiseRejectionLast30Days(last30Days);
+                List<Object[]> results =
+                        processLineFinalResultRepository.sumStepWiseRejection(fromDate, toDate);
                 if (results != null && !results.isEmpty()) {
 
                         Object[] row = results.get(0);
@@ -3741,28 +3743,51 @@ public class reportsImpl implements reports {
         private volatile long paretoCacheLastUpdated = 0;
 
         @Override
-        public List<StageRejectionDto> getParetoAnalysis() {
+        public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate) {
                 if (paretoAnalysisCache == null || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
                         synchronized (this) {
                                 if (paretoAnalysisCache == null || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
-                                        List<Object[]> rows = processLineFinalResultRepository.getParetoAnalysisRejections();
+
+
+
+                                        LocalDateTime lStart = LocalDate.parse(startDate).atStartOfDay();
+
+                                        LocalDateTime lEnd = LocalDate.parse(endDate).atTime(23, 59, 59);
+
+                                        List<Object[]> rows =
+                                                processLineFinalResultRepository
+                                                        .getParetoAnalysisRejections(lStart, lEnd);
+
+                                      //  List<Object[]> rows = processLineFinalResultRepository.getParetoAnalysisRejections(startDate,endDate);
                                         List<StageRejectionDto> result = new ArrayList<>();
                                         if (rows != null && !rows.isEmpty()) {
                                                 String[] palette = { "#2563eb", "#f59e0b", "#ef4444", "#10b981", "#8b5cf6",
                                                                 "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#14b8a6" };
-                                                long grandTotal = rows.stream()
-                                                                .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
-                                                                .sum();
+                                               // long grandTotal = rows.stream()
+                                                //                .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
+                                                     //           .sum();
+                                                // Fetch grand total of ALL defects (not just Top 10)
+                                                Long grandTotalObj = processLineFinalResultRepository
+                                                        .getTotalDefects(lStart, lEnd);
+
+                                                long grandTotal = grandTotalObj != null ? grandTotalObj : 0;
                                                 long runningTotal = 0;
                                                 for (int i = 0; i < rows.size(); i++) {
                                                         Object[] row = rows.get(i);
                                                         String name = (String) row[0];
                                                         long count = row[1] != null ? ((Number) row[1]).longValue() : 0;
+
+                                                        double percentage = grandTotal > 0
+                                                                ? (count * 100.0 / grandTotal)
+                                                                : 0;
+
                                                         runningTotal += count;
                                                         double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
                                                         StageRejectionDto dto = new StageRejectionDto(name, (double) count,
                                                                         palette[i % palette.length]);
                                                         dto.setCumulative(Math.round(cumulative * 10.0) / 10.0);
+                                                        dto.setPercentage(
+                                                                Math.round(percentage * 10.0) / 10.0);
                                                         result.add(dto);
                                                 }
                                         }
@@ -3859,7 +3884,7 @@ public class reportsImpl implements reports {
 
                 } else {
 
-                        return getParetoAnalysis();
+                        return getParetoAnalysis(startDate,endDate);
 
                 }
 

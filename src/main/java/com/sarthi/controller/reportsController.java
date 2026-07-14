@@ -287,9 +287,9 @@ public class reportsController {
     }
 
     @GetMapping("/manufacturingStepWiseRejection")
-    public ResponseEntity<Object> getManufacturingStepWiseRejection() {
+    public ResponseEntity<Object> getManufacturingStepWiseRejection(   @RequestParam(required = false) String startDate,    @RequestParam(required = false) String endDate) {
         return new ResponseEntity<Object>(
-                ResponseBuilder.getSuccessResponse(reportService.getManufacturingStepWiseRejection()),
+                ResponseBuilder.getSuccessResponse(reportService.getManufacturingStepWiseRejection(startDate, endDate)),
                 HttpStatus.OK);
     }
 

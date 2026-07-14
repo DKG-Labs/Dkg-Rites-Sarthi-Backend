@@ -13,6 +13,7 @@ public class StageRejectionDto {
     private String color;
     private double cumulative; // used for Pareto chart cumulative % line (0 by default for other usages)
     private Double finalValue;
+    private Double percentage;
 
     // Convenience 3-arg constructor so existing callers are unchanged
     public StageRejectionDto(String name, double value, String color) {
