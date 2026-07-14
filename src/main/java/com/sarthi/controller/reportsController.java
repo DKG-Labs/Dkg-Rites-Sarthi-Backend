@@ -261,20 +261,26 @@ public class reportsController {
     }
 
     @GetMapping("/qualityRejection")
-    public ResponseEntity<Object> getQualityRejection() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getStageWiseRejection()),
+    public ResponseEntity<Object> getQualityRejection(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getStageWiseRejection(startDate, endDate)),
                 HttpStatus.OK);
     }
 
     @GetMapping("/manufacturerRejection")
-    public ResponseEntity<Object> getManufacturerRejection() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getManufacturerRejection()),
+    public ResponseEntity<Object> getManufacturerRejection(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getManufacturerRejection(startDate, endDate)),
                 HttpStatus.OK);
     }
 
     @GetMapping("/processPerformance")
-    public ResponseEntity<Object> getProcessPerformance() {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getProcessPerformance()),
+    public ResponseEntity<Object> getProcessPerformance(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(reportService.getProcessPerformance(startDate, endDate)),
                 HttpStatus.OK);
     }
 

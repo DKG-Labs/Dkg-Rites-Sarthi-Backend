@@ -43,11 +43,11 @@ public interface reports {
         public double getAvgProductionPerDayWithFilters(java.time.LocalDate startDate, java.time.LocalDate endDate,
                         String vendorPlantCode, String zonalRailway);
 
-        public List<StageRejectionDto> getStageWiseRejection();
+        public List<StageRejectionDto> getStageWiseRejection(String startDate, String endDate);
 
-        public List<StageRejectionDto> getManufacturerRejection();
+        public List<StageRejectionDto> getManufacturerRejection(String startDate, String endDate);
 
-        public ProcessPerformanceResponseDto getProcessPerformance();
+        public ProcessPerformanceResponseDto getProcessPerformance(String startDate, String endDate);
 
         public List<StageRejectionDto> getDailyRejectionTrend(String startDate, String endDate);
 
