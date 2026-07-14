@@ -752,6 +752,93 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
+
+
+    @Query(value = """
+SELECT
+    defects.category,
+    defects.defect_reason,
+    COUNT(*) AS defect_count
+FROM (
+
+    /* Demoulding */
+    SELECT
+        CASE
+            WHEN reason_type = 'VISUAL'
+                THEN 'Visual (Demoulding)'
+            ELSE 'Dimension (Demoulding)'
+        END AS category,
+        defect_reason
+    FROM (
+        SELECT
+            pd.id AS batch_id,
+            dds.visual_reason AS defect_reason,
+            'VISUAL' AS reason_type
+        FROM demoulding_defective_sleepers dds
+        INNER JOIN demoulding_inspection di
+            ON di.id = dds.inspection_id
+        INNER JOIN production_declaration pd
+           ON pd.batch_number COLLATE utf8mb4_unicode_ci =
+                          di.batch_no COLLATE utf8mb4_unicode_ci
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+          AND dds.visual_reason IS NOT NULL
+          AND dds.visual_reason <> ''
+
+        UNION ALL
+
+        SELECT
+            pd.id AS batch_id,
+            dds.dim_reason AS defect_reason,
+            'DIMENSION' AS reason_type
+        FROM demoulding_defective_sleepers dds
+        INNER JOIN demoulding_inspection di
+            ON di.id = dds.inspection_id
+        INNER JOIN production_declaration pd
+           ON pd.batch_number COLLATE utf8mb4_unicode_ci =
+                          di.batch_no COLLATE utf8mb4_unicode_ci
+        WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+          AND dds.dim_reason IS NOT NULL
+          AND dds.dim_reason <> ''
+    ) dm
+    INNER JOIN (
+        SELECT batch_id
+        FROM inspection_test_header
+        WHERE module_id IN (1,2,3)
+        GROUP BY batch_id
+        HAVING COUNT(DISTINCT module_id) = 3
+    ) vb
+        ON vb.batch_id = dm.batch_id
+
+    UNION ALL
+
+    /* Final Inspection */
+    SELECT
+        CASE
+            WHEN itr.module_id = 1 THEN 'Final (Visual)'
+            WHEN itr.module_id = 2 THEN 'Final (Critical)'
+            WHEN itr.module_id = 3 THEN 'Final (Non-Critical)'
+        END AS category,
+        itr.rejection_reason AS defect_reason
+    FROM inspection_test_result itr
+    INNER JOIN inspection_test_header ith
+        ON ith.id = itr.test_header_id
+    INNER JOIN production_declaration pd
+        ON pd.id = ith.batch_id
+       
+    WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+      AND itr.module_id IN (1,2,3)
+      AND itr.result = 'REJECTED'
+      AND itr.rejection_reason IS NOT NULL
+      AND itr.rejection_reason <> ''
+
+) defects
+GROUP BY defects.category, defects.defect_reason
+ORDER BY defect_count DESC
+""", nativeQuery = true)
+    List<Object[]> getDefectReasonDistributions(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
     /*
      * @Query(value = """
      * 
