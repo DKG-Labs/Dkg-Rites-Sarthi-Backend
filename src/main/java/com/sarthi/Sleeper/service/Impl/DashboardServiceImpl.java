@@ -902,7 +902,7 @@ public class DashboardServiceImpl implements DashboardService {
             LocalDate toDate) {
 
         List<Object[]> rows =
-                inspectionTestHeaderRepository.getDefectReasonDistribution(
+                inspectionTestHeaderRepository.getDefectReasonDistributions(
                         fromDate,
                         toDate
                 );

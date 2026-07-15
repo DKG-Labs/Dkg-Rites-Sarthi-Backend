@@ -128,6 +128,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
     @Autowired
     private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
+
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
 
@@ -4550,5 +4551,161 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             return name;
         }
         return String.valueOf(userId);
+    }
+
+    @Override
+    public com.sarthi.dto.RemapDetailsDto getRemapDetails(String callNo, String stage) {
+        com.sarthi.dto.RemapDetailsDto dto = new com.sarthi.dto.RemapDetailsDto();
+
+        String poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+        if (poiCode == null) throw new RuntimeException("POI not found for Call No: " + callNo);
+        dto.setPoiCode(poiCode);
+
+        // Fetch POI details
+        java.util.Optional<com.sarthi.entity.PincodePoIMapping> optMapping = pincodePoIMappingRepository.findByPoiCode(poiCode);
+        if (optMapping.isPresent()) {
+            dto.setCompanyName(optMapping.get().getCompanyName());
+            dto.setUnitName(optMapping.get().getUnitName());
+            dto.setUnitAddress(optMapping.get().getAddress());
+        }
+
+        // Fetch currently mapped user
+        Integer currentUserId = null;
+        if (stage.equals("EP")) {
+            // from poi_process_ie_mapping via repository
+            java.util.List<Long> userIds = poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
+            if (!userIds.isEmpty()) {
+                currentUserId = userIds.get(0).intValue();
+            }
+        } else {
+            // from workflow_transaction
+            WorkflowTransition latest = workflowTransitionRepository.findTopByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+            if (latest != null) {
+                currentUserId = latest.getAssignedToUser();
+            }
+        }
+
+        if (currentUserId != null) {
+            java.util.Optional<UserMaster> optUser = userMasterRepository.findById(currentUserId);
+            if (optUser.isPresent()) {
+                dto.setCurrentMappedUserId(currentUserId);
+                dto.setCurrentMappedEmployeeCode(optUser.get().getEmployeeCode());
+                dto.setCurrentMappedEmployeeName(optUser.get().getFullName());
+                dto.setCurrentMappedEmployeeRole(stage.equals("EP") ? "Process IE" : "IE");
+            }
+        }
+
+        String targetRole = stage.equals("EP") ? "Process IE" : "IE";
+        java.util.List<com.sarthi.dto.RemapDetailsDto.AvailableEmployee> available = new java.util.ArrayList<>();
+        
+        java.util.Optional<com.sarthi.entity.RoleMaster> optRole = roleMasterRepository.findByRoleName(targetRole);
+        if (optRole.isPresent()) {
+            java.util.List<Object[]> roleUsers = userMasterRepository.findUserDetailsByRoleId(optRole.get().getRoleId());
+            for (Object[] row : roleUsers) {
+                available.add(new com.sarthi.dto.RemapDetailsDto.AvailableEmployee(
+                    (Integer) row[0],
+                    (String) row[1],
+                    (String) row[2],
+                    targetRole
+                ));
+            }
+        }
+
+        dto.setAvailableEmployees(available);
+        return dto;
+    }
+
+    @Override
+    public Map<String, Object> getRemapPoiDetails(String callNo) {
+        Map<String, Object> result = new java.util.HashMap<>();
+        String poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+        if (poiCode == null) throw new RuntimeException("POI not found for Call No: " + callNo);
+        result.put("poiCode", poiCode);
+        
+        java.util.Optional<com.sarthi.entity.PincodePoIMapping> optMapping = pincodePoIMappingRepository.findByPoiCode(poiCode);
+        if (optMapping.isPresent()) {
+            result.put("companyName", optMapping.get().getCompanyName());
+            result.put("unitName", optMapping.get().getUnitName());
+            result.put("unitAddress", optMapping.get().getAddress());
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> getRemapAssignedUser(String callNo, String stage, String poiCode) {
+        Map<String, Object> result = new java.util.HashMap<>();
+        Integer currentUserId = null;
+        if (stage.equals("EP")) {
+            java.util.List<Long> userIds = poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
+            if (!userIds.isEmpty()) {
+                currentUserId = userIds.get(0).intValue();
+            }
+        } else {
+            WorkflowTransition latest = workflowTransitionRepository.findTopByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+            if (latest != null) {
+                currentUserId = latest.getAssignedToUser();
+            }
+        }
+
+        if (currentUserId != null) {
+            java.util.Optional<UserMaster> optUser = userMasterRepository.findById(currentUserId);
+            if (optUser.isPresent()) {
+                result.put("currentMappedUserId", currentUserId);
+                result.put("currentMappedEmployeeCode", optUser.get().getEmployeeCode());
+                result.put("currentMappedEmployeeName", optUser.get().getFullName());
+                result.put("currentMappedEmployeeRole", stage.equals("EP") ? "Process IE" : "IE");
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> getRemapAvailableEmployees(String stage) {
+        List<Map<String, Object>> available = new java.util.ArrayList<>();
+        String targetRole = stage.equals("EP") ? "Process IE" : "IE";
+        
+        java.util.Optional<com.sarthi.entity.RoleMaster> optRole = roleMasterRepository.findByRoleName(targetRole);
+        if (optRole.isPresent()) {
+            java.util.List<Object[]> roleUsers = userMasterRepository.findUserDetailsByRoleId(optRole.get().getRoleId());
+            for (Object[] row : roleUsers) {
+                Map<String, Object> emp = new java.util.HashMap<>();
+                emp.put("userId", row[0]);
+                emp.put("employeeCode", row[1]);
+                emp.put("employeeName", row[2]);
+                emp.put("role", targetRole);
+                available.add(emp);
+            }
+        }
+        return available;
+    }
+
+    @Override
+    @Transactional
+    public void submitRemap(com.sarthi.dto.RemapSubmitDto dto) {
+        String poiCode = dto.getPoiCode();
+        String oldEmpCode = dto.getPreviousEmpCode();
+        String newEmpCode = dto.getNewEmpCode();
+        String callNo = dto.getCallNo();
+        String stage = dto.getStage();
+
+        if (stage.equals("EP")) {
+            // Check if the new employee is already mapped to this POI
+            if (poiProcessIeMappingRepository.existsByPoiCodeAndEmployeeCode(poiCode, newEmpCode)) {
+                throw new RuntimeException("Employee is already mapped with this Place of Inspection");
+            }
+            poiProcessIeMappingRepository.updateEmployeeCodeByPoiCode(poiCode, oldEmpCode, newEmpCode);
+        } else {
+            // Check if the new employee is already mapped to this POI
+            if (iePincodePoiMappingRepository.existsByPoiCodeAndEmployeeCode(poiCode, newEmpCode)) {
+                throw new RuntimeException("Employee is already mapped with this Place of Inspection");
+            }
+            iePincodePoiMappingRepository.updateEmployeeCodeByPoiCode(poiCode, oldEmpCode, newEmpCode);
+
+            // Also update WorkflowTransaction
+            UserMaster newUser = userMasterRepository.findFirstByEmployeeCode(newEmpCode).orElse(null);
+            if (newUser != null) {
+                workflowTransitionRepository.updateAssignedToUserForLatestTransaction(callNo, newUser.getUserId());
+            }
+        }
     }
 }

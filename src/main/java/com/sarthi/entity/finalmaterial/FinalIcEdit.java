@@ -58,6 +58,12 @@ public class FinalIcEdit {
     @Column(name = "TR_REC_DATE")
     private String trRecDate;
 
+    @Column(name = "NO_OF_VISITS")
+    private String noOfVisits;
+
+    @Column(name = "DATES_OF_INSPECTION", columnDefinition = "TEXT")
+    private String datesOfInspection;
+
     @Column(name = "CREATED_BY")
     private String createdBy;
 

@@ -18,4 +18,10 @@ public interface PoiProcessIeMappingRepository extends JpaRepository<PoiProcessI
     WHERE p.poiCode = :poiCode
 """)
     List<Long> findUserIdsByPoiCode(@Param("poiCode") String poiCode);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE PoiProcessIeMapping p SET p.employeeCode = :newEmpCode WHERE p.poiCode = :poiCode AND p.employeeCode = :oldEmpCode")
+    int updateEmployeeCodeByPoiCode(String poiCode, String oldEmpCode, String newEmpCode);
+
+    boolean existsByPoiCodeAndEmployeeCode(String poiCode, String employeeCode);
 }

@@ -51,4 +51,10 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
             "JOIN user_master um ON um.employee_code = ipm.employee_code " +
             "WHERE ipm.poi_code = :poiCode", nativeQuery = true)
     List<String> findIeEmpCodeWithName(String poiCode);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE IePincodePoiMapping m SET m.employeeCode = :newEmpCode WHERE m.poiCode = :poiCode AND m.employeeCode = :oldEmpCode")
+    int updateEmployeeCodeByPoiCode(String poiCode, String oldEmpCode, String newEmpCode);
+
+    boolean existsByPoiCodeAndEmployeeCode(String poiCode, String employeeCode);
 }

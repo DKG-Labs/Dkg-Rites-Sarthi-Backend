@@ -14,6 +14,10 @@ import java.util.Map;
 public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTransition, Integer> {
   WorkflowTransition findByWorkflowIdAndRequestId(Integer workflowId, String requestId);
 
+  @org.springframework.data.jpa.repository.Modifying
+  @Query("UPDATE WorkflowTransition wt SET wt.assignedToUser = :newUser WHERE wt.workflowTransitionId = (SELECT w2.workflowTransitionId FROM (SELECT MAX(workflowTransitionId) AS workflowTransitionId FROM WorkflowTransition WHERE requestId = :callNo) w2)")
+  int updateAssignedToUserForLatestTransaction(@Param("callNo") String callNo, @Param("newUser") Integer newUser);
+
   @Query(value = """
           SELECT 
               SUM(CASE WHEN wt.REQUESTID LIKE 'ER-%' THEN 1 ELSE 0 END) AS rmCount,
