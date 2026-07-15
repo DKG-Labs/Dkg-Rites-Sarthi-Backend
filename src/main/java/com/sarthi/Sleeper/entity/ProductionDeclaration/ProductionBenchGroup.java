@@ -34,6 +34,7 @@ public class ProductionBenchGroup {
   //  @OneToMany(mappedBy="benchGroup", cascade = CascadeType.ALL)
    // private List<ProductionSleeper> sleepers;
 
+    @org.hibernate.annotations.BatchSize(size = 100)
     @OneToMany(mappedBy="benchGroup", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionSleeper> sleepers = new ArrayList<>();
 }

@@ -63,9 +63,11 @@ public class ProductionDeclaration {
       //  @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)
       //  private List<ProductionLongLineGang> gangs;
 
+        @org.hibernate.annotations.BatchSize(size = 100)
         @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL, orphanRemoval = true)
         private List<ProductionStressChamber> chambers = new ArrayList<>();
 
+        @org.hibernate.annotations.BatchSize(size = 100)
         @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL, orphanRemoval = true)
         private List<ProductionLongLineGang> gangs = new ArrayList<>();
 
