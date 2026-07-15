@@ -55,6 +55,12 @@ public class ProcessIcEdit {
     @Column(name = "QAP_NO", columnDefinition = "TEXT")
     private String qapNo;
 
+    @Column(name = "INSPECTION_DATE")
+    private String inspectionDate;
+
+    @Column(name = "MAN_DAYS")
+    private String manDays;
+
     @Column(name = "CREATED_BY")
     private String createdBy;
 
