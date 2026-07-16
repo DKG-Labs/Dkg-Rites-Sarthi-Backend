@@ -532,6 +532,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             case "RESCHEDULE_CALL":
                 return "RESCHEDULE";
 
+            case "REJECT":
+                return "REJECTED";
+
             case "INITIATE_CALL":
                 return "INITIATED";
 
