@@ -20,4 +20,5 @@ public interface UserRoleMasterRepository extends JpaRepository<UserRoleMaster, 
     void deleteByUserId(Integer userId);
 
 
+    List<Long> findRoleIdsByUserId(Long userId);
 }
