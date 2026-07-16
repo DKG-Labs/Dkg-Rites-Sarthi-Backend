@@ -67,6 +67,12 @@ public class RmIcSaveChanges {
     @Column(name = "chp_clause", columnDefinition = "TEXT")
     private String chpClause;
 
+    @Column(name = "visits_no")
+    private String visitsNo;
+
+    @Column(name = "inspection_date")
+    private String inspectionDate;
+
     // Audit Fields
     @Column(name = "created_by", length = 50)
     private String createdBy;

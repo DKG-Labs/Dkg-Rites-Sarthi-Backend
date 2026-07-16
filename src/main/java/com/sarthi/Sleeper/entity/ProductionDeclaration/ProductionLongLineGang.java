@@ -39,6 +39,7 @@ public class ProductionLongLineGang {
 
    // @OneToMany(mappedBy = "gang", cascade = CascadeType.ALL)
     //private List<ProductionSleeper> sleepers;
+   @org.hibernate.annotations.BatchSize(size = 100)
    @OneToMany(mappedBy = "gang", cascade = CascadeType.ALL, orphanRemoval = true)
    private List<ProductionSleeper> sleepers = new ArrayList<>();
 }

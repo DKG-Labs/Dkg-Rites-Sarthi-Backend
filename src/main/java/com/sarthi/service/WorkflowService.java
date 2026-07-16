@@ -10,7 +10,7 @@ import com.sarthi.entity.WorkflowTransition;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-
+import java.util.Map;
 
 public interface WorkflowService {
 
@@ -25,6 +25,13 @@ public interface WorkflowService {
     public List<WorkflowTransitionDto> allPendingQtyEditTransitions(String roleName);
 
     public List<WorkflowTransitionDto> allBlockedWorkflowTransitions();
+
+    com.sarthi.dto.RemapDetailsDto getRemapDetails(String callNo, String stage);
+    void submitRemap(com.sarthi.dto.RemapSubmitDto dto);
+
+    Map<String, Object> getRemapPoiDetails(String callNo);
+    Map<String, Object> getRemapAssignedUser(String callNo, String stage, String poiCode);
+    List<Map<String, Object>> getRemapAvailableEmployees(String stage);
 
     public DashboardKPIsDto getDashboardKPIs(String rio);
     

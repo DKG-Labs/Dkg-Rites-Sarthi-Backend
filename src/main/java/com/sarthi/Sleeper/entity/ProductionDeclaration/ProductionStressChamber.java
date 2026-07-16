@@ -24,6 +24,7 @@ public class ProductionStressChamber {
   //  @OneToMany(mappedBy="chamber", cascade = CascadeType.ALL)
   //  private List<ProductionBenchGroup> benchGroups;
 
+    @org.hibernate.annotations.BatchSize(size = 100)
     @OneToMany(mappedBy="chamber", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionBenchGroup> benchGroups = new ArrayList<>();
 }

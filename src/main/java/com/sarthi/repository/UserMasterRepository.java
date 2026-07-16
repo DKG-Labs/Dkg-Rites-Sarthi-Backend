@@ -70,6 +70,15 @@ ORDER BY u.employeeCode
 """)
     List<UserMaster> findUsersByRoleId(Integer roleId);
 
+    @Query("""
+SELECT u.userId, u.employeeCode, u.fullName
+FROM UserMaster u
+JOIN UserRoleMaster ur
+ON u.userId = ur.userId
+WHERE ur.roleId = :roleId
+ORDER BY u.employeeCode
+""")
+    List<Object[]> findUserDetailsByRoleId(@org.springframework.data.repository.query.Param("roleId") Integer roleId);
 
     Optional<UserMaster> findByUserName(String vendorCode);
 }

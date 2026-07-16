@@ -634,6 +634,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         return getById(entity.getId());
     }
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ProductionDeclarationResponseDto getById(Long id) {
 
         ProductionDeclaration entity = repository.findById(id)
