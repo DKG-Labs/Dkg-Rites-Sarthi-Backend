@@ -2125,84 +2125,84 @@ SELECT
 
     /* Offered For Final Inspection */
     COALESCE((
-        SELECT SUM(f.qty_now_offered)
-        FROM final_cumulative_results f
-        WHERE f.inspection_call_no IN
-        (
-            SELECT ic2.ic_number
-            FROM inspection_calls ic2
-            JOIN final_ic_edit fie
-              ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
-                 ic2.ic_number COLLATE utf8mb4_unicode_ci
-            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
-                  ph.po_no COLLATE utf8mb4_unicode_ci
-        )
-    ),0) AS offeredForFinalInspectionQty,
+                    SELECT SUM(f.qty_now_offered)
+                    FROM final_cumulative_results f
+                    WHERE f.inspection_call_no IN
+                    (
+                        SELECT ic2.ic_number
+                        FROM inspection_calls ic2
+                        JOIN final_ic_edit fie
+                          ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci
+                             LIKE CONCAT('%', ic2.ic_number COLLATE utf8mb4_unicode_ci, '%')
+                        WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                              ph.po_no COLLATE utf8mb4_unicode_ci
+                    )
+                ),0) AS offeredForFinalInspectionQty,
 
     /* Final Accepted Qty */
     COALESCE((
-        SELECT SUM(f.qty_now_passed)
-        FROM final_cumulative_results f
-        WHERE f.inspection_call_no IN
-        (
-            SELECT ic2.ic_number
-            FROM inspection_calls ic2
-            JOIN final_ic_edit fie
-              ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
-                 ic2.ic_number COLLATE utf8mb4_unicode_ci
-            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
-                  ph.po_no COLLATE utf8mb4_unicode_ci
-        )
-    ),0) AS finalAcceptedQty,
+                    SELECT SUM(f.qty_now_passed)
+                    FROM final_cumulative_results f
+                    WHERE f.inspection_call_no IN
+                    (
+                        SELECT ic2.ic_number
+                        FROM inspection_calls ic2
+                        JOIN final_ic_edit fie
+                          ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci
+                             LIKE CONCAT('%', ic2.ic_number COLLATE utf8mb4_unicode_ci, '%')
+                        WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                              ph.po_no COLLATE utf8mb4_unicode_ci
+                    )
+                ),0) AS finalAcceptedQty,
 
     /* Total IC Issued */
-    (
-        COALESCE((
-            SELECT COUNT(DISTINCT rie.ic_number)
-            FROM inspection_calls ic2
-            JOIN rm_ic_edit rie
-              ON rie.ic_number COLLATE utf8mb4_unicode_ci =
-                 ic2.ic_number COLLATE utf8mb4_unicode_ci
-            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
-                  ph.po_no COLLATE utf8mb4_unicode_ci
-        ),0)
-
-        +
-
-        COALESCE((
-            SELECT COUNT(DISTINCT pie.ic_number)
-            FROM inspection_calls ic2
-            JOIN process_ic_edit pie
-              ON pie.ic_number COLLATE utf8mb4_unicode_ci =
-                 ic2.ic_number COLLATE utf8mb4_unicode_ci
-            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
-                  ph.po_no COLLATE utf8mb4_unicode_ci
-        ),0)
-
-        +
-
-        COALESCE((
-            SELECT COUNT(DISTINCT fie.IC_NUMBER)
-            FROM inspection_calls ic2
-            JOIN final_ic_edit fie
-              ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
-                 ic2.ic_number COLLATE utf8mb4_unicode_ci
-            WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
-                  ph.po_no COLLATE utf8mb4_unicode_ci
-        ),0)
-
-    ) AS noOfIcIssued,
+   (
+                                     COALESCE((
+                                         SELECT COUNT(DISTINCT rie.ic_number)
+                                         FROM inspection_calls ic2
+                                         JOIN rm_ic_edit rie
+                                           ON rie.ic_number COLLATE utf8mb4_unicode_ci
+                                              LIKE CONCAT('%', ic2.ic_number COLLATE utf8mb4_unicode_ci, '%')
+                                         WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                                               ph.po_no COLLATE utf8mb4_unicode_ci
+                                     ),0)
+                                 
+                                     +
+                                 
+                                     COALESCE((
+                                         SELECT COUNT(DISTINCT pie.ic_number)
+                                         FROM inspection_calls ic2
+                                         JOIN process_ic_edit pie
+                                           ON pie.ic_number COLLATE utf8mb4_unicode_ci
+                                              LIKE CONCAT('%', ic2.ic_number COLLATE utf8mb4_unicode_ci, '%')
+                                         WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                                               ph.po_no COLLATE utf8mb4_unicode_ci
+                                     ),0)
+                                 
+                                     +
+                                 
+                                     COALESCE((
+                                         SELECT COUNT(DISTINCT fie.IC_NUMBER)
+                                         FROM inspection_calls ic2
+                                         JOIN final_ic_edit fie
+                                           ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci
+                                              LIKE CONCAT('%', ic2.ic_number COLLATE utf8mb4_unicode_ci, '%')
+                                         WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                                               ph.po_no COLLATE utf8mb4_unicode_ci
+                                     ),0)
+                                 
+                                 ) AS noOfIcIssued,
 
     /* Last Final IC Issued Date */
-    (
-        SELECT DATE(MAX(fie.CREATED_AT))
-        FROM inspection_calls ic2
-        JOIN final_ic_edit fie
-          ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci =
-             ic2.ic_number COLLATE utf8mb4_unicode_ci
-        WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
-              ph.po_no COLLATE utf8mb4_unicode_ci
-    ) AS lastIcIssuedDate,
+   (
+                                         SELECT DATE(MAX(fie.CREATED_AT))
+                                         FROM inspection_calls ic2
+                                         JOIN final_ic_edit fie
+                                           ON fie.IC_NUMBER COLLATE utf8mb4_unicode_ci
+                                              LIKE CONCAT('%', ic2.ic_number COLLATE utf8mb4_unicode_ci, '%')
+                                         WHERE ic2.po_no COLLATE utf8mb4_unicode_ci =
+                                               ph.po_no COLLATE utf8mb4_unicode_ci
+                                     ) AS lastIcIssuedDate,
 
     /* ========================= */
     /* RAW MATERIAL DEFECTS      */
