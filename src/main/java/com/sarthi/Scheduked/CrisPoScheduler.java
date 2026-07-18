@@ -17,7 +17,7 @@ public class CrisPoScheduler {
 
 
 
-    @Scheduled(cron = "0 0 15 * * ?")
+  //  @Scheduled(cron = "0 0 15 * * ?")
     public void runDailyPoSync() {
         System.out.println("Scheduler triggered");
 

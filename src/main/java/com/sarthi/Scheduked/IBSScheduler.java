@@ -46,4 +46,10 @@ public class IBSScheduler {
         }
     }
 
+    @Scheduled(cron = "0 04 12 * * ?")
+    public void fetchBillingData() {
+
+       ibsService.processBilling();
+    }
+
 }

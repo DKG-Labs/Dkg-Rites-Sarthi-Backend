@@ -14,9 +14,15 @@ public class MaPoDataDTO {
     @JsonProperty("MMP_POMA_DTL")
     private List<MaPoItemDTO> mmpPomaDtl;
 
-    @JsonProperty("mmpPoHdr")
-    private AmendedPoHeaderDTO mmpPoHdr;
+//    @JsonProperty("mmpPoHdr")
+//    private AmendedPoHeaderDTO mmpPoHdr;
+//
+//    @JsonProperty("mmpPoItem")
+//    private List<AmendedPoItemDTO> mmpPoItem;
 
-    @JsonProperty("mmpPoItem")
-    private List<AmendedPoItemDTO> mmpPoItem;
+    @JsonProperty("PoHdr")
+    private AmendedPoHeaderDTO poHdr;
+
+    @JsonProperty("PoDtl")
+    private List<AmendedPoItemDTO> poDtl;
 }

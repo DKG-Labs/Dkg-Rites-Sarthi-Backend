@@ -6,60 +6,109 @@ import lombok.Data;
 @Data
 public class AmendedPoItemDTO {
 
-    @JsonProperty("RLY")
-    private String rly;
+        @JsonProperty("RLY")
+        private String rly;
 
-    @JsonProperty("POKEY")
-    private String poKey;
+        @JsonProperty("POKEY")
+        private String poKey;
 
-    @JsonProperty("PO_SR")
-    private String poSr;
+        @JsonProperty("PL_NO")
+        private String plNo;
 
-    @JsonProperty("PL_NO")
-    private String plNo;
+        @JsonProperty("ITEM_SRNO")
+        private String itemSrNo;
 
-    @JsonProperty("PO_QTY")
-    private String poQty;
+        @JsonProperty("ITEM_DESC")
+        private String itemDesc;
 
-    @JsonProperty("UNIT")
-    private String unit;
+        @JsonProperty("CONSIGNEE_CD")
+        private String consigneeCd;
 
-    @JsonProperty("CONSIGNEE")
-    private String consigneeCd;
+        @JsonProperty("IMMS_CONSIGNEE_CD")
+        private String immsConsigneeCd;
 
-    @JsonProperty("RATE")
-    private String rate;
+        @JsonProperty("IMMS_CONSIGNEE_NAME")
+        private String immsConsigneeName;
 
-    @JsonProperty("ITEM_VALUE")
-    private String itemValue;
+        @JsonProperty("CONSIGNEE_DETAIL")
+        private String consigneeDetail;
 
-    @JsonProperty("QTY_CANCELLED")
-    private String qtyCancelled;
+        @JsonProperty("QTY")
+        private String qty;
 
-    @JsonProperty("ALLOCATION")
-    private String allocation;
+        @JsonProperty("QTY_CANCELLED")
+        private String qtyCancelled;
 
-    @JsonProperty("ORIG_DP")
-    private String origDp;
+        @JsonProperty("RATE")
+        private String rate;
 
-    @JsonProperty("EXT_DP")
-    private String extDp;
+        @JsonProperty("UOM_CD")
+        private String uomCd;
 
-    @JsonProperty("BILL_PASS_OFF")
-    private String billPassOff;
+        @JsonProperty("UOM")
+        private String uom;
 
-    @JsonProperty("BILL_PAY_OFF")
-    private String billPayOff;
+        @JsonProperty("BASIC_VALUE")
+        private String basicValue;
 
-    @JsonProperty("CONSIGNEE_RLY")
-    private String consigneeRly;
+        @JsonProperty("SALES_TAX_PER")
+        private String salesTaxPercent;
 
-    @JsonProperty("P_RLY")
-    private String pRly;
+        @JsonProperty("SALES_TAX")
+        private String salesTax;
 
-    @JsonProperty("INSP_AGENCY")
-    private String inspAgency;
+        @JsonProperty("DISCOUNT_TYPE")
+        private String discountType;
 
-    @JsonProperty("DATE_OF_TRN")
-    private String crisTimestamp;
+        @JsonProperty("DISCOUNT_PER")
+        private String discountPercent;
+
+        @JsonProperty("DISCOUNT")
+        private String discount;
+
+        @JsonProperty("VALUE")
+        private String value;
+
+        @JsonProperty("OT_CHARGE_TYPE")
+        private String otChargeType;
+
+        @JsonProperty("OT_CHARGE_PER")
+        private String otChargePercent;
+
+        @JsonProperty("OTHER_CHARGES")
+        private String otherCharges;
+
+        @JsonProperty("DELV_DT")
+        private String deliveryDate;
+
+        @JsonProperty("EXT_DELV_DT")
+        private String extendedDeliveryDate;
+
+        @JsonProperty("USER_ID")
+        private String userId;
+
+        @JsonProperty("DATETIME")
+        private String crisTimestamp;
+
+        @JsonProperty("ALLOCATION")
+        private String allocation;
+
+        @JsonProperty("CONSIGNEE_RLY")
+        private String consigneeRly;
+
+        @JsonProperty("CONSIGNEE_RLY_SHORTNAME")
+        private String consigneeRlyShortName;
+
+        @JsonProperty("P_RLY")
+        private String pRly;
+
+        @JsonProperty("BILL_PAY_OFF")
+        private String billPayOff;
+
+        @JsonProperty("BILL_PAY_OFF_DESC")
+        private String billPayOffDesc;
+
+        @JsonProperty("BILL_PASS_OFF")
+        private String billPassOff;
+
 }

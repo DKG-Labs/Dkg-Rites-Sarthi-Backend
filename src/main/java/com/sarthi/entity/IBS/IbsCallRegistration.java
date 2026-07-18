@@ -21,5 +21,8 @@ public class IbsCallRegistration {
     private Integer version;
     private String srNo;
 
+    @Column(name = "billing_status")
+    private String billingStatus;
+
     private LocalDateTime acknowledgedAt;
 }

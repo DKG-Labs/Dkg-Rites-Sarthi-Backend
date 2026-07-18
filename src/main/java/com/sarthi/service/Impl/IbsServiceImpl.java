@@ -5,8 +5,7 @@ import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.IBS.*;
 import com.sarthi.dto.ibsDtos.AuthRequestDto;
 import com.sarthi.dto.ibsDtos.AuthResponseDto;
-import com.sarthi.entity.IBS.IbsCallRegistration;
-import com.sarthi.entity.IBS.IbsCaseIntegration;
+import com.sarthi.entity.IBS.*;
 import com.sarthi.entity.PoHeader;
 import com.sarthi.entity.RmHeatFinalResult;
 import com.sarthi.entity.UserMaster;
@@ -71,7 +70,10 @@ public class IbsServiceImpl implements IbsService {
 
     private final IbsCallRegistrationRepository ibsCallRegistrationRepository;
 
+    private final IbsBillDetailsRepository ibsBillDetailsRepository;
+    private final IbsPaymentDetailsRepository ibsPaymentDetailsRepository;
 
+    private final IbsBillingClient  billingClient;
     @Override
     public AuthResponseDto integrationLogin(
             AuthRequestDto request) {
@@ -848,6 +850,215 @@ public class IbsServiceImpl implements IbsService {
       );
   }
 
+
+    @Transactional
+    public void processBilling() {
+
+        List<IbsCallRegistration> calls =
+                ibsCallRegistrationRepository.findPendingBillingCalls();
+
+        for (IbsCallRegistration registration : calls) {
+
+            try {
+               InspectionCall ic = null;
+                Optional<InspectionCall> inspectionCall =
+
+                               inspectionCallsRepository.findByIcNumber(
+                                        registration.getCallNumber()
+                                );
+
+                if (inspectionCall.isPresent()) {
+                    ic = inspectionCall.get();
+                }
+                PoHeader poHeader = null;
+              Optional<PoHeader> po=  poHeaderRepository.findByPoNo(ic.getPoNo());
+if(po.isPresent()){
+    poHeader= po.get();
+}
+                IbsBillingRequest request =
+                        new IbsBillingRequest();
+
+                request.setCaseNo(
+                        poHeader.getCaseNo()
+                );
+
+                request.setCallRecvDt(
+                        ic.getCreatedAt()
+                                .format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                );
+
+                request.setCallSno(
+                        Integer.valueOf(registration.getSrNo())
+                );
+
+                IbsBillingResponse response =
+                        billingClient.fetchBilling(
+                                request
+                              //  getToken()
+                        );
+
+                processResponse(
+                        registration,
+                        response
+                );
+
+            } catch (Exception ex) {
+
+                registration.setBillingStatus(
+                        BillingStatus.FAILED.name()
+                );
+
+                ibsCallRegistrationRepository.save(
+                        registration
+                );
+            }
+        }
+    }
+
+    private void processResponse(
+            IbsCallRegistration registration,
+            IbsBillingResponse response) {
+
+        boolean billSaved = false;
+
+        boolean paymentSaved = false;
+
+        if(response.getBillDetails()!=null &&
+                !response.getBillDetails().isEmpty()) {
+
+            saveBillDetails(
+                    registration,
+                    response.getBillDetails()
+            );
+
+            billSaved = true;
+        }
+
+        if(response.getPaymentDetails()!=null &&
+                !response.getPaymentDetails().isEmpty()) {
+
+            savePaymentDetails(
+                    registration,
+                    response.getPaymentDetails()
+            );
+
+            paymentSaved = true;
+        }
+
+        if(billSaved && paymentSaved) {
+
+            registration.setBillingStatus("COMPLETED");
+        }
+        else if(billSaved) {
+
+            registration.setBillingStatus("BILL_FETCHED");
+        }
+        else if(paymentSaved) {
+
+            registration.setBillingStatus("PAYMENT_FETCHED");
+        }
+        else {
+
+            registration.setBillingStatus("FAILED");
+        }
+
+        ibsCallRegistrationRepository.save(registration);
+    }
+
+    private void saveBillDetails(
+            IbsCallRegistration registration,
+            List<BillDetailDto> bills) {
+
+        for(BillDetailDto dto : bills) {
+
+            boolean exists =
+                    ibsBillDetailsRepository.existsByBillNoAndCallSno(
+                            dto.getBillNo(),
+                            dto.getCallSno()
+                    );
+
+            if(exists) {
+                continue;
+            }
+
+            IbsBillDetails bill =
+                    new IbsBillDetails();
+
+            bill.setIbsCallRegistrationId(
+                    registration.getId()
+            );
+
+            bill.setBillNo(dto.getBillNo());
+
+            bill.setInvoiceNo(dto.getInvoiceNo());
+
+            bill.setCaseNo(dto.getCaseNo());
+
+            bill.setCallSno(dto.getCallSno());
+
+            bill.setBkNo(dto.getBkNo());
+
+            bill.setSetNo(dto.getSetNo());
+
+            bill.setInvoicePdf(dto.getInvoicePdf());
+
+            bill.setInvoiceSuppDocs(
+                    dto.getInvoiceSuppDocs()
+            );
+
+            ibsBillDetailsRepository.save(bill);
+        }
+    }
+
+    private void savePaymentDetails(
+            IbsCallRegistration registration,
+            List<PaymentDetailDto> payments) {
+
+        for(PaymentDetailDto dto : payments) {
+
+            boolean exists =
+                    ibsPaymentDetailsRepository.existsByMerTxnId(
+                            dto.getMerTxnId()
+                    );
+
+            if(exists) {
+                continue;
+            }
+
+            IbsPaymentDetails payment =
+                    new IbsPaymentDetails();
+
+            payment.setIbsCallRegistrationId(
+                    registration.getId()
+            );
+
+            payment.setCaseNo(dto.getCaseNo());
+
+            payment.setCallSno(dto.getCallSno());
+
+            payment.setDescription(
+                    dto.getDescription()
+            );
+
+            payment.setMerTxnId(
+                    dto.getMerTxnId()
+            );
+
+            payment.setAmount(
+                    dto.getAmount()
+            );
+
+            payment.setCustEmail(
+                    dto.getCustEmail()
+            );
+
+            payment.setCustMobile(
+                    dto.getCustMobile()
+            );
+
+         ibsPaymentDetailsRepository.save(payment);
+        }
+    }
 
 
 

@@ -2473,6 +2473,7 @@ WHERE ic.created_at BETWEEN :startDate AND :endDate
             @Param("endDate") LocalDate endDate,
             Pageable pageable);
 
+
 }
 
 

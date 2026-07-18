@@ -620,19 +620,26 @@ public void saveMaPo(MaPoRequestDTO request) {
         // SAVE AMENDED HEADER
         // ======================================
 
+//        AmendedPoHeader amendedHeader =
+//                saveAmendedPoHeader(
+//                        request.getData()
+//                                .getMmpPoHdr());
         AmendedPoHeader amendedHeader =
                 saveAmendedPoHeader(
-                        request.getData()
-                                .getMmpPoHdr());
+                        request.getData().getPoDtl());
 
         // ======================================
         // SAVE AMENDED ITEMS
         // ======================================
 
+//        saveAmendedPoItems(
+//                amendedHeader,
+//                request.getData()
+//                        .getMmpPoItem());
+
         saveAmendedPoItems(
                 amendedHeader,
-                request.getData()
-                        .getMmpPoItem());
+                request.getData().getPoDtl());
 
         // ======================================
         // UPDATE LIVE PO HEADER
@@ -646,6 +653,16 @@ public void saveMaPo(MaPoRequestDTO request) {
 
         syncPoItems(
                 amendedHeader);
+        PoHeader poHeader =
+                headerRepo.findByPoKey(
+                                savedMaHeader.getPoKey())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "PO not found"));
+
+        updateAmendmentStatus(
+                poHeader,
+                savedMaHeader);
 
     } catch (Exception e) {
 
@@ -654,6 +671,35 @@ public void saveMaPo(MaPoRequestDTO request) {
                 e);
     }
 }
+
+
+    private void updateAmendmentStatus(
+            PoHeader poHeader,
+            PoMaHeader maHeader) {
+
+        poHeader.setIsAmended(true);
+
+        Integer count =
+                poHeader.getAmendmentCount() == null
+                        ? 0
+                        : poHeader.getAmendmentCount();
+
+        poHeader.setAmendmentCount(
+                count + 1);
+
+        poHeader.setLastAmendmentNo(
+                maHeader.getMaNo());
+
+        if (maHeader.getMaDate() != null) {
+
+            poHeader.setLastAmendmentDate(
+                    maHeader.getMaDate()
+                            .atStartOfDay());
+        }
+
+        headerRepo.save(poHeader);
+    }
+
 
     private PoMaHeader saveMaHeader(
             MaPoHeaderDTO hdr) {
@@ -720,7 +766,7 @@ public void saveMaPo(MaPoRequestDTO request) {
     }
 
 
-    private AmendedPoHeader saveAmendedPoHeader(
+   /* private AmendedPoHeader saveAmendedPoHeader(
             AmendedPoHeaderDTO dto) {
 
         AmendedPoHeader entity =
@@ -755,9 +801,68 @@ public void saveMaPo(MaPoRequestDTO request) {
 
         return amendmentPoHeaderRepository.save(
                 entity);
-    }
+    }*/
+   private AmendedPoHeader saveAmendedPoHeader(
+           List<AmendedPoItemDTO> items) {
 
-    private void saveAmendedPoItems(
+       if (items == null || items.isEmpty()) {
+           throw new RuntimeException(
+                   "PO Detail not found");
+       }
+
+       String poKey =
+               items.get(0).getPoKey();
+
+       // FIND ORIGINAL PO HEADER
+       PoHeader poHeader =
+               headerRepo.findByPoKey(poKey)
+                       .orElseThrow(() ->
+                               new RuntimeException(
+                                       "PO Header not found for poKey : "
+                                               + poKey));
+
+       AmendedPoHeader entity =
+               new AmendedPoHeader();
+
+       // ===================================
+       // COPY FROM ORIGINAL PO HEADER
+       // ===================================
+
+       entity.setPoKey(
+               poHeader.getPoKey());
+
+       entity.setPoNo(
+               poHeader.getPoNo());
+
+       entity.setL5PoNo(
+               poHeader.getL5PoNo());
+
+       entity.setRlyCd(
+               poHeader.getRlyCd());
+
+       entity.setVendorCode(
+               poHeader.getVendorCode());
+
+       entity.setInspectingAgency(
+               poHeader.getInspectingAgency());
+
+       entity.setPoStatus(
+               poHeader.getPoStatus());
+
+       entity.setBillPayOff(
+               poHeader.getBillPayOff());
+
+       entity.setPoDate(
+               poHeader.getPoDate());
+
+       entity.setRegionCode(
+               poHeader.getRegionCode());
+
+       return amendmentPoHeaderRepository.save(
+               entity);
+   }
+
+   /* private void saveAmendedPoItems(
             AmendedPoHeader header,
             List<AmendedPoItemDTO> dtos) {
 
@@ -824,7 +929,226 @@ public void saveMaPo(MaPoRequestDTO request) {
 
         amendmentPoItemRepository.saveAll(
                 items);
-    }
+    }  */
+   private void saveAmendedPoItems(
+           AmendedPoHeader header,
+           List<AmendedPoItemDTO> dtos) {
+
+       List<AmendedPoItem> items =
+               new ArrayList<>();
+
+       DateTimeFormatter deliveryFormatter =
+               DateTimeFormatter.ofPattern(
+                       "dd/MM/yyyy HH:mm");
+
+       DateTimeFormatter crisFormatter =
+               DateTimeFormatter.ofPattern(
+                       "yyyy-MM-dd HH:mm:ss");
+
+       for (AmendedPoItemDTO dto : dtos) {
+
+           AmendedPoItem item =
+                   new AmendedPoItem();
+
+           item.setAmendedPoHeader(
+                   header);
+
+           // BASIC
+
+           item.setRly(
+                   dto.getRly());
+
+           item.setItemSrNo(
+                   dto.getItemSrNo());
+           item.setPoKey(dto.getPoKey());
+
+           item.setPlNo(
+                   dto.getPlNo());
+
+           item.setItemDesc(
+                   dto.getItemDesc());
+
+           // CONSIGNEE
+
+           item.setConsigneeCd(
+                   dto.getConsigneeCd());
+
+           item.setImmsConsigneeCd(
+                   dto.getImmsConsigneeCd());
+
+           item.setImmsConsigneeName(
+                   dto.getImmsConsigneeName());
+
+           item.setConsigneeDetail(
+                   dto.getConsigneeDetail());
+
+           // UOM
+
+           item.setUomCd(
+                   dto.getUomCd());
+
+           item.setUom(
+                   dto.getUom());
+
+           // OTHER
+
+           item.setAllocation(
+                   dto.getAllocation());
+
+           item.setUserId(
+                   dto.getUserId());
+
+           item.setConsigneeRly(
+                   dto.getConsigneeRly());
+
+           item.setConsigneeRlyShortName(
+                   dto.getConsigneeRlyShortName());
+
+           item.setPRly(
+                   dto.getPRly());
+
+           item.setBillPayOff(
+                   dto.getBillPayOff());
+
+           item.setBillPayOffDesc(
+                   dto.getBillPayOffDesc());
+
+           item.setBillPassOff(
+                   dto.getBillPassOff());
+
+           // QUANTITY
+
+           if (dto.getQty() != null
+                   && !dto.getQty().isBlank()) {
+
+               item.setQty(
+                       Integer.parseInt(
+                               dto.getQty()));
+           }
+
+           if (dto.getQtyCancelled() != null
+                   && !dto.getQtyCancelled().isBlank()) {
+
+               item.setQtyCancelled(
+                       Integer.parseInt(
+                               dto.getQtyCancelled()));
+           }
+
+           // FINANCIAL
+
+           if (dto.getRate() != null
+                   && !dto.getRate().isBlank()) {
+
+               item.setRate(
+                       new BigDecimal(
+                               dto.getRate()));
+           }
+
+           if (dto.getBasicValue() != null
+                   && !dto.getBasicValue().isBlank()) {
+
+               item.setBasicValue(
+                       new BigDecimal(
+                               dto.getBasicValue()));
+           }
+
+           if (dto.getSalesTaxPercent() != null
+                   && !dto.getSalesTaxPercent().isBlank()) {
+
+               item.setSalesTaxPercent(
+                       new BigDecimal(
+                               dto.getSalesTaxPercent()));
+           }
+
+           if (dto.getSalesTax() != null
+                   && !dto.getSalesTax().isBlank()) {
+
+               item.setSalesTax(
+                       new BigDecimal(
+                               dto.getSalesTax()));
+           }
+
+           item.setDiscountType(
+                   dto.getDiscountType());
+
+           if (dto.getDiscountPercent() != null
+                   && !dto.getDiscountPercent().isBlank()) {
+
+               item.setDiscountPercent(
+                       new BigDecimal(
+                               dto.getDiscountPercent()));
+           }
+
+           if (dto.getDiscount() != null
+                   && !dto.getDiscount().isBlank()) {
+
+               item.setDiscount(
+                       new BigDecimal(
+                               dto.getDiscount()));
+           }
+
+           if (dto.getValue() != null
+                   && !dto.getValue().isBlank()) {
+
+               item.setValue(
+                       new BigDecimal(
+                               dto.getValue()));
+           }
+
+           item.setOtChargeType(
+                   dto.getOtChargeType());
+
+           if (dto.getOtChargePercent() != null
+                   && !dto.getOtChargePercent().isBlank()) {
+
+               item.setOtChargePercent(
+                       new BigDecimal(
+                               dto.getOtChargePercent()));
+           }
+
+           if (dto.getOtherCharges() != null
+                   && !dto.getOtherCharges().isBlank()) {
+
+               item.setOtherCharges(
+                       new BigDecimal(
+                               dto.getOtherCharges()));
+           }
+
+           // DATES
+
+           if (dto.getDeliveryDate() != null
+                   && !dto.getDeliveryDate().isBlank()) {
+
+               item.setDeliveryDate(
+                       LocalDateTime.parse(
+                               dto.getDeliveryDate(),
+                               deliveryFormatter));
+           }
+
+           if (dto.getExtendedDeliveryDate() != null
+                   && !dto.getExtendedDeliveryDate().isBlank()) {
+
+               item.setExtendedDeliveryDate(
+                       LocalDateTime.parse(
+                               dto.getExtendedDeliveryDate(),
+                               deliveryFormatter));
+           }
+
+           if (dto.getCrisTimestamp() != null
+                   && !dto.getCrisTimestamp().isBlank()) {
+
+               item.setCrisTimestamp(
+                       LocalDateTime.parse(
+                               dto.getCrisTimestamp(),
+                               crisFormatter));
+           }
+
+           items.add(item);
+       }
+
+       amendmentPoItemRepository.saveAll(
+               items);
+   }
 
     private void syncPoHeader(
             AmendedPoHeader amendedHeader) {
@@ -914,9 +1238,11 @@ public void saveMaPo(MaPoRequestDTO request) {
         }
     }
 
-    private void copyAmendedItemToPo(
+  /*  private void copyAmendedItemToPo(
             AmendedPoItem source,
             PoItem target) {
+
+
 
         if (source.getRly() != null)
             target.setRly(source.getRly());
@@ -952,8 +1278,158 @@ public void saveMaPo(MaPoRequestDTO request) {
         if (source.getCrisTimestamp() != null)
             target.setCrisTimestamp(
                     source.getCrisTimestamp());
-    }
+    }*/
+  private void copyAmendedItemToPo(
+          AmendedPoItem source,
+          PoItem target) {
 
+      // =========================
+      // BASIC
+      // =========================
+
+      if (source.getRly() != null)
+          target.setRly(source.getRly());
+
+      if (source.getCaseNo() != null)
+          target.setCaseNo(source.getCaseNo());
+
+      if (source.getItemSrNo() != null)
+          target.setItemSrNo(source.getItemSrNo());
+
+      if (source.getPlNo() != null)
+          target.setPlNo(source.getPlNo());
+
+      if (source.getItemDesc() != null)
+          target.setItemDesc(source.getItemDesc());
+
+      // =========================
+      // CONSIGNEE
+      // =========================
+
+      if (source.getConsigneeCd() != null)
+          target.setConsigneeCd(source.getConsigneeCd());
+
+      if (source.getImmsConsigneeCd() != null)
+          target.setImmsConsigneeCd(source.getImmsConsigneeCd());
+
+      if (source.getImmsConsigneeName() != null)
+          target.setImmsConsigneeName(source.getImmsConsigneeName());
+
+      if (source.getConsigneeDetail() != null)
+          target.setConsigneeDetail(source.getConsigneeDetail());
+
+      if (source.getConsigneeRly() != null)
+          target.setConsigneeRly(source.getConsigneeRly());
+
+      if (source.getConsigneeRlyShortName() != null)
+          target.setConsigneeRlyShortName(
+                  source.getConsigneeRlyShortName());
+
+      // =========================
+      // QTY & UOM
+      // =========================
+
+      if (source.getQty() != null)
+          target.setQty(source.getQty());
+
+      if (source.getQtyCancelled() != null)
+          target.setQtyCancelled(source.getQtyCancelled());
+
+      if (source.getUomCd() != null)
+          target.setUomCd(source.getUomCd());
+
+      if (source.getUom() != null)
+          target.setUom(source.getUom());
+
+      // =========================
+      // FINANCIALS
+      // =========================
+
+      if (source.getRate() != null)
+          target.setRate(source.getRate());
+
+      if (source.getBasicValue() != null)
+          target.setBasicValue(source.getBasicValue());
+
+      if (source.getSalesTaxPercent() != null)
+          target.setSalesTaxPercent(
+                  source.getSalesTaxPercent());
+
+      if (source.getSalesTax() != null)
+          target.setSalesTax(source.getSalesTax());
+
+      if (source.getDiscountType() != null)
+          target.setDiscountType(
+                  source.getDiscountType());
+
+      if (source.getDiscountPercent() != null)
+          target.setDiscountPercent(
+                  source.getDiscountPercent());
+
+      if (source.getDiscount() != null)
+          target.setDiscount(source.getDiscount());
+
+      if (source.getValue() != null)
+          target.setValue(source.getValue());
+
+      if (source.getOtChargeType() != null)
+          target.setOtChargeType(
+                  source.getOtChargeType());
+
+      if (source.getOtChargePercent() != null)
+          target.setOtChargePercent(
+                  source.getOtChargePercent());
+
+      if (source.getOtherCharges() != null)
+          target.setOtherCharges(
+                  source.getOtherCharges());
+
+      // =========================
+      // DATES
+      // =========================
+
+      if (source.getDeliveryDate() != null)
+          target.setDeliveryDate(
+                  source.getDeliveryDate());
+
+      if (source.getExtendedDeliveryDate() != null)
+          target.setExtendedDeliveryDate(
+                  source.getExtendedDeliveryDate());
+
+      if (source.getCrisTimestamp() != null)
+          target.setCrisTimestamp(
+                  source.getCrisTimestamp());
+
+      // =========================
+      // MISC
+      // =========================
+
+      if (source.getAllocation() != null)
+          target.setAllocation(source.getAllocation());
+
+      if (source.getUserId() != null)
+          target.setUserId(source.getUserId());
+
+      if (source.getSourceSystem() != null)
+          target.setSourceSystem(
+                  source.getSourceSystem());
+
+      if (source.getPRly() != null)
+          target.setPRly(source.getPRly());
+
+      if (source.getBillPayOff() != null)
+          target.setBillPayOff(
+                  source.getBillPayOff());
+
+      if (source.getBillPayOffDesc() != null)
+          target.setBillPayOffDesc(
+                  source.getBillPayOffDesc());
+
+      if (source.getBillPassOff() != null)
+          target.setBillPassOff(
+                  source.getBillPassOff());
+  }
+/*
 
     private void copyAmendedHeaderToPo(
             AmendedPoHeader source,
@@ -995,7 +1471,44 @@ public void saveMaPo(MaPoRequestDTO request) {
             target.setCrisTimestamp(
                     source.getCrisTimestamp());
         }
-    }
+    }*/
+private void copyAmendedHeaderToPo(
+        AmendedPoHeader source,
+        PoHeader target) {
+
+    if (source.getPoNo() != null)
+        target.setPoNo(source.getPoNo());
+
+    if (source.getRlyCd() != null)
+        target.setRlyCd(source.getRlyCd());
+
+    if (source.getVendorCode() != null)
+        target.setVendorCode(source.getVendorCode());
+
+    if (source.getInspectingAgency() != null)
+        target.setInspectingAgency(
+                source.getInspectingAgency());
+
+    if (source.getPoStatus() != null)
+        target.setPoStatus(
+                source.getPoStatus());
+
+    if (source.getBillPayOff() != null)
+        target.setBillPayOff(
+                source.getBillPayOff());
+
+    if (source.getRegionCode() != null)
+        target.setRegionCode(
+                source.getRegionCode());
+
+    if (source.getPoDate() != null)
+        target.setPoDate(
+                source.getPoDate());
+
+    if (source.getCrisTimestamp() != null)
+        target.setCrisTimestamp(
+                source.getCrisTimestamp());
+}
 
 
     @Transactional

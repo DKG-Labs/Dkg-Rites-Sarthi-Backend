@@ -23,6 +23,8 @@ public class AmendedPoItem {
 
         private String rly;
 
+        private String poKey;
+
         private String caseNo;
 
         private String itemSrNo;

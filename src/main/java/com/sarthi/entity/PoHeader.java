@@ -70,6 +70,15 @@ public class PoHeader {
         private String caseNo;
         private String caseStatus;
 
+        private Boolean isAmended = false;
+
+        private Integer amendmentCount = 0;
+
+        private String lastAmendmentNo;
+
+        private LocalDateTime lastAmendmentDate;
+
+
         // ---- RELATION ----
         @OneToMany(mappedBy = "poHeader",
                 cascade = CascadeType.ALL,

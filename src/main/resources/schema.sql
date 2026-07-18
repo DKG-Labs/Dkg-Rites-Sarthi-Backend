@@ -74,3 +74,88 @@ CREATE TABLE IF NOT EXISTS user_role_master (
 -- User ID: 20, Password: password, Role: Control Manager
 -- User ID: 21, Password: password, Role: Process IE
 
+
+
+
+ALTER TABLE amendment_po_item
+ADD COLUMN po_key VARCHAR(50);
+
+
+ALTER TABLE po_header
+ADD COLUMN is_amended TINYINT(1) DEFAULT 0,
+ADD COLUMN amendment_count INT DEFAULT 0,
+ADD COLUMN last_amendment_no VARCHAR(50),
+ADD COLUMN last_amendment_date DATETIME;
+
+
+
+
+
+ALTER TABLE ibs_call_registration
+ADD COLUMN billing_status VARCHAR(30) NOT NULL DEFAULT 'PENDING';
+
+CREATE TABLE ibs_bill_details (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    ibs_call_registration_id BIGINT NOT NULL,
+
+    bill_no VARCHAR(50),
+    invoice_no VARCHAR(100),
+    invoice_date DATETIME,
+
+    case_no VARCHAR(50),
+    call_date DATETIME,
+    call_sno INT,
+
+    bk_no VARCHAR(50),
+    set_no VARCHAR(50),
+
+    invoice_pdf TEXT,
+    invoice_supp_docs TEXT,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_bill_call
+        FOREIGN KEY (ibs_call_registration_id)
+        REFERENCES ibs_call_registration(id),
+
+    UNIQUE KEY uk_bill_no_call_sno (bill_no, call_sno),
+
+    INDEX idx_case_no (case_no),
+    INDEX idx_call_sno (call_sno)
+);
+CREATE TABLE ibs_payment_details (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    ibs_call_registration_id BIGINT NOT NULL,
+
+    case_no VARCHAR(50),
+
+    call_recv_dt DATETIME,
+
+    call_sno INT,
+
+    description VARCHAR(500),
+
+    mer_txn_id VARCHAR(200),
+
+    amount DECIMAL(18,2),
+
+    cust_email VARCHAR(200),
+
+    cust_mobile VARCHAR(20),
+
+    txn_complete_date DATETIME,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_payment_call
+        FOREIGN KEY (ibs_call_registration_id)
+        REFERENCES ibs_call_registration(id),
+
+    UNIQUE KEY uk_mer_txn_id (mer_txn_id),
+
+    INDEX idx_case_no (case_no),
+    INDEX idx_call_sno (call_sno)
+);
+

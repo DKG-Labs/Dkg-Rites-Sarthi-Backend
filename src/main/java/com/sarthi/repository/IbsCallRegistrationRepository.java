@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Set;
 
 @Repository
@@ -21,4 +22,15 @@ public interface IbsCallRegistrationRepository
 
     @Query("SELECT COALESCE(MAX(i.version), 0) FROM IbsCallRegistration i WHERE i.callNumber = :callNumber")
     Integer getLatestVersion(@Param("callNumber") String callNumber);
+
+    @Query("""
+            SELECT i
+            FROM IbsCallRegistration i
+            WHERE i.status='SUCCESS'
+            AND (
+                i.billingStatus IS NULL
+                OR i.billingStatus <> 'COMPLETED'
+            )
+           """)
+    List<IbsCallRegistration> findPendingBillingCalls();
 }
