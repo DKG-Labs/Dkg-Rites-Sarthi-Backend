@@ -24,6 +24,9 @@ public interface RmHeatQuantityRepository extends JpaRepository<RmHeatQuantity, 
      */
     @Query("SELECT hq FROM RmHeatQuantity hq WHERE hq.rmInspectionDetails.id = :rmDetailId")
     List<RmHeatQuantity> findByRmDetailId(@Param("rmDetailId") Integer rmDetailId);
+
+    @Query("SELECT hq FROM RmHeatQuantity hq WHERE hq.rmInspectionDetails.inspectionCall.icNumber = :callNo")
+    List<RmHeatQuantity> findByInspectionCallNo(@Param("callNo") String callNo);
     
     List<RmHeatQuantity> findByRmInspectionDetailsIdIn(List<Long> rmDetailIds);
 

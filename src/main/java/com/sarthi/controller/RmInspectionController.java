@@ -180,6 +180,45 @@ public class RmInspectionController {
     }
 
     /**
+     * Get heat details for Vendor Dashboard popup
+     */
+    @GetMapping("/heat-details/by-po-item")
+    public ResponseEntity<Object> getHeatDetailsByPoSrNo(@RequestParam String poSrNo) {
+        logger.info("GET /api/rm-inspection/heat-details/by-po-item?poSrNo={}", poSrNo);
+        try {
+            List<com.sarthi.dto.HeatDetailsDto> details = service.getHeatDetailsByPoSrNo(poSrNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(details), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error fetching heat details by poSrNo: {}", e.getMessage(), e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                AppConstant.INTER_SERVER_ERROR,
+                AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                "Failed to fetch heat details",
+                null
+            );
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/heat-details/{callNo}")
+    public ResponseEntity<Object> getHeatDetailsByCallNo(@PathVariable String callNo) {
+        logger.info("GET /api/rm-inspection/heat-details/{}", callNo);
+        try {
+            List<com.sarthi.dto.HeatDetailsDto> details = service.getHeatDetailsByCallNo(callNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(details), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error fetching heat details: {}", e.getMessage(), e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                AppConstant.INTER_SERVER_ERROR,
+                AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                AppConstant.ERROR_TYPE_ERROR,
+                e.getMessage()
+            );
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * Get final inspection results for all heats.
      */
     @GetMapping("/final-results/{callNo}")
