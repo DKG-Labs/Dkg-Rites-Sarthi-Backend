@@ -36,6 +36,7 @@ public class IEProductionVerificationResponseDto {
     public static class ProductionRejectionResponseDto {
         private Long id;
         private String productType;
+        private String drawingNo;
         private String batchNo;
         private Integer rejectedQty;
         private String reason;

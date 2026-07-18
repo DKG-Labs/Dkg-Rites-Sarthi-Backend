@@ -23,6 +23,9 @@ public class RailIEProductionRejection {
     @Column(name = "product_type")
     private String productType;
 
+    @Column(name = "drawing_no")
+    private String drawingNo;
+
     @Column(name = "batch_no")
     private String batchNo;
 

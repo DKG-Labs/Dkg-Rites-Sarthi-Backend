@@ -31,6 +31,7 @@ public class IEProductionVerificationRequestDto {
     @Data
     public static class ProductionRejectionRequestDto {
         private String productType;
+        private String drawingNo;
         private String batchNo;
         private Integer rejectedQty;
         private String reason;

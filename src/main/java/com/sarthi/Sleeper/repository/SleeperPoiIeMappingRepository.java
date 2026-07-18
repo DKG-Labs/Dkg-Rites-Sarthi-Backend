@@ -55,4 +55,7 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
             String ieType
     );
 
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE SleeperPoiIeMapping s SET s.ieUserId = :newUserId WHERE s.plantId = :plantId AND s.ieUserId = :oldUserId")
+    void updateIeUserIdByPlantId(@Param("plantId") String plantId, @Param("oldUserId") Integer oldUserId, @Param("newUserId") Integer newUserId);
 }

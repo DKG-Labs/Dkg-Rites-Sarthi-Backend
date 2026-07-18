@@ -40,6 +40,8 @@ public class ProcessIcSaveChangesService {
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
         entity.setQapNo(dto.getQapNo());
+        entity.setInspectionDate(dto.getInspectionDate());
+        entity.setManDays(dto.getManDays());
         
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
@@ -65,6 +67,8 @@ public class ProcessIcSaveChangesService {
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
                 .qapNo(entity.getQapNo())
+                .inspectionDate(entity.getInspectionDate())
+                .manDays(entity.getManDays())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

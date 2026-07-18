@@ -17,7 +17,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-    AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
 AND t.nextRole = :roleName
@@ -30,7 +30,7 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-    AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
 AND t.nextRole = :roleName
@@ -45,7 +45,20 @@ WHERE t.workflowTransitionId = (
     SELECT MAX(t2.workflowTransitionId)
     FROM RailWorkflowTransaction t2
     WHERE t2.requestId = t.requestId
-    AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+)
+AND t.action IN :pendingActions
+AND UPPER(t.status) = 'PENDING'
+""")
+    List<RailWorkflowTransaction> findPendingVerifiedCalls(@Param("pendingActions") List<String> pendingActions);
+
+    @Query("""
+SELECT t FROM RailWorkflowTransaction t
+WHERE t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM RailWorkflowTransaction t2
+    WHERE t2.requestId = t.requestId
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
 )
 AND UPPER(t.status) = 'COMPLETED'
 """)

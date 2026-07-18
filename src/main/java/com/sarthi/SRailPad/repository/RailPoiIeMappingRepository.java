@@ -15,4 +15,10 @@ public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMappi
     List<RailPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(String poiCode, String plantId, String mainIe);
 
     List<RailPoiIeMapping> findByIeUserId(Integer ieUserId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE RailPoiIeMapping p SET p.ieUserId = :newUserId WHERE p.plantId = :plantId AND p.ieUserId = :oldUserId")
+    void updateIeUserIdByPlantId(@org.springframework.data.repository.query.Param("plantId") String plantId, 
+                                 @org.springframework.data.repository.query.Param("oldUserId") Integer oldUserId, 
+                                 @org.springframework.data.repository.query.Param("newUserId") Integer newUserId);
 }

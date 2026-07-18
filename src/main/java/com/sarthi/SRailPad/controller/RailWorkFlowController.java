@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.sarthi.SRailPad.dto.RailpadRemapSubmitDto;
 
 @RestController
 @RequestMapping("/api/railpad-workflow")
@@ -57,5 +58,56 @@ public class RailWorkFlowController {
     @GetMapping("/getPlantsByCompanyName")
     public ResponseEntity<Object> getPlantsByCompanyName(@RequestParam String companyName) {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getPlantsByCompanyName(companyName)), HttpStatus.OK);
+    }
+
+    @GetMapping("/pendingVerifiedCalls")
+    public ResponseEntity<Object> getPendingVerifiedCalls() {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getPendingVerifiedCalls()),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage() != null ? e.getMessage() : "Unknown error"),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @GetMapping("/remap-available-users")
+    public ResponseEntity<Object> getRemapAvailableUsers() {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getRailpadRemapAvailableUsers()),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage() != null ? e.getMessage() : "Unknown error"),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @PostMapping("/remap-submit")
+    public ResponseEntity<Object> submitRemap(@RequestBody RailpadRemapSubmitDto dto) {
+        try {
+            workflowService.submitRailpadRemap(dto);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse("Remapping successful"),
+                    HttpStatus.OK
+            );
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage()),
+                    HttpStatus.BAD_REQUEST
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Remapping failed: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
     }
 }

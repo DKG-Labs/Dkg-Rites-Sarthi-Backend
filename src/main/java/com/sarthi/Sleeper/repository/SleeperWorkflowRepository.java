@@ -36,7 +36,7 @@ public interface SleeperWorkflowRepository
     WHERE t.workflowTransitionId IN (
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
-        GROUP BY t2.requestId, t2.moduleId
+        GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
     )
     AND (t.moduleId = t.moduleId OR (t.moduleId IS NULL AND t.moduleId IS NULL))
     AND t.status IN ('Created','PENDING')
@@ -104,7 +104,7 @@ AND t.nextRole = :roleName
     WHERE t.workflowTransitionId IN (
         SELECT MAX(t2.workflowTransitionId)
         FROM SleeperWorkflowTransaction t2
-        GROUP BY t2.requestId, t2.moduleId
+        GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
     )
     AND t.status = 'Completed'
 """)
@@ -163,6 +163,19 @@ AND t.status = 'Completed'
         AND t.workflowId = 2
     """)
     List<SleeperWorkflowTransaction> findLatestTransactionsForWorkflow2();
+
+    @Query("""
+        SELECT t FROM SleeperWorkflowTransaction t
+        WHERE t.workflowTransitionId IN (
+            SELECT MAX(t2.workflowTransitionId)
+            FROM SleeperWorkflowTransaction t2
+            WHERE t2.workflowId = 2
+            GROUP BY t2.requestId
+        )
+        AND t.workflowId = 2
+        AND t.action IN :actions
+    """)
+    List<SleeperWorkflowTransaction> findPendingVerifiedCalls(@Param("actions") java.util.List<String> actions);
 
     @Query(value = """
                 SELECT status 

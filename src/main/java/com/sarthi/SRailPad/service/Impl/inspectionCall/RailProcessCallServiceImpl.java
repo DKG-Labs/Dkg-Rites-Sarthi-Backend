@@ -22,6 +22,8 @@ import com.sarthi.SRailPad.dto.inspectionCall.ProcessAvailableBatchDto;
 import com.sarthi.SRailPad.dto.inspectionCall.ProcessInspectionSaveDto;
 import com.sarthi.SRailPad.service.inspectionCall.RailProcessCallService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.stream.Collectors;
@@ -44,6 +46,9 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
     private final RailProcessInspectionBatchRepository processInspectionBatchRepository;
     private final RailIEProductionVerificationRepository verificationRepository;
     private final RailInspectionBatchRepository railInspectionBatchRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Override
     public RailProcessCallDto getProcessCallDetails(String callNo) {
@@ -144,6 +149,11 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             if (v.getRejections() != null) {
                 List<com.sarthi.SRailPad.entity.ieVerification.RailIEProductionRejection> batchRejections = v.getRejections().stream()
                         .filter(r -> r.getBatchNo() != null && r.getBatchNo().equals(i.getBatchNo()))
+                        .filter(r -> {
+                            if (i.getDrawingNo() == null || i.getDrawingNo().isBlank()) return true;
+                            if (r.getDrawingNo() == null || r.getDrawingNo().isBlank()) return true;
+                            return i.getDrawingNo().equals(r.getDrawingNo());
+                        })
                         .collect(java.util.stream.Collectors.toList());
 
                 if (!batchRejections.isEmpty()) {
@@ -160,6 +170,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                     
                     List<ProcessAvailableBatchDto.RejectionDetailDto> rejectionDtos = batchRejections.stream().map(r -> {
                         ProcessAvailableBatchDto.RejectionDetailDto rDto = new ProcessAvailableBatchDto.RejectionDetailDto();
+                        rDto.setDrawingNo(r.getDrawingNo());
                         rDto.setReason(r.getReason());
                         rDto.setRejectedQty(r.getRejectedQty());
                         return rDto;
@@ -276,6 +287,18 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 bd.setQtyManufactured(b.getQtyManufactured());
                 bd.setQtyRejected(b.getQtyRejected());
                 bd.setQtyAccepted(b.getQtyAccepted());
+                
+                if (b.getDeclarationBatchId() != null) {
+                    try {
+                        String drawingNo = (String) entityManager.createNativeQuery("SELECT drawing_no FROM rail_ie_production_info WHERE id = :id")
+                            .setParameter("id", b.getDeclarationBatchId())
+                            .getSingleResult();
+                        bd.setDrawingNo(drawingNo);
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+                
                 batchDtos.add(bd);
             }
         }

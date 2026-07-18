@@ -24,6 +24,7 @@ public class ProcessAvailableBatchDto {
 
     @Data
     public static class RejectionDetailDto {
+        private String drawingNo;
         private String reason;
         private Integer rejectedQty;
     }

@@ -337,7 +337,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
         String rejectionReasonTemplate = qtyNowRejected > 0 ? "REJECTED DURING INSPECTION AS DETAILED IN ANNEXURE-I" : "Not Applicable";
 
-        String certificateNo = railInspectionCompleteDetailsRepository.findByCallNo(callNo)
+        String certificateNo = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo)
                 .map(RailInspectionCompleteDetails::getCertificateNo)
                 .orElse("");
 
