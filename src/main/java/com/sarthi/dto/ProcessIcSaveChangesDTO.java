@@ -24,6 +24,8 @@ public class ProcessIcSaveChangesDTO {
     private String purchasingAuthority;
     private String description;
     private String qapNo;
+    private String inspectionDate;
+    private String manDays;
     
     // Read-only audit fields
     private String createdBy;

@@ -41,6 +41,8 @@ public class FinalIcEditService {
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
         entity.setTrRecDate(dto.getTrRecDate());
+        entity.setNoOfVisits(dto.getNoOfVisits());
+        entity.setDatesOfInspection(dto.getDatesOfInspection());
         
         // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
@@ -68,6 +70,8 @@ public class FinalIcEditService {
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
                 .trRecDate(entity.getTrRecDate())
+                .noOfVisits(entity.getNoOfVisits())
+                .datesOfInspection(entity.getDatesOfInspection())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

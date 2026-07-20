@@ -43,6 +43,8 @@ public class RmIcSaveChangesService {
         entity.setSpecNo(dto.getSpecNo());
         entity.setQapNo(dto.getQapNo());
         entity.setChpClause(dto.getChpClause());
+        entity.setVisitsNo(dto.getVisitsNo());
+        entity.setInspectionDate(dto.getInspectionDate());
         
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
@@ -71,6 +73,8 @@ public class RmIcSaveChangesService {
                 .specNo(entity.getSpecNo())
                 .qapNo(entity.getQapNo())
                 .chpClause(entity.getChpClause())
+                .visitsNo(entity.getVisitsNo())
+                .inspectionDate(entity.getInspectionDate())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

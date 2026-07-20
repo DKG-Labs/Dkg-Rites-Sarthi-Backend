@@ -45,6 +45,8 @@ public class RmIcEditService {
         entity.setSpecNo(dto.getSpecNo());
         entity.setQapNo(dto.getQapNo());
         entity.setChpClause(dto.getChpClause());
+        entity.setVisitsNo(dto.getVisitsNo());
+        entity.setInspectionDate(dto.getInspectionDate());
         
         // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
@@ -74,6 +76,8 @@ public class RmIcEditService {
                 .specNo(entity.getSpecNo())
                 .qapNo(entity.getQapNo())
                 .chpClause(entity.getChpClause())
+                .visitsNo(entity.getVisitsNo())
+                .inspectionDate(entity.getInspectionDate())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

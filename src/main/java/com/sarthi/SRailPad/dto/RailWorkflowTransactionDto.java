@@ -23,6 +23,8 @@ public class RailWorkflowTransactionDto {
         private String remarks;
 
         private Long assignedToUser;
+        private String assignedToUserName;
+        private String assignedToUserEmployeeCode;
 
         private Long actionBy;
 

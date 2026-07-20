@@ -124,7 +124,9 @@ public class VendorPoServiceImpl implements VendorPoService {
         int totalOffered = vendorCalls.stream()
                 .filter(c -> {
                     String cPoNo = c.getPoNo();
-                    if (cPoNo == null) return false;
+                    String callNo = c.getCallNo();
+                    
+                    if (cPoNo == null || callNo == null || !callNo.startsWith("RPF")) return false;
                     
                     // 1. Exact match
                     if (poSrNo.equals(cPoNo)) return true;

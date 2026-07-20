@@ -61,5 +61,13 @@ public interface RmInspectionService {
      */
     List<RmLadleValuesDto> getLadleValuesByCallNo(String callNo);
 
+    /**
+     * Get heat details for the vendor dashboard pop-up.
+     * @param callNo The inspection call number
+     * @return List of heat details (Heat No, TC No, Offered, Accepted, Rejected)
+     */
+    List<com.sarthi.dto.HeatDetailsDto> getHeatDetailsByCallNo(String callNo);
+    List<com.sarthi.dto.HeatDetailsDto> getHeatDetailsByPoSrNo(String poSrNo);
+
 }
 

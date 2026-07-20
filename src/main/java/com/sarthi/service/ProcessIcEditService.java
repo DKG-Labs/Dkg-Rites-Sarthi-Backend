@@ -40,6 +40,8 @@ public class ProcessIcEditService {
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
         entity.setQapNo(dto.getQapNo());
+        entity.setInspectionDate(dto.getInspectionDate());
+        entity.setManDays(dto.getManDays());
         
         // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
@@ -66,6 +68,8 @@ public class ProcessIcEditService {
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
                 .qapNo(entity.getQapNo())
+                .inspectionDate(entity.getInspectionDate())
+                .manDays(entity.getManDays())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

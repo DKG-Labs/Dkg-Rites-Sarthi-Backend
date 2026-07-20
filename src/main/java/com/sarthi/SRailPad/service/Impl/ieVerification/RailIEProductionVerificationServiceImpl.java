@@ -77,6 +77,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
         List<RailIEProductionRejection> rejections = requestDto.getRejections().stream().map(dto -> {
             RailIEProductionRejection rejection = new RailIEProductionRejection();
             rejection.setProductType(dto.getProductType());
+            rejection.setDrawingNo(dto.getDrawingNo());
             rejection.setBatchNo(dto.getBatchNo());
             rejection.setRejectedQty(dto.getRejectedQty());
             rejection.setReason(dto.getReason());
@@ -149,6 +150,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
                 IEProductionVerificationResponseDto.ProductionRejectionResponseDto dto = new IEProductionVerificationResponseDto.ProductionRejectionResponseDto();
                 dto.setId(r.getId());
                 dto.setProductType(r.getProductType());
+                dto.setDrawingNo(r.getDrawingNo());
                 dto.setBatchNo(r.getBatchNo());
                 dto.setRejectedQty(r.getRejectedQty());
                 dto.setReason(r.getReason());
@@ -189,6 +191,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
                                 b.setInfoId(info.getId());
                                 b.setBatchNo(info.getBatchNo());
                                 b.setProductType(info.getProductType());
+                                b.setDrawingNo(info.getDrawingNo());
                                 
                                 // Calculate accepted qty: produced - rejected
                                 // AND subtract quantity already offered in inspection calls

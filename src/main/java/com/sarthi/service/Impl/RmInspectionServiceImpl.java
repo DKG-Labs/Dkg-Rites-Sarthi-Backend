@@ -76,6 +76,9 @@ public class RmInspectionServiceImpl implements RmInspectionService {
     private InspectionImageRepository inspectionImageRepository;
 
     @Autowired
+    private com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository;
+
+    @Autowired
     private AzureBlobStorageService azureBlobStorageService;
 
     @Override
@@ -1196,5 +1199,53 @@ public class RmInspectionServiceImpl implements RmInspectionService {
         }
         logger.warn("No user ID found in ThreadLocal, using 'system' as fallback");
         return "system";
+    }
+
+    @Override
+    public List<com.sarthi.dto.HeatDetailsDto> getHeatDetailsByPoSrNo(String poSrNo) {
+        List<com.sarthi.entity.rawmaterial.InspectionCall> calls = inspectionCallRepository.findByPoSerialNo(poSrNo);
+        List<com.sarthi.dto.HeatDetailsDto> allDetails = new java.util.ArrayList<>();
+        if (calls != null) {
+            for (com.sarthi.entity.rawmaterial.InspectionCall call : calls) {
+                if (call.getIcNumber() != null) {
+                    List<com.sarthi.dto.HeatDetailsDto> callDetails = getHeatDetailsByCallNo(call.getIcNumber());
+                    for(com.sarthi.dto.HeatDetailsDto dto : callDetails) {
+                        dto.setCallNo(call.getIcNumber());
+                    }
+                    allDetails.addAll(callDetails);
+                }
+            }
+        }
+        return allDetails;
+    }
+
+    @Override
+    public List<com.sarthi.dto.HeatDetailsDto> getHeatDetailsByCallNo(String callNo) {
+        List<com.sarthi.entity.rawmaterial.RmHeatQuantity> heatQuantities = heatQuantityRepository.findByInspectionCallNo(callNo);
+        List<com.sarthi.entity.RmHeatFinalResult> finalResults = heatResultRepository.findByInspectionCallNo(callNo);
+
+        return heatQuantities.stream().map(hq -> {
+            com.sarthi.dto.HeatDetailsDto dto = new com.sarthi.dto.HeatDetailsDto();
+            dto.setHeatNo(hq.getHeatNumber());
+            dto.setTcNo(hq.getTcNumber());
+            dto.setOfferedQty(hq.getOfferedQty());
+
+            com.sarthi.entity.RmHeatFinalResult result = finalResults.stream()
+                .filter(fr -> fr.getHeatNo() != null && fr.getHeatNo().equals(hq.getHeatNumber()))
+                .findFirst().orElse(null);
+            
+            if (result != null) {
+                dto.setAcceptedQty(result.getAcceptedQtyMt());
+                dto.setRejectedQty(java.math.BigDecimal.ZERO); // We don't have rejected qty in result, only weight?
+                dto.setWeightAcceptedMt(result.getWeightAcceptedMt());
+                dto.setWeightRejectedMt(result.getWeightRejectedMt());
+            } else {
+                dto.setAcceptedQty(java.math.BigDecimal.ZERO);
+                dto.setRejectedQty(java.math.BigDecimal.ZERO);
+                dto.setWeightAcceptedMt(java.math.BigDecimal.ZERO);
+                dto.setWeightRejectedMt(java.math.BigDecimal.ZERO);
+            }
+            return dto;
+        }).collect(java.util.stream.Collectors.toList());
     }
 }

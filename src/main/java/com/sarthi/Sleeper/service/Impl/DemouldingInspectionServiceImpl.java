@@ -413,9 +413,11 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         LocalDateTime endOfDay;
 
         if ("C".equalsIgnoreCase(shift)) {
-            // Shift C: 10 PM (selectedDate) → next day 6 AM
-            startOfDay = selectedDate.atTime(22, 0, 0); // 10 PM
-            endOfDay = selectedDate.plusDays(1).atTime(6, 0, 0); // next day 6 AM
+            // Shift C IST: 10 PM → 6 AM next day
+            // DB stores LocalDateTime.now() in UTC (serverTimezone=UTC)
+            // IST 22:00 = UTC 16:30 | IST 06:00 next day = UTC 00:30 next day
+            startOfDay = selectedDate.atTime(16, 30, 0);
+            endOfDay = selectedDate.plusDays(1).atTime(0, 30, 0);
         } else {
             // Normal shifts A & B
             startOfDay = selectedDate.atStartOfDay();

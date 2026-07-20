@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface RailInspectionCompleteDetailsRepository extends JpaRepository<RailInspectionCompleteDetails, Long> {
-    Optional<RailInspectionCompleteDetails> findByCallNo(String callNo);
+    Optional<RailInspectionCompleteDetails> findFirstByCallNoOrderByCreatedOnDesc(String callNo);
 }

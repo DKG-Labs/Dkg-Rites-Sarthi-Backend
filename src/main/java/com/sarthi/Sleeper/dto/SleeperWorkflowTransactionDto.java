@@ -26,6 +26,8 @@ public class SleeperWorkflowTransactionDto {
     private String remarks;
 
     private Long assignedToUser;
+    private String assignedToUserName;
+    private String assignedToUserEmployeeCode;
 
     private Long actionBy;
 

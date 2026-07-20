@@ -14,6 +14,7 @@ public class RailAcceptedInventoryDto {
         private Long infoId;
         private String batchNo;
         private String productType;
+        private String drawingNo;
         private Integer acceptedQty;
     }
 }

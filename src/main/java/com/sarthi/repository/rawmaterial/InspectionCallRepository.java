@@ -22,6 +22,7 @@ import java.util.Optional;
  */
 @Repository
 public interface InspectionCallRepository extends JpaRepository<InspectionCall, Integer> {
+    List<InspectionCall> findByPoSerialNo(String poSerialNo);
 
     /* ==================== Find by IC Number ==================== */
 

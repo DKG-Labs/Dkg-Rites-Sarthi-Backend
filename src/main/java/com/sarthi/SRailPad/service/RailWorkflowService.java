@@ -5,6 +5,8 @@ import com.sarthi.SRailPad.dto.RailWorkflowTransactionDto;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import com.sarthi.SRailPad.dto.RailpadRemapSubmitDto;
 
 @Service
 public interface RailWorkflowService {
@@ -21,6 +23,14 @@ public interface RailWorkflowService {
             RailTransitionActionReqDto req);
 
 
+
+    public List<RailWorkflowTransactionDto> getPendingVerifiedCalls();
+
+    public List<Map<String, Object>> getRailpadRemapAvailableUsers();
+
+    public void submitRailpadRemap(RailpadRemapSubmitDto dto);
+
+    public List<String> getMappedPlantIdsForUser(Integer userId, String ieType);
 
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName);

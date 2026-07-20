@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.sarthi.Sleeper.dto.SleeperRemapSubmitDto;
 
 @RestController
 @RequestMapping("/api/sleeper-workflow")
@@ -71,6 +72,11 @@ public class SleeperWorkflow {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allCompletedWorkflowTransitions()), HttpStatus.OK);
     }
 
+    @GetMapping("/pendingVerifiedCalls")
+    public ResponseEntity<Object> getPendingVerifiedCalls()  {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getPendingVerifiedCalls()), HttpStatus.OK);
+    }
+
     @GetMapping("/allFInalCallCompletedCalls")
     public ResponseEntity<Object> AllFinalCallCompletedTransition()  {
 
@@ -90,6 +96,42 @@ public class SleeperWorkflow {
                 ResponseBuilder.getSuccessResponse(
                         workflowService.allCompletedWorkflowTransitions(moduleId, plantId, pageable)),
                 HttpStatus.OK);
+    }
+
+    @GetMapping("/remap-available-users")
+    public ResponseEntity<Object> getRemapAvailableUsers() {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getSleeperRemapAvailableUsers()),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage() != null ? e.getMessage() : "Unknown error"),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @PostMapping("/remap-submit")
+    public ResponseEntity<Object> submitRemap(@RequestBody SleeperRemapSubmitDto dto) {
+        try {
+            workflowService.submitSleeperRemap(dto);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse("Remapping successful"),
+                    HttpStatus.OK
+            );
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage()),
+                    HttpStatus.BAD_REQUEST
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Remapping failed: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
     }
 
 }

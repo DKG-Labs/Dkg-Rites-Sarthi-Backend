@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import com.sarthi.Sleeper.dto.SleeperRemapSubmitDto;
 
 @Service
 public interface SleeperWorkflowService {
@@ -34,6 +36,12 @@ public interface SleeperWorkflowService {
 
 
     public List<SleeperWorkflowTransactionDto> allCompletedWorkflowTransitions();
+    
+    public    List<SleeperWorkflowTransactionDto> getPendingVerifiedCalls();
+
+    List<Map<String, Object>> getSleeperRemapAvailableUsers();
+
+    void submitSleeperRemap(SleeperRemapSubmitDto dto);
 
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
 

@@ -41,6 +41,8 @@ public class FinalIcSaveChangesService {
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
         entity.setTrRecDate(dto.getTrRecDate());
+        entity.setNoOfVisits(dto.getNoOfVisits());
+        entity.setDatesOfInspection(dto.getDatesOfInspection());
         
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
@@ -67,6 +69,8 @@ public class FinalIcSaveChangesService {
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
                 .trRecDate(entity.getTrRecDate())
+                .noOfVisits(entity.getNoOfVisits())
+                .datesOfInspection(entity.getDatesOfInspection())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

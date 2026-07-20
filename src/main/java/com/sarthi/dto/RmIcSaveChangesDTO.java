@@ -27,6 +27,8 @@ public class RmIcSaveChangesDTO {
     private String specNo;
     private String qapNo;
     private String chpClause;
+    private String visitsNo;
+    private String inspectionDate;
     
     // Read-only audit fields
     private String createdBy;

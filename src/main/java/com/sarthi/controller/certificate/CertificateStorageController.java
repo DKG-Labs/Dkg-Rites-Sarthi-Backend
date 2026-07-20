@@ -75,6 +75,10 @@ public class CertificateStorageController {
         
         Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(icNumber);
         if (storageOpt.isEmpty()) {
+            storageOpt = certificateStorageRepository.findByCallNumber(icNumber);
+        }
+        
+        if (storageOpt.isEmpty()) {
             return ResponseEntity.status(404).body("No signed certificate found for this IC.");
         }
 
@@ -107,8 +111,11 @@ public class CertificateStorageController {
     }
 
     private ResponseEntity<?> getCheckResponse(String icNumber) {
-        boolean exists = certificateStorageRepository.findByIcNumber(icNumber).isPresent();
-        return ResponseEntity.ok(Map.of("exists", exists));
+        Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(icNumber);
+        if (storageOpt.isEmpty()) {
+            storageOpt = certificateStorageRepository.findByCallNumber(icNumber);
+        }
+        return ResponseEntity.ok(Map.of("exists", storageOpt.isPresent()));
     }
 
 
