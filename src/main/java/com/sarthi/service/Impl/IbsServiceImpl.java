@@ -742,7 +742,7 @@ public class IbsServiceImpl implements IbsService {
             String callNumber = (String) row[14];
 
             dto.setIcFileLink(
-                    "https://sarthibackendservice-bfe2eag3byfkbsa6.canadacentral-01.azurewebsites.net"
+                    "https://api.ritesqasarthi.com"
                             + "/sarthi-backend/api/certificate-storage/view/"
                             + callNumber
                             + ".pdf"
