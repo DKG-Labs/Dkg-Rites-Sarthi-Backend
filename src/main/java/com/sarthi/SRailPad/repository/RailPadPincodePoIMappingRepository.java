@@ -22,6 +22,8 @@ where r.poiCode = :poiCode
 
     Optional<RailPadPincodePoIMapping> findByVendorCode(String vendorCode);
 
+    Optional<RailPadPincodePoIMapping> findByVendorCodeAndCompanyName(String vendorCode, String companyName);
+
     List<RailPadPincodePoIMapping> findByPoiCode(String poiCode);
 
     List<RailPadPincodePoIMapping> findByCompanyName(String companyName);

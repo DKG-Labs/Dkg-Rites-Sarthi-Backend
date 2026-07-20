@@ -30,6 +30,8 @@ public interface RailWorkflowService {
 
     public void submitRailpadRemap(RailpadRemapSubmitDto dto);
 
+    public List<String> getMappedPlantIdsForUser(Integer userId, String ieType);
+
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName);
 

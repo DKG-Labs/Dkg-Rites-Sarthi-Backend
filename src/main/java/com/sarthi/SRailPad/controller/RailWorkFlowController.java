@@ -60,6 +60,11 @@ public class RailWorkFlowController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getPlantsByCompanyName(companyName)), HttpStatus.OK);
     }
 
+    @GetMapping("/mapped-plant-ids")
+    public ResponseEntity<Object> getMappedPlantIds(@RequestParam Integer userId, @RequestParam String ieType) {
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(workflowService.getMappedPlantIdsForUser(userId, ieType)), HttpStatus.OK);
+    }
+
     @GetMapping("/pendingVerifiedCalls")
     public ResponseEntity<Object> getPendingVerifiedCalls() {
         try {

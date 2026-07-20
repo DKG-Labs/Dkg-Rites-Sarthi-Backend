@@ -12,7 +12,10 @@ public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMappi
 
     boolean existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(String poiCode, String plantId, int intExact, String processIe);
 
-    List<RailPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(String poiCode, String plantId, String mainIe);
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM RailPoiIeMapping p WHERE p.poiCode = :poiCode AND p.plantId = :plantId AND UPPER(REPLACE(p.ieType, ' ', '_')) = UPPER(REPLACE(:ieType, ' ', '_'))")
+    List<RailPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(@org.springframework.data.repository.query.Param("poiCode") String poiCode, 
+                                                            @org.springframework.data.repository.query.Param("plantId") String plantId, 
+                                                            @org.springframework.data.repository.query.Param("ieType") String ieType);
 
     List<RailPoiIeMapping> findByIeUserId(Integer ieUserId);
 
@@ -21,4 +24,13 @@ public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMappi
     void updateIeUserIdByPlantId(@org.springframework.data.repository.query.Param("plantId") String plantId, 
                                  @org.springframework.data.repository.query.Param("oldUserId") Integer oldUserId, 
                                  @org.springframework.data.repository.query.Param("newUserId") Integer newUserId);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username) " +
+            "FROM rail_poi_ie_mapping rpm " +
+            "JOIN user_master um ON um.userid = rpm.ie_user_id " +
+            "WHERE rpm.poi_code = :poiCode AND rpm.plant_id = :plantId AND UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'MAIN_IE'", nativeQuery = true)
+    List<String> findIeEmpCodeWithNameAndPlantId(
+            @org.springframework.data.repository.query.Param("poiCode") String poiCode, 
+            @org.springframework.data.repository.query.Param("plantId") String plantId
+    );
 }

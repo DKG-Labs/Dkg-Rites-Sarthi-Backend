@@ -82,13 +82,15 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 new RailWorkflowTransaction();
 
 
-        // FETCH POI USING VENDOR CODE
+        com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants plant = railVendorPlantsRepository.findByPlantId(plantId).orElse(null);
+        String companyName = (plant != null && plant.getCompanyName() != null) ? plant.getCompanyName() : "";
+
+        // FETCH POI USING VENDOR CODE AND COMPANY NAME
         RailPadPincodePoIMapping mapping =
                 railPadPincodePoIMappingRepository
-                        .findByVendorCode(vendorCode)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "POI mapping not found for vendor"));
+                        .findByVendorCodeAndCompanyName(vendorCode, companyName)
+                        .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(vendorCode).orElseThrow(() ->
+                                new RuntimeException("POI mapping not found for vendor")));
 
 
         String initialAction =
@@ -805,7 +807,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         } else {
             // Process IE / Main IE mappings
             if (tx.getPoiCode() != null && tx.getPlantId() != null) {
-                String ieType = tx.getWorkflowId().equals(2L) ? "Main IE" : "Process IE";
+                String ieType = tx.getWorkflowId().equals(2L) ? "MAIN_IE" : "PROCESS_IE";
                 String mappingCacheKey = "mapping_" + tx.getPoiCode() + "_" + tx.getPlantId() + "_" + ieType;
                 mappings = (List<RailPoiIeMapping>) cache.computeIfAbsent(mappingCacheKey, k ->
                         poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(
@@ -841,6 +843,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         }
 
         dto.setAccessibleUserIds(userIds);
+
+        if (dto.getAssignedToUser() == null && userIds != null && !userIds.isEmpty()) {
+            dto.setAssignedToUser(userIds.get(0).longValue());
+        }
 
         if (dto.getAssignedToUser() != null) {
             String userCacheKey = "user_" + dto.getAssignedToUser();
@@ -928,6 +934,15 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         }
     }
 
+    @Override
+    public List<String> getMappedPlantIdsForUser(Integer userId, String ieType) {
+        List<RailPoiIeMapping> mappings = poiIeMappingRepository.findByIeUserId(userId);
+        return mappings.stream()
+                .filter(m -> m.getIeType() != null && m.getIeType().replace(" ", "_").equalsIgnoreCase(ieType.replace(" ", "_")))
+                .map(RailPoiIeMapping::getPlantId)
+                .distinct()
+                .toList();
+    }
 
 
     @Override
@@ -1049,14 +1064,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers() {
-        List<UserMaster> users = userMasterRepository.findByRoleNameContaining("Rail Process IE");
+        List<UserMaster> users = userMasterRepository.findByRoleNameContaining("Main IE");
         List<java.util.Map<String, Object>> available = new ArrayList<>();
         for (UserMaster u : users) {
             java.util.Map<String, Object> emp = new java.util.HashMap<>();
             emp.put("userId", u.getUserId());
             emp.put("employeeCode", u.getEmployeeCode());
             emp.put("fullName", u.getFullName());
-            emp.put("role", "Rail Process IE");
+            emp.put("role", "Rail Main IE");
             available.add(emp);
         }
         return available;

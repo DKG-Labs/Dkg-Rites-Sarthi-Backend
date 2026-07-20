@@ -80,7 +80,12 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private EmployeeCodeSequenceRepository employeeCodeSequenceRepository;
+
+    @Autowired
     private RailWorkflowTransactionRepository railWorkflowTransactionRepository;
+
+    @Autowired
+    private com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
 
 
 
@@ -751,9 +756,14 @@ public class UserServiceImpl implements UserService {
         String prefix = callNo.split("-")[0];
 
         String poiCode = null;
+        String plantId = null;
 
-        if ("RPF".equalsIgnoreCase(prefix)) {
-            poiCode = railWorkflowTransactionRepository.findLatestPoiByRequestId(callNo);
+        if ("RPF".equalsIgnoreCase(prefix) || "RPP".equalsIgnoreCase(prefix)) {
+            com.sarthi.SRailPad.entity.RailWorkflowTransaction tx = railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+            if (tx != null) {
+                poiCode = tx.getPoiCode();
+                plantId = tx.getPlantId();
+            }
         } else {
             poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
         }
@@ -764,8 +774,8 @@ public class UserServiceImpl implements UserService {
 
         if ("EP".equalsIgnoreCase(prefix)) {
             return pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
-        } else if ("RPF".equalsIgnoreCase(prefix)) {
-            return iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
+        } else if ("RPF".equalsIgnoreCase(prefix) || "RPP".equalsIgnoreCase(prefix)) {
+            return railPoiIeMappingRepository.findIeEmpCodeWithNameAndPlantId(poiCode, plantId);
         } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
             return iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
         } else {

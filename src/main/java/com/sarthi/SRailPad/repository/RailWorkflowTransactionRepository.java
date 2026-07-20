@@ -110,6 +110,8 @@ AND t.workflowId = 2
     @Query(value = "SELECT poi_code FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
     String findLatestPoiByRequestId(@Param("requestId") String requestId);
 
+    RailWorkflowTransaction findFirstByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
+
     @Query(value = "SELECT status FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
     Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
 
