@@ -20,14 +20,14 @@ public class IBSScheduler {
 
 
     //  daily -> 9 :45 AM
-   // @Scheduled(cron = "0 45 10 * * ?")
+    @Scheduled(cron = "0 10 10 * * ?")
     public void createEntries() {
 
         ibsService.createInitialEntries();
     }
 
     //retry 2 days one time 2pm
- //   @Scheduled(cron = "0 0 2 */2 * ?")
+    @Scheduled(cron = "0 20 10 */2 * ?")
     public void processPendingRecords() {
 
         var pageable = PageRequest.of(0, 10);
