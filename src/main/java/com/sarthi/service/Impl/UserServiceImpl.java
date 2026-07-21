@@ -673,7 +673,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserDto> getUsersByRole(String roleName) {
-        return userMasterRepository.findByRoleNameContaining(roleName).stream()
+        return userMasterRepository.findUsersByRoleNameViaJoin(roleName).stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
     }

@@ -1100,4 +1100,25 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             railWorkflowTransactionRepository.save(tx);
         }
     }
+
+    @Override
+    @Transactional(readOnly = false)
+    public String saveRailpadMapping(com.sarthi.SRailPad.dto.RailpadPoiIeMappingReqDto req) {
+        List<RailPoiIeMapping> existingMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(req.getPoiCode(), req.getPlantId(), req.getIeType());
+        
+        if (existingMappings != null && !existingMappings.isEmpty()) {
+            throw new RuntimeException("Mapping already exists for this POI and Plant ID for the given IE type");
+        }
+
+        RailPoiIeMapping newMapping = new RailPoiIeMapping();
+        newMapping.setPoiCode(req.getPoiCode());
+        newMapping.setPlantId(req.getPlantId());
+        newMapping.setIeUserId(req.getIeUserId());
+        newMapping.setIeType(req.getIeType());
+        newMapping.setCreatedDate(java.time.LocalDateTime.now());
+
+        poiIeMappingRepository.save(newMapping);
+
+        return "Railpad mapping created successfully";
+    }
 }

@@ -299,6 +299,8 @@ public class mappingImpl implements mappingService {
                 .map(user -> EmployeeRoleResDto.builder()
                         .userId(user.getUserId())
                         .employeeCode(user.getEmployeeCode())
+                        .fullName(user.getFullName())
+                        .userName(user.getUsername())
                         .build())
                 .toList();
     }
