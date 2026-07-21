@@ -6849,6 +6849,7 @@ public class reportsImpl implements reports {
                         java.util.Map<String, String> map = new java.util.HashMap<>();
                         map.put("vendorCode", r[0] != null ? r[0].toString() : "");
                         map.put("companyName", r[1] != null ? r[1].toString() : "");
+                        map.put("poiCode", r[2] != null ? r[2].toString() : "");
                         list.add(map);
                 }
                 return list;

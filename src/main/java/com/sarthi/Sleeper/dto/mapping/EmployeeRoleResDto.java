@@ -10,4 +10,8 @@ public class EmployeeRoleResDto {
     private Integer userId;
 
     private String employeeCode;
+    
+    private String fullName;
+    
+    private String userName;
 }
