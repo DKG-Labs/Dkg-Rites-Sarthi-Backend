@@ -22,6 +22,15 @@ import java.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.JdbcTemplate;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Types;
+
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
+import java.sql.Statement;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -72,6 +81,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     @Autowired
     private InspectionReasonMasterRepository reasonRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
 
     /*  @Override
@@ -128,188 +140,146 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Transactional
     @Override
     public void saveInspection(InspectionSaveRequestDto dto) {
+        try {
+            InspectionModule module = moduleRepository
+                    .findById(dto.getModuleId())
+                    .orElseThrow(() -> new IllegalArgumentException("Module not found: " + dto.getModuleId()));
 
-        InspectionModule module = moduleRepository
-                .findById(dto.getModuleId())
-                .orElseThrow();
+            InspectionTestHeader header = new InspectionTestHeader();
+            header.setBatchId(dto.getBatchId());
+            header.setModule(module);
+            header.setShift(dto.getShift());
+            header.setCreatedBy(dto.getCreatedBy());
+            header.setTestDate(LocalDate.now());
+            header.setCreatedDate(LocalDateTime.now());
+            header.setSleeperType(dto.getSleeperType());
+            headerRepository.save(header);
 
-        InspectionTestHeader header = new InspectionTestHeader();
-        header.setBatchId(dto.getBatchId());
-        header.setModule(module);
-        header.setShift(dto.getShift());
-        header.setCreatedBy(dto.getCreatedBy());
-        header.setTestDate(LocalDate.now());
-        header.setCreatedDate(LocalDateTime.now());
+            // Pre-fetch parameters to a map
+            Map<Long, InspectionParameter> parameterMap = parameterRepository.findAll()
+                    .stream()
+                    .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
 
-        header.setSleeperType(dto.getSleeperType());
-        headerRepository.save(header);
+            // Pre-fetch reasons to a map (Eliminate N+1 query)
+            Map<Long, InspectionReasonMaster> reasonMap = reasonRepository.findAll()
+                    .stream()
+                    .collect(Collectors.toMap(InspectionReasonMaster::getId, r -> r));
 
-        Map<Long, InspectionParameter> parameterMap =
-                parameterRepository.findAll()
-                        .stream()
-                        .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
+            // Pre-fetch existing active records for the batch/module (Eliminate N+1 query)
+            List<InspectionTestResult> allExistingActive = resultRepository
+                    .findByTestHeader_BatchIdAndModuleIdAndActiveTrue(dto.getBatchId(), dto.getModuleId());
+            Map<Long, List<InspectionTestResult>> existingBySleeper = allExistingActive.stream()
+                    .collect(Collectors.groupingBy(InspectionTestResult::getSleeperId));
 
-        List<InspectionParameterResult> parameterResults = new ArrayList<>();
-/*
-      for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+            // Collections for bulk save
+            List<InspectionTestResult> oldResultsToDeactivate = new ArrayList<>();
+            List<InspectionTestResult> newResultsToSave = new ArrayList<>();
+            List<InspectionParameterResult> newParameterResults = new ArrayList<>();
 
-          //  CHECK if already tested
-          boolean alreadyTested =
-                  resultRepository.existsByBatchIdAndModuleIdAndSleeperId(
-                          dto.getBatchId(),
-                          dto.getModuleId(),
-                          sleeperDto.getSleeperId()
-                  );
-
-          if (alreadyTested) {
-              continue; //  skip already tested sleeper
-          }
-
-          //  Only create if not exists
-          InspectionTestResult result = new InspectionTestResult();
-
-          result.setTestHeader(header);
-          result.setSleeperId(sleeperDto.getSleeperId());
-          result.setSleeperNo(sleeperDto.getSleeperNo());
-          result.setResult(sleeperDto.getResult());
-          result.setRejectionReason(sleeperDto.getRejectionReason());
-          result.setModuleId(module.getId());
-          result.setActive(true);
-          resultRepository.save(result);
-          //  parameters logic (no change)
-          if (sleeperDto.getParameters() != null) {
-
-              for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
-
-                  InspectionParameter parameter =
-                          parameterMap.get(paramDto.getParameterId());
-
-                  InspectionParameterResult paramResult =
-                          new InspectionParameterResult();
-
-                  paramResult.setTestResult(result);
-                  paramResult.setParameter(parameter);
-                  paramResult.setParameterResult(paramDto.getResult());
-
-                  parameterResults.add(paramResult);
-              }
-          }
-      }*/
-        for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
-
-
-
-            // STEP 1: Fetch existing active record
-            List<InspectionTestResult> existing =
-                    resultRepository.findByTestHeader_BatchIdAndModuleIdAndSleeperIdAndActiveTrue(
-                            dto.getBatchId(),
-                            dto.getModuleId(),
-                            sleeperDto.getSleeperId()
-                    );
-
-            // STEP 2: Deactivate old record
-            for (InspectionTestResult old : existing) {
-                old.setActive(false);
-                old.setUpdatedBy(dto.getCreatedBy());
-                old.setUpdatedDate(LocalDateTime.now());
-            }
-
-            resultRepository.saveAll(existing);
-
-
-
-
-            // STEP 3: Always insert new record
-            InspectionTestResult result = new InspectionTestResult();
-
-            result.setTestHeader(header);
-            result.setSleeperId(sleeperDto.getSleeperId());
-            result.setSleeperNo(sleeperDto.getSleeperNo());
-            result.setResult(sleeperDto.getResult());
-            result.setRejectionReason(sleeperDto.getRejectionReason());
-            result.setModuleId(module.getId());
-            result.setActive(true);
-
-            resultRepository.save(result);
-/*
-            // parameters (same as your code)
-            if (sleeperDto.getParameters() != null) {
-
-                for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
-
-                    InspectionParameter parameter =
-                            parameterMap.get(paramDto.getParameterId());
-
-                    InspectionParameterResult paramResult =
-                            new InspectionParameterResult();
-
-                    paramResult.setTestResult(result);
-                    paramResult.setParameter(parameter);
-                    paramResult.setParameterResult(paramDto.getResult());
-
-                    parameterResults.add(paramResult);
+            // Process sleepers sequentially in memory
+            for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
+                // STEP 1 & 2: Get and deactivate old records
+                List<InspectionTestResult> existing = existingBySleeper.getOrDefault(sleeperDto.getSleeperId(), Collections.emptyList());
+                for (InspectionTestResult old : existing) {
+                    old.setActive(false);
+                    old.setUpdatedBy(dto.getCreatedBy());
+                    old.setUpdatedDate(LocalDateTime.now());
+                    oldResultsToDeactivate.add(old);
                 }
-            }*/
 
-            if (sleeperDto.getParameters() != null) {
+                // STEP 3: Create new record
+                InspectionTestResult result = new InspectionTestResult();
+                result.setTestHeader(header);
+                result.setSleeperId(sleeperDto.getSleeperId());
+                result.setSleeperNo(sleeperDto.getSleeperNo());
+                result.setResult(sleeperDto.getResult());
+                result.setRejectionReason(sleeperDto.getRejectionReason());
+                result.setModuleId(module.getId());
+                result.setActive(true);
+                newResultsToSave.add(result);
 
-                for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+                // Process parameters
+                if (sleeperDto.getParameters() != null) {
+                    for (ParameterInspectionDto paramDto : sleeperDto.getParameters()) {
+                        InspectionParameter parameter = parameterMap.get(paramDto.getParameterId());
+                        if (parameter == null) continue; // Skip if parameter mapping fails
 
+                        Long reasonId = null;
+                        if (paramDto.getSubReasonId() != null) {
+                            reasonId = paramDto.getSubReasonId();
+                        } else if (paramDto.getMainReasonId() != null) {
+                            reasonId = paramDto.getMainReasonId();
+                        }
 
+                        InspectionReasonMaster reason = null;
+                        if (reasonId != null) {
+                            reason = reasonMap.get(reasonId);
+                            if (reason == null) {
+                                throw new IllegalArgumentException("Reason not found for ID: " + reasonId);
+                            }
+                        }
 
-                    InspectionParameter parameter =
-                            parameterMap.get(paramDto.getParameterId());
-
-
-                    Long reasonId = null;
-
-                    if (paramDto.getSubReasonId() != null) {
-
-                        reasonId = paramDto.getSubReasonId();
-
-                    } else if (paramDto.getMainReasonId() != null) {
-
-                        reasonId = paramDto.getMainReasonId();
+                        InspectionParameterResult paramResult = new InspectionParameterResult();
+                        paramResult.setTestResult(result);
+                        paramResult.setParameter(parameter);
+                        paramResult.setParameterResult(paramDto.getResult());
+                        paramResult.setReasonMaster(reason);
+                        
+                        newParameterResults.add(paramResult);
                     }
-
-
-
-                    InspectionReasonMaster reason = null;
-
-                    if (reasonId != null) {
-
-                        reason = reasonRepository
-                                .findById(reasonId)
-                                .orElseThrow(() ->
-                                        new RuntimeException(
-                                                "Reason not found"));
-                    }
-
-
-
-
-                    InspectionParameterResult paramResult =
-                            new InspectionParameterResult();
-
-                    paramResult.setTestResult(result);
-
-                    paramResult.setParameter(parameter);
-
-                    paramResult.setParameterResult(
-                            paramDto.getResult());
-
-
-
-                    paramResult.setReasonMaster(reason);
-
-                    parameterResults.add(paramResult);
                 }
             }
+
+            // STEP 4: Bulk save all processed data sequentially
+            if (!oldResultsToDeactivate.isEmpty()) {
+                String ids = oldResultsToDeactivate.stream()
+                        .map(r -> String.valueOf(r.getId()))
+                        .collect(Collectors.joining(","));
+                String updateSql = "UPDATE inspection_test_result SET active = false, updated_by = ?, updated_date = ? WHERE id IN (" + ids + ")";
+                jdbcTemplate.update(updateSql, dto.getCreatedBy(), LocalDateTime.now());
+            }
+
+            if (!newResultsToSave.isEmpty()) {
+                StringBuilder sql = new StringBuilder("INSERT INTO inspection_test_result (test_header_id, sleeper_id, sleeper_no, result, rejection_reason, module_id, active) VALUES ");
+                Object[] params = new Object[newResultsToSave.size() * 7];
+                int pIdx = 0;
+                for (int i = 0; i < newResultsToSave.size(); i++) {
+                    if (i > 0) sql.append(", ");
+                    sql.append("(?, ?, ?, ?, ?, ?, ?)");
+                    InspectionTestResult r = newResultsToSave.get(i);
+                    params[pIdx++] = r.getTestHeader().getId();
+                    params[pIdx++] = r.getSleeperId();
+                    params[pIdx++] = r.getSleeperNo();
+                    params[pIdx++] = r.getResult();
+                    params[pIdx++] = r.getRejectionReason();
+                    params[pIdx++] = r.getModuleId();
+                    params[pIdx++] = r.getActive();
+                }
+
+                KeyHolder keyHolder = new GeneratedKeyHolder();
+                jdbcTemplate.update(connection -> {
+                    PreparedStatement ps = connection.prepareStatement(sql.toString(), Statement.RETURN_GENERATED_KEYS);
+                    for (int i = 0; i < params.length; i++) {
+                        ps.setObject(i + 1, params[i]);
+                    }
+                    return ps;
+                }, keyHolder);
+
+                List<Map<String, Object>> keys = keyHolder.getKeyList();
+                for (int i = 0; i < newResultsToSave.size(); i++) {
+                    Map<String, Object> keyMap = keys.get(i);
+                    Long generatedId = ((Number) keyMap.values().iterator().next()).longValue();
+                    newResultsToSave.get(i).setId(generatedId);
+                }
+            }
+            
+            bulkInsertParameterResults(newParameterResults);
+
+            checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId(), dto.getSleeperType());
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to save inspection data: " + e.getMessage(), e);
         }
-
-        parameterResultRepository.saveAll(parameterResults);
-
-        checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId(), dto.getSleeperType());
     }
 
     private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId,String sleeperT) {
@@ -370,6 +340,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 completed = true;
             }
 
+        }
+
+        if (testedPercentage >= 99.99) {
+            completed = true;
         }
 
         if(completed){
@@ -438,13 +412,13 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 .filter(r -> incomingIds.contains(r.getSleeperId()))
                 .toList();
 
-        for (InspectionTestResult r : toDeactivate) {
-            r.setActive(false);
-            r.setUpdatedBy(dto.getCreatedBy());
-            r.setUpdatedDate(LocalDateTime.now());
+        if (!toDeactivate.isEmpty()) {
+            String ids = toDeactivate.stream()
+                    .map(r -> String.valueOf(r.getId()))
+                    .collect(Collectors.joining(","));
+            String updateSql = "UPDATE inspection_test_result SET active = false, updated_by = ?, updated_date = ? WHERE id IN (" + ids + ")";
+            jdbcTemplate.update(updateSql, dto.getCreatedBy(), LocalDateTime.now());
         }
-
-        resultRepository.saveAll(toDeactivate);
 
         //  Parameter map
         Map<Long, InspectionParameter> parameterMap =
@@ -453,6 +427,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
 
         List<InspectionParameterResult> parameterResults = new ArrayList<>();
+        List<InspectionTestResult> newResultsToSave = new ArrayList<>();
 
         //  INSERT new records
         for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
@@ -478,7 +453,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             result.setRejectionReason(sleeperDto.getRejectionReason());
             result.setActive(true);
 
-            resultRepository.save(result);
+            newResultsToSave.add(result);
 
             //  parameters
             if (sleeperDto.getParameters() != null) {
@@ -499,11 +474,83 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
         }
+        
+        if (!newResultsToSave.isEmpty()) {
+            StringBuilder sql = new StringBuilder("INSERT INTO inspection_test_result (test_header_id, sleeper_id, sleeper_no, result, rejection_reason, module_id, active) VALUES ");
+            Object[] params = new Object[newResultsToSave.size() * 7];
+            int pIdx = 0;
+            for (int i = 0; i < newResultsToSave.size(); i++) {
+                if (i > 0) sql.append(", ");
+                sql.append("(?, ?, ?, ?, ?, ?, ?)");
+                InspectionTestResult r = newResultsToSave.get(i);
+                params[pIdx++] = r.getTestHeader().getId();
+                params[pIdx++] = r.getSleeperId();
+                params[pIdx++] = r.getSleeperNo();
+                params[pIdx++] = r.getResult();
+                params[pIdx++] = r.getRejectionReason();
+                params[pIdx++] = r.getModuleId();
+                params[pIdx++] = r.getActive();
+            }
 
-        parameterResultRepository.saveAll(parameterResults);
+            KeyHolder keyHolder = new GeneratedKeyHolder();
+            jdbcTemplate.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement(sql.toString(), Statement.RETURN_GENERATED_KEYS);
+                for (int i = 0; i < params.length; i++) {
+                    ps.setObject(i + 1, params[i]);
+                }
+                return ps;
+            }, keyHolder);
+
+            List<Map<String, Object>> keys = keyHolder.getKeyList();
+            for (int i = 0; i < newResultsToSave.size(); i++) {
+                Map<String, Object> keyMap = keys.get(i);
+                Long generatedId = ((Number) keyMap.values().iterator().next()).longValue();
+                newResultsToSave.get(i).setId(generatedId);
+            }
+        }
+
+        bulkInsertParameterResults(parameterResults);
 
         //  Completion logic unchanged
         checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId(), dto.getSleeperType());
+    }
+
+    private void bulkInsertParameterResults(List<InspectionParameterResult> parameterResults) {
+        if (parameterResults == null || parameterResults.isEmpty()) {
+            return;
+        }
+
+        int batchSize = 300; // Optimal chunk size to avoid packet limit
+        for (int i = 0; i < parameterResults.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, parameterResults.size());
+            List<InspectionParameterResult> chunk = parameterResults.subList(i, end);
+
+            StringBuilder sql = new StringBuilder("INSERT INTO inspection_parameter_result (parameter_result, parameter_id, test_result_id, reason_master_id) VALUES ");
+            Object[] params = new Object[chunk.size() * 4];
+            int[] types = new int[chunk.size() * 4];
+
+            int paramIndex = 0;
+            for (int j = 0; j < chunk.size(); j++) {
+                if (j > 0) sql.append(", ");
+                sql.append("(?, ?, ?, ?)");
+
+                InspectionParameterResult pr = chunk.get(j);
+                
+                params[paramIndex] = pr.getParameterResult();
+                types[paramIndex++] = Types.VARCHAR;
+
+                params[paramIndex] = pr.getParameter() != null ? pr.getParameter().getId() : null;
+                types[paramIndex++] = Types.BIGINT;
+
+                params[paramIndex] = pr.getTestResult() != null ? pr.getTestResult().getId() : null;
+                types[paramIndex++] = Types.BIGINT;
+
+                params[paramIndex] = pr.getReasonMaster() != null ? pr.getReasonMaster().getId() : null;
+                types[paramIndex++] = Types.BIGINT;
+            }
+
+            jdbcTemplate.update(sql.toString(), params, types);
+        }
     }
     /*
         @Override
@@ -674,6 +721,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     completed = true;
                 }
 
+            }
+
+            if (percent >= 99.99) {
+                completed = true;
             }
 
 
