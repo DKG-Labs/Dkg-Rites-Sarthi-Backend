@@ -52,6 +52,9 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
           ")", nativeQuery = true)
   List<WorkflowTransition> findLatestByRio(@Param("rio") String rio);
 
+  @Query(value = "SELECT rio FROM WORKFLOW_TRANSITION WHERE requestid = :callNo AND job_status = 'Created' ORDER BY WORKFLOWTRANSITIONID ASC LIMIT 1", nativeQuery = true)
+  String findRioByCallNoAndStatusCreated(@Param("callNo") String callNo);
+
   //    @Query("SELECT COUNT(w) FROM WorkflowTransition w " +
 //            "WHERE w.assignedToUser = :ieUserId AND w.status IN ('VERIFIED','ASSIGNED','INITIATED')")
 //    int countActiveCallsForIE(@Param("ieUserId") Integer ieUserId);

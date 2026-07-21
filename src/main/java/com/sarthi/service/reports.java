@@ -175,4 +175,6 @@ public interface reports {
 
         public List<InspectionCallDetailDto> getPendingCalls(String vendorPlantCode, String zonalRailway,
                         String startDate, String endDate);
+
+        public String getRegionByCallNo(String callNo);
 }
