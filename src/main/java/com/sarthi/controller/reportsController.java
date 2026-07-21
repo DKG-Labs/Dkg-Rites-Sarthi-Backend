@@ -37,6 +37,17 @@ public class reportsController {
     @Autowired
     private WorkflowTransitionRepository workflowTransitionRepository;
 
+    @GetMapping("/region")
+    public ResponseEntity<Object> getRegionByCallNo(@RequestParam String callNo) {
+        try {
+            String regionName = reportService.getRegionByCallNo(callNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(regionName), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
+                    new ErrorDetails(500, 500, "ERROR", e.getMessage())), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @GetMapping("/icIssuedCounts")
     public ResponseEntity<Object> getIcIssuedCounts(
             @RequestParam(required = false) String vendorPlantCode,

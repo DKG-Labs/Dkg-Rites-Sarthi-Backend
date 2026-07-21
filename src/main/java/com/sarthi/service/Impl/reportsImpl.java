@@ -7366,4 +7366,27 @@ public class reportsImpl implements reports {
                         default -> status;
                 };
         }
+
+        @Override
+        public String getRegionByCallNo(String callNo) {
+            String requestId = callNo;
+            if (callNo != null && callNo.contains("/")) {
+                String[] parts = callNo.split("/");
+                if (parts.length >= 2) {
+                    requestId = parts[1];
+                }
+            }
+            String rio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(requestId);
+            String regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
+            if (rio != null) {
+                switch(rio.toUpperCase()) {
+                    case "NRIO": regionName = "RITES LIMITED, NORTHERN REGION, DELHI"; break;
+                    case "WRIO": regionName = "RITES LIMITED, WESTERN REGION, MUMBAI"; break;
+                    case "SRIO": regionName = "RITES LIMITED, SOUTHEN REGION, CHENNAI"; break;
+                    case "ERIO": regionName = "RITES LIMITED, EASTERN REGION, KOLKATA"; break;
+                    case "CRIO": regionName = "RITES LIMITED, CENTRAL REGION, BHILAI"; break;
+                }
+            }
+            return regionName;
+        }
 }
