@@ -1015,33 +1015,39 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Override
     public List<String> getMappedCompanyNames(Long userId) {
         List<RailPoiIeMapping> ieMappings = poiIeMappingRepository.findByIeUserId(Math.toIntExact(userId));
-        List<String> companyNames = new ArrayList<>();
-
-        for (RailPoiIeMapping ieMapping : ieMappings) {
-            List<RailPadPincodePoIMapping> poiMappings = railPadPincodePoIMappingRepository.findByPoiCode(ieMapping.getPoiCode());
-            for (RailPadPincodePoIMapping poiMapping : poiMappings) {
-                if (!companyNames.contains(poiMapping.getCompanyName())) {
-                    companyNames.add(poiMapping.getCompanyName());
-                }
-            }
+        if (ieMappings.isEmpty()) {
+            return new ArrayList<>();
         }
-        return companyNames;
+
+        List<String> poiCodes = ieMappings.stream()
+                .map(RailPoiIeMapping::getPoiCode)
+                .distinct()
+                .toList();
+
+        if (poiCodes.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return railPadPincodePoIMappingRepository.findDistinctCompanyNamesByPoiCodeIn(poiCodes);
     }
 
     @Override
     public List<String> getPlantsByCompanyName(String companyName) {
         List<RailPadPincodePoIMapping> poiMappings = railPadPincodePoIMappingRepository.findByCompanyName(companyName);
-        List<String> plantIds = new ArrayList<>();
-
-        for (RailPadPincodePoIMapping poiMapping : poiMappings) {
-            List<RailVendorPlants> plants = railVendorPlantsRepository.findByVendorCode(poiMapping.getVendorCode());
-            for (RailVendorPlants plant : plants) {
-                if (!plantIds.contains(plant.getPlantId())) {
-                    plantIds.add(plant.getPlantId());
-                }
-            }
+        if (poiMappings.isEmpty()) {
+            return new ArrayList<>();
         }
-        return plantIds;
+
+        List<String> vendorCodes = poiMappings.stream()
+                .map(RailPadPincodePoIMapping::getVendorCode)
+                .distinct()
+                .toList();
+
+        if (vendorCodes.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return railVendorPlantsRepository.findDistinctPlantIdsByVendorCodeIn(vendorCodes);
     }
 
     @Override
