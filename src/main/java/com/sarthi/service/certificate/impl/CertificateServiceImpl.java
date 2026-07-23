@@ -247,7 +247,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .remarks(buildRemarks(inspectionCall))
                 .dateOfCall(buildDateOfCall(inspectionCall))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
-                .dateOfInspection(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
+                .dateOfInspection(formatDateRange(visitDates))
                 .sealingPattern(buildSealingPattern(heatResults))
                 .sealFacsimile("") // Blank for stamp
                 .inspectingEngineer("") // Keep blank for now (DSC signature)
@@ -911,6 +911,17 @@ public class CertificateServiceImpl implements CertificateService {
         return date != null ? date.format(DATE_FORMATTER) : "";
     }
 
+    private String formatDateRange(List<LocalDate> visitDates) {
+        if (visitDates == null || visitDates.isEmpty()) {
+            return "";
+        }
+        if (visitDates.size() == 1) {
+            return formatDate(visitDates.get(0));
+        }
+        List<LocalDate> sorted = visitDates.stream().sorted().collect(Collectors.toList());
+        return formatDate(sorted.get(0)) + " - " + formatDate(sorted.get(sorted.size() - 1));
+    }
+
     /**
      * Helper to get IC Date (Creation Date or Edit Date)
      */
@@ -1016,11 +1027,11 @@ public class CertificateServiceImpl implements CertificateService {
                 .lots(lots)
                 .reference(buildProcessReference(inspectionCall))
                 .dateOfCall(buildDateOfCall(inspectionCall))
-                .inspectionDate(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
+                .inspectionDate(formatDateRange(visitDates))
                 .manDays(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
                 .sealingPattern(buildProcessSealingPattern())
-                .inspectingEngineer(inspectionCall.getCreatedBy() != null ? inspectionCall.getCreatedBy() : "")
+                .inspectingEngineer("") // Keep blank for now (DSC signature)
                 .build();
 
         // Merge saved draft edits if available, else fallback to final edits
@@ -1427,7 +1438,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .noOfItemsChecked("1")
                 .dateOfCall(buildDateOfCall(inspectionCall))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
-                .inspectionDates(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
+                .inspectionDates(formatDateRange(visitDates))
                 .sealingPattern(sealingPattern)
                 .quantityNowPassedText("")
                 .rmIcNo(rmIcNoStr)
