@@ -30,22 +30,23 @@ public class PoiMappingController {
     }
 
 
-    @GetMapping("/companies/{companyName}/units")
+    @GetMapping("/companies/units")
     public ResponseEntity<Object> getUnitsByCompany(
-            @PathVariable String companyName) {
+            @RequestParam String companyName) {
 
         List<String> units =
-                poiService.getUnitsByCompany(companyName);
+                poiService.getUnitsByCompany(companyName.trim());
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(units),
                 HttpStatus.OK
         );
     }
-    @GetMapping("/companies/{companyName}/units/{unitName}")
+    
+    @GetMapping("/companies/unit-details")
     public ResponseEntity<Object> getUnitDetails(
-            @PathVariable String companyName,
-            @PathVariable String unitName) {
+            @RequestParam String companyName,
+            @RequestParam String unitName) {
 
         UnitDetailsDTO unitDetails =
                 poiService.getUnitDetails(
