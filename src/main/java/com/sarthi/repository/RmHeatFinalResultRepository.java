@@ -614,7 +614,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 COALESCE(SUM(DISTINCT rmr.total_qty_offered_mt), 0)
                                                             AS quantityOffered,
 
-                COALESCE(SUM(rmr.accepted_qty_mt), 0)
+                COALESCE(SUM(rmr.weight_accepted_mt), 0)
                                                             AS quantityPassed,
 
                 COALESCE(SUM(rmr.weight_rejected_mt), 0)
