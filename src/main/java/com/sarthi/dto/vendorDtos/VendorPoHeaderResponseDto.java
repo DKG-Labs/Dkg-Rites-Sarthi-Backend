@@ -20,6 +20,7 @@ public class VendorPoHeaderResponseDto {
     private BigDecimal totalValue;
     private String status;
     private String pdfPath;
+    private String caseNo;
 
     private List<VendorPoItemsResponseDto> poItem;
 
