@@ -85,18 +85,19 @@ public interface InspectionCompleteDetailsRepository extends JpaRepository<Inspe
     /**
      * Find Process IC certificate numbers by RM IC certificate number
      * Returns CERTIFICATE_NO for display in dropdown
-     * Logic: rm_ic_number in process_inspection_details stores CERTIFICATE_NO directly
+     * Logic: rm_ic_number in process_inspection_details / process_rm_ic_mapping stores CERTIFICATE_NO directly
      */
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO " +
             "FROM inspection_complete_details icd " +
             "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
             "WHERE icd.CALL_NO IN (" +
             "    SELECT DISTINCT ic2.ic_number " +
-            "    FROM process_inspection_details pid " +
-            "    INNER JOIN inspection_calls ic2 ON pid.ic_id = ic2.id " +
-            "    WHERE pid.rm_ic_number = :rmCertificateNo" +
+            "    FROM inspection_calls ic2 " +
+            "    LEFT JOIN process_inspection_details pid ON pid.ic_id = ic2.id " +
+            "    LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic2.id " +
+            "    WHERE (TRIM(pid.rm_ic_number) = :rmCertificateNo OR TRIM(prim.rm_ic_number) = :rmCertificateNo) " +
             ") " +
-            "AND icd.CALL_NO LIKE 'EP%' " +
+            "AND (ic.type_of_call LIKE '%PROCESS%' OR icd.CALL_NO LIKE 'EP%' OR icd.CALL_NO LIKE 'ER%') " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
             nativeQuery = true)
     List<String> findProcessIcNumbersByRmIcNumber(@Param("rmCertificateNo") String rmCertificateNo);
@@ -110,11 +111,12 @@ public interface InspectionCompleteDetailsRepository extends JpaRepository<Inspe
             "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
             "WHERE icd.CALL_NO IN (" +
             "    SELECT DISTINCT ic2.ic_number " +
-            "    FROM process_inspection_details pid " +
-            "    INNER JOIN inspection_calls ic2 ON pid.ic_id = ic2.id " +
-            "    WHERE pid.rm_ic_number IN :rmCertificateNos" +
+            "    FROM inspection_calls ic2 " +
+            "    LEFT JOIN process_inspection_details pid ON pid.ic_id = ic2.id " +
+            "    LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic2.id " +
+            "    WHERE (TRIM(pid.rm_ic_number) IN :rmCertificateNos OR TRIM(prim.rm_ic_number) IN :rmCertificateNos) " +
             ") " +
-            "AND icd.CALL_NO LIKE 'EP%' " +
+            "AND (ic.type_of_call LIKE '%PROCESS%' OR icd.CALL_NO LIKE 'EP%' OR icd.CALL_NO LIKE 'ER%') " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
             nativeQuery = true)
     List<String> findProcessIcNumbersByMultipleRmIcNumbers(@Param("rmCertificateNos") List<String> rmCertificateNos);
@@ -158,7 +160,7 @@ List<Object[]> findCertificateNosByCallNos(
             "FROM inspection_complete_details icd " +
             "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
             "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
-            "WHERE icd.CALL_NO LIKE 'EP%' " +
+            "WHERE (ic.type_of_call LIKE '%PROCESS%' OR icd.CALL_NO LIKE 'EP%' OR icd.CALL_NO LIKE 'ER%') " +
             "AND ic.vendor_id = :vendorId " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
             nativeQuery = true)
@@ -166,28 +168,32 @@ List<Object[]> findCertificateNosByCallNos(
 
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
             "FROM inspection_complete_details icd " +
+            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
             "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
             "WHERE icd.CALL_NO IN (" +
             "    SELECT DISTINCT ic2.ic_number " +
-            "    FROM process_inspection_details pid " +
-            "    INNER JOIN inspection_calls ic2 ON pid.ic_id = ic2.id " +
-            "    WHERE pid.rm_ic_number = :rmCertificateNo" +
+            "    FROM inspection_calls ic2 " +
+            "    LEFT JOIN process_inspection_details pid ON pid.ic_id = ic2.id " +
+            "    LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic2.id " +
+            "    WHERE (TRIM(pid.rm_ic_number) = :rmCertificateNo OR TRIM(prim.rm_ic_number) = :rmCertificateNo) " +
             ") " +
-            "AND icd.CALL_NO LIKE 'EP%' " +
+            "AND (ic.type_of_call LIKE '%PROCESS%' OR icd.CALL_NO LIKE 'EP%' OR icd.CALL_NO LIKE 'ER%') " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
             nativeQuery = true)
     List<Object[]> findProcessIcNumbersWithDateByRmIcNumber(@Param("rmCertificateNo") String rmCertificateNo);
 
     @Query(value = "SELECT DISTINCT icd.CERTIFICATE_NO AS certificateNo, COALESCE(p.CREATED_AT, icd.CREATED_ON) AS createdAt " +
             "FROM inspection_complete_details icd " +
+            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
             "LEFT JOIN PROCESS_IC_EDIT p ON icd.CERTIFICATE_NO = p.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
             "WHERE icd.CALL_NO IN (" +
             "    SELECT DISTINCT ic2.ic_number " +
-            "    FROM process_inspection_details pid " +
-            "    INNER JOIN inspection_calls ic2 ON pid.ic_id = ic2.id " +
-            "    WHERE pid.rm_ic_number IN :rmCertificateNos" +
+            "    FROM inspection_calls ic2 " +
+            "    LEFT JOIN process_inspection_details pid ON pid.ic_id = ic2.id " +
+            "    LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic2.id " +
+            "    WHERE (TRIM(pid.rm_ic_number) IN :rmCertificateNos OR TRIM(prim.rm_ic_number) IN :rmCertificateNos) " +
             ") " +
-            "AND icd.CALL_NO LIKE 'EP%' " +
+            "AND (ic.type_of_call LIKE '%PROCESS%' OR icd.CALL_NO LIKE 'EP%' OR icd.CALL_NO LIKE 'ER%') " +
             "ORDER BY icd.CERTIFICATE_NO DESC",
             nativeQuery = true)
     List<Object[]> findProcessIcNumbersWithDateByMultipleRmIcNumbers(@Param("rmCertificateNos") List<String> rmCertificateNos);
