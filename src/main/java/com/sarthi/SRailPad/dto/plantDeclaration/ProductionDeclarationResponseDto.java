@@ -2,6 +2,7 @@ package com.sarthi.SRailPad.dto.plantDeclaration;
 
 import lombok.Data;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -15,6 +16,7 @@ public class ProductionDeclarationResponseDto {
     private String productionLine;
     private String poNo;
     private String status;
+    private LocalDateTime createdDate;
     
     private List<ProductResponseDto> products;
 
