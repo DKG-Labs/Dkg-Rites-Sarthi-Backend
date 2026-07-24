@@ -29,6 +29,8 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
         private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
         @Autowired
         private RmHeatFinalResultRepository rmHeatFinalResultRepository;
+        @Autowired
+        private com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository processLineFinalResultRepository;
 
         // @Override
         // public InspectionQtySummaryResponse getQtySummary(String requestId) {
@@ -224,6 +226,13 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
 
         @Override
         public int getAcceptedQtyForLot(String requestId, String lotNumber, String heatNo) {
+                if (lotNumber != null && !lotNumber.isBlank()) {
+                        Integer temperingAccepted = processLineFinalResultRepository
+                                        .sumTemperingAcceptedByLotNumberAndHeatNo(lotNumber, heatNo);
+                        if (temperingAccepted != null && temperingAccepted > 0) {
+                                return temperingAccepted;
+                        }
+                }
                 return processIeQtyRepository.sumInspectedQtyByRequestIdAndLotNumberAndHeatNo(requestId, lotNumber,
                                 heatNo);
         }

@@ -94,13 +94,14 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
 
     /**
      * Find lot numbers by RM IC certificate and Process IC certificate
-     * rm_ic_number in process_inspection_details stores CERTIFICATE_NO directly
+     * rm_ic_number in process_inspection_details / process_rm_ic_mapping stores CERTIFICATE_NO directly
      */
     @Query(value = "SELECT DISTINCT pid.lot_number " +
             "FROM process_inspection_details pid " +
             "INNER JOIN inspection_calls ic ON pid.ic_id = ic.id " +
             "INNER JOIN inspection_complete_details icd_process ON ic.ic_number = icd_process.CALL_NO " +
-            "WHERE pid.rm_ic_number = :rmCertificateNo " +
+            "LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic.id " +
+            "WHERE (TRIM(pid.rm_ic_number) = :rmCertificateNo OR TRIM(prim.rm_ic_number) = :rmCertificateNo) " +
             "AND icd_process.CERTIFICATE_NO = :processCertificateNo " +
             "AND pid.lot_number IS NOT NULL " +
             "ORDER BY pid.lot_number",
@@ -113,12 +114,13 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
      * Find heat numbers by lot number and RM IC certificate
      * Returns heat numbers for a specific lot that matches the RM IC certificate
      */
-    @Query(value = "SELECT DISTINCT heat_number " +
-            "FROM process_inspection_details " +
-            "WHERE lot_number = :lotNumber " +
-            "AND rm_ic_number = :rmCertificateNo " +
-            "AND heat_number IS NOT NULL " +
-            "ORDER BY heat_number",
+    @Query(value = "SELECT DISTINCT pid.heat_number " +
+            "FROM process_inspection_details pid " +
+            "LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = pid.ic_id " +
+            "WHERE TRIM(pid.lot_number) = TRIM(:lotNumber) " +
+            "AND (:rmCertificateNo IS NULL OR :rmCertificateNo = '' OR TRIM(pid.rm_ic_number) = TRIM(:rmCertificateNo) OR TRIM(prim.rm_ic_number) = TRIM(:rmCertificateNo)) " +
+            "AND pid.heat_number IS NOT NULL AND pid.heat_number <> '' " +
+            "ORDER BY pid.heat_number",
             nativeQuery = true)
     List<String> findHeatNumbersByLotNumber(
             @Param("lotNumber") String lotNumber,
@@ -132,7 +134,8 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
             "FROM process_inspection_details pid " +
             "INNER JOIN inspection_calls ic ON pid.ic_id = ic.id " +
             "INNER JOIN inspection_complete_details icd_process ON ic.ic_number = icd_process.CALL_NO " +
-            "WHERE pid.rm_ic_number IN :rmCertificateNos " +
+            "LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic.id " +
+            "WHERE (TRIM(pid.rm_ic_number) IN :rmCertificateNos OR TRIM(prim.rm_ic_number) IN :rmCertificateNos) " +
             "AND icd_process.CERTIFICATE_NO IN :processCertificateNos " +
             "AND pid.lot_number IS NOT NULL " +
             "ORDER BY pid.lot_number",

@@ -980,4 +980,15 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
         """, nativeQuery = true)
     List<Object[]> sumAcceptedQtyByIcNumbers(@Param("icNumbers") List<String> icNumbers);
 
+    /** Fetch SUM(tempering_accepted) for a given lotNumber and heatNumber */
+    @Query(value = """
+        SELECT COALESCE(SUM(p.tempering_accepted), 0)
+        FROM process_line_final_result p
+        WHERE TRIM(p.lot_number) = TRIM(:lotNumber)
+          AND (TRIM(p.heat_number) = TRIM(:heatNo) OR :heatNo IS NULL OR :heatNo = '')
+        """, nativeQuery = true)
+    Integer sumTemperingAcceptedByLotNumberAndHeatNo(
+            @Param("lotNumber") String lotNumber,
+            @Param("heatNo") String heatNo);
+
 }
