@@ -22,6 +22,7 @@ import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCompleteDetails;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
+import com.sarthi.util.NotificationService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +59,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
     private PoHeaderRepository poHeaderRepository;
 
+    private NotificationService notificationService;
 
     @Override
     @Transactional
@@ -177,8 +179,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                                             "RIO mapping not found"));
 
 
-            tx.setRio(
-                    ieMap.getRio());
+            String rio = ieMap.getRio();
+            tx.setRio(ieMap.getRio());
+            String productType = "Rail Pad";
+            notificationService.sendInspectionCallAssignedToRio(productType,requestId,rio);
+
         }
 
 
@@ -643,6 +648,18 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         RailWorkflowTransaction saved =
                 railWorkflowTransactionRepository.save(tx);
+
+        if (current.getWorkflowId() == 2
+                && "RIO Help Desk".equalsIgnoreCase(current.getNextRole())
+                && "VERIFY".equalsIgnoreCase(req.getAction())) {
+
+            notificationService.sendRailPadCallRegisteredNotification(
+                    req.getRequestId(),
+                    current.getPlantId(),
+                    "CALL_REGISTERED"
+            );
+        }
+
 
         // --- Save to inspection_complete_details when Railpad inspection is FINISHED ---
         if (current.getWorkflowId().equals(2L) && "COMPLETED".equalsIgnoreCase(tx.getStatus()) && req.getAction().equalsIgnoreCase("FINISH")) {

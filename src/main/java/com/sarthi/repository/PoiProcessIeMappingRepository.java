@@ -24,4 +24,6 @@ public interface PoiProcessIeMappingRepository extends JpaRepository<PoiProcessI
     int updateEmployeeCodeByPoiCode(String poiCode, String oldEmpCode, String newEmpCode);
 
     boolean existsByPoiCodeAndEmployeeCode(String poiCode, String employeeCode);
+
+    List<PoiProcessIeMapping> findByPoiCode(String poiCode);
 }

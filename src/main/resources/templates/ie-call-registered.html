@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Inspection Call Assigned</title>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; background:#f5f5f5; padding:20px;">
+
+<table style="max-width:700px;background:#ffffff;margin:auto;border-collapse:collapse;border:1px solid #dddddd;">
+  <tr>
+    <td style="background:#0B5ED7;color:#ffffff;padding:15px;font-size:20px;font-weight:bold;">
+      SARTHI Portal
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:20px;">
+
+      <p>Dear <strong th:text="${ieName}"></strong>,</p>
+
+      <p>
+        A new <strong>Inspection Call</strong> has been registered and assigned to you.
+        Please review the details below and initiate the inspection process.
+      </p>
+
+      <table style="width:100%;border-collapse:collapse;" border="1">
+        <tr>
+          <td><b>Inspection Call No</b></td>
+          <td th:text="${callNo}"></td>
+        </tr>
+
+        <tr>
+          <td><b>Vendor Code</b></td>
+          <td th:text="${vendorCode}"></td>
+        </tr>
+
+
+        <tr>
+          <td><b>Place of Inspection</b></td>
+          <td th:text="${poi}"></td>
+        </tr>
+
+        <tr>
+          <td><b>Inspection Type</b></td>
+          <td th:text="${inspectionType}"></td>
+        </tr>
+
+        <tr>
+          <td><b>Status</b></td>
+          <td th:text="${status}"></td>
+        </tr>
+      </table>
+
+      <br/>
+
+      <p>
+        Please login to the <b>SARTHI Portal</b> and complete the required action.
+      </p>
+
+      <br/>
+
+      Regards,<br>
+      <b>SARTHI Team</b>
+
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

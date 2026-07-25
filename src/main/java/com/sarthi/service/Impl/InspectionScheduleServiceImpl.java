@@ -8,6 +8,7 @@ import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.InspectionScheduleRepository;
 import com.sarthi.service.InspectionScheduleService;
+import com.sarthi.util.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,8 @@ public class InspectionScheduleServiceImpl implements InspectionScheduleService 
 
     @Autowired
     private InspectionScheduleRepository scheduleRepository;
+    @Autowired
+    private NotificationService notificationService;
 
     @Override
     @Transactional
@@ -66,7 +69,12 @@ public class InspectionScheduleServiceImpl implements InspectionScheduleService 
 
         InspectionSchedule saved = scheduleRepository.save(schedule);
         logger.info("Inspection scheduled successfully for call: {}", scheduleDto.getCallNo());
-
+        String productType = "ERC";
+        notificationService.sendInspectionScheduledNotification(
+                productType,
+                scheduleDto.getCallNo(),
+                Integer.valueOf(scheduleDto.getCreatedBy())
+        );
         return mapToDto(saved);
     }
 

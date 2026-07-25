@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Inspection Call Assigned</title>
+</head>
+
+<body>
+
+<p>Dear <b th:text="${rioName}"></b>,</p>
+
+<p>
+    A new Inspection Call has been raised by the vendor and assigned to your RIO.
+</p>
+
+<table border="1" cellpadding="8" cellspacing="0">
+    <tr>
+        <td><b>Inspection Call No</b></td>
+        <td th:text="${requestId}"></td>
+    </tr>
+
+    <tr>
+        <td><b>Vendor Code</b></td>
+        <td th:text="${vendorCode}"></td>
+    </tr>
+
+    <tr>
+        <td><b>Vendor Name</b></td>
+        <td th:text="${vendorName}"></td>
+    </tr>
+
+    <tr>
+        <td><b>RIO</b></td>
+        <td th:text="${rio}"></td>
+    </tr>
+</table>
+
+<br/>
+
+<p>
+    Please log in to the <b>SARTHI Portal</b> and take the necessary action.
+</p>
+
+<br/>
+
+Regards,<br/>
+<b>SARTHI Team</b>
+
+</body>
+</html>
