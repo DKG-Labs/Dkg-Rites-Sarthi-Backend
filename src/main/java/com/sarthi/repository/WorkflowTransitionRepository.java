@@ -13,6 +13,7 @@ import java.util.Map;
 @Repository
 public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTransition, Integer> {
   WorkflowTransition findByWorkflowIdAndRequestId(Integer workflowId, String requestId);
+  List<WorkflowTransition> findByRequestIdOrderByWorkflowTransitionIdAsc(String requestId);
 
   @org.springframework.data.jpa.repository.Modifying
   @Query("UPDATE WorkflowTransition wt SET wt.assignedToUser = :newUser WHERE wt.workflowTransitionId = (SELECT w2.workflowTransitionId FROM (SELECT MAX(workflowTransitionId) AS workflowTransitionId FROM WorkflowTransition WHERE requestId = :callNo) w2)")

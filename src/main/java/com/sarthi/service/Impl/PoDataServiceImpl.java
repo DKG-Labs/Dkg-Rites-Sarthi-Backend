@@ -433,10 +433,16 @@ public class PoDataServiceImpl implements PoDataService {
             PoDataForSectionsDto.RmHeatDetailsDto heatDto = new PoDataForSectionsDto.RmHeatDetailsDto();
 
             // Look up inventory from the pre-fetched map (no DB call per row)
-            String rawMaterialName = rmDetails.getItemDescription(); // Default from rm_inspection_details
-            String grade = "N/A"; // Default
-            BigDecimal totalValueOfPo = null; // Default
-            BigDecimal tcQuantity = null; // Default
+            // Default from rm_inspection_details
+            String rawMaterialName = rmDetails.getItemDescription(); 
+            String grade = "N/A"; 
+            BigDecimal totalValueOfPo = null; 
+            BigDecimal tcQuantity = null; 
+            String subPoNumber = rmDetails.getSubPoNumber();
+            String subPoDate = formatDate(rmDetails.getSubPoDate());
+            Integer subPoQty = rmDetails.getSubPoQty();
+            String invoiceNumber = rmDetails.getInvoiceNumber();
+            String invoiceDate = formatDate(rmDetails.getInvoiceDate());
 
             if (heat.getHeatNumber() != null && heat.getTcNumber() != null) {
                 InventoryEntry inventoryEntry = inventoryByHeatTc.get(heat.getHeatNumber() + ":" + heat.getTcNumber());
@@ -445,6 +451,12 @@ public class PoDataServiceImpl implements PoDataService {
                     grade = inventoryEntry.getGradeSpecification();
                     totalValueOfPo = inventoryEntry.getTotalPo();
                     tcQuantity = inventoryEntry.getTcQuantity();
+                    
+                    if (inventoryEntry.getSubPoNumber() != null) subPoNumber = inventoryEntry.getSubPoNumber();
+                    if (inventoryEntry.getSubPoDate() != null) subPoDate = formatDate(inventoryEntry.getSubPoDate());
+                    if (inventoryEntry.getSubPoQty() != null) subPoQty = inventoryEntry.getSubPoQty().intValue();
+                    if (inventoryEntry.getInvoiceNumber() != null) invoiceNumber = inventoryEntry.getInvoiceNumber();
+                    if (inventoryEntry.getInvoiceDate() != null) invoiceDate = formatDate(inventoryEntry.getInvoiceDate());
                 }
             }
 
@@ -455,11 +467,11 @@ public class PoDataServiceImpl implements PoDataService {
             heatDto.setRawMaterialName(rawMaterialName);
             heatDto.setGrade(grade);
             heatDto.setManufacturer(heat.getManufacturer() != null ? heat.getManufacturer() : rmDetails.getManufacturer());
-            heatDto.setSubPoNumber(rmDetails.getSubPoNumber());
-            heatDto.setSubPoDate(formatDate(rmDetails.getSubPoDate()));
-            heatDto.setSubPoQty(rmDetails.getSubPoQty());
-            heatDto.setInvoiceNumber(rmDetails.getInvoiceNumber());
-            heatDto.setInvoiceDate(formatDate(rmDetails.getInvoiceDate()));
+            heatDto.setSubPoNumber(subPoNumber);
+            heatDto.setSubPoDate(subPoDate);
+            heatDto.setSubPoQty(subPoQty);
+            heatDto.setInvoiceNumber(invoiceNumber);
+            heatDto.setInvoiceDate(invoiceDate);
 
             // From rm_heat_quantities
             heatDto.setHeatNumber(heat.getHeatNumber());

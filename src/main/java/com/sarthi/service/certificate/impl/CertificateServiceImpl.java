@@ -149,6 +149,9 @@ public class CertificateServiceImpl implements CertificateService {
     @Autowired
     private com.sarthi.repository.WorkflowTransitionRepository workflowTransitionRepository;
 
+    @Autowired
+    private com.sarthi.repository.UserMasterRepository userMasterRepository;
+
     @Override
     public RawMaterialCertificateDto generateRawMaterialCertificate(String icNumber) {
         logger.info("Generating Raw Material Certificate for IC Number: {}", icNumber);
@@ -247,7 +250,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .remarks(buildRemarks(inspectionCall))
                 .dateOfCall(buildDateOfCall(inspectionCall))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
-                .dateOfInspection(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
+                .dateOfInspection(formatDateRange(visitDates))
                 .sealingPattern(buildSealingPattern(heatResults))
                 .sealFacsimile("") // Blank for stamp
                 .inspectingEngineer("") // Keep blank for now (DSC signature)
@@ -907,6 +910,17 @@ public class CertificateServiceImpl implements CertificateService {
         return date != null ? date.format(DATE_FORMATTER) : "";
     }
 
+    private String formatDateRange(List<LocalDate> visitDates) {
+        if (visitDates == null || visitDates.isEmpty()) {
+            return "";
+        }
+        if (visitDates.size() == 1) {
+            return formatDate(visitDates.get(0));
+        }
+        List<LocalDate> sorted = visitDates.stream().sorted().collect(Collectors.toList());
+        return formatDate(sorted.get(0)) + " - " + formatDate(sorted.get(sorted.size() - 1));
+    }
+
     /**
      * Helper to get IC Date (Creation Date or Edit Date)
      */
@@ -1006,13 +1020,13 @@ public class CertificateServiceImpl implements CertificateService {
                 .chpClause("Clause No. of QAP")
                 .inspectionType("Checking Length of cut bars/ Turning length/ MPI Test/  Checking of Die/ Quenching temperature & duration/ Quenching hardness/ Tempering temperature & duration/ Dimensional check/ Hardness of finished ERC/ Documentaion")
                 .lots(lots)
-                .reference(buildProcessReference(inspectionCall))
+                .reference(buildProcessReference(inspectionCall, lots))
                 .dateOfCall(buildDateOfCall(inspectionCall))
-                .inspectionDate(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
+                .inspectionDate(formatDateRange(visitDates))
                 .manDays(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
                 .sealingPattern(buildProcessSealingPattern())
-                .inspectingEngineer(inspectionCall.getCreatedBy() != null ? inspectionCall.getCreatedBy() : "")
+                .inspectingEngineer("") // Keep blank for now (DSC signature)
                 .build();
 
         // Merge saved draft edits if available, else fallback to final edits
@@ -1154,10 +1168,111 @@ public class CertificateServiceImpl implements CertificateService {
         return "PROCESS INSPECTION OF ELASTIC RAIL CLIP";
     }
 
+    private static final String[] QTY_UNITS = {
+        "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN",
+        "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN"
+    };
+
+    private static final String[] QTY_TENS = {
+        "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY"
+    };
+
+    private String convertQuantityToWords(long n) {
+        if (n <= 0) return "Zero";
+        String rawWords = convertNumberToWordsInternal(n).trim();
+        String[] parts = rawWords.toLowerCase().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String p : parts) {
+            if (!p.isEmpty()) {
+                sb.append(Character.toUpperCase(p.charAt(0))).append(p.substring(1)).append(" ");
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    private String convertNumberToWordsInternal(long n) {
+        if (n < 20) return QTY_UNITS[(int) n];
+        if (n < 100) return QTY_TENS[(int) (n / 10)] + ((n % 10 != 0) ? " " : "") + QTY_UNITS[(int) (n % 10)];
+        if (n < 1000) return QTY_UNITS[(int) (n / 100)] + " HUNDRED" + ((n % 100 != 0) ? " " : "") + convertNumberToWordsInternal(n % 100);
+        if (n < 100000) return convertNumberToWordsInternal(n / 1000) + " THOUSAND" + ((n % 1000 != 0) ? " " : "") + convertNumberToWordsInternal(n % 1000);
+        if (n < 10000000) return convertNumberToWordsInternal(n / 100000) + " LAKH" + ((n % 100000 != 0) ? " " : "") + convertNumberToWordsInternal(n % 100000);
+        return convertNumberToWordsInternal(n / 10000000) + " CRORE" + ((n % 10000000 != 0) ? " " : "") + convertNumberToWordsInternal(n % 10000000);
+    }
+
+    private String fetchInvolvedIeNames(String icNumber) {
+        if (icNumber == null || icNumber.isBlank()) return "";
+        try {
+            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository.findByRequestIdOrderByWorkflowTransitionIdAsc(icNumber);
+            if (transitions == null || transitions.isEmpty()) {
+                return "";
+            }
+
+            java.util.Set<Integer> userIds = new java.util.LinkedHashSet<>();
+            for (com.sarthi.entity.WorkflowTransition wt : transitions) {
+                if (wt.getModifiedBy() != null && wt.getModifiedBy() > 0) userIds.add(wt.getModifiedBy());
+                if (wt.getAssignedToUser() != null && wt.getAssignedToUser() > 0) userIds.add(wt.getAssignedToUser());
+                if (wt.getProcessIeUserId() != null && wt.getProcessIeUserId() > 0) userIds.add(wt.getProcessIeUserId());
+                if (wt.getCreatedBy() != null && wt.getCreatedBy() > 0) userIds.add(wt.getCreatedBy());
+            }
+
+            List<String> ieNames = new ArrayList<>();
+            for (Integer uId : userIds) {
+                Optional<com.sarthi.entity.UserMaster> uOpt = userMasterRepository.findById(uId);
+                if (uOpt.isPresent()) {
+                    com.sarthi.entity.UserMaster u = uOpt.get();
+                    String role = u.getRoleName() != null ? u.getRoleName().toUpperCase() : "";
+                    if (role.contains("IE") || role.contains("INSPECT") || (!role.contains("VENDOR") && !role.contains("FIRM"))) {
+                        String name = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getShortName();
+                        if (name == null || name.isBlank()) {
+                            name = u.getUsername();
+                        }
+                        if (name != null && !name.isBlank()) {
+                            String formattedName = formatPersonName(name);
+                            if (!ieNames.contains(formattedName)) {
+                                ieNames.add(formattedName);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return String.join(", ", ieNames);
+        } catch (Exception e) {
+            logger.error("Error fetching involved IE names for IC: {}", icNumber, e);
+            return "";
+        }
+    }
+
+    private String formatPersonName(String name) {
+        String trimmed = name.trim();
+        if (trimmed.toUpperCase().startsWith("MR.") || trimmed.toUpperCase().startsWith("MR ") ||
+            trimmed.toUpperCase().startsWith("MS.") || trimmed.toUpperCase().startsWith("MS ") ||
+            trimmed.toUpperCase().startsWith("DR.") || trimmed.toUpperCase().startsWith("DR ")) {
+            return trimmed;
+        }
+        return "Mr " + trimmed;
+    }
+
     /**
      * Build process reference
      */
-    private String buildProcessReference(InspectionCall inspectionCall) {
+    private String buildProcessReference(InspectionCall inspectionCall, List<ProcessMaterialCertificateDto.LotDetailDto> lots) {
+        long totalAcceptedQty = 0;
+        if (lots != null && !lots.isEmpty()) {
+            for (ProcessMaterialCertificateDto.LotDetailDto lot : lots) {
+                if (lot.getAcceptedQty() != null) {
+                    totalAcceptedQty += lot.getAcceptedQty();
+                }
+            }
+        }
+
+        String qtyWords = convertQuantityToWords(totalAcceptedQty);
+
+        String ieNames = fetchInvolvedIeNames(inspectionCall.getIcNumber());
+        if (ieNames.isEmpty()) {
+            ieNames = "RITES Process IE";
+        }
+
         // Fetch Process Inspection Details to get RM IC numbers
         List<ProcessInspectionDetails> detailsList = processInspectionDetailsRepository.findByIcId(
                 Long.valueOf(inspectionCall.getId()));
@@ -1171,46 +1286,19 @@ public class CertificateServiceImpl implements CertificateService {
                     .collect(Collectors.toList());
         }
 
-        if (rmIcNumbers.isEmpty()) {
-            return "Call No: " + inspectionCall.getIcNumber();
-        }
-
         StringBuilder sb = new StringBuilder();
-        sb.append("Raw Material STAGE IC No. ");
+        sb.append("Quantity ").append(qtyWords)
+          .append(" Nos. cleared for next/final stage after completion of process inspection as per PIO detailed under Annexure-A of Rly. Bd. Letter No. 2024/RS (G)/779/12 (E3482675) Dtd.06.01.2025 conducted by RITES Process IEs team (")
+          .append(ieNames).append(")");
 
-        for (int i = 0; i < rmIcNumbers.size(); i++) {
-            String rmIc = rmIcNumbers.get(i).trim();
-            sb.append(rmIc);
-
-            Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(rmIc);
-            if (rmIcEditOpt.isPresent()) {
-                RmIcEdit rmIcEdit = rmIcEditOpt.get();
-                if (rmIcEdit.getCreatedAt() != null) {
-                    sb.append(", Dated ").append(formatDate(rmIcEdit.getCreatedAt().toLocalDate()));
-                } else {
-                    Optional<InspectionCall> rmIcCallOpt = inspectionCallRepository.findByIcNumber(rmIc);
-                    if (rmIcCallOpt.isPresent() && rmIcCallOpt.get().getCreatedAt() != null) {
-                        sb.append(", Dated ").append(formatDate(rmIcCallOpt.get().getCreatedAt().toLocalDate()));
-                    }
+        if (!rmIcNumbers.isEmpty()) {
+            sb.append(", Raw Material STAGE IC No. ");
+            for (int i = 0; i < rmIcNumbers.size(); i++) {
+                String rmIc = rmIcNumbers.get(i).trim();
+                sb.append(rmIc);
+                if (i < rmIcNumbers.size() - 1) {
+                    sb.append(", ");
                 }
-
-                String bNo = rmIcEdit.getBookNo() != null ? rmIcEdit.getBookNo() : "";
-                String sNo = rmIcEdit.getSetNo() != null ? rmIcEdit.getSetNo() : "";
-                if (!bNo.isBlank() || !sNo.isBlank()) {
-                    sb.append(" ( Book/Set No.-").append(bNo).append("/").append(sNo).append(")");
-                }
-            } else {
-                Optional<InspectionCall> rmIcCallOpt = inspectionCallRepository.findByIcNumber(rmIc);
-                if (rmIcCallOpt.isPresent()) {
-                    InspectionCall rmCall = rmIcCallOpt.get();
-                    if (rmCall.getCreatedAt() != null) {
-                        sb.append(", Dated ").append(formatDate(rmCall.getCreatedAt().toLocalDate()));
-                    }
-                }
-            }
-
-            if (i < rmIcNumbers.size() - 1) {
-                sb.append("; ");
             }
         }
 
@@ -1233,7 +1321,7 @@ public class CertificateServiceImpl implements CertificateService {
      * Build process sealing pattern
      */
     private String buildProcessSealingPattern() {
-        return "IT IS TO CERTIFY THAT 01 (ONE) RITES IE IS ENGAGED PER SHIFT PER LINE FOR PROCESS INSPECTION OF ERCs AT FIRM PREMISES.";
+        return "NA";
     }
 
     /* ==================== FINAL MATERIAL CERTIFICATE METHODS ==================== */
@@ -1419,7 +1507,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .noOfItemsChecked("1")
                 .dateOfCall(buildDateOfCall(inspectionCall))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
-                .inspectionDates(visitDates.stream().sorted().map(this::formatDate).collect(Collectors.joining(", ")))
+                .inspectionDates(formatDateRange(visitDates))
                 .sealingPattern(sealingPattern)
                 .quantityNowPassedText("")
                 .rmIcNo(rmIcNoStr)
@@ -1761,7 +1849,8 @@ public class CertificateServiceImpl implements CertificateService {
         
         PdfPCell boxWrapper = new PdfPCell(bookSetBox);
         boxWrapper.setBorder(Rectangle.NO_BORDER);
-        boxWrapper.setPaddingBottom(5);
+        boxWrapper.setPaddingTop(32f);
+        boxWrapper.setPaddingBottom(12f);
         outerHeader.addCell(boxWrapper);
         document.add(outerHeader);
 
