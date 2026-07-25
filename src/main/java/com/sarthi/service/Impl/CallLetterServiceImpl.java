@@ -27,7 +27,6 @@ import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -66,6 +65,14 @@ public class CallLetterServiceImpl implements CallLetterService {
     @Autowired
     private RmHeatQuantityRepository rmHeatQuantityRepository;
 
+    @Autowired
+    private com.sarthi.repository.WorkflowTransitionRepository workflowTransitionRepository;
+
+    @Autowired
+    private com.sarthi.repository.PincodePoIMappingRepository pincodePoIMappingRepository;
+
+    @Autowired
+    private com.sarthi.repository.PoiProcessIeMappingRepository poiProcessIeMappingRepository;
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -78,7 +85,7 @@ public class CallLetterServiceImpl implements CallLetterService {
         // -------------------------------------------------------
         // 1. Fetch the core inspection call row
         // -------------------------------------------------------
-        Optional<InspectionCall> icOpt = inspectionCallRepository.findByIcNumber(requestId);
+        Optional<InspectionCall> icOpt = inspectionCallRepository.findFirstByIcNumber(requestId);
         if (icOpt.isEmpty()) {
             logger.warn("No InspectionCall found for requestId: {}", requestId);
             return dto;
@@ -87,31 +94,125 @@ public class CallLetterServiceImpl implements CallLetterService {
 
         dto.setTypeOfCall(ic.getTypeOfCall());
         dto.setProductType(ic.getTypeOfCall());
-        dto.setPlaceOfInspection(ic.getPlaceOfInspection());
+
+        String poiCode = ic.getPlaceOfInspection();
+        if (poiCode != null && !poiCode.isBlank()) {
+            try {
+                java.util.Optional<com.sarthi.entity.PincodePoIMapping> poiOpt = pincodePoIMappingRepository
+                        .findFirstByPoiCode(poiCode);
+                if (poiOpt.isPresent() && poiOpt.get().getAddress() != null) {
+                    dto.setPlaceOfInspection(poiOpt.get().getAddress());
+                } else {
+                    dto.setPlaceOfInspection(poiCode);
+                }
+            } catch (Exception e) {
+                logger.error("Error looking up POI for code: {}", poiCode, e);
+                dto.setPlaceOfInspection(poiCode);
+            }
+        }
+
         dto.setDesiredInspectionDate(
                 ic.getDesiredInspectionDate() != null ? ic.getDesiredInspectionDate().toString() : null);
         dto.setOfferedInstallmentNo(ic.getIcNumber());
 
         // Fetch contact details from UserMaster based on vendorId
         if (ic.getVendorId() != null) {
-            Optional<UserMaster> vendorUserOpt = userMasterRepository.findFirstByUserName(ic.getVendorId());
-            if (vendorUserOpt.isPresent()) {
-                UserMaster vendorUser = vendorUserOpt.get();
-                dto.setContactPersonName(vendorUser.getFullName());
-                dto.setContactMobile(vendorUser.getMobileNumber());
-                dto.setContactEmail(vendorUser.getEmail());
+            try {
+                Optional<UserMaster> vendorUserOpt = userMasterRepository.findFirstByUserName(ic.getVendorId());
+                if (vendorUserOpt.isPresent()) {
+                    UserMaster vendorUser = vendorUserOpt.get();
+                    dto.setContactPersonName(vendorUser.getFullName());
+                    dto.setContactMobile(vendorUser.getMobileNumber());
+                    dto.setContactEmail(vendorUser.getEmail());
+                }
+            } catch (Exception e) {
+                logger.error("Error looking up vendor user for vendorId: {}", ic.getVendorId(), e);
             }
+        }
+
+        // Fetch RIO from the latest workflow transition for this call that has a non-null RIO
+        try {
+            com.sarthi.entity.WorkflowTransition wt = workflowTransitionRepository
+                    .findFirstByRequestIdAndRioIsNotNullOrderByWorkflowTransitionIdDesc(requestId);
+            if (wt != null && wt.getRio() != null) {
+                dto.setRio(wt.getRio());
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching RIO for requestId: {}", requestId, e);
+        }
+
+        // Fetch Assigned IE details (for Process calls, fetch multiple mapped Process IEs from poi_process_ie_mapping)
+        try {
+            boolean ieSet = false;
+            String callTypeStr = ic.getTypeOfCall() != null ? ic.getTypeOfCall().toLowerCase() : "";
+            boolean isProcessCall = requestId.startsWith("EP") || callTypeStr.contains("process");
+
+            if (isProcessCall && poiCode != null && !poiCode.isBlank()) {
+                List<Long> userIds = poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
+                if (userIds != null && !userIds.isEmpty()) {
+                    List<String> iePairs = new java.util.ArrayList<>();
+                    for (Long uId : userIds) {
+                        Optional<UserMaster> uOpt = userMasterRepository.findById(uId.intValue());
+                        if (uOpt.isPresent()) {
+                            UserMaster u = uOpt.get();
+                            String name = u.getFullName() != null ? u.getFullName() : u.getUsername();
+                            String mobile = u.getMobileNumber();
+                            if (name != null && !name.isBlank()) {
+                                String pair = (mobile != null && !mobile.isBlank())
+                                        ? name + " - " + mobile
+                                        : name;
+                                if (!iePairs.contains(pair)) {
+                                    iePairs.add(pair);
+                                }
+                            }
+                        }
+                    }
+                    if (!iePairs.isEmpty()) {
+                        dto.setIeName(String.join(", ", iePairs));
+                        dto.setIeMobile(null);
+                        ieSet = true;
+                    }
+                }
+            }
+
+            if (!ieSet) {
+                java.util.List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository
+                        .findByRequestIdOrderByWorkflowTransitionIdDesc(requestId);
+                if (transitions != null) {
+                    for (com.sarthi.entity.WorkflowTransition transition : transitions) {
+                        Integer ieUserId = null;
+                        if (transition.getAssignedToUser() != null) {
+                            ieUserId = transition.getAssignedToUser();
+                        } else if (transition.getProcessIeUserId() != null) {
+                            ieUserId = transition.getProcessIeUserId();
+                        }
+
+                        if (ieUserId != null) {
+                            java.util.Optional<UserMaster> ieUserOpt = userMasterRepository.findById(ieUserId);
+                            if (ieUserOpt.isPresent()) {
+                                UserMaster ieUser = ieUserOpt.get();
+                                dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
+                                dto.setIeMobile(ieUser.getMobileNumber());
+                            }
+                            break; // found the most recently assigned IE
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching IE details for requestId: {}", requestId, e);
         }
 
         // Raw PO number stored on the IC (e.g. "26255265205057")
         String rawPoNo = ic.getPoNo();
 
-        // poSerialNo may be stored as a composite like "26255265205057 / 012" — extract the last part only
+        // poSerialNo may be stored as a composite like "26255265205057 / 012" — extract
+        // the last part only
         String rawPoSerialNo = ic.getPoSerialNo();
         String poSerialNo = null;
         if (rawPoSerialNo != null) {
             String[] parts = rawPoSerialNo.split("/");
-            poSerialNo = parts[parts.length - 1].trim();  // take last segment, e.g. "012"
+            poSerialNo = parts[parts.length - 1].trim(); // take last segment, e.g. "012"
         }
         logger.info("Resolved poNo: {}, poSerialNo: {} (raw: {})", rawPoNo, poSerialNo, rawPoSerialNo);
 
@@ -119,37 +220,42 @@ public class CallLetterServiceImpl implements CallLetterService {
         // 2. Fetch PO Header
         // -------------------------------------------------------
         if (rawPoNo != null) {
-            Optional<PoHeader> phOpt = poHeaderRepository.findByPoNo(rawPoNo);
-            if (phOpt.isPresent()) {
-                PoHeader ph = phOpt.get();
-                dto.setRlyShortName(ph.getRlyShortName());
-                dto.setPoNo(ph.getPoNo());
-                dto.setPurchaserDetail(ph.getPurchaserDetail());
-                dto.setVendorName(ph.getFirmDetails());
+            try {
+                Optional<PoHeader> phOpt = poHeaderRepository.findFirstByPoNo(rawPoNo);
+                if (phOpt.isPresent()) {
+                    PoHeader ph = phOpt.get();
+                    dto.setRlyShortName(ph.getRlyShortName());
+                    dto.setPoNo(ph.getPoNo());
+                    dto.setPurchaserDetail(ph.getPurchaserDetail());
+                    dto.setVendorName(ph.getFirmDetails());
 
-                // Format PO date
-                if (ph.getPoDate() != null) {
-                    dto.setPoDate(ph.getPoDate().format(DATE_FMT));
+                    // Format PO date
+                    if (ph.getPoDate() != null) {
+                        dto.setPoDate(ph.getPoDate().format(DATE_FMT));
+                    }
+
+                    // Build composite "WR / 26255265205057 / 012"
+                    String rlyPoSr = buildRlyPoSr(ph.getRlyShortName(), ph.getPoNo(), poSerialNo);
+                    dto.setRlyPoSr(rlyPoSr);
+
+                    // Calculate and set total PO Quantity and Value
+                    if (ph.getItems() != null && !ph.getItems().isEmpty()) {
+                        int totalQty = ph.getItems().stream()
+                                .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
+                                .sum();
+                        dto.setPoQuantity(totalQty);
+
+                        BigDecimal totalVal = ph.getItems().stream()
+                                .map(item -> item.getValue() != null ? item.getValue() : BigDecimal.ZERO)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        dto.setPoValue(totalVal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString());
+                    }
+                } else {
+                    logger.warn("No PoHeader found for poNo: {}", rawPoNo);
+                    dto.setPoNo(rawPoNo);
                 }
-
-                // Build composite "WR / 26255265205057 / 012"
-                String rlyPoSr = buildRlyPoSr(ph.getRlyShortName(), ph.getPoNo(), poSerialNo);
-                dto.setRlyPoSr(rlyPoSr);
-
-                // Calculate and set total PO Quantity and Value
-                if (ph.getItems() != null && !ph.getItems().isEmpty()) {
-                    int totalQty = ph.getItems().stream()
-                            .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
-                            .sum();
-                    dto.setPoQuantity(totalQty);
-
-                    BigDecimal totalVal = ph.getItems().stream()
-                            .map(item -> item.getValue() != null ? item.getValue() : BigDecimal.ZERO)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    dto.setPoValue(totalVal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString());
-                }
-            } else {
-                logger.warn("No PoHeader found for poNo: {}", rawPoNo);
+            } catch (Exception e) {
+                logger.error("Error fetching PoHeader for poNo: {}", rawPoNo, e);
                 dto.setPoNo(rawPoNo);
             }
         }
@@ -158,26 +264,30 @@ public class CallLetterServiceImpl implements CallLetterService {
         // 3. Fetch matching PO Item
         // -------------------------------------------------------
         if (rawPoNo != null && poSerialNo != null) {
-            Optional<PoItem> piOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(rawPoNo, poSerialNo);
-            logger.info("PoItem lookup for poNo={}, itemSrNo={} -> found={}", rawPoNo, poSerialNo, piOpt.isPresent());
-            if (piOpt.isPresent()) {
-                PoItem pi = piOpt.get();
-                dto.setItemSrNo(pi.getItemSrNo());
-                dto.setItemDesc(pi.getItemDesc());
-                dto.setPoQty(pi.getQty());
-                dto.setUom(pi.getUom());
-                dto.setConsigneeDetail(pi.getConsigneeDetail());
-                dto.setBillPayOffDesc(pi.getBillPayOffDesc());
+            try {
+                Optional<PoItem> piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, poSerialNo);
+                logger.info("PoItem lookup for poNo={}, itemSrNo={} -> found={}", rawPoNo, poSerialNo, piOpt.isPresent());
+                if (piOpt.isPresent()) {
+                    PoItem pi = piOpt.get();
+                    dto.setItemSrNo(pi.getItemSrNo());
+                    dto.setItemDesc(pi.getItemDesc());
+                    dto.setPoQty(pi.getQty());
+                    dto.setUom(pi.getUom());
+                    dto.setConsigneeDetail(pi.getConsigneeDetail());
+                    dto.setBillPayOffDesc(pi.getBillPayOffDesc());
 
-                // Format delivery dates
-                if (pi.getDeliveryDate() != null) {
-                    dto.setDeliveryDate(pi.getDeliveryDate().format(DATE_FMT));
+                    // Format delivery dates
+                    if (pi.getDeliveryDate() != null) {
+                        dto.setDeliveryDate(pi.getDeliveryDate().format(DATE_FMT));
+                    }
+                    if (pi.getExtendedDeliveryDate() != null) {
+                        dto.setExtendedDeliveryDate(pi.getExtendedDeliveryDate().format(DATE_FMT));
+                    }
+                } else {
+                    logger.warn("No PoItem found for poNo: {}, itemSrNo: {}", rawPoNo, poSerialNo);
                 }
-                if (pi.getExtendedDeliveryDate() != null) {
-                    dto.setExtendedDeliveryDate(pi.getExtendedDeliveryDate().format(DATE_FMT));
-                }
-            } else {
-                logger.warn("No PoItem found for poNo: {}, itemSrNo: {}", rawPoNo, poSerialNo);
+            } catch (Exception e) {
+                logger.error("Error fetching PoItem for poNo: {}, itemSrNo: {}", rawPoNo, poSerialNo, e);
             }
         }
 
@@ -186,13 +296,15 @@ public class CallLetterServiceImpl implements CallLetterService {
         // -------------------------------------------------------
         if (rawPoNo != null && poSerialNo != null) {
             try {
-                // Fetch only required columns (icNumber, poSerialNo) to avoid N+1 query loading child entities
+                // Fetch only required columns (icNumber, poSerialNo) to avoid N+1 query loading
+                // child entities
                 List<Object[]> results = inspectionCallRepository.findIcNumbersAndSerialNumbersByPoNo(rawPoNo);
                 final String targetSerialNo = poSerialNo;
                 List<String> callNos = results.stream()
                         .filter(row -> {
                             String cRawSerial = (String) row[1];
-                            if (cRawSerial == null) return false;
+                            if (cRawSerial == null)
+                                return false;
                             String[] parts = cRawSerial.split("/");
                             return parts[parts.length - 1].trim().equals(targetSerialNo);
                         })
@@ -210,9 +322,11 @@ public class CallLetterServiceImpl implements CallLetterService {
                         }
                     }
                 }
-                dto.setRawMaterialQtyPassed(totalRmAccepted.setScale(3, java.math.RoundingMode.HALF_UP).toPlainString() + " MT");
+                dto.setRawMaterialQtyPassed(
+                        totalRmAccepted.setScale(3, java.math.RoundingMode.HALF_UP).toPlainString() + " MT");
 
-                // Calculate Final Accepted Qty (sum of qtyNowPassed from FinalCumulativeResults)
+                // Calculate Final Accepted Qty (sum of qtyNowPassed from
+                // FinalCumulativeResults)
                 int totalFinalPassed = 0;
                 if (!callNos.isEmpty()) {
                     List<Object[]> finalQtyList = finalCumulativeResultsRepository.findFinalInspectionQty(callNos);
@@ -227,7 +341,8 @@ public class CallLetterServiceImpl implements CallLetterService {
                 dto.setFinalAcceptedQty(totalFinalPassed + " " + uom);
 
             } catch (Exception e) {
-                logger.error("Error calculating cumulative passed quantities for PO: {}, Serial: {}", rawPoNo, poSerialNo, e);
+                logger.error("Error calculating cumulative passed quantities for PO: {}, Serial: {}", rawPoNo,
+                        poSerialNo, e);
                 dto.setRawMaterialQtyPassed("-");
                 dto.setFinalAcceptedQty("-");
             }
@@ -240,7 +355,8 @@ public class CallLetterServiceImpl implements CallLetterService {
         // 5. Type-specific enrichment
         // -------------------------------------------------------
         String callType = ic.getTypeOfCall();
-        if (callType == null) callType = "";
+        if (callType == null)
+            callType = "";
 
         if (callType.toLowerCase().contains("raw")) {
             enrichFromRm(ic, dto);
@@ -259,7 +375,8 @@ public class CallLetterServiceImpl implements CallLetterService {
     // -------------------------------------------------------
     private void enrichFromRm(InspectionCall ic, CallLetterDetailsDto dto) {
         RmInspectionDetails rm = ic.getRmInspectionDetails();
-        if (rm == null) return;
+        if (rm == null)
+            return;
 
         // Item description from RM details takes priority if PO item not available
         if (dto.getItemDesc() == null && rm.getItemDescription() != null) {
@@ -379,9 +496,12 @@ public class CallLetterServiceImpl implements CallLetterService {
     // -------------------------------------------------------
     private String buildRlyPoSr(String rly, String poNo, String srNo) {
         StringBuilder sb = new StringBuilder();
-        if (rly != null && !rly.isBlank()) sb.append(rly).append(" / ");
-        if (poNo != null && !poNo.isBlank()) sb.append(poNo);
-        if (srNo != null && !srNo.isBlank()) sb.append(" / ").append(srNo);
+        if (rly != null && !rly.isBlank())
+            sb.append(rly).append(" / ");
+        if (poNo != null && !poNo.isBlank())
+            sb.append(poNo);
+        if (srNo != null && !srNo.isBlank())
+            sb.append(" / ").append(srNo);
         return sb.toString();
     }
 }

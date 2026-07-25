@@ -28,6 +28,8 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
 
     Optional<InspectionCall> findByIcNumber(String icNumber);
 
+    Optional<InspectionCall> findFirstByIcNumber(String icNumber);
+
     /**
      * Batch fetch inspection calls by IC numbers (for performance optimization)
      */
