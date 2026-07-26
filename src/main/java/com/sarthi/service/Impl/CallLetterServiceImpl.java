@@ -96,18 +96,61 @@ public class CallLetterServiceImpl implements CallLetterService {
         dto.setProductType(ic.getTypeOfCall());
 
         String poiCode = ic.getPlaceOfInspection();
-        if (poiCode != null && !poiCode.isBlank()) {
-            try {
-                java.util.Optional<com.sarthi.entity.PincodePoIMapping> poiOpt = pincodePoIMappingRepository
-                        .findFirstByPoiCode(poiCode);
-                if (poiOpt.isPresent() && poiOpt.get().getAddress() != null) {
-                    dto.setPlaceOfInspection(poiOpt.get().getAddress());
-                } else {
+
+        List<String> poiParts = new java.util.ArrayList<>();
+        String cName = ic.getCompanyName() != null ? ic.getCompanyName().trim() : "";
+        if (!cName.isEmpty()) {
+            poiParts.add(cName);
+        }
+        
+        String uName = ic.getUnitName() != null ? ic.getUnitName().trim() : "";
+        String uAddress = ic.getUnitAddress() != null ? ic.getUnitAddress().trim() : "";
+        
+        if (!uName.isEmpty()) {
+            String normUName = normalizeForComparison(uName);
+            String normUAddress = normalizeForComparison(uAddress);
+            String normCName = normalizeForComparison(cName);
+
+            boolean inCName = !cName.isEmpty() && (cName.toLowerCase().contains(uName.toLowerCase()) || normCName.contains(normUName));
+            boolean inAddress = !uAddress.isEmpty() && (uAddress.toLowerCase().contains(uName.toLowerCase()) || normUAddress.contains(normUName));
+            if (!inCName && !inAddress) {
+                poiParts.add(uName);
+            }
+        }
+        if (!uAddress.isEmpty()) {
+            poiParts.add(uAddress);
+        }
+
+        if (!poiParts.isEmpty()) {
+            String joined = String.join(", ", poiParts);
+            String[] split = joined.split("[,\\r\\n]+");
+            java.util.List<String> unique = new java.util.ArrayList<>();
+            java.util.Set<String> seenLower = new java.util.HashSet<>();
+            for (String s : split) {
+                String trimmed = s.trim();
+                if (!trimmed.isEmpty()) {
+                    String normalized = normalizeForComparison(trimmed);
+                    if (!seenLower.contains(normalized)) {
+                        unique.add(trimmed);
+                        seenLower.add(normalized);
+                    }
+                }
+            }
+            dto.setPlaceOfInspection(String.join(", ", unique));
+        } else {
+            if (poiCode != null && !poiCode.isBlank()) {
+                try {
+                    java.util.Optional<com.sarthi.entity.PincodePoIMapping> poiOpt = pincodePoIMappingRepository
+                            .findFirstByPoiCode(poiCode);
+                    if (poiOpt.isPresent() && poiOpt.get().getAddress() != null) {
+                        dto.setPlaceOfInspection(poiOpt.get().getAddress());
+                    } else {
+                        dto.setPlaceOfInspection(poiCode);
+                    }
+                } catch (Exception e) {
+                    logger.error("Error looking up POI for code: {}", poiCode, e);
                     dto.setPlaceOfInspection(poiCode);
                 }
-            } catch (Exception e) {
-                logger.error("Error looking up POI for code: {}", poiCode, e);
-                dto.setPlaceOfInspection(poiCode);
             }
         }
 
@@ -146,6 +189,7 @@ public class CallLetterServiceImpl implements CallLetterService {
             boolean ieSet = false;
             String callTypeStr = ic.getTypeOfCall() != null ? ic.getTypeOfCall().toLowerCase() : "";
             boolean isProcessCall = requestId.startsWith("EP") || callTypeStr.contains("process");
+            boolean isFinalCall = requestId.startsWith("EF") || callTypeStr.contains("final");
 
             if (isProcessCall && poiCode != null && !poiCode.isBlank()) {
                 List<Long> userIds = poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
@@ -183,7 +227,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                         Integer ieUserId = null;
                         if (transition.getAssignedToUser() != null) {
                             ieUserId = transition.getAssignedToUser();
-                        } else if (transition.getProcessIeUserId() != null) {
+                        } else if (!isFinalCall && transition.getProcessIeUserId() != null) {
                             ieUserId = transition.getProcessIeUserId();
                         }
 
@@ -503,5 +547,19 @@ public class CallLetterServiceImpl implements CallLetterService {
         if (srNo != null && !srNo.isBlank())
             sb.append(" / ").append(srNo);
         return sb.toString();
+    }
+
+    private String normalizeForComparison(String text) {
+        if (text == null) return "";
+        return text.toLowerCase()
+                .replaceAll("unit[-\\s]*viii\\b", "unit-8")
+                .replaceAll("unit[-\\s]*vii\\b", "unit-7")
+                .replaceAll("unit[-\\s]*vi\\b", "unit-6")
+                .replaceAll("unit[-\\s]*iv\\b", "unit-4")
+                .replaceAll("unit[-\\s]*v\\b", "unit-5")
+                .replaceAll("unit[-\\s]*iii\\b", "unit-3")
+                .replaceAll("unit[-\\s]*ii\\b", "unit-2")
+                .replaceAll("unit[-\\s]*i\\b", "unit-1")
+                .replaceAll("[\\s-]", "");
     }
 }
