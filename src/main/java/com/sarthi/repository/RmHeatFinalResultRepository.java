@@ -620,7 +620,8 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 COALESCE(SUM(rmr.weight_rejected_mt), 0)
                                                             AS quantityRejected,
 
-                ic.ic_number                                AS callNo
+                ic.ic_number                                AS callNo,
+                rm.ic_number                                AS callNumber
 
             FROM rm_ic_edit rm
 
@@ -674,7 +675,8 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 rm.book_no,
                 rm.set_no,
                 rm.created_at,
-                ic.ic_number
+                ic.ic_number,
+                rm.ic_number
 
             """, nativeQuery = true)
     List<Object[]> getRmInspectionCalls();
