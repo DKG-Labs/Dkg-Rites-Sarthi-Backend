@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMapping, Long> {
@@ -33,4 +34,6 @@ public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMappi
             @org.springframework.data.repository.query.Param("poiCode") String poiCode, 
             @org.springframework.data.repository.query.Param("plantId") String plantId
     );
+
+    Optional<RailPoiIeMapping> findByPlantIdAndIeType(String plantId, String mainIe);
 }

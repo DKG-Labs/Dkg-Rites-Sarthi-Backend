@@ -17,6 +17,7 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.PoHeaderRepository;
 import com.sarthi.repository.PoItemRepository;
+import com.sarthi.util.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,8 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
         private final FinalCallInspectionSectionBRepository  repoSectionb;
 
         private final SleeperScheduleRepository sleeperScheduleRepository;
+
+        private final NotificationService notificationService;
         public InspectionCallSection1Response getDetails(String callNo) {
 
             SleeperInspectionCall call = callRepo.findByCallNo(callNo)
@@ -275,7 +278,12 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
         entity.setCreatedDate(LocalDateTime.now());
 
         SleeperSchedule saved = sleeperScheduleRepository.save(entity);
-
+        String productType = "SLLEPER";
+        notificationService.sendInspectionScheduledNotification(
+                productType,
+                req.getCallNo(),
+                Math.toIntExact(req.getCreatedBy())
+        );
         return mapToResponse(saved);
     }
 

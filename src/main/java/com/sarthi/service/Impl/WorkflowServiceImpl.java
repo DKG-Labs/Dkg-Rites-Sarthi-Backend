@@ -26,6 +26,7 @@ import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
 import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
 import com.sarthi.service.WorkflowService;
 
+import com.sarthi.util.NotificationService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -128,6 +129,9 @@ public class WorkflowServiceImpl implements WorkflowService {
 
     @Autowired
     private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
@@ -428,8 +432,16 @@ public class WorkflowServiceImpl implements WorkflowService {
         //entry.setTransitionOrder(1);
 
         if(workflow.getWorkflowName().equalsIgnoreCase("INSPECTION CALL")){
+
             entry.setAssignedToUser(assignedRioUserId);
             entry.setRio(rio);
+            String productType = "ERC";
+            notificationService.sendInspectionCallAssignedToRio(
+                  productType,  rio,
+                    requestId
+            );
+
+
         }
 
         workflowTransitionRepository.save(entry);
@@ -1595,6 +1607,11 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
 
    // callReg.setAssignedToUser(assignIE(req.getPincode()));
     workflowTransitionRepository.save(callReg);
+    notificationService.sendCallRegisteredNotification(
+            req.getRequestId(),
+            insp.getPlaceOfInspection(),
+            "CALL_REGISTERED"
+    );
 
      if("Final".equalsIgnoreCase(inspectionType)) {
 
@@ -1628,6 +1645,7 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
     }
 
     return mapWorkflowTransition(callReg);
+
 }
 
 

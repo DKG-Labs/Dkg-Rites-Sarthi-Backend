@@ -41,6 +41,7 @@ public class IbsInspectionDto {
 
                 private LocalDate icDate;
                 private String callNumber;
+                private String icNumber;
 
 
 }

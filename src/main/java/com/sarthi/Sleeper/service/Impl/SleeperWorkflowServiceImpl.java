@@ -16,6 +16,7 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
+import com.sarthi.util.NotificationService;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -67,8 +68,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private PlantProfileRepository plantProfileRepository;
     @Autowired
     private RawMaterialSourceRepository rawMaterialSourceRepository;
-
-
+    @Autowired
+    private NotificationService notificationService;
 
 
     public void validateUser(Integer userId) {
@@ -172,6 +173,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 String rio = map.getRio();
 
                 tx.setRio(rio);
+                String productType = "SLEEPER";
+                notificationService.sendInspectionCallAssignedToRio(productType,requestId,rio);
+
             }
 
         } else {
@@ -528,6 +532,17 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         SleeperWorkflowTransaction saved = repository.save(tx);
 
+        // Send notification after RIO Help Desk verifies the call
+        if (current.getWorkflowId() == 2
+                && "RIO Help Desk".equalsIgnoreCase(current.getNextRole())
+                && "VERIFY_CALL".equalsIgnoreCase(req.getAction())) {
+
+            notificationService.sendSleeperCallRegisteredNotification(
+                    req.getRequestId(),
+                    current.getPlantId(),
+                  "CALL_REGISTERED"
+            );
+        }
         return mapToResponse(saved);
     }
 

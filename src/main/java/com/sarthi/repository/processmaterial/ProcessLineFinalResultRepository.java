@@ -912,7 +912,8 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 COALESCE(SUM(pr.total_rejected),0)
                                                             AS quantityRejected,
 
-                ic.ic_number                                 AS callNo
+                ic.ic_number                                 AS callNo,
+                p.ic_number                                  AS callNumber
 
             FROM process_ic_edit p
 
@@ -966,7 +967,8 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 p.book_no,
                 p.set_no,
                 p.created_at,
-                ic.ic_number
+                ic.ic_number,
+                p.ic_number
 
             """, nativeQuery = true)
     List<Object[]> getProcessInspectionCalls();
