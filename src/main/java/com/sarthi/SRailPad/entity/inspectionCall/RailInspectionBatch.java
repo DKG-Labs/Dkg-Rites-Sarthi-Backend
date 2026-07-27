@@ -24,8 +24,20 @@ public class RailInspectionBatch {
     @Column(name = "batch_no")
     private String batchNo;
 
+    @Column(name = "drawing_no")
+    private String drawingNo;
+
+    @Column(name = "available_qty")
+    private Integer availableQty;
+
     @Column(name = "quantity")
     private Integer quantity;
+
+    @Column(name = "qty_to_use")
+    private Integer qtyToUse;
+
+    @Column(name = "balance_qty")
+    private Integer balanceQty;
 
     @Column(name = "production_date")
     private LocalDate productionDate;

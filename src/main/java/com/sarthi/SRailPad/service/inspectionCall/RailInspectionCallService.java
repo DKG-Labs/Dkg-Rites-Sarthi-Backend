@@ -22,4 +22,5 @@ public interface RailInspectionCallService {
     RailInspectionCall getByCallNo(String callNo);
     com.sarthi.SRailPad.dto.RailpadIcCertificateDto getRailpadIcDetails(String callNo);
     List<RailInspectionCall> getProcessCallsByTypeDrawingAndPlant(String railPadType, String drawingNo, String plantId);
+    List<RailInspectionCall> getProcessCalls(String railPadType, String drawingNo, String plantId, String poNo, String poSr);
 }

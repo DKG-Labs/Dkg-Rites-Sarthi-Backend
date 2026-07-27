@@ -107,7 +107,7 @@ public class RailInspectionCallController {
         );
     }
 
-    @PostMapping("/create")
+    @PostMapping(value = "/create", consumes = {"application/json", "application/json;charset=UTF-8", "*/*"})
     public ResponseEntity<Object> create(@RequestBody RailInspectionCall call) {
         RailInspectionCall createdCall = service.create(call);
         String callNo = createdCall.getCallNo();
@@ -223,12 +223,14 @@ public class RailInspectionCallController {
 
     @GetMapping("/process-calls")
     public ResponseEntity<Object> getProcessCalls(
-            @RequestParam String railPadType,
-            @RequestParam String drawingNo,
-            @RequestParam String plantId) {
+            @RequestParam(required = false) String railPadType,
+            @RequestParam(required = false) String drawingNo,
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String poNo,
+            @RequestParam(required = false) String poSr) {
         try {
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(service.getProcessCallsByTypeDrawingAndPlant(railPadType, drawingNo, plantId)),
+                    ResponseBuilder.getSuccessResponse(service.getProcessCalls(railPadType, drawingNo, plantId, poNo, poSr)),
                     HttpStatus.OK
             );
         } catch (Exception e) {
