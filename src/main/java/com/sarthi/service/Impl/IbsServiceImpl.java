@@ -749,6 +749,7 @@ public class IbsServiceImpl implements IbsService {
             );
 
             dto.setCallNumber(callNumber);
+            dto.setIcNumber((String) row[15]);
             list.add(dto);
         }
 

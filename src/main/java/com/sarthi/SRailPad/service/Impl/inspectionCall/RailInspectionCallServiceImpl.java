@@ -75,6 +75,16 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String generatedCallNo = String.format("%s%s%03d", prefix, datePart, seq);
         call.setCallNo(generatedCallNo);
         
+        if (call.getCreatedBy() == null) {
+            call.setCreatedBy(1L);
+        }
+        if (call.getVendorCode() != null) {
+            call.setVendorCode(call.getVendorCode().replaceAll("^:", ""));
+        }
+        if (call.getPlantId() != null) {
+            call.setPlantId(call.getPlantId().replaceAll("^:", ""));
+        }
+        
         // Ensure bidirectional links are set for JPA cascade
         if (call.getLots() != null) {
             for (RailInspectionLot lot : call.getLots()) {
@@ -82,6 +92,14 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 if (lot.getBatches() != null) {
                     for (RailInspectionBatch batch : lot.getBatches()) {
                         batch.setLot(lot);
+                        if (batch.getQtyToUse() != null && batch.getQuantity() == null) {
+                            batch.setQuantity(batch.getQtyToUse());
+                        } else if (batch.getQuantity() != null && batch.getQtyToUse() == null) {
+                            batch.setQtyToUse(batch.getQuantity());
+                        }
+                        if (batch.getAvailableQty() != null && batch.getQtyToUse() != null && batch.getBalanceQty() == null) {
+                            batch.setBalanceQty(Math.max(0, batch.getAvailableQty() - batch.getQtyToUse()));
+                        }
                     }
                 }
             }
@@ -379,6 +397,29 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
     @Override
     public List<RailInspectionCall> getProcessCallsByTypeDrawingAndPlant(String railPadType, String drawingNo, String plantId) {
+        return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
+    }
+
+    @Override
+    public List<RailInspectionCall> getProcessCalls(String railPadType, String drawingNo, String plantId, String poNo, String poSr) {
+        if ((poNo != null && !poNo.isEmpty()) || (poSr != null && !poSr.isEmpty())) {
+            List<RailInspectionCompleteDetails> completeDetails = railInspectionCompleteDetailsRepository.findProcessCallsByPoNoAndSr(poNo, poSr);
+            if (completeDetails != null && !completeDetails.isEmpty()) {
+                List<String> callNos = completeDetails.stream()
+                        .map(RailInspectionCompleteDetails::getCallNo)
+                        .filter(c -> c != null && c.toUpperCase().startsWith("RPP"))
+                        .distinct()
+                        .toList();
+
+                if (!callNos.isEmpty()) {
+                    List<RailInspectionCall> calls = repository.findByCallNoIn(callNos);
+                    if (calls != null && !calls.isEmpty()) {
+                        return calls;
+                    }
+                }
+            }
+            return repository.findProcessCalls(railPadType, drawingNo, plantId, poNo, poSr);
+        }
         return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
     }
 }

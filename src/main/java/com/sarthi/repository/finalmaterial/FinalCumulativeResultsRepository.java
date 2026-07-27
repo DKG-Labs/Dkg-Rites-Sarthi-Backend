@@ -436,7 +436,8 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 COALESCE(fr.qty_now_rejected,0)
                                                             AS quantityRejected,
 
-                ic.ic_number                                 AS callNo
+                ic.ic_number                                 AS callNo,
+                f.ic_number                                  AS callNumber
 
             FROM final_ic_edit f
 

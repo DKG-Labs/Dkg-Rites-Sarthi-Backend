@@ -1,5 +1,7 @@
 package com.sarthi.SRailPad.entity.inspectionCall;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import jakarta.persistence.*;
 import java.time.LocalDate;
@@ -23,6 +25,7 @@ public class RailInspectionCall {
 
     /** PO item serial number, e.g. "001". Maps to po_item.item_sr_no */
     @Column(name = "po_sr")
+    @JsonAlias({"poSrNo", "poSr"})
     private String poSr;
 
     @Column(name = "vendor_code")
@@ -32,22 +35,26 @@ public class RailInspectionCall {
     private String plantId;
 
     @Column(name = "rail_pad_type")
+    @JsonAlias({"ncrgrspType", "productType", "railPadType"})
     private String railPadType;
 
     @Column(name = "total_qty")
+    @JsonAlias({"totalOfferedQty", "totalRequiredQty"})
     private Integer totalQty;
 
     @Column(name = "no_of_lots")
     private Integer noOfLots;
 
     @Column(name = "inspection_date")
+    @JsonAlias({"desiredInspectionDate"})
     private LocalDate inspectionDate;
 
     @Column(name = "status")
     private String status = "PENDING";
 
     @Column(name = "call_type")
-    private String callType = "FINAL"; // Default to FINAL for backwards compatibility
+    @JsonAlias({"inspectionCallType"})
+    private String callType = "FINAL";
 
     @Column(name = "created_by")
     private Long createdBy;
@@ -61,6 +68,14 @@ public class RailInspectionCall {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "drawing_no")
+    private String drawingNo;
+
+    @Column(name = "process_ic_no", length = 500)
+    @JsonProperty("processInspectionCertNo")
+    @JsonAlias({"processIcNo", "processInspectionCertNo"})
+    private String processIcNo;
+
     @Transient
     private String vendorName;
 
@@ -69,13 +84,6 @@ public class RailInspectionCall {
 
     @Transient
     private String rlyPoSrNo;
-
-    // Database fields for Drawing and Process IC reference
-    @Column(name = "drawing_no")
-    private String drawingNo;
-
-    @Column(name = "process_ic_no")
-    private String processIcNo;
 
     @Transient
     private String uom;
@@ -100,8 +108,9 @@ public class RailInspectionCall {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (updatedAt == null) updatedAt = LocalDateTime.now();
+        if (createdBy == null) createdBy = 1L;
     }
 
     @PreUpdate

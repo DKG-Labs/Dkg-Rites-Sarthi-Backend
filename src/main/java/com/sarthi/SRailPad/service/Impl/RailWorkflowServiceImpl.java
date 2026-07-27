@@ -314,17 +314,26 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     public RailWorkflowTransactionDto performTransitionAction(
             RailTransitionActionReqDto req) {
 
-        RailWorkflowTransaction current =
-                railWorkflowTransactionRepository
-                        .findById(Math.toIntExact(req.getWorkflowTransitionId()))
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Workflow transition not found"
-                                )
-                        ));
+        // First check recent transactions for requestId to get the most recent transaction & ID
+        RailWorkflowTransaction current = null;
+        if (req.getRequestId() != null && !req.getRequestId().isEmpty()) {
+            List<RailWorkflowTransaction> allTx = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(req.getRequestId());
+            if (allTx != null && !allTx.isEmpty()) {
+                current = allTx.get(allTx.size() - 1);
+            }
+        }
+        if (current == null) {
+            current = railWorkflowTransactionRepository
+                    .findById(Math.toIntExact(req.getWorkflowTransitionId()))
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Workflow transition not found"
+                            )
+                    ));
+        }
 
         // Verify that the transaction is not already in a terminal state
         if (("COMPLETED".equalsIgnoreCase(current.getStatus()) || "COMPLETED".equalsIgnoreCase(current.getJobStatus())) 
@@ -337,23 +346,6 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                             "This inspection has already been finished."
                     )
             );
-        }
-
-
-        // Also check if there's any newer transaction that has already advanced past this one
-        List<RailWorkflowTransaction> allTx = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(current.getRequestId());
-        if (allTx != null && !allTx.isEmpty()) {
-            RailWorkflowTransaction latestTx = allTx.get(allTx.size() - 1);
-            if (latestTx.getWorkflowTransitionId() > current.getWorkflowTransitionId()) {
-                throw new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "This transition has already been processed."
-                        )
-                );
-            }
         }
 
 
