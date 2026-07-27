@@ -45,6 +45,13 @@ public interface SleeperWorkflowRepository
    List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
 
 
+    boolean existsByModuleIdAndRequestId(Long moduleId, String requestId);
+
+    List<SleeperWorkflowTransaction> findByModuleId(Long moduleId);
+
+    @Query("SELECT DISTINCT t.requestId FROM SleeperWorkflowTransaction t WHERE t.moduleId = :moduleId")
+    List<String> findRequestIdsByModuleId(@Param("moduleId") Long moduleId);
+
     @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
     WHERE t.workflowTransitionId IN (
@@ -54,9 +61,15 @@ public interface SleeperWorkflowRepository
         GROUP BY t2.requestId
     )
       AND t.moduleId = :moduleId
-      AND t.status IN ('Created', 'PENDING')
-      AND t.nextRole = :roleName
-      AND (:plantId IS NULL OR t.plantId = :plantId)
+      AND UPPER(t.status) IN ('CREATED', 'PENDING', 'IN-PROGRESS', 'RESUBMITTED')
+      AND (t.nextRole IS NULL OR UPPER(t.nextRole) = UPPER(:roleName))
+      AND (
+          :plantId IS NULL OR :plantId = '' 
+          OR t.plantId IS NULL OR t.plantId = '' 
+          OR LOWER(t.plantId) LIKE LOWER(CONCAT('%', :plantId, '%')) 
+          OR LOWER(:plantId) LIKE LOWER(CONCAT('%', t.plantId, '%'))
+          OR REPLACE(LOWER(t.plantId), ':', '') = REPLACE(LOWER(:plantId), ':', '')
+      )
 """)
     Page<SleeperWorkflowTransaction> findLastPendingRequestsByRole(
             @Param("roleName") String roleName,
@@ -88,18 +101,7 @@ AND t.nextRole = :roleName
             """)
     List<SleeperWorkflowTransaction> findLastCompletedRequests();
 
-   /* @Query("""
-            SELECT t FROM SleeperWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM SleeperWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-            )
-            AND t.status = 'Completed'
-            """)
-    List<SleeperWorkflowTransaction> findCompletedRequests();
-*/
-   @Query("""
+    @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
     WHERE t.workflowTransitionId IN (
         SELECT MAX(t2.workflowTransitionId)
@@ -120,7 +122,7 @@ AND t.nextRole = :roleName
     )
       AND t.moduleId = :moduleId
       AND t.status = 'Completed'
-      AND (:plantId IS NULL OR t.plantId = :plantId)
+      AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', ''))
 """)
     Page<SleeperWorkflowTransaction> findCompletedRequests(
             @Param("moduleId") Integer moduleId,
@@ -234,8 +236,8 @@ AND s.status = 'COMPLETED'
 SELECT s.requestId, s.status
 FROM SleeperWorkflowTransaction s
 WHERE s.moduleId = :moduleId
-AND s.id IN (
-    SELECT MAX(s2.id)
+AND s.workflowTransitionId IN (
+    SELECT MAX(s2.workflowTransitionId)
     FROM SleeperWorkflowTransaction s2
     WHERE s2.moduleId = :moduleId
     GROUP BY s2.requestId
@@ -247,8 +249,8 @@ AND s.id IN (
 SELECT s.requestId, s.status
 FROM SleeperWorkflowTransaction s
 WHERE s.moduleId = :moduleId
-AND s.id IN (
-    SELECT MAX(s2.id)
+AND s.workflowTransitionId IN (
+    SELECT MAX(s2.workflowTransitionId)
     FROM SleeperWorkflowTransaction s2
     WHERE s2.moduleId = :moduleId
     GROUP BY s2.requestId
