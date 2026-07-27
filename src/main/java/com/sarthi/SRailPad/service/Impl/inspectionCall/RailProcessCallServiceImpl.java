@@ -310,23 +310,59 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
     @Override
     public ProcessInspectionSaveDto getAvailableBatchesForFinalCall(String callNo) {
         ProcessInspectionSaveDto dto = getProcessInspectionResult(callNo);
-        if (dto == null || dto.getBatches() == null) {
+        if (dto == null || dto.getBatches() == null || dto.getBatches().isEmpty()) {
             return dto;
+        }
+
+        List<String> batchNos = dto.getBatches().stream()
+                .map(ProcessInspectionSaveDto.ProcessBatchSaveDto::getBatchNo)
+                .filter(b -> b != null && !b.trim().isEmpty())
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+
+        java.util.Map<String, Integer> offeredMap = new java.util.HashMap<>();
+        if (!batchNos.isEmpty()) {
+            List<Object[]> summaryList = railInspectionBatchRepository.findOfferedSummaryByBatchNos(batchNos);
+            for (Object[] row : summaryList) {
+                String bNo = (String) row[0];
+                String dNo = (String) row[1];
+                Long qtyLong = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                int sumQty = qtyLong.intValue();
+
+                if (bNo != null) {
+                    if (dNo != null && !dNo.trim().isEmpty()) {
+                        String cleanD = dNo.replace("RDSO/", "").trim();
+                        offeredMap.put(bNo + "|" + dNo.trim(), sumQty);
+                        offeredMap.put(bNo + "|" + cleanD, sumQty);
+                        offeredMap.put(bNo + "|RDSO/" + cleanD, sumQty);
+                    }
+                    offeredMap.put(bNo + "|ALL", offeredMap.getOrDefault(bNo + "|ALL", 0) + sumQty);
+                }
+            }
         }
 
         List<ProcessInspectionSaveDto.ProcessBatchSaveDto> availableBatches = new ArrayList<>();
         for (ProcessInspectionSaveDto.ProcessBatchSaveDto b : dto.getBatches()) {
-            Integer offered = railInspectionBatchRepository.findTotalOfferedByBatchAndDate(
-                    b.getBatchNo(), 
-                    b.getProductionDate()
-            );
-            int alreadyOffered = offered != null ? offered : 0;
-            int remainingAccepted = Math.max(0, b.getQtyAccepted() - alreadyOffered);
-            
-            if (remainingAccepted > 0) {
-                b.setQtyAccepted(remainingAccepted);
-                availableBatches.add(b);
+            String bNo = b.getBatchNo();
+            String dNo = b.getDrawingNo();
+            int alreadyOffered = 0;
+
+            if (dNo != null && !dNo.trim().isEmpty()) {
+                String cleanD = dNo.replace("RDSO/", "").trim();
+                if (offeredMap.containsKey(bNo + "|" + dNo.trim())) {
+                    alreadyOffered = offeredMap.get(bNo + "|" + dNo.trim());
+                } else if (offeredMap.containsKey(bNo + "|" + cleanD)) {
+                    alreadyOffered = offeredMap.get(bNo + "|" + cleanD);
+                } else if (offeredMap.containsKey(bNo + "|RDSO/" + cleanD)) {
+                    alreadyOffered = offeredMap.get(bNo + "|RDSO/" + cleanD);
+                }
+            } else {
+                alreadyOffered = offeredMap.getOrDefault(bNo + "|ALL", 0);
             }
+
+            int remainingAccepted = Math.max(0, b.getQtyAccepted() - alreadyOffered);
+            b.setQtyAccepted(remainingAccepted);
+            availableBatches.add(b);
         }
         dto.setBatches(availableBatches);
         return dto;

@@ -41,6 +41,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
 
 
     Optional<RailInspectionCall> findByCallNo(String callNo);
+    List<RailInspectionCall> findByCallNoIn(List<String> callNos);
 
     @Query(value = """
         SELECT COUNT(DISTINCT ic.call_no)
@@ -71,6 +72,24 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             AND ic.created_at < :createdAt
     """, nativeQuery = true)
     Double sumTotalQtyByPoAndSrBeforeDate(@org.springframework.data.repository.query.Param("poNo") String poNo, @org.springframework.data.repository.query.Param("poSr") String poSr, @org.springframework.data.repository.query.Param("createdAt") java.time.LocalDateTime createdAt);
+
+    @Query("""
+        SELECT DISTINCT c FROM RailInspectionCall c 
+        LEFT JOIN RailProcessCallDetails d ON d.inspectionCall.id = c.id 
+        WHERE c.callType = 'PROCESS' 
+          AND (:plantId IS NULL OR :plantId = '' OR c.plantId = :plantId) 
+          AND (:railPadType IS NULL OR :railPadType = '' OR c.railPadType = :railPadType OR :railPadType LIKE '%NCRGRSP%' OR c.railPadType LIKE '%NCRGRSP%') 
+          AND (:drawingNo IS NULL OR :drawingNo = '' OR d.drawingNo = :drawingNo)
+          AND (:poNo IS NULL OR :poNo = '' OR c.poNo = :poNo OR c.poNo LIKE CONCAT(:poNo, '%'))
+          AND (:poSr IS NULL OR :poSr = '' OR c.poSr = :poSr OR LTRIM(RTRIM(c.poSr)) = LTRIM(RTRIM(:poSr)))
+    """)
+    List<RailInspectionCall> findProcessCalls(
+        @Param("railPadType") String railPadType, 
+        @Param("drawingNo") String drawingNo, 
+        @Param("plantId") String plantId,
+        @Param("poNo") String poNo,
+        @Param("poSr") String poSr
+    );
 
     @Query("SELECT c FROM RailInspectionCall c JOIN RailProcessCallDetails d ON d.inspectionCall.id = c.id WHERE c.callType = 'PROCESS' AND c.railPadType = :railPadType AND d.drawingNo = :drawingNo AND c.plantId = :plantId")
     List<RailInspectionCall> findProcessCallsByTypeAndDrawingAndPlant(@Param("railPadType") String railPadType, @Param("drawingNo") String drawingNo, @Param("plantId") String plantId);

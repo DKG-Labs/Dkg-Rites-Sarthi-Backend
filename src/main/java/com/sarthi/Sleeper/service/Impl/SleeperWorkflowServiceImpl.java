@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.entity.SleeperPincodePoIMapping;
 import com.sarthi.Sleeper.entity.SleeperPoiIeMapping;
 import com.sarthi.Sleeper.entity.SleeperTransitionMaster;
 import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
+import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.repository.*;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.service.SleeperWorkflowService;
@@ -187,7 +188,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             tx.setStatus(AppConstant.CREATED_TYPE);
         }
 
-        tx.setPoiCode(mapping.getPoiCode());
+        if (mapping != null) {
+            tx.setPoiCode(mapping.getPoiCode());
+        }
         tx.setCreatedBy(createdBy);
         tx.setCreatedDate(LocalDateTime.now());
 
@@ -710,7 +713,73 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             String plantId,
             Pageable pageable) {
 
-        Page<SleeperWorkflowTransaction> page = repository.findLastPendingRequestsByRole(roleName, moduleId, plantId, pageable);
+        String cleanPlantId = plantId != null ? plantId.replaceAll("^[:\\s]+", "").trim() : null;
+        if (cleanPlantId != null && cleanPlantId.isEmpty()) {
+            cleanPlantId = null;
+        }
+
+        if (moduleId == 11) {
+            try {
+                List<ProductionDeclaration> allDeclarations = productionDeclarationRepository.findAll();
+                List<SleeperWorkflowTransaction> existingTxs = repository.findByModuleId(11L);
+                java.util.Map<String, SleeperWorkflowTransaction> existingMap = existingTxs.stream()
+                        .filter(t -> t.getRequestId() != null)
+                        .collect(java.util.stream.Collectors.toMap(
+                                SleeperWorkflowTransaction::getRequestId,
+                                t -> t,
+                                (t1, t2) -> t1.getWorkflowTransitionId() > t2.getWorkflowTransitionId() ? t1 : t2
+                        ));
+
+                List<SleeperWorkflowTransaction> toSave = new java.util.ArrayList<>();
+
+                for (ProductionDeclaration pd : allDeclarations) {
+                    if (pd.getId() == null) continue;
+                    String reqId = String.valueOf(pd.getId());
+                    SleeperWorkflowTransaction existingTx = existingMap.get(reqId);
+
+                    String targetPlantId = pd.getPlantId();
+                    if (targetPlantId == null || targetPlantId.trim().isEmpty()) {
+                        targetPlantId = cleanPlantId;
+                    }
+
+                    if (existingTx == null) {
+                        SleeperWorkflowTransaction tx = new SleeperWorkflowTransaction();
+                        tx.setRequestId(reqId);
+                        tx.setModuleId(11L);
+                        tx.setWorkflowId(1L);
+                        tx.setCurrentRole("Vendor");
+                        tx.setNextRole("IE");
+                        tx.setAction(AppConstant.CREATED_TYPE);
+                        tx.setStatus(AppConstant.CREATED_TYPE);
+                        tx.setCreatedBy(pd.getCreatedBy());
+                        tx.setVendorCode(pd.getVendorCode());
+                        tx.setPlantId(targetPlantId);
+                        tx.setCreatedDate(pd.getCreatedDate() != null ? pd.getCreatedDate() : LocalDateTime.now());
+                        toSave.add(tx);
+                    } else {
+                        boolean modified = false;
+                        if (existingTx.getPlantId() == null || existingTx.getPlantId().trim().isEmpty()) {
+                            existingTx.setPlantId(targetPlantId);
+                            modified = true;
+                        }
+                        if (existingTx.getNextRole() == null || existingTx.getNextRole().trim().isEmpty()) {
+                            existingTx.setNextRole("IE");
+                            modified = true;
+                        }
+                        if (modified) {
+                            toSave.add(existingTx);
+                        }
+                    }
+                }
+                if (!toSave.isEmpty()) {
+                    repository.saveAll(toSave);
+                }
+            } catch (Exception e) {
+                System.err.println("Error auto-syncing production declaration workflow transitions: " + e.getMessage());
+            }
+        }
+
+        Page<SleeperWorkflowTransaction> page = repository.findLastPendingRequestsByRole(roleName, moduleId, cleanPlantId, pageable);
 
         return page.map(this::mapToModuleWisePendingResponse);
     }

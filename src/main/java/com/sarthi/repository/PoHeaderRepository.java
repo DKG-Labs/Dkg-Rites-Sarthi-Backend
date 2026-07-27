@@ -22,6 +22,8 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 	 */
 	Optional<PoHeader> findByPoNo(String poNo);
 
+	Optional<PoHeader> findFirstByPoNo(String poNo);
+
 	List<PoHeader> findByPoNoIn(List<String> poNos);
 
 	@Query("SELECT DISTINCT ph.rlyShortName " +
