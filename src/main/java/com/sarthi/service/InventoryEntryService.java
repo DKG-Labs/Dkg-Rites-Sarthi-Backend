@@ -64,6 +64,8 @@ public interface InventoryEntryService {
      */
     InventoryEntryResponseDto getInventoryEntryByHeatAndTc(String heatNumber, String tcNumber);
 
+    InventoryEntryResponseDto getInventoryEntryByHeatAndTcAndSubPo(String heatNumber, String tcNumber, String subPoNumber);
+
     /**
      * Update an existing inventory entry
      * 
