@@ -91,10 +91,10 @@ public class PoDataServiceImpl implements PoDataService {
     private PoDataForSectionsDto mapToDto(PoHeader poHeader, List<PoMaHeader> maHeaders, InspectionCall inspectionCall) {
         PoDataForSectionsDto dto = new PoDataForSectionsDto();
 
-        // Section A: PO Header fields (from po_header table)
         dto.setRlyCd(poHeader.getRlyCd());
         dto.setRlyShortName(poHeader.getRlyShortName());
         dto.setPoNo(poHeader.getPoNo());
+        dto.setIbsCaseNo(poHeader.getCaseNo());
 
         // Set PO Serial Number and formatted fields from inspection call if available
         if (inspectionCall != null && inspectionCall.getPoSerialNo() != null) {

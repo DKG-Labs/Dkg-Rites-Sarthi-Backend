@@ -44,6 +44,7 @@ public class IcWorkflowTransitionDto {
     private String productType;
     private String stage;
     private String inspectionDate;
+    private String ibsCaseNo;
 
     public List<Integer> processIes;
 
