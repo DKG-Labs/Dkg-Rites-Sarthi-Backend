@@ -202,30 +202,47 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 && transition.getNextRoleId() != null
                 && transition.getNextRoleId().equals(2)) {
 
-            String pincode =
-                    mapping.getPinCode();
-
+            String pincode = mapping != null ? mapping.getPinCode() : null;
             String product = "Rail Pad";
-
             String stage = "F";
 
+            IEFieldsMapping ieMap = null;
 
-            IEFieldsMapping ieMap =
-                    ieFieldsMappingRepository
-                            .findByPlantPincodeAndProductAndStageMatch(
-                                    pincode,
-                                    product,
-                                    stage
-                            )
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "RIO mapping not found"));
+            if (pincode != null && !pincode.isEmpty()) {
+                // Tier 1: pincode + "Rail Pad"
+                ieMap = ieFieldsMappingRepository.findByPinCodeProductAndStageMatch(pincode, product, stage).orElse(null);
+                // Tier 2: pincode + "ERC"
+                if (ieMap == null) {
+                    ieMap = ieFieldsMappingRepository.findByPinCodeProductAndStageMatch(pincode, "ERC", stage).orElse(null);
+                }
+                // Tier 3: plantPincode + "Rail Pad"
+                if (ieMap == null) {
+                    ieMap = ieFieldsMappingRepository.findByPlantPincodeAndProductAndStageMatch(pincode, product, stage).orElse(null);
+                }
+                // Tier 4: plantPincode + "ERC"
+                if (ieMap == null) {
+                    ieMap = ieFieldsMappingRepository.findByPlantPincodeAndProductAndStageMatch(pincode, "ERC", stage).orElse(null);
+                }
+                // Tier 5: Prefix matching (e.g. Haryana pincode prefix "12")
+                if (ieMap == null && pincode.length() >= 2) {
+                    String prefix2 = pincode.substring(0, 2);
+                    List<IEFieldsMapping> allList = ieFieldsMappingRepository.findAll();
+                    ieMap = allList.stream()
+                            .filter(m -> m.getPinCode() != null && m.getPinCode().startsWith(prefix2))
+                            .findFirst()
+                            .orElse(null);
+                }
+            }
 
+            // Fallback default RIO if no exact pincode record exists
+            String rio = "NRIO";
+            if (ieMap != null && ieMap.getRio() != null && !ieMap.getRio().isEmpty()) {
+                rio = ieMap.getRio();
+            }
 
-            String rio = ieMap.getRio();
-            tx.setRio(ieMap.getRio());
+            tx.setRio(rio);
             String productType = "Rail Pad";
-            notificationService.sendInspectionCallAssignedToRio(productType,requestId,rio);
+            notificationService.sendInspectionCallAssignedToRio(productType, requestId, rio);
 
         }
 

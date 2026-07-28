@@ -69,6 +69,12 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
      */
     Optional<InventoryEntry> findByHeatNumberAndTcNumber(String heatNumber, String tcNumber);
 
+    List<InventoryEntry> findAllByHeatNumberAndTcNumber(String heatNumber, String tcNumber);
+
+    Optional<InventoryEntry> findByHeatNumberAndTcNumberAndSubPoNumber(String heatNumber, String tcNumber, String subPoNumber);
+
+    List<InventoryEntry> findAllByHeatNumberAndTcNumberAndSubPoNumber(String heatNumber, String tcNumber, String subPoNumber);
+
     /**
      * Check if an entry exists with the given TC number and vendor code
      *
