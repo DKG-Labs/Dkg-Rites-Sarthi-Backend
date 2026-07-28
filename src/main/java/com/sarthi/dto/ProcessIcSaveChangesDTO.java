@@ -24,6 +24,7 @@ public class ProcessIcSaveChangesDTO {
     private String purchasingAuthority;
     private String description;
     private String qapNo;
+    private String chpClause;
     private String inspectionDate;
     private String manDays;
     
