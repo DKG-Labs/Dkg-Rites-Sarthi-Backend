@@ -53,6 +53,43 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
     @Query("SELECT ic.icNumber, ic.poSerialNo FROM InspectionCall ic WHERE ic.poNo = :poNo")
     List<Object[]> findIcNumbersAndSerialNumbersByPoNo(@Param("poNo") String poNo);
 
+    @Query(value = """
+            SELECT ic.ic_number 
+            FROM inspection_calls ic 
+            WHERE (
+                ic.po_no = :poNo 
+                OR ic.po_no LIKE CONCAT('%', :poNo, '%')
+            )
+              AND (
+                  ic.type_of_call = 'Final' 
+                  OR ic.ic_number LIKE 'EF-%' 
+                  OR ic.ic_number LIKE 'RPF-%' 
+                  OR ic.ic_number LIKE '%/F%'
+              )
+              AND (
+                  :currentCallId IS NULL 
+                  OR :currentCallId = 0 
+                  OR ic.id != :currentCallId
+              )
+              AND (
+                  :createdAt IS NULL OR ic.created_at < :createdAt
+              )
+              AND (
+                  :serialNo IS NULL 
+                  OR :serialNo = '' 
+                  OR ic.po_serial_no = :serialNo
+                  OR ic.po_serial_no LIKE CONCAT('%/', :serialNo)
+                  OR ic.po_serial_no LIKE CONCAT('%/', LPAD(:serialNo, 3, '0'))
+                  OR ic.po_serial_no LIKE CONCAT('%/ ', :serialNo)
+                  OR ic.po_serial_no LIKE CONCAT('%/ ', LPAD(:serialNo, 3, '0'))
+              )
+            """, nativeQuery = true)
+    List<String> findPreviousCallNumbersByPoAndSerial(
+            @Param("poNo") String poNo,
+            @Param("serialNo") String serialNo,
+            @Param("currentCallId") Long currentCallId,
+            @Param("createdAt") LocalDateTime createdAt);
+
     /* ==================== Find by Company ==================== */
 
     List<InspectionCall> findByCompanyNameContainingIgnoreCaseOrderByCreatedAtDesc(String companyName);

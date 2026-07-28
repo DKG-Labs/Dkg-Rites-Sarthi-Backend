@@ -55,6 +55,9 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
     @Value("${azure.storage.images-container-name}")
     private String imagesContainerName;
 
+    @Autowired
+    private com.sarthi.repository.rawmaterial.InspectionCallRepository inspectionCallRepository;
+
     // ===== CUMULATIVE RESULTS =====
     @Override
     public FinalCumulativeResults saveCumulativeResults(FinalCumulativeResultsDto dto, String userId) {
@@ -102,6 +105,45 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             entity.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : LocalDateTime.now());
             entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : userId);
             entity.setUpdatedAt(dto.getUpdatedAt() != null ? dto.getUpdatedAt() : LocalDateTime.now());
+        }
+
+        // Auto-compute cumulative values if 0 or null were sent
+        if (entity.getCummQtyOfferedPreviously() == null || entity.getCummQtyOfferedPreviously() == 0 ||
+            entity.getCummQtyPassedPreviously() == null || entity.getCummQtyPassedPreviously() == 0) {
+            try {
+                Optional<com.sarthi.entity.rawmaterial.InspectionCall> icOpt = inspectionCallRepository.findByIcNumber(dto.getInspectionCallNo());
+                if (icOpt.isPresent()) {
+                    com.sarthi.entity.rawmaterial.InspectionCall ic = icOpt.get();
+                    String rawSerial = ic.getPoSerialNo();
+                    String serialSuffix = (rawSerial != null && rawSerial.contains("/"))
+                            ? rawSerial.substring(rawSerial.lastIndexOf("/") + 1).trim()
+                            : (rawSerial != null ? rawSerial.trim() : "");
+
+                    List<String> prevCallNos = inspectionCallRepository.findPreviousCallNumbersByPoAndSerial(
+                            ic.getPoNo(),
+                            serialSuffix,
+                            ic.getId() != null ? ic.getId().longValue() : 0L,
+                            ic.getCreatedAt()
+                    );
+                    if (prevCallNos != null && !prevCallNos.isEmpty()) {
+                        List<Object[]> sumsList = cumulativeResultsRepository.sumCumulativeByCallNumbers(
+                                prevCallNos,
+                                ic.getIcNumber()
+                        );
+                        if (sumsList != null && !sumsList.isEmpty()) {
+                            Object[] row = sumsList.get(0);
+                            if (row != null && row.length >= 3) {
+                                int passed = row[0] != null ? ((Number) row[0]).intValue() : 0;
+                                int offered = row[2] != null ? ((Number) row[2]).intValue() : 0;
+                                if (passed > 0) entity.setCummQtyPassedPreviously(passed);
+                                if (offered > 0) entity.setCummQtyOfferedPreviously(offered);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Failed to auto-compute cumulative values during save: {}", e.getMessage());
+            }
         }
 
         return cumulativeResultsRepository.save(entity);
