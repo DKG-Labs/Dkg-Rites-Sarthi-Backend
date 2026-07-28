@@ -232,21 +232,58 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                     COALESCE(SUM(fcr.qty_now_rejected), 0),
                     COALESCE(SUM(fcr.qty_now_offered), 0)
                 FROM final_cumulative_results fcr
-                JOIN inspection_calls ic
-                    ON ic.ic_number COLLATE utf8mb4_unicode_ci = fcr.inspection_call_no COLLATE utf8mb4_unicode_ci
-                WHERE fcr.po_no = :poNo
-                  AND ic.id != :currentCallId
-                  AND ic.created_at <= :beforeOrAt
+                WHERE (
+                    fcr.po_no COLLATE utf8mb4_unicode_ci = :poNo COLLATE utf8mb4_unicode_ci
+                    OR fcr.po_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', :poNo, '%')
+                )
                   AND (
-                      ic.po_serial_no COLLATE utf8mb4_unicode_ci = :serialNo
-                      OR ic.po_serial_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', :serialNo)
+                      :currentCallNo IS NULL 
+                      OR :currentCallNo = '' 
+                      OR fcr.inspection_call_no COLLATE utf8mb4_unicode_ci != :currentCallNo COLLATE utf8mb4_unicode_ci
+                  )
+                  AND (
+                      :currentCallId IS NULL
+                      OR :currentCallId = 0
+                      OR fcr.id != :currentCallId
+                  )
+                  AND (
+                      :beforeOrAt IS NULL
+                      OR fcr.created_at < :beforeOrAt
+                  )
+                  AND (
+                      :serialNo IS NULL
+                      OR :serialNo = ''
+                      OR fcr.po_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', :serialNo)
+                      OR fcr.po_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', LPAD(:serialNo, 3, '0'))
+                      OR fcr.po_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', LPAD(:serialNo, 2, '0'))
+                      OR fcr.po_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/ ', :serialNo)
+                      OR fcr.po_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/ ', LPAD(:serialNo, 3, '0'))
+                      OR fcr.po_no COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/ ', LPAD(:serialNo, 2, '0'))
                   )
             """, nativeQuery = true)
-    Object[] sumCumulativeByPoNoAndSerialNoExcludingCall(
+    List<Object[]> sumCumulativeByPoNoAndSerialNoExcludingCall(
             @Param("poNo") String poNo,
             @Param("serialNo") String serialNo,
-            @Param("currentCallId") Integer currentCallId,
+            @Param("currentCallId") Long currentCallId,
+            @Param("currentCallNo") String currentCallNo,
             @Param("beforeOrAt") LocalDateTime beforeOrAt);
+
+    @Query(value = """
+            SELECT
+                COALESCE(SUM(fcr.qty_now_passed), 0),
+                COALESCE(SUM(fcr.qty_now_rejected), 0),
+                COALESCE(SUM(fcr.qty_now_offered), 0)
+            FROM final_cumulative_results fcr
+            WHERE (
+                fcr.inspection_call_no IN (:callNos)
+                OR REPLACE(fcr.inspection_call_no, '000', '00') IN (:callNos)
+                OR REPLACE(fcr.inspection_call_no, '00', '000') IN (:callNos)
+            )
+              AND (:currentCallNo IS NULL OR :currentCallNo = '' OR fcr.inspection_call_no COLLATE utf8mb4_unicode_ci != :currentCallNo COLLATE utf8mb4_unicode_ci)
+            """, nativeQuery = true)
+    List<Object[]> sumCumulativeByCallNumbers(
+            @Param("callNos") List<String> callNos,
+            @Param("currentCallNo") String currentCallNo);
 
     @org.springframework.data.jpa.repository.Query("SELECT SUM(fcr.qtyNowPassed) FROM FinalCumulativeResults fcr")
     Long sumTotalQtyNowPassed();

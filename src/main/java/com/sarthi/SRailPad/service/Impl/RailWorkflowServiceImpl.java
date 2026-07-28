@@ -84,15 +84,58 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 new RailWorkflowTransaction();
 
 
-        com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants plant = railVendorPlantsRepository.findByPlantId(plantId).orElse(null);
+        String rawVendorCode = vendorCode != null ? vendorCode.trim() : "";
+        String cleanVendorCode = rawVendorCode.startsWith(":") ? rawVendorCode.substring(1) : rawVendorCode;
+        String colonVendorCode = rawVendorCode.startsWith(":") ? rawVendorCode : ":" + rawVendorCode;
+
+        String rawPlantId = plantId != null ? plantId.trim() : "";
+        String cleanPlantId = rawPlantId.startsWith(":") ? rawPlantId.substring(1) : rawPlantId;
+        String colonPlantId = rawPlantId.startsWith(":") ? rawPlantId : ":" + rawPlantId;
+
+        com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants plant =
+                railVendorPlantsRepository.findByPlantId(rawPlantId)
+                .orElseGet(() -> railVendorPlantsRepository.findByPlantId(cleanPlantId)
+                .orElseGet(() -> railVendorPlantsRepository.findByPlantId(colonPlantId).orElse(null)));
+
         String companyName = (plant != null && plant.getCompanyName() != null) ? plant.getCompanyName() : "";
 
-        // FETCH POI USING VENDOR CODE AND COMPANY NAME
-        RailPadPincodePoIMapping mapping =
-                railPadPincodePoIMappingRepository
-                        .findByVendorCodeAndCompanyName(vendorCode, companyName)
-                        .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(vendorCode).orElseThrow(() ->
-                                new RuntimeException("POI mapping not found for vendor")));
+        // FETCH POI USING VENDOR CODE AND COMPANY NAME WITH MULTI-LEVEL FALLBACK
+        RailPadPincodePoIMapping mapping = null;
+
+        if (companyName != null && !companyName.isEmpty()) {
+            mapping = railPadPincodePoIMappingRepository
+                    .findByVendorCodeAndCompanyName(rawVendorCode, companyName)
+                    .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCodeAndCompanyName(colonVendorCode, companyName)
+                    .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCodeAndCompanyName(cleanVendorCode, companyName)
+                    .orElse(null)));
+        }
+
+        if (mapping == null) {
+            mapping = railPadPincodePoIMappingRepository
+                    .findByVendorCode(rawVendorCode)
+                    .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(colonVendorCode)
+                    .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(cleanVendorCode)
+                    .orElse(null)));
+        }
+
+        if (mapping == null && plant != null && plant.getCompanyName() != null && !plant.getCompanyName().isEmpty()) {
+            List<RailPadPincodePoIMapping> listByComp = railPadPincodePoIMappingRepository.findByCompanyName(plant.getCompanyName());
+            if (listByComp != null && !listByComp.isEmpty()) {
+                mapping = listByComp.get(0);
+            }
+        }
+
+        if (mapping == null) {
+            List<RailPadPincodePoIMapping> allMappings = railPadPincodePoIMappingRepository.findAll();
+            mapping = allMappings.stream()
+                    .filter(m -> m.getVendorCode() != null && (m.getVendorCode().contains(cleanVendorCode) || cleanVendorCode.contains(m.getVendorCode().replace(":", ""))))
+                    .findFirst()
+                    .orElseGet(() -> allMappings.isEmpty() ? null : allMappings.get(0));
+        }
+
+        if (mapping == null) {
+            throw new RuntimeException("POI mapping not found for vendor: " + vendorCode);
+        }
 
 
         String initialAction =

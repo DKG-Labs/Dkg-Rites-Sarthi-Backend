@@ -1365,6 +1365,7 @@ public class WorkflowServiceImpl implements WorkflowService {
         switch (action) {
 
             case "VERIFY":
+            case "VERIFY_PO_DETAILS":
                 return verifyCall(current, req);
 
             case "RETURN_TO_VENDOR":
