@@ -1084,16 +1084,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<String> getMappedCompanyNames(Long userId) {
-        List<RailPoiIeMapping> ieMappings = poiIeMappingRepository.findByIeUserId(Math.toIntExact(userId));
-        if (ieMappings.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        List<String> poiCodes = ieMappings.stream()
-                .map(RailPoiIeMapping::getPoiCode)
-                .distinct()
-                .toList();
-
+        List<String> poiCodes = poiIeMappingRepository.findDistinctPoiCodesByIeUserId(Math.toIntExact(userId));
         if (poiCodes.isEmpty()) {
             return new ArrayList<>();
         }
@@ -1103,16 +1094,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<String> getPlantsByCompanyName(String companyName) {
-        List<RailPadPincodePoIMapping> poiMappings = railPadPincodePoIMappingRepository.findByCompanyName(companyName);
-        if (poiMappings.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        List<String> vendorCodes = poiMappings.stream()
-                .map(RailPadPincodePoIMapping::getVendorCode)
-                .distinct()
-                .toList();
-
+        List<String> vendorCodes = railPadPincodePoIMappingRepository.findDistinctVendorCodesByCompanyName(companyName);
         if (vendorCodes.isEmpty()) {
             return new ArrayList<>();
         }
