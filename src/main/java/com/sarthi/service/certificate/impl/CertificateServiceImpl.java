@@ -1198,6 +1198,15 @@ public class CertificateServiceImpl implements CertificateService {
         return sb.toString().trim();
     }
 
+    private String buildFinalReasonsForRejection(int totalRejectedQty) {
+        if (totalRejectedQty <= 0) {
+            return "Not Applicable";
+        }
+        String words = convertQuantityToWords(totalRejectedQty);
+        return String.format("%s (%d) Nos. of ERC rejected due to dimensional non-conformity and/or visual surface defects such as deep dents, bends, cracks, or other specified defects and Dimension Inspection /Hardness Test/Decarburisation/ Freedom from defect /Micro-Structure/Application and Diflection Test/Toe Load Test .",
+                words, totalRejectedQty);
+    }
+
     private String convertNumberToWordsInternal(long n) {
         if (n < 20) return QTY_UNITS[(int) n];
         if (n < 100) return QTY_TENS[(int) (n / 10)] + ((n % 10 != 0) ? " " : "") + QTY_UNITS[(int) (n % 10)];
@@ -1487,7 +1496,11 @@ public class CertificateServiceImpl implements CertificateService {
         String placeOfInspection = buildFinalPlaceOfInspection(finalDetails);
         String sealingPattern = buildFinalSealingPattern(inspectionCall.getIcNumber());
         String remarks = buildFinalRemarks(finalDetails);
-        
+        Integer totalErcUsed = finalInspectionLotResultsRepository.sumErcUsedForTestingByInspectionCallNo(inspectionCall.getIcNumber());
+        Integer lotResultsRejectedSum = finalInspectionLotResultsRepository.sumTotalRejectedQtyByInspectionCallNo(inspectionCall.getIcNumber());
+        int totalRejCount = (lotResultsRejectedSum != null && lotResultsRejectedSum > 0) ? lotResultsRejectedSum : qtyNowRejected;
+        String reasonsForRejection = buildFinalReasonsForRejection(totalRejCount);
+
         FinalCertificateDto dto = FinalCertificateDto.builder()
                 .certificateNo(certNo)
                 .certificateDate(formatDate(LocalDate.now()))
@@ -1510,6 +1523,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .qtyNowPassed(qtyNowPassed)
                 .qtyNowRejected(qtyNowRejected)
                 .qtyStillDue(qtyStillDue)
+                .ercUsedForTesting(totalErcUsed != null ? totalErcUsed : 0)
                 .remarks(remarks)
                 .trRecDate("")
                 .noOfItemsChecked("1")
@@ -1518,6 +1532,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .inspectionDates(formatDateRange(visitDates))
                 .sealingPattern(sealingPattern)
                 .quantityNowPassedText("")
+                .reasonsForRejection(reasonsForRejection)
                 .rmIcNo(rmIcNoStr)
                 .rmIcDate(rmIcDateStr)
                 .processIcNo(processIcNoStr)

@@ -26,6 +26,18 @@ public interface FinalInspectionLotResultsRepository extends JpaRepository<Final
     List<FinalInspectionLotResults> findByInspectionCallNo(String inspectionCallNo);
 
     /**
+     * Sum erc_used_for_testing across all lots for an inspection call
+     */
+    @Query("SELECT COALESCE(SUM(f.ercUsedForTesting), 0) FROM FinalInspectionLotResults f WHERE f.inspectionCallNo = :inspectionCallNo")
+    Integer sumErcUsedForTestingByInspectionCallNo(@Param("inspectionCallNo") String inspectionCallNo);
+
+    /**
+     * Sum total_rejected_qty across all lots for an inspection call
+     */
+    @Query("SELECT COALESCE(SUM(f.totalRejectedQty), 0) FROM FinalInspectionLotResults f WHERE f.inspectionCallNo = :inspectionCallNo")
+    Integer sumTotalRejectedQtyByInspectionCallNo(@Param("inspectionCallNo") String inspectionCallNo);
+
+    /**
      * Find lot results by lot number
      */
     List<FinalInspectionLotResults> findByLotNo(String lotNo);
