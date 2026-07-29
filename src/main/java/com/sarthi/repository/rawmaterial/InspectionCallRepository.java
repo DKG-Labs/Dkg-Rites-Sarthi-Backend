@@ -771,6 +771,7 @@ Page<Object[]> fetchManufacturerSummary(
     SELECT place_of_inspection 
     FROM inspection_calls 
     WHERE ic_number = :callNo
+    LIMIT 1
 """, nativeQuery = true)
     String findPoiByCallNo(@Param("callNo") String callNo);
 
