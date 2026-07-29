@@ -3180,6 +3180,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                                  poNo + " / " + srNo;
             dto.setPoNo(formattedPo);
             dto.setRawPoNo(i.poNo());
+            dto.setIbsCaseNo(ph != null ? ph.getCaseNo() : "");
 
             // Vendor Name from Master
             VendorMaster vm = vendorMap.get(i.vendorId());
@@ -3915,6 +3916,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                 String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " +
                                      poNo + " / " + srNo;
                 dto.setPoNo(formattedPo);
+                dto.setIbsCaseNo(ph != null ? ph.getCaseNo() : "");
 
                 // Vendor Name from Master
                 VendorMaster vm = vendorMap.get(ic.vendorId());
@@ -4036,6 +4038,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                 String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " +
                                      poNo + " / " + srNo;
                 dto.setPoNo(formattedPo);
+                dto.setIbsCaseNo(ph != null ? ph.getCaseNo() : "");
 
                 // Vendor Name from Master
                 VendorMaster vm = vendorMap.get(ic.vendorId());

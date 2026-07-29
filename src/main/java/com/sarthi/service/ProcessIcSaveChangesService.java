@@ -40,6 +40,7 @@ public class ProcessIcSaveChangesService {
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
         entity.setQapNo(dto.getQapNo());
+        entity.setChpClause(dto.getChpClause());
         entity.setInspectionDate(dto.getInspectionDate());
         entity.setManDays(dto.getManDays());
         
@@ -67,6 +68,7 @@ public class ProcessIcSaveChangesService {
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
                 .qapNo(entity.getQapNo())
+                .chpClause(entity.getChpClause())
                 .inspectionDate(entity.getInspectionDate())
                 .manDays(entity.getManDays())
                 .createdBy(entity.getCreatedBy())

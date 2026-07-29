@@ -20,6 +20,7 @@ public class PoDataForSectionsDto {
     private String poNo;              // PO Number
     private String poSerialNo;        // PO Serial Number (from inspection_calls table)
     private String poDate;            // PO Date (dd/MM/yyyy format)
+    private String ibsCaseNo;         // IBS Case Number (from po_header table)
     private Integer poQty;            // Total PO Quantity (from po_item)
     private Integer poSrQty;          // PO Serial Quantity (from po_item)
     private String inspPlace;         // Inspection Place (from inspection_calls table)
