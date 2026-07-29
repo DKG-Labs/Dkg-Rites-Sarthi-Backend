@@ -103,6 +103,9 @@ public class RailInspectionCall {
     @Transient
     private LocalDate productionInitiationDate;
 
+    @Transient
+    private String ieAssignedName;
+
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RailInspectionLot> lots;
 

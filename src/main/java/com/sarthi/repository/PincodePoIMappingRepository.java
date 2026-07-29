@@ -19,6 +19,15 @@ public interface PincodePoIMappingRepository extends JpaRepository<PincodePoIMap
 
     Optional<PincodePoIMapping> findFirstByPoiCode(String placeOfInspection);
 
+    @Query(value = """
+        SELECT pin_code 
+        FROM pincode_poi_mapping 
+        WHERE poi_code = :poiCode 
+           OR TRIM(LEADING ':' FROM poi_code) = TRIM(LEADING ':' FROM :poiCode)
+        LIMIT 1
+    """, nativeQuery = true)
+    String findPinCodeByPoiCode(@Param("poiCode") String poiCode);
+
     List<PincodePoIMapping> findByPoiCodeIn(List<String> poiCodes);
 
     // @Query("SELECT DISTINCT p.companyName FROM PincodePoIMapping p")
@@ -189,7 +198,9 @@ SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username)
 FROM poi_process_ie_mapping ppm
 JOIN user_master um
     ON um.employee_code COLLATE utf8mb4_unicode_ci = ppm.employee_code COLLATE utf8mb4_unicode_ci
-WHERE ppm.poi_code = :poiCode
+WHERE :poiCode IS NULL OR :poiCode = ''
+   OR ppm.poi_code = :poiCode
+   OR TRIM(LEADING ':' FROM ppm.poi_code) = TRIM(LEADING ':' FROM :poiCode)
 """, nativeQuery = true)
  List<String> findProcessIeEmpCodeWithName(@Param("poiCode") String poiCode);
 

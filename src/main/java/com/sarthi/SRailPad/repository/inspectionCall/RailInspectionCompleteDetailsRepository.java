@@ -11,6 +11,9 @@ import java.util.Optional;
 
 @Repository
 public interface RailInspectionCompleteDetailsRepository extends JpaRepository<RailInspectionCompleteDetails, Long> {
+    @Query(value = "SELECT * FROM rail_inspection_complete_details WHERE call_no = :callNo ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    Optional<RailInspectionCompleteDetails> findByCallNo(@Param("callNo") String callNo);
+
     Optional<RailInspectionCompleteDetails> findFirstByCallNoOrderByCreatedOnDesc(String callNo);
 
     @Query(value = """
