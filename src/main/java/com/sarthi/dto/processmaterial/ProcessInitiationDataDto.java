@@ -28,6 +28,7 @@ public class ProcessInitiationDataDto {
     private String deliveryDate;
     private String purchasingAuthority;
     private String billPayingOfficer;
+    private String ibsCaseNo;
     
     // ==================== SECTION B: Inspection Call Details ====================
     private String callNo;

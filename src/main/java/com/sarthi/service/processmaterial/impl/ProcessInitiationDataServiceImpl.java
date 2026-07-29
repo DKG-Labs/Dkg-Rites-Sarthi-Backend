@@ -200,6 +200,7 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         dto.setConsignee(consignee);
         dto.setDeliveryDate(deliveryDate);
         dto.setBillPayingOfficer("N/A");
+        dto.setIbsCaseNo(poHeader != null ? poHeader.getCaseNo() : "");
 
         // Section B: Inspection Call Details
         dto.setCallNo(ic.getIcNumber());

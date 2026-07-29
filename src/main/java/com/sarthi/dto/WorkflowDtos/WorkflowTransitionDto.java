@@ -37,6 +37,7 @@ public class WorkflowTransitionDto {
     private String vendorName;
     private String productType;
     private String desiredInspectionDate;
+    private String ibsCaseNo;
 
     // Inspection date range (start - end)
     private String inspectionDate;
