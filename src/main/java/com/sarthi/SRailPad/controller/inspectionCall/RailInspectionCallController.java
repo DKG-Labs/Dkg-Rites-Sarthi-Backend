@@ -240,4 +240,19 @@ public class RailInspectionCallController {
             );
         }
     }
+
+    @PutMapping("/modify")
+    public ResponseEntity<Object> modifyCall(@RequestBody com.sarthi.SRailPad.dto.RailCallModificationDto dto) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(service.modifyCall(dto)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(400, 1000, "ERROR", e.getMessage())),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
 }

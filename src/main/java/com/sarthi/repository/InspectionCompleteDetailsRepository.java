@@ -15,9 +15,10 @@ import java.util.Optional;
 public interface InspectionCompleteDetailsRepository extends JpaRepository<InspectionCompleteDetails, Long> {
 
     /**
-     * Find InspectionCompleteDetails by call number
+     * Find InspectionCompleteDetails by call number (Safely ordered by ID desc to prevent duplicate result errors)
      */
-    Optional<InspectionCompleteDetails> findByCallNo(String callNo);
+    @Query(value = "SELECT * FROM inspection_complete_details WHERE CALL_NO = :callNo ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    Optional<InspectionCompleteDetails> findByCallNo(@Param("callNo") String callNo);
 
     /**
      * Find the most recent InspectionCompleteDetails by call number (in case of duplicates)
@@ -28,7 +29,8 @@ public interface InspectionCompleteDetailsRepository extends JpaRepository<Inspe
      * Find InspectionCompleteDetails by certificate number
      * Used to map certificate number to IC number for Process IC
      */
-    Optional<InspectionCompleteDetails> findByCertificateNo(String certificateNo);
+    @Query(value = "SELECT * FROM inspection_complete_details WHERE CERTIFICATE_NO = :certificateNo ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    Optional<InspectionCompleteDetails> findByCertificateNo(@Param("certificateNo") String certificateNo);
 
     /**
      * Find all certificate numbers for Process ICs (EP prefix) filtered by vendor

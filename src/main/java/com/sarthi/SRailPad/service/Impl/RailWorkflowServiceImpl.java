@@ -137,6 +137,24 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             throw new RuntimeException("POI mapping not found for vendor: " + vendorCode);
         }
 
+        String poiCode = mapping.getPoiCode();
+
+        // 1. Call Raising fails if no Main IE is mapped to the vendor plant/POI
+        if (workflowId != null && workflowId.equals(2L)) {
+            boolean hasMainIe = poiIeMappingRepository.hasMainIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
+            if (!hasMainIe) {
+                throw new RuntimeException("Call raising failed: No Main IE mapped to vendor plant/POI (" + (poiCode != null ? poiCode : plantId) + ")");
+            }
+        }
+
+        // 2. Production Declaration fails if no Process IE is mapped to the company/plant
+        if (workflowId != null && workflowId.equals(1L) && Long.valueOf(3L).equals(moduleId)) {
+            boolean hasProcessIe = poiIeMappingRepository.hasProcessIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
+            if (!hasProcessIe) {
+                throw new RuntimeException("Production declaration failed: No Process IE mapped to company/plant (" + plantId + ")");
+            }
+        }
+
 
         String initialAction =
                 workflowId.equals(2L)

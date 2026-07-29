@@ -26,6 +26,9 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
     private final RailProductionDeclarationRepository repository;
     private final RailWorkflowService railWorkflowService;
     private final RailWorkflowTransactionRepository workflowTransactionRepository;
+    private final com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
+    private final com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
+    private final com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
 
     private static final Long MODULE_ID = 3L;
     private static final Long WORKFLOW_ID = 1L;
@@ -33,6 +36,30 @@ public class RailProductionDeclarationServiceImpl implements RailProductionDecla
     @Override
     @Transactional
     public ProductionDeclarationResponseDto create(ProductionDeclarationRequestDto requestDto) {
+        // Validate that a Process IE is mapped to the company/plant in rail_poi_ie_mapping
+        String rawPlantId = requestDto.getPlantId() != null ? requestDto.getPlantId().trim() : "";
+        String cleanPlantId = rawPlantId.startsWith(":") ? rawPlantId.substring(1) : rawPlantId;
+        String colonPlantId = rawPlantId.startsWith(":") ? rawPlantId : ":" + rawPlantId;
+
+        String poiCode = null;
+        com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants plant = railVendorPlantsRepository.findByPlantId(rawPlantId)
+                .orElseGet(() -> railVendorPlantsRepository.findByPlantId(cleanPlantId)
+                .orElseGet(() -> railVendorPlantsRepository.findByPlantId(colonPlantId).orElse(null)));
+
+        if (plant != null && plant.getCompanyName() != null) {
+            com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping mapping = railPadPincodePoIMappingRepository
+                    .findByVendorCodeAndCompanyName(requestDto.getVendorCode(), plant.getCompanyName())
+                    .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(requestDto.getVendorCode()).orElse(null));
+            if (mapping != null) {
+                poiCode = mapping.getPoiCode();
+            }
+        }
+
+        boolean hasProcessIe = railPoiIeMappingRepository.hasProcessIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
+        if (!hasProcessIe) {
+            throw new RuntimeException("Production declaration failed: No Process IE mapped to company/plant (" + (requestDto.getPlantId() != null ? requestDto.getPlantId() : requestDto.getVendorCode()) + ")");
+        }
+
         RailProductionDeclaration entity = new RailProductionDeclaration();
         BeanUtils.copyProperties(requestDto, entity, "products");
         entity.setPoNo(requestDto.getPoNo()); // Explicitly set PO No

@@ -36,4 +36,41 @@ public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMappi
     );
 
     Optional<RailPoiIeMapping> findByPlantIdAndIeType(String plantId, String mainIe);
+
+    @org.springframework.data.jpa.repository.Query("""
+SELECT COUNT(m) > 0 
+FROM RailPoiIeMapping m 
+WHERE (m.plantId = :plantId OR m.plantId = :cleanPlantId OR m.plantId = :colonPlantId OR (:poiCode IS NOT NULL AND m.poiCode = :poiCode)) 
+  AND (UPPER(REPLACE(m.ieType, ' ', '_')) = 'MAIN_IE' OR UPPER(m.ieType) = 'MAIN IE')
+""")
+    boolean hasMainIeMapping(
+            @org.springframework.data.repository.query.Param("plantId") String plantId,
+            @org.springframework.data.repository.query.Param("cleanPlantId") String cleanPlantId,
+            @org.springframework.data.repository.query.Param("colonPlantId") String colonPlantId,
+            @org.springframework.data.repository.query.Param("poiCode") String poiCode
+    );
+
+    @org.springframework.data.jpa.repository.Query("""
+SELECT COUNT(m) > 0 
+FROM RailPoiIeMapping m 
+WHERE (m.plantId = :plantId OR m.plantId = :cleanPlantId OR m.plantId = :colonPlantId OR (:poiCode IS NOT NULL AND m.poiCode = :poiCode)) 
+  AND (UPPER(REPLACE(m.ieType, ' ', '_')) = 'PROCESS_IE' OR UPPER(m.ieType) = 'PROCESS IE')
+""")
+    boolean hasProcessIeMapping(
+            @org.springframework.data.repository.query.Param("plantId") String plantId,
+            @org.springframework.data.repository.query.Param("cleanPlantId") String cleanPlantId,
+            @org.springframework.data.repository.query.Param("colonPlantId") String colonPlantId,
+            @org.springframework.data.repository.query.Param("poiCode") String poiCode
+    );
+    @org.springframework.data.jpa.repository.Query(value = """
+SELECT DISTINCT COALESCE(NULLIF(TRIM(um.FULL_NAME), ''), um.username) 
+FROM rail_poi_ie_mapping rpm 
+JOIN user_master um ON um.userid = rpm.ie_user_id 
+WHERE (REPLACE(rpm.plant_id, ':', '') = REPLACE(:plantId, ':', '') OR (:poiCode IS NOT NULL AND rpm.poi_code = :poiCode)) 
+  AND (UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'MAIN_IE' OR UPPER(rpm.ie_type) = 'MAIN IE')
+""", nativeQuery = true)
+    List<String> findMainIeNamesByPlantId(
+            @org.springframework.data.repository.query.Param("plantId") String plantId,
+            @org.springframework.data.repository.query.Param("poiCode") String poiCode
+    );
 }
