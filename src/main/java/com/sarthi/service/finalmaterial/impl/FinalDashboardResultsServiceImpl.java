@@ -361,6 +361,7 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             entity.setWeightStatus(dto.getWeightStatus());
             entity.setChemicalStatus(dto.getChemicalStatus());
             entity.setErcUsedForTesting(dto.getErcUsedForTesting());
+            entity.setTotalRejectedQty(dto.getTotalRejectedQty());
             entity.setStdPackingNo(dto.getStdPackingNo());
             entity.setBagsWithStdPacking(dto.getBagsWithStdPacking());
             entity.setNonStdBagsCount(dto.getNonStdBagsCount());
@@ -385,6 +386,7 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             entity.setWeightStatus(dto.getWeightStatus());
             entity.setChemicalStatus(dto.getChemicalStatus());
             entity.setErcUsedForTesting(dto.getErcUsedForTesting());
+            entity.setTotalRejectedQty(dto.getTotalRejectedQty());
             entity.setStdPackingNo(dto.getStdPackingNo());
             entity.setBagsWithStdPacking(dto.getBagsWithStdPacking());
             entity.setNonStdBagsCount(dto.getNonStdBagsCount());
@@ -435,6 +437,7 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
         entity.setWeightStatus(dto.getWeightStatus());
         entity.setChemicalStatus(dto.getChemicalStatus());
         entity.setErcUsedForTesting(dto.getErcUsedForTesting());
+        entity.setTotalRejectedQty(dto.getTotalRejectedQty());
         entity.setStdPackingNo(dto.getStdPackingNo());
         entity.setBagsWithStdPacking(dto.getBagsWithStdPacking());
         entity.setNonStdBagsCount(dto.getNonStdBagsCount());

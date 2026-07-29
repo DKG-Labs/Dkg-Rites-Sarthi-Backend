@@ -123,13 +123,8 @@ public interface InspectionCompleteDetailsRepository extends JpaRepository<Inspe
             nativeQuery = true)
     List<String> findProcessIcNumbersByMultipleRmIcNumbers(@Param("rmCertificateNos") List<String> rmCertificateNos);
 
-    @Query("""
-        SELECT i.certificateNo
-        FROM InspectionCompleteDetails i
-        WHERE i.callNo = :callNo
-    """)
-    String findCertificateNoByCallNo(
-            @Param("callNo") String callNo);
+    @Query(value = "SELECT CERTIFICATE_NO FROM inspection_complete_details WHERE CALL_NO = :callNo ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    String findCertificateNoByCallNo(@Param("callNo") String callNo);
 
   @Query("""
     SELECT i.callNo, i.certificateNo
