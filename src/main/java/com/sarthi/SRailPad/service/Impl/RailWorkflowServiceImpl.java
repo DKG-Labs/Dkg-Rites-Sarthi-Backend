@@ -1018,18 +1018,31 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Override
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName) {
+        return allPendingWorkflowTransitions(roleName, null);
+    }
+
+    @Override
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, String plantId) {
 
         List<RailWorkflowTransaction> list = null;
 
-        if(roleName.equalsIgnoreCase("Rail Main IE")) {
-
-            list = railWorkflowTransactionRepository
-                    .findLatestByRole(roleName);
-
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                list = railWorkflowTransactionRepository
+                        .findLatestByRoleAndPlantId(roleName, plantId.trim());
+            } else {
+                list = railWorkflowTransactionRepository
+                        .findLastPendingRequestsByRoleAndPlantId(roleName, plantId.trim());
+            }
         } else {
-
-            list = railWorkflowTransactionRepository
-                    .findLastPendingRequestsByRole(roleName);
+            if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                list = railWorkflowTransactionRepository
+                        .findLatestByRole(roleName);
+            } else {
+                list = railWorkflowTransactionRepository
+                        .findLastPendingRequestsByRole(roleName);
+            }
         }
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();

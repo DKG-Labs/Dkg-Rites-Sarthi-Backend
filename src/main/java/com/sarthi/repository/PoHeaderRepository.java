@@ -68,8 +68,8 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
        select distinct h
        from PoHeader h
        left join fetch h.items i
-       where h.vendorCode = :vendorCode
-       and h.itemCatDescr = :itemCatDescr
+       where LOWER(TRIM(h.vendorCode)) = LOWER(TRIM(:vendorCode))
+       and LOWER(TRIM(h.itemCatDescr)) = LOWER(TRIM(:itemCatDescr))
        """)
 	List<PoHeader> findAllByVendorCodeAndItemCatDescrWithItems(String vendorCode, String itemCatDescr);
 
