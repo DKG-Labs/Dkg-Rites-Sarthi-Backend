@@ -36,6 +36,9 @@ public class RmVisualInspection {
     @Column(name = "no_defect")
     private Boolean noDefect = false;
 
+    @Column(name = "all_defects")
+    private Boolean allDefects = false;
+
     @Column(name = "distortion")
     private Boolean distortion = false;
 
@@ -111,6 +114,9 @@ public class RmVisualInspection {
 
     @Column(name = "other_remarks", length = 500)
     private String otherRemarks;
+
+    @Column(name = "all_defects_remark", length = 500)
+    private String allDefectsRemark;
 
     // Derived calculated fields stored explicitly
     @Column(name = "defect_count")

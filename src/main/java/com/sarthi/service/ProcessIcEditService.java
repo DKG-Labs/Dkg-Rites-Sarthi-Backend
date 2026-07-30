@@ -39,6 +39,7 @@ public class ProcessIcEditService {
         entity.setBillPayingOfficer(dto.getBillPayingOfficer());
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
+        entity.setManufacturer(dto.getManufacturer());
         entity.setQapNo(dto.getQapNo());
         entity.setChpClause(dto.getChpClause());
         entity.setInspectionDate(dto.getInspectionDate());
@@ -68,6 +69,7 @@ public class ProcessIcEditService {
                 .billPayingOfficer(entity.getBillPayingOfficer())
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
+                .manufacturer(entity.getManufacturer())
                 .qapNo(entity.getQapNo())
                 .chpClause(entity.getChpClause())
                 .inspectionDate(entity.getInspectionDate())
