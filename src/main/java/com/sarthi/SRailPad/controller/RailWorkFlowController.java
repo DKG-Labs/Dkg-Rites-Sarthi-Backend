@@ -28,9 +28,11 @@ public class RailWorkFlowController {
     }
 
     @GetMapping("/allPendingWorkflowTransition")
-    public ResponseEntity<Object> allPendingWorkflowTransition(@RequestParam String roleName)  {
+    public ResponseEntity<Object> allPendingWorkflowTransition(
+            @RequestParam String roleName,
+            @RequestParam(required = false) String plantId)  {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName)), HttpStatus.OK);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName, plantId)), HttpStatus.OK);
     }
 
     @GetMapping("/WorkflowTransitionHistory")
