@@ -6844,13 +6844,42 @@ public class reportsImpl implements reports {
         @Override
         public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopManufacturers() {
                 List<Object[]> rows = railPadPincodePoIMappingRepository.findDistinctManufacturers();
+                java.util.Set<String> seen = new java.util.HashSet<>();
                 List<java.util.Map<String, String>> list = new ArrayList<>();
                 for (Object[] r : rows) {
-                        java.util.Map<String, String> map = new java.util.HashMap<>();
-                        map.put("vendorCode", r[0] != null ? r[0].toString() : "");
-                        map.put("companyName", r[1] != null ? r[1].toString() : "");
-                        map.put("poiCode", r[2] != null ? r[2].toString() : "");
-                        list.add(map);
+                        String vCode = r[0] != null ? r[0].toString().trim() : "";
+                        String cName = r[1] != null ? r[1].toString().trim() : "";
+                        String pCode = r[2] != null ? r[2].toString().trim() : "";
+                        if (!vCode.isEmpty() || !cName.isEmpty()) {
+                                java.util.Map<String, String> map = new java.util.HashMap<>();
+                                map.put("vendorCode", vCode);
+                                map.put("companyName", !cName.isEmpty() ? cName : vCode);
+                                map.put("poiCode", pCode);
+                                list.add(map);
+                                if (!vCode.isEmpty()) seen.add(vCode);
+                        }
+                }
+
+                try {
+                        List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> plants = railVendorPlantsRepository.findAll();
+                        for (com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants p : plants) {
+                                if (p.getVendorCode() != null && !p.getVendorCode().trim().isEmpty()) {
+                                        String vCode = p.getVendorCode().trim();
+                                        if (!seen.contains(vCode)) {
+                                                seen.add(vCode);
+                                                java.util.Map<String, String> map = new java.util.HashMap<>();
+                                                map.put("vendorCode", vCode);
+                                                String cName = (p.getCompanyName() != null && !p.getCompanyName().trim().isEmpty()) 
+                                                        ? p.getCompanyName().trim() 
+                                                        : ((p.getPlantName() != null && !p.getPlantName().trim().isEmpty()) ? p.getPlantName().trim() : vCode);
+                                                map.put("companyName", cName);
+                                                map.put("poiCode", "");
+                                                list.add(map);
+                                        }
+                                }
+                        }
+                } catch (Exception e) {
+                        // ignore
                 }
                 return list;
         }

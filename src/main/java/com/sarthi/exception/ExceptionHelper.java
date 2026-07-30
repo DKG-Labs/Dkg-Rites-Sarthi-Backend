@@ -42,6 +42,41 @@ public class ExceptionHelper {
         return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(ex.getErrorDetails()), HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(value = { org.springframework.dao.DataIntegrityViolationException.class })
+    public ResponseEntity<Object> handleDataIntegrityViolationException(org.springframework.dao.DataIntegrityViolationException ex, WebRequest request) {
+        logger.error("Data integrity violation: ", ex);
+        String msg = ex.getMessage();
+        if (ex.getCause() != null && ex.getCause().getMessage() != null) {
+            msg = ex.getCause().getMessage();
+        }
+        
+        String userFriendlyMessage = "Record already exists or invalid data provided.";
+        if (msg != null) {
+            String upper = msg.toUpperCase();
+            if (upper.contains("SHORT_NAME")) {
+                userFriendlyMessage = "Short Name already registered. Please enter a unique Short Name.";
+            } else if (upper.contains("EMPLOYEE_CODE") || upper.contains("RITES_EMPLOYEE_CODE")) {
+                userFriendlyMessage = "Employee Code already registered. Please enter a unique Employee Code.";
+            } else if (upper.contains("EMAIL")) {
+                userFriendlyMessage = "Email address already registered. Please enter a unique Email.";
+            } else if (upper.contains("MOBILE")) {
+                userFriendlyMessage = "Mobile number already registered.";
+            } else if (upper.contains("DUPLICATE ENTRY")) {
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("Duplicate entry '([^']+)'").matcher(msg);
+                if (matcher.find()) {
+                    userFriendlyMessage = "'" + matcher.group(1) + "' is already registered in the system.";
+                } else {
+                    userFriendlyMessage = "Record already exists with these details.";
+                }
+            }
+        }
+        
+        ErrorDetails errorDetails = new ErrorDetails(400,
+                400,
+                AppConstant.ERROR_TYPE_ERROR, userFriendlyMessage);
+        return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(value = { Exception.class })
     public ResponseEntity<Object> handleException(Exception ex, WebRequest request) {
         String exceptionName = ex.getClass().getName();

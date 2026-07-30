@@ -1788,9 +1788,9 @@ public class CertificateServiceImpl implements CertificateService {
                 String txnId = "SARTHI" + System.currentTimeMillis();
 
                 // 4. Construct signing XML (MANDATORY: PDF_SIGN | data | Single Line | No XML Declaration)
-                String responseText = "<request><command>PDF_SIGN</command><txn>" + txnId + "</txn><data>" + base64Pdf + "</data><sigX>380</sigX><sigY>100</sigY><sigPage>1</sigPage></request>";
+                String responseText = "<request><command>PDF_SIGN</command><txn>" + txnId + "</txn><data>" + base64Pdf + "</data><sigX>375</sigX><sigY>190</sigY><sigPage>1</sigPage></request>";
 
-                logger.info("PKI XML Request (Masked): <request><command>PDF_SIGN</command><txn>{}</txn><data>[{} bytes]</data><sigX>380</sigX><sigY>100</sigY><sigPage>1</sigPage></request>", txnId, base64Pdf.length());
+                logger.info("PKI XML Request (Masked): <request><command>PDF_SIGN</command><txn>{}</txn><data>[{} bytes]</data><sigX>375</sigX><sigY>190</sigY><sigPage>1</sigPage></request>", txnId, base64Pdf.length());
 
                 return IcReportDataResponse.builder()
                         .status("1")
