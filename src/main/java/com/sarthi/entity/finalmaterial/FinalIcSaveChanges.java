@@ -59,6 +59,9 @@ public class FinalIcSaveChanges {
     @Column(name = "DESCRIPTION", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "MANUFACTURER", columnDefinition = "TEXT")
+    private String manufacturer;
+
     @Column(name = "TR_REC_DATE")
     private String trRecDate;
 

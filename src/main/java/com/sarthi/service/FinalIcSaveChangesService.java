@@ -40,6 +40,7 @@ public class FinalIcSaveChangesService {
         entity.setMaNumberAndDate(dto.getMaNumberAndDate());
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
+        entity.setManufacturer(dto.getManufacturer());
         entity.setTrRecDate(dto.getTrRecDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
         entity.setDatesOfInspection(dto.getDatesOfInspection());
@@ -68,6 +69,7 @@ public class FinalIcSaveChangesService {
                 .maNumberAndDate(entity.getMaNumberAndDate())
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
+                .manufacturer(entity.getManufacturer())
                 .trRecDate(entity.getTrRecDate())
                 .noOfVisits(entity.getNoOfVisits())
                 .datesOfInspection(entity.getDatesOfInspection())

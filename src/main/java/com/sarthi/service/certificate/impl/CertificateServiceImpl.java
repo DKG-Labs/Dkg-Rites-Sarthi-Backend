@@ -1063,6 +1063,9 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
                 dto.setDescription(saveChanges.getDescription());
             }
+            if (saveChanges.getManufacturer() != null && !saveChanges.getManufacturer().isBlank()) {
+                dto.setManufacturer(saveChanges.getManufacturer());
+            }
             if (saveChanges.getQapNo() != null && !saveChanges.getQapNo().isBlank()) {
                 dto.setQapNo(saveChanges.getQapNo());
                 dto.setChpClause(saveChanges.getQapNo());
@@ -1217,11 +1220,36 @@ public class CertificateServiceImpl implements CertificateService {
             }
 
             java.util.Set<Integer> userIds = new java.util.LinkedHashSet<>();
+            boolean inInspectionWindow = false;
+
             for (com.sarthi.entity.WorkflowTransition wt : transitions) {
-                if (wt.getModifiedBy() != null && wt.getModifiedBy() > 0) userIds.add(wt.getModifiedBy());
-                if (wt.getAssignedToUser() != null && wt.getAssignedToUser() > 0) userIds.add(wt.getAssignedToUser());
-                if (wt.getProcessIeUserId() != null && wt.getProcessIeUserId() > 0) userIds.add(wt.getProcessIeUserId());
-                if (wt.getCreatedBy() != null && wt.getCreatedBy() > 0) userIds.add(wt.getCreatedBy());
+                String status = wt.getStatus() != null ? wt.getStatus().toUpperCase() : "";
+
+                // Start collecting from INSPECTION SCHEDULE status
+                if (status.contains("SCHEDULE") || status.contains("INITIATE_INSPECTION")) {
+                    inInspectionWindow = true;
+                }
+
+                // Collect modifiedBy user IDs while inside inspection window
+                if (inInspectionWindow) {
+                    if (wt.getModifiedBy() != null && wt.getModifiedBy() > 0) {
+                        userIds.add(wt.getModifiedBy());
+                    }
+                }
+
+                // End collecting after INSPECTION COMPLETE CONFIRM status
+                if (status.contains("COMPLETE_CONFIRM") || status.contains("CONFIRM_INSPECTION") || status.contains("INSPECTION_COMPLETE")) {
+                    inInspectionWindow = false;
+                }
+            }
+
+            // Fallback: If no userIds collected in window, fallback to all modifiedBy entries
+            if (userIds.isEmpty()) {
+                for (com.sarthi.entity.WorkflowTransition wt : transitions) {
+                    if (wt.getModifiedBy() != null && wt.getModifiedBy() > 0) {
+                        userIds.add(wt.getModifiedBy());
+                    }
+                }
             }
 
             List<String> ieNames = new ArrayList<>();
@@ -1577,6 +1605,9 @@ public class CertificateServiceImpl implements CertificateService {
             }
             if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
                 dto.setDescription(saveChanges.getDescription());
+            }
+            if (saveChanges.getManufacturer() != null && !saveChanges.getManufacturer().isBlank()) {
+                dto.setManufacturer(saveChanges.getManufacturer());
             }
             if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) {
                 dto.setTrRecDate(saveChanges.getTrRecDate());

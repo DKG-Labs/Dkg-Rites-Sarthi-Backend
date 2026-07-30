@@ -388,6 +388,14 @@ public class RmInspectionServiceImpl implements RmInspectionService {
                 });
             }
 
+            // Set remarks if provided in DTO
+            if (dto.getOtherRemarks() != null) {
+                entity.setOtherRemarks(dto.getOtherRemarks());
+            }
+            if (dto.getAllDefectsRemark() != null) {
+                entity.setAllDefectsRemark(dto.getAllDefectsRemark());
+            }
+
             // Set explicitly calculated values
             entity.setDefectCount(dto.getDefectCount());
             entity.setWeightRejected(dto.getWeightRejected());
@@ -406,6 +414,10 @@ public class RmInspectionServiceImpl implements RmInspectionService {
         switch (defectName.toLowerCase()) {
             case "no defect":
                 entity.setNoDefect(selected);
+                break;
+            case "all defects":
+            case "all defect":
+                entity.setAllDefects(selected);
                 break;
             case "distortion":
                 entity.setDistortion(selected);
@@ -956,6 +968,7 @@ public class RmInspectionServiceImpl implements RmInspectionService {
         // Convert entity defect booleans to map
         Map<String, Boolean> defects = new HashMap<>();
         defects.put("No Defect", entity.getNoDefect());
+        defects.put("All Defects", entity.getAllDefects());
         defects.put("Distortion", entity.getDistortion());
         defects.put("Twist", entity.getTwist());
         defects.put("Kink", entity.getKink());
@@ -967,7 +980,11 @@ public class RmInspectionServiceImpl implements RmInspectionService {
         defects.put("Groove", entity.getGroove());
         defects.put("Excessive Scaling", entity.getExcessiveScaling());
         defects.put("Internal Defect (Piping, Segregation)", entity.getInternalDefect());
+        defects.put("Other", entity.getOther());
         visualDto.setDefects(defects);
+
+        visualDto.setOtherRemarks(entity.getOtherRemarks());
+        visualDto.setAllDefectsRemark(entity.getAllDefectsRemark());
 
         // Convert entity defect lengths to map
         Map<String, BigDecimal> defectLengths = new HashMap<>();
