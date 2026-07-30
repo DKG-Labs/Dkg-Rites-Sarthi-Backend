@@ -1606,9 +1606,6 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
                 dto.setDescription(saveChanges.getDescription());
             }
-            if (saveChanges.getManufacturer() != null && !saveChanges.getManufacturer().isBlank()) {
-                dto.setManufacturer(saveChanges.getManufacturer());
-            }
             if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) {
                 dto.setTrRecDate(saveChanges.getTrRecDate());
             }
