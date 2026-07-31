@@ -114,17 +114,22 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
      * Find heat numbers by lot number and RM IC certificate
      * Returns heat numbers for a specific lot that matches the RM IC certificate
      */
-    @Query(value = "SELECT DISTINCT pid.heat_number " +
+    @Query(value = "SELECT pid.heat_number " +
             "FROM process_inspection_details pid " +
+            "LEFT JOIN inspection_calls ic ON pid.ic_id = ic.id " +
+            "LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.CALL_NO " +
             "LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = pid.ic_id " +
             "WHERE TRIM(pid.lot_number) = TRIM(:lotNumber) " +
             "AND (:rmCertificateNo IS NULL OR :rmCertificateNo = '' OR TRIM(pid.rm_ic_number) = TRIM(:rmCertificateNo) OR TRIM(prim.rm_ic_number) = TRIM(:rmCertificateNo)) " +
+            "AND (:processCertificateNo IS NULL OR :processCertificateNo = '' OR TRIM(ic.ic_number) = TRIM(:processCertificateNo) OR TRIM(icd.CERTIFICATE_NO) = TRIM(:processCertificateNo)) " +
             "AND pid.heat_number IS NOT NULL AND pid.heat_number <> '' " +
-            "ORDER BY pid.heat_number",
+            "GROUP BY pid.heat_number, pid.ic_id " +
+            "ORDER BY pid.ic_id DESC",
             nativeQuery = true)
     List<String> findHeatNumbersByLotNumber(
             @Param("lotNumber") String lotNumber,
-            @Param("rmCertificateNo") String rmCertificateNo);
+            @Param("rmCertificateNo") String rmCertificateNo,
+            @Param("processCertificateNo") String processCertificateNo);
 
     /**
      * Find lot numbers by multiple RM IC certificates and multiple Process IC certificates

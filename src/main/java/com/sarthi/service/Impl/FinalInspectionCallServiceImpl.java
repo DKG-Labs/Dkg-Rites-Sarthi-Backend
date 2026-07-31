@@ -369,10 +369,10 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     }
 
     @Override
-    public List<String> getHeatNumbersByLotNumber(String lotNumber, String rmCertificateNo) {
-        logger.info("Fetching heat numbers for lot number: {} and RM certificate: {}", lotNumber, rmCertificateNo);
+    public List<String> getHeatNumbersByLotNumber(String lotNumber, String rmCertificateNo, String processCertificateNo) {
+        logger.info("Fetching heat numbers for lot number: {}, RM certificate: {}, Process certificate: {}", lotNumber, rmCertificateNo, processCertificateNo);
         List<String> heatNumbers = processInspectionDetailsRepository.findHeatNumbersByLotNumber(lotNumber,
-                rmCertificateNo);
+                rmCertificateNo, processCertificateNo);
         logger.info("Found {} heat numbers", heatNumbers.size());
         return heatNumbers;
     }
