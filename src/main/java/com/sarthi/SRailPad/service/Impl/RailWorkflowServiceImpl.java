@@ -134,7 +134,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         }
 
         if (mapping == null) {
-            throw new RuntimeException("POI mapping not found for vendor: " + vendorCode);
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "No Main ie has been mapped for this plant id"
+                    )
+            );
         }
 
         String poiCode = mapping.getPoiCode();
@@ -143,7 +150,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if (workflowId != null && workflowId.equals(2L)) {
             boolean hasMainIe = poiIeMappingRepository.hasMainIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
             if (!hasMainIe) {
-                throw new RuntimeException("Call raising failed: No Main IE mapped to vendor plant/POI (" + (poiCode != null ? poiCode : plantId) + ")");
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "No Main ie has been mapped for this plant id"
+                        )
+                );
             }
         }
 
@@ -151,7 +165,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if (workflowId != null && workflowId.equals(1L) && Long.valueOf(3L).equals(moduleId)) {
             boolean hasProcessIe = poiIeMappingRepository.hasProcessIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
             if (!hasProcessIe) {
-                throw new RuntimeException("Production declaration failed: No Process IE mapped to company/plant (" + plantId + ")");
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "No Process IE has been mapped for this plant ID"
+                        )
+                );
             }
         }
 
@@ -213,6 +234,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         tx.setNextRole(
                 getRoleName(
                         transition.getNextRoleId()));
+
+        if (workflowId.equals(1L)) {
+            if (moduleId != null && moduleId == 3L) {
+                tx.setNextRole("Rail Process IE");
+            } else {
+                tx.setNextRole("Rail Main IE");
+            }
+        }
 
 
 
@@ -428,17 +457,27 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
 
-        if(current.getWorkflowId() == 1
-                && "Rail Process IE".equalsIgnoreCase(current.getNextRole())) {
+        if(current.getWorkflowId() == 1) {
+            Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
+            String requiredIeType = (modId != null && modId == 3) ? "Process IE" : "Main IE";
 
-            boolean exists =
-                    poiIeMappingRepository
-                            .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
-                                    current.getPoiCode(),
-                                    current.getPlantId(),
-                                    Math.toIntExact(req.getActionBy()),
-                                    "Process IE"
-                            );
+            boolean exists = poiIeMappingRepository
+                    .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                            current.getPoiCode(),
+                            current.getPlantId(),
+                            Math.toIntExact(req.getActionBy()),
+                            requiredIeType
+                    );
+
+            if (!exists && current.getPlantId() != null) {
+                List<RailPoiIeMapping> userMappings = poiIeMappingRepository
+                        .findByIeUserId(Math.toIntExact(req.getActionBy()));
+                exists = userMappings.stream().anyMatch(m ->
+                        m.getIeType() != null &&
+                        (m.getIeType().replace(" ", "_").equalsIgnoreCase(requiredIeType.replace(" ", "_")) ||
+                         m.getIeType().toLowerCase().contains(requiredIeType.toLowerCase()))
+                );
+            }
 
             if(!exists){
                 throw new BusinessException(
@@ -446,7 +485,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                                 AppConstant.ERROR_CODE_RESOURCE,
                                 AppConstant.ERROR_TYPE_CODE_VALIDATION,
                                 AppConstant.ERROR_TYPE_VALIDATION,
-                                "User not mapped as Process IE"
+                                "User not mapped as " + requiredIeType
                         )
                 );
             }
@@ -490,19 +529,29 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         }
 
 
-        else if(current.getWorkflowId() == 2
-                && "Rail Main IE".equalsIgnoreCase(current.getNextRole())) {
+        else if (current.getWorkflowId() == 2
+                && (current.getNextRole() == null || current.getNextRole().toLowerCase().contains("main"))) {
 
-            boolean exists =
-                    poiIeMappingRepository
-                            .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
-                                    current.getPoiCode(),
-                                    current.getPlantId(),
-                                    Math.toIntExact(req.getActionBy()),
-                                    "Main IE"
-                            );
+            boolean exists = poiIeMappingRepository
+                    .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                            current.getPoiCode(),
+                            current.getPlantId(),
+                            Math.toIntExact(req.getActionBy()),
+                            "Main IE"
+                    );
 
-            if(!exists){
+            if (!exists) {
+                // Fallback check: handle "MAIN_IE", "Main IE", or "MAIN" in rail_poi_ie_mapping
+                List<RailPoiIeMapping> userMappings = poiIeMappingRepository
+                        .findByIeUserId(Math.toIntExact(req.getActionBy()));
+                exists = userMappings.stream().anyMatch(m ->
+                        m.getIeType() != null &&
+                        (m.getIeType().replace(" ", "_").equalsIgnoreCase("MAIN_IE") ||
+                         m.getIeType().toLowerCase().contains("main"))
+                );
+            }
+
+            if (!exists) {
                 throw new BusinessException(
                         new ErrorDetails(
                                 AppConstant.ERROR_CODE_RESOURCE,
@@ -675,19 +724,21 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
         else {
+            Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
+            String ieRole = (modId != null && modId == 3) ? "Rail Process IE" : "Rail Main IE";
 
             if(req.getAction().equalsIgnoreCase("RETURN_TO_VENDOR")) {
 
-                tx.setCurrentRole("Rail Process IE");
+                tx.setCurrentRole(ieRole);
                 tx.setNextRole("Rail Vendor");
 
             }
 
             else if(req.getAction().equalsIgnoreCase("RESUBMIT")) {
                 tx.setCurrentRole("Rail Vendor");
-                tx.setNextRole("Rail Process IE");
+                tx.setNextRole(ieRole);
             } else {
-                tx.setCurrentRole("Rail Process IE");
+                tx.setCurrentRole(ieRole);
             }
 
             if ("VERIFY".equalsIgnoreCase(req.getAction())) {
@@ -853,15 +904,55 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         dto.setNextRole(tx.getNextRole());
         dto.setShift(tx.getShift());
         dto.setVendorCode(tx.getVendorCode());
-        if (tx.getVendorCode() != null && !tx.getVendorCode().isEmpty()) {
-            String vendorNameCacheKey = "vendorName_" + tx.getVendorCode();
-            String vName = (String) cache.computeIfAbsent(vendorNameCacheKey, k ->
-                vendorMasterRepository.findByVendorCode(tx.getVendorCode())
+        
+        String vendorNameCacheKey = "vendorName_" + (tx.getVendorCode() != null ? tx.getVendorCode() : "") + "_" + (tx.getPlantId() != null ? tx.getPlantId() : "") + "_" + (tx.getRequestId() != null ? tx.getRequestId() : "");
+        String vName = (String) cache.computeIfAbsent(vendorNameCacheKey, k -> {
+            String name = null;
+
+            // 1. Try VendorMaster by vendorCode
+            if (tx.getVendorCode() != null && !tx.getVendorCode().trim().isEmpty()) {
+                name = vendorMasterRepository.findByVendorCode(tx.getVendorCode().trim())
                     .map(com.sarthi.entity.VendorMaster::getVendorName)
-                    .orElse(null)
-            );
-            dto.setVendorName(vName);
-        }
+                    .orElse(null);
+            }
+
+            // 2. Try RailVendorPlants by vendorCode
+            if ((name == null || name.trim().isEmpty()) && tx.getVendorCode() != null && !tx.getVendorCode().trim().isEmpty()) {
+                name = railVendorPlantsRepository.findByVendorCode(tx.getVendorCode().trim())
+                    .stream()
+                    .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
+                    .filter(c -> c != null && !c.trim().isEmpty())
+                    .findFirst()
+                    .orElse(null);
+            }
+
+            // 3. Try RailVendorPlants by plantId
+            if ((name == null || name.trim().isEmpty()) && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
+                String pId = tx.getPlantId().trim();
+                name = railVendorPlantsRepository.findByPlantId(pId)
+                    .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
+                    .orElse(null);
+                if (name == null || name.trim().isEmpty()) {
+                    String altPlantId = pId.startsWith(":") ? pId.substring(1) : ":" + pId;
+                    name = railVendorPlantsRepository.findByPlantId(altPlantId)
+                        .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
+                        .orElse(null);
+                }
+            }
+
+            // 4. Try RailInspectionCall by requestId / callNo
+            if ((name == null || name.trim().isEmpty()) && tx.getRequestId() != null) {
+                try {
+                    name = railInspectionCallRepository.findByCallNo(tx.getRequestId())
+                        .map(com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall::getVendorName)
+                        .orElse(null);
+                } catch (Exception ignored) {}
+            }
+
+            return name;
+        });
+
+        dto.setVendorName(vName != null && !vName.trim().isEmpty() ? vName : tx.getVendorCode());
         dto.setPlantId(tx.getPlantId());
         dto.setPoiCode(tx.getPoiCode());
 
@@ -1035,30 +1126,56 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Override
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName) {
-        return allPendingWorkflowTransitions(roleName, null);
+        return allPendingWorkflowTransitions(roleName, null, null);
     }
 
     @Override
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName, String plantId) {
+        return allPendingWorkflowTransitions(roleName, plantId, null);
+    }
+
+    @Override
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, String plantId, Long workflowId) {
 
         List<RailWorkflowTransaction> list = null;
 
-        if (plantId != null && !plantId.trim().isEmpty()) {
-            if (roleName.equalsIgnoreCase("Rail Main IE")) {
-                list = railWorkflowTransactionRepository
-                        .findLatestByRoleAndPlantId(roleName, plantId.trim());
+        if (workflowId != null) {
+            if (plantId != null && !plantId.trim().isEmpty()) {
+                if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                    list = railWorkflowTransactionRepository
+                            .findLatestByRoleAndPlantIdAndWorkflowId(roleName, plantId.trim(), workflowId);
+                } else {
+                    list = railWorkflowTransactionRepository
+                            .findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(roleName, plantId.trim(), workflowId);
+                }
             } else {
-                list = railWorkflowTransactionRepository
-                        .findLastPendingRequestsByRoleAndPlantId(roleName, plantId.trim());
+                if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                    list = railWorkflowTransactionRepository
+                            .findLatestByRoleAndPlantIdAndWorkflowId(roleName, null, workflowId);
+                } else {
+                    list = railWorkflowTransactionRepository
+                            .findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(roleName, null, workflowId);
+                }
             }
         } else {
-            if (roleName.equalsIgnoreCase("Rail Main IE")) {
-                list = railWorkflowTransactionRepository
-                        .findLatestByRole(roleName);
+            if (plantId != null && !plantId.trim().isEmpty()) {
+                if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                    list = railWorkflowTransactionRepository
+                            .findLatestByRoleAndPlantId(roleName, plantId.trim());
+                } else {
+                    list = railWorkflowTransactionRepository
+                            .findLastPendingRequestsByRoleAndPlantId(roleName, plantId.trim());
+                }
             } else {
-                list = railWorkflowTransactionRepository
-                        .findLastPendingRequestsByRole(roleName);
+                if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                    list = railWorkflowTransactionRepository
+                            .findLatestByRole(roleName);
+                } else {
+                    list = railWorkflowTransactionRepository
+                            .findLastPendingRequestsByRole(roleName);
+                }
             }
         }
 
@@ -1087,10 +1204,25 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions() {
+        return allCompletedWorkflowTransitions(null, null, null);
+    }
 
-        List<RailWorkflowTransaction> list =
-                railWorkflowTransactionRepository
-                        .findCompletedRequests();
+    @Override
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions(Long userId, String plantId) {
+        return allCompletedWorkflowTransitions(userId, plantId, null);
+    }
+
+    @Override
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions(Long userId, String plantId, Long workflowId) {
+
+        List<RailWorkflowTransaction> list;
+        if (workflowId != null) {
+            list = railWorkflowTransactionRepository.findCompletedRequestsByPlantIdAndWorkflowId(plantId != null ? plantId.trim() : null, workflowId);
+        } else if (plantId != null && !plantId.trim().isEmpty()) {
+            list = railWorkflowTransactionRepository.findCompletedRequestsByPlantId(plantId.trim());
+        } else {
+            list = railWorkflowTransactionRepository.findCompletedRequests();
+        }
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
         return list.stream()

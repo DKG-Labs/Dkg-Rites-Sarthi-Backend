@@ -17,8 +17,8 @@ public interface RailPoiIeMappingRepository extends JpaRepository<RailPoiIeMappi
 SELECT rpm.* 
 FROM rail_poi_ie_mapping rpm 
 WHERE (rpm.poi_code = :poiCode OR :poiCode IS NULL) 
-  AND (rpm.plant_id = :plantId OR REPLACE(rpm.plant_id, ':', '') = REPLACE(:plantId, ':', '') OR :plantId IS NULL) 
-  AND UPPER(REPLACE(rpm.ie_type, ' ', '_')) = UPPER(REPLACE(:ieType, ' ', '_'))
+  AND (rpm.plant_id = :plantId OR rpm.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR rpm.plant_id = REPLACE(:plantId, ':', '') OR :plantId IS NULL) 
+  AND (rpm.ie_type = :ieType OR LOWER(rpm.ie_type) = LOWER(:ieType) OR UPPER(REPLACE(rpm.ie_type, ' ', '_')) = UPPER(REPLACE(:ieType, ' ', '_')))
 """, nativeQuery = true)
     List<RailPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(@org.springframework.data.repository.query.Param("poiCode") String poiCode, 
                                                             @org.springframework.data.repository.query.Param("plantId") String plantId, 
@@ -65,8 +65,8 @@ LIMIT 1
     @org.springframework.data.jpa.repository.Query("""
 SELECT COUNT(m) > 0 
 FROM RailPoiIeMapping m 
-WHERE (m.plantId = :plantId OR m.plantId = :cleanPlantId OR m.plantId = :colonPlantId OR (:poiCode IS NOT NULL AND m.poiCode = :poiCode)) 
-  AND (UPPER(REPLACE(m.ieType, ' ', '_')) = 'MAIN_IE' OR UPPER(m.ieType) = 'MAIN IE')
+WHERE (m.plantId = :plantId OR m.plantId = :cleanPlantId OR m.plantId = :colonPlantId OR LOWER(REPLACE(m.plantId, ':', '')) = LOWER(REPLACE(:plantId, ':', '')) OR LOWER(REPLACE(m.plantId, ':', '')) = LOWER(REPLACE(:cleanPlantId, ':', '')) OR (:poiCode IS NOT NULL AND m.poiCode = :poiCode)) 
+  AND (UPPER(REPLACE(m.ieType, ' ', '_')) = 'MAIN_IE' OR UPPER(m.ieType) = 'MAIN IE' OR UPPER(m.ieType) LIKE '%MAIN%')
 """)
     boolean hasMainIeMapping(
             @org.springframework.data.repository.query.Param("plantId") String plantId,
@@ -78,8 +78,8 @@ WHERE (m.plantId = :plantId OR m.plantId = :cleanPlantId OR m.plantId = :colonPl
     @org.springframework.data.jpa.repository.Query("""
 SELECT COUNT(m) > 0 
 FROM RailPoiIeMapping m 
-WHERE (m.plantId = :plantId OR m.plantId = :cleanPlantId OR m.plantId = :colonPlantId OR (:poiCode IS NOT NULL AND m.poiCode = :poiCode)) 
-  AND (UPPER(REPLACE(m.ieType, ' ', '_')) = 'PROCESS_IE' OR UPPER(m.ieType) = 'PROCESS IE')
+WHERE (m.plantId = :plantId OR m.plantId = :cleanPlantId OR m.plantId = :colonPlantId OR LOWER(REPLACE(m.plantId, ':', '')) = LOWER(REPLACE(:plantId, ':', '')) OR LOWER(REPLACE(m.plantId, ':', '')) = LOWER(REPLACE(:cleanPlantId, ':', '')) OR (:poiCode IS NOT NULL AND m.poiCode = :poiCode)) 
+  AND (UPPER(REPLACE(m.ieType, ' ', '_')) = 'PROCESS_IE' OR UPPER(m.ieType) = 'PROCESS IE' OR UPPER(m.ieType) LIKE '%PROCESS%')
 """)
     boolean hasProcessIeMapping(
             @org.springframework.data.repository.query.Param("plantId") String plantId,

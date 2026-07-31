@@ -17,4 +17,6 @@ public class VendorPoItemsResponseDto {
     private BigDecimal offeredTillNow;
     private BigDecimal acceptedTillNow;
     private BigDecimal due;
+    private String uom;
+    private String unit;
 }

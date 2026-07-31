@@ -34,7 +34,22 @@ WHERE t.workflowTransitionId = (
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
 AND t.nextRole = :roleName
-AND (:plantId IS NULL OR :plantId = '' OR LOWER(TRIM(t.plantId)) = LOWER(TRIM(:plantId)) OR LOWER(TRIM(t.plantId)) = LOWER(TRIM(CONCAT(':', :plantId))) OR LOWER(TRIM(CONCAT(':', t.plantId))) = LOWER(TRIM(:plantId)))
+AND (:workflowId IS NULL OR t.workflowId = :workflowId)
+AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+""")
+    List<RailWorkflowTransaction> findLatestByRoleAndPlantIdAndWorkflowId(@Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId);
+
+    @Query("""
+SELECT t FROM RailWorkflowTransaction t
+WHERE t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM RailWorkflowTransaction t2
+    WHERE t2.requestId = t.requestId
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+)
+AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
+AND t.nextRole = :roleName
+AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
 """)
     List<RailWorkflowTransaction> findLatestByRoleAndPlantId(@Param("roleName") String roleName, @Param("plantId") String plantId);
 
@@ -61,7 +76,22 @@ WHERE t.workflowTransitionId = (
 )
 AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
 AND t.nextRole = :roleName
-AND (:plantId IS NULL OR :plantId = '' OR LOWER(TRIM(t.plantId)) = LOWER(TRIM(:plantId)) OR LOWER(TRIM(t.plantId)) = LOWER(TRIM(CONCAT(':', :plantId))) OR LOWER(TRIM(CONCAT(':', t.plantId))) = LOWER(TRIM(:plantId)))
+AND (:workflowId IS NULL OR t.workflowId = :workflowId)
+AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+""")
+    List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(@Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId);
+
+    @Query("""
+SELECT t FROM RailWorkflowTransaction t
+WHERE t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM RailWorkflowTransaction t2
+    WHERE t2.requestId = t.requestId
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+)
+AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
+AND t.nextRole = :roleName
+AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
 """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantId(@Param("roleName") String roleName, @Param("plantId") String plantId);
 
@@ -91,6 +121,33 @@ WHERE t.workflowTransitionId = (
 AND UPPER(t.status) = 'COMPLETED'
 """)
     List<RailWorkflowTransaction> findCompletedRequests();
+
+    @Query("""
+SELECT t FROM RailWorkflowTransaction t
+WHERE t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM RailWorkflowTransaction t2
+    WHERE t2.requestId = t.requestId
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+)
+AND UPPER(t.status) = 'COMPLETED'
+AND (:workflowId IS NULL OR t.workflowId = :workflowId)
+AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+""")
+    List<RailWorkflowTransaction> findCompletedRequestsByPlantIdAndWorkflowId(@Param("plantId") String plantId, @Param("workflowId") Long workflowId);
+
+    @Query("""
+SELECT t FROM RailWorkflowTransaction t
+WHERE t.workflowTransitionId = (
+    SELECT MAX(t2.workflowTransitionId)
+    FROM RailWorkflowTransaction t2
+    WHERE t2.requestId = t.requestId
+    AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+)
+AND UPPER(t.status) = 'COMPLETED'
+AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+""")
+    List<RailWorkflowTransaction> findCompletedRequestsByPlantId(@Param("plantId") String plantId);
 
     @Query("""
 SELECT t FROM RailWorkflowTransaction t

@@ -121,6 +121,19 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setOrderedQty(BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0));
         dto.setItemSrNo(srNo);
         
+        String itemUom = item.getUom();
+        if (itemUom == null || itemUom.trim().isEmpty()) {
+            if (item.getPoHeader() != null && item.getPoHeader().getItems() != null 
+                    && !item.getPoHeader().getItems().isEmpty()) {
+                itemUom = item.getPoHeader().getItems().get(0).getUom();
+            }
+        }
+        if (itemUom == null || itemUom.trim().isEmpty()) {
+            itemUom = "Nos.";
+        }
+        dto.setUom(itemUom);
+        dto.setUnit(itemUom);
+        
         // Calculate offered qty by matching against vendorCalls
         int totalOffered = vendorCalls.stream()
                 .filter(c -> {
