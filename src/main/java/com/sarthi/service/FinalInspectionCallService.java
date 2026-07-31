@@ -103,7 +103,7 @@ public interface FinalInspectionCallService {
      * @param rmCertificateNo - RM IC certificate number
      * @return List of heat numbers
      */
-    List<String> getHeatNumbersByLotNumber(String lotNumber, String rmCertificateNo);
+    List<String> getHeatNumbersByLotNumber(String lotNumber, String rmCertificateNo, String processCertificateNo);
 
     /**
      * Get Process IC certificate numbers for multiple RM IC certificates

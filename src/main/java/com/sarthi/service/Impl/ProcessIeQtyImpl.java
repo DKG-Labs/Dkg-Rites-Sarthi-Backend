@@ -209,16 +209,17 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                 dto.setOfferedEarlier(offeredEarlier != null ? offeredEarlier : 0);
 
                 // Fetch sealing info from RM inspection results
-                List<com.sarthi.entity.RmHeatFinalResult> rmResults = rmHeatFinalResultRepository.findByInspectionCallNoInAndHeatNo(callNos, heatNo);
+                List<com.sarthi.entity.RmHeatFinalResult> rmResults = rmHeatFinalResultRepository
+                                .findByInspectionCallNoInAndHeatNo(callNos, heatNo);
                 if (!rmResults.isEmpty()) {
                         rmResults.stream()
-                                .filter(r -> r.getSealingType() != null)
-                                .findFirst()
-                                .ifPresent(latest -> {
-                                        dto.setSealingType(latest.getSealingType());
-                                        dto.setSteelStampNumber(latest.getSteelStampNumber());
-                                        dto.setHologramDetails(latest.getHologramDetails());
-                                });
+                                        .filter(r -> r.getSealingType() != null)
+                                        .findFirst()
+                                        .ifPresent(latest -> {
+                                                dto.setSealingType(latest.getSealingType());
+                                                dto.setSteelStampNumber(latest.getSteelStampNumber());
+                                                dto.setHologramDetails(latest.getHologramDetails());
+                                        });
                 }
 
                 return dto;
@@ -226,6 +227,14 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
 
         @Override
         public int getAcceptedQtyForLot(String requestId, String lotNumber, String heatNo) {
+                int qty = processIeQtyRepository.sumInspectedQtyByRequestIdAndLotNumberAndHeatNo(requestId, lotNumber, heatNo);
+                if (qty == 0 && lotNumber != null && !lotNumber.isBlank()) {
+                        qty = processIeQtyRepository.sumInspectedQtyByRequestIdAndLotNumber(requestId, lotNumber);
+                }
+                if (qty > 0) {
+                        return qty;
+                }
+
                 if (lotNumber != null && !lotNumber.isBlank()) {
                         Integer temperingAccepted = processLineFinalResultRepository
                                         .sumTemperingAcceptedByLotNumberAndHeatNo(lotNumber, heatNo);
@@ -233,8 +242,7 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                                 return temperingAccepted;
                         }
                 }
-                return processIeQtyRepository.sumInspectedQtyByRequestIdAndLotNumberAndHeatNo(requestId, lotNumber,
-                                heatNo);
+                return 0;
         }
 
 }
