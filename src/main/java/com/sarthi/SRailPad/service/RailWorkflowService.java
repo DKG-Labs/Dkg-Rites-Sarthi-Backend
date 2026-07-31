@@ -40,9 +40,16 @@ public interface RailWorkflowService {
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName, String plantId);
 
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, String plantId, Long workflowId);
+
     public List<RailWorkflowTransactionDto> workflowTransitionHistory(String requestId);
 
     public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions();
+
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions(Long userId, String plantId);
+
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions(Long userId, String plantId, Long workflowId);
 
     public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
     

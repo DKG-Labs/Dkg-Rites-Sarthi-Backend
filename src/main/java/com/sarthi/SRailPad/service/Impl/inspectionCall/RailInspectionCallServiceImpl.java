@@ -39,6 +39,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
     private final com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallAuditRepository railInspectionCallAuditRepository;
+    private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
 
     private static final String[] units = { "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN" };
     private static final String[] tens = { "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY" };
@@ -88,6 +89,17 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             call.setPlantId(call.getPlantId().replaceAll("^:", ""));
         }
         
+        // Validate and initiate workflow BEFORE persisting to database
+        railWorkflowService.initiateWorkflow(
+            generatedCallNo,
+            0L, // moduleId
+            2L, // workflowId
+            call.getCreatedBy(),
+            call.getVendorCode(),
+            call.getPlantId(),
+            null // shift
+        );
+
         // Ensure bidirectional links are set for JPA cascade
         if (call.getLots() != null) {
             for (RailInspectionLot lot : call.getLots()) {

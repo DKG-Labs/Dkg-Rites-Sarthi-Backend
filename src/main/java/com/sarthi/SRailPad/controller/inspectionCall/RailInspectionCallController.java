@@ -110,20 +110,8 @@ public class RailInspectionCallController {
     @PostMapping(value = "/create", consumes = {"application/json", "application/json;charset=UTF-8", "*/*"})
     public ResponseEntity<Object> create(@RequestBody RailInspectionCall call) {
         RailInspectionCall createdCall = service.create(call);
-        String callNo = createdCall.getCallNo();
-
-        railWorkflowService.initiateWorkflow(
-            callNo,
-            0L, // moduleId
-            2L, // workflowId
-            createdCall.getCreatedBy(),
-            createdCall.getVendorCode(),
-            createdCall.getPlantId(),
-            null // shift
-        );
-
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(callNo),
+                ResponseBuilder.getSuccessResponse(createdCall.getCallNo()),
                 HttpStatus.OK
         );
     }
