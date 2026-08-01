@@ -235,7 +235,7 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                         return qty;
                 }
 
-                if (lotNumber != null && !lotNumber.isBlank()) {
+                if ((requestId == null || requestId.isBlank()) && lotNumber != null && !lotNumber.isBlank()) {
                         Integer temperingAccepted = processLineFinalResultRepository
                                         .sumTemperingAcceptedByLotNumberAndHeatNo(lotNumber, heatNo);
                         if (temperingAccepted != null && temperingAccepted > 0) {
