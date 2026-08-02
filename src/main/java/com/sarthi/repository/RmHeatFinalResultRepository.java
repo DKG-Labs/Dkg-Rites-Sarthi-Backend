@@ -473,24 +473,51 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
 
     @Query(value = """
                 SELECT
-                    SUM(COALESCE(r.accepted_qty_mt, 0)),
-                    SUM(COALESCE(r.weight_rejected_mt, 0))
-                FROM inspection_calls ic
-                INNER JOIN po_header ph ON ic.po_no = ph.po_no
-                INNER JOIN rm_heat_final_result r ON r.inspection_call_no = ic.ic_number
-                INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS
-                    FROM WORKFLOW_TRANSITION w
-                    INNER JOIN (
-                        SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
-                        FROM WORKFLOW_TRANSITION
-                        GROUP BY REQUESTID
-                    ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
-                ) wf ON wf.REQUESTID = ic.ic_number
-                WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
-                AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
-                AND (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+                    (
+                        SELECT COALESCE(SUM(r.accepted_qty_mt), 0)
+                        FROM inspection_calls ic
+                        INNER JOIN po_header ph ON ic.po_no = ph.po_no
+                        INNER JOIN rm_heat_final_result r ON r.inspection_call_no = ic.ic_number
+                        INNER JOIN (
+                            SELECT w.REQUESTID, w.STATUS
+                            FROM WORKFLOW_TRANSITION w
+                            INNER JOIN (
+                                SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                FROM WORKFLOW_TRANSITION
+                                GROUP BY REQUESTID
+                            ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+                        ) wf ON wf.REQUESTID = ic.ic_number
+                        WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+                        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+                        AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                        AND (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+                    ),
+                    (
+                        SELECT COALESCE(SUM(sub.no_of_erc_finished), 0)
+                        FROM (
+                            SELECT 
+                                r.inspection_call_no,
+                                COALESCE(MAX(r.no_of_erc_finished), 0) AS no_of_erc_finished
+                            FROM inspection_calls ic
+                            INNER JOIN po_header ph ON ic.po_no = ph.po_no
+                            INNER JOIN rm_heat_final_result r ON r.inspection_call_no = ic.ic_number
+                            INNER JOIN (
+                                SELECT w.REQUESTID, w.STATUS
+                                FROM WORKFLOW_TRANSITION w
+                                INNER JOIN (
+                                    SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                    FROM WORKFLOW_TRANSITION
+                                    GROUP BY REQUESTID
+                                ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+                            ) wf ON wf.REQUESTID = ic.ic_number
+                            WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+                            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+                            AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                            AND (UPPER(TRIM(r.overall_status)) = 'REJECTED' OR UPPER(TRIM(r.status)) = 'REJECTED')
+                            AND (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+                            GROUP BY r.inspection_call_no
+                        ) sub
+                    )
             """, nativeQuery = true)
     List<Object[]> sumRmAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,
