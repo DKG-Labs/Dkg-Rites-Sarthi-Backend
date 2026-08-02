@@ -247,7 +247,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .result(buildResult(heatResults))
                 .qtyCleared(buildQtyCleared(heatResults))
                 .qtyRejected(buildQtyRejected(heatResults))
-                .remarks(buildRemarks(inspectionCall))
+                .remarks(buildRemarks(inspectionCall, heatResults))
                 .dateOfCall(buildDateOfCall(inspectionCall))
                 .noOfVisits(visitDates.isEmpty() ? "" : String.valueOf(visitDates.size()))
                 .dateOfInspection(formatDateRange(visitDates))
@@ -628,8 +628,11 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Build Quantity Cleared (Heat No. / Qty (MT) + Total + No. of bundles + ERC calculation)
      */
+    /**
+     * Build Quantity Cleared (Heat No. / Qty (MT) + Total)
+     */
     private String buildQtyCleared(List<RmHeatFinalResult> heatResults) {
-        if (heatResults.isEmpty()) return "";
+        if (heatResults.isEmpty()) return "Total Qty - Nill";
 
         StringBuilder sb = new StringBuilder();
         double totalAccepted = 0.0;
@@ -637,12 +640,20 @@ public class CertificateServiceImpl implements CertificateService {
         for (RmHeatFinalResult hr : heatResults) {
             if ("ACCEPTED".equalsIgnoreCase(hr.getStatus())) {
                 BigDecimal acceptedQty = hr.getWeightAcceptedMt();
-                sb.append(hr.getHeatNo()).append(" / ").append(acceptedQty).append(" MT\n");
-                totalAccepted += (acceptedQty != null ? acceptedQty.doubleValue() : 0.0);
+                double val = acceptedQty != null ? acceptedQty.doubleValue() : 0.0;
+                sb.append(hr.getHeatNo()).append(" - ").append(String.format(java.util.Locale.US, "%.3f", val)).append(" MT\n");
+                totalAccepted += val;
+            } else {
+                sb.append(hr.getHeatNo()).append(" - Nill\n");
             }
         }
 
-        sb.append("Total: ").append(totalAccepted).append(" MT");
+        if (totalAccepted > 0) {
+            sb.append("Total Qty - ").append(String.format(java.util.Locale.US, "%.3f", totalAccepted)).append(" MT");
+        } else {
+            sb.append("Total Qty - Nill");
+        }
+
         return sb.toString();
     }
 
@@ -658,21 +669,40 @@ public class CertificateServiceImpl implements CertificateService {
         for (RmHeatFinalResult hr : heatResults) {
             if ("REJECTED".equalsIgnoreCase(hr.getStatus())) {
                 BigDecimal rejectedQty = hr.getWeightRejectedMt();
-                sb.append(hr.getHeatNo()).append(" / ").append(rejectedQty).append(" MT\n");
-                totalRejected += (rejectedQty != null ? rejectedQty.doubleValue() : 0.0);
+                double val = rejectedQty != null ? rejectedQty.doubleValue() : 0.0;
+                sb.append(hr.getHeatNo()).append(" - ").append(String.format(java.util.Locale.US, "%.3f", val)).append(" MT\n");
+                totalRejected += val;
             }
         }
 
-        return totalRejected > 0 ? sb.toString() : "Nil";
+        if (totalRejected > 0) {
+            sb.append("Total Qty - ").append(String.format(java.util.Locale.US, "%.3f", totalRejected)).append(" MT");
+            return sb.toString();
+        }
+
+        return "Nil";
     }
 
     /**
      * Build Remarks
      */
-    private String buildRemarks(InspectionCall inspectionCall) {
+    private String buildRemarks(InspectionCall inspectionCall, List<RmHeatFinalResult> heatResults) {
         String ercType = inspectionCall.getErcType();
-        if (ercType == null) return "";
-        return "LOT FOUND ACCEPTABLE AND CLEARED FOR MANUFACTURING OF ERC " + ercType.toUpperCase();
+        if (ercType == null || ercType.isBlank()) {
+            ercType = "MK-V";
+        }
+        ercType = ercType.toUpperCase().trim();
+
+        long acceptedCount = heatResults.stream().filter(hr -> "ACCEPTED".equalsIgnoreCase(hr.getStatus())).count();
+        long rejectedCount = heatResults.stream().filter(hr -> "REJECTED".equalsIgnoreCase(hr.getStatus())).count();
+
+        if (acceptedCount > 0 && rejectedCount == 0) {
+            return "LOT FOUND ACCEPTABLE AND CLEARED FOR MANUFACTURING OF ERC " + ercType + ".";
+        } else if (acceptedCount == 0 && rejectedCount > 0) {
+            return "LOT FOUND NOT ACCEPTABLE AND NOT CLEARED FOR MANUFACTURING OF ERC " + ercType;
+        } else {
+            return "LOT FOUND PARTIALLY ACCEPTABLE. ACCEPTED QUANTITY CLEARED FOR MANUFACTURING OF ERC " + ercType + "; BALANCE QUANTITY REJECTED.";
+        }
     }
 
     /**
