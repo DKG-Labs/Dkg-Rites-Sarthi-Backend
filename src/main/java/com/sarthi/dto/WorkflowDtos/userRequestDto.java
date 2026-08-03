@@ -42,6 +42,7 @@ public class userRequestDto {
     private String currentCityOfPosting;
     private Integer metalStampNo;
 
+    private String status;
     // IE product + pin + poi
     private List<IePinPoiDto> iePinPoiList;
 
