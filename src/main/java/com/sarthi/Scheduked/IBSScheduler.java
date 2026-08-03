@@ -19,8 +19,9 @@ public class IBSScheduler {
     private final IbsCaseIntegrationRepository repository;
 
 
-    //  daily -> 9 :45 AM
+    //  daily -> 10:10 AM and 5:00 PM
     @Scheduled(cron = "0 10 10 * * ?")
+    @Scheduled(cron = "0 0 17 * * ?")
     public void createEntries() {
 
         ibsService.createInitialEntries();
