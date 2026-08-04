@@ -169,4 +169,13 @@ public class FinalProductionInspectionController {
         );
     }
 
+    @GetMapping("/distinct-sleeper-types")
+    public ResponseEntity<Object> getDistinctSleeperTypes(@RequestParam("userId") String userId) {
+        List<String> types = inspectionService.getDistinctSleeperTypes(userId);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(types),
+                HttpStatus.OK
+        );
+    }
+
 }
