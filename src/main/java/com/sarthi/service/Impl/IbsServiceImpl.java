@@ -255,7 +255,7 @@ public class IbsServiceImpl implements IbsService {
 
                         // Retry after 2 days
                         integration.setNextRetryTime(
-                                LocalDateTime.now().plusDays(2)
+                                LocalDateTime.now().plusDays(1)
                         );
                     }
 
@@ -268,7 +268,7 @@ public class IbsServiceImpl implements IbsService {
                     );
 
                     integration.setNextRetryTime(
-                            LocalDateTime.now().plusDays(2)
+                            LocalDateTime.now().plusDays(1)
                     );
                 }
 
@@ -291,7 +291,7 @@ public class IbsServiceImpl implements IbsService {
                 );
 
                 integration.setNextRetryTime(
-                        LocalDateTime.now().plusDays(2)
+                        LocalDateTime.now().plusDays(1)
                 );
 
                 integrationRepository.save(integration);

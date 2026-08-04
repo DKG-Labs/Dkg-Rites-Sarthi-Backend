@@ -358,16 +358,27 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 stage.category,
 
                 COUNT(
-                    CASE
-                        WHEN stage.latest_status IN (
-                            'VERIFY_PO_DETAILS',
-                            'PAUSED',
-                            'PAUSE_INSPECTION_RESUME_NEXT_DAY',
-                            'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
-                        )
-                        THEN 1
-                    END
-                ) AS under_count,
+                                     CASE
+                                         WHEN (
+                                             stage.category = 'Process'
+                                             AND stage.latest_status IN (
+                                                 'PAUSED',
+                                                 'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                                                 'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
+                                             )
+                                         )
+                                         OR (
+                                             stage.category <> 'Process'
+                                             AND stage.latest_status IN (
+                                                 'VERIFY_PO_DETAILS',
+                                                 'PAUSED',
+                                                 'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                                                 'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
+                                             )
+                                         )
+                                         THEN 1
+                                     END
+                                 ) AS under_count,
 
                 COUNT(
                     CASE
@@ -626,14 +637,27 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                     )
                     THEN 'Pending'
 
-                    WHEN UPPER(wt.STATUS) IN (
-                        'INITIATE_INSPECTION',
-                        'VERIFY_PO_DETAILS',
-                        'PAUSED',
-                        'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
-                        'WITHHELD'
-                    )
-                    THEN 'Under Inspection'
+                  WHEN (
+                                               ic.ic_number LIKE '%EP%'
+                                               AND UPPER(wt.STATUS) IN (
+                                                   'PAUSED',
+                                                   'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                                                   'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
+                                               
+                                               )
+                                           )
+                                           OR (
+                                               ic.ic_number NOT LIKE '%EP%'
+                                               AND UPPER(wt.STATUS) IN (
+                                                   'INITIATE_INSPECTION',
+                                                   'VERIFY_PO_DETAILS',
+                                                   'PAUSED',
+                                                   'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                                                   'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                                                   'WITHHELD'
+                                               )
+                                           )
+                                           THEN 'Under Inspection'
 
                     ELSE 'Pending'
                 END AS mainStatus,
@@ -725,16 +749,31 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
 
                     OR
 
-                    (
-                        :status = 'Under Inspection'
-                        AND UPPER(wt.STATUS) IN (
-                            'INITIATE_INSPECTION',
-                            'VERIFY_PO_DETAILS',
-                            'PAUSED',
-                            'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
-                            'WITHHELD'
-                        )
-                    )
+                   (
+                         :status = 'Under Inspection'
+                         AND (
+                             (
+                                 ic.ic_number LIKE '%EP%'
+                                 AND UPPER(wt.STATUS) IN (
+                                     'PAUSED',
+                                     'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                                     'ENTER_SHIFT_DETAILS_AND_START_INSPECTION'
+                                 )
+                             )
+                             OR
+                             (
+                                 ic.ic_number NOT LIKE '%EP%'
+                                 AND UPPER(wt.STATUS) IN (
+                                     'INITIATE_INSPECTION',
+                                     'VERIFY_PO_DETAILS',
+                                     'PAUSED',
+                                     'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                                     'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                                     'WITHHELD'
+                                 )
+                             )
+                         )
+                     )
 
                     OR
 

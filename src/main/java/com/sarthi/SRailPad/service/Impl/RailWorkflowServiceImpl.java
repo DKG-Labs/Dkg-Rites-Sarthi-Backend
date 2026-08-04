@@ -421,25 +421,45 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     public RailWorkflowTransactionDto performTransitionAction(
             RailTransitionActionReqDto req) {
 
-        // First check recent transactions for requestId to get the most recent transaction & ID
         RailWorkflowTransaction current = null;
-        if (req.getRequestId() != null && !req.getRequestId().isEmpty()) {
-            List<RailWorkflowTransaction> allTx = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(req.getRequestId());
-            if (allTx != null && !allTx.isEmpty()) {
-                current = allTx.get(allTx.size() - 1);
+
+        // 1. First priority: Check if workflowTransitionId is provided, valid, and matches moduleId
+        if (req.getWorkflowTransitionId() != null && req.getWorkflowTransitionId() > 0) {
+            RailWorkflowTransaction txById = railWorkflowTransactionRepository
+                    .findById(Math.toIntExact(req.getWorkflowTransitionId()))
+                    .orElse(null);
+            if (txById != null && (req.getModuleId() == null || req.getModuleId().equals(txById.getModuleId()))) {
+                current = txById;
             }
         }
+
+        // 2. Second priority: Find by requestId (filtered by moduleId if provided)
+        if (current == null && req.getRequestId() != null && !req.getRequestId().isEmpty()) {
+            List<RailWorkflowTransaction> allTx = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(req.getRequestId());
+            if (allTx != null && !allTx.isEmpty()) {
+                if (req.getModuleId() != null) {
+                    List<RailWorkflowTransaction> moduleTx = allTx.stream()
+                            .filter(t -> t.getModuleId() != null && t.getModuleId().equals(req.getModuleId()))
+                            .collect(java.util.stream.Collectors.toList());
+                    if (!moduleTx.isEmpty()) {
+                        current = moduleTx.get(moduleTx.size() - 1);
+                    }
+                }
+                if (current == null) {
+                    current = allTx.get(allTx.size() - 1);
+                }
+            }
+        }
+
         if (current == null) {
-            current = railWorkflowTransactionRepository
-                    .findById(Math.toIntExact(req.getWorkflowTransitionId()))
-                    .orElseThrow(() -> new BusinessException(
-                            new ErrorDetails(
-                                    AppConstant.ERROR_CODE_RESOURCE,
-                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                    AppConstant.ERROR_TYPE_VALIDATION,
-                                    "Workflow transition not found"
-                            )
-                    ));
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Workflow transition not found"
+                    )
+            );
         }
 
         // Verify that the transaction is not already in a terminal state

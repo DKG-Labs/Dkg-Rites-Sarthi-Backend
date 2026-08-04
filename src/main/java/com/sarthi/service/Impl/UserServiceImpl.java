@@ -122,6 +122,11 @@ public class UserServiceImpl implements UserService {
         userMaster.setDesignation(userDto.getDesignation());
         userMaster.setDiscipline(userDto.getDiscipline());
         userMaster.setZonalRly(userDto.getZonalRly());
+        if (userDto.getStatus().equalsIgnoreCase("Inactive")){
+            userMaster.setStatus(AppConstant.USER_STATUS_INACTIVE);
+        }else{
+            userMaster.setStatus(AppConstant.USER_STATUS);
+        }
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
         userMaster.setRio(userDto.getRio());
@@ -459,6 +464,16 @@ public class UserServiceImpl implements UserService {
                             AppConstant.ERROR_TYPE_CODE_INVALID,
                             AppConstant.ERROR_TYPE_INVALID,
                             "Invalid login type."));
+        }
+
+        // ================= STATUS CHECK =================
+        if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Your account is inactive. Please contact the administrator."));
         }
 
         // ================= PASSWORD CHECK =================
