@@ -82,6 +82,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 ProductionStressChamber chamber = new ProductionStressChamber();
 
                 chamber.setChamberNo(chamberDto.getChamberNo());
+                if (chamberDto.getLbcTime() != null && !chamberDto.getLbcTime().isEmpty()) {
+                    chamber.setLbcTime(CommonUtils.convertStringToTimeObject(chamberDto.getLbcTime()));
+                }
                 chamber.setDeclaration(entity);
 
                 List<ProductionBenchGroup> benchList = new ArrayList<>();
@@ -469,6 +472,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             }
 
             chamber.setChamberNo(chamberDto.getChamberNo());
+            if (chamberDto.getLbcTime() != null && !chamberDto.getLbcTime().isEmpty()) {
+                chamber.setLbcTime(CommonUtils.convertStringToTimeObject(chamberDto.getLbcTime()));
+            }
 
             // ================= BENCH =================
 
@@ -684,6 +690,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 
                 chamberDto.setId(chamber.getId());
                 chamberDto.setChamberNo(chamber.getChamberNo());
+                chamberDto.setLbcTime(chamber.getLbcTime());
 
                 List<ProductionBenchGroupResponseDto> benchList = new ArrayList<>();
 
@@ -1008,6 +1015,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
                 ProductionStressChamberResponseDto chamberDto = new ProductionStressChamberResponseDto();
                 chamberDto.setId(chamber.getId());
                 chamberDto.setChamberNo(chamber.getChamberNo());
+                chamberDto.setLbcTime(chamber.getLbcTime());
 
                 if (chamber.getBenchGroups() != null) {
 
@@ -1359,18 +1367,20 @@ public List<String> getBatchNumbers(Long vendorId,
 //        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
 //    }
     @Override
-    public List<String> getSleeperTypes(String batchNo, Integer benchNo, String productionUnit) {
+    public List<String> getSleeperTypes(String batchNo, String benchNo, String productionUnit) {
 
         ProductionDeclaration declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
 
         Set<String> sleeperTypes = new LinkedHashSet<>();
+        int benchInt = 0;
+        try { benchInt = Integer.parseInt(benchNo); } catch (Exception e) {}
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
             if (declaration.getChambers() != null) {
                 for (ProductionStressChamber chamber : declaration.getChambers()) {
                     if (chamber.getBenchGroups() != null) {
                         for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
-                            if (benchNo.equals(bench.getBenchNo()) && bench.getSleeperType() != null) {
+                            if (benchNo != null && benchNo.equalsIgnoreCase(bench.getBenchNo()) && bench.getSleeperType() != null) {
                                 sleeperTypes.add(bench.getSleeperType());
                             }
                         }
@@ -1381,9 +1391,9 @@ public List<String> getBatchNumbers(Long vendorId,
             if (declaration.getGangs() != null) {
                 for (ProductionLongLineGang gang : declaration.getGangs()) {
                     boolean matchesBench = false;
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchNo >= gang.getGangFrom() && benchNo <= gang.getGangTo()) {
+                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchInt >= gang.getGangFrom() && benchInt <= gang.getGangTo()) {
                         matchesBench = true;
-                    } else if (gang.getGangNo() != null && gang.getGangNo().equals(benchNo)) {
+                    } else if (gang.getGangNo() != null && gang.getGangNo().toString().equalsIgnoreCase(benchNo)) {
                         matchesBench = true;
                     }
                     if (matchesBench && gang.getSleeperType() != null) {
@@ -1402,7 +1412,7 @@ public List<String> getBatchNumbers(Long vendorId,
 //    }
 
     @Override
-    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType, String productionUnit) {
+    public List<String> getSleepers(String batchNo, String benchNo, String sleeperType, String productionUnit) {
 
         ProductionDeclaration declaration;
         if (productionUnit != null && !productionUnit.isEmpty()) {
@@ -1412,13 +1422,15 @@ public List<String> getBatchNumbers(Long vendorId,
         }
 
         List<String> sleepers = new ArrayList<>();
+        int benchInt = 0;
+        try { benchInt = Integer.parseInt(benchNo); } catch (Exception e) {}
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
             if (declaration.getChambers() != null) {
                 for (ProductionStressChamber chamber : declaration.getChambers()) {
                     if (chamber.getBenchGroups() != null) {
                         for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
-                            if (benchNo.equals(bench.getBenchNo()) && sleeperType.equals(bench.getSleeperType())) {
+                            if (benchNo != null && benchNo.equalsIgnoreCase(bench.getBenchNo()) && sleeperType.equals(bench.getSleeperType())) {
                                 if (bench.getSleepers() != null) {
                                     for (ProductionSleeper sleeper : bench.getSleepers()) {
                                         if (sleeper.getSleeperNo() != null) {
@@ -1435,9 +1447,9 @@ public List<String> getBatchNumbers(Long vendorId,
             if (declaration.getGangs() != null) {
                 for (ProductionLongLineGang gang : declaration.getGangs()) {
                     boolean matchesBench = false;
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchNo >= gang.getGangFrom() && benchNo <= gang.getGangTo()) {
+                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchInt >= gang.getGangFrom() && benchInt <= gang.getGangTo()) {
                         matchesBench = true;
-                    } else if (gang.getGangNo() != null && gang.getGangNo().equals(benchNo)) {
+                    } else if (gang.getGangNo() != null && gang.getGangNo().toString().equalsIgnoreCase(benchNo)) {
                         matchesBench = true;
                     }
                     

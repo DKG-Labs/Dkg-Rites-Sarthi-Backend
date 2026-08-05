@@ -11,6 +11,8 @@ public class ProductionStressChamberRequestDto {
 
     private Integer chamberNo;
 
+    private String lbcTime;
+
     private List<ProductionBenchGroupRequestDto> benchGroups;
 
 }

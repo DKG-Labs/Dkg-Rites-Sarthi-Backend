@@ -10,6 +10,8 @@ public class ProductionStressChamberResponseDto {
 
     private Integer chamberNo;
 
+    private java.time.LocalTime lbcTime;
+
     private List<ProductionBenchGroupResponseDto> benchGroups;
 
 }
