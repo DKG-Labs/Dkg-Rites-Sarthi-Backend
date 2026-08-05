@@ -56,6 +56,9 @@ public interface reports {
         public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway,
                         String startDate, String endDate);
 
+        public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway,
+                        String startDate, String endDate, String product);
+
         public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate);
 
         public InspectionDetailsDto getProcessOverallRejectionAllTime();
@@ -89,6 +92,10 @@ public interface reports {
         public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(
                         String status);
 
+        public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(
+                        String stage, String status, String vendorPlantCode, String zonalRailway, String startDate,
+                        String endDate);
+
         public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport();
 
         public List<com.sarthi.dto.reports.RailPadShiftWiseProductionDto> getRailPadShiftWiseProductionReport(
@@ -107,7 +114,9 @@ public interface reports {
 
         public List<String> getAllCompanies();
 
-        public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product, String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate, java.time.LocalDate endDate);
+        public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product,
+                        String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate,
+                        java.time.LocalDate endDate);
 
         List<InspectionCallsReportDto> getInspectionCallsReport(String startDate, String endDate);
 
@@ -121,7 +130,13 @@ public interface reports {
         public List<IeOperationalSlaPerformanceSummaryDto> getIeOperationalSlaPerformanceSummary(
                         String cmEmployeeCode);
 
+        public List<InspectionDetailsDto> getInspectionDetails(String startDate, String endDate, String vendorPlantCode,
+                        String zonalRailway, String product);
+
         public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary();
+
+        public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary(String vendorPlantCode,
+                        String zonalRailway, String startDateStr, String endDateStr);
 
         public List<RailPadPoLifeCycle1stLevelDto> getRailPadPo1stLevelStatus();
 

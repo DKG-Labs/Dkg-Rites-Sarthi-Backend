@@ -156,7 +156,7 @@ public class productionDeclarationController {
         @GetMapping("getAll/sleeper-types")
         public ResponseEntity<Object> getSleeperTypes(
                 @RequestParam String batchNo,
-                @RequestParam Integer benchNo,
+                @RequestParam String benchNo,
                 @RequestParam  String productionUnit) {
 
                 return new ResponseEntity<>(
@@ -168,7 +168,7 @@ public class productionDeclarationController {
         @GetMapping("getAll/sleepers")
         public ResponseEntity<Object> getSleepers(
                 @RequestParam String batchNo,
-                @RequestParam Integer benchNo,
+                @RequestParam String benchNo,
                 @RequestParam String sleeperType,
                 @RequestParam(required = false) String productionUnit) {
 

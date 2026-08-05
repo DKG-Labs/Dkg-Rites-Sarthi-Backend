@@ -15,7 +15,7 @@ public class ProductionBenchGroup {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Integer benchNo;
+    private String benchNo;
 
     private String sleeperType;
 

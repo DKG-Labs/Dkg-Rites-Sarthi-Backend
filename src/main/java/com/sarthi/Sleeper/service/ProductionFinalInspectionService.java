@@ -23,4 +23,7 @@ public interface ProductionFinalInspectionService {
 
     public BatchInspectionDetailDto getBatchaForET(Long batchId);
 
+    public List<String> getDistinctSleeperTypes(String userId);
+
     }
+

@@ -21,6 +21,8 @@ where r.vendorCode = :vendorCode
 
     Optional<RailVendorPlants> findByPlantId(String plantId);
     java.util.List<RailVendorPlants> findByVendorCode(String vendorCode);
+    boolean existsByPlantId(String plantId);
+    boolean existsByVendorCode(String vendorCode);
 
     @Query("SELECT DISTINCT r.plantId FROM RailVendorPlants r WHERE r.vendorCode IN :vendorCodes AND r.plantId IS NOT NULL")
     java.util.List<String> findDistinctPlantIdsByVendorCodeIn(@Param("vendorCodes") java.util.List<String> vendorCodes);

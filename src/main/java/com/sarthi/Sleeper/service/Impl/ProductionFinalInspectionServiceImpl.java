@@ -1158,6 +1158,23 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         return responseList;
     }
 
+    @Override
+    public List<String> getDistinctSleeperTypes(String userId) {
+        String parsedUserId = userId.replace(":", "");
+
+        Optional<UserMaster> userOpt = userMasterRepository.findFirstByUserName(userId);
+        if (userOpt.isEmpty()) {
+            userOpt = userMasterRepository.findFirstByUserName(parsedUserId);
+        }
+
+        Long vendorId = 0L;
+        if (userOpt.isPresent()) {
+            vendorId = userOpt.get().getUserId().longValue();
+        }
+
+        return headerRepository.findDistinctSleeperTypesByUserId(vendorId);
+    }
+
 
     @Override
     // REMOVE moduleId (no longer needed)

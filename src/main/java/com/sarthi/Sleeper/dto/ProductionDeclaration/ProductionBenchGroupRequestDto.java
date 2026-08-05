@@ -9,7 +9,7 @@ public class ProductionBenchGroupRequestDto {
 
     private Long id;
 
-    private Integer benchNo;
+    private String benchNo;
 
     private String sleeperType;
 
