@@ -1327,17 +1327,87 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Override
     @Transactional(readOnly = false)
     public String saveRailpadMapping(com.sarthi.SRailPad.dto.RailpadPoiIeMappingReqDto req) {
-        List<RailPoiIeMapping> existingMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(req.getPoiCode(), req.getPlantId(), req.getIeType());
-        
-        if (existingMappings != null && !existingMappings.isEmpty()) {
-            throw new RuntimeException("Mapping already exists for this POI and Plant ID for the given IE type");
+        if (req == null || req.getIeUserId() == null) {
+            throw new RuntimeException("IE User ID is required for mapping");
         }
 
+        String reqPlantId = req.getPlantId() != null ? req.getPlantId().trim() : "";
+        String cleanReqPlantId = reqPlantId.replace(":", "");
+        boolean isProcessIe = req.getIeType() != null && 
+            (req.getIeType().toUpperCase().contains("PROCESS"));
+
+        // If updating an existing mapping (ID provided)
+        if (req.getId() != null) {
+            java.util.Optional<RailPoiIeMapping> existingOpt = poiIeMappingRepository.findById(req.getId());
+            if (existingOpt.isPresent()) {
+                RailPoiIeMapping existing = existingOpt.get();
+                // Check if updating ieUserId violates single-plant rule for Process IE
+                if (isProcessIe) {
+                    List<RailPoiIeMapping> userMappings = poiIeMappingRepository.findByIeUserId(req.getIeUserId());
+                    if (userMappings != null) {
+                        for (RailPoiIeMapping m : userMappings) {
+                            if (!m.getId().equals(req.getId())) {
+                                boolean mIsProcess = m.getIeType() != null && m.getIeType().toUpperCase().contains("PROCESS");
+                                if (mIsProcess) {
+                                    String existingPlant = m.getPlantId() != null ? m.getPlantId().trim().replace(":", "") : "";
+                                    if (!existingPlant.isEmpty() && !existingPlant.equalsIgnoreCase(cleanReqPlantId)) {
+                                        throw new RuntimeException("This Process IE is already mapped to another Plant ID (" + m.getPlantId() + ")");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                existing.setPoiCode(req.getPoiCode());
+                existing.setPlantId(req.getPlantId());
+                existing.setIeUserId(req.getIeUserId());
+                existing.setIeType(isProcessIe ? "Process IE" : "Main IE");
+                poiIeMappingRepository.save(existing);
+                return "Railpad mapping updated successfully";
+            }
+        }
+
+        // 1. Check existing mappings for THIS ieUserId when creating new
+        List<RailPoiIeMapping> userMappings = poiIeMappingRepository.findByIeUserId(req.getIeUserId());
+        if (userMappings != null) {
+            for (RailPoiIeMapping m : userMappings) {
+                String existingPlant = m.getPlantId() != null ? m.getPlantId().trim().replace(":", "") : "";
+                boolean existingIsProcess = m.getIeType() != null && m.getIeType().toUpperCase().contains("PROCESS");
+
+                if (existingIsProcess == isProcessIe) {
+                    if (existingPlant.equalsIgnoreCase(cleanReqPlantId)) {
+                        throw new RuntimeException("This IE user is already mapped to this Plant ID");
+                    }
+                    
+                    // Rule: One Process IE can be mapped to only ONE plant ID
+                    if (isProcessIe && !existingPlant.isEmpty() && !existingPlant.equalsIgnoreCase(cleanReqPlantId)) {
+                        throw new RuntimeException("This Process IE is already mapped to another Plant ID (" + m.getPlantId() + ")");
+                    }
+                }
+            }
+        }
+
+        // 2. For Main IE, if a Main IE mapping already exists for this plant ID, update the Main IE
+        if (!isProcessIe) {
+            java.util.Optional<RailPoiIeMapping> existingMainIe = poiIeMappingRepository.findByPlantIdAndIeType(req.getPlantId(), req.getIeType());
+            if (existingMainIe.isPresent()) {
+                RailPoiIeMapping mainMapping = existingMainIe.get();
+                mainMapping.setIeUserId(req.getIeUserId());
+                if (req.getPoiCode() != null && !req.getPoiCode().isEmpty()) {
+                    mainMapping.setPoiCode(req.getPoiCode());
+                }
+                poiIeMappingRepository.save(mainMapping);
+                return "Railpad Main IE mapping updated successfully";
+            }
+        }
+
+        // 3. Create new mapping (Multiple Process IEs per plant ID are allowed)
         RailPoiIeMapping newMapping = new RailPoiIeMapping();
         newMapping.setPoiCode(req.getPoiCode());
         newMapping.setPlantId(req.getPlantId());
         newMapping.setIeUserId(req.getIeUserId());
-        newMapping.setIeType(req.getIeType());
+        newMapping.setIeType(isProcessIe ? "Process IE" : "Main IE");
         newMapping.setCreatedDate(java.time.LocalDateTime.now());
 
         poiIeMappingRepository.save(newMapping);

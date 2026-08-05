@@ -17,6 +17,10 @@ import com.sarthi.repository.PincodePoIMappingRepository;
 import com.sarthi.service.MappingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.sarthi.SRailPad.entity.raipadMapping.RailPoiIeMapping;
+import com.sarthi.SRailPad.repository.RailPoiIeMappingRepository;
+import com.sarthi.Sleeper.entity.SleeperPoiIeMapping;
+import com.sarthi.Sleeper.repository.SleeperPoiIeMappingRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -49,6 +53,12 @@ public class MappingServiceImpl implements MappingService {
 
     @Autowired
     private PincodePoIMappingRepository pincodePoIMappingRepository;
+
+    @Autowired
+    private RailPoiIeMappingRepository railPoiIeMappingRepository;
+
+    @Autowired
+    private SleeperPoiIeMappingRepository sleeperPoiIeMappingRepository;
 
 
     @Transactional
@@ -104,6 +114,7 @@ public class MappingServiceImpl implements MappingService {
             IeMappingResponseDto dto = new IeMappingResponseDto();
             dto.setId("cm_" + m.getId());
             dto.setMappingType("IE to CM");
+            dto.setInspectingEngineer("ERC IE");
             dto.setStatus("Active");
 
             UserMaster ieUser = userByEmpCodeMap.get(m.getUserEmployeeCode());
@@ -133,6 +144,7 @@ public class MappingServiceImpl implements MappingService {
             IeMappingResponseDto dto = new IeMappingResponseDto();
             dto.setId("poi_" + m.getId());
             dto.setMappingType("IE to POI");
+            dto.setInspectingEngineer("ERC IE");
             dto.setStatus("Active");
             dto.setPoiCode(m.getPoiCode() != null ? m.getPoiCode() : "-");
 
@@ -176,6 +188,7 @@ public class MappingServiceImpl implements MappingService {
             IeMappingResponseDto dto = new IeMappingResponseDto();
             dto.setId("proc_" + m.getId());
             dto.setMappingType("Process IE to POI");
+            dto.setInspectingEngineer("ERC Process IE");
             dto.setStatus("Active");
             dto.setPoiCode(m.getPoiCode() != null ? m.getPoiCode() : "-");
 
@@ -219,6 +232,7 @@ public class MappingServiceImpl implements MappingService {
             IeMappingResponseDto dto = new IeMappingResponseDto();
             dto.setId("iepoi_" + m.getId());
             dto.setMappingType("IE to POI");
+            dto.setInspectingEngineer("ERC IE");
             dto.setStatus("Active");
             dto.setPoiCode(m.getPoiCode() != null ? m.getPoiCode() : "-");
 
@@ -257,6 +271,88 @@ public class MappingServiceImpl implements MappingService {
             responseList.add(dto);
         }
 
+        // 5. SleeperPoiIeMapping (Sleeper IE mappings)
+        List<SleeperPoiIeMapping> sleeperPoiMappings = sleeperPoiIeMappingRepository.findAll();
+        for (SleeperPoiIeMapping m : sleeperPoiMappings) {
+            IeMappingResponseDto dto = new IeMappingResponseDto();
+            dto.setId("sleeper_" + m.getId());
+            boolean isProcess = m.getIeType() != null && m.getIeType().toUpperCase().contains("PROCESS");
+            dto.setMappingType("Sleeper " + (m.getIeType() != null ? m.getIeType() : "IE") + " to POI");
+            dto.setInspectingEngineer(isProcess ? "Sleeper Process IE" : "Sleeper Main IE");
+            dto.setStatus("Active");
+            dto.setPoiCode(m.getPoiCode() != null ? m.getPoiCode() : "-");
+
+            UserMaster ieUser = userByIdMap.get(m.getIeUserId());
+            if (ieUser != null) {
+                dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
+                dto.setRio(ieUser.getRio() != null ? ieUser.getRio() : "-");
+            } else {
+                dto.setIeName("User ID: " + m.getIeUserId());
+                dto.setRio("-");
+            }
+            dto.setCm("-");
+
+            if (m.getPlantId() != null && !m.getPlantId().isEmpty()) {
+                dto.setPoiName(m.getPlantId());
+                String pId = m.getPlantId();
+                dto.setVendorCode(pId.contains("/") ? pId.substring(0, pId.indexOf("/")) : pId);
+            } else {
+                PincodePoIMapping poi = poiMap.get(m.getPoiCode());
+                if (poi != null) {
+                    String name = poi.getCompanyName();
+                    if (poi.getUnitName() != null && !poi.getUnitName().isEmpty()) {
+                        name += " - " + poi.getUnitName();
+                    }
+                    dto.setPoiName(name);
+                    dto.setVendorCode(poi.getVendorCode());
+                } else {
+                    dto.setPoiName("-");
+                }
+            }
+            responseList.add(dto);
+        }
+
+        // 6. RailPoiIeMapping (Railpad IE mappings)
+        List<RailPoiIeMapping> railPoiMappings = railPoiIeMappingRepository.findAll();
+        for (RailPoiIeMapping m : railPoiMappings) {
+            IeMappingResponseDto dto = new IeMappingResponseDto();
+            dto.setId("rail_" + m.getId());
+            boolean isProcess = m.getIeType() != null && m.getIeType().toUpperCase().contains("PROCESS");
+            dto.setMappingType("Railpad " + (m.getIeType() != null ? m.getIeType() : "IE") + " to POI");
+            dto.setInspectingEngineer(isProcess ? "Railpad Process IE" : "Railpad Main IE");
+            dto.setStatus("Active");
+            dto.setPoiCode(m.getPoiCode() != null ? m.getPoiCode() : "-");
+
+            UserMaster ieUser = userByIdMap.get(m.getIeUserId());
+            if (ieUser != null) {
+                dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
+                dto.setRio(ieUser.getRio() != null ? ieUser.getRio() : "-");
+            } else {
+                dto.setIeName("User ID: " + m.getIeUserId());
+                dto.setRio("-");
+            }
+            dto.setCm("-");
+
+            if (m.getPlantId() != null && !m.getPlantId().isEmpty()) {
+                dto.setPoiName(m.getPlantId());
+                String pId = m.getPlantId();
+                dto.setVendorCode(pId.contains("/") ? pId.substring(0, pId.indexOf("/")) : pId);
+            } else {
+                PincodePoIMapping poi = poiMap.get(m.getPoiCode());
+                if (poi != null) {
+                    String name = poi.getCompanyName();
+                    if (poi.getUnitName() != null && !poi.getUnitName().isEmpty()) {
+                        name += " - " + poi.getUnitName();
+                    }
+                    dto.setPoiName(name);
+                    dto.setVendorCode(poi.getVendorCode());
+                } else {
+                    dto.setPoiName("-");
+                }
+            }
+            responseList.add(dto);
+        }
+
         return responseList;
     }
 
@@ -277,6 +373,12 @@ public class MappingServiceImpl implements MappingService {
         } else if (id.startsWith("iepoi_")) {
             Long rawId = Long.parseLong(id.substring(6));
             iePoiMappingRepository.deleteById(rawId);
+        } else if (id.startsWith("sleeper_")) {
+            Long rawId = Long.parseLong(id.substring(8));
+            sleeperPoiIeMappingRepository.deleteById(rawId);
+        } else if (id.startsWith("rail_")) {
+            Long rawId = Long.parseLong(id.substring(5));
+            railPoiIeMappingRepository.deleteById(rawId);
         } else {
             try {
                 Long rawId = Long.parseLong(id);

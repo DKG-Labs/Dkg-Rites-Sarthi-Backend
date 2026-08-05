@@ -67,11 +67,41 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         WHERE ph.item_cat_descr = :itemCatDescr AND pi.uom = 'Nos.'
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ph.vendor_code IN (
-            SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode
-        ))
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
+             ph.vendor_code = :vendorPlantCode OR 
+             ph.vendor_code = CONCAT(':', :vendorPlantCode) OR 
+             ph.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
+             ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) OR 
+             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode)
+        )
     """, nativeQuery = true)
     Long sumFilteredQtyByItemCatDescrAndUomNos(
+            @Param("itemCatDescr") String itemCatDescr,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate,
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway);
+
+    @Query(value = """
+        SELECT SUM(pi.qty) 
+        FROM po_item pi 
+        JOIN po_header ph ON pi.po_header_id = ph.id
+        WHERE ph.item_cat_descr = :itemCatDescr AND pi.uom = 'Set'
+        AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
+             ph.vendor_code = :vendorPlantCode OR 
+             ph.vendor_code = CONCAT(':', :vendorPlantCode) OR 
+             ph.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
+             ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) OR 
+             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode)
+        )
+    """, nativeQuery = true)
+    Long sumFilteredQtyByItemCatDescrAndUomSet(
             @Param("itemCatDescr") String itemCatDescr,
             @Param("startDate") String startDate,
             @Param("endDate") String endDate,
@@ -91,9 +121,15 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         WHERE ph.item_cat_descr = :itemCatDescr AND pi.uom IN ('Mt', 'Mts', 'Mts.')
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ph.vendor_code IN (
-            SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode
-        ))
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
+             ph.vendor_code = :vendorPlantCode OR 
+             ph.vendor_code = CONCAT(':', :vendorPlantCode) OR 
+             ph.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
+             ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) OR 
+             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode)
+        )
     """, nativeQuery = true)
     Double sumFilteredQtyByItemCatDescrAndUomMt(
             @Param("itemCatDescr") String itemCatDescr,
@@ -102,30 +138,43 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
             @Param("vendorPlantCode") String vendorPlantCode,
             @Param("zonalRailway") String zonalRailway);
 
-    @Query("""
-        SELECT new com.sarthi.dto.reports.PoIssuedDetailDto(
-            MAX(ph.rlyShortName),
-            ph.poNo,
-            MAX(ph.poDate),
-            MAX(ph.vendorDetails),
-            SUM(pi.qty),
-            MAX(pi.uom),
-            (SELECT COALESCE(SUM(f.qtyNowPassed), 0L) FROM FinalCumulativeResults f WHERE f.poNo = ph.poNo),
-            0L
+    @Query(value = """
+        SELECT 
+            ph.rly_short_name AS rlyShortName,
+            ph.po_no AS poNo,
+            ph.po_date AS poDate,
+            ph.vendor_details AS vendorDetails,
+            SUM(pi.qty) AS poQuantity,
+            pi.uom AS uom,
+            COALESCE((
+                SELECT SUM(r.accepted_qty)
+                FROM rail_final_inspection_lot_results r
+                JOIN rail_inspection_call ic ON r.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci = ph.po_no COLLATE utf8mb4_unicode_ci
+            ), 
+            (
+                SELECT SUM(f.qty_now_passed)
+                FROM final_cumulative_results f
+                WHERE f.po_no COLLATE utf8mb4_unicode_ci = ph.po_no COLLATE utf8mb4_unicode_ci
+            ), 0) AS acceptedQtyAfterFinalInspection
+        FROM po_item pi
+        JOIN po_header ph ON pi.po_header_id = ph.id
+        WHERE ph.item_cat_descr = :itemCatDescr
+        AND (:vCode IS NULL OR :vCode = '' OR 
+             ph.vendor_code = :vCode OR 
+             ph.vendor_code = CONCAT(':', :vCode) OR 
+             ph.vendor_code = SUBSTRING_INDEX(:vCode, '/', 1) OR 
+             ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:vCode, '/', 1)) OR 
+             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vCode OR rvp.vendor_code = :vCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vCode) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vCode)
         )
-        FROM PoItem pi
-        JOIN pi.poHeader ph
-        WHERE ph.itemCatDescr = :itemCatDescr
-        AND (:vCode = '' OR EXISTS (
-            SELECT 1 FROM PincodePoIMapping map 
-            WHERE ph.vendorCode = map.vendorCode 
-            AND map.poiCode = :vCode
-        ))
-        AND (:zCode = '' OR ph.rlyShortName = :zCode)
-        AND (ph.poDate BETWEEN :startDate AND :endDate)
-        GROUP BY ph.poNo
-    """)
-    List<com.sarthi.dto.reports.PoIssuedDetailDto> getPoIssuedDetails(
+        AND (:zCode IS NULL OR :zCode = '' OR ph.rly_short_name = :zCode)
+        AND (:startDate IS NULL OR :endDate IS NULL OR ph.po_date BETWEEN :startDate AND :endDate)
+        GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.po_date, ph.vendor_details, pi.uom
+        ORDER BY ph.po_date DESC
+    """, nativeQuery = true)
+    List<Object[]> fetchPoIssuedDetailsRaw(
         @Param("itemCatDescr") String itemCatDescr,
         @Param("vCode") String vCode,
         @Param("zCode") String zCode,

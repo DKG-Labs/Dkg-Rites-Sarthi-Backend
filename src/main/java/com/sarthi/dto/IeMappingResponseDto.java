@@ -8,8 +8,10 @@ public class IeMappingResponseDto {
     private String rio;
     private String cm;
     private String mappingType;
+    private String inspectingEngineer;
     private String ieName;
     private String poiCode;
     private String poiName;
+    private String vendorCode;
     private String status;
 }

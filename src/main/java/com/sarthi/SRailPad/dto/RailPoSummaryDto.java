@@ -4,12 +4,13 @@ import lombok.Data;
 
 /**
  * Railpad-specific DTO for the Inspection Initiation Summary screen.
- * This is completely isolated from the shared Sleeper portal PoDataForSectionsDto.
+ * This is completely isolated from the shared Sleeper portal
+ * PoDataForSectionsDto.
  *
  * Data sources:
- *   Section A -> po_header table
- *   Section B -> po_item table (matched by item_sr_no)
- *   Section C -> rail_inspection_call table
+ * Section A -> po_header table
+ * Section B -> po_item table (matched by item_sr_no)
+ * Section C -> rail_inspection_call table
  */
 @Data
 public class RailPoSummaryDto {
@@ -52,7 +53,6 @@ public class RailPoSummaryDto {
     /** Bill paying officer e.g. FA&CAO(S)/GRC */
     private String billPayingOfficer;
 
-
     // ---- Section B: Inspection Call Details (po_item + rail_inspection_call) ----
 
     /** Full serial: SER/60260074102063/001 */
@@ -64,7 +64,10 @@ public class RailPoSummaryDto {
     /** PO serial number e.g. 001 */
     private String poSerialNo;
 
-    /** Quantity for this specific PO serial number (from po_item.qty where item_sr_no matches) */
+    /**
+     * Quantity for this specific PO serial number (from po_item.qty where
+     * item_sr_no matches)
+     */
     private Integer poSrQty;
 
     /** UOM from po_item.uom e.g. Nos. */
@@ -88,6 +91,9 @@ public class RailPoSummaryDto {
     /** Total quantity offered in this call from rail_inspection_call.total_qty */
     private Integer totalOfferedQty;
 
-    /** Drawing number from rail_process_call_details.drawing_no (set during vendor call raising) */
+    /**
+     * Drawing number from rail_process_call_details.drawing_no (set during vendor
+     * call raising)
+     */
     private String drawingNo;
 }

@@ -15,7 +15,7 @@ public class RailProcessCallDto {
     private Integer totalQty;
     private String status;
     private LocalDateTime createdAt;
-    
+
     // Process Call Details
     private String drawingNo;
     private String uom;

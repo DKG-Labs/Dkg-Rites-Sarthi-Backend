@@ -600,7 +600,14 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             SELECT
                 ic.ic_number AS inspectionCallNumber,
 
-                ic.company_name AS vendor,
+                COALESCE(
+                    CASE 
+                        WHEN ic.company_name NOT LIKE ':%' AND ic.company_name NOT REGEXP '^[0-9]+$' THEN ic.company_name 
+                        ELSE NULL 
+                    END,
+                    SUBSTRING_INDEX(ph.vendor_details, '~', 1),
+                    ic.company_name
+                ) AS vendor,
 
                 DATE_FORMAT(
                     ic.created_at,
@@ -633,7 +640,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                         'VERIFIED',
                         'RETURNED',
                         'CALL_REGISTERED',
-                        'IE_SCHEDULED'
+                        'IE_SCHEDULED',
+                        'INITIATE_INSPECTION'
                     )
                     THEN 'Pending'
 
@@ -649,7 +657,6 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                                            OR (
                                                ic.ic_number NOT LIKE '%EP%'
                                                AND UPPER(wt.STATUS) IN (
-                                                   'INITIATE_INSPECTION',
                                                    'VERIFY_PO_DETAILS',
                                                    'PAUSED',
                                                    'PAUSE_INSPECTION_RESUME_NEXT_DAY',
@@ -694,7 +701,9 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                         THEN 'Withheld'
 
                     ELSE wt.STATUS
-                END AS subStatus
+                END AS subStatus,
+
+                ic.created_at
 
             FROM inspection_calls ic
 
@@ -734,14 +743,10 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 )
 
                 AND (
-                    (:stage = 'RM'
-                        AND ic.ic_number LIKE '%ER%')
-                    OR
-                    (:stage = 'Process'
-                        AND ic.ic_number LIKE '%EP%')
-                    OR
-                    (:stage = 'Final'
-                        AND ic.ic_number LIKE '%EF%')
+                    :stage = 'ALL' OR :stage IS NULL OR :stage = ''
+                    OR (:stage = 'RM' AND ic.ic_number LIKE '%ER%')
+                    OR (:stage = 'Process' AND ic.ic_number LIKE '%EP%')
+                    OR (:stage = 'Final' AND ic.ic_number LIKE '%EF%')
                 )
 
                 AND (
@@ -763,9 +768,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                              OR
                              (
                                  ic.ic_number NOT LIKE '%EP%'
-                                 AND UPPER(wt.STATUS) IN (
-                                     'INITIATE_INSPECTION',
-                                     'VERIFY_PO_DETAILS',
+                                  AND UPPER(wt.STATUS) IN (
+                                      'VERIFY_PO_DETAILS',
                                      'PAUSED',
                                      'PAUSE_INSPECTION_RESUME_NEXT_DAY',
                                      'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
@@ -784,7 +788,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                             'VERIFIED',
                             'RETURNED',
                             'CALL_REGISTERED',
-                            'IE_SCHEDULED'
+                            'IE_SCHEDULED',
+                            'INITIATE_INSPECTION'
                         )
                     )
                 )
@@ -1148,7 +1153,15 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
     @Query(value = """
             SELECT
                 ic.ic_number AS inspectionCallNumber,
-                COALESCE(vm.vendor_name, ic.vendor_id) AS vendor,
+                COALESCE(
+                    CASE 
+                        WHEN ic.company_name NOT LIKE ':%' AND ic.company_name NOT REGEXP '^[0-9]+$' THEN ic.company_name 
+                        ELSE NULL 
+                    END,
+                    SUBSTRING_INDEX(ph.vendor_details, '~', 1),
+                    ic.company_name,
+                    ic.vendor_id
+                ) AS vendor,
                 DATE_FORMAT(ic.created_at,'%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                 '' AS stageOfInspection,
                 CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
@@ -1188,7 +1201,15 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
     @Query(value = """
             SELECT
                 ic.ic_number AS inspectionCallNumber,
-                ic.vendor_id AS vendor,
+                COALESCE(
+                    CASE 
+                        WHEN ic.company_name NOT LIKE ':%' AND ic.company_name NOT REGEXP '^[0-9]+$' THEN ic.company_name 
+                        ELSE NULL 
+                    END,
+                    SUBSTRING_INDEX(ph.vendor_details, '~', 1),
+                    ic.company_name,
+                    ic.vendor_id
+                ) AS vendor,
                 DATE_FORMAT(ic.created_at,'%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                 '' AS stageOfInspection,
                 CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
@@ -1213,7 +1234,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 'VERIFIED',
                 'RETURNED',
                 'CALL_REGISTERED',
-                'IE_SCHEDULED'
+                'IE_SCHEDULED',
+                'INITIATE_INSPECTION'
             )
             AND ic.po_no <> 'DummyPo_001'
             AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
