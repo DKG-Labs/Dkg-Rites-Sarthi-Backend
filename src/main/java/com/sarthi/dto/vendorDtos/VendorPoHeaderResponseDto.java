@@ -21,6 +21,7 @@ public class VendorPoHeaderResponseDto {
     private String status;
     private String pdfPath;
     private String caseNo;
+    private String poKey;
 
     private List<VendorPoItemsResponseDto> poItem;
 

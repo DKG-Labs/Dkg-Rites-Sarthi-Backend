@@ -3209,16 +3209,16 @@ public class reportsImpl implements reports {
                 });
 
                 CompletableFuture<List<Object[]>> cfCallCounts = CompletableFuture
-                                .supplyAsync(() -> railWorkflowTransactionRepository.getRailPadInspectionCallCounts());
+                                .supplyAsync(() -> railWorkflowTransactionRepository.getFilteredRailPadInspectionCallCounts(vCode, zCode, parsedStartDate, parsedEndDate));
 
                 CompletableFuture<RailPadFinalInspectionSummaryDto> cfFinalSummary = CompletableFuture
                                 .supplyAsync(() -> getRailPadFinalInspectionSummary(vCode, zCode, startDateStr, endDateStr));
 
                 CompletableFuture<Long> cfTotalRejection = CompletableFuture
-                                .supplyAsync(() -> railIEProductionVerificationRepository.sumAllRejectedQty());
+                                .supplyAsync(() -> railIEProductionVerificationRepository.sumFilteredTotalPiecesRejected(vCode, zCode, parsedStartDate, parsedEndDate));
 
                 CompletableFuture<Long> cfProductionDeclared = CompletableFuture
-                                .supplyAsync(() -> railIEProductionVerificationRepository.sumAllTotalPiecesProduced());
+                                .supplyAsync(() -> railIEProductionVerificationRepository.sumFilteredTotalPiecesProduced(vCode, zCode, parsedStartDate, parsedEndDate));
 
                 java.time.LocalDate thirtyDaysAgoDate = java.time.LocalDate.now().minusDays(30);
                 CompletableFuture<Long> cfRpPiecesSum = CompletableFuture
@@ -3314,6 +3314,7 @@ public class reportsImpl implements reports {
                 dto.setPendingCalls(pendingCount);
                 dto.setRejectedInProcess(totalRejection);
                 dto.setRejectedInFinal(finalRejection);
+                dto.setTotalProcessProduced(productionDeclared);
                 dto.setRailPadRejectionPercentage(Math.round(railPadRejPercentage * 100.0) / 100.0);
                 dto.setRailPadAvgProductionPerDay(Math.round(railPadAvg * 100.0) / 100.0);
                 dto.setTotalAcceptedNos(finalSummary.getAcceptedQtyNos());
