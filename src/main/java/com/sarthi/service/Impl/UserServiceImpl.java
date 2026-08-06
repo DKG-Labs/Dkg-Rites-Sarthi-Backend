@@ -122,7 +122,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setDesignation(userDto.getDesignation());
         userMaster.setDiscipline(userDto.getDiscipline());
         userMaster.setZonalRly(userDto.getZonalRly());
-        if (userDto.getStatus().equalsIgnoreCase("Inactive")){
+        if ("Inactive".equalsIgnoreCase(userDto.getStatus())){
             userMaster.setStatus(AppConstant.USER_STATUS_INACTIVE);
         }else{
             userMaster.setStatus(AppConstant.USER_STATUS);
