@@ -73,5 +73,20 @@ public class IbsController {
         );
     }
 
+    @PostMapping("/ibs/get-case-no")
+    public ResponseEntity<Object> getIbsCaseNo(@RequestBody Map<String, Object> payload) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getIbsCaseNo(payload)),
+                HttpStatus.OK
+        );
+    }
+
+    @PostMapping("/ibs/save-case-no")
+    public ResponseEntity<Object> saveIbsCaseNo(@RequestBody Map<String, Object> payload) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.saveIbsCaseNo(payload)),
+                HttpStatus.OK
+        );
+    }
 
 }

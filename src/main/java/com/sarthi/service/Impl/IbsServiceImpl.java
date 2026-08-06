@@ -1061,6 +1061,132 @@ if(po.isPresent()){
         }
     }
 
+    @Override
+    public Object getIbsCaseNo(Map<String, Object> payload) {
+        try {
+            String url = "https://ritesinsp.com/IBS2MobileAPI/Sarthi/get-case-no";
+            Object response = webClient.post()
+                    .uri(url)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .bodyValue(payload)
+                    .retrieve()
+                    .bodyToMono(Object.class)
+                    .block();
 
+            autoSaveIbsCaseNo(payload, response);
+
+            return response;
+        } catch (Exception e) {
+            log.error("Error fetching IBS case number: ", e);
+            Map<String, Object> err = new HashMap<>();
+            err.put("resultFlag", 0);
+            err.put("message", "Failed to fetch IBS Case Number: " + e.getMessage());
+            return err;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void autoSaveIbsCaseNo(Map<String, Object> payload, Object response) {
+        try {
+            if (response == null) return;
+            Map<String, Object> respMap = null;
+            if (response instanceof Map) {
+                respMap = (Map<String, Object>) response;
+            } else {
+                respMap = objectMapper.convertValue(response, Map.class);
+            }
+
+            if (respMap == null) return;
+
+            Map<String, Object> dataMap = null;
+            if (respMap.get("data") instanceof Map) {
+                dataMap = (Map<String, Object>) respMap.get("data");
+            } else {
+                dataMap = respMap;
+            }
+
+            String caseNo = dataMap.get("CASE_NO") != null ? dataMap.get("CASE_NO").toString() :
+                    (dataMap.get("caseNo") != null ? dataMap.get("caseNo").toString() : null);
+
+            String caseStatus = dataMap.get("STATUS") != null ? dataMap.get("STATUS").toString() :
+                    (dataMap.get("status") != null ? dataMap.get("status").toString() : "AVAILABLE");
+
+            String poNo = dataMap.get("PO_NO") != null ? dataMap.get("PO_NO").toString() :
+                    (payload.get("PO_NO") != null ? payload.get("PO_NO").toString() :
+                    (payload.get("poNo") != null ? payload.get("poNo").toString() : null));
+
+            String poKey = dataMap.get("POKEY") != null ? dataMap.get("POKEY").toString() :
+                    (payload.get("POKEY") != null ? payload.get("POKEY").toString() :
+                    (payload.get("poKey") != null ? payload.get("poKey").toString() : null));
+
+            if (caseNo != null && !caseNo.trim().isEmpty() && !"N/A".equalsIgnoreCase(caseNo)) {
+                saveCaseNoToPoHeader(poNo, poKey, caseNo.trim(), caseStatus);
+            }
+        } catch (Exception ex) {
+            log.error("Error auto-saving IBS case number to PoHeader: ", ex);
+        }
+    }
+
+    @Override
+    @Transactional
+    public Object saveIbsCaseNo(Map<String, Object> payload) {
+        try {
+            String poNo = payload.get("poNo") != null ? payload.get("poNo").toString() :
+                    (payload.get("PO_NO") != null ? payload.get("PO_NO").toString() : null);
+            String poKey = payload.get("poKey") != null ? payload.get("poKey").toString() :
+                    (payload.get("POKEY") != null ? payload.get("POKEY").toString() : null);
+            String caseNo = payload.get("caseNo") != null ? payload.get("caseNo").toString() :
+                    (payload.get("CASE_NO") != null ? payload.get("CASE_NO").toString() : null);
+            String caseStatus = payload.get("caseStatus") != null ? payload.get("caseStatus").toString() :
+                    (payload.get("STATUS") != null ? payload.get("STATUS").toString() : "AVAILABLE");
+
+            if (caseNo == null || caseNo.trim().isEmpty()) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("status", "error");
+                err.put("message", "Case number is mandatory.");
+                return err;
+            }
+
+            boolean saved = saveCaseNoToPoHeader(poNo, poKey, caseNo.trim(), caseStatus);
+            Map<String, Object> res = new HashMap<>();
+            if (saved) {
+                res.put("status", "success");
+                res.put("message", "IBS Case Number saved to PO Header successfully.");
+                res.put("caseNo", caseNo);
+            } else {
+                res.put("status", "error");
+                res.put("message", "PO Header not found for PO No: " + poNo + " / PO Key: " + poKey);
+            }
+            return res;
+        } catch (Exception e) {
+            log.error("Error saving IBS Case No to PO Header: ", e);
+            Map<String, Object> err = new HashMap<>();
+            err.put("status", "error");
+            err.put("message", "Failed to save IBS Case Number: " + e.getMessage());
+            return err;
+        }
+    }
+
+    private boolean saveCaseNoToPoHeader(String poNo, String poKey, String caseNo, String caseStatus) {
+        Optional<PoHeader> poOpt = Optional.empty();
+        if (poNo != null && !poNo.trim().isEmpty()) {
+            poOpt = poHeaderRepository.findFirstByPoNo(poNo.trim());
+        }
+        if (poOpt.isEmpty() && poKey != null && !poKey.trim().isEmpty()) {
+            poOpt = poHeaderRepository.findByPoKey(poKey.trim());
+        }
+
+        if (poOpt.isPresent()) {
+            PoHeader po = poOpt.get();
+            po.setCaseNo(caseNo);
+            po.setCaseStatus(caseStatus != null ? caseStatus : "AVAILABLE");
+            poHeaderRepository.save(po);
+            log.info("Saved Case No [{}] and Case Status [{}] to PO Header [ID: {}, PO No: {}]", caseNo, caseStatus, po.getId(), po.getPoNo());
+            return true;
+        } else {
+            log.warn("PoHeader not found for poNo [{}] or poKey [{}] when saving caseNo [{}]", poNo, poKey, caseNo);
+            return false;
+        }
+    }
 
 }

@@ -19,5 +19,7 @@ public interface IbsService {
             IbsAcknowledgementDto dto
     );
 
+    public Object getIbsCaseNo(java.util.Map<String, Object> payload);
 
+    public Object saveIbsCaseNo(java.util.Map<String, Object> payload);
 }

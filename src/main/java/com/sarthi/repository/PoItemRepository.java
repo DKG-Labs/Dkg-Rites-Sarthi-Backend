@@ -64,17 +64,19 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         SELECT SUM(pi.qty) 
         FROM po_item pi 
         JOIN po_header ph ON pi.po_header_id = ph.id
-        WHERE ph.item_cat_descr = :itemCatDescr AND pi.uom = 'Nos.'
+        WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%'))) AND pi.uom = 'Nos.'
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
-        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway OR ph.rly_cd = :zonalRailway)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
              ph.vendor_code = :vendorPlantCode OR 
              ph.vendor_code = CONCAT(':', :vendorPlantCode) OR 
              ph.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
              ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) OR 
-             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode) OR 
-             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode) OR 
-             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode)
+             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode OR rvp.company_name LIKE CONCAT('%', :vendorPlantCode, '%') OR rvp.plant_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode OR ppm.company_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode OR ppm.company_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR
+             ph.vendor_details LIKE CONCAT('%', :vendorPlantCode, '%') OR
+             ph.firm_details LIKE CONCAT('%', :vendorPlantCode, '%')
         )
     """, nativeQuery = true)
     Long sumFilteredQtyByItemCatDescrAndUomNos(
@@ -88,17 +90,19 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         SELECT SUM(pi.qty) 
         FROM po_item pi 
         JOIN po_header ph ON pi.po_header_id = ph.id
-        WHERE ph.item_cat_descr = :itemCatDescr AND pi.uom = 'Set'
+        WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%'))) AND pi.uom = 'Set'
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
-        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway OR ph.rly_cd = :zonalRailway)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
              ph.vendor_code = :vendorPlantCode OR 
              ph.vendor_code = CONCAT(':', :vendorPlantCode) OR 
              ph.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
              ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) OR 
-             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode) OR 
-             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode) OR 
-             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode)
+             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode OR rvp.company_name LIKE CONCAT('%', :vendorPlantCode, '%') OR rvp.plant_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode OR ppm.company_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode OR ppm.company_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR
+             ph.vendor_details LIKE CONCAT('%', :vendorPlantCode, '%') OR
+             ph.firm_details LIKE CONCAT('%', :vendorPlantCode, '%')
         )
     """, nativeQuery = true)
     Long sumFilteredQtyByItemCatDescrAndUomSet(

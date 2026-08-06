@@ -238,6 +238,74 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query(value = """
                 SELECT
+                    COALESCE(SUM(CASE WHEN t.has_initiate = 1 THEN 1 ELSE 0 END), 0) as under_inspection,
+                    COALESCE(SUM(CASE WHEN t.has_initiate = 0 THEN 1 ELSE 0 END), 0) as pending
+                FROM (
+                    SELECT
+                        rwt1.request_id,
+                        CASE WHEN EXISTS (
+                            SELECT 1
+                            FROM rail_workflow_transaction rwt2
+                            WHERE rwt2.request_id = rwt1.request_id
+                              AND (UPPER(rwt2.action) = 'INITIATE_CALL' OR UPPER(rwt2.job_status) = 'INITIATED')
+                        ) THEN 1 ELSE 0 END as has_initiate
+                    FROM rail_workflow_transaction rwt1
+                    LEFT JOIN rail_inspection_call ic ON CONVERT(rwt1.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    LEFT JOIN po_header p ON CONVERT(
+                        CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END 
+                        USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    WHERE rwt1.workflow_transition_id IN (
+                          SELECT MAX(rwt3.workflow_transition_id)
+                          FROM rail_workflow_transaction rwt3
+                          GROUP BY rwt3.request_id
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM rail_workflow_transaction rwt4
+                          WHERE rwt4.request_id = rwt1.request_id
+                            AND (UPPER(rwt4.status) = 'COMPLETED' OR UPPER(rwt4.job_status) = 'COMPLETED')
+                      )
+                      AND (:vCode IS NULL OR :vCode = '' OR 
+                           CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+                           CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+                           CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (
+                               SELECT CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+                               FROM rail_vendor_plant rvp 
+                               WHERE CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+                                  OR CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+                                  OR CONVERT(rvp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+                           ) OR
+                           CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (
+                               SELECT CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+                               FROM railpad_pincode_poi_mapping ppm 
+                               WHERE CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+                                  OR CONVERT(ppm.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+                           ) OR
+                           CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (
+                               SELECT CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+                               FROM pincode_poi_mapping ppm 
+                               WHERE CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+                                  OR CONVERT(ppm.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+                           )
+                          )
+                      AND (:zCode IS NULL OR :zCode = '' OR 
+                           CONVERT(p.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+                           CONVERT(p.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+                           (p.id IS NULL AND (:vCode IS NOT NULL AND :vCode <> ''))
+                          )
+                      AND (:startDate IS NULL OR DATE(ic.created_at) >= :startDate)
+                      AND (:endDate IS NULL OR DATE(ic.created_at) <= :endDate)
+                ) t
+            """, nativeQuery = true)
+    List<Object[]> getFilteredRailPadInspectionCallCounts(
+            @org.springframework.data.repository.query.Param("vCode") String vCode,
+            @org.springframework.data.repository.query.Param("zCode") String zCode,
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate
+    );
+
+    @Query(value = """
+                SELECT
                     ic.call_no AS inspectionCallNumber,
                     COALESCE(vm.vendor_name, ic.vendor_code) AS vendor,
                     DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
