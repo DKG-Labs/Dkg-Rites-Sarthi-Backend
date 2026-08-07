@@ -167,7 +167,7 @@ public class IbsServiceImpl implements IbsService {
               integration.setPoHeader(po);
               integration.setPoKey(po.getPoKey());
               integration.setPoNo(po.getPoNo());
-              integration.setRlyCd(po.getRlyCd());
+              integration.setRlyCd(po.getRlyShortName() != null && !po.getRlyShortName().trim().isEmpty() ? po.getRlyShortName().trim() : po.getRlyCd());
               integration.setPoDate(po.getPoDate());
 
               integration.setStatus("NEW");
@@ -185,6 +185,10 @@ public class IbsServiceImpl implements IbsService {
 
             try {
 
+                String rlyCdToSend = (integration.getPoHeader() != null && integration.getPoHeader().getRlyShortName() != null && !integration.getPoHeader().getRlyShortName().trim().isEmpty())
+                        ? integration.getPoHeader().getRlyShortName().trim()
+                        : integration.getRlyCd();
+
                 IbsCaseRequestDto request =
                         new IbsCaseRequestDto(
                                 integration.getPoKey(),
@@ -195,7 +199,7 @@ public class IbsServiceImpl implements IbsService {
                                                         "yyyy-MM-dd HH:mm:ss"
                                                 )
                                         ),
-                                integration.getRlyCd()
+                                rlyCdToSend
                         );
 
                 String requestJson =
@@ -1064,6 +1068,23 @@ if(po.isPresent()){
     @Override
     public Object getIbsCaseNo(Map<String, Object> payload) {
         try {
+            String poNo = payload.get("PO_NO") != null ? payload.get("PO_NO").toString() :
+                    (payload.get("poNo") != null ? payload.get("poNo").toString() : null);
+            String poKey = payload.get("POKEY") != null ? payload.get("POKEY").toString() :
+                    (payload.get("poKey") != null ? payload.get("poKey").toString() : null);
+
+            Optional<PoHeader> poOpt = Optional.empty();
+            if (poNo != null && !poNo.trim().isEmpty()) {
+                poOpt = poHeaderRepository.findFirstByPoNo(poNo.trim());
+            }
+            if (poOpt.isEmpty() && poKey != null && !poKey.trim().isEmpty()) {
+                poOpt = poHeaderRepository.findByPoKey(poKey.trim());
+            }
+
+            if (poOpt.isPresent() && poOpt.get().getRlyShortName() != null && !poOpt.get().getRlyShortName().trim().isEmpty()) {
+                payload.put("RLY_CD", poOpt.get().getRlyShortName().trim());
+            }
+
             String url = "https://ritesinsp.com/IBS2MobileAPI/Sarthi/get-case-no";
             Object response = webClient.post()
                     .uri(url)
