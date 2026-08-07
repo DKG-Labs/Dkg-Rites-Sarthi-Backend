@@ -27,6 +27,8 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
      */
     List<PoItem> findByPoHeader_Id(Long poHeaderId);
 
+    List<PoItem> findByPoHeader_IdIn(List<Long> poHeaderIds);
+
     @Query("""
                 SELECT new com.sarthi.dto.PoInspection2ndLevelSerialStatusDto(
                     0,

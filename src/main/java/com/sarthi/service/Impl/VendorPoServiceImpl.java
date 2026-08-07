@@ -176,6 +176,16 @@ public class VendorPoServiceImpl implements VendorPoService {
                         ? item.getDeliveryDate().toLocalDate().toString()
                         : null);
 
+        dto.setDeliveryDate(
+                item.getDeliveryDate() != null
+                        ? item.getDeliveryDate().toLocalDate().toString()
+                        : null);
+
+        dto.setExtendedDeliveryDate(
+                item.getExtendedDeliveryDate() != null
+                        ? item.getExtendedDeliveryDate().toLocalDate().toString()
+                        : null);
+
         return dto;
     }
 }

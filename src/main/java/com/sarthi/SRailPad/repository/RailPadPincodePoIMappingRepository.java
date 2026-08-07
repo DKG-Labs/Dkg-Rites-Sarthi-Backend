@@ -26,6 +26,8 @@ where r.poiCode = :poiCode
 
     List<RailPadPincodePoIMapping> findByPoiCode(String poiCode);
 
+    List<RailPadPincodePoIMapping> findByPoiCodeIn(List<String> poiCodes);
+
     @Query("SELECT DISTINCT r.companyName FROM RailPadPincodePoIMapping r WHERE r.poiCode IN :poiCodes AND r.companyName IS NOT NULL")
     List<String> findDistinctCompanyNamesByPoiCodeIn(@Param("poiCodes") List<String> poiCodes);
 
