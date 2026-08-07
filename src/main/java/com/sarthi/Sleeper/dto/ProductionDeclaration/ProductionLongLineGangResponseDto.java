@@ -11,10 +11,10 @@ public class ProductionLongLineGangResponseDto {
 
     private String mode;
 
-    private Integer gangFrom;
-    private Integer gangTo;
+    private String gangFrom;
+    private String gangTo;
 
-    private Integer gangNo;
+    private String gangNo;
 
     private String sleeperType;
 
