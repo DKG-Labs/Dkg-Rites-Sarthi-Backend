@@ -17,11 +17,11 @@ public class ProductionLongLineGang {
 
     private String mode;
 
-    private Integer gangFrom;
+    private String gangFrom;
 
-    private Integer gangTo;
+    private String gangTo;
 
-    private Integer gangNo;
+    private String gangNo;
 
     private String sleeperType;
 

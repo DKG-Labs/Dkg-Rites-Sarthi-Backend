@@ -1339,22 +1339,29 @@ public List<String> getBatchNumbers(Long vendorId,
       for (Object[] row : gangResults) {
 
           String mode = row[0] != null ? row[0].toString() : null;
-          Integer gangFrom = row[1] != null ? ((Number) row[1]).intValue() : null;
-          Integer gangTo = row[2] != null ? ((Number) row[2]).intValue() : null;
-          Integer gangNo = row[3] != null ? ((Number) row[3]).intValue() : null;
+          String gangFromStr = row[1] != null ? row[1].toString() : null;
+          String gangToStr = row[2] != null ? row[2].toString() : null;
+          String gangNoStr = row[3] != null ? row[3].toString() : null;
 
           if ("RANGE".equalsIgnoreCase(mode)) {
 
-              if (gangFrom != null && gangTo != null) {
-                  for (int i = gangFrom; i <= gangTo; i++) {
-                      finalSet.add(String.valueOf(i));
+              if (gangFromStr != null && gangToStr != null) {
+                  try {
+                      int from = Integer.parseInt(gangFromStr);
+                      int to = Integer.parseInt(gangToStr);
+                      for (int i = from; i <= to; i++) {
+                          finalSet.add(String.valueOf(i));
+                      }
+                  } catch (NumberFormatException e) {
+                      finalSet.add(gangFromStr);
+                      finalSet.add(gangToStr);
                   }
               }
 
           } else if ("SINGLE".equalsIgnoreCase(mode)) {
 
-              if (gangNo != null) {
-                  finalSet.add(String.valueOf(gangNo));
+              if (gangNoStr != null) {
+                  finalSet.add(gangNoStr);
               }
           }
       }
@@ -1372,7 +1379,7 @@ public List<String> getBatchNumbers(Long vendorId,
         ProductionDeclaration declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
 
         Set<String> sleeperTypes = new LinkedHashSet<>();
-        int benchInt = 0;
+        int benchInt = -1;
         try { benchInt = Integer.parseInt(benchNo); } catch (Exception e) {}
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
@@ -1391,9 +1398,20 @@ public List<String> getBatchNumbers(Long vendorId,
             if (declaration.getGangs() != null) {
                 for (ProductionLongLineGang gang : declaration.getGangs()) {
                     boolean matchesBench = false;
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchInt >= gang.getGangFrom() && benchInt <= gang.getGangTo()) {
-                        matchesBench = true;
-                    } else if (gang.getGangNo() != null && gang.getGangNo().toString().equalsIgnoreCase(benchNo)) {
+                    int gangFromInt = -1;
+                    int gangToInt = -1;
+                    if (gang.getGangFrom() != null) {
+                        try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
+                    }
+                    if (gang.getGangTo() != null) {
+                        try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
+                    }
+
+                    if (gang.getGangFrom() != null && gang.getGangTo() != null) {
+                        if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                            matchesBench = true;
+                        }
+                    } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
                         matchesBench = true;
                     }
                     if (matchesBench && gang.getSleeperType() != null) {
@@ -1422,7 +1440,7 @@ public List<String> getBatchNumbers(Long vendorId,
         }
 
         List<String> sleepers = new ArrayList<>();
-        int benchInt = 0;
+        int benchInt = -1;
         try { benchInt = Integer.parseInt(benchNo); } catch (Exception e) {}
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
@@ -1447,9 +1465,20 @@ public List<String> getBatchNumbers(Long vendorId,
             if (declaration.getGangs() != null) {
                 for (ProductionLongLineGang gang : declaration.getGangs()) {
                     boolean matchesBench = false;
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchInt >= gang.getGangFrom() && benchInt <= gang.getGangTo()) {
-                        matchesBench = true;
-                    } else if (gang.getGangNo() != null && gang.getGangNo().toString().equalsIgnoreCase(benchNo)) {
+                    int gangFromInt = -1;
+                    int gangToInt = -1;
+                    if (gang.getGangFrom() != null) {
+                        try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
+                    }
+                    if (gang.getGangTo() != null) {
+                        try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
+                    }
+
+                    if (gang.getGangFrom() != null && gang.getGangTo() != null) {
+                        if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                            matchesBench = true;
+                        }
+                    } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
                         matchesBench = true;
                     }
                     
