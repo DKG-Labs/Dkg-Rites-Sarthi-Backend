@@ -157,12 +157,11 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
 
         if (entity.getDefectiveSleepers() == null) {
             entity.setDefectiveSleepers(new ArrayList<>());
+        } else {
+            entity.getDefectiveSleepers().clear();
         }
 
-// Clear old records
-        entity.getDefectiveSleepers().clear();
-
-// Add new ones
+        // Add new ones
         if (dto.getDefectiveSleepers() != null) {
 
             for (DemouldingDefectiveSleeperDTO d : dto.getDefectiveSleepers()) {
@@ -219,6 +218,17 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
     public List<DemouldingInspectionResponseDTO> getAll() {
 
         return demouldingInspectionRepository.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<DemouldingInspectionResponseDTO> getByBatchNo(String batchNo) {
+        if (batchNo == null || batchNo.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return demouldingInspectionRepository.findByBatchNoOrderByIdDesc(batchNo.trim())
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
