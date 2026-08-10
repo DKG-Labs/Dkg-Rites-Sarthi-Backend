@@ -12,6 +12,7 @@ public class VendorPoItemsResponseDto {
     private String conigness;
     private BigDecimal orderedQty;
     private String deliveryPeriod;
+    private String extendedDeliveryPeriod;
 
     private String itemSrNo;
     private BigDecimal offeredTillNow;

@@ -25,49 +25,51 @@ public class VendorPoServiceImpl implements VendorPoService {
     @Autowired
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
 
-    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode , String vendorType) {
+    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode, String vendorType) {
         logger.info("[DB Debug] Entering getPoListByVendorCode for vendor: {}, type: {}", vendorCode, vendorType);
         // Debug: Print all poNo in DB
         try {
             long count = railInspectionCallRepository.count();
             logger.info("[DB Debug] Total Records in RailInspectionCall: {}", count);
             if (count > 0) {
-                railInspectionCallRepository.findAll().forEach(c -> 
-                    logger.info("[DB Debug] Call ID: {}, poNo: '{}', Qty: {}", c.getId(), c.getPoNo(), c.getTotalQty())
-                );
+                railInspectionCallRepository.findAll().forEach(c -> logger
+                        .info("[DB Debug] Call ID: {}, poNo: '{}', Qty: {}", c.getId(), c.getPoNo(), c.getTotalQty()));
             }
         } catch (Exception e) {
             logger.error("[DB Debug] Error accessing railInspectionCallRepository", e);
         }
 
-       //  List<PoHeader> poHeaders = poHeaderRepository.findByVendorCode(vendorCode);
-      //  List<PoHeader> poHeaders = poHeaderRepository.findAllByVendorCodeWithItems(vendorCode);
-       String type = null;
-        if(vendorType.equalsIgnoreCase("ERC")){
+        // List<PoHeader> poHeaders = poHeaderRepository.findByVendorCode(vendorCode);
+        // List<PoHeader> poHeaders =
+        // poHeaderRepository.findAllByVendorCodeWithItems(vendorCode);
+        String type = null;
+        if (vendorType.equalsIgnoreCase("ERC")) {
             type = "Elastic Rail Clips";
-        }else if(vendorType.equalsIgnoreCase("Sleeper")){
+        } else if (vendorType.equalsIgnoreCase("Sleeper")) {
             type = "PSC Mainline Sleeper";
-        }else if(vendorType.equalsIgnoreCase("Rail Pads")){
+        } else if (vendorType.equalsIgnoreCase("Rail Pads")) {
             type = "Rail Pads";
         }
-        List<PoHeader> poHeaders =
-                poHeaderRepository.findAllByVendorCodeAndItemCatDescrWithItems(vendorCode, type);
+        List<PoHeader> poHeaders = poHeaderRepository.findAllByVendorCodeAndItemCatDescrWithItems(vendorCode, type);
 
         // Fetch all inspection calls for this vendor once to optimize
-        List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls = railInspectionCallRepository.findAllByVendorCode(vendorCode);
+        List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls = railInspectionCallRepository
+                .findAllByVendorCode(vendorCode);
         logger.info("[DB Debug] Found {} total inspection calls for vendor {}", vendorCalls.size(), vendorCode);
 
         return poHeaders.stream().map(po -> mapToHeaderDto(po, vendorCalls)).toList();
     }
 
     public String getPdfPathByRawPoNo(String rawPoNo) {
-        if (rawPoNo == null || rawPoNo.isEmpty()) return null;
+        if (rawPoNo == null || rawPoNo.isEmpty())
+            return null;
         return poHeaderRepository.findByPoNo(rawPoNo)
                 .map(com.sarthi.entity.PoHeader::getPdfPath)
                 .orElse(null);
     }
 
-    private VendorPoHeaderResponseDto mapToHeaderDto(PoHeader poHeader, List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls) {
+    private VendorPoHeaderResponseDto mapToHeaderDto(PoHeader poHeader,
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls) {
 
         VendorPoHeaderResponseDto dto = new VendorPoHeaderResponseDto();
 
@@ -77,9 +79,10 @@ public class VendorPoServiceImpl implements VendorPoService {
                         ? poHeader.getPoDate().toLocalDate().toString()
                         : null);
         dto.setPoDes(poHeader.getFirmDetails());
-        dto.setUnit(poHeader.getItems() != null && !poHeader.getItems().isEmpty() 
-                && poHeader.getItems().get(0).getUom() != null 
-                ? poHeader.getItems().get(0).getUom() : "Nos");
+        dto.setUnit(poHeader.getItems() != null && !poHeader.getItems().isEmpty()
+                && poHeader.getItems().get(0).getUom() != null
+                        ? poHeader.getItems().get(0).getUom()
+                        : "Nos");
         dto.setRlyShortName(poHeader.getRlyShortName());
         dto.setRlyCd(poHeader.getRlyCd());
         dto.setItemCategory(poHeader.getItemCatDescr());
@@ -108,23 +111,24 @@ public class VendorPoServiceImpl implements VendorPoService {
         return dto;
     }
 
-    private VendorPoItemsResponseDto mapToItemDto(PoItem item, List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls) {
+    private VendorPoItemsResponseDto mapToItemDto(PoItem item,
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls) {
 
         VendorPoItemsResponseDto dto = new VendorPoItemsResponseDto();
 
         String basePoNo = item.getPoHeader().getPoNo();
         String srNo = item.getItemSrNo();
         String poSrNo = basePoNo + "/" + srNo;
-        
+
         dto.setPoSerialNo(poSrNo);
         dto.setPoDes(item.getItemDesc());
         dto.setConigness(item.getImmsConsigneeName());
         dto.setOrderedQty(BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0));
         dto.setItemSrNo(srNo);
-        
+
         String itemUom = item.getUom();
         if (itemUom == null || itemUom.trim().isEmpty()) {
-            if (item.getPoHeader() != null && item.getPoHeader().getItems() != null 
+            if (item.getPoHeader() != null && item.getPoHeader().getItems() != null
                     && !item.getPoHeader().getItems().isEmpty()) {
                 itemUom = item.getPoHeader().getItems().get(0).getUom();
             }
@@ -134,21 +138,24 @@ public class VendorPoServiceImpl implements VendorPoService {
         }
         dto.setUom(itemUom);
         dto.setUnit(itemUom);
-        
+
         // Calculate offered qty by matching against vendorCalls
         int totalOffered = vendorCalls.stream()
                 .filter(c -> {
                     String cPoNo = c.getPoNo();
                     String callNo = c.getCallNo();
-                    
-                    if (cPoNo == null || callNo == null || !callNo.startsWith("RPF")) return false;
-                    
+
+                    if (cPoNo == null || callNo == null || !callNo.startsWith("RPF"))
+                        return false;
+
                     // 1. Exact match
-                    if (poSrNo.equals(cPoNo)) return true;
-                    
+                    if (poSrNo.equals(cPoNo))
+                        return true;
+
                     // 2. Base PO match
-                    if (basePoNo.equals(cPoNo)) return true;
-                    
+                    if (basePoNo.equals(cPoNo))
+                        return true;
+
                     // 3. Flexible SR match (handle 01 vs 001)
                     if (cPoNo.startsWith(basePoNo + "/")) {
                         String storedSr = cPoNo.substring(basePoNo.length() + 1);
@@ -158,7 +165,7 @@ public class VendorPoServiceImpl implements VendorPoService {
                             return storedSr.equals(srNo);
                         }
                     }
-                    
+
                     return false;
                 })
                 .mapToInt(c -> c.getTotalQty() != null ? c.getTotalQty() : 0)
@@ -166,7 +173,7 @@ public class VendorPoServiceImpl implements VendorPoService {
 
         BigDecimal offeredQty = BigDecimal.valueOf(totalOffered);
         logger.info("[PO Stats] PO/SR: {}, Offered: {}", poSrNo, offeredQty);
-        
+
         dto.setOfferedTillNow(offeredQty);
         dto.setAcceptedTillNow(BigDecimal.ZERO);
         dto.setDue(BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0).subtract(offeredQty));
@@ -174,6 +181,10 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setDeliveryPeriod(
                 item.getDeliveryDate() != null
                         ? item.getDeliveryDate().toLocalDate().toString()
+                        : null);
+        dto.setExtendedDeliveryPeriod(
+                item.getExtendedDeliveryDate() != null
+                        ? item.getExtendedDeliveryDate().toLocalDate().toString()
                         : null);
 
         return dto;
