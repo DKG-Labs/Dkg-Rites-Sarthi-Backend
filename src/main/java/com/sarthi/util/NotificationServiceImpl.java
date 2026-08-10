@@ -48,7 +48,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
-    private final JavaMailSender mailSender;
+  //  private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     private final IePincodePoiMappingRepository iePincodePoiMappingRepository;
     private final PoiProcessIeMappingRepository poiProcessIeMappingRepository;
@@ -68,7 +68,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final RailPoiIeMappingRepository railPoiIeMappingRepository;
 
-    @Value("${spring.mail.username}")
+   // @Value("${spring.mail.username}")
     private String senderMail;
 
     //feedback notification
@@ -128,17 +128,16 @@ public class NotificationServiceImpl implements NotificationService {
             String html =
                     templateEngine.process(templateName, context);
 
-            MimeMessage message = mailSender.createMimeMessage();
+          //  MimeMessage message = mailSender.createMimeMessage();
 
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(message, true, "UTF-8");
+         //   MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(senderMail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(html, true);
+          //  helper.setFrom(senderMail);
+           // helper.setTo(to);
+          //  helper.setSubject(subject);
+          //  helper.setText(html, true);
 
-            mailSender.send(message);
+           // mailSender.send(message);
 
             log.info("Mail sent successfully to {}", to);
 
