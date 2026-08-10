@@ -48,7 +48,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
+<<<<<<< HEAD
   //  private final JavaMailSender mailSender;
+=======
+    //  private final JavaMailSender mailSender;
+>>>>>>> 84d05a1 (commented mail code)
     private final TemplateEngine templateEngine;
     private final IePincodePoiMappingRepository iePincodePoiMappingRepository;
     private final PoiProcessIeMappingRepository poiProcessIeMappingRepository;
@@ -68,7 +72,11 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final RailPoiIeMappingRepository railPoiIeMappingRepository;
 
+<<<<<<< HEAD
    // @Value("${spring.mail.username}")
+=======
+    // @Value("${spring.mail.username}")
+>>>>>>> 84d05a1 (commented mail code)
     private String senderMail;
 
     //feedback notification
@@ -128,16 +136,16 @@ public class NotificationServiceImpl implements NotificationService {
             String html =
                     templateEngine.process(templateName, context);
 
-          //  MimeMessage message = mailSender.createMimeMessage();
+            //  MimeMessage message = mailSender.createMimeMessage();
 
-         //   MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            //   MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-          //  helper.setFrom(senderMail);
-           // helper.setTo(to);
-          //  helper.setSubject(subject);
-          //  helper.setText(html, true);
+            //  helper.setFrom(senderMail);
+            // helper.setTo(to);
+            //  helper.setSubject(subject);
+            //  helper.setText(html, true);
 
-           // mailSender.send(message);
+            // mailSender.send(message);
 
             log.info("Mail sent successfully to {}", to);
 
@@ -365,14 +373,14 @@ public class NotificationServiceImpl implements NotificationService {
             InspectionCall call,
             String status) {
 
-     UserMaster um =  userMasterRepository.findByUserName(call.getVendorId())
-               .orElseThrow(() -> new BusinessException(
-                       new ErrorDetails(
-                               AppConstant.ERROR_CODE_INVALID,
-                               AppConstant.ERROR_TYPE_CODE_INVALID,
-                               AppConstant.ERROR_TYPE_INVALID,
-                               "Invalid credentials."
-                       )));
+        UserMaster um =  userMasterRepository.findByUserName(call.getVendorId())
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_INVALID,
+                                "Invalid credentials."
+                        )));
 
 
         Map<String,Object> vars = new HashMap<>();
@@ -464,7 +472,7 @@ public class NotificationServiceImpl implements NotificationService {
                         .orElseThrow(() ->
                                 new RuntimeException("Sleeper Schedule not found"));
 
-              Long vendorId = inspectionCall.getCreatedBy();
+                Long vendorId = inspectionCall.getCreatedBy();
                 UserMaster um =  userMasterRepository.findByUserId(Math.toIntExact(vendorId))
                         .orElseThrow(() -> new BusinessException(
                                 new ErrorDetails(
@@ -581,52 +589,52 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
 
-        public void retryFailedMails() {
+    public void retryFailedMails() {
 
-            List<MailNotificationMaster> failedMails =
-                    mailNotificationMasterRepository.findByStatus("FAILED");
+        List<MailNotificationMaster> failedMails =
+                mailNotificationMasterRepository.findByStatus("FAILED");
 
-            for (MailNotificationMaster mail : failedMails) {
+        for (MailNotificationMaster mail : failedMails) {
 
-                try {
+            try {
 
-                    Map<String, Object> variables =
-                            objectMapper.readValue(
-                                    mail.getPayload(),
-                                    new TypeReference<Map<String, Object>>() {});
+                Map<String, Object> variables =
+                        objectMapper.readValue(
+                                mail.getPayload(),
+                                new TypeReference<Map<String, Object>>() {});
 
-                    sendEmail(
-                            mail.getRecipientEmail(),
-                            mail.getSubject(),
-                            mail.getTemplateName(),
-                            variables
-                    );
+                sendEmail(
+                        mail.getRecipientEmail(),
+                        mail.getSubject(),
+                        mail.getTemplateName(),
+                        variables
+                );
 
-                    mail.setStatus("SENT");
-                    mail.setSentDate(LocalDateTime.now());
+                mail.setStatus("SENT");
+                mail.setSentDate(LocalDateTime.now());
 
-                } catch (Exception ex) {
+            } catch (Exception ex) {
 
-                    mail.setRetryCount(mail.getRetryCount() + 1);
-                    mail.setLastError(ex.getMessage());
+                mail.setRetryCount(mail.getRetryCount() + 1);
+                mail.setLastError(ex.getMessage());
 
-                    NotificationHistory history = new NotificationHistory();
+                NotificationHistory history = new NotificationHistory();
 
-                    history.setNotificationId(mail.getNotificationId());
-                    history.setAttemptNo(mail.getRetryCount());
-                    history.setStatus("FAILED");
-                    history.setErrorMessage(ex.getMessage());
-                    history.setAttemptedAt(LocalDateTime.now());
+                history.setNotificationId(mail.getNotificationId());
+                history.setAttemptNo(mail.getRetryCount());
+                history.setStatus("FAILED");
+                history.setErrorMessage(ex.getMessage());
+                history.setAttemptedAt(LocalDateTime.now());
 
-                    notificationHistoryRepository.save(history);
-                }
-
-                mailNotificationMasterRepository.save(mail);
+                notificationHistoryRepository.save(history);
             }
+
+            mailNotificationMasterRepository.save(mail);
         }
+    }
 
 
-//sleeper mail notification to vendor and ie after call registred
+    //sleeper mail notification to vendor and ie after call registred
     @Override
     @Async
     public void sendSleeperCallRegisteredNotification(
