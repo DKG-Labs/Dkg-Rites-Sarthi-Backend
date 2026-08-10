@@ -21,7 +21,7 @@ public class IBSScheduler {
 
 
     //  daily -> 10:10 AM and 5:00 PM
-   // @Scheduled(cron = "0 08 10 * * ?")
+    // @Scheduled(cron = "0 08 10 * * ?")
     @Scheduled(cron = "0 0 19 * * ?")
     public void createEntries() {
 
