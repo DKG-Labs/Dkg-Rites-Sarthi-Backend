@@ -1,3 +1,4 @@
+
 package com.sarthi.Scheduked;
 
 import com.sarthi.repository.IbsCaseIntegrationRepository;
@@ -20,8 +21,8 @@ public class IBSScheduler {
 
 
     //  daily -> 10:10 AM and 5:00 PM
-   // @Scheduled(cron = "0 08 10 * * ?")
-    //@Scheduled(cron = "0 0 19 * * ?")
+    // @Scheduled(cron = "0 08 10 * * ?")
+    @Scheduled(cron = "0 0 19 * * ?")
     public void createEntries() {
 
         ibsService.createInitialEntries();
@@ -29,7 +30,7 @@ public class IBSScheduler {
 
     //retry 2 days one time 2pm
 
-    //@Scheduled(cron = "0 20 10 */2 * ?", zone = "Asia/Kolkata")
+    @Scheduled(cron = "0 20 08 */2 * ?", zone = "Asia/Kolkata")
     public void processPendingRecords() {
 
         var pageable = PageRequest.of(0, 10);
@@ -48,7 +49,7 @@ public class IBSScheduler {
         }
     }
 
-   // @Scheduled(cron = "0 06 12 * * ?")
+    @Scheduled(cron = "0 20 07 * * ?")
     public void fetchBillingData() {
 
         ibsService.processBilling();
