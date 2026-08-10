@@ -186,8 +186,61 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
 
         @Override
         public TotalManufaturedQtyOfPoDto getTotalManufaturedQtyPo(String heatNo, String poSerialNo) {
+                return getTotalManufaturedQtyPo(heatNo, poSerialNo, null);
+        }
 
-                List<String> callNos = inspectionCallRepository.findCallNumbersByPoNo(poSerialNo);
+        @Override
+        public TotalManufaturedQtyOfPoDto getTotalManufaturedQtyPo(String heatNo, String poSerialNo, String callNo) {
+                String lookupCallNo = (callNo != null && !callNo.isBlank()) ? callNo.trim() : null;
+
+                // If callNo was not passed explicitly, check if poSerialNo is an inspection call number
+                if (lookupCallNo == null && poSerialNo != null) {
+                        if (poSerialNo.startsWith("E") || poSerialNo.startsWith("W/") || poSerialNo.startsWith("N/") 
+                                        || poSerialNo.startsWith("S/") || poSerialNo.startsWith("C/") || poSerialNo.contains("-")) {
+                                lookupCallNo = poSerialNo.trim();
+                        }
+                }
+
+                InspectionCall ic = null;
+                if (lookupCallNo != null) {
+                        ic = inspectionCallRepository.findByIcNumber(lookupCallNo).orElse(null);
+                        if (ic == null && lookupCallNo.contains("/")) {
+                                // Try extracting middle part if it's like W/ER-0723260007/KPSH
+                                String[] parts = lookupCallNo.split("/");
+                                for (String part : parts) {
+                                        if (part.contains("-")) {
+                                                ic = inspectionCallRepository.findByIcNumber(part.trim()).orElse(null);
+                                                if (ic != null) break;
+                                        }
+                                }
+                        }
+                }
+
+                List<String> callNos;
+                if (ic != null) {
+                        String companyName = ic.getCompanyName();
+                        String vendorId = ic.getVendorId();
+                        String poNo = ic.getPoNo();
+                        String serial = ic.getPoSerialNo();
+                        if (serial != null && serial.contains("/")) {
+                                serial = serial.substring(serial.lastIndexOf("/") + 1).trim();
+                        } else if (serial == null || serial.isBlank()) {
+                                serial = (poSerialNo != null && !poSerialNo.contains("-") && !poSerialNo.contains("/")) 
+                                                ? poSerialNo.trim() : null;
+                        }
+
+                        callNos = inspectionCallRepository.findCallNumbersByVendorAndPoAndSerial(
+                                        companyName, vendorId, poNo, serial);
+
+                        if (callNos == null || callNos.isEmpty()) {
+                                callNos = new java.util.ArrayList<>();
+                                if (ic.getIcNumber() != null) {
+                                        callNos.add(ic.getIcNumber());
+                                }
+                        }
+                } else {
+                        callNos = inspectionCallRepository.findCallNumbersByPoNo(poSerialNo);
+                }
 
                 TotalManufaturedQtyOfPoDto dto = processIeQtyRepository.sumProcessQty(callNos, heatNo);
 
@@ -199,9 +252,6 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                 // for this heat and PO
                 Integer offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByCallNosAndHeatNo(callNos,
                                 heatNo);
-                // Integer offeredEarlier =
-                // rmHeatFinalResultRepository
-                // .sumOfferedEarlierByHeatNoAndInspectionCallNos(heatNo, callNos);
 
                 dto.setRmAcceptedQty(rmAcceptedQty);
                 dto.setHeatNo(heatNo);

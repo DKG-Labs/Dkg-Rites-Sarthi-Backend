@@ -26,6 +26,9 @@ FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection i 
   ON i.id = d.inspection_id
 WHERE i.batch_no = :batchNo
+AND i.id = (
+    SELECT MAX(id) FROM demoulding_inspection WHERE batch_no = :batchNo
+)
 AND (
     (d.visual_reason IS NOT NULL AND d.visual_reason <> '')
     OR
