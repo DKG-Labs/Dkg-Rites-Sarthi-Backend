@@ -25,39 +25,61 @@ public class VendorPoServiceImpl implements VendorPoService {
     @Autowired
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
 
-    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode , String vendorType) {
+    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode, String vendorType) {
         logger.info("[DB Debug] Entering getPoListByVendorCode for vendor: {}, type: {}", vendorCode, vendorType);
-        // Debug: Print all poNo in DB
-        try {
-            long count = railInspectionCallRepository.count();
-            logger.info("[DB Debug] Total Records in RailInspectionCall: {}", count);
-            if (count > 0) {
-                railInspectionCallRepository.findAll().forEach(c -> 
-                    logger.info("[DB Debug] Call ID: {}, poNo: '{}', Qty: {}", c.getId(), c.getPoNo(), c.getTotalQty())
-                );
+
+        String type = null;
+        if (vendorType != null && !vendorType.trim().isEmpty()) {
+            String vt = vendorType.trim();
+            if (vt.equalsIgnoreCase("ERC") || vt.equalsIgnoreCase("Elastic Rail Clips")) {
+                type = "Elastic Rail Clips";
+            } else if (vt.equalsIgnoreCase("Sleeper") || vt.equalsIgnoreCase("PSC Mainline Sleeper")) {
+                type = "PSC Mainline Sleeper";
+            } else if (vt.equalsIgnoreCase("Rail Pads") || vt.equalsIgnoreCase("RailPad") || vt.equalsIgnoreCase("Rail Pad") || vt.equalsIgnoreCase("RailPads")) {
+                type = "Rail Pads";
+            } else {
+                type = vt;
             }
-        } catch (Exception e) {
-            logger.error("[DB Debug] Error accessing railInspectionCallRepository", e);
         }
 
-       //  List<PoHeader> poHeaders = poHeaderRepository.findByVendorCode(vendorCode);
-      //  List<PoHeader> poHeaders = poHeaderRepository.findAllByVendorCodeWithItems(vendorCode);
-       String type = null;
-        if(vendorType.equalsIgnoreCase("ERC")){
-            type = "Elastic Rail Clips";
-        }else if(vendorType.equalsIgnoreCase("Sleeper")){
-            type = "PSC Mainline Sleeper";
-        }else if(vendorType.equalsIgnoreCase("Rail Pads")){
-            type = "Rail Pads";
+        List<PoHeader> poHeaders = List.of();
+        if (vendorCode != null && !vendorCode.trim().isEmpty()) {
+            if (type != null && !type.trim().isEmpty()) {
+                poHeaders = poHeaderRepository.findAllByVendorCodeAndItemCatDescrWithItems(vendorCode, type);
+                if (poHeaders.isEmpty()) {
+                    String altCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : ":" + vendorCode;
+                    poHeaders = poHeaderRepository.findAllByVendorCodeAndItemCatDescrWithItems(altCode, type);
+                }
+            } else {
+                poHeaders = poHeaderRepository.findAllByVendorCodeWithItems(vendorCode);
+                if (poHeaders.isEmpty()) {
+                    String altCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : ":" + vendorCode;
+                    poHeaders = poHeaderRepository.findAllByVendorCodeWithItems(altCode);
+                }
+            }
         }
-        List<PoHeader> poHeaders =
-                poHeaderRepository.findAllByVendorCodeAndItemCatDescrWithItems(vendorCode, type);
 
         // Fetch all inspection calls for this vendor once to optimize
-        List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls = railInspectionCallRepository.findAllByVendorCode(vendorCode);
+        List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls = List.of();
+        try {
+            if (railInspectionCallRepository != null && vendorCode != null && !vendorCode.trim().isEmpty()) {
+                vendorCalls = railInspectionCallRepository.findAllByVendorCode(vendorCode);
+                if ((vendorCalls == null || vendorCalls.isEmpty())) {
+                    String altCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : ":" + vendorCode;
+                    vendorCalls = railInspectionCallRepository.findAllByVendorCode(altCode);
+                }
+            }
+            if (vendorCalls == null) {
+                vendorCalls = List.of();
+            }
+        } catch (Exception e) {
+            logger.warn("Error fetching rail inspection calls for vendor {}: {}", vendorCode, e.getMessage());
+            vendorCalls = List.of();
+        }
         logger.info("[DB Debug] Found {} total inspection calls for vendor {}", vendorCalls.size(), vendorCode);
 
-        return poHeaders.stream().map(po -> mapToHeaderDto(po, vendorCalls)).toList();
+        final List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> finalVendorCalls = vendorCalls;
+        return poHeaders.stream().map(po -> mapToHeaderDto(po, finalVendorCalls)).toList();
     }
 
     public String getPdfPathByRawPoNo(String rawPoNo) {

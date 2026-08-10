@@ -98,18 +98,20 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
                 select distinct h
                 from PoHeader h
                 left join fetch h.items i
-                where h.vendorCode = :vendorCode
+                where LOWER(TRIM(REPLACE(h.vendorCode, ':', ''))) = LOWER(TRIM(REPLACE(:vendorCode, ':', '')))
+                   OR LOWER(TRIM(h.vendorCode)) = LOWER(TRIM(:vendorCode))
             """)
-    List<PoHeader> findAllByVendorCodeWithItems(String vendorCode);
+    List<PoHeader> findAllByVendorCodeWithItems(@Param("vendorCode") String vendorCode);
 
 	@Query("""
        select distinct h
        from PoHeader h
        left join fetch h.items i
-       where LOWER(TRIM(h.vendorCode)) = LOWER(TRIM(:vendorCode))
-       and LOWER(TRIM(h.itemCatDescr)) = LOWER(TRIM(:itemCatDescr))
+       where (LOWER(TRIM(REPLACE(h.vendorCode, ':', ''))) = LOWER(TRIM(REPLACE(:vendorCode, ':', '')))
+              OR LOWER(TRIM(h.vendorCode)) = LOWER(TRIM(:vendorCode)))
+       and (:itemCatDescr IS NULL OR :itemCatDescr = '' OR LOWER(TRIM(h.itemCatDescr)) = LOWER(TRIM(:itemCatDescr)))
        """)
-	List<PoHeader> findAllByVendorCodeAndItemCatDescrWithItems(String vendorCode, String itemCatDescr);
+	List<PoHeader> findAllByVendorCodeAndItemCatDescrWithItems(@Param("vendorCode") String vendorCode, @Param("itemCatDescr") String itemCatDescr);
 
     /*
      * @Query("""

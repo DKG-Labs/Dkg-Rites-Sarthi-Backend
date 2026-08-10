@@ -182,6 +182,27 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
     @Query("""
             SELECT ic.icNumber
             FROM InspectionCall ic
+            WHERE (
+                (:companyName IS NOT NULL AND :companyName != '' AND (ic.companyName = :companyName OR UPPER(ic.companyName) = UPPER(:companyName)))
+                OR (:vendorId IS NOT NULL AND :vendorId != '' AND ic.vendorId = :vendorId)
+            )
+            AND (:poNo IS NULL OR :poNo = '' OR ic.poNo = :poNo)
+            AND (
+                :poSerialNo IS NULL OR :poSerialNo = ''
+                OR ic.poSerialNo = :poSerialNo
+                OR ic.poSerialNo LIKE CONCAT('%/', :poSerialNo)
+                OR ic.poSerialNo LIKE CONCAT('%/ ', :poSerialNo)
+            )
+            """)
+    List<String> findCallNumbersByVendorAndPoAndSerial(
+            @Param("companyName") String companyName,
+            @Param("vendorId") String vendorId,
+            @Param("poNo") String poNo,
+            @Param("poSerialNo") String poSerialNo);
+
+    @Query("""
+            SELECT ic.icNumber
+            FROM InspectionCall ic
             WHERE ic.poNo = :poNo
             """)
     List<String> findCallNumbersByPo(@Param("poNo") String poNo);

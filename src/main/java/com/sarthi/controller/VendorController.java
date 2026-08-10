@@ -33,18 +33,18 @@ public class VendorController {
     @Autowired
     private VendorHeatNumberService vendorHeatNumberService;
 
-    @GetMapping("/poData")
-    public ResponseEntity<Object> login(@RequestParam String vendorCode, @RequestParam String vendorType) {
+    @GetMapping({"/poData", "/po-data"})
+    public ResponseEntity<Object> getPoData(
+            @RequestParam String vendorCode, 
+            @RequestParam(required = false, defaultValue = "ERC") String vendorType) {
          List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode, vendorType);
          return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
      }
-//    public ResponseEntity<Object> getPoData(@RequestParam String vendorCode) {
-//        List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode);
-//        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
-//    }
 
     @GetMapping("/po-assigned")
-    public ResponseEntity<Object> getPoAssigned(@RequestParam(required = false) String vendorId, @RequestParam String vendorType) {
+    public ResponseEntity<Object> getPoAssigned(
+            @RequestParam(required = false) String vendorId, 
+            @RequestParam(required = false, defaultValue = "ERC") String vendorType) {
         // If vendorId is not provided, return empty list
         if (vendorId == null || vendorId.isEmpty()) {
             return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(List.of()), HttpStatus.OK);
