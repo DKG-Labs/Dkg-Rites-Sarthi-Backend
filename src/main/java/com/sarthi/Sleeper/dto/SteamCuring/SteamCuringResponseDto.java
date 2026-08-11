@@ -15,6 +15,9 @@ public class SteamCuringResponseDto {
     private String entryDate;
 
     private String location;
+    private String lbcTime;
+    private String curingStage;
+    private Double temperature;
 
 
     private String vendorCode;

@@ -45,6 +45,14 @@ public class SteamCuring {
 
     private String location;
 
+    @Column(name = "lbc_time")
+    private String lbcTime;
+
+    @Column(name = "curing_stage")
+    private String curingStage;
+
+    @Column(name = "temperature")
+    private Double temperature;
 
     private String vendorCode;
     private String plantId;

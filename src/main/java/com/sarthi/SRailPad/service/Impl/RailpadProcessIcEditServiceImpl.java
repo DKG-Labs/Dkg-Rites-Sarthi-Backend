@@ -35,6 +35,8 @@ public class RailpadProcessIcEditServiceImpl implements RailpadProcessIcEditServ
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setInstallmentNo(dto.getInstallmentNo());
+        entity.setOfferedInstNo(dto.getOfferedInstNo());
+        entity.setPassedInstNo(dto.getPassedInstNo());
         entity.setContractor(dto.getContractor());
         entity.setContractRef(dto.getContractRef());
         entity.setBillPayingOfficer(dto.getBillPayingOfficer());
@@ -69,6 +71,8 @@ public class RailpadProcessIcEditServiceImpl implements RailpadProcessIcEditServ
                 .bookNo(entity.getBookNo())
                 .setNo(entity.getSetNo())
                 .installmentNo(entity.getInstallmentNo())
+                .offeredInstNo(entity.getOfferedInstNo())
+                .passedInstNo(entity.getPassedInstNo())
                 .contractor(entity.getContractor())
                 .contractRef(entity.getContractRef())
                 .billPayingOfficer(entity.getBillPayingOfficer())

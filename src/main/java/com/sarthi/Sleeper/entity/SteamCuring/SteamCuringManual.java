@@ -25,6 +25,15 @@ public class SteamCuringManual {
     @Column(name = "max_temp")
     private Double maxTemp;
 
+    @Column(name = "lbc_time")
+    private String lbcTime;
+
+    @Column(name = "curing_stage")
+    private String curingStage;
+
+    @Column(name = "temperature")
+    private Double temperature;
+
     @Column(name = "source")
     private String source; // MANUAL
 
