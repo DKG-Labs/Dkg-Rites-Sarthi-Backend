@@ -48,11 +48,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
-<<<<<<< HEAD
-  //  private final JavaMailSender mailSender;
-=======
     //  private final JavaMailSender mailSender;
->>>>>>> 84d05a1 (commented mail code)
     private final TemplateEngine templateEngine;
     private final IePincodePoiMappingRepository iePincodePoiMappingRepository;
     private final PoiProcessIeMappingRepository poiProcessIeMappingRepository;
@@ -72,11 +68,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final RailPoiIeMappingRepository railPoiIeMappingRepository;
 
-<<<<<<< HEAD
-   // @Value("${spring.mail.username}")
-=======
     // @Value("${spring.mail.username}")
->>>>>>> 84d05a1 (commented mail code)
     private String senderMail;
 
     //feedback notification
