@@ -1001,7 +1001,28 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             if (railCall.getInspectionDate() != null) {
                 dto.setDesiredInspectionDate(railCall.getInspectionDate());
             }
+            if (railCall.getRailPadType() != null && !railCall.getRailPadType().trim().isEmpty()) {
+                dto.setRailPadType(railCall.getRailPadType());
+            }
         }
+
+        // Determine Stage of Inspection (RPP = Process, RPF / RFF = Final)
+        String reqId = tx.getRequestId() != null ? tx.getRequestId().trim().toUpperCase() : "";
+        String stage = "Final";
+        if (reqId.startsWith("RPP")) {
+            stage = "Process";
+        } else if (reqId.startsWith("RPF") || reqId.startsWith("RFF")) {
+            stage = "Final";
+        } else if (railCall != null && "PROCESS".equalsIgnoreCase(railCall.getCallType())) {
+            stage = "Process";
+        } else if (tx.getWorkflowId() != null && tx.getWorkflowId().equals(1L)) {
+            stage = "Process";
+        }
+
+        dto.setStageOfInspection(stage);
+        dto.setProductType(stage);
+        dto.setProductStage(stage);
+        dto.setCallType(stage);
 
         String rawPoNo = railCall != null ? railCall.getPoNo() : null;
         String poSr = railCall != null ? railCall.getPoSr() : null;

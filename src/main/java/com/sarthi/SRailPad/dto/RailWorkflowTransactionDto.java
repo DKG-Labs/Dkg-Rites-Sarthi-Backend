@@ -45,6 +45,10 @@ public class RailWorkflowTransactionDto {
         private String placeOfInspection;
         private java.time.LocalDate desiredInspectionDate;
         private String railPadType;
+        private String productType;
+        private String productStage;
+        private String stageOfInspection;
+        private String callType;
         private String plantId;
 
         private String poiCode;
