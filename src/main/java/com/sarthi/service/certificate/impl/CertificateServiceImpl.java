@@ -1511,7 +1511,9 @@ public class CertificateServiceImpl implements CertificateService {
             logger.info("Summed previous quantities for {} in {} ms", poSerialNo, (qEnd - qStart));
         }
 
-        int qtyStillDue = qtyOnOrder - (int) passedPrev - qtyNowPassed;
+        Integer totalErcUsed = finalInspectionLotResultsRepository.sumErcUsedForTestingByInspectionCallNo(inspectionCall.getIcNumber());
+        int ercUsed = totalErcUsed != null ? totalErcUsed : 0;
+        int qtyStillDue = qtyOnOrder - (int) passedPrev - (qtyNowPassed - ercUsed);
         qtyStillDue = Math.max(0, qtyStillDue);
 
         long start = System.currentTimeMillis();
@@ -1546,7 +1548,6 @@ public class CertificateServiceImpl implements CertificateService {
         String placeOfInspection = buildFinalPlaceOfInspection(finalDetails);
         String sealingPattern = buildFinalSealingPattern(inspectionCall.getIcNumber());
         String remarks = buildFinalRemarks(finalDetails);
-        Integer totalErcUsed = finalInspectionLotResultsRepository.sumErcUsedForTestingByInspectionCallNo(inspectionCall.getIcNumber());
         Integer lotResultsRejectedSum = finalInspectionLotResultsRepository.sumTotalRejectedQtyByInspectionCallNo(inspectionCall.getIcNumber());
         int totalRejCount = (lotResultsRejectedSum != null && lotResultsRejectedSum > 0) ? lotResultsRejectedSum : qtyNowRejected;
         String reasonsForRejection = buildFinalReasonsForRejection(totalRejCount);
