@@ -7294,7 +7294,7 @@ public class reportsImpl implements reports {
                         return "12.00mm GRSP";
                 }
 
-                if (lower.contains("rt-8746") || lower.contains("t-8746") || lower.contains("t-8747")) {
+                if (lower.contains("rt-8746") || lower.contains("t-8746") || lower.contains("t-8747") || lower.contains("t-8528") || lower.contains("t-8998")) {
                         return "10.00mm CGRSP";
                 }
                 if (lower.contains("t-6618") || lower.contains("t-8327")) {
