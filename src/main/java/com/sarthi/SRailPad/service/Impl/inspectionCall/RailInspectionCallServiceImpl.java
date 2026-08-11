@@ -41,6 +41,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallAuditRepository railInspectionCallAuditRepository;
     private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     private static final String[] units = { "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN" };
     private static final String[] tens = { "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY" };
 
@@ -341,15 +344,29 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String poNo = call.getPoNo();
         String poSr = call.getPoSr();
         if (poNo != null && poNo.contains("/")) {
-            poNo = poNo.split("/")[0];
+            String[] parts = poNo.split("/");
+            poNo = parts[0].trim();
+            if ((poSr == null || poSr.trim().isEmpty()) && parts.length > 1) {
+                poSr = parts[1].trim();
+            }
         }
 
         com.sarthi.entity.PoHeader poHeader = poHeaderRepository.findByPoNo(poNo).orElse(null);
         com.sarthi.entity.PoItem poItem = null;
         if (poHeader != null) {
             List<com.sarthi.entity.PoItem> items = poItemRepository.findByPoHeader_Id(poHeader.getId());
+            String targetPoSr = poSr != null ? poSr.trim() : "";
             poItem = items.stream()
-                    .filter(item -> item.getItemSrNo() != null && item.getItemSrNo().trim().equals(poSr != null ? poSr.trim() : ""))
+                    .filter(item -> {
+                        if (item.getItemSrNo() == null) return false;
+                        String isr = item.getItemSrNo().trim();
+                        if (isr.equalsIgnoreCase(targetPoSr)) return true;
+                        try {
+                            return Integer.parseInt(isr) == Integer.parseInt(targetPoSr);
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    })
                     .findFirst()
                     .orElse(items.isEmpty() ? null : items.get(0));
         }
@@ -412,6 +429,29 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String datesString = visitDates.stream().map(d -> d.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))).collect(Collectors.joining(", "));
         String visitsCount = visitDates.isEmpty() ? "0" : convertToWords(visitDates.size());
 
+        if (callNo.startsWith("RPP-")) {
+            try {
+                String sql = """
+                    SELECT DISTINCT v.casting_date 
+                    FROM rail_process_inspection_result r
+                    JOIN rail_process_inspection_batch b ON b.result_id = r.id
+                    JOIN rail_ie_production_info info ON b.declaration_batch_id = info.id
+                    JOIN rail_ie_production_verification v ON info.verification_id = v.id
+                    WHERE r.inspection_call_id = :callId AND v.casting_date IS NOT NULL
+                    ORDER BY v.casting_date ASC
+                """;
+                List<java.sql.Date> castingDates = entityManager.createNativeQuery(sql)
+                        .setParameter("callId", call.getId())
+                        .getResultList();
+                
+                if (castingDates != null && !castingDates.isEmpty()) {
+                    List<LocalDate> cDates = castingDates.stream().map(java.sql.Date::toLocalDate).collect(Collectors.toList());
+                    datesString = cDates.stream().map(d -> d.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))).collect(Collectors.joining(", "));
+                    visitsCount = convertToWords(cDates.size());
+                }
+            } catch (Exception ignored) {}
+        }
+
         String vendorName = poHeader != null ? extractVendorName(poHeader.getVendorDetails()) : "";
         String vendorAddr = poHeader != null ? extractVendorAddress(poHeader.getVendorDetails()) : "";
         String vendorFull = vendorName + (vendorAddr.isBlank() ? "" : ", " + vendorAddr);
@@ -435,6 +475,17 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 .map(RailInspectionCompleteDetails::getCertificateNo)
                 .orElse("");
 
+        String itemSr = poItem != null && poItem.getItemSrNo() != null && !poItem.getItemSrNo().trim().isEmpty() ? poItem.getItemSrNo().trim() : (poSr != null ? poSr.trim() : "001");
+        try {
+            itemSr = String.format("%03d", Integer.parseInt(itemSr));
+        } catch (Exception ignored) {}
+
+        String rawDesc = poItem != null && poItem.getItemDesc() != null ? poItem.getItemDesc() : "";
+        String formattedDesc = rawDesc;
+        if (!rawDesc.toUpperCase().startsWith("PO SR NO")) {
+            formattedDesc = "PO SR NO: " + itemSr + " " + rawDesc;
+        }
+
         com.sarthi.SRailPad.dto.RailpadIcCertificateDto dto = new com.sarthi.SRailPad.dto.RailpadIcCertificateDto();
         dto.setBookNo("");
         dto.setSetNo("");
@@ -446,12 +497,12 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setPlaceOfInspection(vendorFull);
         dto.setContractReferences("PO NO. " + poNo + (poDateStr.isEmpty() ? "" : " dated " + poDateStr));
         dto.setLatest4Amendments(latest4Amendments);
-        dto.setBillPayingOfficer(poItem != null ? poItem.getBillPayOffDesc() : "");
-        dto.setConsignee(poItem != null ? poItem.getConsigneeDetail() : "");
-        String purchaserDetail = poHeader != null ? poHeader.getPurchaserDetail() : "";
+        dto.setBillPayingOfficer(poItem != null && poItem.getBillPayOffDesc() != null ? poItem.getBillPayOffDesc() : "");
+        dto.setConsignee(poItem != null && poItem.getConsigneeDetail() != null ? poItem.getConsigneeDetail() : "");
+        String purchaserDetail = poHeader != null && poHeader.getPurchaserDetail() != null ? poHeader.getPurchaserDetail() : "";
         dto.setPurchasingAuthority(purchaserDetail);
-        dto.setItemNo(poItem != null && poItem.getItemSrNo() != null && !poItem.getItemSrNo().trim().isEmpty() ? poItem.getItemSrNo() : poSr);
-        dto.setDescriptionOfStores(poItem != null ? poItem.getItemDesc() : "");
+        dto.setItemNo(itemSr);
+        dto.setDescriptionOfStores(formattedDesc);
         dto.setQuantityOnOrder(qtyOnOrder);
         dto.setCumulativeQtyOfferedPreviously(prevOffered);
         dto.setQtyPrevPassed(prevPassed);

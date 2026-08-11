@@ -9,13 +9,7 @@ import java.util.Optional;
 
 /**
  * Repository for RmPackingStorage entity.
-=======
-import java.util.List;
-
-/**
- * Repository for RmPackingStorage entity.
  * Now supports per-heat packing storage records.
->>>>>>> b25fb8a13f91b1c2c4f3aa1c8ed8ab67a7380ee8
  */
 @Repository
 public interface RmPackingStorageRepository extends JpaRepository<RmPackingStorage, Long> {

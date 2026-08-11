@@ -168,8 +168,8 @@ public class productionDeclarationController {
         @GetMapping("getAll/sleepers")
         public ResponseEntity<Object> getSleepers(
                 @RequestParam String batchNo,
-                @RequestParam String benchNo,
-                @RequestParam String sleeperType,
+                @RequestParam(required = false) String benchNo,
+                @RequestParam(required = false) String sleeperType,
                 @RequestParam(required = false) String productionUnit) {
 
                 return new ResponseEntity<>(

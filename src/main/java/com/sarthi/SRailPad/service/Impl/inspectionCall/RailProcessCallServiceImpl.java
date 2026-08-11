@@ -17,6 +17,7 @@ import com.sarthi.SRailPad.entity.inspectionCall.RailProcessInspectionResult;
 import com.sarthi.SRailPad.entity.inspectionCall.RailProcessInspectionBatch;
 import com.sarthi.SRailPad.entity.ieVerification.RailIEProductionVerification;
 import com.sarthi.SRailPad.entity.ieVerification.RailIEProductionRejection;
+import com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo;
 import com.sarthi.SRailPad.repository.ieVerification.RailIEProductionVerificationRepository;
 import com.sarthi.SRailPad.dto.inspectionCall.ProcessAvailableBatchDto;
 import com.sarthi.SRailPad.dto.inspectionCall.ProcessInspectionSaveDto;
@@ -227,6 +228,39 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 batch.setResult(result);
                 batch.setDeclarationBatchId(bDto.getDeclarationBatchId());
                 batch.setBatchNo(bDto.getBatchNo());
+                
+                String drawingNo = bDto.getDrawingNo();
+                String batchRejectionReason = bDto.getReasonForRejection();
+
+                if (bDto.getDeclarationBatchId() != null) {
+                    try {
+                        RailIEProductionInfo info = entityManager.find(RailIEProductionInfo.class, bDto.getDeclarationBatchId());
+                        if (info != null) {
+                            if (drawingNo == null || drawingNo.isBlank()) {
+                                drawingNo = info.getDrawingNo();
+                            }
+                            if ((batchRejectionReason == null || batchRejectionReason.isBlank()) && bDto.getQtyRejected() != null && bDto.getQtyRejected() > 0) {
+                                if (info.getVerification() != null && info.getVerification().getRejections() != null) {
+                                    String rejs = info.getVerification().getRejections().stream()
+                                            .filter(r -> r.getBatchNo() != null && r.getBatchNo().equals(info.getBatchNo()))
+                                            .map(r -> (r.getReason() != null ? r.getReason() : "Rejected") + (r.getRejectedQty() != null ? " (" + r.getRejectedQty() + " Nos)" : ""))
+                                            .distinct()
+                                            .collect(java.util.stream.Collectors.joining(", "));
+                                    if (!rejs.isBlank()) {
+                                        batchRejectionReason = rejs;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if ((drawingNo == null || drawingNo.isBlank()) && call.getDrawingNo() != null) {
+                    drawingNo = call.getDrawingNo();
+                }
+
+                batch.setDrawingNo(drawingNo);
+                batch.setReasonForRejection(batchRejectionReason);
                 batch.setProductionDate(bDto.getProductionDate());
                 batch.setQtyManufactured(bDto.getQtyManufactured());
                 batch.setQtyRejected(bDto.getQtyRejected());
@@ -283,12 +317,14 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 ProcessInspectionSaveDto.ProcessBatchSaveDto bd = new ProcessInspectionSaveDto.ProcessBatchSaveDto();
                 bd.setDeclarationBatchId(b.getDeclarationBatchId());
                 bd.setBatchNo(b.getBatchNo());
+                bd.setDrawingNo(b.getDrawingNo());
+                bd.setReasonForRejection(b.getReasonForRejection());
                 bd.setProductionDate(b.getProductionDate());
                 bd.setQtyManufactured(b.getQtyManufactured());
                 bd.setQtyRejected(b.getQtyRejected());
                 bd.setQtyAccepted(b.getQtyAccepted());
                 
-                if (b.getDeclarationBatchId() != null) {
+                if (bd.getDrawingNo() == null && b.getDeclarationBatchId() != null) {
                     try {
                         String drawingNo = (String) entityManager.createNativeQuery("SELECT drawing_no FROM rail_ie_production_info WHERE id = :id")
                             .setParameter("id", b.getDeclarationBatchId())

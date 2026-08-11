@@ -31,6 +31,12 @@ public class RailpadProcessIcEdit {
     @Column(name = "installment_no")
     private String installmentNo;
 
+    @Column(name = "offered_inst_no")
+    private String offeredInstNo;
+
+    @Column(name = "passed_inst_no")
+    private String passedInstNo;
+
     @Column(name = "contractor", columnDefinition = "TEXT")
     private String contractor;
 

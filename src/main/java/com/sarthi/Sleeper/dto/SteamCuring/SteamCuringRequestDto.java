@@ -13,6 +13,10 @@ public class SteamCuringRequestDto {
     private String entryDate;
 
     private String location;
+    private String lbcTime;
+    private String curingStage;
+    private Double temperature;
+
     private Integer createdBy;
     private Integer updatedBy;
 

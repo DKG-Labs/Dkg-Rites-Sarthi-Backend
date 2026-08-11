@@ -1439,16 +1439,27 @@ public List<String> getBatchNumbers(Long vendorId,
             declaration = repository.findByBatchNumber(batchNo);
         }
 
+        if (declaration == null) {
+            return new ArrayList<>();
+        }
+
         List<String> sleepers = new ArrayList<>();
         int benchInt = -1;
-        try { benchInt = Integer.parseInt(benchNo); } catch (Exception e) {}
+        if (benchNo != null && !benchNo.trim().isEmpty()) {
+            try { benchInt = Integer.parseInt(benchNo.trim()); } catch (Exception e) {}
+        }
+
+        boolean filterBench = (benchNo != null && !benchNo.trim().isEmpty());
+        boolean filterType = (sleeperType != null && !sleeperType.trim().isEmpty());
 
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
             if (declaration.getChambers() != null) {
                 for (ProductionStressChamber chamber : declaration.getChambers()) {
                     if (chamber.getBenchGroups() != null) {
                         for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
-                            if (benchNo != null && benchNo.equalsIgnoreCase(bench.getBenchNo()) && sleeperType.equals(bench.getSleeperType())) {
+                            boolean matchesBench = !filterBench || (bench.getBenchNo() != null && bench.getBenchNo().equalsIgnoreCase(benchNo.trim()));
+                            boolean matchesType = !filterType || (bench.getSleeperType() != null && bench.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
+                            if (matchesBench && matchesType) {
                                 if (bench.getSleepers() != null) {
                                     for (ProductionSleeper sleeper : bench.getSleepers()) {
                                         if (sleeper.getSleeperNo() != null) {
@@ -1465,24 +1476,30 @@ public List<String> getBatchNumbers(Long vendorId,
             if (declaration.getGangs() != null) {
                 for (ProductionLongLineGang gang : declaration.getGangs()) {
                     boolean matchesBench = false;
-                    int gangFromInt = -1;
-                    int gangToInt = -1;
-                    if (gang.getGangFrom() != null) {
-                        try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
-                    }
-                    if (gang.getGangTo() != null) {
-                        try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
-                    }
+                    if (!filterBench) {
+                        matchesBench = true;
+                    } else {
+                        int gangFromInt = -1;
+                        int gangToInt = -1;
+                        if (gang.getGangFrom() != null) {
+                            try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
+                        }
+                        if (gang.getGangTo() != null) {
+                            try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
+                        }
 
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null) {
-                        if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                        if (gang.getGangFrom() != null && gang.getGangTo() != null) {
+                            if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                                matchesBench = true;
+                            }
+                        } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
                             matchesBench = true;
                         }
-                    } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
-                        matchesBench = true;
                     }
-                    
-                    if (matchesBench && sleeperType.equals(gang.getSleeperType())) {
+
+                    boolean matchesType = !filterType || (gang.getSleeperType() != null && gang.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
+
+                    if (matchesBench && matchesType) {
                         if (gang.getSleepers() != null) {
                             for (ProductionSleeper sleeper : gang.getSleepers()) {
                                 if (sleeper.getSleeperNo() != null) {
