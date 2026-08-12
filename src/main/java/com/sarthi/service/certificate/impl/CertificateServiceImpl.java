@@ -1079,8 +1079,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .passedInstNo(calculatePassedInstallment(inspectionCall.getPoNo()))
                 .contractor(buildContractorInfo(poHeader))
                 .manufacturer(buildContractorInfo(poHeader))
-                .placeOfInspection(
-                        inspectionCall.getPlaceOfInspection() != null ? inspectionCall.getPlaceOfInspection() : "")
+                .placeOfInspection(buildPlaceOfInspection(inspectionCall))
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .poDetails(inspectionCall.getPoNo() + " dated "
                         + (poHeader != null && poHeader.getPoDate() != null
