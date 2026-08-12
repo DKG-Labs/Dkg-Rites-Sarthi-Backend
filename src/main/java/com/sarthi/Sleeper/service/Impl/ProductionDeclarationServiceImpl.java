@@ -160,6 +160,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 gang.setSleeperCategory(gangDto.getSleeperCategory());
                 gang.setTotalSleepers(gangDto.getTotalSleepers());
                 gang.setRft(gangDto.getRft());
+                if (gangDto.getLbcTime() != null && !gangDto.getLbcTime().isEmpty()) {
+                    gang.setLbcTime(CommonUtils.convertStringToTimeObject(gangDto.getLbcTime()));
+                }
 
                 gang.setDeclaration(entity);
 
@@ -239,6 +242,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 ProductionStressChamber chamber = new ProductionStressChamber();
 
                 chamber.setChamberNo(chamberDto.getChamberNo());
+                if (chamberDto.getLbcTime() != null && !chamberDto.getLbcTime().isEmpty()) {
+                    chamber.setLbcTime(CommonUtils.convertStringToTimeObject(chamberDto.getLbcTime()));
+                }
                 chamber.setDeclaration(entity);
 
                 List<ProductionBenchGroup> benchList = new ArrayList<>();
@@ -400,6 +406,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             gang.setGangNo(gangDto.getGangNo());
             gang.setSleeperType(gangDto.getSleeperType());
             gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+            if (gangDto.getLbcTime() != null && !gangDto.getLbcTime().isEmpty()) {
+                gang.setLbcTime(CommonUtils.convertStringToTimeObject(gangDto.getLbcTime()));
+            }
             gang.setDeclaration(entity);
 
             List<ProductionSleeper> sleepers = new ArrayList<>();
@@ -591,6 +600,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             gang.setSleeperCategory(gangDto.getSleeperCategory());
             gang.setTotalSleepers(gangDto.getTotalSleepers());
             gang.setRft(gangDto.getRft());
+            if (gangDto.getLbcTime() != null && !gangDto.getLbcTime().isEmpty()) {
+                gang.setLbcTime(CommonUtils.convertStringToTimeObject(gangDto.getLbcTime()));
+            }
 
             // ================= SLEEPERS =================
 
@@ -764,6 +776,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                     gangDto.setSleeperCategory(gang.getSleeperCategory());
                     gangDto.setTotalSleepers(gang.getTotalSleepers());
                     gangDto.setRft(gang.getRft());
+                    gangDto.setLbcTime(gang.getLbcTime());
 
 
                   /*  List<String> sleeperNumbers = new ArrayList<>();
@@ -1204,6 +1217,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         gangDto.setGangNo(gang.getGangNo());
                         gangDto.setSleeperType(gang.getSleeperType());
                         gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+                        gangDto.setLbcTime(gang.getLbcTime());
 
                         //ADD THIS (IMPORTANT)
 //                        if (gang.getSleepers() != null) {

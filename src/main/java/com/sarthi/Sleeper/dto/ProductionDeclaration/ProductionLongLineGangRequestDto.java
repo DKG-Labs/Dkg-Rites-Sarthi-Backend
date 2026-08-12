@@ -24,6 +24,7 @@ public class ProductionLongLineGangRequestDto {
     private Integer totalSleepers;
 
     private Double rft;
+    private String lbcTime;
 
      private List<String> sleepers;
     private List<ProductionSleeperResponseDto> sleeperList;

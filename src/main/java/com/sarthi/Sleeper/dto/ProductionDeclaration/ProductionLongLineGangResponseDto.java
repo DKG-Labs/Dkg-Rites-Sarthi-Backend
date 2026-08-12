@@ -25,6 +25,7 @@ public class ProductionLongLineGangResponseDto {
     private Integer totalSleepers;
 
     private Double rft;
+    private java.time.LocalTime lbcTime;
 
    // private List<String> sleepers;
    private List<ProductionSleeperResponseDto> sleeperList;
