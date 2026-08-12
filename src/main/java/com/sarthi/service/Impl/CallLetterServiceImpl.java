@@ -428,22 +428,24 @@ public class CallLetterServiceImpl implements CallLetterService {
         }
 
         // Call quantity
-        java.math.BigDecimal sumOfHeats = java.math.BigDecimal.ZERO;
-        if (rm.getHeatQuantities() != null && !rm.getHeatQuantities().isEmpty()) {
-            sumOfHeats = rm.getHeatQuantities().stream()
-                    .map(hq -> hq.getOfferedQty() != null ? hq.getOfferedQty() : java.math.BigDecimal.ZERO)
-                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-        }
-
-        if (sumOfHeats.compareTo(java.math.BigDecimal.ZERO) > 0) {
-            dto.setCallQty(sumOfHeats.toPlainString());
-            dto.setCallUnit("MT");
-        } else if (rm.getTotalOfferedQtyMt() != null) {
-            dto.setCallQty(rm.getTotalOfferedQtyMt().toPlainString());
-            dto.setCallUnit("MT");
-        } else if (rm.getOfferedQtyErc() != null) {
+        if (rm.getOfferedQtyErc() != null && rm.getOfferedQtyErc() > 0) {
             dto.setCallQty(rm.getOfferedQtyErc().toString());
             dto.setCallUnit(rm.getUnitOfMeasurement() != null ? rm.getUnitOfMeasurement() : "Nos.");
+        } else {
+            java.math.BigDecimal sumOfHeats = java.math.BigDecimal.ZERO;
+            if (rm.getHeatQuantities() != null && !rm.getHeatQuantities().isEmpty()) {
+                sumOfHeats = rm.getHeatQuantities().stream()
+                        .map(hq -> hq.getOfferedQty() != null ? hq.getOfferedQty() : java.math.BigDecimal.ZERO)
+                        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+            }
+
+            if (sumOfHeats.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                dto.setCallQty(sumOfHeats.toPlainString());
+                dto.setCallUnit("MT");
+            } else if (rm.getTotalOfferedQtyMt() != null) {
+                dto.setCallQty(rm.getTotalOfferedQtyMt().toPlainString());
+                dto.setCallUnit("MT");
+            }
         }
 
         // Manufacturer

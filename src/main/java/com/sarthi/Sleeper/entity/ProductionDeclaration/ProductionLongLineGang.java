@@ -33,6 +33,8 @@ public class ProductionLongLineGang {
 
     private Double rft;
 
+    private java.time.LocalTime lbcTime;
+
     @ManyToOne
     @JoinColumn(name="declaration_id")
     private ProductionDeclaration declaration;
