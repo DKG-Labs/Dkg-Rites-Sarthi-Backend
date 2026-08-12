@@ -198,7 +198,7 @@ public class CertificateServiceImpl implements CertificateService {
         PoHeader poHeader = poHeaderRepository.findByPoNo(inspectionCall.getPoNo()).orElse(null);
         List<PoItem> poItems = new ArrayList<>();
         if (poHeader != null) {
-			poItems = poItemRepository.findByPoHeader_Id(poHeader.getId());
+            poItems = poItemRepository.findByPoHeader_Id(poHeader.getId());
         }
 
         // 6. Fetch Section A data (Main PO Information) for Bill Paying Officer
@@ -219,7 +219,7 @@ public class CertificateServiceImpl implements CertificateService {
         calculatePassedInstallment(inspectionCall.getPoNo());
 
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
-        
+
         // 10. Build Certificate DTO
         RawMaterialCertificateDto dto = RawMaterialCertificateDto.builder()
                 .certificateNo(generateCertificateNumber(inspectionCall))
@@ -241,7 +241,8 @@ public class CertificateServiceImpl implements CertificateService {
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No.4.11.2 & 4.11.3 of Indian Railway Standard Specification for Elastic Rail Clip, IRS T-31-2025")
                 .inspectionType("Visual/Physical/Chemical/Metallurgical/Dimensional")
-                .chpClause("Clause No.4.11.2 & 4.11.3 of Indian Railway Standard Specification for Elastic Rail Clip, IRS T-31-2025")
+                .chpClause(
+                        "Clause No.4.11.2 & 4.11.3 of Indian Railway Standard Specification for Elastic Rail Clip, IRS T-31-2025")
                 .contractChpReq("Visual, Dimensional, Mechanical & Chemical")
                 .detailsOfInspection("Visual, Dimensional, Mechanical & Chemical")
                 .result(buildResult(heatResults))
@@ -258,7 +259,8 @@ public class CertificateServiceImpl implements CertificateService {
                 .build();
 
         // Merge saved draft edits if available, else fallback to final edits
-        Optional<RmIcSaveChanges> rmIcSaveChangesOpt = rmIcSaveChangesRepository.findByIcNumber(inspectionCall.getIcNumber());
+        Optional<RmIcSaveChanges> rmIcSaveChangesOpt = rmIcSaveChangesRepository
+                .findByIcNumber(inspectionCall.getIcNumber());
         if (rmIcSaveChangesOpt.isPresent()) {
             RmIcSaveChanges saveChanges = rmIcSaveChangesOpt.get();
             if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
@@ -355,22 +357,26 @@ public class CertificateServiceImpl implements CertificateService {
         return dto;
     }
 
-    /* ==================== Helper Methods for Building Certificate Fields ==================== */
+    /*
+     * ==================== Helper Methods for Building Certificate Fields
+     * ====================
+     */
 
     /**
      * Build Place of Inspection
      * Format: Company Name + Unit Address
      */
     private String buildPlaceOfInspection(InspectionCall inspectionCall) {
-        if (inspectionCall == null) return "";
-        
+        if (inspectionCall == null)
+            return "";
+
         // Construct the fallback address from company and unit details
         String companyName = inspectionCall.getCompanyName() != null ? inspectionCall.getCompanyName() : "";
         String unitAddress = inspectionCall.getUnitAddress() != null ? inspectionCall.getUnitAddress() : "";
         String constructedAddress = companyName + (unitAddress.isBlank() ? "" : ", " + unitAddress);
 
         String directPlace = inspectionCall.getPlaceOfInspection();
-        
+
         // If direct place is present AND is not a POI code, use it.
         // Otherwise, use the constructed address.
         if (directPlace != null && !directPlace.isBlank() && !directPlace.toUpperCase().startsWith("POI")) {
@@ -421,18 +427,21 @@ public class CertificateServiceImpl implements CertificateService {
      * Build Contractor Information (Vendor Name with Address)
      */
     private String buildContractorInfo(PoHeader poHeader) {
-        if (poHeader == null) return "";
-		String vendorName = extractVendorName(poHeader.getVendorDetails());
-		String vendorAddress = extractVendorAddress(poHeader.getVendorDetails());
-		return vendorName + (vendorAddress.isBlank() ? "" : ", " + vendorAddress);
+        if (poHeader == null)
+            return "";
+        String vendorName = extractVendorName(poHeader.getVendorDetails());
+        String vendorAddress = extractVendorAddress(poHeader.getVendorDetails());
+        return vendorName + (vendorAddress.isBlank() ? "" : ", " + vendorAddress);
     }
 
     /**
      * Build Manufacturer Information
-     * Name of Manufacturer of Steel Rounds / Supplier of Raw Material along with city
+     * Name of Manufacturer of Steel Rounds / Supplier of Raw Material along with
+     * city
      */
     private String buildManufacturerInfo(List<RmHeatQuantity> heatQuantities) {
-        if (heatQuantities.isEmpty()) return "";
+        if (heatQuantities.isEmpty())
+            return "";
 
         // Get unique manufacturers
         return heatQuantities.stream()
@@ -445,27 +454,30 @@ public class CertificateServiceImpl implements CertificateService {
      * Build Contract Reference (PO Number & Date + Modification Advise)
      */
     private String buildContractRef(PoHeader poHeader, InspectionCall inspectionCall) {
-        if (poHeader == null) return "";
-        
+        if (poHeader == null)
+            return "";
+
         String rly = poHeader.getRlyShortName() != null ? poHeader.getRlyShortName() : "";
         String poNo = poHeader.getPoNo() != null ? poHeader.getPoNo() : "";
-        String serial = (inspectionCall != null && inspectionCall.getPoSerialNo() != null) ? inspectionCall.getPoSerialNo() : "";
-        
-        // If serial already contains poNo (e.g., "60256836107122/020"), we just use serial
+        String serial = (inspectionCall != null && inspectionCall.getPoSerialNo() != null)
+                ? inspectionCall.getPoSerialNo()
+                : "";
+
+        // If serial already contains poNo (e.g., "60256836107122/020"), we just use
+        // serial
         String basePoDetails;
         if (!serial.isEmpty() && serial.contains(poNo) && !poNo.isEmpty()) {
             basePoDetails = (rly.isEmpty() ? "" : rly + "/") + serial;
         } else {
-            basePoDetails = (rly.isEmpty() ? "" : rly + "/") + 
-                            poNo + 
-                            (serial.isEmpty() ? "" : "/" + serial);
+            basePoDetails = (rly.isEmpty() ? "" : rly + "/") +
+                    poNo +
+                    (serial.isEmpty() ? "" : "/" + serial);
         }
-        
+
         String dateStr = formatDate(poHeader.getPoDate() != null ? poHeader.getPoDate().toLocalDate() : null);
-        
+
         return basePoDetails + " dated " + dateStr;
     }
-
 
     /**
      * Build Consignee Railway from PO Items
@@ -484,7 +496,7 @@ public class CertificateServiceImpl implements CertificateService {
             }
 
             final String targetSrNo = itemSrNo;
-            
+
             String result = poItems.stream()
                     .filter(item -> targetSrNo != null && targetSrNo.equals(item.getItemSrNo()))
                     .map(item -> item.getConsigneeDetail() != null ? item.getConsigneeDetail() : "")
@@ -506,43 +518,50 @@ public class CertificateServiceImpl implements CertificateService {
      * Build Consignee Manufacturer (Vendor with complete address)
      */
     private String buildConsigneeManufacturer(PoHeader poHeader) {
-        if (poHeader == null) return "";
-		String vendorName = extractVendorName(poHeader.getVendorDetails());
-		String vendorAddress = extractVendorAddress(poHeader.getVendorDetails());
-		return vendorName + (vendorAddress.isBlank() ? "" : ", " + vendorAddress);
+        if (poHeader == null)
+            return "";
+        String vendorName = extractVendorName(poHeader.getVendorDetails());
+        String vendorAddress = extractVendorAddress(poHeader.getVendorDetails());
+        return vendorName + (vendorAddress.isBlank() ? "" : ", " + vendorAddress);
     }
 
-	/**
-	 * vendorDetails is persisted from CRIS field VENDOR_DETAILS.
-	 * Observed format in existing code: "VENDOR NAME-CITY~address~...".
-	 */
-	private String extractVendorName(String vendorDetails) {
-		if (vendorDetails == null || vendorDetails.isBlank()) return "";
-		String[] parts = vendorDetails.split("~");
-		return parts.length > 0 ? parts[0].trim() : vendorDetails.trim();
-	}
+    /**
+     * vendorDetails is persisted from CRIS field VENDOR_DETAILS.
+     * Observed format in existing code: "VENDOR NAME-CITY~address~...".
+     */
+    private String extractVendorName(String vendorDetails) {
+        if (vendorDetails == null || vendorDetails.isBlank())
+            return "";
+        String[] parts = vendorDetails.split("~");
+        return parts.length > 0 ? parts[0].trim() : vendorDetails.trim();
+    }
 
-	private String extractVendorAddress(String vendorDetails) {
-		if (vendorDetails == null || vendorDetails.isBlank()) return "";
-		String[] parts = vendorDetails.split("~");
-		if (parts.length <= 1) return "";
-		// Join remaining segments as a human-readable address/details string
-		StringBuilder sb = new StringBuilder();
-		for (int i = 1; i < parts.length; i++) {
-			String p = parts[i] != null ? parts[i].trim() : "";
-			if (p.isEmpty()) continue;
-			if (sb.length() > 0) sb.append(", ");
-			sb.append(p);
-		}
-		return sb.toString();
-	}
+    private String extractVendorAddress(String vendorDetails) {
+        if (vendorDetails == null || vendorDetails.isBlank())
+            return "";
+        String[] parts = vendorDetails.split("~");
+        if (parts.length <= 1)
+            return "";
+        // Join remaining segments as a human-readable address/details string
+        StringBuilder sb = new StringBuilder();
+        for (int i = 1; i < parts.length; i++) {
+            String p = parts[i] != null ? parts[i].trim() : "";
+            if (p.isEmpty())
+                continue;
+            if (sb.length() > 0)
+                sb.append(", ");
+            sb.append(p);
+        }
+        return sb.toString();
+    }
 
     /**
      * Build Description based on ERC Type
      */
     private String buildDescription(InspectionCall inspectionCall) {
         String ercType = inspectionCall.getErcType();
-        if (ercType == null) return "";
+        if (ercType == null)
+            return "";
 
         switch (ercType.toUpperCase()) {
             case "MK-III":
@@ -576,7 +595,7 @@ public class CertificateServiceImpl implements CertificateService {
             }
 
             final String targetSrNo = itemSrNo;
-            
+
             // 1. Exact match search
             for (PoItem item : poItems) {
                 if (item.getItemSrNo() != null && item.getItemSrNo().trim().equals(targetSrNo)) {
@@ -594,10 +613,12 @@ public class CertificateServiceImpl implements CertificateService {
                             if (targetInt == itemInt) {
                                 return item.getItemDesc() != null ? item.getItemDesc() : "";
                             }
-                        } catch (NumberFormatException ignored) {}
+                        } catch (NumberFormatException ignored) {
+                        }
                     }
                 }
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
 
             // 3. Fallback: If no match found, use the first item's description
             return poItems.get(0).getItemDesc() != null ? poItems.get(0).getItemDesc() : "";
@@ -612,7 +633,8 @@ public class CertificateServiceImpl implements CertificateService {
      * Build Result based on Heat Final Results
      */
     private String buildResult(List<RmHeatFinalResult> heatResults) {
-        if (heatResults.isEmpty()) return "";
+        if (heatResults.isEmpty())
+            return "";
 
         // Check if all heats are accepted
         boolean allAccepted = heatResults.stream()
@@ -626,13 +648,15 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
-     * Build Quantity Cleared (Heat No. / Qty (MT) + Total + No. of bundles + ERC calculation)
+     * Build Quantity Cleared (Heat No. / Qty (MT) + Total + No. of bundles + ERC
+     * calculation)
      */
     /**
      * Build Quantity Cleared (Heat No. / Qty (MT) + Total)
      */
     private String buildQtyCleared(List<RmHeatFinalResult> heatResults) {
-        if (heatResults.isEmpty()) return "Total Qty - Nill";
+        if (heatResults.isEmpty())
+            return "Total Qty - Nill";
 
         StringBuilder sb = new StringBuilder();
         double totalAccepted = 0.0;
@@ -641,7 +665,8 @@ public class CertificateServiceImpl implements CertificateService {
             if ("ACCEPTED".equalsIgnoreCase(hr.getStatus())) {
                 BigDecimal acceptedQty = hr.getWeightAcceptedMt();
                 double val = acceptedQty != null ? acceptedQty.doubleValue() : 0.0;
-                sb.append(hr.getHeatNo()).append(" - ").append(String.format(java.util.Locale.US, "%.3f", val)).append(" MT\n");
+                sb.append(hr.getHeatNo()).append(" - ").append(String.format(java.util.Locale.US, "%.3f", val))
+                        .append(" MT\n");
                 totalAccepted += val;
             } else {
                 sb.append(hr.getHeatNo()).append(" - Nill\n");
@@ -661,7 +686,8 @@ public class CertificateServiceImpl implements CertificateService {
      * Build Quantity Rejected
      */
     private String buildQtyRejected(List<RmHeatFinalResult> heatResults) {
-        if (heatResults.isEmpty()) return "Nil";
+        if (heatResults.isEmpty())
+            return "Nil";
 
         StringBuilder sb = new StringBuilder();
         double totalRejected = 0.0;
@@ -670,7 +696,8 @@ public class CertificateServiceImpl implements CertificateService {
             if ("REJECTED".equalsIgnoreCase(hr.getStatus())) {
                 BigDecimal rejectedQty = hr.getWeightRejectedMt();
                 double val = rejectedQty != null ? rejectedQty.doubleValue() : 0.0;
-                sb.append(hr.getHeatNo()).append(" - ").append(String.format(java.util.Locale.US, "%.3f", val)).append(" MT\n");
+                sb.append(hr.getHeatNo()).append(" - ").append(String.format(java.util.Locale.US, "%.3f", val))
+                        .append(" MT\n");
                 totalRejected += val;
             }
         }
@@ -701,7 +728,8 @@ public class CertificateServiceImpl implements CertificateService {
         } else if (acceptedCount == 0 && rejectedCount > 0) {
             return "LOT FOUND NOT ACCEPTABLE AND NOT CLEARED FOR MANUFACTURING OF ERC " + ercType;
         } else {
-            return "LOT FOUND PARTIALLY ACCEPTABLE. ACCEPTED QUANTITY CLEARED FOR MANUFACTURING OF ERC " + ercType + "; BALANCE QUANTITY REJECTED.";
+            return "LOT FOUND PARTIALLY ACCEPTABLE. ACCEPTED QUANTITY CLEARED FOR MANUFACTURING OF ERC " + ercType
+                    + "; BALANCE QUANTITY REJECTED.";
         }
     }
 
@@ -709,53 +737,59 @@ public class CertificateServiceImpl implements CertificateService {
      * Build Date of Call (Call Date + Desired Date)
      */
     private String buildDateOfCall(InspectionCall inspectionCall) {
-        String callDate = formatDate(inspectionCall.getCreatedAt() != null ?
-                inspectionCall.getCreatedAt().toLocalDate() : null);
+        String callDate = formatDate(
+                inspectionCall.getCreatedAt() != null ? inspectionCall.getCreatedAt().toLocalDate() : null);
         String desiredDate = formatDate(inspectionCall.getDesiredInspectionDate());
         return callDate + ", Desired Date: " + desiredDate;
     }
 
-        /**
-     * Get visit dates from workflow_transition starting from INSPECTION_INITIATION to INSPECTION_COMPLETE_CONFIRM
+    /**
+     * Get visit dates from workflow_transition starting from INSPECTION_INITIATION
+     * to INSPECTION_COMPLETE_CONFIRM
      */
     private List<LocalDate> getVisitDates(String icNumber) {
-        if (icNumber == null || icNumber.isEmpty()) return new ArrayList<>();
+        if (icNumber == null || icNumber.isEmpty())
+            return new ArrayList<>();
         try {
-            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository.findByRequestId(icNumber);
-            if (transitions == null || transitions.isEmpty()) return new ArrayList<>();
+            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository
+                    .findByRequestId(icNumber);
+            if (transitions == null || transitions.isEmpty())
+                return new ArrayList<>();
 
-            transitions.sort(java.util.Comparator.comparing(com.sarthi.entity.WorkflowTransition::getWorkflowTransitionId));
-            
+            transitions.sort(
+                    java.util.Comparator.comparing(com.sarthi.entity.WorkflowTransition::getWorkflowTransitionId));
+
             java.util.Set<LocalDate> visitDates = new java.util.HashSet<>();
             boolean inspectionStarted = false;
-            
+
             for (com.sarthi.entity.WorkflowTransition wt : transitions) {
                 String status = wt.getStatus() != null ? wt.getStatus() : "";
                 String action = wt.getAction() != null ? wt.getAction() : "";
-                
-                if ("INSPECTION_INITIATION".equalsIgnoreCase(status) || "INITIATE_INSPECTION".equalsIgnoreCase(action) || "INSPECTION_IN_PROGRESS".equalsIgnoreCase(status)) {
+
+                if ("INSPECTION_INITIATION".equalsIgnoreCase(status) || "INITIATE_INSPECTION".equalsIgnoreCase(action)
+                        || "INSPECTION_IN_PROGRESS".equalsIgnoreCase(status)) {
                     inspectionStarted = true;
                 }
-                
+
                 if (inspectionStarted && wt.getCreatedDate() != null) {
                     LocalDate date = wt.getCreatedDate().toInstant()
                             .atZone(java.time.ZoneId.systemDefault())
                             .toLocalDate();
                     visitDates.add(date);
                 }
-                
-                if ("INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(status) || "INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(action)) {
+
+                if ("INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(status)
+                        || "INSPECTION_COMPLETE_CONFIRM".equalsIgnoreCase(action)) {
                     break;
                 }
             }
-            
+
             return visitDates.stream().sorted().collect(Collectors.toList());
         } catch (Exception e) {
             logger.error("Error calculating visit dates for IC: {}", icNumber, e);
             return new ArrayList<>();
         }
     }
-
 
     /**
      * Build Sealing Pattern
@@ -803,7 +837,8 @@ public class CertificateServiceImpl implements CertificateService {
         if (hasHologram && hasSteelPunch) {
             String holoPart;
             if (!uniqueHolograms.isEmpty()) {
-                holoPart = "RITES HOLOGRAM FROM SL. NO. " + String.join(", ", uniqueHolograms) + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE";
+                holoPart = "RITES HOLOGRAM FROM SL. NO. " + String.join(", ", uniqueHolograms)
+                        + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE";
             } else {
                 holoPart = "RITES HOLOGRAM FROM SL NO. C0000599 TO C0001604 HAS BEEN AFFIXED ON THE LEAD SEAL ,TIED WITH SEALING WIRE TO THE PACKING STRIP OF EACH CORRUGATED BOX";
             }
@@ -817,13 +852,15 @@ public class CertificateServiceImpl implements CertificateService {
             return holoPart + " AS WELL AS " + stampPart + " FOR SEALING OF MATERIAL.";
         } else if (hasSteelPunch) {
             if (!uniqueStamps.isEmpty()) {
-                return "RITES STEEL PUNCH WITH STAMP NUMBER(S) " + String.join(", ", uniqueStamps) + " FOR SEALING OF MATERIAL.";
+                return "RITES STEEL PUNCH WITH STAMP NUMBER(S) " + String.join(", ", uniqueStamps)
+                        + " FOR SEALING OF MATERIAL.";
             }
             return "RITES STEEL PUNCH FOR SEALING OF MATERIAL.";
         } else {
             if (!uniqueHolograms.isEmpty()) {
                 String aggregatedDetails = String.join(", ", uniqueHolograms);
-                return "RITES HOLOGRAM FROM SL. NO. " + aggregatedDetails + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
+                return "RITES HOLOGRAM FROM SL. NO. " + aggregatedDetails
+                        + " AFFIXED WITH TAPE ON LEAD SEAL OR ON TAG OF EACH BUNDLE.";
             }
             return "RITES HOLOGRAM FROM SL NO. C0000599 TO C0001604 HAS BEEN AFFIXED ON THE LEAD SEAL ,TIED WITH SEALING WIRE TO THE PACKING STRIP OF EACH CORRUGATED BOX";
         }
@@ -831,7 +868,8 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Build Heat Details List
-     * Combines data from RmHeatFinalResult (weights, status) and RmHeatQuantity (manufacturer, TC info)
+     * Combines data from RmHeatFinalResult (weights, status) and RmHeatQuantity
+     * (manufacturer, TC info)
      */
     private List<RawMaterialCertificateDto.HeatDetailDto> buildHeatDetails(
             List<RmHeatQuantity> heatQuantities,
@@ -886,7 +924,7 @@ public class CertificateServiceImpl implements CertificateService {
             }
 
             final String targetSrNo = itemSrNo;
-            
+
             // 1. Try to find a match by itemSrNo
             String result = poItems.stream()
                     .filter(item -> targetSrNo != null && targetSrNo.equals(item.getItemSrNo()))
@@ -894,7 +932,8 @@ public class CertificateServiceImpl implements CertificateService {
                     .findFirst()
                     .orElse("");
 
-            // 2. Fallback: If no match found, use the first item's description as a reasonable default
+            // 2. Fallback: If no match found, use the first item's description as a
+            // reasonable default
             if (result.isBlank()) {
                 result = poItems.get(0).getBillPayOffDesc() != null ? poItems.get(0).getBillPayOffDesc() : "";
             }
@@ -955,7 +994,8 @@ public class CertificateServiceImpl implements CertificateService {
      * Helper to get IC Date (Creation Date or Edit Date)
      */
     private String getIcDate(String icNumber) {
-        if (icNumber == null || icNumber.isBlank()) return "";
+        if (icNumber == null || icNumber.isBlank())
+            return "";
         Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(icNumber);
         if (rmIcEditOpt.isPresent() && rmIcEditOpt.get().getCreatedAt() != null) {
             return formatDate(rmIcEditOpt.get().getCreatedAt().toLocalDate());
@@ -967,7 +1007,10 @@ public class CertificateServiceImpl implements CertificateService {
         return "";
     }
 
-    /* ==================== PROCESS MATERIAL CERTIFICATE METHODS ==================== */
+    /*
+     * ==================== PROCESS MATERIAL CERTIFICATE METHODS
+     * ====================
+     */
 
     @Override
     public ProcessMaterialCertificateDto generateProcessMaterialCertificate(String icNumber) {
@@ -986,7 +1029,8 @@ public class CertificateServiceImpl implements CertificateService {
 
         // 1. Fetch Inspection Call
         InspectionCall inspectionCall = inspectionCallRepository.findById(Math.toIntExact(callId))
-                .orElseThrow(() -> new IllegalArgumentException("Process inspection call not found with ID: " + callId));
+                .orElseThrow(
+                        () -> new IllegalArgumentException("Process inspection call not found with ID: " + callId));
 
         return buildProcessCertificateDto(inspectionCall);
     }
@@ -1035,9 +1079,12 @@ public class CertificateServiceImpl implements CertificateService {
                 .passedInstNo(calculatePassedInstallment(inspectionCall.getPoNo()))
                 .contractor(buildContractorInfo(poHeader))
                 .manufacturer(buildContractorInfo(poHeader))
-                .placeOfInspection(inspectionCall.getPlaceOfInspection() != null ? inspectionCall.getPlaceOfInspection() : "")
+                .placeOfInspection(buildPlaceOfInspection(inspectionCall))
                 .contractRef(buildContractRef(poHeader, inspectionCall))
-                .poDetails(inspectionCall.getPoNo() + " dated " + (poHeader != null && poHeader.getPoDate() != null ? formatDate(poHeader.getPoDate().toLocalDate()) : ""))
+                .poDetails(inspectionCall.getPoNo() + " dated "
+                        + (poHeader != null && poHeader.getPoDate() != null
+                                ? formatDate(poHeader.getPoDate().toLocalDate())
+                                : ""))
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
                 .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .consigneeManufacturer(buildConsigneeManufacturer(poHeader))
@@ -1048,7 +1095,8 @@ public class CertificateServiceImpl implements CertificateService {
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No. of QAP")
                 .chpClause("Clause No. of QAP")
-                .inspectionType("Checking Length of cut bars/ Turning length/ MPI Test/  Checking of Die/ Quenching temperature & duration/ Quenching hardness/ Tempering temperature & duration/ Dimensional check/ Hardness of finished ERC/ Documentaion")
+                .inspectionType(
+                        "Checking Length of cut bars/ Turning length/ MPI Test/  Checking of Die/ Quenching temperature & duration/ Quenching hardness/ Tempering temperature & duration/ Dimensional check/ Hardness of finished ERC/ Documentaion")
                 .lots(lots)
                 .reference(buildProcessReference(inspectionCall, lots))
                 .dateOfCall(buildDateOfCall(inspectionCall))
@@ -1060,7 +1108,8 @@ public class CertificateServiceImpl implements CertificateService {
                 .build();
 
         // Merge saved draft edits if available, else fallback to final edits
-        Optional<ProcessIcSaveChanges> processIcSaveChangesOpt = processIcSaveChangesRepository.findByIcNumber(inspectionCall.getIcNumber());
+        Optional<ProcessIcSaveChanges> processIcSaveChangesOpt = processIcSaveChangesRepository
+                .findByIcNumber(inspectionCall.getIcNumber());
         if (processIcSaveChangesOpt.isPresent()) {
             ProcessIcSaveChanges saveChanges = processIcSaveChangesOpt.get();
             if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
@@ -1101,7 +1150,8 @@ public class CertificateServiceImpl implements CertificateService {
                 dto.setChpClause(saveChanges.getQapNo());
             }
         } else {
-            Optional<ProcessIcEdit> processIcEditOpt = processIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
+            Optional<ProcessIcEdit> processIcEditOpt = processIcEditRepository
+                    .findByIcNumber(inspectionCall.getIcNumber());
             if (processIcEditOpt.isPresent()) {
                 ProcessIcEdit processIcEdit = processIcEditOpt.get();
                 if (processIcEdit.getBookNo() != null && !processIcEdit.getBookNo().isBlank()) {
@@ -1110,10 +1160,12 @@ public class CertificateServiceImpl implements CertificateService {
                 if (processIcEdit.getSetNo() != null && !processIcEdit.getSetNo().isBlank()) {
                     dto.setSetNo(processIcEdit.getSetNo());
                 }
-                if (processIcEdit.getOfferedInstallmentNo() != null && !processIcEdit.getOfferedInstallmentNo().isBlank()) {
+                if (processIcEdit.getOfferedInstallmentNo() != null
+                        && !processIcEdit.getOfferedInstallmentNo().isBlank()) {
                     dto.setOfferedInstNo(processIcEdit.getOfferedInstallmentNo());
                 }
-                if (processIcEdit.getPassedInstallmentNo() != null && !processIcEdit.getPassedInstallmentNo().isBlank()) {
+                if (processIcEdit.getPassedInstallmentNo() != null
+                        && !processIcEdit.getPassedInstallmentNo().isBlank()) {
                     dto.setPassedInstNo(processIcEdit.getPassedInstallmentNo());
                 }
                 if (processIcEdit.getConsignee() != null && !processIcEdit.getConsignee().isBlank()) {
@@ -1128,7 +1180,8 @@ public class CertificateServiceImpl implements CertificateService {
                 if (processIcEdit.getBillPayingOfficer() != null && !processIcEdit.getBillPayingOfficer().isBlank()) {
                     dto.setBillPayingOfficer(processIcEdit.getBillPayingOfficer());
                 }
-                if (processIcEdit.getPurchasingAuthority() != null && !processIcEdit.getPurchasingAuthority().isBlank()) {
+                if (processIcEdit.getPurchasingAuthority() != null
+                        && !processIcEdit.getPurchasingAuthority().isBlank()) {
                     dto.setPurchasingAuthority(processIcEdit.getPurchasingAuthority());
                 }
                 if (processIcEdit.getDescription() != null && !processIcEdit.getDescription().isBlank()) {
@@ -1145,7 +1198,8 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Build lot details from Process Line Final Results
-     * Aggregates quantities by heatNo-lotNo combinations across all shifts and lines.
+     * Aggregates quantities by heatNo-lotNo combinations across all shifts and
+     * lines.
      */
     private List<ProcessMaterialCertificateDto.LotDetailDto> buildProcessLotDetails(
             List<ProcessLineFinalResult> lineFinalResults) {
@@ -1157,7 +1211,7 @@ public class CertificateServiceImpl implements CertificateService {
             String heatNum = result.getHeatNumber();
             String lotNum = result.getLotNumber();
             String heatLot;
-            
+
             // Construct unique heatLot key
             if (heatNum != null && !heatNum.isBlank()) {
                 heatLot = heatNum;
@@ -1171,9 +1225,12 @@ public class CertificateServiceImpl implements CertificateService {
             if (aggregatedLots.containsKey(heatLot)) {
                 // Aggregate quantities for existing lot
                 ProcessMaterialCertificateDto.LotDetailDto existingLot = aggregatedLots.get(heatLot);
-                existingLot.setTotalProcessed(existingLot.getTotalProcessed() + (result.getTotalManufactured() != null ? result.getTotalManufactured() : 0));
-                existingLot.setAcceptedQty(existingLot.getAcceptedQty() + (result.getTotalAccepted() != null ? result.getTotalAccepted() : 0));
-                existingLot.setRejectedQty(existingLot.getRejectedQty() + (result.getTotalRejected() != null ? result.getTotalRejected() : 0));
+                existingLot.setTotalProcessed(existingLot.getTotalProcessed()
+                        + (result.getTotalManufactured() != null ? result.getTotalManufactured() : 0));
+                existingLot.setAcceptedQty(existingLot.getAcceptedQty()
+                        + (result.getTotalAccepted() != null ? result.getTotalAccepted() : 0));
+                existingLot.setRejectedQty(existingLot.getRejectedQty()
+                        + (result.getTotalRejected() != null ? result.getTotalRejected() : 0));
             } else {
                 // Add new lot entry
                 ProcessMaterialCertificateDto.LotDetailDto newLot = ProcessMaterialCertificateDto.LotDetailDto.builder()
@@ -1195,23 +1252,25 @@ public class CertificateServiceImpl implements CertificateService {
     private String buildProcessDescription(InspectionCall inspectionCall) {
         String ercType = inspectionCall.getErcType();
         if (ercType != null && !ercType.isBlank()) {
-            // Normalize spacing and present as: PROCESS INSPECTION OF ELASTIC RAIL CLIP + <ERC_TYPE>
+            // Normalize spacing and present as: PROCESS INSPECTION OF ELASTIC RAIL CLIP +
+            // <ERC_TYPE>
             return "PROCESS INSPECTION OF ELASTIC RAIL CLIP  + " + ercType.trim();
         }
         return "PROCESS INSPECTION OF ELASTIC RAIL CLIP";
     }
 
     private static final String[] QTY_UNITS = {
-        "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN",
-        "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN"
+            "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN",
+            "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN"
     };
 
     private static final String[] QTY_TENS = {
-        "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY"
+            "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY"
     };
 
     private String convertQuantityToWords(long n) {
-        if (n <= 0) return "Zero";
+        if (n <= 0)
+            return "Zero";
         String rawWords = convertNumberToWordsInternal(n).trim();
         String[] parts = rawWords.toLowerCase().split("\\s+");
         StringBuilder sb = new StringBuilder();
@@ -1228,23 +1287,35 @@ public class CertificateServiceImpl implements CertificateService {
             return "Not Applicable";
         }
         String words = convertQuantityToWords(totalRejectedQty);
-        return String.format("%s (%d) Nos. of ERC rejected due to dimensional non-conformity and/or visual surface defects such as deep dents, bends, cracks, or other specified defects and Dimension Inspection /Hardness Test/Decarburisation/ Freedom from defect /Micro-Structure/Application and Diflection Test/Toe Load Test .",
+        return String.format(
+                "%s (%d) Nos. of ERC rejected due to dimensional non-conformity and/or visual surface defects such as deep dents, bends, cracks, or other specified defects and Dimension Inspection /Hardness Test/Decarburisation/ Freedom from defect /Micro-Structure/Application and Diflection Test/Toe Load Test .",
                 words, totalRejectedQty);
     }
 
     private String convertNumberToWordsInternal(long n) {
-        if (n < 20) return QTY_UNITS[(int) n];
-        if (n < 100) return QTY_TENS[(int) (n / 10)] + ((n % 10 != 0) ? " " : "") + QTY_UNITS[(int) (n % 10)];
-        if (n < 1000) return QTY_UNITS[(int) (n / 100)] + " HUNDRED" + ((n % 100 != 0) ? " " : "") + convertNumberToWordsInternal(n % 100);
-        if (n < 100000) return convertNumberToWordsInternal(n / 1000) + " THOUSAND" + ((n % 1000 != 0) ? " " : "") + convertNumberToWordsInternal(n % 1000);
-        if (n < 10000000) return convertNumberToWordsInternal(n / 100000) + " LAKH" + ((n % 100000 != 0) ? " " : "") + convertNumberToWordsInternal(n % 100000);
-        return convertNumberToWordsInternal(n / 10000000) + " CRORE" + ((n % 10000000 != 0) ? " " : "") + convertNumberToWordsInternal(n % 10000000);
+        if (n < 20)
+            return QTY_UNITS[(int) n];
+        if (n < 100)
+            return QTY_TENS[(int) (n / 10)] + ((n % 10 != 0) ? " " : "") + QTY_UNITS[(int) (n % 10)];
+        if (n < 1000)
+            return QTY_UNITS[(int) (n / 100)] + " HUNDRED" + ((n % 100 != 0) ? " " : "")
+                    + convertNumberToWordsInternal(n % 100);
+        if (n < 100000)
+            return convertNumberToWordsInternal(n / 1000) + " THOUSAND" + ((n % 1000 != 0) ? " " : "")
+                    + convertNumberToWordsInternal(n % 1000);
+        if (n < 10000000)
+            return convertNumberToWordsInternal(n / 100000) + " LAKH" + ((n % 100000 != 0) ? " " : "")
+                    + convertNumberToWordsInternal(n % 100000);
+        return convertNumberToWordsInternal(n / 10000000) + " CRORE" + ((n % 10000000 != 0) ? " " : "")
+                + convertNumberToWordsInternal(n % 10000000);
     }
 
     private String fetchInvolvedIeNames(String icNumber) {
-        if (icNumber == null || icNumber.isBlank()) return "";
+        if (icNumber == null || icNumber.isBlank())
+            return "";
         try {
-            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository.findByRequestIdOrderByWorkflowTransitionIdAsc(icNumber);
+            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository
+                    .findByRequestIdOrderByWorkflowTransitionIdAsc(icNumber);
             if (transitions == null || transitions.isEmpty()) {
                 return "";
             }
@@ -1268,12 +1339,14 @@ public class CertificateServiceImpl implements CertificateService {
                 }
 
                 // End collecting after INSPECTION COMPLETE CONFIRM status
-                if (status.contains("COMPLETE_CONFIRM") || status.contains("CONFIRM_INSPECTION") || status.contains("INSPECTION_COMPLETE")) {
+                if (status.contains("COMPLETE_CONFIRM") || status.contains("CONFIRM_INSPECTION")
+                        || status.contains("INSPECTION_COMPLETE")) {
                     inInspectionWindow = false;
                 }
             }
 
-            // Fallback: If no userIds collected in window, fallback to all modifiedBy entries
+            // Fallback: If no userIds collected in window, fallback to all modifiedBy
+            // entries
             if (userIds.isEmpty()) {
                 for (com.sarthi.entity.WorkflowTransition wt : transitions) {
                     if (wt.getModifiedBy() != null && wt.getModifiedBy() > 0) {
@@ -1288,8 +1361,10 @@ public class CertificateServiceImpl implements CertificateService {
                 if (uOpt.isPresent()) {
                     com.sarthi.entity.UserMaster u = uOpt.get();
                     String role = u.getRoleName() != null ? u.getRoleName().toUpperCase() : "";
-                    if (role.contains("IE") || role.contains("INSPECT") || (!role.contains("VENDOR") && !role.contains("FIRM"))) {
-                        String name = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getShortName();
+                    if (role.contains("IE") || role.contains("INSPECT")
+                            || (!role.contains("VENDOR") && !role.contains("FIRM"))) {
+                        String name = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName()
+                                : u.getShortName();
                         if (name == null || name.isBlank()) {
                             name = u.getUsername();
                         }
@@ -1313,8 +1388,8 @@ public class CertificateServiceImpl implements CertificateService {
     private String formatPersonName(String name) {
         String trimmed = name.trim();
         if (trimmed.toUpperCase().startsWith("MR.") || trimmed.toUpperCase().startsWith("MR ") ||
-            trimmed.toUpperCase().startsWith("MS.") || trimmed.toUpperCase().startsWith("MS ") ||
-            trimmed.toUpperCase().startsWith("DR.") || trimmed.toUpperCase().startsWith("DR ")) {
+                trimmed.toUpperCase().startsWith("MS.") || trimmed.toUpperCase().startsWith("MS ") ||
+                trimmed.toUpperCase().startsWith("DR.") || trimmed.toUpperCase().startsWith("DR ")) {
             return trimmed;
         }
         return "Mr " + trimmed;
@@ -1323,7 +1398,8 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Build process reference
      */
-    private String buildProcessReference(InspectionCall inspectionCall, List<ProcessMaterialCertificateDto.LotDetailDto> lots) {
+    private String buildProcessReference(InspectionCall inspectionCall,
+            List<ProcessMaterialCertificateDto.LotDetailDto> lots) {
         long totalAcceptedQty = 0;
         if (lots != null && !lots.isEmpty()) {
             for (ProcessMaterialCertificateDto.LotDetailDto lot : lots) {
@@ -1355,8 +1431,8 @@ public class CertificateServiceImpl implements CertificateService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("Quantity ").append(qtyWords)
-          .append(" Nos. cleared for next/final stage after completion of process inspection as per PIO detailed under Annexure-A of Rly. Bd. Letter No. 2024/RS (G)/779/12 (E3482675) Dtd.06.01.2025 conducted by RITES Process IEs team (")
-          .append(ieNames).append(")");
+                .append(" Nos. cleared for next/final stage after completion of process inspection as per PIO detailed under Annexure-A of Rly. Bd. Letter No. 2024/RS (G)/779/12 (E3482675) Dtd.06.01.2025 conducted by RITES Process IEs team (")
+                .append(ieNames).append(")");
 
         if (!rmIcNumbers.isEmpty()) {
             sb.append(", Raw Material STAGE IC No. ");
@@ -1377,7 +1453,8 @@ public class CertificateServiceImpl implements CertificateService {
      */
     private String getDrgNoForErc(InspectionCall inspectionCall) {
         String ercType = inspectionCall.getErcType();
-        if (ercType == null) return "";
+        if (ercType == null)
+            return "";
         if (ercType.toUpperCase().contains("MK-III") || ercType.toUpperCase().contains("MK III")) {
             return "RT-3701";
         }
@@ -1391,7 +1468,9 @@ public class CertificateServiceImpl implements CertificateService {
         return "NA";
     }
 
-    /* ==================== FINAL MATERIAL CERTIFICATE METHODS ==================== */
+    /*
+     * ==================== FINAL MATERIAL CERTIFICATE METHODS ====================
+     */
 
     @Override
     public FinalCertificateDto generateFinalCertificate(String icNumber) {
@@ -1431,7 +1510,8 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Build the complete final certificate DTO from inspection call data
      */
-    private FinalCertificateDto buildFinalCertificateDto(InspectionCall inspectionCall, FinalInspectionDetails finalDetails) {
+    private FinalCertificateDto buildFinalCertificateDto(InspectionCall inspectionCall,
+            FinalInspectionDetails finalDetails) {
         logger.info("Building final certificate DTO for IC: {}", inspectionCall.getIcNumber());
 
         // 2. Fetch Final Inspection Lot Details
@@ -1444,7 +1524,8 @@ public class CertificateServiceImpl implements CertificateService {
         PoHeader poHeader = poHeaderRepository.findByPoNoWithItems(inspectionCall.getPoNo()).orElse(null);
         List<PoItem> poItems = poHeader != null ? poHeader.getItems() : new ArrayList<>();
 
-        // 4. Fetch Section A data (Main PO Information) for Bill Paying Officer / Purchasing Authority fallback
+        // 4. Fetch Section A data (Main PO Information) for Bill Paying Officer /
+        // Purchasing Authority fallback
         MainPoInformation mainPoInfo = mainPoInformationRepository
                 .findByInspectionCallNo(inspectionCall.getIcNumber())
                 .orElse(null);
@@ -1481,30 +1562,46 @@ public class CertificateServiceImpl implements CertificateService {
 
         Long currentId = finalDetails != null ? finalDetails.getId() : 0L;
         String poSerialNo = inspectionCall.getPoSerialNo();
-        
+
         long offeredPrev = 0L;
         long passedPrev = 0L;
-        
+
         // Fetch from final_cumulative_results if available
         long cumStart = System.currentTimeMillis();
-        FinalCumulativeResults cumulativeResults = finalCumulativeResultsRepository.findByInspectionCallNo(inspectionCall.getIcNumber()).orElse(null);
+        FinalCumulativeResults cumulativeResults = finalCumulativeResultsRepository
+                .findByInspectionCallNo(inspectionCall.getIcNumber()).orElse(null);
         long cumEnd = System.currentTimeMillis();
         logger.info("Fetched cumulative results for {} in {} ms", inspectionCall.getIcNumber(), (cumEnd - cumStart));
 
-        int qtyNowOffered = finalDetails != null && finalDetails.getTotalOfferedQty() != null ? finalDetails.getTotalOfferedQty() : 0;
-        int qtyNowPassed = finalDetails != null && finalDetails.getTotalAcceptedQty() != null ? finalDetails.getTotalAcceptedQty() : 0;
-        int qtyNowRejected = finalDetails != null && finalDetails.getTotalRejectedQty() != null ? finalDetails.getTotalRejectedQty() : 0;
+        int qtyNowOffered = finalDetails != null && finalDetails.getTotalOfferedQty() != null
+                ? finalDetails.getTotalOfferedQty()
+                : 0;
+        int qtyNowPassed = finalDetails != null && finalDetails.getTotalAcceptedQty() != null
+                ? finalDetails.getTotalAcceptedQty()
+                : 0;
+        int qtyNowRejected = finalDetails != null && finalDetails.getTotalRejectedQty() != null
+                ? finalDetails.getTotalRejectedQty()
+                : 0;
 
         if (cumulativeResults != null) {
-            offeredPrev = cumulativeResults.getCummQtyOfferedPreviously() != null ? cumulativeResults.getCummQtyOfferedPreviously() : 0L;
-            passedPrev = cumulativeResults.getCummQtyPassedPreviously() != null ? cumulativeResults.getCummQtyPassedPreviously() : 0L;
-            qtyNowOffered = cumulativeResults.getQtyNowOffered() != null ? cumulativeResults.getQtyNowOffered() : qtyNowOffered;
-            qtyNowPassed = cumulativeResults.getQtyNowPassed() != null ? cumulativeResults.getQtyNowPassed() : qtyNowPassed;
-            qtyNowRejected = cumulativeResults.getQtyNowRejected() != null ? cumulativeResults.getQtyNowRejected() : qtyNowRejected;
+            offeredPrev = cumulativeResults.getCummQtyOfferedPreviously() != null
+                    ? cumulativeResults.getCummQtyOfferedPreviously()
+                    : 0L;
+            passedPrev = cumulativeResults.getCummQtyPassedPreviously() != null
+                    ? cumulativeResults.getCummQtyPassedPreviously()
+                    : 0L;
+            qtyNowOffered = cumulativeResults.getQtyNowOffered() != null ? cumulativeResults.getQtyNowOffered()
+                    : qtyNowOffered;
+            qtyNowPassed = cumulativeResults.getQtyNowPassed() != null ? cumulativeResults.getQtyNowPassed()
+                    : qtyNowPassed;
+            qtyNowRejected = cumulativeResults.getQtyNowRejected() != null ? cumulativeResults.getQtyNowRejected()
+                    : qtyNowRejected;
         } else if (poSerialNo != null && currentId > 0) {
             long qStart = System.currentTimeMillis();
-            Long offeredPrevLong = finalInspectionDetailsRepository.sumOfferedQtyByPoSerialNoAndIdLessThan(poSerialNo, currentId);
-            Long passedPrevLong = finalInspectionDetailsRepository.sumAcceptedQtyByPoSerialNoAndIdLessThan(poSerialNo, currentId);
+            Long offeredPrevLong = finalInspectionDetailsRepository.sumOfferedQtyByPoSerialNoAndIdLessThan(poSerialNo,
+                    currentId);
+            Long passedPrevLong = finalInspectionDetailsRepository.sumAcceptedQtyByPoSerialNoAndIdLessThan(poSerialNo,
+                    currentId);
             offeredPrev = offeredPrevLong != null ? offeredPrevLong : 0L;
             passedPrev = passedPrevLong != null ? passedPrevLong : 0L;
             long qEnd = System.currentTimeMillis();
@@ -1522,8 +1619,11 @@ public class CertificateServiceImpl implements CertificateService {
         logger.info("Fetched visit dates for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
 
         // Fetch RM and PM IC Details for remarks
-        String rmIcNoStr = finalDetails != null && finalDetails.getRmIcNumber() != null ? finalDetails.getRmIcNumber() : "";
-        String processIcNoStr = finalDetails != null && finalDetails.getProcessIcNumber() != null ? finalDetails.getProcessIcNumber() : "";
+        String rmIcNoStr = finalDetails != null && finalDetails.getRmIcNumber() != null ? finalDetails.getRmIcNumber()
+                : "";
+        String processIcNoStr = finalDetails != null && finalDetails.getProcessIcNumber() != null
+                ? finalDetails.getProcessIcNumber()
+                : "";
         String rmIcDateStr = "";
         String processIcDateStr = "";
 
@@ -1542,7 +1642,7 @@ public class CertificateServiceImpl implements CertificateService {
 
         // 9. Build Certificate DTO
         start = System.currentTimeMillis();
-        
+
         String certNo = generateCertificateNumber(inspectionCall);
         String contractor = buildContractorInfo(poHeader);
         String placeOfInspection = buildFinalPlaceOfInspection(finalDetails);
@@ -1560,13 +1660,16 @@ public class CertificateServiceImpl implements CertificateService {
                 .contractor(contractor)
                 .placeOfInspection(placeOfInspection)
                 .contractRef(buildContractRef(poHeader, inspectionCall))
-                .contractRefDate(poHeader != null && poHeader.getPoDate() != null ? formatDate(poHeader.getPoDate().toLocalDate()) : "")
+                .contractRefDate(poHeader != null && poHeader.getPoDate() != null
+                        ? formatDate(poHeader.getPoDate().toLocalDate())
+                        : "")
                 .billPayingOfficer(buildBillPayingOfficer(inspectionCall, poItems))
                 .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .itemNo(poItems.isEmpty() ? "" : poItems.get(0).getItemSrNo())
                 .description(buildItemDescription(inspectionCall, poItems))
-                .totalLots(finalDetails != null && finalDetails.getTotalLots() != null ? finalDetails.getTotalLots() : 0)
+                .totalLots(
+                        finalDetails != null && finalDetails.getTotalLots() != null ? finalDetails.getTotalLots() : 0)
                 .qtyOnOrder(qtyOnOrder)
                 .qtyOfferedPreviously((int) offeredPrev)
                 .qtyPassedPreviously((int) passedPrev)
@@ -1594,7 +1697,8 @@ public class CertificateServiceImpl implements CertificateService {
         logger.info("Built FinalCertificateDto for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
 
         // Merge saved draft edits if available, else fallback to final edits
-        Optional<FinalIcSaveChanges> finalIcSaveChangesOpt = finalIcSaveChangesRepository.findByIcNumber(inspectionCall.getIcNumber());
+        Optional<FinalIcSaveChanges> finalIcSaveChangesOpt = finalIcSaveChangesRepository
+                .findByIcNumber(inspectionCall.getIcNumber());
         if (finalIcSaveChangesOpt.isPresent()) {
             FinalIcSaveChanges saveChanges = finalIcSaveChangesOpt.get();
             if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
@@ -1616,17 +1720,20 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getCummQtyOfferedPrev() != null) {
                 try {
                     dto.setQtyOfferedPreviously(Integer.parseInt(saveChanges.getCummQtyOfferedPrev()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
             if (saveChanges.getQtyPrevPassed() != null) {
                 try {
                     dto.setQtyPassedPreviously(Integer.parseInt(saveChanges.getQtyPrevPassed()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
             if (saveChanges.getQtyStillDue() != null) {
                 try {
                     dto.setQtyStillDue(Integer.parseInt(saveChanges.getQtyStillDue()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
             if (saveChanges.getMaNumberAndDate() != null && !saveChanges.getMaNumberAndDate().isBlank()) {
                 dto.setMaNumberAndDate(saveChanges.getMaNumberAndDate());
@@ -1663,17 +1770,20 @@ public class CertificateServiceImpl implements CertificateService {
                 if (finalIcEdit.getCummQtyOfferedPrev() != null) {
                     try {
                         dto.setQtyOfferedPreviously(Integer.parseInt(finalIcEdit.getCummQtyOfferedPrev()));
-                    } catch (NumberFormatException ignored) {}
+                    } catch (NumberFormatException ignored) {
+                    }
                 }
                 if (finalIcEdit.getQtyPrevPassed() != null) {
                     try {
                         dto.setQtyPassedPreviously(Integer.parseInt(finalIcEdit.getQtyPrevPassed()));
-                    } catch (NumberFormatException ignored) {}
+                    } catch (NumberFormatException ignored) {
+                    }
                 }
                 if (finalIcEdit.getQtyStillDue() != null) {
                     try {
                         dto.setQtyStillDue(Integer.parseInt(finalIcEdit.getQtyStillDue()));
-                    } catch (NumberFormatException ignored) {}
+                    } catch (NumberFormatException ignored) {
+                    }
                 }
                 if (finalIcEdit.getMaNumberAndDate() != null && !finalIcEdit.getMaNumberAndDate().isBlank()) {
                     dto.setMaNumberAndDate(finalIcEdit.getMaNumberAndDate());
@@ -1689,7 +1799,7 @@ public class CertificateServiceImpl implements CertificateService {
                 }
             }
         }
-        
+
         return dto;
     }
 
@@ -1697,7 +1807,8 @@ public class CertificateServiceImpl implements CertificateService {
      * Build place of inspection for final certificate
      */
     private String buildFinalPlaceOfInspection(FinalInspectionDetails finalDetails) {
-        if (finalDetails == null) return "";
+        if (finalDetails == null)
+            return "";
         String unitName = finalDetails.getUnitName() != null ? finalDetails.getUnitName() : "";
         String unitAddress = finalDetails.getUnitAddress() != null ? finalDetails.getUnitAddress() : "";
         return unitName + (unitAddress.isBlank() ? "" : ", " + unitAddress);
@@ -1707,7 +1818,8 @@ public class CertificateServiceImpl implements CertificateService {
      * Build remarks for final certificate
      */
     private String buildFinalRemarks(FinalInspectionDetails finalDetails) {
-        if (finalDetails == null) return "";
+        if (finalDetails == null)
+            return "";
         // For now, return a generic remark based on acceptance status
         return "LOT FOUND ACCEPTABLE AND CLEARED FOR DELIVERY";
     }
@@ -1728,12 +1840,14 @@ public class CertificateServiceImpl implements CertificateService {
                         .build())
                 .collect(Collectors.toList());
     }
+
     /**
      * Build Sealing Pattern using Hologram Details from FinalInspectionLotResults
      */
     private String buildFinalSealingPattern(String icNumber) {
         try {
-            List<FinalInspectionLotResults> lotResults = finalInspectionLotResultsRepository.findByInspectionCallNo(icNumber);
+            List<FinalInspectionLotResults> lotResults = finalInspectionLotResultsRepository
+                    .findByInspectionCallNo(icNumber);
             if (lotResults == null || lotResults.isEmpty()) {
                 return "";
             }
@@ -1742,10 +1856,10 @@ public class CertificateServiceImpl implements CertificateService {
             for (FinalInspectionLotResults lot : lotResults) {
                 if (lot.getHologramDetails() != null && !lot.getHologramDetails().isEmpty()) {
                     List<Map<String, String>> details = objectMapper.readValue(
-                        lot.getHologramDetails(), 
-                        new TypeReference<List<Map<String, String>>>() {}
-                    );
-                    
+                            lot.getHologramDetails(),
+                            new TypeReference<List<Map<String, String>>>() {
+                            });
+
                     for (Map<String, String> entry : details) {
                         String type = entry.get("type");
                         if ("range".equalsIgnoreCase(type)) {
@@ -1769,14 +1883,15 @@ public class CertificateServiceImpl implements CertificateService {
             }
 
             String joinedHolograms = String.join(" & ", hologramStrings);
-            return "RITES HOLOGRAM AFFIXED SL. NO. " + joinedHolograms + 
-                   " ON LEAD SEAL AT THE CENTRE OF KNOTLESS STITCH ON EACH BAG.";
+            return "RITES HOLOGRAM AFFIXED SL. NO. " + joinedHolograms +
+                    " ON LEAD SEAL AT THE CENTRE OF KNOTLESS STITCH ON EACH BAG.";
 
         } catch (Exception e) {
             logger.error("Error building final sealing pattern for IC: {}", icNumber, e);
             return "";
         }
     }
+
     @Override
     public IcReportDataResponse generateReportData(Map<String, String> params) {
         String rawCaseNo = params.get("CaseNO");
@@ -1813,15 +1928,20 @@ public class CertificateServiceImpl implements CertificateService {
 
                 // 2. Mandatory Logging
                 logger.info("PKI Payload - Length: {}", base64Pdf.length());
-                logger.info("PKI Payload - First 20 chars: {}", base64Pdf.substring(0, Math.min(20, base64Pdf.length())));
+                logger.info("PKI Payload - First 20 chars: {}",
+                        base64Pdf.substring(0, Math.min(20, base64Pdf.length())));
 
                 // 3. Generate unique Transaction ID (Format: SARTHI{timestamp})
                 String txnId = "SARTHI" + System.currentTimeMillis();
 
-                // 4. Construct signing XML (MANDATORY: PDF_SIGN | data | Single Line | No XML Declaration)
-                String responseText = "<request><command>PDF_SIGN</command><txn>" + txnId + "</txn><data>" + base64Pdf + "</data><sigX>375</sigX><sigY>190</sigY><sigPage>1</sigPage></request>";
+                // 4. Construct signing XML (MANDATORY: PDF_SIGN | data | Single Line | No XML
+                // Declaration)
+                String responseText = "<request><command>PDF_SIGN</command><txn>" + txnId + "</txn><data>" + base64Pdf
+                        + "</data><sigX>375</sigX><sigY>190</sigY><sigPage>1</sigPage></request>";
 
-                logger.info("PKI XML Request (Masked): <request><command>PDF_SIGN</command><txn>{}</txn><data>[{} bytes]</data><sigX>375</sigX><sigY>190</sigY><sigPage>1</sigPage></request>", txnId, base64Pdf.length());
+                logger.info(
+                        "PKI XML Request (Masked): <request><command>PDF_SIGN</command><txn>{}</txn><data>[{} bytes]</data><sigX>375</sigX><sigY>190</sigY><sigPage>1</sigPage></request>",
+                        txnId, base64Pdf.length());
 
                 return IcReportDataResponse.builder()
                         .status("1")
@@ -1852,7 +1972,7 @@ public class CertificateServiceImpl implements CertificateService {
     private byte[] generateICReport(Map<String, String> params) throws Exception {
         String rawCaseNo = params.get("CaseNO");
         String type = params.get("type"); // RM, PM, FM
-        
+
         // Sanitize CaseNO to extract internal IC Number (e.g. EP-02260001)
         String icNumber = extractIcNumber(rawCaseNo);
         logger.info("Extracted IC Number: '{}' from raw CaseNO: '{}'", icNumber, rawCaseNo);
@@ -1909,10 +2029,11 @@ public class CertificateServiceImpl implements CertificateService {
         return baos.toByteArray();
     }
 
-    private void addCommonHeader(Document document, Object dto, Font titleFont, Font boldFont, Font tinyBold, Font smallFont) throws Exception {
+    private void addCommonHeader(Document document, Object dto, Font titleFont, Font boldFont, Font tinyBold,
+            Font smallFont) throws Exception {
         PdfPTable outerHeader = new PdfPTable(1);
         outerHeader.setWidthPercentage(100);
-        
+
         PdfPTable bookSetBox = new PdfPTable(2);
         bookSetBox.setTotalWidth(150f);
         bookSetBox.setLockedWidth(true);
@@ -1920,7 +2041,7 @@ public class CertificateServiceImpl implements CertificateService {
 
         bookSetBox.addCell(createLabelValueCell("बुक सं. Book No.", getDtoValue(dto, "bookNo"), boldFont, tinyBold));
         bookSetBox.addCell(createLabelValueCell("सेट सं. Set No.", getDtoValue(dto, "setNo"), boldFont, tinyBold));
-        
+
         PdfPCell boxWrapper = new PdfPCell(bookSetBox);
         boxWrapper.setBorder(Rectangle.NO_BORDER);
         boxWrapper.setPaddingTop(32f);
@@ -1930,14 +2051,14 @@ public class CertificateServiceImpl implements CertificateService {
 
         PdfPTable branding = new PdfPTable(3);
         branding.setWidthPercentage(100);
-        branding.setWidths(new float[]{1, 3, 1.5f});
+        branding.setWidths(new float[] { 1, 3, 1.5f });
 
         branding.addCell(createEmptyCell());
         PdfPCell rTitle = new PdfPCell(new Phrase("RITES LTD, NORTHERN REGION, DELHI", titleFont));
         rTitle.setBorder(Rectangle.NO_BORDER);
         rTitle.setHorizontalAlignment(Element.ALIGN_CENTER);
         branding.addCell(rTitle);
-        
+
         PdfPCell contCell = new PdfPCell();
         contCell.addElement(new Phrase("निरंतरता पत्रक शामिल", tinyBold));
         contCell.addElement(new Phrase("Contains 0 Continuation Sheets", tinyBold));
@@ -1951,21 +2072,25 @@ public class CertificateServiceImpl implements CertificateService {
     private void addCertificateInfoRow(Document document, Object dto, Font boldFont, Font tinyBold) throws Exception {
         PdfPTable certInfoRow = new PdfPTable(1);
         certInfoRow.setWidthPercentage(100);
-        
+
         PdfPTable certInfoBox = new PdfPTable(3);
         certInfoBox.setWidthPercentage(75);
         certInfoBox.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        certInfoBox.setWidths(new float[]{1.8f, 1f, 2.7f});
+        certInfoBox.setWidths(new float[] { 1.8f, 1f, 2.7f });
 
-        certInfoBox.addCell(createLabelValueCell("प्रमाणपत्र पत्र सं. Certificate No.", getDtoValue(dto, "certificateNo").toUpperCase(), boldFont, tinyBold));
-        certInfoBox.addCell(createLabelValueCell("दिनांक Date", getDtoValue(dto, "certificateDate"), boldFont, tinyBold));
-        
+        certInfoBox.addCell(createLabelValueCell("प्रमाणपत्र पत्र सं. Certificate No.",
+                getDtoValue(dto, "certificateNo").toUpperCase(), boldFont, tinyBold));
+        certInfoBox
+                .addCell(createLabelValueCell("दिनांक Date", getDtoValue(dto, "certificateDate"), boldFont, tinyBold));
+
         PdfPCell instCell = new PdfPCell();
         instCell.setPadding(3);
-        instCell.addElement(new Phrase("प्रस्तावित किस्त सं. Offered Instt. No. " + getDtoValue(dto, "offeredInstNo"), tinyBold));
-        instCell.addElement(new Phrase("किस्त स. पारित Passed Instt. No. " + getDtoValue(dto, "passedInstNo"), tinyBold));
+        instCell.addElement(
+                new Phrase("प्रस्तावित किस्त सं. Offered Instt. No. " + getDtoValue(dto, "offeredInstNo"), tinyBold));
+        instCell.addElement(
+                new Phrase("किस्त स. पारित Passed Instt. No. " + getDtoValue(dto, "passedInstNo"), tinyBold));
         certInfoBox.addCell(instCell);
-        
+
         PdfPCell certWrapper = new PdfPCell(certInfoBox);
         certWrapper.setBorder(Rectangle.NO_BORDER);
         certWrapper.setPaddingBottom(5);
@@ -1973,12 +2098,14 @@ public class CertificateServiceImpl implements CertificateService {
         document.add(certInfoRow);
     }
 
-    private void buildPmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold, Font smallFont, Font italicFont) throws Exception {
+    private void buildPmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold,
+            Font smallFont, Font italicFont) throws Exception {
         PdfPTable mainGrid = new PdfPTable(1);
         mainGrid.setWidthPercentage(100);
 
-        mainGrid.addCell(createTwoColRow("ठेकेदार / Contractor", getDtoValue(dto, "contractor"), "उत्पादक / Manufacturer", getDtoValue(dto, "manufacturer"), normalFont, tinyBold));
-        
+        mainGrid.addCell(createTwoColRow("ठेकेदार / Contractor", getDtoValue(dto, "contractor"),
+                "उत्पादक / Manufacturer", getDtoValue(dto, "manufacturer"), normalFont, tinyBold));
+
         // Contract Ref Row
         PdfPTable rowCB = new PdfPTable(2);
         PdfPCell cRefCell = new PdfPCell();
@@ -1987,19 +2114,25 @@ public class CertificateServiceImpl implements CertificateService {
         cRefCell.addElement(new Phrase("खरीद आदेश सं. एवं दिनांक (ठेकेदार) / PO No. & Date (Contractor)", tinyBold));
         cRefCell.addElement(new Phrase(getDtoValue(dto, "poDetails"), normalFont));
         rowCB.addCell(cRefCell);
-        rowCB.addCell(createLabelValueCell("बिल अदायगी अधिकारी / Bill Paying Officer", getDtoValue(dto, "billPayingOfficer"), normalFont, tinyBold));
+        rowCB.addCell(createLabelValueCell("बिल अदायगी अधिकारी / Bill Paying Officer",
+                getDtoValue(dto, "billPayingOfficer"), normalFont, tinyBold));
         mainGrid.addCell(rowCB);
 
-        mainGrid.addCell(createThreeColRow("विवरण / Description", getDtoValue(dto, "description"), "ड्रॉइंग सं. / Drg. No.", getDtoValue(dto, "drgNo"), "Spec No.", getDtoValue(dto, "specNo"), normalFont, tinyBold));
-        mainGrid.addCell(createLabelValueCell("किए गए निरीक्षण/परीक्षण विवरण / Type of inspection/tests conducted", getDtoValue(dto, "inspectionType"), normalFont, tinyBold));
+        mainGrid.addCell(
+                createThreeColRow("विवरण / Description", getDtoValue(dto, "description"), "ड्रॉइंग सं. / Drg. No.",
+                        getDtoValue(dto, "drgNo"), "Spec No.", getDtoValue(dto, "specNo"), normalFont, tinyBold));
+        mainGrid.addCell(createLabelValueCell("किए गए निरीक्षण/परीक्षण विवरण / Type of inspection/tests conducted",
+                getDtoValue(dto, "inspectionType"), normalFont, tinyBold));
         document.add(mainGrid);
 
         // Body Table
         PdfPTable lotTable = new PdfPTable(5);
         lotTable.setWidthPercentage(100);
-        lotTable.setWidths(new float[]{2, 1, 1, 1, 1});
-        addTableHeader(lotTable, new String[]{"CHP CL. NO.", "HEAT No. / Lot No.", "Total Nos.", "Accepted Nos.", "Rejected Nos."}, tinyBold);
-        
+        lotTable.setWidths(new float[] { 2, 1, 1, 1, 1 });
+        addTableHeader(lotTable,
+                new String[] { "CHP CL. NO.", "HEAT No. / Lot No.", "Total Nos.", "Accepted Nos.", "Rejected Nos." },
+                tinyBold);
+
         java.util.List<?> lots = (java.util.List<?>) getDtoObject(dto, "lots");
         if (lots != null) {
             for (Object lot : lots) {
@@ -2016,30 +2149,38 @@ public class CertificateServiceImpl implements CertificateService {
         PdfPTable footer = new PdfPTable(1);
         footer.setWidthPercentage(100);
         footer.addCell(createLabelValueCell("संदर्भ / Reference", getDtoValue(dto, "reference"), normalFont, tinyBold));
-        
+
         PdfPTable sigRow = new PdfPTable(2);
-        sigRow.addCell(createLabelValueCell("सील/स्टैंपिंग Seal Pattern", getDtoValue(dto, "sealingPattern"), normalFont, tinyBold));
+        sigRow.addCell(createLabelValueCell("सील/स्टैंपिंग Seal Pattern", getDtoValue(dto, "sealingPattern"),
+                normalFont, tinyBold));
         sigRow.addCell(createSignatureCell("Inspecting Engineer", boldFont));
         footer.addCell(sigRow);
-        
-        addFinalCertification(footer, "It is certified that Process Inspection of ERCs carried out satisfactorily.", italicFont, smallFont);
+
+        addFinalCertification(footer, "It is certified that Process Inspection of ERCs carried out satisfactorily.",
+                italicFont, smallFont);
         document.add(footer);
     }
 
-    private void buildRmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold, Font smallFont, Font italicFont) throws Exception {
+    private void buildRmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold,
+            Font smallFont, Font italicFont) throws Exception {
         PdfPTable mainGrid = new PdfPTable(1);
         mainGrid.setWidthPercentage(100);
-        
-        mainGrid.addCell(createTwoColRow("ठेकेदार / Contractor", getDtoValue(dto, "contractor"), "उत्पादक / Manufacturer & Place", getDtoValue(dto, "manufacturer") + "\n" + getDtoValue(dto, "placeOfInspection"), normalFont, tinyBold));
-        mainGrid.addCell(createLabelValueCell("निरीक्षण का प्रकार / Type of inspection", getDtoValue(dto, "inspectionType"), normalFont, tinyBold));
+
+        mainGrid.addCell(createTwoColRow("ठेकेदार / Contractor", getDtoValue(dto, "contractor"),
+                "उत्पादक / Manufacturer & Place",
+                getDtoValue(dto, "manufacturer") + "\n" + getDtoValue(dto, "placeOfInspection"), normalFont, tinyBold));
+        mainGrid.addCell(createLabelValueCell("निरीक्षण का प्रकार / Type of inspection",
+                getDtoValue(dto, "inspectionType"), normalFont, tinyBold));
         document.add(mainGrid);
 
         // CHP Table (6 Columns)
         PdfPTable chpTable = new PdfPTable(6);
         chpTable.setWidthPercentage(100);
-        chpTable.setWidths(new float[]{1.2f, 1f, 1.2f, 0.8f, 1f, 0.8f});
-        addTableHeader(chpTable, new String[]{"CHP CL. NO.", "Requirement", "Details", "Result", "Cleared Qty", "Rejected Qty"}, tinyBold);
-        
+        chpTable.setWidths(new float[] { 1.2f, 1f, 1.2f, 0.8f, 1f, 0.8f });
+        addTableHeader(chpTable,
+                new String[] { "CHP CL. NO.", "Requirement", "Details", "Result", "Cleared Qty", "Rejected Qty" },
+                tinyBold);
+
         chpTable.addCell(createNestedCell(getDtoValue(dto, "chpClause"), smallFont));
         chpTable.addCell(createNestedCell(getDtoValue(dto, "contractChpReq"), smallFont));
         chpTable.addCell(createNestedCell(getDtoValue(dto, "inspectionDetails"), smallFont));
@@ -2051,32 +2192,38 @@ public class CertificateServiceImpl implements CertificateService {
         // Footer with 3-column signature
         PdfPTable footer = new PdfPTable(1);
         footer.setWidthPercentage(100);
-        
+
         PdfPTable sigRow = new PdfPTable(3);
         sigRow.addCell(createLabelValueCell("Seal Pattern", getDtoValue(dto, "sealingPattern"), normalFont, tinyBold));
-        sigRow.addCell(createLabelValueCell("Facsimile of seal", getDtoValue(dto, "sealFacsimile"), normalFont, tinyBold));
+        sigRow.addCell(
+                createLabelValueCell("Facsimile of seal", getDtoValue(dto, "sealFacsimile"), normalFont, tinyBold));
         sigRow.addCell(createSignatureCell("Inspecting Engineer", boldFont));
         footer.addCell(sigRow);
-        
-        addFinalCertification(footer, "It is certified that material is cleared for the next stage.", italicFont, smallFont);
+
+        addFinalCertification(footer, "It is certified that material is cleared for the next stage.", italicFont,
+                smallFont);
         document.add(footer);
     }
 
-    private void buildFmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold, Font smallFont, Font italicFont) throws Exception {
+    private void buildFmLayout(Document document, Object dto, Font normalFont, Font boldFont, Font tinyBold,
+            Font smallFont, Font italicFont) throws Exception {
         PdfPTable mainGrid = new PdfPTable(1);
         mainGrid.setWidthPercentage(100);
-        
-        mainGrid.addCell(createTwoColRow("Contractor", getDtoValue(dto, "contractor"), "Place of Inspection", getDtoValue(dto, "placeOfInspection"), normalFont, tinyBold));
-        mainGrid.addCell(createTwoColRow("Consignee", getDtoValue(dto, "consigneeRailway"), "Purchasing Authority", getDtoValue(dto, "purchasingAuthority"), normalFont, tinyBold));
+
+        mainGrid.addCell(createTwoColRow("Contractor", getDtoValue(dto, "contractor"), "Place of Inspection",
+                getDtoValue(dto, "placeOfInspection"), normalFont, tinyBold));
+        mainGrid.addCell(createTwoColRow("Consignee", getDtoValue(dto, "consigneeRailway"), "Purchasing Authority",
+                getDtoValue(dto, "purchasingAuthority"), normalFont, tinyBold));
         document.add(mainGrid);
 
         // Store Details (9 Columns)
         PdfPTable storeTable = new PdfPTable(9);
         storeTable.setWidthPercentage(100);
-        storeTable.setWidths(new float[]{0.5f, 2f, 1f, 1f, 1f, 1f, 1f, 1f, 1f});
-        
-        addTableHeader(storeTable, new String[]{"Item No.", "Description", "Order Qty", "Prev Offd", "Prev Pass", "Now Offd", "Now Pass", "Now Rej", "Still Due"}, tinyBold);
-        
+        storeTable.setWidths(new float[] { 0.5f, 2f, 1f, 1f, 1f, 1f, 1f, 1f, 1f });
+
+        addTableHeader(storeTable, new String[] { "Item No.", "Description", "Order Qty", "Prev Offd", "Prev Pass",
+                "Now Offd", "Now Pass", "Now Rej", "Still Due" }, tinyBold);
+
         storeTable.addCell(createNestedCell(getDtoValue(dto, "itemNo"), smallFont));
         storeTable.addCell(createNestedCell(getDtoValue(dto, "description"), smallFont));
         storeTable.addCell(createNestedCell(getDtoValue(dto, "qtyOnOrder"), smallFont));
@@ -2091,7 +2238,8 @@ public class CertificateServiceImpl implements CertificateService {
         // Quantity in Words
         PdfPTable wordsTable = new PdfPTable(1);
         wordsTable.setWidthPercentage(100);
-        wordsTable.addCell(createLabelValueCell("QUANTITY NOW PASSED IN WORDS:", getDtoValue(dto, "quantityNowPassedText"), italicFont, tinyBold));
+        wordsTable.addCell(createLabelValueCell("QUANTITY NOW PASSED IN WORDS:",
+                getDtoValue(dto, "quantityNowPassedText"), italicFont, tinyBold));
         document.add(wordsTable);
 
         // Inspection Grid (5 Columns)
@@ -2100,18 +2248,21 @@ public class CertificateServiceImpl implements CertificateService {
         grid.addCell(createLabelValueCell("No. Checked", getDtoValue(dto, "noOfItemsChecked"), normalFont, tinyBold));
         grid.addCell(createLabelValueCell("Date of Call", getDtoValue(dto, "dateOfCall"), normalFont, tinyBold));
         grid.addCell(createLabelValueCell("No. of Visits", getDtoValue(dto, "noOfVisits"), normalFont, tinyBold));
-        grid.addCell(createLabelValueCell("Dates of Insp", getDtoValue(dto, "datesOfInspection"), normalFont, tinyBold));
+        grid.addCell(
+                createLabelValueCell("Dates of Insp", getDtoValue(dto, "datesOfInspection"), normalFont, tinyBold));
         grid.addCell(createLabelValueCell("TR Rec. Dt", getDtoValue(dto, "trRecDate"), normalFont, tinyBold));
         document.add(grid);
 
         // Signature
         PdfPTable sigRow = new PdfPTable(3);
         sigRow.addCell(createLabelValueCell("Seal Pattern", getDtoValue(dto, "sealingPattern"), normalFont, tinyBold));
-        sigRow.addCell(createLabelValueCell("Facsimile of seal", getDtoValue(dto, "facsimileText"), normalFont, tinyBold));
+        sigRow.addCell(
+                createLabelValueCell("Facsimile of seal", getDtoValue(dto, "facsimileText"), normalFont, tinyBold));
         sigRow.addCell(createSignatureCell("Inspecting Engineer", boldFont));
         document.add(sigRow);
 
-        document.add(createLabelValueCell("Reasons for Rejection", getDtoValue(dto, "reasonsForRejection"), normalFont, tinyBold));
+        document.add(createLabelValueCell("Reasons for Rejection", getDtoValue(dto, "reasonsForRejection"), normalFont,
+                tinyBold));
     }
 
     // --- HELPER METHODS ---
@@ -2134,7 +2285,8 @@ public class CertificateServiceImpl implements CertificateService {
         return wrap;
     }
 
-    private PdfPCell createThreeColRow(String l1, String v1, String l2, String v2, String l3, String v3, Font font, Font lFont) {
+    private PdfPCell createThreeColRow(String l1, String v1, String l2, String v2, String l3, String v3, Font font,
+            Font lFont) {
         PdfPTable table = new PdfPTable(3);
         table.setWidthPercentage(100);
         table.addCell(createLabelValueCell(l1, v1, font, lFont));
@@ -2166,7 +2318,8 @@ public class CertificateServiceImpl implements CertificateService {
         PdfPCell cell = new PdfPCell();
         cell.setHorizontalAlignment(Element.ALIGN_CENTER);
         cell.addElement(new Phrase(text, itFont));
-        cell.addElement(new Phrase("Distribution: Manufacturer Office copy, RITES Bill Copy, Contractor, Purchaser (Railway)", smFont));
+        cell.addElement(new Phrase(
+                "Distribution: Manufacturer Office copy, RITES Bill Copy, Contractor, Purchaser (Railway)", smFont));
         table.addCell(cell);
     }
 
@@ -2184,7 +2337,8 @@ public class CertificateServiceImpl implements CertificateService {
 
     private Object getDtoObject(Object dto, String fieldName) {
         try {
-            java.lang.reflect.Method method = dto.getClass().getMethod("get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1));
+            java.lang.reflect.Method method = dto.getClass()
+                    .getMethod("get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1));
             return method.invoke(dto);
         } catch (Exception e) {
             return null;
@@ -2193,7 +2347,8 @@ public class CertificateServiceImpl implements CertificateService {
 
     private String getDtoValue(Object dto, String fieldName) {
         try {
-            java.lang.reflect.Method method = dto.getClass().getMethod("get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1));
+            java.lang.reflect.Method method = dto.getClass()
+                    .getMethod("get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1));
             Object result = method.invoke(dto);
             return result != null ? result.toString() : "";
         } catch (Exception e) {
@@ -2202,23 +2357,22 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
-     * Extracts the internal IC Number (e.g., EP-01060001) from a decorated 
+     * Extracts the internal IC Number (e.g., EP-01060001) from a decorated
      * certificate number (e.g., W/EP-01060001/nitish).
      */
     private String extractIcNumber(String raw) {
-        if (raw == null || raw.isEmpty()) return "";
-        
+        if (raw == null || raw.isEmpty())
+            return "";
+
         // Regex to find the pattern: [ER/EP/EF]-[8 digits]
         Pattern pattern = Pattern.compile("(E[RPF]-\\d{8})");
         Matcher matcher = pattern.matcher(raw);
-        
+
         if (matcher.find()) {
             return matcher.group(1);
         }
-        
+
         // Fallback to original string if no pattern found (standard IC format)
         return raw;
     }
 }
-
-
