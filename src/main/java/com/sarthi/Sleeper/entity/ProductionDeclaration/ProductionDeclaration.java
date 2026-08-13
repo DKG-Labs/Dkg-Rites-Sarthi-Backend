@@ -32,6 +32,9 @@ public class ProductionDeclaration {
 
         private LocalTime lbcTime;
 
+        @Column(name = "po_no")
+        private String poNo;
+
         // SUMMARY FIELDS
 
         private Integer totalCastedSleepers;

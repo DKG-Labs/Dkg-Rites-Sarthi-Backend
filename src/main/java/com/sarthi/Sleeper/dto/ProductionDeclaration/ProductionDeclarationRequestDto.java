@@ -17,6 +17,7 @@ public class ProductionDeclarationRequestDto {
     private String mixDesignReference;
 
     private String lbcTime;
+    private String poNo;
 
     private Integer totalCastedSleepers;
     private Integer totalSleeperTypes;

@@ -63,6 +63,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         entity.setVendorCode(dto.getVendorCode());
 
         entity.setLbcTime(pTime);
+        entity.setPoNo(dto.getPoNo());
 
         entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
         entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
@@ -451,6 +452,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setMixDesignReference(dto.getMixDesignReference());
         entity.setLbcTime(CommonUtils.convertStringToTimeObject(dto.getLbcTime()));
+        entity.setPoNo(dto.getPoNo());
         entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
         entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
         entity.setTotalRft(dto.getTotalRft());
@@ -668,6 +670,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         response.setBatchNumber(entity.getBatchNumber());
         response.setMixDesignReference(entity.getMixDesignReference());
         response.setLbcTime(entity.getLbcTime());
+        response.setPoNo(entity.getPoNo());
 
         response.setVendorCode(entity.getVendorCode());
         response.setPlantId(entity.getPlantId());
@@ -908,6 +911,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
         response.setBatchNumber(entity.getBatchNumber());
         response.setMixDesignReference(entity.getMixDesignReference());
         response.setLbcTime(entity.getLbcTime());
+        response.setPoNo(entity.getPoNo());
         response.setVendorCode(entity.getVendorCode());
         response.setPlantId(entity.getPlantId());
         response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
@@ -966,6 +970,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
         response.setBatchNumber(entity.getBatchNumber());
         response.setMixDesignReference(entity.getMixDesignReference());
         response.setLbcTime(entity.getLbcTime());
+        response.setPoNo(entity.getPoNo());
         response.setVendorCode(entity.getVendorCode());
         response.setPlantId(entity.getPlantId());
         response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
