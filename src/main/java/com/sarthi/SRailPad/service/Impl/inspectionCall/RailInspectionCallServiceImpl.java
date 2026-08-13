@@ -238,11 +238,11 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         if (call.getRailPadType() == null || call.getRailPadType().isBlank() || "N/A".equalsIgnoreCase(call.getRailPadType())) {
             String drg = call.getDrawingNo();
             if (drg != null) {
-                if (drg.contains("888") || drg.contains("889") || drg.contains("701") || drg.contains("8779") || drg.contains("9774") || drg.contains("4218") || drg.contains("890")) {
+                if (drg.contains("888") || drg.contains("889") || drg.contains("701") || drg.contains("8779") || drg.contains("9774") || drg.contains("4218") || drg.contains("890") || drg.contains("6154")) {
                     call.setRailPadType("6.00mm NCRGRSP");
                 } else if (drg.contains("6618") || drg.contains("8327")) {
                     call.setRailPadType("6.20mm CGRSP");
-                } else if (drg.contains("8528") || drg.contains("8747")) {
+                } else if (drg.contains("8528") || drg.contains("8747") || drg.contains("8998") || drg.contains("8694")) {
                     call.setRailPadType("10.00mm CGRSP");
                 } else if (drg.contains("3703") || drg.contains("3711")) {
                     call.setRailPadType("6.00mm GRSP");
