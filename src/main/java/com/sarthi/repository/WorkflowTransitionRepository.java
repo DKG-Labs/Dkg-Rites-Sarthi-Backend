@@ -164,16 +164,18 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 FROM WorkflowTransition wt2
                 GROUP BY wt2.requestId
             )
-            AND wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+            AND (wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED') OR wt.status LIKE '%CANCEL%')
               AND (
                    (wt.requestId LIKE 'EP%' AND
                        (pm.ieUserId = :userId
                         OR wt.processIeUserId = :userId
-                        OR wt.modifiedBy = :userId)
+                        OR wt.modifiedBy = :userId
+                        OR wt.createdBy = :userId
+                        OR wt.assignedToUser = :userId)
                    )
                    OR
                    (wt.requestId NOT LIKE 'EP%'
-                        AND wt.modifiedBy = :userId
+                        AND (wt.modifiedBy = :userId OR wt.createdBy = :userId OR wt.assignedToUser = :userId)
                    )
               )
             """)
@@ -190,16 +192,18 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 FROM WorkflowTransition wt2
                 GROUP BY wt2.requestId
             )
-            AND wt.status = 'DSC_SIGN_IC'
+            AND (wt.status IN ('DSC_SIGN_IC', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED') OR wt.status LIKE '%CANCEL%')
               AND (
                    (wt.requestId LIKE 'EP%' AND
                        (pm.ieUserId = :userId
                         OR wt.processIeUserId = :userId
-                        OR wt.modifiedBy = :userId)
+                        OR wt.modifiedBy = :userId
+                        OR wt.createdBy = :userId
+                        OR wt.assignedToUser = :userId)
                    )
                    OR
                    (wt.requestId NOT LIKE 'EP%'
-                        AND wt.modifiedBy = :userId
+                        AND (wt.modifiedBy = :userId OR wt.createdBy = :userId OR wt.assignedToUser = :userId)
                    )
               )
             """)

@@ -48,7 +48,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
-    //  private final JavaMailSender mailSender;
+    private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     private final IePincodePoiMappingRepository iePincodePoiMappingRepository;
     private final PoiProcessIeMappingRepository poiProcessIeMappingRepository;
@@ -68,50 +68,9 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final RailPoiIeMappingRepository railPoiIeMappingRepository;
 
-    // @Value("${spring.mail.username}")
+    @Value("${spring.mail.username:sarthi.qa@rites.com}")
     private String senderMail;
 
-    //feedback notification
-   /* @Override
-    @Async
-    public void sendEmail(
-            String to,
-            String subject,
-            String templateName,
-            Map<String, Object> variables) {
-
-        try {
-
-            Context context = new Context();
-            context.setVariables(variables);
-
-            String htmlContent =
-                    templateEngine.process(templateName, context);
-
-            MimeMessage message =
-                    mailSender.createMimeMessage();
-
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setFrom(senderMail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlContent, true);
-
-            mailSender.send(message);
-
-            log.info("Mail sent successfully to {}", to);
-
-        } catch (MessagingException e) {
-
-            log.error(
-                    "Failed to send mail to {} : {}",
-                    to,
-                    e.getMessage(),
-                    e);
-        }
-    }*/
     @Override
     @Async
     public void sendEmail(
@@ -128,22 +87,22 @@ public class NotificationServiceImpl implements NotificationService {
             String html =
                     templateEngine.process(templateName, context);
 
-            //  MimeMessage message = mailSender.createMimeMessage();
+            MimeMessage message = mailSender.createMimeMessage();
 
-            //   MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            //  helper.setFrom(senderMail);
-            // helper.setTo(to);
-            //  helper.setSubject(subject);
-            //  helper.setText(html, true);
+            helper.setFrom(senderMail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(html, true);
 
-            // mailSender.send(message);
+            mailSender.send(message);
 
             log.info("Mail sent successfully to {}", to);
 
         } catch (Exception ex) {
 
-            log.error("Mail sending failed", ex);
+            log.error("Mail sending failed to {}: {}", to, ex.getMessage(), ex);
 
             // Save only failed mail
             saveFailedNotification(

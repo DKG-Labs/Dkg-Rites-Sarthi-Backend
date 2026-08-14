@@ -133,6 +133,11 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private CallCancellationDetailRepository callCancellationDetailRepository;
+    @Autowired
+    private VendorFinancialLiabilityRepository vendorFinancialLiabilityRepository;
+
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
 
@@ -1111,20 +1116,61 @@ public class WorkflowServiceImpl implements WorkflowService {
             if (req.getAction().equalsIgnoreCase("VERIFY_MATERIAL_AVAILABILITY")
                     && "NO".equalsIgnoreCase(req.getMaterialAvailable())) {
 
-                String paymentType = "PAYABLE";
-                boolean paymentDone = true;
-
-                if (paymentType.equalsIgnoreCase("NON_PAYABLE")) {
-                    next.setStatus("CANCELLED");
+                next.setStatus("CANCELLED");
+                next.setJobStatus("CANCELLED");
+                if (req.getRemarks() != null && !req.getRemarks().isEmpty()) {
+                    next.setRemarks(req.getRemarks());
+                } else {
                     next.setRemarks("Cancelled - Material Not Available");
                 }
-                else if (!paymentDone) {
-                    next.setStatus("BLOCKED");
-                    next.setRemarks("Blocked - Payment Pending + No Material");
-                }
-                else {
-                    next.setStatus("CANCELLED");
-                    next.setRemarks("Cancelled - Payment Done + No Material");
+
+                // SRS Call Cancellation Processing
+                try {
+                    String dynamicVendorCode = req.getVendorCode();
+                    if (dynamicVendorCode == null || dynamicVendorCode.isEmpty()) {
+                        dynamicVendorCode = im != null && im.getVendorId() != null ? im.getVendorId() : "";
+                    }
+
+                    String creatorId = req.getActionBy() != null ? String.valueOf(req.getActionBy()) :
+                                      (req.getUpdatedBy() != null ? req.getUpdatedBy() : null);
+
+                    CallCancellationDetail cancellationDetail = new CallCancellationDetail();
+                    cancellationDetail.setCallNumber(req.getRequestId());
+                    cancellationDetail.setVendorCode(dynamicVendorCode);
+                    cancellationDetail.setCancellationBasis(req.getCancellationBasis() != null ? req.getCancellationBasis() : "NON_CHARGEABLE");
+                    cancellationDetail.setVisitStatus(req.getVisitStatus());
+                    cancellationDetail.setReasons(req.getCancellationReasons() != null ? String.join("; ", req.getCancellationReasons()) : req.getRemarks());
+                    cancellationDetail.setCancellationDescription(req.getCancellationDescription());
+                    cancellationDetail.setMaterialValue(req.getMaterialValue());
+                    cancellationDetail.setPercentage(req.getCancellationPercentage());
+                    cancellationDetail.setCalculatedCharges(req.getCalculatedCharges());
+                    cancellationDetail.setMaximumCap(req.getMaximumCap());
+                    cancellationDetail.setFinalCancellationCharges(req.getFinalCancellationCharges() != null ? req.getFinalCancellationCharges() : BigDecimal.ZERO);
+                    cancellationDetail.setDocumentName(req.getDocumentName());
+                    cancellationDetail.setActionBy(req.getActionBy() != null ? req.getActionBy().longValue() : 0L);
+                    cancellationDetail.setCreatedBy(creatorId);
+                    cancellationDetail.setUpdatedBy(creatorId);
+
+                    callCancellationDetailRepository.save(cancellationDetail);
+
+                    // If CHARGEABLE and final cancellation charges > 0, record vendor financial liability
+                    if ("CHARGEABLE".equalsIgnoreCase(req.getCancellationBasis()) && 
+                        req.getFinalCancellationCharges() != null && 
+                        req.getFinalCancellationCharges().compareTo(BigDecimal.ZERO) > 0) {
+
+                        VendorFinancialLiability liability = new VendorFinancialLiability();
+                        liability.setCallNumber(req.getRequestId());
+                        liability.setVendorCode(dynamicVendorCode);
+                        liability.setLiabilityType("CANCELLATION_CHARGES");
+                        liability.setAmount(req.getFinalCancellationCharges());
+                        liability.setPaymentStatus("PENDING");
+                        liability.setCreatedBy(creatorId);
+                        liability.setUpdatedBy(creatorId);
+
+                        vendorFinancialLiabilityRepository.save(liability);
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to persist CallCancellationDetail / VendorFinancialLiability: ", ex);
                 }
             }
             if (req.getAction().equalsIgnoreCase("ENTRY_INSPECTION_RESULTS")
@@ -3963,6 +4009,11 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         Map<String, InspectionDataDto> icMap = inspectionCallRepository.findLiteByIcNumberIn(requestIds).stream()
                 .collect(Collectors.toMap(InspectionDataDto::icNumber, Function.identity(), (a, b) -> a));
 
+        List<String> missingRequestIds = requestIds.stream().filter(id -> !icMap.containsKey(id)).toList();
+        Map<String, InspectionCall> fallbackIcMap = missingRequestIds.isEmpty() ? Collections.emptyMap() :
+                inspectionCallRepository.findByIcNumberIn(missingRequestIds).stream()
+                        .collect(Collectors.toMap(InspectionCall::getIcNumber, Function.identity(), (a, b) -> a));
+
         List<String> poNos = icMap.values().stream()
                 .map(InspectionDataDto::poNo)
                 .filter(Objects::nonNull)
@@ -4022,6 +4073,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
             dto.setProcessIeUserId(wt.getProcessIeUserId());
             dto.setCreatedDate(wt.getCreatedDate());
             dto.setWorkflowSequence(wt.getWorkflowSequence());
+            dto.setRio(wt.getRio());
 
             InspectionDataDto ic = icMap.get(wt.getRequestId());
             if (ic != null) {
@@ -4061,6 +4113,15 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                                 .findFirst();
                         mapping.ifPresent(m -> dto.setRio(m.getRio()));
                     }
+                }
+            } else {
+                InspectionCall fallbackIc = fallbackIcMap.get(wt.getRequestId());
+                if (fallbackIc != null) {
+                    dto.setPoNo(fallbackIc.getPoNo());
+                    dto.setVendorName(fallbackIc.getCompanyName() != null ? fallbackIc.getCompanyName() : fallbackIc.getVendorId());
+                    String type = fallbackIc.getTypeOfCall();
+                    dto.setProductType(type != null ? (type.startsWith("ERC-") ? type : "ERC-" + type) : "ERC-Raw Material");
+                    dto.setStage(type);
                 }
             }
 
