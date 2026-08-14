@@ -53,6 +53,19 @@ public class TransitionActionReqDto {
     private BigDecimal rejectedQty;
 
     private java.time.LocalDate dateOfInspection;
+
+    // SRS Call Cancellation Fields
+    private String cancellationBasis;           // CHARGEABLE / NON_CHARGEABLE
+    private String visitStatus;                 // BEFORE_VISIT / AFTER_VISIT
+    private java.util.List<String> cancellationReasons;
+    private String cancellationDescription;
+    private BigDecimal materialValue;
+    private BigDecimal cancellationPercentage;
+    private BigDecimal calculatedCharges;
+    private BigDecimal maximumCap;
+    private BigDecimal finalCancellationCharges;
+    private String documentName;
+    private String vendorCode;
 }
 
 
