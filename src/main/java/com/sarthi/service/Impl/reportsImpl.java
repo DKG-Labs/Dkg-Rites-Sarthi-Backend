@@ -38,6 +38,7 @@ import com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionLotRepository;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailIEProductionVerificationRepository;
+import com.sarthi.util.CommonUtils;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailFinalInspectionLotResultsRepository;
 
@@ -3613,11 +3614,10 @@ public class reportsImpl implements reports {
 
                 List<StageRejectionDto> breakdown = new ArrayList<>();
 
-                // LocalDateTime last30Days = LocalDateTime.now().minusDays(30);
-                LocalDateTime fromDate = LocalDate.parse(startDate).atStartOfDay();
-                LocalDateTime toDate = LocalDate.parse(endDate).atTime(23, 59, 59);
-                // List<Object[]> results =
-                // processLineFinalResultRepository.sumStepWiseRejectionLast30Days(last30Days);
+                LocalDate sDate = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusDays(30));
+                LocalDate eDate = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
+                LocalDateTime fromDate = sDate.atStartOfDay();
+                LocalDateTime toDate = eDate.atTime(23, 59, 59);
                 List<Object[]> results = processLineFinalResultRepository.sumStepWiseRejection(fromDate, toDate);
                 if (results != null && !results.isEmpty()) {
 
@@ -3804,9 +3804,10 @@ public class reportsImpl implements reports {
                                 if (paretoAnalysisCache == null
                                                 || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
 
-                                        LocalDateTime lStart = LocalDate.parse(startDate).atStartOfDay();
-
-                                        LocalDateTime lEnd = LocalDate.parse(endDate).atTime(23, 59, 59);
+                                        LocalDate sDate = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusDays(30));
+                                        LocalDate eDate = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
+                                        LocalDateTime lStart = sDate.atStartOfDay();
+                                        LocalDateTime lEnd = eDate.atTime(23, 59, 59);
 
                                         List<Object[]> rows = processLineFinalResultRepository
                                                         .getParetoAnalysisRejections(lStart, lEnd);

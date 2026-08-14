@@ -21,6 +21,7 @@ import com.sarthi.dto.reports.IeOperationalSlaPerformanceSummaryDto;
 import com.sarthi.dto.reports.IeWiseCallStatusWorkloadSummaryDto;
 import com.sarthi.dto.reports.InspectionCallsReportDto;
 import com.sarthi.dto.reports.PSCSleeperQualityReportDto;
+import com.sarthi.util.CommonUtils;
 import jakarta.persistence.Access;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -127,11 +128,10 @@ public class DashboardServiceImpl implements DashboardService {
     public List<MonthlyAnalysisDto> getMonthlyAnalysis(String startDate, String endDate) {
 
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-
-        LocalDateTime start = LocalDate.parse(startDate, formatter).atStartOfDay();
-        LocalDateTime end = LocalDate.parse(endDate, formatter).atTime(23, 59, 59);
+        LocalDate sDate = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate eDate = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
+        LocalDateTime start = sDate.atStartOfDay();
+        LocalDateTime end = eDate.atTime(23, 59, 59);
 
 
         List<Object[]> prodList = productionDeclarationRepository.getProduction(start, end);
@@ -232,14 +232,10 @@ public class DashboardServiceImpl implements DashboardService {
             String startDate,
             String endDate) {
 
-        DateTimeFormatter formatter =
-                DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        LocalDateTime start =
-                LocalDate.parse(startDate, formatter).atStartOfDay();
-
-        LocalDateTime end =
-                LocalDate.parse(endDate, formatter).atTime(23,59,59);
+        LocalDate sDate = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate eDate = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
+        LocalDateTime start = sDate.atStartOfDay();
+        LocalDateTime end = eDate.atTime(23, 59, 59);
 
         List<Object[]> rows =
                 productionDeclarationRepository.getPoWiseAnalysis(
