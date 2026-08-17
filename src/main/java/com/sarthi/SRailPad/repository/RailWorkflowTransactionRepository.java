@@ -523,4 +523,55 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
         @Param("startDate") java.time.LocalDateTime startDate,
         @Param("endDate") java.time.LocalDateTime endDate
     );
+
+    @Query(value = """
+            SELECT DISTINCT
+                COALESCE(vm.vendor_name, ic.vendor_code, '') AS vendorName,
+                COALESCE(ph.rly_short_name, '') AS railwayShortName,
+                SUBSTRING_INDEX(ic.po_no, '/', 1) AS poNumberOnly,
+                CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1) ELSE COALESCE(ic.po_sr, '') END AS poSerialNumber,
+                ic.call_no AS callNumber,
+                COALESCE(ricd.certificate_no, ic.call_no) AS icNumber,
+                CASE
+                    WHEN rwt.request_id LIKE 'RPP%' THEN 'Process'
+                    WHEN rwt.request_id LIKE 'RPF%' THEN 'Final'
+                    WHEN rwt.request_id LIKE 'RPRM%' THEN 'RM'
+                    ELSE 'Process'
+                END AS stage,
+                DATE_FORMAT(rwt.created_date, '%Y-%m-%d') AS icIssuedDate,
+                COALESCE(ph.item_cat_descr, 'Rail Pad') AS itemCatDescr,
+                rwt.created_date AS rawCreatedDate
+            FROM rail_workflow_transaction rwt
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction
+                WHERE workflow_id = 2
+                  AND action = 'IC_GENERATION'
+                GROUP BY request_id
+            ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
+            INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+            LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN vendor_master vm ON ic.vendor_code COLLATE utf8mb4_unicode_ci = vm.vendor_code COLLATE utf8mb4_unicode_ci
+            LEFT JOIN rail_inspection_complete_details ricd ON ic.call_no COLLATE utf8mb4_unicode_ci = ricd.call_no COLLATE utf8mb4_unicode_ci
+            WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+                   rwt.plant_id = :vendorPlantCode OR
+                   CONCAT(':', rwt.plant_id) = :vendorPlantCode OR
+                   rwt.plant_id = REPLACE(:vendorPlantCode, ':', '') OR
+                   rwt.vendor_code = :vendorPlantCode OR
+                   CONCAT(':', rwt.vendor_code) = :vendorPlantCode OR
+                   rwt.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR
+                   CONCAT(':', rwt.vendor_code) = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR
+                   rwt.vendor_code = REPLACE(SUBSTRING_INDEX(:vendorPlantCode, '/', 1), ':', '') OR
+                   rwt.poi_code = :vendorPlantCode
+            )
+            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+            AND (:startDate IS NULL OR DATE(rwt.created_date) >= :startDate)
+            AND (:endDate IS NULL OR DATE(rwt.created_date) <= :endDate)
+            ORDER BY rawCreatedDate DESC
+            """, nativeQuery = true)
+    List<Object[]> findRailPadDownloadIcAnnexuresReportRaw(
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway,
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate);
 }

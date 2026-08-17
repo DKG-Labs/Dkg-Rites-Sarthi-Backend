@@ -38,11 +38,12 @@ public class ProcessIeQtyController {
         public ResponseEntity<Object> getTotalManufaturedQty(
                         @PathVariable String heatNo,
                         @PathVariable String poNo,
-                        @org.springframework.web.bind.annotation.RequestParam(required = false) String callNo) {
+                        @org.springframework.web.bind.annotation.RequestParam(required = false) String callNo,
+                        @org.springframework.web.bind.annotation.RequestParam(required = false) String vendorCode) {
 
                 return new ResponseEntity<>(
                                 ResponseBuilder.getSuccessResponse(
-                                                processIeQtyService.getTotalManufaturedQtyPo(heatNo, poNo, callNo)),
+                                                processIeQtyService.getTotalManufaturedQtyPo(heatNo, poNo, callNo, vendorCode)),
                                 HttpStatus.OK);
         }
 

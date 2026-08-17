@@ -1610,8 +1610,7 @@ public class CertificateServiceImpl implements CertificateService {
 
         Integer totalErcUsed = finalInspectionLotResultsRepository.sumErcUsedForTestingByInspectionCallNo(inspectionCall.getIcNumber());
         int ercUsed = totalErcUsed != null ? totalErcUsed : 0;
-        int qtyStillDue = qtyOnOrder - (int) passedPrev - (qtyNowPassed - ercUsed);
-        qtyStillDue = Math.max(0, qtyStillDue);
+        int qtyStillDue = Math.max(0, qtyOnOrder - (int) passedPrev - qtyNowPassed);
 
         long start = System.currentTimeMillis();
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
