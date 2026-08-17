@@ -629,10 +629,10 @@ public class BatchWeighmentServiceImpl implements BatchWeighmentService {
         LocalDateTime endOfDay;
 
         // DB stores LocalDateTime.now() in UTC (serverTimezone=UTC)
-        // Shift C IST: 10 PM → 6 AM next day = UTC 16:30 → 00:30 next day
+        // Shift C IST: 10 PM → 9 AM next day = UTC 16:30 → 03:30 next day
         if ("C".equalsIgnoreCase(shift)) {
             startOfDay = selectedDate.atTime(16, 30, 0);
-            endOfDay = selectedDate.plusDays(1).atTime(0, 30, 0);
+            endOfDay = selectedDate.plusDays(1).atTime(3, 30, 0);
         } else {
             startOfDay = selectedDate.atStartOfDay();
             endOfDay = selectedDate.atTime(23, 59, 59);
