@@ -17,6 +17,8 @@ public interface ProcessIeQtyService {
 
     public TotalManufaturedQtyOfPoDto getTotalManufaturedQtyPo(String heatNo, String poNo, String callNo);
 
+    public TotalManufaturedQtyOfPoDto getTotalManufaturedQtyPo(String heatNo, String poNo, String callNo, String vendorCode);
+
     int getAcceptedQtyForLot(String requestId, String lotNumber, String heatNo);
 
 }

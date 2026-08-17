@@ -96,4 +96,76 @@ public class RailPoSummaryDto {
      * call raising)
      */
     private String drawingNo;
+
+    public String getRlyPoNo() { return rlyPoNo; }
+    public void setRlyPoNo(String rlyPoNo) { this.rlyPoNo = rlyPoNo; }
+
+    public String getRlyShortName() { return rlyShortName; }
+    public void setRlyShortName(String rlyShortName) { this.rlyShortName = rlyShortName; }
+
+    public String getPoNo() { return poNo; }
+    public void setPoNo(String poNo) { this.poNo = poNo; }
+
+    public String getPoDate() { return poDate; }
+    public void setPoDate(String poDate) { this.poDate = poDate; }
+
+    public Integer getPoQty() { return poQty; }
+    public void setPoQty(Integer poQty) { this.poQty = poQty; }
+
+    public String getVendorName() { return vendorName; }
+    public void setVendorName(String vendorName) { this.vendorName = vendorName; }
+
+    public String getScrCode() { return scrCode; }
+    public void setScrCode(String scrCode) { this.scrCode = scrCode; }
+
+    public String getVendorCode() { return vendorCode; }
+    public void setVendorCode(String vendorCode) { this.vendorCode = vendorCode; }
+
+    public String getMaNo() { return maNo; }
+    public void setMaNo(String maNo) { this.maNo = maNo; }
+
+    public String getMaDate() { return maDate; }
+    public void setMaDate(String maDate) { this.maDate = maDate; }
+
+    public String getPurchasingAuthority() { return purchasingAuthority; }
+    public void setPurchasingAuthority(String purchasingAuthority) { this.purchasingAuthority = purchasingAuthority; }
+
+    public String getBillPayingOfficer() { return billPayingOfficer; }
+    public void setBillPayingOfficer(String billPayingOfficer) { this.billPayingOfficer = billPayingOfficer; }
+
+    public String getRlyPoNoSerial() { return rlyPoNoSerial; }
+    public void setRlyPoNoSerial(String rlyPoNoSerial) { this.rlyPoNoSerial = rlyPoNoSerial; }
+
+    public String getItemDesc() { return itemDesc; }
+    public void setItemDesc(String itemDesc) { this.itemDesc = itemDesc; }
+
+    public String getPoSerialNo() { return poSerialNo; }
+    public void setPoSerialNo(String poSerialNo) { this.poSerialNo = poSerialNo; }
+
+    public Integer getPoSrQty() { return poSrQty; }
+    public void setPoSrQty(Integer poSrQty) { this.poSrQty = poSrQty; }
+
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
+
+    public String getConsignee() { return consignee; }
+    public void setConsignee(String consignee) { this.consignee = consignee; }
+
+    public String getOrigDp() { return origDp; }
+    public void setOrigDp(String origDp) { this.origDp = origDp; }
+
+    public String getExtDp() { return extDp; }
+    public void setExtDp(String extDp) { this.extDp = extDp; }
+
+    public String getPlaceOfInspection() { return placeOfInspection; }
+    public void setPlaceOfInspection(String placeOfInspection) { this.placeOfInspection = placeOfInspection; }
+
+    public String getErcType() { return ercType; }
+    public void setErcType(String ercType) { this.ercType = ercType; }
+
+    public Integer getTotalOfferedQty() { return totalOfferedQty; }
+    public void setTotalOfferedQty(Integer totalOfferedQty) { this.totalOfferedQty = totalOfferedQty; }
+
+    public String getDrawingNo() { return drawingNo; }
+    public void setDrawingNo(String drawingNo) { this.drawingNo = drawingNo; }
 }

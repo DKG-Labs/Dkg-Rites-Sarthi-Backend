@@ -4,6 +4,7 @@ import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.InspectionQtySummaryResponse;
 import com.sarthi.dto.InspectionQtySummaryView;
 import com.sarthi.dto.TotalManufaturedQtyOfPoDto;
+import com.sarthi.entity.RmHeatFinalResult;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
@@ -186,18 +187,37 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
 
         @Override
         public TotalManufaturedQtyOfPoDto getTotalManufaturedQtyPo(String heatNo, String poSerialNo) {
-                return getTotalManufaturedQtyPo(heatNo, poSerialNo, null);
+                return getTotalManufaturedQtyPo(heatNo, poSerialNo, null, null);
         }
 
         @Override
         public TotalManufaturedQtyOfPoDto getTotalManufaturedQtyPo(String heatNo, String poSerialNo, String callNo) {
+                return getTotalManufaturedQtyPo(heatNo, poSerialNo, callNo, null);
+        }
+
+        @Override
+        public TotalManufaturedQtyOfPoDto getTotalManufaturedQtyPo(String heatNo, String poSerialNo, String callNo, String vendorCode) {
                 String lookupCallNo = (callNo != null && !callNo.isBlank()) ? callNo.trim() : null;
 
                 // If callNo was not passed explicitly, check if poSerialNo is an inspection call number
                 if (lookupCallNo == null && poSerialNo != null) {
                         if (poSerialNo.startsWith("E") || poSerialNo.startsWith("W/") || poSerialNo.startsWith("N/") 
-                                        || poSerialNo.startsWith("S/") || poSerialNo.startsWith("C/") || poSerialNo.contains("-")) {
+                                        || poSerialNo.startsWith("S/") || poSerialNo.startsWith("C/") || (poSerialNo.contains("-") && poSerialNo.contains("/"))) {
                                 lookupCallNo = poSerialNo.trim();
+                        }
+                }
+
+                // 1. Gather candidates for the specific RM IC Number
+                List<String> rmCallCandidates = new java.util.ArrayList<>();
+                if (lookupCallNo != null) {
+                        rmCallCandidates.add(lookupCallNo);
+                        if (lookupCallNo.contains("/")) {
+                                String[] parts = lookupCallNo.split("/");
+                                for (String part : parts) {
+                                        if (part.contains("-")) {
+                                                rmCallCandidates.add(part.trim());
+                                        }
+                                }
                         }
                 }
 
@@ -205,72 +225,75 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                 if (lookupCallNo != null) {
                         ic = inspectionCallRepository.findByIcNumber(lookupCallNo).orElse(null);
                         if (ic == null && lookupCallNo.contains("/")) {
-                                // Try extracting middle part if it's like W/ER-0723260007/KPSH
-                                String[] parts = lookupCallNo.split("/");
-                                for (String part : parts) {
-                                        if (part.contains("-")) {
-                                                ic = inspectionCallRepository.findByIcNumber(part.trim()).orElse(null);
-                                                if (ic != null) break;
-                                        }
+                                for (String cand : rmCallCandidates) {
+                                        ic = inspectionCallRepository.findByIcNumber(cand).orElse(null);
+                                        if (ic != null) break;
                                 }
                         }
                 }
-
-                List<String> callNos;
-                if (ic != null) {
-                        String companyName = ic.getCompanyName();
-                        String vendorId = ic.getVendorId();
-                        String poNo = ic.getPoNo();
-                        String serial = ic.getPoSerialNo();
-                        if (serial != null && serial.contains("/")) {
-                                serial = serial.substring(serial.lastIndexOf("/") + 1).trim();
-                        } else if (serial == null || serial.isBlank()) {
-                                serial = (poSerialNo != null && !poSerialNo.contains("-") && !poSerialNo.contains("/")) 
-                                                ? poSerialNo.trim() : null;
-                        }
-
-                        callNos = inspectionCallRepository.findCallNumbersByVendorAndPoAndSerial(
-                                        companyName, vendorId, poNo, serial);
-
-                        if (callNos == null || callNos.isEmpty()) {
-                                callNos = new java.util.ArrayList<>();
-                                if (ic.getIcNumber() != null) {
-                                        callNos.add(ic.getIcNumber());
-                                }
-                        }
-                } else {
-                        callNos = inspectionCallRepository.findCallNumbersByPoNo(poSerialNo);
+                if (ic != null && ic.getIcNumber() != null && !rmCallCandidates.contains(ic.getIcNumber())) {
+                        rmCallCandidates.add(ic.getIcNumber());
                 }
 
-                TotalManufaturedQtyOfPoDto dto = processIeQtyRepository.sumProcessQty(callNos, heatNo);
+                // 2. Fetch RM accepted weights strictly from the specific RM IC
+                BigDecimal rmAcceptedQty = BigDecimal.ZERO;
+                BigDecimal weightAcceptedMt = BigDecimal.ZERO;
+                String sealingType = null;
+                String steelStampNumber = null;
+                String hologramDetails = null;
 
-                BigDecimal rmAcceptedQty = rmHeatFinalResultRepository.sumRmAcceptedQty(callNos, heatNo);
+                if (!rmCallCandidates.isEmpty()) {
+                        List<RmHeatFinalResult> exactRmResults = rmHeatFinalResultRepository
+                                        .findByInspectionCallNoInAndHeatNo(rmCallCandidates, heatNo);
+                        if (!exactRmResults.isEmpty()) {
+                                RmHeatFinalResult exactResult = exactRmResults.get(0);
+                                weightAcceptedMt = exactResult.getWeightAcceptedMt() != null ? exactResult.getWeightAcceptedMt() : BigDecimal.ZERO;
+                                rmAcceptedQty = exactResult.getAcceptedQtyMt() != null ? exactResult.getAcceptedQtyMt() : BigDecimal.ZERO;
+                                if (rmAcceptedQty.compareTo(BigDecimal.ZERO) == 0 && weightAcceptedMt.compareTo(BigDecimal.ZERO) > 0) {
+                                        rmAcceptedQty = weightAcceptedMt.multiply(new BigDecimal("1000")).divide(new BigDecimal("1.133"), 0, java.math.RoundingMode.HALF_UP);
+                                }
+                                sealingType = exactResult.getSealingType();
+                                steelStampNumber = exactResult.getSteelStampNumber();
+                                hologramDetails = exactResult.getHologramDetails();
+                        }
+                }
 
-                BigDecimal weightAcceptedMt = rmHeatFinalResultRepository.sumWeightAcceptedMt(callNos, heatNo);
+                // 3. Process inspection calls for "manufactured" and "offered earlier" under this PO scoped by vendor
+                List<String> processCallNos = new java.util.ArrayList<>();
+                if (poSerialNo != null && !poSerialNo.isBlank()) {
+                        List<String> poCalls = (vendorCode != null && !vendorCode.isBlank())
+                                        ? inspectionCallRepository.findCallNumbersByVendorAndPo(vendorCode.trim(), poSerialNo.trim())
+                                        : inspectionCallRepository.findCallNumbersByPoNo(poSerialNo.trim());
+                        if (poCalls != null) {
+                                processCallNos.addAll(poCalls);
+                        }
+                }
 
-                // Calculate "Offered Earlier" - total offered quantity across all process ICs
-                // for this heat and PO
-                Integer offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByCallNosAndHeatNo(callNos,
-                                heatNo);
+                TotalManufaturedQtyOfPoDto dto = !processCallNos.isEmpty() 
+                                ? processIeQtyRepository.sumProcessQty(processCallNos, heatNo) 
+                                : new TotalManufaturedQtyOfPoDto();
+                if (dto == null) {
+                        dto = new TotalManufaturedQtyOfPoDto();
+                }
+
+                // Fallback for RM accepted quantity only if no specific RM candidate was found and processCallNos is available
+                if (weightAcceptedMt.compareTo(BigDecimal.ZERO) == 0 && !processCallNos.isEmpty()) {
+                        rmAcceptedQty = rmHeatFinalResultRepository.sumRmAcceptedQty(processCallNos, heatNo);
+                        weightAcceptedMt = rmHeatFinalResultRepository.sumWeightAcceptedMt(processCallNos, heatNo);
+                }
+
+                Integer offeredEarlier = !processCallNos.isEmpty()
+                                ? processInspectionDetailsRepository.sumOfferedQtyByCallNosAndHeatNo(processCallNos, heatNo)
+                                : 0;
 
                 dto.setRmAcceptedQty(rmAcceptedQty);
                 dto.setHeatNo(heatNo);
                 dto.setWeightAcceptedMt(weightAcceptedMt);
                 dto.setOfferedEarlier(offeredEarlier != null ? offeredEarlier : 0);
 
-                // Fetch sealing info from RM inspection results
-                List<com.sarthi.entity.RmHeatFinalResult> rmResults = rmHeatFinalResultRepository
-                                .findByInspectionCallNoInAndHeatNo(callNos, heatNo);
-                if (!rmResults.isEmpty()) {
-                        rmResults.stream()
-                                        .filter(r -> r.getSealingType() != null)
-                                        .findFirst()
-                                        .ifPresent(latest -> {
-                                                dto.setSealingType(latest.getSealingType());
-                                                dto.setSteelStampNumber(latest.getSteelStampNumber());
-                                                dto.setHologramDetails(latest.getHologramDetails());
-                                        });
-                }
+                if (sealingType != null) dto.setSealingType(sealingType);
+                if (steelStampNumber != null) dto.setSteelStampNumber(steelStampNumber);
+                if (hologramDetails != null) dto.setHologramDetails(hologramDetails);
 
                 return dto;
         }

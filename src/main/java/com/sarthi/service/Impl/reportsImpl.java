@@ -108,11 +108,9 @@ public class reportsImpl implements reports {
         private ProcessIeQtyRepository processIeQtyRepository;
 
         @Autowired
-
         private WorkflowTransitionRepository workflowTransitionRepository;
 
         @Autowired
-
         private InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
 
         @Autowired
@@ -6366,15 +6364,22 @@ public class reportsImpl implements reports {
         public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product,
                         String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate,
                         java.time.LocalDate endDate) {
-                List<Object[]> rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(vendorPlantCode,
-                                zonalRailway, startDate, endDate);
-                List<com.sarthi.dto.reports.IcAnnexuresReportDto> resultList = new java.util.ArrayList<>();
+                String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
+                boolean isRailPad = filterProduct.contains("pad") || "rail pad".equals(filterProduct) || "railpad".equals(filterProduct);
 
+                List<Object[]> rawList;
+                if (isRailPad) {
+                        rawList = railWorkflowTransactionRepository.findRailPadDownloadIcAnnexuresReportRaw(
+                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                } else {
+                        rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(
+                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                }
+
+                List<com.sarthi.dto.reports.IcAnnexuresReportDto> resultList = new java.util.ArrayList<>();
                 if (rawList == null) {
                         return resultList;
                 }
-
-                String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
 
                 for (Object[] row : rawList) {
                         String itemCatDescr = row[8] != null ? row[8].toString() : "";
@@ -6392,14 +6397,10 @@ public class reportsImpl implements reports {
                                         .itemCatDescr(itemCatDescr)
                                         .build();
 
-                        if (!filterProduct.isEmpty()) {
+                        if (!filterProduct.isEmpty() && !isRailPad) {
                                 String catLower = itemCatDescr.toLowerCase();
                                 if (filterProduct.contains("sleeper") || "sleeper".equals(filterProduct)) {
                                         if (catLower.contains("sleeper")) {
-                                                resultList.add(dto);
-                                        }
-                                } else if (filterProduct.contains("pad") || "rail pad".equals(filterProduct)) {
-                                        if (catLower.contains("pad")) {
                                                 resultList.add(dto);
                                         }
                                 } else if (filterProduct.contains("erc") || "erc".equals(filterProduct)) {
