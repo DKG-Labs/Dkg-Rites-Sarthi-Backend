@@ -242,6 +242,24 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
             """, nativeQuery = true)
     ProductionDeclaration findByBatchNumber(@Param("batchNo") String batchNo);
 
+    @Query(value = """
+            SELECT p.*
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.batch_number = :batchNo
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            """, nativeQuery = true)
+    List<ProductionDeclaration> findAllByBatchNumber(@Param("batchNo") String batchNo);
+
+
 
     @Query(value = """
             SELECT DISTINCT b.bench_no AS value, NULL AS gang_from, NULL AS gang_to
@@ -371,6 +389,25 @@ WHERE d.batch_number = :batchNo
             LIMIT 1
             """, nativeQuery = true)
     ProductionDeclaration findByBatchNumberAndProductionUnit(@Param("batchNo") String batchNo, @Param("productionUnit") String productionUnit);
+
+    @Query(value = """
+            SELECT p.*
+            FROM production_declaration p
+            JOIN sleeper_workflow_transaction w 
+              ON w.request_id = p.id
+            WHERE p.batch_number = :batchNo
+              AND p.production_unit = :productionUnit
+              AND w.module_id = 11
+              AND LOWER(w.status) = 'completed'
+              AND w.workflow_transition_id = (
+                  SELECT MAX(w2.workflow_transition_id)
+                  FROM sleeper_workflow_transaction w2
+                  WHERE w2.request_id = p.id
+                    AND w2.module_id = 11
+              )
+            """, nativeQuery = true)
+    List<ProductionDeclaration> findAllByBatchNumberAndProductionUnit(@Param("batchNo") String batchNo, @Param("productionUnit") String productionUnit);
+
 
     @Query(value = """
                 SELECT pd.* FROM production_declaration pd
