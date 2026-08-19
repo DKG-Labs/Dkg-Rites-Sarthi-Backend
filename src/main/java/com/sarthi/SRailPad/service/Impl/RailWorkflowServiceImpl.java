@@ -1797,15 +1797,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 String existingPlant = m.getPlantId() != null ? m.getPlantId().trim().replace(":", "") : "";
                 boolean existingIsProcess = m.getIeType() != null && m.getIeType().toUpperCase().contains("PROCESS");
 
-                if (existingIsProcess == isProcessIe) {
-                    if (existingPlant.equalsIgnoreCase(cleanReqPlantId)) {
-                        throw new RuntimeException("This IE user is already mapped to this Plant ID");
+                if (existingIsProcess == isProcessIe && existingPlant.equalsIgnoreCase(cleanReqPlantId)) {
+                    if (poiCodeToSave != null && !poiCodeToSave.isEmpty() && !poiCodeToSave.equalsIgnoreCase(m.getPoiCode())) {
+                        m.setPoiCode(poiCodeToSave);
+                        poiIeMappingRepository.save(m);
                     }
-                    
-                    // Rule: One Process IE can be mapped to only ONE plant ID
-                    if (isProcessIe && !existingPlant.isEmpty() && !existingPlant.equalsIgnoreCase(cleanReqPlantId)) {
-                        throw new RuntimeException("This Process IE is already mapped to another Plant ID (" + m.getPlantId() + ")");
-                    }
+                    return "Railpad mapping already exists for this Plant ID";
                 }
             }
         }

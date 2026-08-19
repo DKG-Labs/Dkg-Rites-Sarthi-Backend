@@ -32,13 +32,22 @@ public class SarthiBackendApplication {
 						int idx = line.indexOf('=');
 						String key = line.substring(0, idx).trim();
 						String value = line.substring(idx + 1).trim();
-						if (System.getProperty(key) == null && System.getenv(key) == null) {
-							System.setProperty(key, value);
+						if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+							if (value.length() >= 2) {
+								value = value.substring(1, value.length() - 1);
+							}
+						}
+						System.setProperty(key, value);
+						if (key.toLowerCase().contains("url") || key.toLowerCase().contains("username")) {
+							System.out.println("[Sarthi-Env] " + key + " = " + value);
 						}
 					}
 				}
-			} catch (Exception ignored) {
+			} catch (Exception e) {
+				System.err.println("[Sarthi-Env] Error reading .env: " + e.getMessage());
 			}
+		} else {
+			System.out.println("[Sarthi-Env] .env file not found at " + envFile.getAbsolutePath());
 		}
 	}
 

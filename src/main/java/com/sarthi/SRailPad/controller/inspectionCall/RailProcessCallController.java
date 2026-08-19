@@ -120,7 +120,9 @@ public class RailProcessCallController {
     }
 
     @GetMapping("/available-final-batches/{callNo}")
-    public ResponseEntity<com.sarthi.util.APIResponse> getAvailableBatchesForFinal(@PathVariable String callNo) {
-        return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(processCallService.getAvailableBatchesForFinalCall(callNo)));
+    public ResponseEntity<com.sarthi.util.APIResponse> getAvailableBatchesForFinal(
+            @PathVariable String callNo,
+            @RequestParam(required = false) String excludeCallNo) {
+        return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(processCallService.getAvailableBatchesForFinalCall(callNo, excludeCallNo)));
     }
 }

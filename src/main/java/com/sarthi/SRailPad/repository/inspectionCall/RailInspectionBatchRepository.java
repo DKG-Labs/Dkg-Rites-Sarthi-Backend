@@ -34,7 +34,21 @@ public interface RailInspectionBatchRepository extends JpaRepository<RailInspect
 
     @Query("SELECT b.batchNo, b.drawingNo, COALESCE(SUM(COALESCE(b.qtyToUse, b.quantity)), 0) " +
            "FROM RailInspectionBatch b " +
+           "LEFT JOIN b.lot l " +
+           "LEFT JOIN l.inspectionCall c " +
            "WHERE b.batchNo IN :batchNos " +
+           "AND (c IS NULL OR (UPPER(COALESCE(c.status, '')) NOT IN ('WITHDRAW', 'WITHDRAWN', 'CANCEL', 'CANCELLED') AND (:excludeCallNo IS NULL OR :excludeCallNo = '' OR c.callNo != :excludeCallNo))) " +
+           "GROUP BY b.batchNo, b.drawingNo")
+    java.util.List<Object[]> findOfferedSummaryByBatchNosExcludingCall(
+            @Param("batchNos") java.util.List<String> batchNos,
+            @Param("excludeCallNo") String excludeCallNo);
+
+    @Query("SELECT b.batchNo, b.drawingNo, COALESCE(SUM(COALESCE(b.qtyToUse, b.quantity)), 0) " +
+           "FROM RailInspectionBatch b " +
+           "LEFT JOIN b.lot l " +
+           "LEFT JOIN l.inspectionCall c " +
+           "WHERE b.batchNo IN :batchNos " +
+           "AND (c IS NULL OR UPPER(COALESCE(c.status, '')) NOT IN ('WITHDRAW', 'WITHDRAWN', 'CANCEL', 'CANCELLED')) " +
            "GROUP BY b.batchNo, b.drawingNo")
     java.util.List<Object[]> findOfferedSummaryByBatchNos(@Param("batchNos") java.util.List<String> batchNos);
 }
