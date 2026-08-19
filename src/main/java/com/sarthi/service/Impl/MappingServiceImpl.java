@@ -58,6 +58,9 @@ public class MappingServiceImpl implements MappingService {
     private RailPoiIeMappingRepository railPoiIeMappingRepository;
 
     @Autowired
+    private com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
+
+    @Autowired
     private SleeperPoiIeMappingRepository sleeperPoiIeMappingRepository;
 
 
@@ -314,6 +317,16 @@ public class MappingServiceImpl implements MappingService {
 
         // 6. RailPoiIeMapping (Railpad IE mappings)
         List<RailPoiIeMapping> railPoiMappings = railPoiIeMappingRepository.findAll();
+        List<com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping> allRailPois = railPadPincodePoIMappingRepository.findAll();
+        Map<String, String> vendorToPoiMap = new HashMap<>();
+        for (com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping rpoi : allRailPois) {
+            if (rpoi.getPoiCode() != null && !rpoi.getPoiCode().isBlank() && rpoi.getVendorCode() != null) {
+                String clean = rpoi.getVendorCode().replace(":", "").trim();
+                vendorToPoiMap.put(clean, rpoi.getPoiCode().trim());
+                vendorToPoiMap.put(":" + clean, rpoi.getPoiCode().trim());
+            }
+        }
+
         for (RailPoiIeMapping m : railPoiMappings) {
             IeMappingResponseDto dto = new IeMappingResponseDto();
             dto.setId("rail_" + m.getId());
@@ -321,7 +334,18 @@ public class MappingServiceImpl implements MappingService {
             dto.setMappingType("Railpad " + (m.getIeType() != null ? m.getIeType() : "IE") + " to POI");
             dto.setInspectingEngineer(isProcess ? "Railpad Process IE" : "Railpad Main IE");
             dto.setStatus("Active");
-            dto.setPoiCode(m.getPoiCode() != null ? m.getPoiCode() : "-");
+
+            String poiCode = m.getPoiCode();
+            if (poiCode == null || !poiCode.toUpperCase().startsWith("POI")) {
+                if (m.getPlantId() != null) {
+                    String pId = m.getPlantId().replace(":", "").trim();
+                    String vCode = pId.contains("/") ? pId.substring(0, pId.indexOf("/")) : pId;
+                    if (vendorToPoiMap.containsKey(vCode)) {
+                        poiCode = vendorToPoiMap.get(vCode);
+                    }
+                }
+            }
+            dto.setPoiCode(poiCode != null ? poiCode : "-");
 
             UserMaster ieUser = userByIdMap.get(m.getIeUserId());
             if (ieUser != null) {
@@ -338,7 +362,7 @@ public class MappingServiceImpl implements MappingService {
                 String pId = m.getPlantId();
                 dto.setVendorCode(pId.contains("/") ? pId.substring(0, pId.indexOf("/")) : pId);
             } else {
-                PincodePoIMapping poi = poiMap.get(m.getPoiCode());
+                PincodePoIMapping poi = poiCode != null ? poiMap.get(poiCode) : null;
                 if (poi != null) {
                     String name = poi.getCompanyName();
                     if (poi.getUnitName() != null && !poi.getUnitName().isEmpty()) {
