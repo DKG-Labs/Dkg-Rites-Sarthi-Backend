@@ -15,6 +15,8 @@ public class SteamCubeSampleDeclarationResponseDto {
 
     private String castingDate;
 
+    private String declarationDate;
+
     private String lbcTime;
 
     private String batchNo;

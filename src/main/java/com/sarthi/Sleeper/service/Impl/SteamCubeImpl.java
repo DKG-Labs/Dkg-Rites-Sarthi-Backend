@@ -65,6 +65,14 @@ public class SteamCubeImpl implements SteamCubeService {
                 entity.setCastingDate(cDate);
             }
 
+            if (dto.getDeclarationDate() != null) {
+                LocalDate dDate =
+                        CommonUtils.convertStringToDateObject(
+                                dto.getDeclarationDate());
+
+                entity.setDeclarationDate(dDate);
+            }
+
 
             if (dto.getLbcTime() != null) {
                 LocalTime time =
@@ -162,6 +170,14 @@ public class SteamCubeImpl implements SteamCubeService {
                             dto.getCastingDate());
 
             entity.setCastingDate(cDate);
+        }
+
+        if (dto.getDeclarationDate() != null) {
+            LocalDate dDate =
+                    CommonUtils.convertStringToDateObject(
+                            dto.getDeclarationDate());
+
+            entity.setDeclarationDate(dDate);
         }
 
 
@@ -290,6 +306,12 @@ public class SteamCubeImpl implements SteamCubeService {
             dto.setCastingDate(
                     CommonUtils.convertDateToString(
                             entity.getCastingDate()));
+        }
+
+        if (entity.getDeclarationDate() != null) {
+            dto.setDeclarationDate(
+                    CommonUtils.convertDateToString(
+                            entity.getDeclarationDate()));
         }
 
         // LBC Time
