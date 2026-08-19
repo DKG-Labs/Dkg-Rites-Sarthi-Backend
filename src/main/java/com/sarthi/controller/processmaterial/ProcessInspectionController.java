@@ -123,6 +123,38 @@ public class ProcessInspectionController {
     }
 
     /**
+     * Rollback / Revert Process Material inspection pause data if subsequent workflow API fails.
+     * POST /api/process-material/rollback-pause
+     */
+    @PostMapping("/rollback-pause")
+    @Operation(summary = "Rollback Process inspection pause data", description = "Reverts inspection data saved during pause if a workflow error occurs")
+    public ResponseEntity<APIResponse> rollbackPauseInspection(
+            @RequestBody ProcessFinishInspectionDto dto,
+            @RequestParam(required = false) String userId) {
+        
+        String callNo = dto.getInspectionCallNo();
+        String user = (userId != null && !userId.isEmpty()) ? userId : 
+                     (dto.getCreatedBy() != null && !dto.getCreatedBy().isEmpty()) ? dto.getCreatedBy() : "SYSTEM";
+        
+        logger.warn("POST /api/process-material/rollback-pause - Rolling back inspection for call: {} by user: {}", callNo, user);
+        
+        try {
+            String result = service.revertPauseInspection(dto, user);
+            logger.info("✅ Process inspection pause data rolled back successfully for call: {}", callNo);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("❌ Error rolling back Process inspection pause for call: {}", callNo, e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                AppConstant.ERROR_CODE_INTERNAL,
+                AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                AppConstant.ERROR_TYPE_INTERNAL,
+                "Failed to rollback inspection: " + e.getMessage()
+            );
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * Get all Process Material inspection data by call number.
      * Used when revisiting an inspection to load previously saved data.
      * GET /api/process-material/inspection/{callNo}

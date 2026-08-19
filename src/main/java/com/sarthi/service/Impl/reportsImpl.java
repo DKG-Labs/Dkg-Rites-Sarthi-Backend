@@ -187,6 +187,8 @@ public class reportsImpl implements reports {
         private RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
         @Autowired
         private RailInspectionLotRepository railInspectionLotRepository;
+        @Autowired
+        private UserMasterRepository userMasterRepository;
 
         /*
          * 
@@ -2379,755 +2381,293 @@ public class reportsImpl implements reports {
                 // Get all process rows
 
                 List<ProcessLineFinalResult> processList = processLineFinalResultRepository
-
                                 .findByInspectionCallNo(callId);
 
-                // Group by date + shift + lot
-
-                Map<String, FourthLevelInspectionDto> resultMap = new LinkedHashMap<>();
-
-                // =============================================
-                // BUILD CREATED_AT MAP FIRST
-                // =============================================
-                Map<String, Set<LocalDateTime>> createdAtMap = new HashMap<>();
-
-                for (ProcessLineFinalResult p : processList) {
-
-                        LocalDate date = p.getDateOfInspection() != null
-                                        ? p.getDateOfInspection()
-                                        : p.getCreatedAt().toLocalDate();
-
-                        String key = date + "|"
-                                        + p.getShift() + "|"
-                                        + p.getLotNumber();
-
-                        createdAtMap
-                                        .computeIfAbsent(key, k -> new HashSet<>())
-                                        .add(p.getCreatedAt());
+                if (processList != null && !processList.isEmpty()) {
+                        processList.sort((a, b) -> {
+                                if (a.getCreatedAt() != null && b.getCreatedAt() != null) {
+                                        return b.getCreatedAt().compareTo(a.getCreatedAt());
+                                } else if (a.getCreatedAt() != null) {
+                                        return -1;
+                                } else if (b.getCreatedAt() != null) {
+                                        return 1;
+                                } else if (a.getDateOfInspection() != null && b.getDateOfInspection() != null) {
+                                        return b.getDateOfInspection().compareTo(a.getDateOfInspection());
+                                }
+                                return 0;
+                        });
                 }
 
-                // Each process row
+                List<FourthLevelInspectionDto> resultList = new ArrayList<>();
+                Map<String, String> userEmpCodeCache = new HashMap<>();
 
                 for (ProcessLineFinalResult p : processList) {
 
                         if (p.getLotNumber() == null || p.getShift() == null) {
-
                                 continue;
-
                         }
 
                         LocalDate date = p.getDateOfInspection() != null
-
                                         ? p.getDateOfInspection()
+                                        : (p.getCreatedAt() != null ? p.getCreatedAt().toLocalDate() : null);
 
-                                        : p.getCreatedAt().toLocalDate();
+                        String createdBy = p.getCreatedBy();
+                        String engineerEmpCode = "";
+                        if (createdBy != null && !createdBy.trim().isEmpty()) {
+                                String cb = createdBy.trim();
+                                engineerEmpCode = userEmpCodeCache.computeIfAbsent(cb, key -> {
+                                        UserMaster u = null;
+                                        try {
+                                                Integer uid = Integer.parseInt(key);
+                                                u = userMasterRepository.findById(uid).orElse(null);
+                                        } catch (NumberFormatException ignored) {}
 
-                        // Create key for grouping
+                                        if (u == null) {
+                                                u = userMasterRepository.findFirstByEmployeeCode(key)
+                                                                .or(() -> userMasterRepository.findFirstByUserName(key))
+                                                                .orElse(null);
+                                        }
 
-                        String key = date + "|" +
-
-                                        p.getShift() + "|" +
-
-                                        p.getLotNumber();
-
-                        // Get existing DTO if present
-
-                        FourthLevelInspectionDto dto = resultMap.get(key);
-
-                        // If first time, create new DTO
-
-                        if (dto == null) {
-
-                                dto = new FourthLevelInspectionDto();
-
-                                // ================= BASIC =================
-
-                                BasicDetailsDto basic = new BasicDetailsDto();
-
-                                basic.setDate(date);
-
-                                basic.setShift(p.getShift());
-
-                                basic.setRlyName(rlyShortName);
-
-                                basic.setPoSrNo(displayPoSrNo);
-
-                                basic.setLotNumber(p.getLotNumber());
-
-                                // Init with zero for sum
-
-                                basic.setTotalAcceptedQty(0);
-
-                                basic.setTotalRejectionQty(0);
-
-                                dto.setBasicDetails(basic);
-
-                                // ================= PROCESS =================
-
-                                dto.setProcessQty(new ProcessQtyDto());
-
-                                resultMap.put(key, dto);
-
+                                        if (u != null) {
+                                                String name = (u.getUsername() != null && !u.getUsername().trim().isEmpty())
+                                                                ? u.getUsername().trim()
+                                                                : (u.getFullName() != null && !u.getFullName().trim().isEmpty() ? u.getFullName().trim() : "");
+                                                String empCode = (u.getEmployeeCode() != null && !u.getEmployeeCode().trim().isEmpty())
+                                                                ? u.getEmployeeCode().trim()
+                                                                : "";
+                                                if (!name.isEmpty() && !empCode.isEmpty()) {
+                                                        return name + " (" + empCode + ")";
+                                                } else if (!name.isEmpty()) {
+                                                        return name;
+                                                } else if (!empCode.isEmpty()) {
+                                                        return empCode;
+                                                }
+                                        }
+                                        return key;
+                                });
                         }
 
-                        // ================= DATE RANGE =================
+                        FourthLevelInspectionDto dto = new FourthLevelInspectionDto();
 
-                        // LocalDateTime createdAt = p.getCreatedAt();
+                        // ================= BASIC =================
 
-                        // LocalDateTime startDate = createdAt.minusMinutes(2);
+                        BasicDetailsDto basic = new BasicDetailsDto();
+                        basic.setDate(date);
+                        basic.setShift(p.getShift());
+                        basic.setLineNo(p.getLineNo());
+                        basic.setEngineer(engineerEmpCode);
+                        basic.setRlyName(rlyShortName);
+                        basic.setPoSrNo(displayPoSrNo);
+                        basic.setLotNumber(p.getLotNumber());
+                        basic.setCreatedAt(p.getCreatedAt());
+                        basic.setTotalAcceptedQty(p.getTotalAccepted() != null ? p.getTotalAccepted() : 0);
+                        basic.setTotalRejectionQty(p.getTotalRejected() != null ? p.getTotalRejected() : 0);
+                        dto.setBasicDetails(basic);
 
-                        // LocalDateTime endDate = createdAt.plusMinutes(2);
+                        // ================= PROCESS =================
 
-                        // ================= BASIC (SUM) =================
+                        ProcessQtyDto process = new ProcessQtyDto();
+                        process.setShearingProductionQty(p.getShearingManufactured() != null ? p.getShearingManufactured() : 0);
+                        process.setShearingRejectionQty(p.getShearingRejected() != null ? p.getShearingRejected() : 0);
+                        process.setTurningProductionQty(p.getTurningManufactured() != null ? p.getTurningManufactured() : 0);
+                        process.setTurningRejectionQty(p.getTurningRejected() != null ? p.getTurningRejected() : 0);
+                        process.setMpiProductionQty(p.getMpiManufactured() != null ? p.getMpiManufactured() : 0);
+                        process.setMpiRejectionQty(p.getMpiRejected() != null ? p.getMpiRejected() : 0);
+                        process.setForgingProductionQty(p.getForgingManufactured() != null ? p.getForgingManufactured() : 0);
+                        process.setForgingRejectionQty(p.getForgingRejected() != null ? p.getForgingRejected() : 0);
+                        process.setQuenchingProductionQty(p.getQuenchingManufactured() != null ? p.getQuenchingManufactured() : 0);
+                        process.setQuenchingRejectionQty(p.getQuenchingRejected() != null ? p.getQuenchingRejected() : 0);
+                        process.setTemperingProductionQty(p.getTemperingManufactured() != null ? p.getTemperingManufactured() : 0);
 
-                        BasicDetailsDto basic = dto.getBasicDetails();
+                        LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : LocalDateTime.now();
+                        LocalDateTime startDate = createdAt.minusMinutes(2);
+                        LocalDateTime endDate = createdAt.plusMinutes(2);
 
-                        basic.setTotalAcceptedQty(
+                        Integer totalTemperingRejected = processLineFinalResultRepository.getTotalTemperingRejected(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        process.setTemperingRejectionQty(totalTemperingRejected != null
+                                        ? totalTemperingRejected
+                                        : (p.getTemperingRejected() != null ? p.getTemperingRejected() : 0));
+                        dto.setProcessQty(process);
 
-                                        basic.getTotalAcceptedQty() + p.getTotalAccepted());
+                        // ================= SHEARING DEFECTS =================
 
-                        basic.setTotalRejectionQty(
+                        List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] sums = (list != null && !list.isEmpty()) ? list.get(0) : null;
 
-                                        basic.getTotalRejectionQty() + p.getTotalRejected());
+                        ShearingDefectsDto shearing = new ShearingDefectsDto();
+                        shearing.setLengthOfCutBar(0);
+                        shearing.setOvalityImproperDiaAtEnd(0);
+                        shearing.setSharpEdges(0);
+                        shearing.setCrackedEdges(0);
 
-                        // ================= PROCESS (SUM) =================
-
-                        ProcessQtyDto process = dto.getProcessQty();
-
-                        process.setShearingProductionQty(
-
-                                        process.getShearingProductionQty() + p.getShearingManufactured());
-
-                        process.setShearingRejectionQty(
-
-                                        process.getShearingRejectionQty() + p.getShearingRejected());
-
-                        process.setTurningProductionQty(
-
-                                        process.getTurningProductionQty() + p.getTurningManufactured());
-
-                        process.setTurningRejectionQty(
-
-                                        process.getTurningRejectionQty() + p.getTurningRejected());
-
-                        process.setMpiProductionQty(
-
-                                        process.getMpiProductionQty() + p.getMpiManufactured());
-
-                        process.setMpiRejectionQty(
-
-                                        process.getMpiRejectionQty() + p.getMpiRejected());
-
-                        process.setForgingProductionQty(
-
-                                        process.getForgingProductionQty() + p.getForgingManufactured());
-
-                        process.setForgingRejectionQty(
-
-                                        process.getForgingRejectionQty() + p.getForgingRejected());
-
-                        process.setQuenchingProductionQty(
-
-                                        process.getQuenchingProductionQty() + p.getQuenchingManufactured());
-
-                        process.setQuenchingRejectionQty(
-
-                                        process.getQuenchingRejectionQty() + p.getQuenchingRejected());
-
-                        process.setTemperingProductionQty(
-
-                                        process.getTemperingProductionQty() + p.getTemperingManufactured());
-
-                        // process.setTemperingRejectionQty(
-
-                        // process.getTemperingRejectionQty() + p.getTemperingRejected());
-
-                        if (dto != null && dto.getShearingDefects() != null) {
-                                continue;
+                        if (sums != null && sums.length == 4) {
+                                shearing.setLengthOfCutBar(((Number) sums[0]).intValue());
+                                shearing.setOvalityImproperDiaAtEnd(((Number) sums[1]).intValue());
+                                shearing.setSharpEdges(((Number) sums[2]).intValue());
+                                shearing.setCrackedEdges(((Number) sums[3]).intValue());
                         }
-                        Set<LocalDateTime> createdAtList = createdAtMap.get(key);
-
-                        System.out.println("created uday" + createdAtMap);
-
-                        System.out.println("created uday1" + createdAtList);
-
-                        for (LocalDateTime createdAt : createdAtList) {
-
-                                LocalDateTime startDate = createdAt.minusMinutes(2);
-
-                                LocalDateTime endDate = createdAt.plusMinutes(2);
-
-                                Integer totalTemperingRejected = processLineFinalResultRepository
-                                                .getTotalTemperingRejected(
-
-                                                                callId,
-
-                                                                p.getLotNumber(),
-
-                                                                p.getShift(),
-
-                                                                startDate,
-
-                                                                endDate);
-
-                                process.setTemperingRejectionQty(
-
-                                                process.getTemperingRejectionQty()
-
-                                                                + (totalTemperingRejected != null
-                                                                                ? totalTemperingRejected
-                                                                                : 0));
-
-                                // ================= SHEARING DEFECTS =================
-
-                                List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] sums = (list != null && !list.isEmpty()) ? list.get(0) : null;
-
-                                System.out.println(
-                                                "DATE=" + date
-                                                                + ", SHIFT=" + p.getShift()
-                                                                + ", LOT=" + p.getLotNumber()
-                                                                + ", CREATED_AT=" + createdAt
-                                                                + ", SHEARING=" + Arrays.toString(sums));
-
-                                ShearingDefectsDto shearing = dto.getShearingDefects();
-
-                                if (shearing == null) {
-
-                                        shearing = new ShearingDefectsDto();
-
-                                        shearing.setLengthOfCutBar(0);
-
-                                        shearing.setOvalityImproperDiaAtEnd(0);
-
-                                        shearing.setSharpEdges(0);
-
-                                        shearing.setCrackedEdges(0);
-                                }
-
-                                if (sums != null && sums.length == 4) {
-
-                                        shearing.setLengthOfCutBar(
-
-                                                        shearing.getLengthOfCutBar()
-
-                                                                        + ((Number) sums[0]).intValue());
-
-                                        shearing.setOvalityImproperDiaAtEnd(
-
-                                                        shearing.getOvalityImproperDiaAtEnd()
-
-                                                                        + ((Number) sums[1]).intValue());
-
-                                        shearing.setSharpEdges(
-
-                                                        shearing.getSharpEdges()
-
-                                                                        + ((Number) sums[2]).intValue());
-
-                                        shearing.setCrackedEdges(
-
-                                                        shearing.getCrackedEdges()
-
-                                                                        + ((Number) sums[3]).intValue());
-                                }
-
-                                dto.setShearingDefects(shearing);
-
-                                // ================= TURNING DEFECTS =================
-
-                                List<Object[]> tList = processTurningDataRepository.getTurningSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] tSums = (tList != null && !tList.isEmpty()) ? tList.get(0) : null;
-
-                                TurningDefectsDto turning = dto.getTurningDefects();
-
-                                if (turning == null) {
-
-                                        turning = new TurningDefectsDto();
-
-                                        turning.setParallelLength(0);
-
-                                        turning.setFullTurningLength(0);
-
-                                        turning.setTurningDia(0);
-                                }
-
-                                if (tSums != null && tSums.length == 3) {
-
-                                        turning.setParallelLength(
-
-                                                        turning.getParallelLength()
-
-                                                                        + ((Number) tSums[0]).intValue());
-
-                                        turning.setFullTurningLength(
-
-                                                        turning.getFullTurningLength()
-
-                                                                        + ((Number) tSums[1]).intValue());
-
-                                        turning.setTurningDia(
-
-                                                        turning.getTurningDia()
-
-                                                                        + ((Number) tSums[2]).intValue());
-                                }
-
-                                dto.setTurningDefects(turning);
-
-                                // ================= QUENCHING DEFECTS =================
-
-                                Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                QuenchingDefectsDto quenching = dto.getQuenchingDefects();
-
-                                if (quenching == null) {
-
-                                        quenching = new QuenchingDefectsDto();
-
-                                        quenching.setQuenchingHardness(0);
-                                }
-
-                                quenching.setQuenchingHardness(
-                                                quenching.getQuenchingHardness()
-                                                                + (quenchingHardness != null ? quenchingHardness : 0));
-
-                                Integer qBoxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
-                                quenching.setBoxGaugeRejected((quenching.getBoxGaugeRejected() != null
-                                                ? quenching.getBoxGaugeRejected()
-                                                : 0) + (qBoxGauge != null ? qBoxGauge : 0));
-
-                                Integer qFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
-                                quenching.setFlatBearingAreaRejected((quenching.getFlatBearingAreaRejected() != null
-                                                ? quenching.getFlatBearingAreaRejected()
-                                                : 0) + (qFlat != null ? qFlat : 0));
-
-                                Integer qFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
-                                quenching.setFallingGaugeRejected((quenching.getFallingGaugeRejected() != null
-                                                ? quenching.getFallingGaugeRejected()
-                                                : 0) + (qFall != null ? qFall : 0));
-
-                                dto.setQuenchingDefects(quenching);
-
-                                // ================= TEMPERING DEFECTS =================
-
-                                List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] temperingSums = (temperingList != null && !temperingList.isEmpty())
-
-                                                ? temperingList.get(0)
-
-                                                : null;
-
-                                TemperingDefectsDto tempering = dto.getTemperingDefects();
-
-                                if (tempering == null) {
-
-                                        tempering = new TemperingDefectsDto();
-
-                                        tempering.setTemperingTemp(0);
-
-                                        tempering.setTemperingDuration(0);
-                                }
-
-                                if (temperingSums != null && temperingSums.length == 2) {
-
-                                        tempering.setTemperingTemp(
-
-                                                        tempering.getTemperingTemp()
-
-                                                                        + ((Number) temperingSums[0]).intValue());
-
-                                        tempering.setTemperingDuration(
-
-                                                        tempering.getTemperingDuration()
-
-                                                                        + ((Number) temperingSums[1]).intValue());
-                                }
-
-                                dto.setTemperingDefects(tempering);
-
-                                // ================= FORGING DEFECTS =================
-
-                                List<Object[]> fList = processForgingDataRepository.getForgingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] fSums = (fList != null && !fList.isEmpty()) ? fList.get(0) : null;
-
-                                System.out.println(
-                                                "FORGING => DATE=" + date
-                                                                + ", CREATED_AT=" + createdAt
-                                                                + ", VALUES=" + Arrays.toString(fSums));
-                                ForgingDefectsDto forging = dto.getForgingDefects();
-
-                                if (forging == null) {
-
-                                        forging = new ForgingDefectsDto();
-
-                                        forging.setForgingTemperature(0);
-
-                                        forging.setForgingStabilisationRejection(0);
-
-                                        forging.setImproperForging(0);
-
-                                        forging.setForgingMarksNotches(0);
-                                }
-
-                                if (fSums != null && fSums.length == 4) {
-
-                                        forging.setForgingTemperature(
-
-                                                        forging.getForgingTemperature()
-
-                                                                        + ((Number) fSums[0]).intValue());
-
-                                        forging.setForgingStabilisationRejection(
-
-                                                        forging.getForgingStabilisationRejection()
-
-                                                                        + ((Number) fSums[1]).intValue());
-
-                                        forging.setImproperForging(
-
-                                                        forging.getImproperForging()
-
-                                                                        + ((Number) fSums[2]).intValue());
-
-                                        forging.setForgingMarksNotches(
-
-                                                        forging.getForgingMarksNotches()
-
-                                                                        + ((Number) fSums[3]).intValue());
-                                }
-
-                                dto.setForgingDefects(forging);
-
-                                // ================= VISUAL DEFECTS =================
-
-                                List<Object[]> vList = processFinalCheckDataRepository.getVisualDefectsSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] visualSums = (vList != null && !vList.isEmpty()) ? vList.get(0) : null;
-
-                                VisualDefectsDto visual = dto.getVisualDefects();
-
-                                if (visual == null) {
-
-                                        visual = new VisualDefectsDto();
-
-                                        visual.setSurfaceDefect(0);
-
-                                        visual.setMarking(0);
-
-                                        visual.setEmbossingDefect(0);
-                                }
-
-                                if (visualSums != null && visualSums.length == 2) {
-
-                                        visual.setSurfaceDefect(
-
-                                                        visual.getSurfaceDefect()
-
-                                                                        + ((Number) visualSums[0]).intValue());
-
-                                        visual.setMarking(
-
-                                                        visual.getMarking()
-
-                                                                        + ((Number) visualSums[1]).intValue());
-                                }
-
-                                Integer forgingEmbossing = processForgingDataRepository.getForgingEmbossingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer finalEmbossing = processFinalCheckDataRepository.getFinalEmbossingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                visual.setEmbossingDefect(
-
-                                                visual.getEmbossingDefect()
-
-                                                                + (forgingEmbossing != null ? forgingEmbossing : 0)
-
-                                                                + (finalEmbossing != null ? finalEmbossing : 0));
-
-                                dto.setVisualDefects(visual);
-
-                                // ================= TESTING DEFECTS =================
-
-                                Integer temperingHardness = processFinalCheckDataRepository
-                                                .getTemperingHardnessSumByDate(
-
-                                                                callId,
-
-                                                                p.getLotNumber(),
-
-                                                                p.getShift(),
-
-                                                                startDate,
-
-                                                                endDate);
-
-                                List<Object[]> tfList = processTestingFinishingDataRepository
-                                                .getTestingFinishingSumByDate(
-
-                                                                callId,
-
-                                                                p.getLotNumber(),
-
-                                                                p.getShift(),
-
-                                                                startDate,
-
-                                                                endDate);
-
-                                Object[] tfSums = (tfList != null && !tfList.isEmpty()) ? tfList.get(0) : null;
-
-                                TestingDefectsDto testing = dto.getTestingDefects();
-
-                                if (testing == null) {
-
-                                        testing = new TestingDefectsDto();
-
-                                        testing.setTemperingHardness(0);
-
-                                        testing.setToeLoad(0);
-
-                                        testing.setWeight(0);
-                                }
-
-                                testing.setTemperingHardness(
-
-                                                testing.getTemperingHardness()
-
-                                                                + (temperingHardness != null ? temperingHardness : 0));
-
-                                if (tfSums != null && tfSums.length == 4) {
-
-                                        testing.setToeLoad(
-
-                                                        testing.getToeLoad()
-
-                                                                        + ((Number) tfSums[0]).intValue());
-
-                                        testing.setWeight(
-
-                                                        testing.getWeight()
-
-                                                                        + ((Number) tfSums[1]).intValue());
-                                }
-
-                                dto.setTestingDefects(testing);
-
-                                // ================= FINISHING DEFECTS =================
-
-                                FinishingDefectsDto finishing = dto.getFinishingDefects();
-
-                                if (finishing == null) {
-
-                                        finishing = new FinishingDefectsDto();
-
-                                        finishing.setPaintIdentification(0);
-
-                                        finishing.setErcCoating(0);
-                                }
-
-                                if (tfSums != null && tfSums.length == 4) {
-
-                                        finishing.setPaintIdentification(
-
-                                                        finishing.getPaintIdentification()
-
-                                                                        + ((Number) tfSums[2]).intValue());
-
-                                        finishing.setErcCoating(
-
-                                                        finishing.getErcCoating()
-
-                                                                        + ((Number) tfSums[3]).intValue());
-                                }
-
-                                dto.setFinishingDefects(finishing);
-
-                                Integer boxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                                callId,
-                                                p.getLotNumber(),
-                                                p.getShift(),
-                                                startDate,
-                                                endDate);
-
-                                Integer finalBox = processFinalCheckDataRepository.getFinalBoxGaugeSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer quenchFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer quenchFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer finalFlat = processFinalCheckDataRepository.getFinalFlatBearingSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer finalFall = processFinalCheckDataRepository.getFinalFallingGaugeSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-                                                startDate, endDate);
-
-                                DimensionalDefectsDto dimensional = dto.getDimensionalDefects();
-
-                                if (dimensional == null) {
-
-                                        dimensional = new DimensionalDefectsDto();
-
-                                        dimensional.setBoxGauge(0);
-
-                                        dimensional.setFlatBearingArea(0);
-
-                                        dimensional.setFallingGauge(0);
-                                }
-
-                                dimensional.setBoxGauge(
-
-                                                dimensional.getBoxGauge()
-
-                                                                + (boxGauge != null ? boxGauge : 0)
-
-                                                                + (finalBox != null ? finalBox : 0));
-
-                                dimensional.setFlatBearingArea(
-
-                                                dimensional.getFlatBearingArea()
-
-                                                                + (quenchFlat != null ? quenchFlat : 0)
-
-                                                                + (finalFlat != null ? finalFlat : 0));
-
-                                dimensional.setFallingGauge(
-
-                                                dimensional.getFallingGauge()
-
-                                                                + (quenchFall != null ? quenchFall : 0)
-
-                                                                + (finalFall != null ? finalFall : 0));
-
-                                dto.setDimensionalDefects(dimensional);
+                        dto.setShearingDefects(shearing);
+
+                        // ================= TURNING DEFECTS =================
+
+                        List<Object[]> tList = processTurningDataRepository.getTurningSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] tSums = (tList != null && !tList.isEmpty()) ? tList.get(0) : null;
+
+                        TurningDefectsDto turning = new TurningDefectsDto();
+                        turning.setParallelLength(0);
+                        turning.setFullTurningLength(0);
+                        turning.setTurningDia(0);
+
+                        if (tSums != null && tSums.length == 3) {
+                                turning.setParallelLength(((Number) tSums[0]).intValue());
+                                turning.setFullTurningLength(((Number) tSums[1]).intValue());
+                                turning.setTurningDia(((Number) tSums[2]).intValue());
                         }
+                        dto.setTurningDefects(turning);
+
+                        // ================= QUENCHING DEFECTS =================
+
+                        Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+
+                        QuenchingDefectsDto quenching = new QuenchingDefectsDto();
+                        quenching.setQuenchingHardness(quenchingHardness != null ? quenchingHardness : 0);
+
+                        Integer qBoxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        quenching.setBoxGaugeRejected(qBoxGauge != null ? qBoxGauge : 0);
+
+                        Integer qFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        quenching.setFlatBearingAreaRejected(qFlat != null ? qFlat : 0);
+
+                        Integer qFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        quenching.setFallingGaugeRejected(qFall != null ? qFall : 0);
+
+                        dto.setQuenchingDefects(quenching);
+
+                        // ================= TEMPERING DEFECTS =================
+
+                        List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] temperingSums = (temperingList != null && !temperingList.isEmpty()) ? temperingList.get(0) : null;
+
+                        TemperingDefectsDto tempering = new TemperingDefectsDto();
+                        tempering.setTemperingTemp(0);
+                        tempering.setTemperingDuration(0);
+
+                        if (temperingSums != null && temperingSums.length == 2) {
+                                tempering.setTemperingTemp(((Number) temperingSums[0]).intValue());
+                                tempering.setTemperingDuration(((Number) temperingSums[1]).intValue());
+                        }
+                        dto.setTemperingDefects(tempering);
+
+                        // ================= FORGING DEFECTS =================
+
+                        List<Object[]> fList = processForgingDataRepository.getForgingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] fSums = (fList != null && !fList.isEmpty()) ? fList.get(0) : null;
+
+                        ForgingDefectsDto forging = new ForgingDefectsDto();
+                        forging.setForgingTemperature(0);
+                        forging.setForgingStabilisationRejection(0);
+                        forging.setImproperForging(0);
+                        forging.setForgingMarksNotches(0);
+
+                        if (fSums != null && fSums.length == 4) {
+                                forging.setForgingTemperature(((Number) fSums[0]).intValue());
+                                forging.setForgingStabilisationRejection(((Number) fSums[1]).intValue());
+                                forging.setImproperForging(((Number) fSums[2]).intValue());
+                                forging.setForgingMarksNotches(((Number) fSums[3]).intValue());
+                        }
+                        dto.setForgingDefects(forging);
+
+                        // ================= VISUAL DEFECTS =================
+
+                        List<Object[]> vList = processFinalCheckDataRepository.getVisualDefectsSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] visualSums = (vList != null && !vList.isEmpty()) ? vList.get(0) : null;
+
+                        VisualDefectsDto visual = new VisualDefectsDto();
+                        visual.setSurfaceDefect(0);
+                        visual.setMarking(0);
+                        visual.setEmbossingDefect(0);
+
+                        if (visualSums != null && visualSums.length == 2) {
+                                visual.setSurfaceDefect(((Number) visualSums[0]).intValue());
+                                visual.setMarking(((Number) visualSums[1]).intValue());
+                        }
+
+                        Integer forgingEmbossing = processForgingDataRepository.getForgingEmbossingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalEmbossing = processFinalCheckDataRepository.getFinalEmbossingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        visual.setEmbossingDefect((forgingEmbossing != null ? forgingEmbossing : 0)
+                                        + (finalEmbossing != null ? finalEmbossing : 0));
+                        dto.setVisualDefects(visual);
+
+                        // ================= TESTING DEFECTS =================
+
+                        Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        List<Object[]> tfList = processTestingFinishingDataRepository.getTestingFinishingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] tfSums = (tfList != null && !tfList.isEmpty()) ? tfList.get(0) : null;
+
+                        TestingDefectsDto testing = new TestingDefectsDto();
+                        testing.setTemperingHardness(temperingHardness != null ? temperingHardness : 0);
+                        testing.setToeLoad(0);
+                        testing.setWeight(0);
+
+                        if (tfSums != null && tfSums.length == 4) {
+                                testing.setToeLoad(((Number) tfSums[0]).intValue());
+                                testing.setWeight(((Number) tfSums[1]).intValue());
+                        }
+                        dto.setTestingDefects(testing);
+
+                        // ================= FINISHING DEFECTS =================
+
+                        FinishingDefectsDto finishing = new FinishingDefectsDto();
+                        finishing.setPaintIdentification(0);
+                        finishing.setErcCoating(0);
+
+                        if (tfSums != null && tfSums.length == 4) {
+                                finishing.setPaintIdentification(((Number) tfSums[2]).intValue());
+                                finishing.setErcCoating(((Number) tfSums[3]).intValue());
+                        }
+                        dto.setFinishingDefects(finishing);
+
+                        // ================= DIMENSIONAL DEFECTS =================
+
+                        Integer boxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalBox = processFinalCheckDataRepository.getFinalBoxGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer quenchFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer quenchFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalFlat = processFinalCheckDataRepository.getFinalFlatBearingSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalFall = processFinalCheckDataRepository.getFinalFallingGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+
+                        DimensionalDefectsDto dimensional = new DimensionalDefectsDto();
+                        dimensional.setBoxGauge((boxGauge != null ? boxGauge : 0) + (finalBox != null ? finalBox : 0));
+                        dimensional.setFlatBearingArea((quenchFlat != null ? quenchFlat : 0) + (finalFlat != null ? finalFlat : 0));
+                        dimensional.setFallingGauge((quenchFall != null ? quenchFall : 0) + (finalFall != null ? finalFall : 0));
+                        dto.setDimensionalDefects(dimensional);
+
+                        resultList.add(dto);
                 }
-
-                System.out.println("last all  date " + createdAtMap);
 
                 // ================= RETURN FINAL RESULT =================
 
-                return new ArrayList<>(resultMap.values());
+                return resultList;
 
         }
 

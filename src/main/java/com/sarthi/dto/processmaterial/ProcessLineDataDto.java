@@ -13,6 +13,8 @@ public class ProcessLineDataDto {
     private String lineNo;
     private String poNo;
     private String inspectionCallNo;
+    private String lotNo;
+    private String shift;
 
     // Calibration Documents
     private List<ProcessCalibrationDocumentsDTO> calibrationDocuments;
