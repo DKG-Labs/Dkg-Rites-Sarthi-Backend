@@ -55,5 +55,13 @@ public interface ProcessInspectionService {
      * @return DTO containing summed accepted quantities
      */
     com.sarthi.dto.processmaterial.ProcessStageAcceptedQtyDto getAcceptedQuantitySum(String callNo, String lotNo);
+
+    /**
+     * Revert / Rollback inspection data saved during pause if subsequent workflow API fails.
+     * @param dto The inspection data payload that was saved
+     * @param userId The user ID performing the operation
+     * @return Success message
+     */
+    String revertPauseInspection(ProcessFinishInspectionDto dto, String userId);
 }
 

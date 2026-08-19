@@ -322,7 +322,12 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 bd.setProductionDate(b.getProductionDate());
                 bd.setQtyManufactured(b.getQtyManufactured());
                 bd.setQtyRejected(b.getQtyRejected());
-                bd.setQtyAccepted(b.getQtyAccepted());
+                
+                int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
+                int rQty = b.getQtyRejected() != null ? b.getQtyRejected() : 0;
+                int netAcc = Math.max(0, mQty - rQty);
+                int acc = (b.getQtyAccepted() != null && b.getQtyAccepted() > 0) ? b.getQtyAccepted() : netAcc;
+                bd.setQtyAccepted(acc);
                 
                 if (bd.getDrawingNo() == null && b.getDeclarationBatchId() != null) {
                     try {
@@ -345,6 +350,11 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
     @Override
     public ProcessInspectionSaveDto getAvailableBatchesForFinalCall(String callNo) {
+        return getAvailableBatchesForFinalCall(callNo, null);
+    }
+
+    @Override
+    public ProcessInspectionSaveDto getAvailableBatchesForFinalCall(String callNo, String excludeCallNo) {
         ProcessInspectionSaveDto dto = getProcessInspectionResult(callNo);
         if (dto == null || dto.getBatches() == null || dto.getBatches().isEmpty()) {
             return dto;
@@ -358,19 +368,22 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
         java.util.Map<String, Integer> offeredMap = new java.util.HashMap<>();
         if (!batchNos.isEmpty()) {
-            List<Object[]> summaryList = railInspectionBatchRepository.findOfferedSummaryByBatchNos(batchNos);
+            List<Object[]> summaryList = (excludeCallNo != null && !excludeCallNo.trim().isEmpty())
+                    ? railInspectionBatchRepository.findOfferedSummaryByBatchNosExcludingCall(batchNos, excludeCallNo.trim())
+                    : railInspectionBatchRepository.findOfferedSummaryByBatchNos(batchNos);
             for (Object[] row : summaryList) {
-                String bNo = (String) row[0];
-                String dNo = (String) row[1];
+                String bNo = row[0] != null ? row[0].toString().trim() : null;
+                String dNo = row[1] != null ? row[1].toString().trim() : "";
                 Long qtyLong = row[2] != null ? ((Number) row[2]).longValue() : 0L;
                 int sumQty = qtyLong.intValue();
 
                 if (bNo != null) {
-                    if (dNo != null && !dNo.trim().isEmpty()) {
-                        String cleanD = dNo.replace("RDSO/", "").trim();
-                        offeredMap.put(bNo + "|" + dNo.trim(), sumQty);
-                        offeredMap.put(bNo + "|" + cleanD, sumQty);
-                        offeredMap.put(bNo + "|RDSO/" + cleanD, sumQty);
+                    String normD = dNo.replaceAll("(?i)^(RDSO/|RDSO-)", "").trim().toUpperCase();
+                    offeredMap.put(bNo + "|" + dNo, offeredMap.getOrDefault(bNo + "|" + dNo, 0) + sumQty);
+                    if (!normD.isEmpty()) {
+                        offeredMap.put(bNo + "|" + normD, offeredMap.getOrDefault(bNo + "|" + normD, 0) + sumQty);
+                        offeredMap.put(bNo + "|RDSO/" + normD, offeredMap.getOrDefault(bNo + "|RDSO/" + normD, 0) + sumQty);
+                        offeredMap.put(bNo + "|RDSO-" + normD, offeredMap.getOrDefault(bNo + "|RDSO-" + normD, 0) + sumQty);
                     }
                     offeredMap.put(bNo + "|ALL", offeredMap.getOrDefault(bNo + "|ALL", 0) + sumQty);
                 }
@@ -379,25 +392,29 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
         List<ProcessInspectionSaveDto.ProcessBatchSaveDto> availableBatches = new ArrayList<>();
         for (ProcessInspectionSaveDto.ProcessBatchSaveDto b : dto.getBatches()) {
-            String bNo = b.getBatchNo();
-            String dNo = b.getDrawingNo();
+            String bNo = b.getBatchNo() != null ? b.getBatchNo().trim() : "";
+            String dNo = b.getDrawingNo() != null ? b.getDrawingNo().trim() : "";
             int alreadyOffered = 0;
 
-            if (dNo != null && !dNo.trim().isEmpty()) {
-                String cleanD = dNo.replace("RDSO/", "").trim();
-                if (offeredMap.containsKey(bNo + "|" + dNo.trim())) {
-                    alreadyOffered = offeredMap.get(bNo + "|" + dNo.trim());
-                } else if (offeredMap.containsKey(bNo + "|" + cleanD)) {
-                    alreadyOffered = offeredMap.get(bNo + "|" + cleanD);
-                } else if (offeredMap.containsKey(bNo + "|RDSO/" + cleanD)) {
-                    alreadyOffered = offeredMap.get(bNo + "|RDSO/" + cleanD);
-                }
+            String normD = dNo.replaceAll("(?i)^(RDSO/|RDSO-)", "").trim().toUpperCase();
+            if (!normD.isEmpty() && offeredMap.containsKey(bNo + "|" + normD)) {
+                alreadyOffered = offeredMap.get(bNo + "|" + normD);
+            } else if (!dNo.isEmpty() && offeredMap.containsKey(bNo + "|" + dNo)) {
+                alreadyOffered = offeredMap.get(bNo + "|" + dNo);
+            } else if (!normD.isEmpty() && offeredMap.containsKey(bNo + "|RDSO/" + normD)) {
+                alreadyOffered = offeredMap.get(bNo + "|RDSO/" + normD);
+            } else if (!normD.isEmpty() && offeredMap.containsKey(bNo + "|RDSO-" + normD)) {
+                alreadyOffered = offeredMap.get(bNo + "|RDSO-" + normD);
             } else {
                 alreadyOffered = offeredMap.getOrDefault(bNo + "|ALL", 0);
             }
 
-            int remainingAccepted = Math.max(0, b.getQtyAccepted() - alreadyOffered);
-            b.setQtyAccepted(remainingAccepted);
+            int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
+            int rQty = b.getQtyRejected() != null ? b.getQtyRejected() : 0;
+            int netAccepted = Math.max(0, mQty - rQty);
+
+            b.setQtyAccepted(netAccepted);
+            b.setPreviouslyOfferedQty(alreadyOffered);
             availableBatches.add(b);
         }
         dto.setBatches(availableBatches);

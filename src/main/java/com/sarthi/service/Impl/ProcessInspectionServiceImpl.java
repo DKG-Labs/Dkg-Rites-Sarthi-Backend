@@ -75,6 +75,39 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
     private ProcessOilTankCounterService oilTankService;
 
     @Autowired
+    private com.sarthi.repository.processmaterial.ProcessShearingDataRepository shearingRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessTurningDataRepository turningRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessMpiDataRepository mpiRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessForgingDataRepository forgingRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessQuenchingDataRepository quenchingRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessTemperingDataRepository temperingRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessFinalCheckDataRepository finalCheckRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessTestingFinishingDataRepository testingFinishingRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessStaticPeriodicCheckRepository staticCheckRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessCalibrationDocumentsRepository calibrationRepository;
+
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessOilTankCounterRepository oilTankRepository;
+
+    @Autowired
     private InspectionImageRepository inspectionImageRepository;
 
     @Value("${azure.storage.images-container-name}")
@@ -110,6 +143,98 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
 
         logger.info("Process Material inspection data saved (paused) for call: {}", callNo);
         return "Process Material Inspection data saved successfully";
+    }
+
+    @Override
+    @Transactional
+    public String revertPauseInspection(ProcessFinishInspectionDto dto, String userId) {
+        String callNo = dto.getInspectionCallNo();
+        logger.warn("Reverting / Rolling back Process Material inspection pause data for call: {} by user: {}", callNo, userId);
+
+        if (dto.getLinesData() != null) {
+            for (ProcessLineDataDto lineData : dto.getLinesData()) {
+                String lineNo = lineData.getLineNo();
+                String poNo = lineData.getPoNo();
+                String lineCallNo = lineData.getInspectionCallNo() != null ? lineData.getInspectionCallNo() : callNo;
+                String shift = dto.getShift() != null ? dto.getShift() : (lineData.getLineFinalResult() != null ? lineData.getLineFinalResult().getShift() : null);
+                String lotNo = lineData.getLotNo() != null ? lineData.getLotNo() : (lineData.getLineFinalResult() != null ? lineData.getLineFinalResult().getLotNumber() : null);
+
+                // 1. Delete matching ProcessLineFinalResult
+                List<ProcessLineFinalResult> finalResults = lineFinalResultRepository.findByInspectionCallNo(lineCallNo);
+                if (finalResults != null && !finalResults.isEmpty()) {
+                    List<ProcessLineFinalResult> toDelete = finalResults.stream().filter(r ->
+                        (lineNo == null || lineNo.equalsIgnoreCase(r.getLineNo())) &&
+                        (shift == null || shift.equalsIgnoreCase(r.getShift())) &&
+                        (lotNo == null || lotNo.equalsIgnoreCase(r.getLotNumber())) &&
+                        (userId == null || userId.equals(r.getCreatedBy()))
+                    ).collect(Collectors.toList());
+                    if (!toDelete.isEmpty()) {
+                        lineFinalResultRepository.deleteAll(toDelete);
+                        logger.info("Deleted {} ProcessLineFinalResult rows for call: {}, line: {}, lot: {}", toDelete.size(), lineCallNo, lineNo, lotNo);
+                    }
+                }
+
+                // 2. Delete Shearing
+                shearingRepository.deleteAll(shearingRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 3. Delete Turning
+                turningRepository.deleteAll(turningRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 4. Delete MPI
+                mpiRepository.deleteAll(mpiRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 5. Delete Forging
+                forgingRepository.deleteAll(forgingRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 6. Delete Quenching
+                quenchingRepository.deleteAll(quenchingRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 7. Delete Tempering
+                temperingRepository.deleteAll(temperingRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 8. Delete Final Check
+                finalCheckRepository.deleteAll(finalCheckRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 9. Delete Testing & Finishing
+                testingFinishingRepository.deleteAll(testingFinishingRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 10. Delete Static Periodic Checks
+                staticCheckRepository.deleteAll(staticCheckRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift())) && (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 11. Delete Calibration Documents
+                calibrationRepository.deleteAll(calibrationRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).stream()
+                        .filter(e -> (userId == null || userId.equals(e.getCreatedBy())))
+                        .collect(Collectors.toList()));
+
+                // 12. Delete Oil Tank Counter
+                oilTankRepository.findByInspectionCallNoAndPoNoAndLineNo(lineCallNo, poNo, lineNo).ifPresent(oilTank -> {
+                    if (userId == null || userId.equals(oilTank.getCreatedBy())) {
+                        oilTankRepository.delete(oilTank);
+                    }
+                });
+            }
+        }
+
+        logger.info("Process Material inspection pause data reverted successfully for call: {}", callNo);
+        return "Process Material Inspection data rollback successful";
     }
 
     /**

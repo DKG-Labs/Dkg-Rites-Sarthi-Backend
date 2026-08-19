@@ -35,12 +35,16 @@ public class RailInspectionCall {
     private String plantId;
 
     @Column(name = "rail_pad_type")
-    @JsonAlias({"ncrgrspType", "productType", "railPadType"})
+    @JsonAlias({"railPadType", "rail_pad_type", "productType"})
     private String railPadType;
 
     @Column(name = "total_qty")
     @JsonAlias({"totalOfferedQty", "totalRequiredQty"})
     private Integer totalQty;
+
+    @Column(name = "no_of_sets")
+    @JsonAlias({"noOfSets", "no_of_sets"})
+    private Integer noOfSets;
 
     @Column(name = "no_of_lots")
     private Integer noOfLots;
@@ -69,12 +73,17 @@ public class RailInspectionCall {
     private LocalDateTime updatedAt;
 
     @Column(name = "drawing_no")
+    @JsonAlias({"drawingNo", "drawing_no", "ncrgrspType"})
     private String drawingNo;
 
     @Column(name = "process_ic_no", length = 500)
     @JsonProperty("processInspectionCertNo")
     @JsonAlias({"processIcNo", "processInspectionCertNo"})
     private String processIcNo;
+
+    @Column(name = "remarks", columnDefinition = "TEXT")
+    @JsonAlias({"remarks", "remark"})
+    private String remarks;
 
     @Transient
     private String vendorName;
@@ -105,6 +114,12 @@ public class RailInspectionCall {
 
     @Transient
     private String ieAssignedName;
+
+    @Transient
+    private String latestAction;
+
+    @Transient
+    private Boolean isIcGenerated;
 
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RailInspectionLot> lots;

@@ -34,5 +34,6 @@ public class ProcessInspectionSaveDto {
         private Integer qtyManufactured;
         private Integer qtyRejected;
         private Integer qtyAccepted;
+        private Integer previouslyOfferedQty;
     }
 }
