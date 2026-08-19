@@ -1395,46 +1395,57 @@ public List<String> getBatchNumbers(Long vendorId,
     @Override
     public List<String> getSleeperTypes(String batchNo, String benchNo, String productionUnit) {
 
-        ProductionDeclaration declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
+        List<ProductionDeclaration> declarations;
+        if (productionUnit != null && !productionUnit.isEmpty()) {
+            declarations = repository.findAllByBatchNumberAndProductionUnit(batchNo, productionUnit);
+        } else {
+            declarations = repository.findAllByBatchNumber(batchNo);
+        }
 
         Set<String> sleeperTypes = new LinkedHashSet<>();
         int benchInt = -1;
-        try { benchInt = Integer.parseInt(benchNo); } catch (Exception e) {}
+        if (benchNo != null) {
+            try { benchInt = Integer.parseInt(benchNo.trim()); } catch (Exception e) {}
+        }
 
-        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
-            if (declaration.getChambers() != null) {
-                for (ProductionStressChamber chamber : declaration.getChambers()) {
-                    if (chamber.getBenchGroups() != null) {
-                        for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
-                            if (benchNo != null && benchNo.equalsIgnoreCase(bench.getBenchNo()) && bench.getSleeperType() != null) {
-                                sleeperTypes.add(bench.getSleeperType());
+        if (declarations != null) {
+            for (ProductionDeclaration declaration : declarations) {
+                if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+                    if (declaration.getChambers() != null) {
+                        for (ProductionStressChamber chamber : declaration.getChambers()) {
+                            if (chamber.getBenchGroups() != null) {
+                                for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
+                                    if (benchNo != null && benchNo.equalsIgnoreCase(bench.getBenchNo()) && bench.getSleeperType() != null) {
+                                        sleeperTypes.add(bench.getSleeperType());
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
-        } else { // LONG_LINE
-            if (declaration.getGangs() != null) {
-                for (ProductionLongLineGang gang : declaration.getGangs()) {
-                    boolean matchesBench = false;
-                    int gangFromInt = -1;
-                    int gangToInt = -1;
-                    if (gang.getGangFrom() != null) {
-                        try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
-                    }
-                    if (gang.getGangTo() != null) {
-                        try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
-                    }
+                } else { // LONG_LINE
+                    if (declaration.getGangs() != null) {
+                        for (ProductionLongLineGang gang : declaration.getGangs()) {
+                            boolean matchesBench = false;
+                            int gangFromInt = -1;
+                            int gangToInt = -1;
+                            if (gang.getGangFrom() != null) {
+                                try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
+                            }
+                            if (gang.getGangTo() != null) {
+                                try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
+                            }
 
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null) {
-                        if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
-                            matchesBench = true;
+                            if (gang.getGangFrom() != null && gang.getGangTo() != null) {
+                                if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                                    matchesBench = true;
+                                }
+                            } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
+                                matchesBench = true;
+                            }
+                            if (matchesBench && gang.getSleeperType() != null) {
+                                sleeperTypes.add(gang.getSleeperType());
+                            }
                         }
-                    } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
-                        matchesBench = true;
-                    }
-                    if (matchesBench && gang.getSleeperType() != null) {
-                        sleeperTypes.add(gang.getSleeperType());
                     }
                 }
             }
@@ -1451,14 +1462,14 @@ public List<String> getBatchNumbers(Long vendorId,
     @Override
     public List<String> getSleepers(String batchNo, String benchNo, String sleeperType, String productionUnit) {
 
-        ProductionDeclaration declaration;
+        List<ProductionDeclaration> declarations;
         if (productionUnit != null && !productionUnit.isEmpty()) {
-            declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
+            declarations = repository.findAllByBatchNumberAndProductionUnit(batchNo, productionUnit);
         } else {
-            declaration = repository.findByBatchNumber(batchNo);
+            declarations = repository.findAllByBatchNumber(batchNo);
         }
 
-        if (declaration == null) {
+        if (declarations == null || declarations.isEmpty()) {
             return new ArrayList<>();
         }
 
@@ -1471,18 +1482,20 @@ public List<String> getBatchNumbers(Long vendorId,
         boolean filterBench = (benchNo != null && !benchNo.trim().isEmpty());
         boolean filterType = (sleeperType != null && !sleeperType.trim().isEmpty());
 
-        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
-            if (declaration.getChambers() != null) {
-                for (ProductionStressChamber chamber : declaration.getChambers()) {
-                    if (chamber.getBenchGroups() != null) {
-                        for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
-                            boolean matchesBench = !filterBench || (bench.getBenchNo() != null && bench.getBenchNo().equalsIgnoreCase(benchNo.trim()));
-                            boolean matchesType = !filterType || (bench.getSleeperType() != null && bench.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
-                            if (matchesBench && matchesType) {
-                                if (bench.getSleepers() != null) {
-                                    for (ProductionSleeper sleeper : bench.getSleepers()) {
-                                        if (sleeper.getSleeperNo() != null) {
-                                            sleepers.add(sleeper.getSleeperNo());
+        for (ProductionDeclaration declaration : declarations) {
+            if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+                if (declaration.getChambers() != null) {
+                    for (ProductionStressChamber chamber : declaration.getChambers()) {
+                        if (chamber.getBenchGroups() != null) {
+                            for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
+                                boolean matchesBench = !filterBench || (bench.getBenchNo() != null && bench.getBenchNo().equalsIgnoreCase(benchNo.trim()));
+                                boolean matchesType = !filterType || (bench.getSleeperType() != null && bench.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
+                                if (matchesBench && matchesType) {
+                                    if (bench.getSleepers() != null) {
+                                        for (ProductionSleeper sleeper : bench.getSleepers()) {
+                                            if (sleeper.getSleeperNo() != null) {
+                                                sleepers.add(sleeper.getSleeperNo());
+                                            }
                                         }
                                     }
                                 }
@@ -1490,39 +1503,39 @@ public List<String> getBatchNumbers(Long vendorId,
                         }
                     }
                 }
-            }
-        } else { // LONG_LINE
-            if (declaration.getGangs() != null) {
-                for (ProductionLongLineGang gang : declaration.getGangs()) {
-                    boolean matchesBench = false;
-                    if (!filterBench) {
-                        matchesBench = true;
-                    } else {
-                        int gangFromInt = -1;
-                        int gangToInt = -1;
-                        if (gang.getGangFrom() != null) {
-                            try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
-                        }
-                        if (gang.getGangTo() != null) {
-                            try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
-                        }
+            } else { // LONG_LINE
+                if (declaration.getGangs() != null) {
+                    for (ProductionLongLineGang gang : declaration.getGangs()) {
+                        boolean matchesBench = false;
+                        if (!filterBench) {
+                            matchesBench = true;
+                        } else {
+                            int gangFromInt = -1;
+                            int gangToInt = -1;
+                            if (gang.getGangFrom() != null) {
+                                try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
+                            }
+                            if (gang.getGangTo() != null) {
+                                try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
+                            }
 
-                        if (gang.getGangFrom() != null && gang.getGangTo() != null) {
-                            if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                            if (gang.getGangFrom() != null && gang.getGangTo() != null) {
+                                if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                                    matchesBench = true;
+                                }
+                            } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
                                 matchesBench = true;
                             }
-                        } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
-                            matchesBench = true;
                         }
-                    }
 
-                    boolean matchesType = !filterType || (gang.getSleeperType() != null && gang.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
+                        boolean matchesType = !filterType || (gang.getSleeperType() != null && gang.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
 
-                    if (matchesBench && matchesType) {
-                        if (gang.getSleepers() != null) {
-                            for (ProductionSleeper sleeper : gang.getSleepers()) {
-                                if (sleeper.getSleeperNo() != null) {
-                                    sleepers.add(sleeper.getSleeperNo());
+                        if (matchesBench && matchesType) {
+                            if (gang.getSleepers() != null) {
+                                for (ProductionSleeper sleeper : gang.getSleepers()) {
+                                    if (sleeper.getSleeperNo() != null) {
+                                        sleepers.add(sleeper.getSleeperNo());
+                                    }
                                 }
                             }
                         }
