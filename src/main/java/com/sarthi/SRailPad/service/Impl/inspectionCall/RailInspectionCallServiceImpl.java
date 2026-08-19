@@ -40,6 +40,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallAuditRepository railInspectionCallAuditRepository;
     private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnProcessCallRepository railWithdrawnProcessCallRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnFinalCallRepository railWithdrawnFinalCallRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     private jakarta.persistence.EntityManager entityManager;
@@ -187,6 +189,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
     @Override
     public Page<RailInspectionCall> getCompletedPaginatedCallsByPlant(String plantId, Pageable pageable) {
+        syncMissingWithdrawnCalls();
         List<String> exactStatuses = Arrays.asList(
                 "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
                 "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
@@ -196,6 +199,61 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         Page<RailInspectionCall> page = repository.findCompletedCallsForPlantNative(plantId, exactStatuses, pageable);
         page.forEach(this::enrichCallData);
         return page;
+    }
+
+    private void syncMissingWithdrawnCalls() {
+        try {
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall> processArchives = 
+                    railWithdrawnProcessCallRepository.findAll();
+            for (com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall p : processArchives) {
+                if (repository.findByCallNo(p.getCallNo()).isEmpty()) {
+                    RailInspectionCall call = new RailInspectionCall();
+                    call.setCallNo(p.getCallNo());
+                    call.setPoNo(p.getPoNo());
+                    call.setPoSr(p.getPoSr());
+                    call.setVendorCode(p.getVendorCode());
+                    call.setPlantId(p.getPlantId());
+                    call.setRailPadType(p.getRailPadType());
+                    call.setDrawingNo(p.getDrawingNo());
+                    call.setTotalQty(p.getQtyDesiredForFinal() != null ? p.getQtyDesiredForFinal() : p.getQtyOnOrder());
+                    call.setCallType("PROCESS");
+                    call.setStatus("WITHDRAW");
+                    if (p.getWithdrawnAt() != null) {
+                        call.setCreatedAt(p.getWithdrawnAt());
+                        call.setUpdatedAt(p.getWithdrawnAt());
+                    }
+                    repository.save(call);
+                }
+            }
+
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall> finalArchives = 
+                    railWithdrawnFinalCallRepository.findAll();
+            for (com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall f : finalArchives) {
+                if (repository.findByCallNo(f.getCallNo()).isEmpty()) {
+                    RailInspectionCall call = new RailInspectionCall();
+                    call.setCallNo(f.getCallNo());
+                    call.setPoNo(f.getPoNo());
+                    call.setPoSr(f.getPoSr());
+                    call.setVendorCode(f.getVendorCode());
+                    call.setPlantId(f.getPlantId());
+                    call.setRailPadType(f.getRailPadType());
+                    call.setDrawingNo(f.getDrawingNo());
+                    call.setTotalQty(f.getTotalQty());
+                    call.setNoOfLots(f.getNoOfLots());
+                    call.setInspectionDate(f.getInspectionDate());
+                    call.setProcessIcNo(f.getProcessIcNo());
+                    call.setCallType("FINAL");
+                    call.setStatus("WITHDRAW");
+                    if (f.getWithdrawnAt() != null) {
+                        call.setCreatedAt(f.getWithdrawnAt());
+                        call.setUpdatedAt(f.getWithdrawnAt());
+                    }
+                    repository.save(call);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error syncing missing withdrawn calls: " + e.getMessage());
+        }
     }
 
     @Override
@@ -288,27 +346,29 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             call.setStatus(latestStatus);
         }
 
-        // 4. Populate IE Assigned Name: ONLY if status is verified, fetch Main IE from rail_poi_ie_mapping
-        String status = call.getStatus();
-        boolean isVerified = status != null && (
-                status.equalsIgnoreCase("VERIFY") || status.equalsIgnoreCase("VERIFIED") ||
-                status.equalsIgnoreCase("CALL_REGISTERED") || status.equalsIgnoreCase("REGISTERED") ||
-                status.equalsIgnoreCase("SCHEDULED") || status.equalsIgnoreCase("IE_SCHEDULED") ||
-                status.equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL") || status.equalsIgnoreCase("INITIATE_CALL") ||
-                status.equalsIgnoreCase("INSPECTION_INITIATION") || status.equalsIgnoreCase("INSPECTION_IN_PROGRESS") ||
-                status.equalsIgnoreCase("COMPLETED") || status.equalsIgnoreCase("IC_ISSUE") ||
-                status.equalsIgnoreCase("GENERATE_IC") || status.equalsIgnoreCase("DESK_COMPLETED") ||
-                status.equalsIgnoreCase("PO_VERIFICATION")
-        );
+        // 4. Populate IE Assigned Name: ONLY if call has been verified in workflow transactions, fetch Main IE for plant
+        boolean isVerified = false;
+        if (call.getCallNo() != null) {
+            List<com.sarthi.SRailPad.entity.RailWorkflowTransaction> txList = 
+                    railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(call.getCallNo());
+            if (txList != null && !txList.isEmpty()) {
+                isVerified = txList.stream().anyMatch(tx -> {
+                    String act = tx.getAction() != null ? tx.getAction().toUpperCase() : "";
+                    String st = tx.getStatus() != null ? tx.getStatus().toUpperCase() : "";
+                    return act.contains("VERIFY") || act.contains("SCHEDULE") || act.contains("INITIATE") || act.contains("ISSUE") || act.contains("COMPLET")
+                        || st.contains("VERIFY") || st.contains("REGISTERED") || st.contains("SCHEDULE") || st.contains("INITIATE") || st.contains("ISSUE") || st.contains("COMPLET");
+                });
+            }
+        }
 
         if (!isVerified) {
-            call.setIeAssignedName("IE Not Assigned");
+            call.setIeAssignedName("No ie assigned");
         } else {
             List<String> mainIeNames = railPoiIeMappingRepository.findMainIeNamesByPlantId(call.getPlantId(), null);
             if (mainIeNames != null && !mainIeNames.isEmpty()) {
                 call.setIeAssignedName(String.join(", ", mainIeNames));
             } else {
-                call.setIeAssignedName("IE Not Assigned");
+                call.setIeAssignedName("No ie assigned");
             }
         }
     }
@@ -637,5 +697,178 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         audit.setCreatedBy(user);
         audit.setUpdatedBy(user);
         return audit;
+    }
+
+    @Override
+    @Transactional
+    public String withdrawCall(com.sarthi.SRailPad.dto.RailWithdrawRequestDto dto) {
+        String rawCallNo = (dto.getCallNo() != null && !dto.getCallNo().isBlank()) 
+                ? dto.getCallNo() 
+                : (dto.getRequestId() != null ? dto.getRequestId() : "");
+        if (rawCallNo.isBlank()) {
+            throw new IllegalArgumentException("Call No / RequestId is required for withdrawal.");
+        }
+
+        String callNo = rawCallNo.trim();
+        RailInspectionCall call = repository.findByCallNo(callNo)
+                .orElseThrow(() -> new RuntimeException("Inspection call not found: " + callNo));
+
+        String withdrawnBy = dto.getWithdrawnBy() != null && !dto.getWithdrawnBy().isBlank() 
+                ? dto.getWithdrawnBy().trim() 
+                : (dto.getActionBy() != null && !dto.getActionBy().isBlank() ? dto.getActionBy().trim() : (call.getVendorCode() != null ? call.getVendorCode() : "Vendor"));
+        String remarks = dto.getRemarks() != null ? dto.getRemarks().trim() : "";
+
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        boolean isProcess = "PROCESS".equalsIgnoreCase(call.getCallType()) || callNo.startsWith("RPP-");
+
+        if (isProcess) {
+            com.sarthi.SRailPad.entity.inspectionCall.RailProcessCallDetails details =
+                    processCallDetailsRepository.findByInspectionCall_CallNo(callNo).orElse(null);
+
+            com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall archivedProcess = 
+                    new com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall();
+            
+            archivedProcess.setCallNo(call.getCallNo());
+            archivedProcess.setPoNo(call.getPoNo());
+            archivedProcess.setPoSr(call.getPoSr());
+            archivedProcess.setVendorCode(call.getVendorCode());
+            archivedProcess.setPlantId(call.getPlantId());
+            archivedProcess.setRailPadType(call.getRailPadType());
+            archivedProcess.setDrawingNo(details != null && details.getDrawingNo() != null ? details.getDrawingNo() : call.getDrawingNo());
+            
+            if (details != null) {
+                archivedProcess.setUom(details.getUom());
+                archivedProcess.setQtyOnOrder(details.getQtyOnOrder());
+                archivedProcess.setQtyAcceptedTillNow(details.getQtyAcceptedTillNow());
+                archivedProcess.setQtyDesiredForFinal(details.getQtyDesiredForFinal());
+                archivedProcess.setQtyDue(details.getQtyDue());
+                archivedProcess.setProductionInitiationDate(details.getProductionInitiationDate());
+            }
+
+            archivedProcess.setWithdrawnBy(withdrawnBy);
+            archivedProcess.setWithdrawnRemarks(remarks);
+            archivedProcess.setWithdrawnAt(java.time.LocalDateTime.now());
+
+            try {
+                archivedProcess.setOriginalDataJson(mapper.writeValueAsString(call));
+            } catch (Exception e) {
+                archivedProcess.setOriginalDataJson("{}");
+            }
+
+            railWithdrawnProcessCallRepository.save(archivedProcess);
+
+            // Delete child process details
+            if (details != null) {
+                processCallDetailsRepository.delete(details);
+            }
+        } else {
+            com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall archivedFinal = 
+                    new com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall();
+
+            archivedFinal.setCallNo(call.getCallNo());
+            archivedFinal.setPoNo(call.getPoNo());
+            archivedFinal.setPoSr(call.getPoSr());
+            archivedFinal.setVendorCode(call.getVendorCode());
+            archivedFinal.setPlantId(call.getPlantId());
+            archivedFinal.setRailPadType(call.getRailPadType());
+            archivedFinal.setDrawingNo(call.getDrawingNo());
+            archivedFinal.setTotalQty(call.getTotalQty());
+            archivedFinal.setNoOfLots(call.getNoOfLots());
+            archivedFinal.setInspectionDate(call.getInspectionDate());
+            archivedFinal.setProcessIcNo(call.getProcessIcNo());
+            archivedFinal.setWithdrawnBy(withdrawnBy);
+            archivedFinal.setWithdrawnRemarks(remarks);
+            archivedFinal.setWithdrawnAt(java.time.LocalDateTime.now());
+
+            List<String> bList = new ArrayList<>();
+            List<String> dList = new ArrayList<>();
+            if (call.getLots() != null) {
+                for (RailInspectionLot lot : call.getLots()) {
+                    if (lot.getBatches() != null) {
+                        for (RailInspectionBatch b : lot.getBatches()) {
+                            if (b.getBatchNo() != null && !b.getBatchNo().isBlank()) {
+                                bList.add(b.getBatchNo().trim());
+                            }
+                            if (b.getDrawingNo() != null && !b.getDrawingNo().isBlank()) {
+                                dList.add(b.getDrawingNo().trim());
+                            }
+                        }
+                    }
+                }
+            }
+
+            archivedFinal.setBatchNumbers(bList.stream().distinct().collect(Collectors.joining(", ")));
+            archivedFinal.setSubDrawingNo(dList.stream().distinct().collect(Collectors.joining(", ")));
+
+            try {
+                if (call.getLots() != null) {
+                    archivedFinal.setLotsAndBatchesJson(mapper.writeValueAsString(call.getLots()));
+                }
+                archivedFinal.setOriginalDataJson(mapper.writeValueAsString(call));
+            } catch (Exception e) {
+                archivedFinal.setOriginalDataJson("{}");
+            }
+
+            railWithdrawnFinalCallRepository.save(archivedFinal);
+        }
+
+        // Update workflow transition to WITHDRAW status (preserve transaction record)
+        RailWorkflowTransaction targetWf = null;
+        if (dto.getWorkflowTransitionId() != null) {
+            targetWf = railWorkflowTransactionRepository.findById(dto.getWorkflowTransitionId().intValue()).orElse(null);
+        }
+        if (targetWf == null) {
+            targetWf = railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+        }
+
+        if (targetWf != null) {
+            targetWf.setStatus("WITHDRAW");
+            targetWf.setAction("WITHDRAW");
+            targetWf.setJobStatus("WITHDRAW");
+            targetWf.setRemarks(remarks);
+            targetWf.setNextRole(null);
+            targetWf.setUpdatedDate(java.time.LocalDateTime.now());
+            if (dto.getActionBy() != null) {
+                try {
+                    targetWf.setModifiedBy(Long.parseLong(dto.getActionBy().trim()));
+                } catch (Exception ignored) {}
+            }
+            railWorkflowTransactionRepository.save(targetWf);
+        } else {
+            RailWorkflowTransaction newWf = new RailWorkflowTransaction();
+            newWf.setRequestId(callNo);
+            newWf.setStatus("WITHDRAW");
+            newWf.setAction("WITHDRAW");
+            newWf.setJobStatus("WITHDRAW");
+            newWf.setRemarks(remarks);
+            newWf.setVendorCode(call.getVendorCode());
+            newWf.setPlantId(call.getPlantId());
+            newWf.setCreatedDate(java.time.LocalDateTime.now());
+            newWf.setUpdatedDate(java.time.LocalDateTime.now());
+            if (dto.getActionBy() != null) {
+                try {
+                    newWf.setModifiedBy(Long.parseLong(dto.getActionBy().trim()));
+                } catch (Exception ignored) {}
+            }
+            railWorkflowTransactionRepository.save(newWf);
+        }
+
+        // Delete audit records for this call_no if any
+        try {
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCallAudit> audits = 
+                    railInspectionCallAuditRepository.findByCallNoOrderByCreatedAtDesc(callNo);
+            if (audits != null && !audits.isEmpty()) {
+                railInspectionCallAuditRepository.deleteAll(audits);
+            }
+        } catch (Exception ignored) {}
+
+        // Update main call record status to WITHDRAW so it reflects in Completed Calls
+        call.setStatus("WITHDRAW");
+        repository.save(call);
+
+        return "Call " + callNo + " successfully withdrawn and archived.";
     }
 }

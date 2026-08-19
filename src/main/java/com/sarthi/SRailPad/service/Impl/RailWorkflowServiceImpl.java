@@ -765,7 +765,28 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             System.out.println("[Workflow Service] Final Status before save: " + tx.getStatus());
         }
 
-        tx.setAssignedToUser(req.getActionBy());
+        // Determine assignedToUser based on nextRole & plant mapping
+        Long targetAssignedUser = req.getActionBy();
+        if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || "VERIFY".equalsIgnoreCase(req.getAction())) {
+            Optional<RailPoiIeMapping> mappingOpt = poiIeMappingRepository
+                    .findByPlantIdAndIeType(current.getPlantId(), "Main IE");
+            if (mappingOpt.isEmpty()) {
+                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(current.getPlantId(), "MAIN_IE");
+            }
+            if (mappingOpt.isPresent() && mappingOpt.get().getIeUserId() != null) {
+                targetAssignedUser = mappingOpt.get().getIeUserId().longValue();
+            }
+        } else if ("Rail Process IE".equalsIgnoreCase(tx.getNextRole())) {
+            Optional<RailPoiIeMapping> mappingOpt = poiIeMappingRepository
+                    .findByPlantIdAndIeType(current.getPlantId(), "Process IE");
+            if (mappingOpt.isEmpty()) {
+                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(current.getPlantId(), "PROCESS_IE");
+            }
+            if (mappingOpt.isPresent() && mappingOpt.get().getIeUserId() != null) {
+                targetAssignedUser = mappingOpt.get().getIeUserId().longValue();
+            }
+        }
+        tx.setAssignedToUser(targetAssignedUser);
 
         tx.setCreatedBy(current.getCreatedBy());
         tx.setModifiedBy(req.getActionBy());
