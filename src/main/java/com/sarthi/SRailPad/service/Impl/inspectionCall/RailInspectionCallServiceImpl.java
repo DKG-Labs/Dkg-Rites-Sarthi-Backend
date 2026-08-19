@@ -464,10 +464,15 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
         String poDateStr = poHeader != null && poHeader.getPoDate() != null ? poHeader.getPoDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
         
+        String caseNo = (poItem != null && poItem.getCaseNo() != null && !poItem.getCaseNo().trim().isEmpty())
+                ? poItem.getCaseNo().trim()
+                : (poHeader != null && poHeader.getCaseNo() != null ? poHeader.getCaseNo().trim() : "");
+        String caseNoBracket = (caseNo != null && !caseNo.isBlank()) ? ", (CASE NO. " + caseNo + ")" : "";
+
         String uom = poItem != null && poItem.getUom() != null ? poItem.getUom() : "Nos";
         
-        String passedWordsTemplate = String.format("QUANTITY NOW PASSED %s %s ONLY INCLUDING ONE NOS CONSUMED IN MF TESTING. %s NOS. REJECTED DURING INSPECTION AS PER ANNEXURE-I TO IC ATTACHED.", 
-            convertToWords(qtyNowPassed.longValue()), uom.toUpperCase(), convertToWords(qtyNowRejected.longValue()));
+        String passedWordsTemplate = String.format("QUANTITY NOW PASSED %s %s ONLY.%s INCLUDING ONE NOS CONSUMED IN MF TESTING. %s NOS. REJECTED DURING INSPECTION AS PER ANNEXURE-I TO IC ATTACHED.", 
+            convertToWords(qtyNowPassed.longValue()), uom.toUpperCase(), caseNoBracket, convertToWords(qtyNowRejected.longValue()));
 
         String rejectionReasonTemplate = qtyNowRejected > 0 ? "REJECTED DURING INSPECTION AS DETAILED IN ANNEXURE-I" : "Not Applicable";
 
@@ -518,6 +523,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setDateOfInspection(datesString);
         dto.setTrRecDt("");
         dto.setReasonOfRejection(rejectionReasonTemplate);
+        dto.setCaseNo(caseNo);
 
         return dto;
     }
