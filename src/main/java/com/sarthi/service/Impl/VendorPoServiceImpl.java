@@ -35,7 +35,8 @@ public class VendorPoServiceImpl implements VendorPoService {
                 type = "Elastic Rail Clips";
             } else if (vt.equalsIgnoreCase("Sleeper") || vt.equalsIgnoreCase("PSC Mainline Sleeper")) {
                 type = "PSC Mainline Sleeper";
-            } else if (vt.equalsIgnoreCase("Rail Pads") || vt.equalsIgnoreCase("RailPad") || vt.equalsIgnoreCase("Rail Pad") || vt.equalsIgnoreCase("RailPads")) {
+            } else if (vt.equalsIgnoreCase("Rail Pads") || vt.equalsIgnoreCase("RailPad")
+                    || vt.equalsIgnoreCase("Rail Pad") || vt.equalsIgnoreCase("RailPads")) {
                 type = "Rail Pads";
             } else {
                 type = vt;
@@ -59,18 +60,23 @@ public class VendorPoServiceImpl implements VendorPoService {
             }
         }
 
-        // Fetch all inspection calls for this vendor once to optimize
-        List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls = List.of();
+        // Fetch all inspection calls for this vendor (combining both with & without colon variants)
+        List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls = new java.util.ArrayList<>();
         try {
             if (railInspectionCallRepository != null && vendorCode != null && !vendorCode.trim().isEmpty()) {
-                vendorCalls = railInspectionCallRepository.findAllByVendorCode(vendorCode);
-                if ((vendorCalls == null || vendorCalls.isEmpty())) {
-                    String altCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : ":" + vendorCode;
-                    vendorCalls = railInspectionCallRepository.findAllByVendorCode(altCode);
+                List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> primaryCalls = railInspectionCallRepository.findAllByVendorCode(vendorCode);
+                if (primaryCalls != null && !primaryCalls.isEmpty()) {
+                    vendorCalls.addAll(primaryCalls);
                 }
-            }
-            if (vendorCalls == null) {
-                vendorCalls = List.of();
+                String altCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : ":" + vendorCode;
+                List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> altCalls = railInspectionCallRepository.findAllByVendorCode(altCode);
+                if (altCalls != null && !altCalls.isEmpty()) {
+                    for (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall ac : altCalls) {
+                        if (vendorCalls.stream().noneMatch(c -> c.getId() != null && c.getId().equals(ac.getId()))) {
+                            vendorCalls.add(ac);
+                        }
+                    }
+                }
             }
         } catch (Exception e) {
             logger.warn("Error fetching rail inspection calls for vendor {}: {}", vendorCode, e.getMessage());
@@ -161,7 +167,8 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setUom(itemUom);
         dto.setUnit(itemUom);
 
-        // Calculate offered qty by strictly matching specific PO item serial number and excluding withdrawn calls
+        // Calculate offered qty by strictly matching specific PO item serial number and
+        // excluding withdrawn calls
         final boolean isSetUom = itemUom != null && itemUom.toUpperCase().contains("SET");
 
         int totalOffered = vendorCalls.stream()
