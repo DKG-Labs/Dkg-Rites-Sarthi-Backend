@@ -187,6 +187,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
             ON w.request_id = d.id
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
+        AND d.casting_date = :castingDate
         AND w.module_id = 11
         AND LOWER(w.status) = 'completed'
         AND w.workflow_transition_id = (
@@ -196,7 +197,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.cast
               AND w2.module_id = 11
         )
         """, nativeQuery = true)
-    List<String> findBenchNumbers(String batchNo, String productionUnit);
+    List<String> findBenchNumbers(String batchNo, String productionUnit, @Param("castingDate") java.time.LocalDate castingDate);
 
     @Query(value = """
             SELECT DISTINCT p.batch_number
@@ -333,6 +334,7 @@ WHERE d.batch_number = :batchNo
             ON w.request_id = d.id
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
+        AND d.casting_date = :castingDate
         AND w.module_id = 11
         AND LOWER(w.status) = 'completed'
         AND w.workflow_transition_id = (
@@ -342,7 +344,7 @@ WHERE d.batch_number = :batchNo
               AND w2.module_id = 11
         )
         """, nativeQuery = true)
-    List<Object[]> findGangRanges(String batchNo, String productionUnit);
+    List<Object[]> findGangRanges(String batchNo, String productionUnit, @Param("castingDate") java.time.LocalDate castingDate);
 
     @Query(value = """
             SELECT DISTINCT 
