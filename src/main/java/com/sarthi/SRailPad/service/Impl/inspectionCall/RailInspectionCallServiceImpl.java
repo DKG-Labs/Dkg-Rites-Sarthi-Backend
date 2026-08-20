@@ -47,6 +47,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     @org.springframework.beans.factory.annotation.Autowired
     private jakarta.persistence.EntityManager entityManager;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private static final String[] units = { "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN" };
     private static final String[] tens = { "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY" };
 
@@ -818,9 +821,11 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         } catch (Exception ignored) {}
 
-        // Batch save audit entries in a single query (No N+1 queries)
+        // Batch save audit entries safely if table exists
         if (!auditList.isEmpty()) {
-            railInspectionCallAuditRepository.saveAll(auditList);
+            try {
+                railInspectionCallAuditRepository.saveAll(auditList);
+            } catch (Exception ignored) {}
         }
 
         RailInspectionCall savedCall = repository.save(call);
@@ -892,17 +897,37 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             archivedProcess.setWithdrawnRemarks(remarks);
             archivedProcess.setWithdrawnAt(java.time.LocalDateTime.now());
 
+            String jsonStr = "{}";
             try {
-                archivedProcess.setOriginalDataJson(mapper.writeValueAsString(call));
-            } catch (Exception e) {
-                archivedProcess.setOriginalDataJson("{}");
-            }
+                jsonStr = mapper.writeValueAsString(call);
+            } catch (Exception ignored) {}
+            archivedProcess.setOriginalDataJson(jsonStr);
 
-            railWithdrawnProcessCallRepository.save(archivedProcess);
+            // Use JdbcTemplate for optional archival to prevent JPA transaction poisoning if table is missing
+            try {
+                jdbcTemplate.update(
+                    "INSERT INTO rail_withdrawn_process_calls " +
+                    "(call_no, po_no, po_sr, vendor_code, plant_id, rail_pad_type, drawing_no, uom, qty_on_order, qty_accepted_till_now, qty_desired_for_final, qty_due, production_initiation_date, withdrawn_by, withdrawn_remarks, withdrawn_at, original_data_json) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    archivedProcess.getCallNo(), archivedProcess.getPoNo(), archivedProcess.getPoSr(), archivedProcess.getVendorCode(),
+                    archivedProcess.getPlantId(), archivedProcess.getRailPadType(), archivedProcess.getDrawingNo(), archivedProcess.getUom(),
+                    archivedProcess.getQtyOnOrder(), archivedProcess.getQtyAcceptedTillNow(), archivedProcess.getQtyDesiredForFinal(), archivedProcess.getQtyDue(),
+                    archivedProcess.getProductionInitiationDate(), archivedProcess.getWithdrawnBy(), archivedProcess.getWithdrawnRemarks(),
+                    archivedProcess.getWithdrawnAt(), archivedProcess.getOriginalDataJson()
+                );
+            } catch (Exception e) {
+                try { railWithdrawnProcessCallRepository.save(archivedProcess); } catch (Exception ignored) {}
+            }
 
             // Delete child process details
             if (details != null) {
-                processCallDetailsRepository.delete(details);
+                try {
+                    processCallDetailsRepository.delete(details);
+                } catch (Exception e) {
+                    try {
+                        jdbcTemplate.update("DELETE FROM rail_process_call_details WHERE id = ?", details.getId());
+                    } catch (Exception ignored) {}
+                }
             }
         } else {
             com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall archivedFinal = 
@@ -943,18 +968,34 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             archivedFinal.setBatchNumbers(bList.stream().distinct().collect(Collectors.joining(", ")));
             archivedFinal.setSubDrawingNo(dList.stream().distinct().collect(Collectors.joining(", ")));
 
+            String lotsJson = null;
+            String origJson = "{}";
             try {
                 if (call.getLots() != null) {
-                    archivedFinal.setLotsAndBatchesJson(mapper.writeValueAsString(call.getLots()));
+                    lotsJson = mapper.writeValueAsString(call.getLots());
                 }
-                archivedFinal.setOriginalDataJson(mapper.writeValueAsString(call));
+                origJson = mapper.writeValueAsString(call);
+            } catch (Exception ignored) {}
+            archivedFinal.setLotsAndBatchesJson(lotsJson);
+            archivedFinal.setOriginalDataJson(origJson);
+
+            // Use JdbcTemplate for optional archival to prevent JPA transaction poisoning if table is missing
+            try {
+                jdbcTemplate.update(
+                    "INSERT INTO rail_withdrawn_final_calls " +
+                    "(call_no, po_no, po_sr, vendor_code, plant_id, rail_pad_type, drawing_no, total_qty, no_of_lots, inspection_date, process_ic_no, withdrawn_by, withdrawn_remarks, withdrawn_at, batch_numbers, sub_drawing_no, lots_and_batches_json, original_data_json) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    archivedFinal.getCallNo(), archivedFinal.getPoNo(), archivedFinal.getPoSr(), archivedFinal.getVendorCode(),
+                    archivedFinal.getPlantId(), archivedFinal.getRailPadType(), archivedFinal.getDrawingNo(), archivedFinal.getTotalQty(),
+                    archivedFinal.getNoOfLots(), archivedFinal.getInspectionDate(), archivedFinal.getProcessIcNo(), archivedFinal.getWithdrawnBy(),
+                    archivedFinal.getWithdrawnRemarks(), archivedFinal.getWithdrawnAt(), archivedFinal.getBatchNumbers(), archivedFinal.getSubDrawingNo(),
+                    archivedFinal.getLotsAndBatchesJson(), archivedFinal.getOriginalDataJson()
+                );
             } catch (Exception e) {
-                archivedFinal.setOriginalDataJson("{}");
+                try { railWithdrawnFinalCallRepository.save(archivedFinal); } catch (Exception ignored) {}
             }
 
-            railWithdrawnFinalCallRepository.save(archivedFinal);
-
-            // Reset / Remove qty_to_use from rail_inspection_batch for this withdrawn final call
+            // Reset batch quantities safely
             if (call.getLots() != null) {
                 for (RailInspectionLot lot : call.getLots()) {
                     if (lot.getBatches() != null) {
@@ -962,19 +1003,18 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                             b.setQtyToUse(0);
                             b.setQuantity(0);
                             b.setBalanceQty(0);
-                            railInspectionBatchRepository.save(b);
+                            try { railInspectionBatchRepository.save(b); } catch (Exception ignored) {}
                         }
                     }
                 }
             }
             try {
-                entityManager.createNativeQuery(
+                jdbcTemplate.update(
                     "UPDATE rail_inspection_batch b " +
                     "JOIN rail_inspection_lot l ON b.lot_id = l.id " +
                     "JOIN rail_inspection_call c ON l.inspection_call_id = c.id " +
                     "SET b.qty_to_use = 0, b.quantity = 0, b.balance_qty = 0 " +
-                    "WHERE c.call_no = :callNo"
-                ).setParameter("callNo", callNo).executeUpdate();
+                    "WHERE c.call_no = ?", callNo);
             } catch (Exception ignored) {}
         }
 
@@ -999,7 +1039,15 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                     targetWf.setModifiedBy(Long.parseLong(dto.getActionBy().trim()));
                 } catch (Exception ignored) {}
             }
-            railWorkflowTransactionRepository.save(targetWf);
+            try {
+                railWorkflowTransactionRepository.save(targetWf);
+            } catch (Exception e) {
+                try {
+                    jdbcTemplate.update(
+                        "UPDATE rail_workflow_transaction SET status='WITHDRAW', action='WITHDRAW', job_status='WITHDRAW', remarks=?, updated_date=NOW() WHERE workflow_transition_id=?",
+                        remarks, targetWf.getWorkflowTransitionId());
+                } catch (Exception ignored) {}
+            }
         } else {
             RailWorkflowTransaction newWf = new RailWorkflowTransaction();
             newWf.setRequestId(callNo);
@@ -1016,16 +1064,20 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                     newWf.setModifiedBy(Long.parseLong(dto.getActionBy().trim()));
                 } catch (Exception ignored) {}
             }
-            railWorkflowTransactionRepository.save(newWf);
+            try {
+                railWorkflowTransactionRepository.save(newWf);
+            } catch (Exception e) {
+                try {
+                    jdbcTemplate.update(
+                        "INSERT INTO rail_workflow_transaction (request_id, status, action, job_status, remarks, vendor_code, plant_id, created_date, updated_date) VALUES (?, 'WITHDRAW', 'WITHDRAW', 'WITHDRAW', ?, ?, ?, NOW(), NOW())",
+                        callNo, remarks, call.getVendorCode(), call.getPlantId());
+                } catch (Exception ignored) {}
+            }
         }
 
-        // Delete audit records for this call_no if any
+        // Delete audit records using JdbcTemplate to prevent JPA transaction poisoning if table missing
         try {
-            List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCallAudit> audits = 
-                    railInspectionCallAuditRepository.findByCallNoOrderByCreatedAtDesc(callNo);
-            if (audits != null && !audits.isEmpty()) {
-                railInspectionCallAuditRepository.deleteAll(audits);
-            }
+            jdbcTemplate.update("DELETE FROM rail_inspection_call_audit WHERE call_no = ?", callNo);
         } catch (Exception ignored) {}
 
         // Update main call record status to WITHDRAW so it reflects in Completed Calls
