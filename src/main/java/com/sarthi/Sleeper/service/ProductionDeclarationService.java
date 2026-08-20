@@ -40,7 +40,7 @@ public interface ProductionDeclarationService {
             LocalDate castingDate,
             String plantId,
             String productionUnit);
-    public List<String> getBenchNumbers(String batchNo, String productionUnit);
+    public List<String> getBenchNumbers(String batchNo, String productionUnit, LocalDate castingDate);
 
     public List<String> getSleeperTypes(String batchNo, String benchNo, String productionUnit);
     public List<String> getSleepers(String batchNo, String benchNo, String sleeperType, String productionUnit);

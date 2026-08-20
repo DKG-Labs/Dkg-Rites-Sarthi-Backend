@@ -145,11 +145,12 @@ public class productionDeclarationController {
         @GetMapping("getAll/benches")
         public ResponseEntity<Object>  getBenchNumbers(
                 @RequestParam String batchNo,
-                @RequestParam String productionUnit) {
+                @RequestParam String productionUnit,
+                @RequestParam String castingDate) {
 
 
                 return new ResponseEntity<>(
-                        ResponseBuilder.getSuccessResponse(service.getBenchNumbers(batchNo, productionUnit)),
+                        ResponseBuilder.getSuccessResponse(service.getBenchNumbers(batchNo, productionUnit, LocalDate.parse(castingDate))),
                         HttpStatus.OK);
         }
 
