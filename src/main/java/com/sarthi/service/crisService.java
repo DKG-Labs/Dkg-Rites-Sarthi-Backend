@@ -20,4 +20,6 @@ public interface crisService {
     public Object fetchPoData(java.util.Map<String, String> requestValues);
 
     public String getPoDateByPoNo(String poNo);
+
+    public com.sarthi.entity.PoHeader getPoHeaderByPoNo(String poNo);
 }

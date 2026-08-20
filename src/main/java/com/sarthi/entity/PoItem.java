@@ -19,6 +19,9 @@ public class PoItem {
  // ---- RELATION ----
  @ManyToOne(fetch = FetchType.LAZY)
  @JoinColumn(name = "po_header_id", nullable = false)
+ @com.fasterxml.jackson.annotation.JsonIgnore
+ @lombok.ToString.Exclude
+ @lombok.EqualsAndHashCode.Exclude
  private PoHeader poHeader;
 
  // ---- BASIC ----

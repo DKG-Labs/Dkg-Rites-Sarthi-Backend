@@ -131,12 +131,25 @@ public class crisController {
     @org.springframework.web.bind.annotation.GetMapping("/po-date")
     public ResponseEntity<Object> getPoDate(@org.springframework.web.bind.annotation.RequestParam String poNo) {
         try {
-            String poDate = crisService.getPoDateByPoNo(poNo);
-            java.util.Map<String, String> response = new java.util.HashMap<>();
+            com.sarthi.entity.PoHeader header = crisService.getPoHeaderByPoNo(poNo != null ? poNo.trim() : "");
+            String poDate = null;
+            if (header != null) {
+                if (header.getPoDate() != null) {
+                    java.time.LocalDate localDate = header.getPoDate()
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .withZoneSameInstant(java.time.ZoneOffset.UTC)
+                            .toLocalDate();
+                    poDate = localDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                }
+                header.setItems(null);
+            }
+            java.util.Map<String, Object> response = new java.util.HashMap<>();
             response.put("poDate", poDate);
+            response.put("poHeader", header);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
 }
+

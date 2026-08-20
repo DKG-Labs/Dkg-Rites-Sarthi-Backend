@@ -83,6 +83,8 @@ public class PoHeader {
         @OneToMany(mappedBy = "poHeader",
                 cascade = CascadeType.ALL,
                 orphanRemoval = true)
+        @lombok.ToString.Exclude
+        @lombok.EqualsAndHashCode.Exclude
         private List<PoItem> items = new ArrayList<>();
 
 
