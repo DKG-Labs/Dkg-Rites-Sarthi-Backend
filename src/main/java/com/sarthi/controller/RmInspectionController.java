@@ -442,9 +442,12 @@ public class RmInspectionController {
                 }
             }
 
-            // Set other remarks if provided
+            // Set remarks if provided
             if (passData.containsKey("otherRemarks")) {
                 record.setOtherRemarks((String) passData.get("otherRemarks"));
+            }
+            if (passData.containsKey("allDefectsRemark")) {
+                record.setAllDefectsRemark((String) passData.get("allDefectsRemark"));
             }
 
             // Set explicit calculated values
@@ -611,6 +614,10 @@ public class RmInspectionController {
         switch (defectName.toLowerCase()) {
             case "no defect":
                 entity.setNoDefect(selected);
+                break;
+            case "all defects":
+            case "all defect":
+                entity.setAllDefects(selected);
                 break;
             case "distortion":
                 entity.setDistortion(selected);

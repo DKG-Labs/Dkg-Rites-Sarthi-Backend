@@ -145,18 +145,19 @@ public class productionDeclarationController {
         @GetMapping("getAll/benches")
         public ResponseEntity<Object>  getBenchNumbers(
                 @RequestParam String batchNo,
-                @RequestParam String productionUnit) {
+                @RequestParam String productionUnit,
+                @RequestParam String castingDate) {
 
 
                 return new ResponseEntity<>(
-                        ResponseBuilder.getSuccessResponse(service.getBenchNumbers(batchNo, productionUnit)),
+                        ResponseBuilder.getSuccessResponse(service.getBenchNumbers(batchNo, productionUnit, LocalDate.parse(castingDate))),
                         HttpStatus.OK);
         }
 
         @GetMapping("getAll/sleeper-types")
         public ResponseEntity<Object> getSleeperTypes(
                 @RequestParam String batchNo,
-                @RequestParam Integer benchNo,
+                @RequestParam String benchNo,
                 @RequestParam  String productionUnit) {
 
                 return new ResponseEntity<>(
@@ -168,8 +169,8 @@ public class productionDeclarationController {
         @GetMapping("getAll/sleepers")
         public ResponseEntity<Object> getSleepers(
                 @RequestParam String batchNo,
-                @RequestParam Integer benchNo,
-                @RequestParam String sleeperType,
+                @RequestParam(required = false) String benchNo,
+                @RequestParam(required = false) String sleeperType,
                 @RequestParam(required = false) String productionUnit) {
 
                 return new ResponseEntity<>(

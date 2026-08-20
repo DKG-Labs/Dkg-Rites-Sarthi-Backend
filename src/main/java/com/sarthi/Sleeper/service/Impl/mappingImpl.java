@@ -78,6 +78,25 @@ public class mappingImpl implements mappingService {
                         "User role does not match IE Type");
             }
 
+            if (req.getId() != null) {
+                java.util.Optional<SleeperPoiIeMapping> existingOpt = repository.findById(req.getId());
+                if (existingOpt.isPresent()) {
+                    SleeperPoiIeMapping existing = existingOpt.get();
+                    existing.setPoiCode(req.getPoiCode());
+                    existing.setPlantId(req.getPlantId());
+                    existing.setIeUserId(um.getUserId());
+                    existing.setIeType(req.getIeType());
+                    SleeperPoiIeMapping saved = repository.save(existing);
+                    return SleeperPoiIeMappingResDto.builder()
+                            .id(saved.getId())
+                            .poiCode(saved.getPoiCode())
+                            .plantId(saved.getPlantId())
+                            .ieUserId(saved.getIeUserId())
+                            .ieType(saved.getIeType())
+                            .createdDate(saved.getCreatedDate())
+                            .build();
+                }
+            }
 
             boolean mappingExists =
                     repository

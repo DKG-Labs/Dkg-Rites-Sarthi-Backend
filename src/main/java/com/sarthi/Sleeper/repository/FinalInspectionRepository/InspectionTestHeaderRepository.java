@@ -48,6 +48,24 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             """)
     List<Long> findCompletedBatchIdsBySleeperTypeAndUserId(String sleeperType, Long userId);
 
+    @Query("""
+             SELECT DISTINCT b.sleeperType
+             FROM ProductionDeclaration d
+             JOIN d.chambers c
+             JOIN c.benchGroups b
+             WHERE d.createdBy = :userId
+             AND b.sleeperType IS NOT NULL
+             AND b.sleeperType <> ''
+             AND d.id IN (
+                 SELECT h.batchId
+                 FROM InspectionTestHeader h
+                 WHERE h.status = 'Completed'
+                 GROUP BY h.batchId
+                 HAVING COUNT(DISTINCT h.module.id) = 3
+             )
+            """)
+    List<String> findDistinctSleeperTypesByUserId(@Param("userId") Long userId);
+
     @Query(value = """
                 SELECT
                     MAX(ith.test_date) AS testDate,

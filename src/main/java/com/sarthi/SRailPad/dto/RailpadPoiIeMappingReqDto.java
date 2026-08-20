@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class RailpadPoiIeMappingReqDto {
+    private Long id;
     private String poiCode;
     private String plantId;
     private Integer ieUserId;

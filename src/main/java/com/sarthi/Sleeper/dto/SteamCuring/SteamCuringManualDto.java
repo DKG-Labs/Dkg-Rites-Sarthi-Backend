@@ -11,4 +11,8 @@ public class SteamCuringManualDto {
 
     private Double minTemp;
     private Double maxTemp;
+
+    private String lbcTime;
+    private String curingStage;
+    private Double temperature;
 }

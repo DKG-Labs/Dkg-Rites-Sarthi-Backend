@@ -65,6 +65,14 @@ public class SteamCubeImpl implements SteamCubeService {
                 entity.setCastingDate(cDate);
             }
 
+            if (dto.getDeclarationDate() != null) {
+                LocalDate dDate =
+                        CommonUtils.convertStringToDateObject(
+                                dto.getDeclarationDate());
+
+                entity.setDeclarationDate(dDate);
+            }
+
 
             if (dto.getLbcTime() != null) {
                 LocalTime time =
@@ -162,6 +170,14 @@ public class SteamCubeImpl implements SteamCubeService {
                             dto.getCastingDate());
 
             entity.setCastingDate(cDate);
+        }
+
+        if (dto.getDeclarationDate() != null) {
+            LocalDate dDate =
+                    CommonUtils.convertStringToDateObject(
+                            dto.getDeclarationDate());
+
+            entity.setDeclarationDate(dDate);
         }
 
 
@@ -292,6 +308,12 @@ public class SteamCubeImpl implements SteamCubeService {
                             entity.getCastingDate()));
         }
 
+        if (entity.getDeclarationDate() != null) {
+            dto.setDeclarationDate(
+                    CommonUtils.convertDateToString(
+                            entity.getDeclarationDate()));
+        }
+
         // LBC Time
         if (entity.getLbcTime() != null) {
             dto.setLbcTime(
@@ -364,10 +386,10 @@ public class SteamCubeImpl implements SteamCubeService {
         LocalDateTime endOfDay;
 
         // DB stores LocalDateTime.now() in UTC (serverTimezone=UTC)
-        // Shift C IST: 10 PM → 6 AM next day = UTC 16:30 → 00:30 next day
+        // Shift C IST: 10 PM → 9 AM next day = UTC 16:30 → 03:30 next day
         if ("C".equalsIgnoreCase(shift)) {
             startOfDay = selectedDate.atTime(16, 30, 0);
-            endOfDay = selectedDate.plusDays(1).atTime(0, 30, 0);
+            endOfDay = selectedDate.plusDays(1).atTime(3, 30, 0);
         } else {
             startOfDay = selectedDate.atStartOfDay();
             endOfDay = selectedDate.atTime(23, 59, 59);

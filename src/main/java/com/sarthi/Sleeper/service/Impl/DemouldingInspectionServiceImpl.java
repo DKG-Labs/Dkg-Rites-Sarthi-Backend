@@ -157,12 +157,11 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
 
         if (entity.getDefectiveSleepers() == null) {
             entity.setDefectiveSleepers(new ArrayList<>());
+        } else {
+            entity.getDefectiveSleepers().clear();
         }
 
-// Clear old records
-        entity.getDefectiveSleepers().clear();
-
-// Add new ones
+        // Add new ones
         if (dto.getDefectiveSleepers() != null) {
 
             for (DemouldingDefectiveSleeperDTO d : dto.getDefectiveSleepers()) {
@@ -224,6 +223,17 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<DemouldingInspectionResponseDTO> getByBatchNo(String batchNo) {
+        if (batchNo == null || batchNo.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return demouldingInspectionRepository.findByBatchNoOrderByIdDesc(batchNo.trim())
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
 
     /* ================= DELETE ================= */
 
@@ -247,14 +257,12 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
 
         List<DemouldingDefectiveSleeperDTO> defects = dto.getDefectiveSleepers();
 
-        boolean visualOk = "ALL_OK".equalsIgnoreCase(visual);
-        boolean dimOk = "ALL_OK".equalsIgnoreCase(dim);
+        // Frontend sends "All OK", "Partially OK", "All Rejected"
+        boolean visualOk = "All OK".equalsIgnoreCase(visual);
+        boolean dimOk = "All OK".equalsIgnoreCase(dim);
 
-        //  Case 1: Both ALL_OK → no defects
+        //  Case 1: Both All OK → no defects needed
         if (visualOk && dimOk) {
-            if (defects != null && !defects.isEmpty()) {
-                throw new RuntimeException("No defects allowed when both are ALL_OK");
-            }
             return;
         }
 
@@ -266,35 +274,33 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         //  Validate each sleeper
         for (DemouldingDefectiveSleeperDTO d : defects) {
 
+            boolean hasVisual = d.getVisualReason() != null && !d.getVisualReason().trim().isEmpty();
+            boolean hasDim = d.getDimReason() != null && !d.getDimReason().trim().isEmpty();
+
             // Only DIM issue
             if (visualOk && !dimOk) {
-
-                if (d.getDimReason() == null) {
+                if (!hasDim && !hasVisual) {
                     throw new RuntimeException(
-                            "Dim reason required for sleeper: " + d.getSleeperNo());
+                            "Defect reason required for sleeper: " + d.getSleeperNo());
                 }
-
                 // Optional cleanup
                 d.setVisualReason(null);
             }
 
             // Only VISUAL issue
             else if (!visualOk && dimOk) {
-
-                if (d.getVisualReason() == null) {
+                if (!hasVisual && !hasDim) {
                     throw new RuntimeException(
-                            "Visual reason required for sleeper: " + d.getSleeperNo());
+                            "Defect reason required for sleeper: " + d.getSleeperNo());
                 }
-
                 d.setDimReason(null);
             }
 
             // BOTH issues
             else {
-
-                if (d.getVisualReason() == null || d.getDimReason() == null) {
+                if (!hasVisual && !hasDim) {
                     throw new RuntimeException(
-                            "Both reasons required for sleeper: " + d.getSleeperNo());
+                            "Defect reason required for sleeper: " + d.getSleeperNo());
                 }
             }
         }
@@ -413,11 +419,11 @@ public class DemouldingInspectionServiceImpl implements DemouldingInspectionServ
         LocalDateTime endOfDay;
 
         if ("C".equalsIgnoreCase(shift)) {
-            // Shift C IST: 10 PM → 6 AM next day
+            // Shift C IST: 10 PM → 9 AM next day
             // DB stores LocalDateTime.now() in UTC (serverTimezone=UTC)
-            // IST 22:00 = UTC 16:30 | IST 06:00 next day = UTC 00:30 next day
+            // IST 22:00 = UTC 16:30 | IST 09:00 next day = UTC 03:30 next day
             startOfDay = selectedDate.atTime(16, 30, 0);
-            endOfDay = selectedDate.plusDays(1).atTime(0, 30, 0);
+            endOfDay = selectedDate.plusDays(1).atTime(3, 30, 0);
         } else {
             // Normal shifts A & B
             startOfDay = selectedDate.atStartOfDay();

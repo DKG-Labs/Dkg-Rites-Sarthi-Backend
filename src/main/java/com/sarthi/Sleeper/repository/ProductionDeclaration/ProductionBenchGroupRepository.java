@@ -13,7 +13,7 @@ import java.util.List;
 @Repository
 public interface ProductionBenchGroupRepository extends JpaRepository<ProductionBenchGroup, Long> {
 
-    ProductionBenchGroup findByBenchNo(Integer benchNo);
+    ProductionBenchGroup findByBenchNo(String benchNo);
 
     @Query("SELECT DISTINCT b.sleeperType FROM ProductionBenchGroup b " +
             "WHERE b.chamber.declaration.batchNumber = :batchNo")
@@ -23,5 +23,5 @@ public interface ProductionBenchGroupRepository extends JpaRepository<Production
             "WHERE b.chamber.declaration.batchNumber = :batchNo " +
             "AND b.benchNo = :benchNo")
     List<String> findSleeperTypes(@Param("batchNo") String batchNo,
-                                  @Param("benchNo") Integer benchNo);
+                                  @Param("benchNo") String benchNo);
 }

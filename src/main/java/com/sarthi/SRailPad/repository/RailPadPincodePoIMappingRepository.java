@@ -26,10 +26,15 @@ where r.poiCode = :poiCode
 
     List<RailPadPincodePoIMapping> findByPoiCode(String poiCode);
 
+    List<RailPadPincodePoIMapping> findByPoiCodeIn(List<String> poiCodes);
+
     @Query("SELECT DISTINCT r.companyName FROM RailPadPincodePoIMapping r WHERE r.poiCode IN :poiCodes AND r.companyName IS NOT NULL")
     List<String> findDistinctCompanyNamesByPoiCodeIn(@Param("poiCodes") List<String> poiCodes);
 
     List<RailPadPincodePoIMapping> findByCompanyName(String companyName);
+
+    @Query("SELECT DISTINCT r.vendorCode FROM RailPadPincodePoIMapping r WHERE r.companyName = :companyName AND r.vendorCode IS NOT NULL")
+    List<String> findDistinctVendorCodesByCompanyName(@Param("companyName") String companyName);
 
     @Query("SELECT DISTINCT r.vendorCode, r.companyName, r.poiCode FROM RailPadPincodePoIMapping r WHERE r.vendorCode IS NOT NULL ORDER BY r.companyName")
     List<Object[]> findDistinctManufacturers();

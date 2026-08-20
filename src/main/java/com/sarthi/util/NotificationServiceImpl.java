@@ -68,50 +68,9 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final RailPoiIeMappingRepository railPoiIeMappingRepository;
 
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.username:sarthi.qa@rites.com}")
     private String senderMail;
 
-    //feedback notification
-   /* @Override
-    @Async
-    public void sendEmail(
-            String to,
-            String subject,
-            String templateName,
-            Map<String, Object> variables) {
-
-        try {
-
-            Context context = new Context();
-            context.setVariables(variables);
-
-            String htmlContent =
-                    templateEngine.process(templateName, context);
-
-            MimeMessage message =
-                    mailSender.createMimeMessage();
-
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setFrom(senderMail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlContent, true);
-
-            mailSender.send(message);
-
-            log.info("Mail sent successfully to {}", to);
-
-        } catch (MessagingException e) {
-
-            log.error(
-                    "Failed to send mail to {} : {}",
-                    to,
-                    e.getMessage(),
-                    e);
-        }
-    }*/
     @Override
     @Async
     public void sendEmail(
@@ -130,8 +89,7 @@ public class NotificationServiceImpl implements NotificationService {
 
             MimeMessage message = mailSender.createMimeMessage();
 
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(message, true, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setFrom(senderMail);
             helper.setTo(to);
@@ -144,7 +102,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         } catch (Exception ex) {
 
-            log.error("Mail sending failed", ex);
+            log.error("Mail sending failed to {}: {}", to, ex.getMessage(), ex);
 
             // Save only failed mail
             saveFailedNotification(
@@ -366,14 +324,14 @@ public class NotificationServiceImpl implements NotificationService {
             InspectionCall call,
             String status) {
 
-     UserMaster um =  userMasterRepository.findByUserName(call.getVendorId())
-               .orElseThrow(() -> new BusinessException(
-                       new ErrorDetails(
-                               AppConstant.ERROR_CODE_INVALID,
-                               AppConstant.ERROR_TYPE_CODE_INVALID,
-                               AppConstant.ERROR_TYPE_INVALID,
-                               "Invalid credentials."
-                       )));
+        UserMaster um =  userMasterRepository.findByUserName(call.getVendorId())
+                .orElseThrow(() -> new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_INVALID,
+                                "Invalid credentials."
+                        )));
 
 
         Map<String,Object> vars = new HashMap<>();
@@ -465,7 +423,7 @@ public class NotificationServiceImpl implements NotificationService {
                         .orElseThrow(() ->
                                 new RuntimeException("Sleeper Schedule not found"));
 
-              Long vendorId = inspectionCall.getCreatedBy();
+                Long vendorId = inspectionCall.getCreatedBy();
                 UserMaster um =  userMasterRepository.findByUserId(Math.toIntExact(vendorId))
                         .orElseThrow(() -> new BusinessException(
                                 new ErrorDetails(
@@ -582,52 +540,52 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
 
-        public void retryFailedMails() {
+    public void retryFailedMails() {
 
-            List<MailNotificationMaster> failedMails =
-                    mailNotificationMasterRepository.findByStatus("FAILED");
+        List<MailNotificationMaster> failedMails =
+                mailNotificationMasterRepository.findByStatus("FAILED");
 
-            for (MailNotificationMaster mail : failedMails) {
+        for (MailNotificationMaster mail : failedMails) {
 
-                try {
+            try {
 
-                    Map<String, Object> variables =
-                            objectMapper.readValue(
-                                    mail.getPayload(),
-                                    new TypeReference<Map<String, Object>>() {});
+                Map<String, Object> variables =
+                        objectMapper.readValue(
+                                mail.getPayload(),
+                                new TypeReference<Map<String, Object>>() {});
 
-                    sendEmail(
-                            mail.getRecipientEmail(),
-                            mail.getSubject(),
-                            mail.getTemplateName(),
-                            variables
-                    );
+                sendEmail(
+                        mail.getRecipientEmail(),
+                        mail.getSubject(),
+                        mail.getTemplateName(),
+                        variables
+                );
 
-                    mail.setStatus("SENT");
-                    mail.setSentDate(LocalDateTime.now());
+                mail.setStatus("SENT");
+                mail.setSentDate(LocalDateTime.now());
 
-                } catch (Exception ex) {
+            } catch (Exception ex) {
 
-                    mail.setRetryCount(mail.getRetryCount() + 1);
-                    mail.setLastError(ex.getMessage());
+                mail.setRetryCount(mail.getRetryCount() + 1);
+                mail.setLastError(ex.getMessage());
 
-                    NotificationHistory history = new NotificationHistory();
+                NotificationHistory history = new NotificationHistory();
 
-                    history.setNotificationId(mail.getNotificationId());
-                    history.setAttemptNo(mail.getRetryCount());
-                    history.setStatus("FAILED");
-                    history.setErrorMessage(ex.getMessage());
-                    history.setAttemptedAt(LocalDateTime.now());
+                history.setNotificationId(mail.getNotificationId());
+                history.setAttemptNo(mail.getRetryCount());
+                history.setStatus("FAILED");
+                history.setErrorMessage(ex.getMessage());
+                history.setAttemptedAt(LocalDateTime.now());
 
-                    notificationHistoryRepository.save(history);
-                }
-
-                mailNotificationMasterRepository.save(mail);
+                notificationHistoryRepository.save(history);
             }
+
+            mailNotificationMasterRepository.save(mail);
         }
+    }
 
 
-//sleeper mail notification to vendor and ie after call registred
+    //sleeper mail notification to vendor and ie after call registred
     @Override
     @Async
     public void sendSleeperCallRegisteredNotification(

@@ -23,6 +23,8 @@ public class SteamCubeSampleDeclaration {
 
     private LocalDate castingDate;
 
+    private LocalDate declarationDate;
+
     private LocalTime lbcTime;
 
     private String batchNo;

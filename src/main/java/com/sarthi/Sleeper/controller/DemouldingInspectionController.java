@@ -61,6 +61,15 @@ public class DemouldingInspectionController {
         HttpStatus.OK);
     }
 
+    @GetMapping("/byBatch")
+    public ResponseEntity<Object> getByBatch(@RequestParam String batchNo) {
+        List<DemouldingInspectionResponseDTO> list = demouldingInspectionService.getByBatchNo(batchNo);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
+                HttpStatus.OK
+        );
+    }
+
 
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Object> delete(

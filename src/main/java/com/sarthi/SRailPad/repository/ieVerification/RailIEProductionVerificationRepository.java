@@ -36,6 +36,62 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
     long sumAllTotalPiecesProduced();
 
     @Query(value = """
+        SELECT COALESCE(SUM(v.total_pieces_rejected), 0)
+        FROM rail_ie_production_verification v
+        LEFT JOIN rail_production_declaration d ON v.request_id = d.id
+        LEFT JOIN po_header p ON CONVERT(
+            CASE WHEN d.po_no LIKE '%/%' THEN SUBSTRING_INDEX(d.po_no, '/', 1) ELSE d.po_no END 
+            USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE (:vCode IS NULL OR :vCode = '' OR 
+               CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(d.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(d.vendor_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(v.production_unit USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci
+              )
+          AND (:zCode IS NULL OR :zCode = '' OR 
+               CONVERT(p.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(p.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               (p.id IS NULL AND (:vCode IS NOT NULL AND :vCode <> ''))
+              )
+          AND (:startDate IS NULL OR IFNULL(v.casting_date, v.created_date) >= :startDate)
+          AND (:endDate IS NULL OR IFNULL(v.casting_date, v.created_date) <= :endDate)
+        """, nativeQuery = true)
+    long sumFilteredTotalPiecesRejected(
+        @org.springframework.data.repository.query.Param("vCode") String vCode,
+        @org.springframework.data.repository.query.Param("zCode") String zCode,
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+        @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate
+    );
+
+    @Query(value = """
+        SELECT COALESCE(SUM(v.total_pieces_produced), 0)
+        FROM rail_ie_production_verification v
+        LEFT JOIN rail_production_declaration d ON v.request_id = d.id
+        LEFT JOIN po_header p ON CONVERT(
+            CASE WHEN d.po_no LIKE '%/%' THEN SUBSTRING_INDEX(d.po_no, '/', 1) ELSE d.po_no END 
+            USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE (:vCode IS NULL OR :vCode = '' OR 
+               CONVERT(d.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(d.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(d.vendor_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(v.production_unit USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci
+              )
+          AND (:zCode IS NULL OR :zCode = '' OR 
+               CONVERT(p.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+               CONVERT(p.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               (p.id IS NULL AND (:vCode IS NOT NULL AND :vCode <> ''))
+              )
+          AND (:startDate IS NULL OR IFNULL(v.casting_date, v.created_date) >= :startDate)
+          AND (:endDate IS NULL OR IFNULL(v.casting_date, v.created_date) <= :endDate)
+        """, nativeQuery = true)
+    long sumFilteredTotalPiecesProduced(
+        @org.springframework.data.repository.query.Param("vCode") String vCode,
+        @org.springframework.data.repository.query.Param("zCode") String zCode,
+        @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+        @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate
+    );
+
+    @Query(value = """
         SELECT 
             Prod.Month_Year,
             COALESCE(Rej.Total_Rejected, 0) AS Total_Rejected,

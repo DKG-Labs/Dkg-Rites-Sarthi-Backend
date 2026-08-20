@@ -34,13 +34,19 @@ public class RailFinalAdhesionTest extends BaseEntity {
     private LocalDate dateOfShift;
 
     // 2 actual + 4 marginal samples
-    @Column(name = "sample1") private String sample1;
-    @Column(name = "sample2") private String sample2;
+    @Column(name = "sample1")
+    private String sample1;
+    @Column(name = "sample2")
+    private String sample2;
 
-    @Column(name = "marginal1") private String marginal1;
-    @Column(name = "marginal2") private String marginal2;
-    @Column(name = "marginal3") private String marginal3;
-    @Column(name = "marginal4") private String marginal4;
+    @Column(name = "marginal1")
+    private String marginal1;
+    @Column(name = "marginal2")
+    private String marginal2;
+    @Column(name = "marginal3")
+    private String marginal3;
+    @Column(name = "marginal4")
+    private String marginal4;
 
     @Column(name = "adhesion_status")
     private String adhesionStatus;

@@ -13,6 +13,8 @@ public class AppConstant {
     public static final String DONE_TYPE = "Done";
     public static final String APPROVE_TYPE = "Approved";
     public static final String REJECT_TYPE = "Rejected";
+    public static final String USER_STATUS_INACTIVE= "Inactive";
+    public static final String USER_STATUS= "Active";
     public static final String CHANGE_REQUEST_TYPE = "Change requested";
 
     // Error Type Codes

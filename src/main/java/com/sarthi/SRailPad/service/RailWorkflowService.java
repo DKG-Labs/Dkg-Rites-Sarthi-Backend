@@ -32,14 +32,26 @@ public interface RailWorkflowService {
 
     public String saveRailpadMapping(com.sarthi.SRailPad.dto.RailpadPoiIeMappingReqDto req);
 
+    public String resolveRailpadPoiCode(String plantId, String providedPoiCode);
+
     public List<String> getMappedPlantIdsForUser(Integer userId, String ieType);
 
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName);
 
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, String plantId);
+
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, String plantId, Long workflowId);
+
     public List<RailWorkflowTransactionDto> workflowTransitionHistory(String requestId);
 
     public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions();
+
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions(Long userId, String plantId);
+
+    public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions(Long userId, String plantId, Long workflowId);
 
     public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
     

@@ -39,6 +39,16 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
     private final com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallAuditRepository railInspectionCallAuditRepository;
+    private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnProcessCallRepository railWithdrawnProcessCallRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnFinalCallRepository railWithdrawnFinalCallRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private static final String[] units = { "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN" };
     private static final String[] tens = { "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY" };
@@ -88,8 +98,32 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             call.setPlantId(call.getPlantId().replaceAll("^:", ""));
         }
         
+        // Validate and initiate workflow BEFORE persisting to database
+        railWorkflowService.initiateWorkflow(
+            generatedCallNo,
+            0L, // moduleId
+            2L, // workflowId
+            call.getCreatedBy(),
+            call.getVendorCode(),
+            call.getPlantId(),
+            null // shift
+        );
+
+        if (call.getRemarks() != null && !call.getRemarks().isBlank()) {
+            try {
+                RailWorkflowTransaction initWf = railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(generatedCallNo);
+                if (initWf != null) {
+                    initWf.setRemarks(call.getRemarks().trim());
+                    railWorkflowTransactionRepository.save(initWf);
+                }
+            } catch (Exception ignored) {}
+        }
+
         // Ensure bidirectional links are set for JPA cascade
         if (call.getLots() != null) {
+            if (call.getNoOfLots() == null || call.getNoOfLots() == 0) {
+                call.setNoOfLots(call.getLots().size());
+            }
             for (RailInspectionLot lot : call.getLots()) {
                 lot.setInspectionCall(call);
                 if (lot.getBatches() != null) {
@@ -172,6 +206,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
     @Override
     public Page<RailInspectionCall> getCompletedPaginatedCallsByPlant(String plantId, Pageable pageable) {
+        syncMissingWithdrawnCalls();
         List<String> exactStatuses = Arrays.asList(
                 "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
                 "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
@@ -181,6 +216,61 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         Page<RailInspectionCall> page = repository.findCompletedCallsForPlantNative(plantId, exactStatuses, pageable);
         page.forEach(this::enrichCallData);
         return page;
+    }
+
+    private void syncMissingWithdrawnCalls() {
+        try {
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall> processArchives = 
+                    railWithdrawnProcessCallRepository.findAll();
+            for (com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall p : processArchives) {
+                if (repository.findByCallNo(p.getCallNo()).isEmpty()) {
+                    RailInspectionCall call = new RailInspectionCall();
+                    call.setCallNo(p.getCallNo());
+                    call.setPoNo(p.getPoNo());
+                    call.setPoSr(p.getPoSr());
+                    call.setVendorCode(p.getVendorCode());
+                    call.setPlantId(p.getPlantId());
+                    call.setRailPadType(p.getRailPadType());
+                    call.setDrawingNo(p.getDrawingNo());
+                    call.setTotalQty(p.getQtyDesiredForFinal() != null ? p.getQtyDesiredForFinal() : p.getQtyOnOrder());
+                    call.setCallType("PROCESS");
+                    call.setStatus("WITHDRAW");
+                    if (p.getWithdrawnAt() != null) {
+                        call.setCreatedAt(p.getWithdrawnAt());
+                        call.setUpdatedAt(p.getWithdrawnAt());
+                    }
+                    repository.save(call);
+                }
+            }
+
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall> finalArchives = 
+                    railWithdrawnFinalCallRepository.findAll();
+            for (com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall f : finalArchives) {
+                if (repository.findByCallNo(f.getCallNo()).isEmpty()) {
+                    RailInspectionCall call = new RailInspectionCall();
+                    call.setCallNo(f.getCallNo());
+                    call.setPoNo(f.getPoNo());
+                    call.setPoSr(f.getPoSr());
+                    call.setVendorCode(f.getVendorCode());
+                    call.setPlantId(f.getPlantId());
+                    call.setRailPadType(f.getRailPadType());
+                    call.setDrawingNo(f.getDrawingNo());
+                    call.setTotalQty(f.getTotalQty());
+                    call.setNoOfLots(f.getNoOfLots());
+                    call.setInspectionDate(f.getInspectionDate());
+                    call.setProcessIcNo(f.getProcessIcNo());
+                    call.setCallType("FINAL");
+                    call.setStatus("WITHDRAW");
+                    if (f.getWithdrawnAt() != null) {
+                        call.setCreatedAt(f.getWithdrawnAt());
+                        call.setUpdatedAt(f.getWithdrawnAt());
+                    }
+                    repository.save(call);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error syncing missing withdrawn calls: " + e.getMessage());
+        }
     }
 
     @Override
@@ -223,11 +313,11 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         if (call.getRailPadType() == null || call.getRailPadType().isBlank() || "N/A".equalsIgnoreCase(call.getRailPadType())) {
             String drg = call.getDrawingNo();
             if (drg != null) {
-                if (drg.contains("888") || drg.contains("889") || drg.contains("701") || drg.contains("8779") || drg.contains("9774") || drg.contains("4218") || drg.contains("890")) {
+                if (drg.contains("888") || drg.contains("889") || drg.contains("701") || drg.contains("8779") || drg.contains("9774") || drg.contains("4218") || drg.contains("890") || drg.contains("6154")) {
                     call.setRailPadType("6.00mm NCRGRSP");
                 } else if (drg.contains("6618") || drg.contains("8327")) {
                     call.setRailPadType("6.20mm CGRSP");
-                } else if (drg.contains("8528") || drg.contains("8747")) {
+                } else if (drg.contains("8528") || drg.contains("8747") || drg.contains("8998") || drg.contains("8694")) {
                     call.setRailPadType("10.00mm CGRSP");
                 } else if (drg.contains("3703") || drg.contains("3711")) {
                     call.setRailPadType("6.00mm GRSP");
@@ -259,6 +349,45 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
+        // 1.1 Fetch PO Item for UOM and Qty based on PO Sr No
+        String itemSr = call.getPoSr();
+        if ((itemSr == null || itemSr.isBlank()) && call.getPoNo() != null && call.getPoNo().contains("/")) {
+            String[] parts = call.getPoNo().split("/");
+            if (parts.length > 1) {
+                itemSr = parts[1].trim();
+            }
+        }
+        if (itemSr != null && !itemSr.isBlank()) {
+            final String lookupSr = itemSr;
+            Optional<com.sarthi.entity.PoItem> itemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(barePoNo, lookupSr);
+            if (itemOpt.isEmpty()) {
+                try {
+                    int srInt = Integer.parseInt(lookupSr);
+                    String formattedSr = String.format("%03d", srInt);
+                    itemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(barePoNo, formattedSr);
+                    if (itemOpt.isEmpty()) {
+                        itemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(barePoNo, String.valueOf(srInt));
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (itemOpt.isPresent()) {
+                com.sarthi.entity.PoItem pi = itemOpt.get();
+                if (pi.getUom() != null && !pi.getUom().isBlank()) {
+                    call.setUom(pi.getUom().trim());
+                }
+                if (pi.getQty() != null) {
+                    call.setQtyOnOrder(pi.getQty());
+                }
+            }
+        }
+
+        // Determine effective UOM: For PROCESS (RPP) always "Nos.", for FINAL (RPF) use PO Item UOM or "Set"
+        if ("PROCESS".equalsIgnoreCase(call.getCallType()) || (call.getCallNo() != null && call.getCallNo().startsWith("RPP-"))) {
+            call.setUom("Nos.");
+        } else if (call.getUom() == null || call.getUom().isBlank()) {
+            call.setUom((call.getNoOfSets() != null && call.getNoOfSets() > 0) ? "Set" : "Nos.");
+        }
+
         // 2. Fetch Vendor Master for official Name if still null
         if (call.getVendorName() == null || "N/A".equals(call.getVendorName())) {
             Optional<com.sarthi.entity.VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(call.getVendorCode());
@@ -273,27 +402,47 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             call.setStatus(latestStatus);
         }
 
-        // 4. Populate IE Assigned Name: ONLY if status is verified, fetch Main IE from rail_poi_ie_mapping
-        String status = call.getStatus();
-        boolean isVerified = status != null && (
-                status.equalsIgnoreCase("VERIFY") || status.equalsIgnoreCase("VERIFIED") ||
-                status.equalsIgnoreCase("CALL_REGISTERED") || status.equalsIgnoreCase("REGISTERED") ||
-                status.equalsIgnoreCase("SCHEDULED") || status.equalsIgnoreCase("IE_SCHEDULED") ||
-                status.equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL") || status.equalsIgnoreCase("INITIATE_CALL") ||
-                status.equalsIgnoreCase("INSPECTION_INITIATION") || status.equalsIgnoreCase("INSPECTION_IN_PROGRESS") ||
-                status.equalsIgnoreCase("COMPLETED") || status.equalsIgnoreCase("IC_ISSUE") ||
-                status.equalsIgnoreCase("GENERATE_IC") || status.equalsIgnoreCase("DESK_COMPLETED") ||
-                status.equalsIgnoreCase("PO_VERIFICATION")
-        );
+        // 4. Populate IE Assigned Name & Check IC_GENERATION action in workflow transactions
+        boolean isVerified = false;
+        boolean hasIcGen = false;
+        String lastAction = null;
+
+        if (call.getCallNo() != null) {
+            List<com.sarthi.SRailPad.entity.RailWorkflowTransaction> txList = 
+                    railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(call.getCallNo());
+            if (txList != null && !txList.isEmpty()) {
+                isVerified = txList.stream().anyMatch(tx -> {
+                    String act = tx.getAction() != null ? tx.getAction().toUpperCase() : "";
+                    String st = tx.getStatus() != null ? tx.getStatus().toUpperCase() : "";
+                    return act.contains("VERIFY") || act.contains("SCHEDULE") || act.contains("INITIATE") || act.contains("ISSUE") || act.contains("COMPLET")
+                        || st.contains("VERIFY") || st.contains("REGISTERED") || st.contains("SCHEDULE") || st.contains("INITIATE") || st.contains("ISSUE") || st.contains("COMPLET");
+                });
+
+                hasIcGen = txList.stream().anyMatch(tx -> 
+                    tx.getAction() != null && (
+                        tx.getAction().equalsIgnoreCase("IC_GENERATION") || 
+                        tx.getAction().equalsIgnoreCase("IC_ISSUE")
+                    )
+                );
+
+                com.sarthi.SRailPad.entity.RailWorkflowTransaction lastTx = txList.get(txList.size() - 1);
+                if (lastTx.getAction() != null) {
+                    lastAction = lastTx.getAction();
+                }
+            }
+        }
+
+        call.setIsIcGenerated(hasIcGen);
+        call.setLatestAction(lastAction);
 
         if (!isVerified) {
-            call.setIeAssignedName("IE Not Assigned");
+            call.setIeAssignedName("No ie assigned");
         } else {
             List<String> mainIeNames = railPoiIeMappingRepository.findMainIeNamesByPlantId(call.getPlantId(), null);
             if (mainIeNames != null && !mainIeNames.isEmpty()) {
                 call.setIeAssignedName(String.join(", ", mainIeNames));
             } else {
-                call.setIeAssignedName("IE Not Assigned");
+                call.setIeAssignedName("No ie assigned");
             }
         }
     }
@@ -329,15 +478,29 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String poNo = call.getPoNo();
         String poSr = call.getPoSr();
         if (poNo != null && poNo.contains("/")) {
-            poNo = poNo.split("/")[0];
+            String[] parts = poNo.split("/");
+            poNo = parts[0].trim();
+            if ((poSr == null || poSr.trim().isEmpty()) && parts.length > 1) {
+                poSr = parts[1].trim();
+            }
         }
 
         com.sarthi.entity.PoHeader poHeader = poHeaderRepository.findByPoNo(poNo).orElse(null);
         com.sarthi.entity.PoItem poItem = null;
         if (poHeader != null) {
             List<com.sarthi.entity.PoItem> items = poItemRepository.findByPoHeader_Id(poHeader.getId());
+            String targetPoSr = poSr != null ? poSr.trim() : "";
             poItem = items.stream()
-                    .filter(item -> item.getItemSrNo() != null && item.getItemSrNo().trim().equals(poSr != null ? poSr.trim() : ""))
+                    .filter(item -> {
+                        if (item.getItemSrNo() == null) return false;
+                        String isr = item.getItemSrNo().trim();
+                        if (isr.equalsIgnoreCase(targetPoSr)) return true;
+                        try {
+                            return Integer.parseInt(isr) == Integer.parseInt(targetPoSr);
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    })
                     .findFirst()
                     .orElse(items.isEmpty() ? null : items.get(0));
         }
@@ -400,6 +563,29 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String datesString = visitDates.stream().map(d -> d.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))).collect(Collectors.joining(", "));
         String visitsCount = visitDates.isEmpty() ? "0" : convertToWords(visitDates.size());
 
+        if (callNo.startsWith("RPP-")) {
+            try {
+                String sql = """
+                    SELECT DISTINCT v.casting_date 
+                    FROM rail_process_inspection_result r
+                    JOIN rail_process_inspection_batch b ON b.result_id = r.id
+                    JOIN rail_ie_production_info info ON b.declaration_batch_id = info.id
+                    JOIN rail_ie_production_verification v ON info.verification_id = v.id
+                    WHERE r.inspection_call_id = :callId AND v.casting_date IS NOT NULL
+                    ORDER BY v.casting_date ASC
+                """;
+                List<java.sql.Date> castingDates = entityManager.createNativeQuery(sql)
+                        .setParameter("callId", call.getId())
+                        .getResultList();
+                
+                if (castingDates != null && !castingDates.isEmpty()) {
+                    List<LocalDate> cDates = castingDates.stream().map(java.sql.Date::toLocalDate).collect(Collectors.toList());
+                    datesString = cDates.stream().map(d -> d.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))).collect(Collectors.joining(", "));
+                    visitsCount = convertToWords(cDates.size());
+                }
+            } catch (Exception ignored) {}
+        }
+
         String vendorName = poHeader != null ? extractVendorName(poHeader.getVendorDetails()) : "";
         String vendorAddr = poHeader != null ? extractVendorAddress(poHeader.getVendorDetails()) : "";
         String vendorFull = vendorName + (vendorAddr.isBlank() ? "" : ", " + vendorAddr);
@@ -412,16 +598,32 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
         String poDateStr = poHeader != null && poHeader.getPoDate() != null ? poHeader.getPoDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
         
+        String caseNo = (poItem != null && poItem.getCaseNo() != null && !poItem.getCaseNo().trim().isEmpty())
+                ? poItem.getCaseNo().trim()
+                : (poHeader != null && poHeader.getCaseNo() != null ? poHeader.getCaseNo().trim() : "");
+        String caseNoBracket = (caseNo != null && !caseNo.isBlank()) ? ", (CASE NO. " + caseNo + ")" : "";
+
         String uom = poItem != null && poItem.getUom() != null ? poItem.getUom() : "Nos";
         
-        String passedWordsTemplate = String.format("QUANTITY NOW PASSED %s %s ONLY INCLUDING ONE NOS CONSUMED IN MF TESTING. %s NOS. REJECTED DURING INSPECTION AS PER ANNEXURE-I TO IC ATTACHED.", 
-            convertToWords(qtyNowPassed.longValue()), uom.toUpperCase(), convertToWords(qtyNowRejected.longValue()));
+        String passedWordsTemplate = String.format("QUANTITY NOW PASSED %s %s ONLY.%s INCLUDING ONE NOS CONSUMED IN MF TESTING. %s NOS. REJECTED DURING INSPECTION AS PER ANNEXURE-I TO IC ATTACHED.", 
+            convertToWords(qtyNowPassed.longValue()), uom.toUpperCase(), caseNoBracket, convertToWords(qtyNowRejected.longValue()));
 
         String rejectionReasonTemplate = qtyNowRejected > 0 ? "REJECTED DURING INSPECTION AS DETAILED IN ANNEXURE-I" : "Not Applicable";
 
         String certificateNo = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo)
                 .map(RailInspectionCompleteDetails::getCertificateNo)
                 .orElse("");
+
+        String itemSr = poItem != null && poItem.getItemSrNo() != null && !poItem.getItemSrNo().trim().isEmpty() ? poItem.getItemSrNo().trim() : (poSr != null ? poSr.trim() : "001");
+        try {
+            itemSr = String.format("%03d", Integer.parseInt(itemSr));
+        } catch (Exception ignored) {}
+
+        String rawDesc = poItem != null && poItem.getItemDesc() != null ? poItem.getItemDesc() : "";
+        String formattedDesc = rawDesc;
+        if (!rawDesc.toUpperCase().startsWith("PO SR NO")) {
+            formattedDesc = "PO SR NO: " + itemSr + " " + rawDesc;
+        }
 
         com.sarthi.SRailPad.dto.RailpadIcCertificateDto dto = new com.sarthi.SRailPad.dto.RailpadIcCertificateDto();
         dto.setBookNo("");
@@ -434,12 +636,12 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setPlaceOfInspection(vendorFull);
         dto.setContractReferences("PO NO. " + poNo + (poDateStr.isEmpty() ? "" : " dated " + poDateStr));
         dto.setLatest4Amendments(latest4Amendments);
-        dto.setBillPayingOfficer(poItem != null ? poItem.getBillPayOffDesc() : "");
-        dto.setConsignee(poItem != null ? poItem.getConsigneeDetail() : "");
-        String purchaserDetail = poHeader != null ? poHeader.getPurchaserDetail() : "";
+        dto.setBillPayingOfficer(poItem != null && poItem.getBillPayOffDesc() != null ? poItem.getBillPayOffDesc() : "");
+        dto.setConsignee(poItem != null && poItem.getConsigneeDetail() != null ? poItem.getConsigneeDetail() : "");
+        String purchaserDetail = poHeader != null && poHeader.getPurchaserDetail() != null ? poHeader.getPurchaserDetail() : "";
         dto.setPurchasingAuthority(purchaserDetail);
-        dto.setItemNo(poItem != null && poItem.getItemSrNo() != null && !poItem.getItemSrNo().trim().isEmpty() ? poItem.getItemSrNo() : poSr);
-        dto.setDescriptionOfStores(poItem != null ? poItem.getItemDesc() : "");
+        dto.setItemNo(itemSr);
+        dto.setDescriptionOfStores(formattedDesc);
         dto.setQuantityOnOrder(qtyOnOrder);
         dto.setCumulativeQtyOfferedPreviously(prevOffered);
         dto.setQtyPrevPassed(prevPassed);
@@ -455,6 +657,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setDateOfInspection(datesString);
         dto.setTrRecDt("");
         dto.setReasonOfRejection(rejectionReasonTemplate);
+        dto.setCaseNo(caseNo);
 
         return dto;
     }
@@ -511,14 +714,33 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         com.sarthi.SRailPad.entity.inspectionCall.RailProcessCallDetails processDetails =
                 processCallDetailsRepository.findByInspectionCall_CallNo(call.getCallNo()).orElse(null);
 
+        String inputDrawingNo = (dto.getDrawingNo() != null && !dto.getDrawingNo().trim().isEmpty())
+                ? dto.getDrawingNo().trim()
+                : (dto.getNcrgrspType() != null && !dto.getNcrgrspType().trim().isEmpty() ? dto.getNcrgrspType().trim() : null);
+
         String oldDrawingNo = processDetails != null && processDetails.getDrawingNo() != null ? processDetails.getDrawingNo() : call.getDrawingNo();
-        if (dto.getDrawingNo() != null && !dto.getDrawingNo().trim().isEmpty() &&
-                !dto.getDrawingNo().trim().equalsIgnoreCase(oldDrawingNo != null ? oldDrawingNo.trim() : "")) {
-            auditList.add(createAuditObject(call.getCallNo(), "Drawing No", oldDrawingNo, dto.getDrawingNo().trim(), user));
-            call.setDrawingNo(dto.getDrawingNo().trim());
+        if (inputDrawingNo != null && !inputDrawingNo.equalsIgnoreCase(oldDrawingNo != null ? oldDrawingNo.trim() : "")) {
+            auditList.add(createAuditObject(call.getCallNo(), "Drawing No", oldDrawingNo, inputDrawingNo, user));
+            call.setDrawingNo(inputDrawingNo);
             if (processDetails != null) {
-                processDetails.setDrawingNo(dto.getDrawingNo().trim());
+                processDetails.setDrawingNo(inputDrawingNo);
             }
+        }
+
+        // Sets and Lots count
+        if (dto.getNoOfSets() != null && dto.getNoOfSets() > 0) {
+            call.setNoOfSets(dto.getNoOfSets());
+        }
+        if (dto.getNoOfLots() != null && dto.getNoOfLots() > 0) {
+            call.setNoOfLots(dto.getNoOfLots());
+        }
+
+        // Process Certificate(s)
+        String certNo = (dto.getProcessIcNo() != null && !dto.getProcessIcNo().isBlank()) 
+                ? dto.getProcessIcNo().trim() 
+                : (dto.getProcessInspectionCertNo() != null ? dto.getProcessInspectionCertNo().trim() : "");
+        if (!certNo.isBlank()) {
+            call.setProcessIcNo(certNo);
         }
 
         // 3. Check Quantity Desired For Final Inspection
@@ -551,13 +773,59 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
+        // 5. Update Lots and Batches if provided in modification
+        if (dto.getLots() != null && !dto.getLots().isEmpty()) {
+            if (call.getLots() != null) {
+                call.getLots().clear();
+            } else {
+                call.setLots(new ArrayList<>());
+            }
+            for (RailInspectionLot lot : dto.getLots()) {
+                lot.setInspectionCall(call);
+                if (lot.getBatches() != null) {
+                    for (RailInspectionBatch batch : lot.getBatches()) {
+                        batch.setLot(lot);
+                        if (batch.getQtyToUse() != null && batch.getQuantity() == null) {
+                            batch.setQuantity(batch.getQtyToUse());
+                        } else if (batch.getQuantity() != null && batch.getQtyToUse() == null) {
+                            batch.setQtyToUse(batch.getQuantity());
+                        }
+                        if (batch.getAvailableQty() != null && batch.getQtyToUse() != null && batch.getBalanceQty() == null) {
+                            batch.setBalanceQty(Math.max(0, batch.getAvailableQty() - batch.getQtyToUse()));
+                        }
+                    }
+                }
+                call.getLots().add(lot);
+            }
+            call.setNoOfLots(dto.getLots().size());
+        }
+
         if (processDetails != null) {
             processCallDetailsRepository.save(processDetails);
         }
 
-        // Batch save audit entries in a single query (No N+1 queries)
+        if (dto.getRemarks() != null && !dto.getRemarks().isBlank()) {
+            call.setRemarks(dto.getRemarks().trim());
+        }
+
+        // Update workflow transition record if exists
+        try {
+            RailWorkflowTransaction targetWf = railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(call.getCallNo());
+            if (targetWf != null) {
+                String modRemark = (dto.getRemarks() != null && !dto.getRemarks().isBlank())
+                        ? dto.getRemarks().trim()
+                        : ("Modified by " + user);
+                targetWf.setRemarks(modRemark);
+                targetWf.setUpdatedDate(java.time.LocalDateTime.now());
+                railWorkflowTransactionRepository.save(targetWf);
+            }
+        } catch (Exception ignored) {}
+
+        // Batch save audit entries safely if table exists
         if (!auditList.isEmpty()) {
-            railInspectionCallAuditRepository.saveAll(auditList);
+            try {
+                railInspectionCallAuditRepository.saveAll(auditList);
+            } catch (Exception ignored) {}
         }
 
         RailInspectionCall savedCall = repository.save(call);
@@ -574,5 +842,248 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         audit.setCreatedBy(user);
         audit.setUpdatedBy(user);
         return audit;
+    }
+
+    @Override
+    @Transactional
+    public String withdrawCall(com.sarthi.SRailPad.dto.RailWithdrawRequestDto dto) {
+        String rawCallNo = (dto.getCallNo() != null && !dto.getCallNo().isBlank()) 
+                ? dto.getCallNo() 
+                : (dto.getRequestId() != null ? dto.getRequestId() : "");
+        if (rawCallNo.isBlank()) {
+            throw new IllegalArgumentException("Call No / RequestId is required for withdrawal.");
+        }
+
+        String callNo = rawCallNo.trim();
+        RailInspectionCall call = repository.findByCallNo(callNo)
+                .orElseThrow(() -> new RuntimeException("Inspection call not found: " + callNo));
+
+        String withdrawnBy = dto.getWithdrawnBy() != null && !dto.getWithdrawnBy().isBlank() 
+                ? dto.getWithdrawnBy().trim() 
+                : (dto.getActionBy() != null && !dto.getActionBy().isBlank() ? dto.getActionBy().trim() : (call.getVendorCode() != null ? call.getVendorCode() : "Vendor"));
+        String remarks = dto.getRemarks() != null ? dto.getRemarks().trim() : "";
+
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        boolean isProcess = "PROCESS".equalsIgnoreCase(call.getCallType()) || callNo.startsWith("RPP-");
+
+        if (isProcess) {
+            com.sarthi.SRailPad.entity.inspectionCall.RailProcessCallDetails details =
+                    processCallDetailsRepository.findByInspectionCall_CallNo(callNo).orElse(null);
+
+            com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall archivedProcess = 
+                    new com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnProcessCall();
+            
+            archivedProcess.setCallNo(call.getCallNo());
+            archivedProcess.setPoNo(call.getPoNo());
+            archivedProcess.setPoSr(call.getPoSr());
+            archivedProcess.setVendorCode(call.getVendorCode());
+            archivedProcess.setPlantId(call.getPlantId());
+            archivedProcess.setRailPadType(call.getRailPadType());
+            archivedProcess.setDrawingNo(details != null && details.getDrawingNo() != null ? details.getDrawingNo() : call.getDrawingNo());
+            
+            if (details != null) {
+                archivedProcess.setUom(details.getUom());
+                archivedProcess.setQtyOnOrder(details.getQtyOnOrder());
+                archivedProcess.setQtyAcceptedTillNow(details.getQtyAcceptedTillNow());
+                archivedProcess.setQtyDesiredForFinal(details.getQtyDesiredForFinal());
+                archivedProcess.setQtyDue(details.getQtyDue());
+                archivedProcess.setProductionInitiationDate(details.getProductionInitiationDate());
+            }
+
+            archivedProcess.setWithdrawnBy(withdrawnBy);
+            archivedProcess.setWithdrawnRemarks(remarks);
+            archivedProcess.setWithdrawnAt(java.time.LocalDateTime.now());
+
+            String jsonStr = "{}";
+            try {
+                jsonStr = mapper.writeValueAsString(call);
+            } catch (Exception ignored) {}
+            archivedProcess.setOriginalDataJson(jsonStr);
+
+            // Use JdbcTemplate for optional archival to prevent JPA transaction poisoning if table is missing
+            try {
+                jdbcTemplate.update(
+                    "INSERT INTO rail_withdrawn_process_calls " +
+                    "(call_no, po_no, po_sr, vendor_code, plant_id, rail_pad_type, drawing_no, uom, qty_on_order, qty_accepted_till_now, qty_desired_for_final, qty_due, production_initiation_date, withdrawn_by, withdrawn_remarks, withdrawn_at, original_data_json) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    archivedProcess.getCallNo(), archivedProcess.getPoNo(), archivedProcess.getPoSr(), archivedProcess.getVendorCode(),
+                    archivedProcess.getPlantId(), archivedProcess.getRailPadType(), archivedProcess.getDrawingNo(), archivedProcess.getUom(),
+                    archivedProcess.getQtyOnOrder(), archivedProcess.getQtyAcceptedTillNow(), archivedProcess.getQtyDesiredForFinal(), archivedProcess.getQtyDue(),
+                    archivedProcess.getProductionInitiationDate(), archivedProcess.getWithdrawnBy(), archivedProcess.getWithdrawnRemarks(),
+                    archivedProcess.getWithdrawnAt(), archivedProcess.getOriginalDataJson()
+                );
+            } catch (Exception e) {
+                try { railWithdrawnProcessCallRepository.save(archivedProcess); } catch (Exception ignored) {}
+            }
+
+            // Delete child process details
+            if (details != null) {
+                try {
+                    processCallDetailsRepository.delete(details);
+                } catch (Exception e) {
+                    try {
+                        jdbcTemplate.update("DELETE FROM rail_process_call_details WHERE id = ?", details.getId());
+                    } catch (Exception ignored) {}
+                }
+            }
+        } else {
+            com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall archivedFinal = 
+                    new com.sarthi.SRailPad.entity.inspectionCall.RailWithdrawnFinalCall();
+
+            archivedFinal.setCallNo(call.getCallNo());
+            archivedFinal.setPoNo(call.getPoNo());
+            archivedFinal.setPoSr(call.getPoSr());
+            archivedFinal.setVendorCode(call.getVendorCode());
+            archivedFinal.setPlantId(call.getPlantId());
+            archivedFinal.setRailPadType(call.getRailPadType());
+            archivedFinal.setDrawingNo(call.getDrawingNo());
+            archivedFinal.setTotalQty(call.getTotalQty());
+            archivedFinal.setNoOfLots(call.getNoOfLots());
+            archivedFinal.setInspectionDate(call.getInspectionDate());
+            archivedFinal.setProcessIcNo(call.getProcessIcNo());
+            archivedFinal.setWithdrawnBy(withdrawnBy);
+            archivedFinal.setWithdrawnRemarks(remarks);
+            archivedFinal.setWithdrawnAt(java.time.LocalDateTime.now());
+
+            List<String> bList = new ArrayList<>();
+            List<String> dList = new ArrayList<>();
+            if (call.getLots() != null) {
+                for (RailInspectionLot lot : call.getLots()) {
+                    if (lot.getBatches() != null) {
+                        for (RailInspectionBatch b : lot.getBatches()) {
+                            if (b.getBatchNo() != null && !b.getBatchNo().isBlank()) {
+                                bList.add(b.getBatchNo().trim());
+                            }
+                            if (b.getDrawingNo() != null && !b.getDrawingNo().isBlank()) {
+                                dList.add(b.getDrawingNo().trim());
+                            }
+                        }
+                    }
+                }
+            }
+
+            archivedFinal.setBatchNumbers(bList.stream().distinct().collect(Collectors.joining(", ")));
+            archivedFinal.setSubDrawingNo(dList.stream().distinct().collect(Collectors.joining(", ")));
+
+            String lotsJson = null;
+            String origJson = "{}";
+            try {
+                if (call.getLots() != null) {
+                    lotsJson = mapper.writeValueAsString(call.getLots());
+                }
+                origJson = mapper.writeValueAsString(call);
+            } catch (Exception ignored) {}
+            archivedFinal.setLotsAndBatchesJson(lotsJson);
+            archivedFinal.setOriginalDataJson(origJson);
+
+            // Use JdbcTemplate for optional archival to prevent JPA transaction poisoning if table is missing
+            try {
+                jdbcTemplate.update(
+                    "INSERT INTO rail_withdrawn_final_calls " +
+                    "(call_no, po_no, po_sr, vendor_code, plant_id, rail_pad_type, drawing_no, total_qty, no_of_lots, inspection_date, process_ic_no, withdrawn_by, withdrawn_remarks, withdrawn_at, batch_numbers, sub_drawing_no, lots_and_batches_json, original_data_json) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    archivedFinal.getCallNo(), archivedFinal.getPoNo(), archivedFinal.getPoSr(), archivedFinal.getVendorCode(),
+                    archivedFinal.getPlantId(), archivedFinal.getRailPadType(), archivedFinal.getDrawingNo(), archivedFinal.getTotalQty(),
+                    archivedFinal.getNoOfLots(), archivedFinal.getInspectionDate(), archivedFinal.getProcessIcNo(), archivedFinal.getWithdrawnBy(),
+                    archivedFinal.getWithdrawnRemarks(), archivedFinal.getWithdrawnAt(), archivedFinal.getBatchNumbers(), archivedFinal.getSubDrawingNo(),
+                    archivedFinal.getLotsAndBatchesJson(), archivedFinal.getOriginalDataJson()
+                );
+            } catch (Exception e) {
+                try { railWithdrawnFinalCallRepository.save(archivedFinal); } catch (Exception ignored) {}
+            }
+
+            // Reset batch quantities safely
+            if (call.getLots() != null) {
+                for (RailInspectionLot lot : call.getLots()) {
+                    if (lot.getBatches() != null) {
+                        for (RailInspectionBatch b : lot.getBatches()) {
+                            b.setQtyToUse(0);
+                            b.setQuantity(0);
+                            b.setBalanceQty(0);
+                            try { railInspectionBatchRepository.save(b); } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            }
+            try {
+                jdbcTemplate.update(
+                    "UPDATE rail_inspection_batch b " +
+                    "JOIN rail_inspection_lot l ON b.lot_id = l.id " +
+                    "JOIN rail_inspection_call c ON l.inspection_call_id = c.id " +
+                    "SET b.qty_to_use = 0, b.quantity = 0, b.balance_qty = 0 " +
+                    "WHERE c.call_no = ?", callNo);
+            } catch (Exception ignored) {}
+        }
+
+        // Update workflow transition to WITHDRAW status (preserve transaction record)
+        RailWorkflowTransaction targetWf = null;
+        if (dto.getWorkflowTransitionId() != null) {
+            targetWf = railWorkflowTransactionRepository.findById(dto.getWorkflowTransitionId().intValue()).orElse(null);
+        }
+        if (targetWf == null) {
+            targetWf = railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+        }
+
+        if (targetWf != null) {
+            targetWf.setStatus("WITHDRAW");
+            targetWf.setAction("WITHDRAW");
+            targetWf.setJobStatus("WITHDRAW");
+            targetWf.setRemarks(remarks);
+            targetWf.setNextRole(null);
+            targetWf.setUpdatedDate(java.time.LocalDateTime.now());
+            if (dto.getActionBy() != null) {
+                try {
+                    targetWf.setModifiedBy(Long.parseLong(dto.getActionBy().trim()));
+                } catch (Exception ignored) {}
+            }
+            try {
+                railWorkflowTransactionRepository.save(targetWf);
+            } catch (Exception e) {
+                try {
+                    jdbcTemplate.update(
+                        "UPDATE rail_workflow_transaction SET status='WITHDRAW', action='WITHDRAW', job_status='WITHDRAW', remarks=?, updated_date=NOW() WHERE workflow_transition_id=?",
+                        remarks, targetWf.getWorkflowTransitionId());
+                } catch (Exception ignored) {}
+            }
+        } else {
+            RailWorkflowTransaction newWf = new RailWorkflowTransaction();
+            newWf.setRequestId(callNo);
+            newWf.setStatus("WITHDRAW");
+            newWf.setAction("WITHDRAW");
+            newWf.setJobStatus("WITHDRAW");
+            newWf.setRemarks(remarks);
+            newWf.setVendorCode(call.getVendorCode());
+            newWf.setPlantId(call.getPlantId());
+            newWf.setCreatedDate(java.time.LocalDateTime.now());
+            newWf.setUpdatedDate(java.time.LocalDateTime.now());
+            if (dto.getActionBy() != null) {
+                try {
+                    newWf.setModifiedBy(Long.parseLong(dto.getActionBy().trim()));
+                } catch (Exception ignored) {}
+            }
+            try {
+                railWorkflowTransactionRepository.save(newWf);
+            } catch (Exception e) {
+                try {
+                    jdbcTemplate.update(
+                        "INSERT INTO rail_workflow_transaction (request_id, status, action, job_status, remarks, vendor_code, plant_id, created_date, updated_date) VALUES (?, 'WITHDRAW', 'WITHDRAW', 'WITHDRAW', ?, ?, ?, NOW(), NOW())",
+                        callNo, remarks, call.getVendorCode(), call.getPlantId());
+                } catch (Exception ignored) {}
+            }
+        }
+
+        // Delete audit records using JdbcTemplate to prevent JPA transaction poisoning if table missing
+        try {
+            jdbcTemplate.update("DELETE FROM rail_inspection_call_audit WHERE call_no = ?", callNo);
+        } catch (Exception ignored) {}
+
+        // Update main call record status to WITHDRAW so it reflects in Completed Calls
+        call.setStatus("WITHDRAW");
+        repository.save(call);
+
+        return "Call " + callNo + " successfully withdrawn and archived.";
     }
 }

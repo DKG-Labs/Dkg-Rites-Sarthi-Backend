@@ -34,6 +34,7 @@ public class FinalInspectionLotResultsDto {
 
     // ---- PACKING DETAILS ----
     private Integer ercUsedForTesting;
+    private Integer totalRejectedQty;
     private Integer stdPackingNo;
     private Integer bagsWithStdPacking;
     private Integer nonStdBagsCount;

@@ -16,6 +16,8 @@ import java.util.List;
 @Repository
 public interface DemouldingInspectionRepository extends JpaRepository<DemouldingInspection, Long> {
 
+    List<DemouldingInspection> findByBatchNoOrderByIdDesc(String batchNo);
+
     @Query("""
     SELECT d FROM DemouldingInspection d
     WHERE d.plantId = :plantId
@@ -35,20 +37,19 @@ public interface DemouldingInspectionRepository extends JpaRepository<Demoulding
 
     @Query("""
     SELECT d FROM DemouldingInspection d
-    WHERE d.plantId = :plantId
-    AND d.vendorCode = :vendorCode
-    AND d.shift = :shift
-    AND d.createdBy = :createdBy
-    AND d.createdDate BETWEEN :startOfDay AND :endOfDay
- 
+    WHERE (:plantId IS NULL OR :plantId = '' OR d.plantId = :plantId OR d.plantId LIKE CONCAT('%', :plantId, '%'))
+    AND (:vendorCode IS NULL OR :vendorCode = '' OR d.vendorCode = :vendorCode OR d.vendorCode LIKE CONCAT('%', :vendorCode, '%'))
+    AND (:shift IS NULL OR :shift = '' OR d.shift = :shift)
+    AND (:createdBy IS NULL OR :createdBy = '' OR d.createdBy = :createdBy OR :createdBy IS NOT NULL)
+    AND (d.createdDate BETWEEN :startOfDay AND :endOfDay OR d.updatedDate BETWEEN :startOfDay AND :endOfDay)
 """)
     List<DemouldingInspection> findByDate(
-            String plantId,
-            String vendorCode,
-            String shift,
-            String createdBy,
-            LocalDateTime startOfDay,
-            LocalDateTime endOfDay
+            @Param("plantId") String plantId,
+            @Param("vendorCode") String vendorCode,
+            @Param("shift") String shift,
+            @Param("createdBy") String createdBy,
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay
     );
 
     @Query("""

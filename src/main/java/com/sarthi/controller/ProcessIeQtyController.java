@@ -35,11 +35,15 @@ public class ProcessIeQtyController {
         }
 
         @GetMapping("/getManufaturedQtyOfPo/{heatNo}/{poNo}")
-        public ResponseEntity<Object> getTotalManufaturedQty(@PathVariable String heatNo, @PathVariable String poNo) {
+        public ResponseEntity<Object> getTotalManufaturedQty(
+                        @PathVariable String heatNo,
+                        @PathVariable String poNo,
+                        @org.springframework.web.bind.annotation.RequestParam(required = false) String callNo,
+                        @org.springframework.web.bind.annotation.RequestParam(required = false) String vendorCode) {
 
                 return new ResponseEntity<>(
                                 ResponseBuilder.getSuccessResponse(
-                                                processIeQtyService.getTotalManufaturedQtyPo(heatNo, poNo)),
+                                                processIeQtyService.getTotalManufaturedQtyPo(heatNo, poNo, callNo, vendorCode)),
                                 HttpStatus.OK);
         }
 

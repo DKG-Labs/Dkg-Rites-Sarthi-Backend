@@ -16,6 +16,7 @@ public class ProcessFinishInspectionDto {
     private List<ProcessLineDataDto> linesData;
     private String createdBy; // User ID who is finishing the inspection
     private String updatedBy; // User ID who is updating the inspection
+    private String shift;
     private String shiftCode;
 
     // Images captured with geofence data

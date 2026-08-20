@@ -328,9 +328,10 @@ public class FinalInspectionCallController {
     @Operation(summary = "Get Heat numbers by Lot and RM IC", description = "Get heat numbers for a given lot number and RM IC certificate")
     public ResponseEntity<Object> getHeatNumbersByLot(
             @RequestParam String lotNumber,
-            @RequestParam String rmCertificateNo) {
-        logger.info("Fetching heat numbers for lot: {} and RM certificate: {}", lotNumber, rmCertificateNo);
-        List<String> heatNumbers = finalInspectionCallService.getHeatNumbersByLotNumber(lotNumber, rmCertificateNo);
+            @RequestParam(required = false) String rmCertificateNo,
+            @RequestParam(required = false) String processCertificateNo) {
+        logger.info("Fetching heat numbers for lot: {}, RM certificate: {}, Process certificate: {}", lotNumber, rmCertificateNo, processCertificateNo);
+        List<String> heatNumbers = finalInspectionCallService.getHeatNumbersByLotNumber(lotNumber, rmCertificateNo, processCertificateNo);
         logger.info("Found {} heat numbers", heatNumbers.size());
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(heatNumbers), HttpStatus.OK);
     }

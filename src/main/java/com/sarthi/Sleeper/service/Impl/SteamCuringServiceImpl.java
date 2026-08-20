@@ -59,6 +59,9 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             entity.setCreatedBy(dto.getCreatedBy());
             entity.setCreatedDate(LocalDateTime.now());
             entity.setLocation(dto.getLocation());
+            entity.setLbcTime(dto.getLbcTime());
+            entity.setCuringStage(dto.getCuringStage());
+            entity.setTemperature(dto.getTemperature());
 
 
             // ===== SCADA =====
@@ -131,6 +134,9 @@ public class SteamCuringServiceImpl implements SteamCuringService {
                                     mw.setChamber(m.getChamber());
                                     mw.setMinTemp(m.getMinTemp());
                                     mw.setMaxTemp(m.getMaxTemp());
+                                    mw.setLbcTime(m.getLbcTime());
+                                    mw.setCuringStage(m.getCuringStage());
+                                    mw.setTemperature(m.getTemperature());
 
                                     mw.setSource("MANUAL");
 
@@ -173,6 +179,9 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             entity.setPlantId(dto.getPlantId());
 
             entity.setLocation(dto.getLocation());
+            entity.setLbcTime(dto.getLbcTime());
+            entity.setCuringStage(dto.getCuringStage());
+            entity.setTemperature(dto.getTemperature());
 
             if (dto.getEntryDate() != null) {
                 entity.setEntryDate(
@@ -329,6 +338,9 @@ public class SteamCuringServiceImpl implements SteamCuringService {
             dto.setChamber(entity.getChamber());
             dto.setGrade(entity.getGrade());
             dto.setLocation(entity.getLocation());
+            dto.setLbcTime(entity.getLbcTime());
+            dto.setCuringStage(entity.getCuringStage());
+            dto.setTemperature(entity.getTemperature());
 
             dto.setShift(entity.getShift());
             dto.setVendorCode(entity.getVendorCode());
@@ -403,6 +415,9 @@ public class SteamCuringServiceImpl implements SteamCuringService {
                                 md.setChamber(m.getChamber());
                                 md.setMinTemp(m.getMinTemp());
                                 md.setMaxTemp(m.getMaxTemp());
+                                md.setLbcTime(m.getLbcTime());
+                                md.setCuringStage(m.getCuringStage());
+                                md.setTemperature(m.getTemperature());
 
                                 return md;
                             })
@@ -431,10 +446,10 @@ public class SteamCuringServiceImpl implements SteamCuringService {
         LocalDateTime endOfDay;
 
         // DB stores LocalDateTime.now() in UTC (serverTimezone=UTC)
-        // Shift C IST: 10 PM → 6 AM next day = UTC 16:30 → 00:30 next day
+        // Shift C IST: 10 PM → 9 AM next day = UTC 16:30 → 03:30 next day
         if ("C".equalsIgnoreCase(shift)) {
             startOfDay = selectedDate.atTime(16, 30, 0);
-            endOfDay = selectedDate.plusDays(1).atTime(0, 30, 0);
+            endOfDay = selectedDate.plusDays(1).atTime(3, 30, 0);
         } else {
             startOfDay = selectedDate.atStartOfDay();
             endOfDay = selectedDate.atTime(23, 59, 59);

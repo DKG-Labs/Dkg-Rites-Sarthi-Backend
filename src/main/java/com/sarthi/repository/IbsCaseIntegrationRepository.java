@@ -12,4 +12,6 @@ import java.util.List;
 public interface IbsCaseIntegrationRepository extends JpaRepository<IbsCaseIntegration, Long> {
     List<IbsCaseIntegration> findByCompletedFalseAndNextRetryTimeBeforeAndRetryCountLessThan(LocalDateTime time, Integer retryCount, PageRequest pageable);
     boolean existsByPoKeyAndCompletedFalse(String poKey);
+
+
 }

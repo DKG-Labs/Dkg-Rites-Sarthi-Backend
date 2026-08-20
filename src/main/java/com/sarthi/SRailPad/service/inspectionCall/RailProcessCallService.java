@@ -10,4 +10,5 @@ public interface RailProcessCallService {
     void saveProcessInspectionResult(com.sarthi.SRailPad.dto.inspectionCall.ProcessInspectionSaveDto saveDto);
     com.sarthi.SRailPad.dto.inspectionCall.ProcessInspectionSaveDto getProcessInspectionResult(String callNo);
     com.sarthi.SRailPad.dto.inspectionCall.ProcessInspectionSaveDto getAvailableBatchesForFinalCall(String callNo);
+    com.sarthi.SRailPad.dto.inspectionCall.ProcessInspectionSaveDto getAvailableBatchesForFinalCall(String callNo, String excludeCallNo);
 }

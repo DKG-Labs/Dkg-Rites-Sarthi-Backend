@@ -149,6 +149,11 @@ public class FinalCertificateDto {
     private String trRecDate;
 
     /**
+     * Total ERC used for testing across all lots
+     */
+    private Integer ercUsedForTesting;
+
+    /**
      * No. of items checked: Fixed value of 1 as per requirement
      */
     private String noOfItemsChecked;

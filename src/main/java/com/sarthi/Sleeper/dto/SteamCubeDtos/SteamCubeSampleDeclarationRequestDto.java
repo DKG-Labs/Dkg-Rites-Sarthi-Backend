@@ -13,6 +13,8 @@ public class SteamCubeSampleDeclarationRequestDto {
 
     private String castingDate;
 
+    private String declarationDate;
+
     private String lbcTime;
 
     private String batchNo;

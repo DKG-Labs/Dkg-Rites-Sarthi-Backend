@@ -38,6 +38,7 @@ import com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionLotRepository;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailIEProductionVerificationRepository;
+import com.sarthi.util.CommonUtils;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailFinalInspectionLotResultsRepository;
 
@@ -107,11 +108,9 @@ public class reportsImpl implements reports {
         private ProcessIeQtyRepository processIeQtyRepository;
 
         @Autowired
-
         private WorkflowTransitionRepository workflowTransitionRepository;
 
         @Autowired
-
         private InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
 
         @Autowired
@@ -188,6 +187,8 @@ public class reportsImpl implements reports {
         private RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
         @Autowired
         private RailInspectionLotRepository railInspectionLotRepository;
+        @Autowired
+        private UserMasterRepository userMasterRepository;
 
         /*
          * 
@@ -219,19 +220,21 @@ public class reportsImpl implements reports {
 
         public List<PoInspection1stLevelStatusDto> getPoInspection1stLevelStatusList() {
                 List<PoInspection1stLevelStatusDto> list = poHeaderRepository.fetchPoInspectionStatus();
-                if (list == null || list.isEmpty()) return list;
+                if (list == null || list.isEmpty())
+                        return list;
 
-                List<String> poNos = list.stream().map(PoInspection1stLevelStatusDto::getPoNo).collect(java.util.stream.Collectors.toList());
+                List<String> poNos = list.stream().map(PoInspection1stLevelStatusDto::getPoNo)
+                                .collect(java.util.stream.Collectors.toList());
 
                 // 1. RM Rejection Pct Map
                 java.util.Map<String, Double> rmRejectionMap = new java.util.HashMap<>();
                 List<Object[]> rmResults = inspectionCallRepository.findRmRejectionPctForPos(poNos);
                 if (rmResults != null) {
-                    for (Object[] row : rmResults) {
-                        String po = (String) row[0];
-                        Double pct = (row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
-                        rmRejectionMap.put(po, pct);
-                    }
+                        for (Object[] row : rmResults) {
+                                String po = (String) row[0];
+                                Double pct = (row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
+                                rmRejectionMap.put(po, pct);
+                        }
                 }
 
                 // 2. PO to Call Numbers Map
@@ -239,40 +242,42 @@ public class reportsImpl implements reports {
                 List<Object[]> callRows = inspectionCallRepository.findCallNumbersByPos(poNos);
                 List<String> allCallNos = new java.util.ArrayList<>();
                 if (callRows != null) {
-                    for (Object[] row : callRows) {
-                        String po = (String) row[0];
-                        String callNo = (String) row[1];
-                        poToCallsMap.computeIfAbsent(po, k -> new java.util.ArrayList<>()).add(callNo);
-                        allCallNos.add(callNo);
-                    }
+                        for (Object[] row : callRows) {
+                                String po = (String) row[0];
+                                String callNo = (String) row[1];
+                                poToCallsMap.computeIfAbsent(po, k -> new java.util.ArrayList<>()).add(callNo);
+                                allCallNos.add(callNo);
+                        }
                 }
 
                 // 3. Final Inspection Map (CallNo -> [passed, rejected])
                 java.util.Map<String, double[]> finalMap = new java.util.HashMap<>();
                 if (!allCallNos.isEmpty()) {
-                    List<Object[]> finalResults = finalCumulativeResultsRepository.findFinalInspectionQtyBatched(allCallNos);
-                    if (finalResults != null) {
-                        for (Object[] row : finalResults) {
-                            String callNo = (String) row[0];
-                            double passed = (row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
-                            double rejected = (row[2] != null) ? ((Number) row[2]).doubleValue() : 0.0;
-                            finalMap.put(callNo, new double[]{passed, rejected});
+                        List<Object[]> finalResults = finalCumulativeResultsRepository
+                                        .findFinalInspectionQtyBatched(allCallNos);
+                        if (finalResults != null) {
+                                for (Object[] row : finalResults) {
+                                        String callNo = (String) row[0];
+                                        double passed = (row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
+                                        double rejected = (row[2] != null) ? ((Number) row[2]).doubleValue() : 0.0;
+                                        finalMap.put(callNo, new double[] { passed, rejected });
+                                }
                         }
-                    }
                 }
 
                 // 4. Process Line Map (CallNo -> [manufactured, rejected])
                 java.util.Map<String, double[]> processMap = new java.util.HashMap<>();
                 if (!allCallNos.isEmpty()) {
-                    List<Object[]> processResults = processLineFinalResultRepository.findProcessLineSummaryByCallNosBatched(allCallNos);
-                    if (processResults != null) {
-                        for (Object[] row : processResults) {
-                            String callNo = (String) row[0];
-                            double manufactured = (row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
-                            double rejected = (row[2] != null) ? ((Number) row[2]).doubleValue() : 0.0;
-                            processMap.put(callNo, new double[]{manufactured, rejected});
+                        List<Object[]> processResults = processLineFinalResultRepository
+                                        .findProcessLineSummaryByCallNosBatched(allCallNos);
+                        if (processResults != null) {
+                                for (Object[] row : processResults) {
+                                        String callNo = (String) row[0];
+                                        double manufactured = (row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
+                                        double rejected = (row[2] != null) ? ((Number) row[2]).doubleValue() : 0.0;
+                                        processMap.put(callNo, new double[] { manufactured, rejected });
+                                }
                         }
-                    }
                 }
 
                 AtomicInteger counter = new AtomicInteger(1);
@@ -282,7 +287,8 @@ public class reportsImpl implements reports {
 
                         dto.setRawMaterialRejectionPercentage(rmRejectionMap.getOrDefault(dto.getPoNo(), 0.0));
 
-                        List<String> callNos = poToCallsMap.getOrDefault(dto.getPoNo(), java.util.Collections.emptyList());
+                        List<String> callNos = poToCallsMap.getOrDefault(dto.getPoNo(),
+                                        java.util.Collections.emptyList());
 
                         if (callNos.isEmpty()) {
                                 dto.setFinalQuantityAcceptedByRites(0);
@@ -294,11 +300,11 @@ public class reportsImpl implements reports {
                         double passed = 0.0;
                         double rejected = 0.0;
                         for (String callNo : callNos) {
-                            double[] res = finalMap.get(callNo);
-                            if (res != null) {
-                                passed += res[0];
-                                rejected += res[1];
-                            }
+                                double[] res = finalMap.get(callNo);
+                                if (res != null) {
+                                        passed += res[0];
+                                        rejected += res[1];
+                                }
                         }
 
                         int accepted = (int) Math.round(passed);
@@ -315,11 +321,11 @@ public class reportsImpl implements reports {
                         double totalManufactured = 0;
                         double totalRejected = 0;
                         for (String callNo : callNos) {
-                            double[] res = processMap.get(callNo);
-                            if (res != null) {
-                                totalManufactured += res[0];
-                                totalRejected += res[1];
-                            }
+                                double[] res = processMap.get(callNo);
+                                if (res != null) {
+                                        totalManufactured += res[0];
+                                        totalRejected += res[1];
+                                }
                         }
 
                         double processRejectionPct = 0.0;
@@ -2375,749 +2381,293 @@ public class reportsImpl implements reports {
                 // Get all process rows
 
                 List<ProcessLineFinalResult> processList = processLineFinalResultRepository
-
                                 .findByInspectionCallNo(callId);
 
-                // Group by date + shift + lot
-
-                Map<String, FourthLevelInspectionDto> resultMap = new LinkedHashMap<>();
-
-                // =============================================
-                // BUILD CREATED_AT MAP FIRST
-                // =============================================
-                Map<String, Set<LocalDateTime>> createdAtMap = new HashMap<>();
-
-                for (ProcessLineFinalResult p : processList) {
-
-                        LocalDate date = p.getDateOfInspection() != null
-                                        ? p.getDateOfInspection()
-                                        : p.getCreatedAt().toLocalDate();
-
-                        String key = date + "|"
-                                        + p.getShift() + "|"
-                                        + p.getLotNumber();
-
-                        createdAtMap
-                                        .computeIfAbsent(key, k -> new HashSet<>())
-                                        .add(p.getCreatedAt());
+                if (processList != null && !processList.isEmpty()) {
+                        processList.sort((a, b) -> {
+                                if (a.getCreatedAt() != null && b.getCreatedAt() != null) {
+                                        return b.getCreatedAt().compareTo(a.getCreatedAt());
+                                } else if (a.getCreatedAt() != null) {
+                                        return -1;
+                                } else if (b.getCreatedAt() != null) {
+                                        return 1;
+                                } else if (a.getDateOfInspection() != null && b.getDateOfInspection() != null) {
+                                        return b.getDateOfInspection().compareTo(a.getDateOfInspection());
+                                }
+                                return 0;
+                        });
                 }
 
-                // Each process row
+                List<FourthLevelInspectionDto> resultList = new ArrayList<>();
+                Map<String, String> userEmpCodeCache = new HashMap<>();
 
                 for (ProcessLineFinalResult p : processList) {
 
                         if (p.getLotNumber() == null || p.getShift() == null) {
-
                                 continue;
-
                         }
 
                         LocalDate date = p.getDateOfInspection() != null
-
                                         ? p.getDateOfInspection()
+                                        : (p.getCreatedAt() != null ? p.getCreatedAt().toLocalDate() : null);
 
-                                        : p.getCreatedAt().toLocalDate();
+                        String createdBy = p.getCreatedBy();
+                        String engineerEmpCode = "";
+                        if (createdBy != null && !createdBy.trim().isEmpty()) {
+                                String cb = createdBy.trim();
+                                engineerEmpCode = userEmpCodeCache.computeIfAbsent(cb, key -> {
+                                        UserMaster u = null;
+                                        try {
+                                                Integer uid = Integer.parseInt(key);
+                                                u = userMasterRepository.findById(uid).orElse(null);
+                                        } catch (NumberFormatException ignored) {}
 
-                        // Create key for grouping
+                                        if (u == null) {
+                                                u = userMasterRepository.findFirstByEmployeeCode(key)
+                                                                .or(() -> userMasterRepository.findFirstByUserName(key))
+                                                                .orElse(null);
+                                        }
 
-                        String key = date + "|" +
-
-                                        p.getShift() + "|" +
-
-                                        p.getLotNumber();
-
-                        // Get existing DTO if present
-
-                        FourthLevelInspectionDto dto = resultMap.get(key);
-
-                        // If first time, create new DTO
-
-                        if (dto == null) {
-
-                                dto = new FourthLevelInspectionDto();
-
-                                // ================= BASIC =================
-
-                                BasicDetailsDto basic = new BasicDetailsDto();
-
-                                basic.setDate(date);
-
-                                basic.setShift(p.getShift());
-
-                                basic.setRlyName(rlyShortName);
-
-                                basic.setPoSrNo(displayPoSrNo);
-
-                                basic.setLotNumber(p.getLotNumber());
-
-                                // Init with zero for sum
-
-                                basic.setTotalAcceptedQty(0);
-
-                                basic.setTotalRejectionQty(0);
-
-                                dto.setBasicDetails(basic);
-
-                                // ================= PROCESS =================
-
-                                dto.setProcessQty(new ProcessQtyDto());
-
-                                resultMap.put(key, dto);
-
+                                        if (u != null) {
+                                                String name = (u.getUsername() != null && !u.getUsername().trim().isEmpty())
+                                                                ? u.getUsername().trim()
+                                                                : (u.getFullName() != null && !u.getFullName().trim().isEmpty() ? u.getFullName().trim() : "");
+                                                String empCode = (u.getEmployeeCode() != null && !u.getEmployeeCode().trim().isEmpty())
+                                                                ? u.getEmployeeCode().trim()
+                                                                : "";
+                                                if (!name.isEmpty() && !empCode.isEmpty()) {
+                                                        return name + " (" + empCode + ")";
+                                                } else if (!name.isEmpty()) {
+                                                        return name;
+                                                } else if (!empCode.isEmpty()) {
+                                                        return empCode;
+                                                }
+                                        }
+                                        return key;
+                                });
                         }
 
-                        // ================= DATE RANGE =================
+                        FourthLevelInspectionDto dto = new FourthLevelInspectionDto();
 
-                        // LocalDateTime createdAt = p.getCreatedAt();
+                        // ================= BASIC =================
 
-                        // LocalDateTime startDate = createdAt.minusMinutes(2);
+                        BasicDetailsDto basic = new BasicDetailsDto();
+                        basic.setDate(date);
+                        basic.setShift(p.getShift());
+                        basic.setLineNo(p.getLineNo());
+                        basic.setEngineer(engineerEmpCode);
+                        basic.setRlyName(rlyShortName);
+                        basic.setPoSrNo(displayPoSrNo);
+                        basic.setLotNumber(p.getLotNumber());
+                        basic.setCreatedAt(p.getCreatedAt());
+                        basic.setTotalAcceptedQty(p.getTotalAccepted() != null ? p.getTotalAccepted() : 0);
+                        basic.setTotalRejectionQty(p.getTotalRejected() != null ? p.getTotalRejected() : 0);
+                        dto.setBasicDetails(basic);
 
-                        // LocalDateTime endDate = createdAt.plusMinutes(2);
+                        // ================= PROCESS =================
 
-                        // ================= BASIC (SUM) =================
+                        ProcessQtyDto process = new ProcessQtyDto();
+                        process.setShearingProductionQty(p.getShearingManufactured() != null ? p.getShearingManufactured() : 0);
+                        process.setShearingRejectionQty(p.getShearingRejected() != null ? p.getShearingRejected() : 0);
+                        process.setTurningProductionQty(p.getTurningManufactured() != null ? p.getTurningManufactured() : 0);
+                        process.setTurningRejectionQty(p.getTurningRejected() != null ? p.getTurningRejected() : 0);
+                        process.setMpiProductionQty(p.getMpiManufactured() != null ? p.getMpiManufactured() : 0);
+                        process.setMpiRejectionQty(p.getMpiRejected() != null ? p.getMpiRejected() : 0);
+                        process.setForgingProductionQty(p.getForgingManufactured() != null ? p.getForgingManufactured() : 0);
+                        process.setForgingRejectionQty(p.getForgingRejected() != null ? p.getForgingRejected() : 0);
+                        process.setQuenchingProductionQty(p.getQuenchingManufactured() != null ? p.getQuenchingManufactured() : 0);
+                        process.setQuenchingRejectionQty(p.getQuenchingRejected() != null ? p.getQuenchingRejected() : 0);
+                        process.setTemperingProductionQty(p.getTemperingManufactured() != null ? p.getTemperingManufactured() : 0);
 
-                        BasicDetailsDto basic = dto.getBasicDetails();
+                        LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : LocalDateTime.now();
+                        LocalDateTime startDate = createdAt.minusMinutes(2);
+                        LocalDateTime endDate = createdAt.plusMinutes(2);
 
-                        basic.setTotalAcceptedQty(
+                        Integer totalTemperingRejected = processLineFinalResultRepository.getTotalTemperingRejected(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        process.setTemperingRejectionQty(totalTemperingRejected != null
+                                        ? totalTemperingRejected
+                                        : (p.getTemperingRejected() != null ? p.getTemperingRejected() : 0));
+                        dto.setProcessQty(process);
 
-                                        basic.getTotalAcceptedQty() + p.getTotalAccepted());
+                        // ================= SHEARING DEFECTS =================
 
-                        basic.setTotalRejectionQty(
+                        List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] sums = (list != null && !list.isEmpty()) ? list.get(0) : null;
 
-                                        basic.getTotalRejectionQty() + p.getTotalRejected());
+                        ShearingDefectsDto shearing = new ShearingDefectsDto();
+                        shearing.setLengthOfCutBar(0);
+                        shearing.setOvalityImproperDiaAtEnd(0);
+                        shearing.setSharpEdges(0);
+                        shearing.setCrackedEdges(0);
 
-                        // ================= PROCESS (SUM) =================
-
-                        ProcessQtyDto process = dto.getProcessQty();
-
-                        process.setShearingProductionQty(
-
-                                        process.getShearingProductionQty() + p.getShearingManufactured());
-
-                        process.setShearingRejectionQty(
-
-                                        process.getShearingRejectionQty() + p.getShearingRejected());
-
-                        process.setTurningProductionQty(
-
-                                        process.getTurningProductionQty() + p.getTurningManufactured());
-
-                        process.setTurningRejectionQty(
-
-                                        process.getTurningRejectionQty() + p.getTurningRejected());
-
-                        process.setMpiProductionQty(
-
-                                        process.getMpiProductionQty() + p.getMpiManufactured());
-
-                        process.setMpiRejectionQty(
-
-                                        process.getMpiRejectionQty() + p.getMpiRejected());
-
-                        process.setForgingProductionQty(
-
-                                        process.getForgingProductionQty() + p.getForgingManufactured());
-
-                        process.setForgingRejectionQty(
-
-                                        process.getForgingRejectionQty() + p.getForgingRejected());
-
-                        process.setQuenchingProductionQty(
-
-                                        process.getQuenchingProductionQty() + p.getQuenchingManufactured());
-
-                        process.setQuenchingRejectionQty(
-
-                                        process.getQuenchingRejectionQty() + p.getQuenchingRejected());
-
-                        process.setTemperingProductionQty(
-
-                                        process.getTemperingProductionQty() + p.getTemperingManufactured());
-
-                        // process.setTemperingRejectionQty(
-
-                        // process.getTemperingRejectionQty() + p.getTemperingRejected());
-
-                        if (dto != null && dto.getShearingDefects() != null) {
-                                continue;
+                        if (sums != null && sums.length == 4) {
+                                shearing.setLengthOfCutBar(((Number) sums[0]).intValue());
+                                shearing.setOvalityImproperDiaAtEnd(((Number) sums[1]).intValue());
+                                shearing.setSharpEdges(((Number) sums[2]).intValue());
+                                shearing.setCrackedEdges(((Number) sums[3]).intValue());
                         }
-                        Set<LocalDateTime> createdAtList = createdAtMap.get(key);
-
-                        System.out.println("created uday" + createdAtMap);
-
-                        System.out.println("created uday1" + createdAtList);
-
-                        for (LocalDateTime createdAt : createdAtList) {
-
-                                LocalDateTime startDate = createdAt.minusMinutes(2);
-
-                                LocalDateTime endDate = createdAt.plusMinutes(2);
-
-                                Integer totalTemperingRejected = processLineFinalResultRepository
-                                                .getTotalTemperingRejected(
-
-                                                                callId,
-
-                                                                p.getLotNumber(),
-
-                                                                p.getShift(),
-
-                                                                startDate,
-
-                                                                endDate);
-
-                                process.setTemperingRejectionQty(
-
-                                                process.getTemperingRejectionQty()
-
-                                                                + (totalTemperingRejected != null
-                                                                                ? totalTemperingRejected
-                                                                                : 0));
-
-                                // ================= SHEARING DEFECTS =================
-
-                                List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] sums = (list != null && !list.isEmpty()) ? list.get(0) : null;
-
-                                System.out.println(
-                                                "DATE=" + date
-                                                                + ", SHIFT=" + p.getShift()
-                                                                + ", LOT=" + p.getLotNumber()
-                                                                + ", CREATED_AT=" + createdAt
-                                                                + ", SHEARING=" + Arrays.toString(sums));
-
-                                ShearingDefectsDto shearing = dto.getShearingDefects();
-
-                                if (shearing == null) {
-
-                                        shearing = new ShearingDefectsDto();
-
-                                        shearing.setLengthOfCutBar(0);
-
-                                        shearing.setOvalityImproperDiaAtEnd(0);
-
-                                        shearing.setSharpEdges(0);
-
-                                        shearing.setCrackedEdges(0);
-                                }
-
-                                if (sums != null && sums.length == 4) {
-
-                                        shearing.setLengthOfCutBar(
-
-                                                        shearing.getLengthOfCutBar()
-
-                                                                        + ((Number) sums[0]).intValue());
-
-                                        shearing.setOvalityImproperDiaAtEnd(
-
-                                                        shearing.getOvalityImproperDiaAtEnd()
-
-                                                                        + ((Number) sums[1]).intValue());
-
-                                        shearing.setSharpEdges(
-
-                                                        shearing.getSharpEdges()
-
-                                                                        + ((Number) sums[2]).intValue());
-
-                                        shearing.setCrackedEdges(
-
-                                                        shearing.getCrackedEdges()
-
-                                                                        + ((Number) sums[3]).intValue());
-                                }
-
-                                dto.setShearingDefects(shearing);
-
-                                // ================= TURNING DEFECTS =================
-
-                                List<Object[]> tList = processTurningDataRepository.getTurningSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] tSums = (tList != null && !tList.isEmpty()) ? tList.get(0) : null;
-
-                                TurningDefectsDto turning = dto.getTurningDefects();
-
-                                if (turning == null) {
-
-                                        turning = new TurningDefectsDto();
-
-                                        turning.setParallelLength(0);
-
-                                        turning.setFullTurningLength(0);
-
-                                        turning.setTurningDia(0);
-                                }
-
-                                if (tSums != null && tSums.length == 3) {
-
-                                        turning.setParallelLength(
-
-                                                        turning.getParallelLength()
-
-                                                                        + ((Number) tSums[0]).intValue());
-
-                                        turning.setFullTurningLength(
-
-                                                        turning.getFullTurningLength()
-
-                                                                        + ((Number) tSums[1]).intValue());
-
-                                        turning.setTurningDia(
-
-                                                        turning.getTurningDia()
-
-                                                                        + ((Number) tSums[2]).intValue());
-                                }
-
-                                dto.setTurningDefects(turning);
-
-                                // ================= QUENCHING DEFECTS =================
-
-                                Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                QuenchingDefectsDto quenching = dto.getQuenchingDefects();
-
-                                if (quenching == null) {
-
-                                        quenching = new QuenchingDefectsDto();
-
-                                        quenching.setQuenchingHardness(0);
-                                }
-
-                                quenching.setQuenchingHardness(
-                                                quenching.getQuenchingHardness()
-                                                                + (quenchingHardness != null ? quenchingHardness : 0));
-
-                                Integer qBoxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
-                                quenching.setBoxGaugeRejected((quenching.getBoxGaugeRejected() != null ? quenching.getBoxGaugeRejected() : 0) + (qBoxGauge != null ? qBoxGauge : 0));
-
-                                Integer qFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
-                                quenching.setFlatBearingAreaRejected((quenching.getFlatBearingAreaRejected() != null ? quenching.getFlatBearingAreaRejected() : 0) + (qFlat != null ? qFlat : 0));
-
-                                Integer qFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-                                                callId, p.getLotNumber(), p.getShift(), startDate, endDate);
-                                quenching.setFallingGaugeRejected((quenching.getFallingGaugeRejected() != null ? quenching.getFallingGaugeRejected() : 0) + (qFall != null ? qFall : 0));
-
-                                dto.setQuenchingDefects(quenching);
-
-                                // ================= TEMPERING DEFECTS =================
-
-                                List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] temperingSums = (temperingList != null && !temperingList.isEmpty())
-
-                                                ? temperingList.get(0)
-
-                                                : null;
-
-                                TemperingDefectsDto tempering = dto.getTemperingDefects();
-
-                                if (tempering == null) {
-
-                                        tempering = new TemperingDefectsDto();
-
-                                        tempering.setTemperingTemp(0);
-
-                                        tempering.setTemperingDuration(0);
-                                }
-
-                                if (temperingSums != null && temperingSums.length == 2) {
-
-                                        tempering.setTemperingTemp(
-
-                                                        tempering.getTemperingTemp()
-
-                                                                        + ((Number) temperingSums[0]).intValue());
-
-                                        tempering.setTemperingDuration(
-
-                                                        tempering.getTemperingDuration()
-
-                                                                        + ((Number) temperingSums[1]).intValue());
-                                }
-
-                                dto.setTemperingDefects(tempering);
-
-                                // ================= FORGING DEFECTS =================
-
-                                List<Object[]> fList = processForgingDataRepository.getForgingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] fSums = (fList != null && !fList.isEmpty()) ? fList.get(0) : null;
-
-                                System.out.println(
-                                                "FORGING => DATE=" + date
-                                                                + ", CREATED_AT=" + createdAt
-                                                                + ", VALUES=" + Arrays.toString(fSums));
-                                ForgingDefectsDto forging = dto.getForgingDefects();
-
-                                if (forging == null) {
-
-                                        forging = new ForgingDefectsDto();
-
-                                        forging.setForgingTemperature(0);
-
-                                        forging.setForgingStabilisationRejection(0);
-
-                                        forging.setImproperForging(0);
-
-                                        forging.setForgingMarksNotches(0);
-                                }
-
-                                if (fSums != null && fSums.length == 4) {
-
-                                        forging.setForgingTemperature(
-
-                                                        forging.getForgingTemperature()
-
-                                                                        + ((Number) fSums[0]).intValue());
-
-                                        forging.setForgingStabilisationRejection(
-
-                                                        forging.getForgingStabilisationRejection()
-
-                                                                        + ((Number) fSums[1]).intValue());
-
-                                        forging.setImproperForging(
-
-                                                        forging.getImproperForging()
-
-                                                                        + ((Number) fSums[2]).intValue());
-
-                                        forging.setForgingMarksNotches(
-
-                                                        forging.getForgingMarksNotches()
-
-                                                                        + ((Number) fSums[3]).intValue());
-                                }
-
-                                dto.setForgingDefects(forging);
-
-                                // ================= VISUAL DEFECTS =================
-
-                                List<Object[]> vList = processFinalCheckDataRepository.getVisualDefectsSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate,
-
-                                                endDate);
-
-                                Object[] visualSums = (vList != null && !vList.isEmpty()) ? vList.get(0) : null;
-
-                                VisualDefectsDto visual = dto.getVisualDefects();
-
-                                if (visual == null) {
-
-                                        visual = new VisualDefectsDto();
-
-                                        visual.setSurfaceDefect(0);
-
-                                        visual.setMarking(0);
-
-                                        visual.setEmbossingDefect(0);
-                                }
-
-                                if (visualSums != null && visualSums.length == 2) {
-
-                                        visual.setSurfaceDefect(
-
-                                                        visual.getSurfaceDefect()
-
-                                                                        + ((Number) visualSums[0]).intValue());
-
-                                        visual.setMarking(
-
-                                                        visual.getMarking()
-
-                                                                        + ((Number) visualSums[1]).intValue());
-                                }
-
-                                Integer forgingEmbossing = processForgingDataRepository.getForgingEmbossingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer finalEmbossing = processFinalCheckDataRepository.getFinalEmbossingSumByDate(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                visual.setEmbossingDefect(
-
-                                                visual.getEmbossingDefect()
-
-                                                                + (forgingEmbossing != null ? forgingEmbossing : 0)
-
-                                                                + (finalEmbossing != null ? finalEmbossing : 0));
-
-                                dto.setVisualDefects(visual);
-
-                                // ================= TESTING DEFECTS =================
-
-                                Integer temperingHardness = processFinalCheckDataRepository
-                                                .getTemperingHardnessSumByDate(
-
-                                                                callId,
-
-                                                                p.getLotNumber(),
-
-                                                                p.getShift(),
-
-                                                                startDate,
-
-                                                                endDate);
-
-                                List<Object[]> tfList = processTestingFinishingDataRepository
-                                                .getTestingFinishingSumByDate(
-
-                                                                callId,
-
-                                                                p.getLotNumber(),
-
-                                                                p.getShift(),
-
-                                                                startDate,
-
-                                                                endDate);
-
-                                Object[] tfSums = (tfList != null && !tfList.isEmpty()) ? tfList.get(0) : null;
-
-                                TestingDefectsDto testing = dto.getTestingDefects();
-
-                                if (testing == null) {
-
-                                        testing = new TestingDefectsDto();
-
-                                        testing.setTemperingHardness(0);
-
-                                        testing.setToeLoad(0);
-
-                                        testing.setWeight(0);
-                                }
-
-                                testing.setTemperingHardness(
-
-                                                testing.getTemperingHardness()
-
-                                                                + (temperingHardness != null ? temperingHardness : 0));
-
-                                if (tfSums != null && tfSums.length == 4) {
-
-                                        testing.setToeLoad(
-
-                                                        testing.getToeLoad()
-
-                                                                        + ((Number) tfSums[0]).intValue());
-
-                                        testing.setWeight(
-
-                                                        testing.getWeight()
-
-                                                                        + ((Number) tfSums[1]).intValue());
-                                }
-
-                                dto.setTestingDefects(testing);
-
-                                // ================= FINISHING DEFECTS =================
-
-                                FinishingDefectsDto finishing = dto.getFinishingDefects();
-
-                                if (finishing == null) {
-
-                                        finishing = new FinishingDefectsDto();
-
-                                        finishing.setPaintIdentification(0);
-
-                                        finishing.setErcCoating(0);
-                                }
-
-                                if (tfSums != null && tfSums.length == 4) {
-
-                                        finishing.setPaintIdentification(
-
-                                                        finishing.getPaintIdentification()
-
-                                                                        + ((Number) tfSums[2]).intValue());
-
-                                        finishing.setErcCoating(
-
-                                                        finishing.getErcCoating()
-
-                                                                        + ((Number) tfSums[3]).intValue());
-                                }
-
-                                dto.setFinishingDefects(finishing);
-
-                                Integer boxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                                callId,
-                                                p.getLotNumber(),
-                                                p.getShift(),
-                                                startDate,
-                                                endDate);
-
-                                Integer finalBox = processFinalCheckDataRepository.getFinalBoxGaugeSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer quenchFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer quenchFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer finalFlat = processFinalCheckDataRepository.getFinalFlatBearingSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-
-                                                startDate, endDate);
-
-                                Integer finalFall = processFinalCheckDataRepository.getFinalFallingGaugeSum(
-
-                                                callId,
-
-                                                p.getLotNumber(),
-
-                                                p.getShift(),
-                                                startDate, endDate);
-
-                                DimensionalDefectsDto dimensional = dto.getDimensionalDefects();
-
-                                if (dimensional == null) {
-
-                                        dimensional = new DimensionalDefectsDto();
-
-                                        dimensional.setBoxGauge(0);
-
-                                        dimensional.setFlatBearingArea(0);
-
-                                        dimensional.setFallingGauge(0);
-                                }
-
-                                dimensional.setBoxGauge(
-
-                                                dimensional.getBoxGauge()
-
-                                                                + (boxGauge != null ? boxGauge : 0)
-
-                                                                + (finalBox != null ? finalBox : 0));
-
-                                dimensional.setFlatBearingArea(
-
-                                                dimensional.getFlatBearingArea()
-
-                                                                + (quenchFlat != null ? quenchFlat : 0)
-
-                                                                + (finalFlat != null ? finalFlat : 0));
-
-                                dimensional.setFallingGauge(
-
-                                                dimensional.getFallingGauge()
-
-                                                                + (quenchFall != null ? quenchFall : 0)
-
-                                                                + (finalFall != null ? finalFall : 0));
-
-                                dto.setDimensionalDefects(dimensional);
+                        dto.setShearingDefects(shearing);
+
+                        // ================= TURNING DEFECTS =================
+
+                        List<Object[]> tList = processTurningDataRepository.getTurningSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] tSums = (tList != null && !tList.isEmpty()) ? tList.get(0) : null;
+
+                        TurningDefectsDto turning = new TurningDefectsDto();
+                        turning.setParallelLength(0);
+                        turning.setFullTurningLength(0);
+                        turning.setTurningDia(0);
+
+                        if (tSums != null && tSums.length == 3) {
+                                turning.setParallelLength(((Number) tSums[0]).intValue());
+                                turning.setFullTurningLength(((Number) tSums[1]).intValue());
+                                turning.setTurningDia(((Number) tSums[2]).intValue());
                         }
+                        dto.setTurningDefects(turning);
+
+                        // ================= QUENCHING DEFECTS =================
+
+                        Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+
+                        QuenchingDefectsDto quenching = new QuenchingDefectsDto();
+                        quenching.setQuenchingHardness(quenchingHardness != null ? quenchingHardness : 0);
+
+                        Integer qBoxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        quenching.setBoxGaugeRejected(qBoxGauge != null ? qBoxGauge : 0);
+
+                        Integer qFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        quenching.setFlatBearingAreaRejected(qFlat != null ? qFlat : 0);
+
+                        Integer qFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        quenching.setFallingGaugeRejected(qFall != null ? qFall : 0);
+
+                        dto.setQuenchingDefects(quenching);
+
+                        // ================= TEMPERING DEFECTS =================
+
+                        List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] temperingSums = (temperingList != null && !temperingList.isEmpty()) ? temperingList.get(0) : null;
+
+                        TemperingDefectsDto tempering = new TemperingDefectsDto();
+                        tempering.setTemperingTemp(0);
+                        tempering.setTemperingDuration(0);
+
+                        if (temperingSums != null && temperingSums.length == 2) {
+                                tempering.setTemperingTemp(((Number) temperingSums[0]).intValue());
+                                tempering.setTemperingDuration(((Number) temperingSums[1]).intValue());
+                        }
+                        dto.setTemperingDefects(tempering);
+
+                        // ================= FORGING DEFECTS =================
+
+                        List<Object[]> fList = processForgingDataRepository.getForgingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] fSums = (fList != null && !fList.isEmpty()) ? fList.get(0) : null;
+
+                        ForgingDefectsDto forging = new ForgingDefectsDto();
+                        forging.setForgingTemperature(0);
+                        forging.setForgingStabilisationRejection(0);
+                        forging.setImproperForging(0);
+                        forging.setForgingMarksNotches(0);
+
+                        if (fSums != null && fSums.length == 4) {
+                                forging.setForgingTemperature(((Number) fSums[0]).intValue());
+                                forging.setForgingStabilisationRejection(((Number) fSums[1]).intValue());
+                                forging.setImproperForging(((Number) fSums[2]).intValue());
+                                forging.setForgingMarksNotches(((Number) fSums[3]).intValue());
+                        }
+                        dto.setForgingDefects(forging);
+
+                        // ================= VISUAL DEFECTS =================
+
+                        List<Object[]> vList = processFinalCheckDataRepository.getVisualDefectsSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] visualSums = (vList != null && !vList.isEmpty()) ? vList.get(0) : null;
+
+                        VisualDefectsDto visual = new VisualDefectsDto();
+                        visual.setSurfaceDefect(0);
+                        visual.setMarking(0);
+                        visual.setEmbossingDefect(0);
+
+                        if (visualSums != null && visualSums.length == 2) {
+                                visual.setSurfaceDefect(((Number) visualSums[0]).intValue());
+                                visual.setMarking(((Number) visualSums[1]).intValue());
+                        }
+
+                        Integer forgingEmbossing = processForgingDataRepository.getForgingEmbossingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalEmbossing = processFinalCheckDataRepository.getFinalEmbossingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        visual.setEmbossingDefect((forgingEmbossing != null ? forgingEmbossing : 0)
+                                        + (finalEmbossing != null ? finalEmbossing : 0));
+                        dto.setVisualDefects(visual);
+
+                        // ================= TESTING DEFECTS =================
+
+                        Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        List<Object[]> tfList = processTestingFinishingDataRepository.getTestingFinishingSumByDate(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Object[] tfSums = (tfList != null && !tfList.isEmpty()) ? tfList.get(0) : null;
+
+                        TestingDefectsDto testing = new TestingDefectsDto();
+                        testing.setTemperingHardness(temperingHardness != null ? temperingHardness : 0);
+                        testing.setToeLoad(0);
+                        testing.setWeight(0);
+
+                        if (tfSums != null && tfSums.length == 4) {
+                                testing.setToeLoad(((Number) tfSums[0]).intValue());
+                                testing.setWeight(((Number) tfSums[1]).intValue());
+                        }
+                        dto.setTestingDefects(testing);
+
+                        // ================= FINISHING DEFECTS =================
+
+                        FinishingDefectsDto finishing = new FinishingDefectsDto();
+                        finishing.setPaintIdentification(0);
+                        finishing.setErcCoating(0);
+
+                        if (tfSums != null && tfSums.length == 4) {
+                                finishing.setPaintIdentification(((Number) tfSums[2]).intValue());
+                                finishing.setErcCoating(((Number) tfSums[3]).intValue());
+                        }
+                        dto.setFinishingDefects(finishing);
+
+                        // ================= DIMENSIONAL DEFECTS =================
+
+                        Integer boxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalBox = processFinalCheckDataRepository.getFinalBoxGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer quenchFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer quenchFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalFlat = processFinalCheckDataRepository.getFinalFlatBearingSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                        Integer finalFall = processFinalCheckDataRepository.getFinalFallingGaugeSum(
+                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+
+                        DimensionalDefectsDto dimensional = new DimensionalDefectsDto();
+                        dimensional.setBoxGauge((boxGauge != null ? boxGauge : 0) + (finalBox != null ? finalBox : 0));
+                        dimensional.setFlatBearingArea((quenchFlat != null ? quenchFlat : 0) + (finalFlat != null ? finalFlat : 0));
+                        dimensional.setFallingGauge((quenchFall != null ? quenchFall : 0) + (finalFall != null ? finalFall : 0));
+                        dto.setDimensionalDefects(dimensional);
+
+                        resultList.add(dto);
                 }
-
-                System.out.println("last all  date " + createdAtMap);
 
                 // ================= RETURN FINAL RESULT =================
 
-                return new ArrayList<>(resultMap.values());
+                return resultList;
 
         }
 
@@ -3131,23 +2681,26 @@ public class reportsImpl implements reports {
                 String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
                 String zCode = zonalRailway == null ? "" : zonalRailway;
 
-                LocalDate parsedStartDate = (startDateStr == null || startDateStr.trim().isEmpty()) ? LocalDate.of(2000, 1, 1)
+                LocalDate parsedStartDate = (startDateStr == null || startDateStr.trim().isEmpty())
+                                ? LocalDate.of(2000, 1, 1)
                                 : LocalDate.parse(startDateStr);
                 LocalDate parsedEndDate = (endDateStr == null || endDateStr.trim().isEmpty()) ? LocalDate.now()
                                 : LocalDate.parse(endDateStr);
 
-                // ── Run all independent DB queries in PARALLEL to reduce latency ──────────────
-                CompletableFuture<Long> cfPoIssued = CompletableFuture.supplyAsync(() ->
-                                poHeaderRepository.countFilteredPoByItemCatDescr("Elastic Rail Clips", null, null, vCode, zCode));
+                // ── Run all independent DB queries in PARALLEL to reduce latency
+                // ──────────────
+                CompletableFuture<Long> cfPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
+                                .countFilteredPoByItemCatDescr("Elastic Rail Clips", null, null, vCode, zCode));
 
-                CompletableFuture<Long> cfQtyNos = CompletableFuture.supplyAsync(() ->
-                                poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", null, null, vCode, zCode));
+                CompletableFuture<Long> cfQtyNos = CompletableFuture.supplyAsync(() -> poItemRepository
+                                .sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", null, null, vCode, zCode));
 
-                CompletableFuture<Double> cfQtyMt = CompletableFuture.supplyAsync(() ->
-                                poItemRepository.sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", null, null, vCode, zCode));
+                CompletableFuture<Double> cfQtyMt = CompletableFuture.supplyAsync(() -> poItemRepository
+                                .sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", null, null, vCode, zCode));
 
                 CompletableFuture<Long> cfFinalQtyPassed = CompletableFuture.supplyAsync(() -> {
-                        List<Object[]> res = finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(parsedStartDate, parsedEndDate, vCode, zCode);
+                        List<Object[]> res = finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(
+                                        parsedStartDate, parsedEndDate, vCode, zCode);
                         if (res != null && !res.isEmpty() && res.get(0) != null) {
                                 Object[] row = res.get(0);
                                 return row[0] != null ? ((Number) row[0]).longValue() : 0L;
@@ -3155,54 +2708,65 @@ public class reportsImpl implements reports {
                         return 0L;
                 });
 
-                CompletableFuture<Double> cfAvgProd = CompletableFuture.supplyAsync(() ->
-                                getAvgProductionPerDayWithFilters(parsedStartDate, parsedEndDate, vCode, zCode));
+                CompletableFuture<Double> cfAvgProd = CompletableFuture.supplyAsync(
+                                () -> getAvgProductionPerDayWithFilters(parsedStartDate, parsedEndDate, vCode, zCode));
 
-                CompletableFuture<Double> cfProcRej = CompletableFuture.supplyAsync(() ->
-                                calculateProcessRejectionPercentageRevisedLogicWithFilters(parsedStartDate, parsedEndDate, vCode, zCode));
+                CompletableFuture<Double> cfProcRej = CompletableFuture.supplyAsync(
+                                () -> calculateProcessRejectionPercentageRevisedLogicWithFilters(parsedStartDate,
+                                                parsedEndDate, vCode, zCode));
 
-                CompletableFuture<List<Object[]>> cfFinalRejResults = CompletableFuture.supplyAsync(() ->
-                                finalCumulativeResultsRepository.sumFinalRejectionWithFilters(parsedStartDate, parsedEndDate, vCode, zCode));
+                CompletableFuture<List<Object[]>> cfFinalRejResults = CompletableFuture.supplyAsync(
+                                () -> finalCumulativeResultsRepository.sumFinalRejectionWithFilters(parsedStartDate,
+                                                parsedEndDate, vCode, zCode));
 
-                CompletableFuture<List<Object[]>> cfRmRejResults = CompletableFuture.supplyAsync(() ->
-                                rmHeatFinalResultRepository.sumRmRejectionWithFilters(parsedStartDate, parsedEndDate, vCode, zCode));
+                CompletableFuture<List<Object[]>> cfRmRejResults = CompletableFuture.supplyAsync(
+                                () -> rmHeatFinalResultRepository.sumRmRejectionWithFilters(parsedStartDate,
+                                                parsedEndDate, vCode, zCode));
 
-                CompletableFuture<Long> cfSleeperPoIssued = CompletableFuture.supplyAsync(() ->
-                                poHeaderRepository.countPoByItemCatDescr("PSC Mainline Sleeper"));
+                CompletableFuture<Long> cfSleeperPoIssued = CompletableFuture
+                                .supplyAsync(() -> poHeaderRepository.countPoByItemCatDescr("PSC Mainline Sleeper"));
 
-                CompletableFuture<Long> cfSleeperQtyNos = CompletableFuture.supplyAsync(() ->
-                                getSleeperPoQuantityNos());
+                CompletableFuture<Long> cfSleeperQtyNos = CompletableFuture
+                                .supplyAsync(() -> getSleeperPoQuantityNos());
 
-                CompletableFuture<Long> cfSleeperQtySet = CompletableFuture.supplyAsync(() ->
-                                getSleeperPoQuantitySet());
+                CompletableFuture<Long> cfSleeperQtySet = CompletableFuture
+                                .supplyAsync(() -> getSleeperPoQuantitySet());
 
-                CompletableFuture<Long> cfRailPadPoIssued = CompletableFuture.supplyAsync(() ->
-                                poHeaderRepository.countPoByItemCatDescr("Rail Pads"));
+                CompletableFuture<Long> cfRailPadPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
+                                .countFilteredPoByItemCatDescr("Rail Pads", null, null, vCode, zCode));
 
-                CompletableFuture<Long> cfRailPadQtyNos = CompletableFuture.supplyAsync(() ->
-                                getRailPadPoQuantityNos());
+                CompletableFuture<Long> cfRailPadQtyNos = CompletableFuture.supplyAsync(() -> {
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Rail Pads", null,
+                                        null, vCode, zCode);
+                        return res != null ? res : 0L;
+                });
 
-                CompletableFuture<Long> cfRailPadQtySet = CompletableFuture.supplyAsync(() ->
-                                getRailPadPoQuantitySet());
+                CompletableFuture<Long> cfRailPadQtySet = CompletableFuture.supplyAsync(() -> {
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomSet("Rail Pads", null,
+                                        null, vCode, zCode);
+                        return res != null ? res : 0L;
+                });
 
-                CompletableFuture<List<Object[]>> cfCallCounts = CompletableFuture.supplyAsync(() ->
-                                railWorkflowTransactionRepository.getRailPadInspectionCallCounts());
+                CompletableFuture<List<Object[]>> cfCallCounts = CompletableFuture
+                                .supplyAsync(() -> railWorkflowTransactionRepository.getFilteredRailPadInspectionCallCounts(vCode, zCode, parsedStartDate, parsedEndDate));
 
-                CompletableFuture<RailPadFinalInspectionSummaryDto> cfFinalSummary = CompletableFuture.supplyAsync(() ->
-                                getRailPadFinalInspectionSummary());
+                CompletableFuture<RailPadFinalInspectionSummaryDto> cfFinalSummary = CompletableFuture
+                                .supplyAsync(() -> getRailPadFinalInspectionSummary(vCode, zCode, startDateStr, endDateStr));
 
-                CompletableFuture<Long> cfTotalRejection = CompletableFuture.supplyAsync(() ->
-                                railIEProductionVerificationRepository.sumAllRejectedQty());
+                CompletableFuture<Long> cfTotalRejection = CompletableFuture
+                                .supplyAsync(() -> railIEProductionVerificationRepository.sumFilteredTotalPiecesRejected(vCode, zCode, parsedStartDate, parsedEndDate));
 
-                CompletableFuture<Long> cfProductionDeclared = CompletableFuture.supplyAsync(() ->
-                                railIEProductionVerificationRepository.sumAllTotalPiecesProduced());
+                CompletableFuture<Long> cfProductionDeclared = CompletableFuture
+                                .supplyAsync(() -> railIEProductionVerificationRepository.sumFilteredTotalPiecesProduced(vCode, zCode, parsedStartDate, parsedEndDate));
 
                 java.time.LocalDate thirtyDaysAgoDate = java.time.LocalDate.now().minusDays(30);
-                CompletableFuture<Long> cfRpPiecesSum = CompletableFuture.supplyAsync(() ->
-                                railIEProductionVerificationRepository.sumTotalPiecesProducedLast30Days(thirtyDaysAgoDate));
+                CompletableFuture<Long> cfRpPiecesSum = CompletableFuture
+                                .supplyAsync(() -> railIEProductionVerificationRepository
+                                                .sumTotalPiecesProducedLast30Days(thirtyDaysAgoDate));
 
-                CompletableFuture<Long> cfRpPlantCount = CompletableFuture.supplyAsync(() ->
-                                railIEProductionVerificationRepository.countDistinctPlantDaysLast30Days(thirtyDaysAgoDate));
+                CompletableFuture<Long> cfRpPlantCount = CompletableFuture
+                                .supplyAsync(() -> railIEProductionVerificationRepository
+                                                .countDistinctPlantDaysLast30Days(thirtyDaysAgoDate));
 
                 // Wait for all futures to complete
                 CompletableFuture.allOf(cfPoIssued, cfQtyNos, cfQtyMt, cfFinalQtyPassed, cfAvgProd,
@@ -3211,7 +2775,8 @@ public class reportsImpl implements reports {
                                 cfRailPadQtySet, cfCallCounts, cfFinalSummary, cfTotalRejection,
                                 cfProductionDeclared, cfRpPiecesSum, cfRpPlantCount).join();
 
-                // ── Collect results ───────────────────────────────────────────────────────────
+                // ── Collect results
+                // ───────────────────────────────────────────────────────────
                 long poIssued = cfPoIssued.join();
                 Long qtyNos = cfQtyNos.join();
                 Double qtyMt = cfQtyMt.join();
@@ -3256,7 +2821,8 @@ public class reportsImpl implements reports {
                 long productionDeclared = cfProductionDeclared.join();
                 double railPadRejPercentage = 0.0;
                 if (productionDeclared > 0) {
-                        railPadRejPercentage = (double) (totalRejection + finalRejection) * 100.0 / (double) productionDeclared;
+                        railPadRejPercentage = (double) (totalRejection + finalRejection) * 100.0
+                                        / (double) productionDeclared;
                 }
 
                 Long rpPiecesSum = cfRpPiecesSum.join();
@@ -3266,7 +2832,8 @@ public class reportsImpl implements reports {
                         railPadAvg = rpPiecesSum / (double) rpPlantCount;
                 }
 
-                // ── Build DTO ─────────────────────────────────────────────────────────────────
+                // ── Build DTO
+                // ─────────────────────────────────────────────────────────────────
                 DashboardSummaryDto dto = new DashboardSummaryDto();
                 dto.setPoIssued(poIssued);
                 dto.setPoQuantityNos(qtyNos != null ? qtyNos : 0L);
@@ -3286,6 +2853,7 @@ public class reportsImpl implements reports {
                 dto.setPendingCalls(pendingCount);
                 dto.setRejectedInProcess(totalRejection);
                 dto.setRejectedInFinal(finalRejection);
+                dto.setTotalProcessProduced(productionDeclared);
                 dto.setRailPadRejectionPercentage(Math.round(railPadRejPercentage * 100.0) / 100.0);
                 dto.setRailPadAvgProductionPerDay(Math.round(railPadAvg * 100.0) / 100.0);
                 dto.setTotalAcceptedNos(finalSummary.getAcceptedQtyNos());
@@ -3294,7 +2862,6 @@ public class reportsImpl implements reports {
                 return dto;
 
         }
-
 
         public List<String> getProcessIcNumbersByUserId(Long userId) {
 
@@ -3585,12 +3152,11 @@ public class reportsImpl implements reports {
 
                 List<StageRejectionDto> breakdown = new ArrayList<>();
 
-              //  LocalDateTime last30Days = LocalDateTime.now().minusDays(30);
-                LocalDateTime fromDate = LocalDate.parse(startDate).atStartOfDay();
-                LocalDateTime toDate = LocalDate.parse(endDate).atTime(23, 59, 59);
-               // List<Object[]> results = processLineFinalResultRepository.sumStepWiseRejectionLast30Days(last30Days);
-                List<Object[]> results =
-                        processLineFinalResultRepository.sumStepWiseRejection(fromDate, toDate);
+                LocalDate sDate = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusDays(30));
+                LocalDate eDate = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
+                LocalDateTime fromDate = sDate.atStartOfDay();
+                LocalDateTime toDate = eDate.atTime(23, 59, 59);
+                List<Object[]> results = processLineFinalResultRepository.sumStepWiseRejection(fromDate, toDate);
                 if (results != null && !results.isEmpty()) {
 
                         Object[] row = results.get(0);
@@ -3676,11 +3242,23 @@ public class reportsImpl implements reports {
         @Override
         public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway,
                         String startDate, String endDate) {
+                return getInspectionCallStatus(vendorPlantCode, zonalRailway, startDate, endDate, null);
+        }
 
-                // Updated to exclude Dummy PO data as requested
+        @Override
+        public List<InspectionCallStatusDto> getInspectionCallStatus(String vendorPlantCode, String zonalRailway,
+                        String startDate, String endDate, String product) {
+                boolean isRailPad = (product != null
+                                && (product.equalsIgnoreCase("RailPad") || product.equalsIgnoreCase("Rail Pad"))) ||
+                                (vendorPlantCode != null && (vendorPlantCode.contains("/") ||
+                                                railVendorPlantsRepository.existsByPlantId(vendorPlantCode) ||
+                                                railVendorPlantsRepository.existsByVendorCode(vendorPlantCode)));
+
+                if (isRailPad) {
+                        return getRailPadStagewiseCallCounts(vendorPlantCode, zonalRailway, startDate, endDate);
+                }
 
                 return getInspectionCallStatusWithExclLogic(vendorPlantCode, zonalRailway, startDate, endDate);
-
         }
 
         // ================= NEW LOGIC FOR PROCESS REJECTION % =================
@@ -3761,29 +3339,30 @@ public class reportsImpl implements reports {
         public List<StageRejectionDto> getParetoAnalysis(String startDate, String endDate) {
                 if (paretoAnalysisCache == null || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
                         synchronized (this) {
-                                if (paretoAnalysisCache == null || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
+                                if (paretoAnalysisCache == null
+                                                || System.currentTimeMillis() - paretoCacheLastUpdated > 300000) {
 
+                                        LocalDate sDate = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusDays(30));
+                                        LocalDate eDate = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
+                                        LocalDateTime lStart = sDate.atStartOfDay();
+                                        LocalDateTime lEnd = eDate.atTime(23, 59, 59);
 
-
-                                        LocalDateTime lStart = LocalDate.parse(startDate).atStartOfDay();
-
-                                        LocalDateTime lEnd = LocalDate.parse(endDate).atTime(23, 59, 59);
-
-                                        List<Object[]> rows =
-                                                processLineFinalResultRepository
+                                        List<Object[]> rows = processLineFinalResultRepository
                                                         .getParetoAnalysisRejections(lStart, lEnd);
 
-                                      //  List<Object[]> rows = processLineFinalResultRepository.getParetoAnalysisRejections(startDate,endDate);
+                                        // List<Object[]> rows =
+                                        // processLineFinalResultRepository.getParetoAnalysisRejections(startDate,endDate);
                                         List<StageRejectionDto> result = new ArrayList<>();
                                         if (rows != null && !rows.isEmpty()) {
-                                                String[] palette = { "#2563eb", "#f59e0b", "#ef4444", "#10b981", "#8b5cf6",
+                                                String[] palette = { "#2563eb", "#f59e0b", "#ef4444", "#10b981",
+                                                                "#8b5cf6",
                                                                 "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#14b8a6" };
-                                               // long grandTotal = rows.stream()
-                                                //                .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
-                                                     //           .sum();
+                                                // long grandTotal = rows.stream()
+                                                // .mapToLong(r -> r[1] != null ? ((Number) r[1]).longValue() : 0)
+                                                // .sum();
                                                 // Fetch grand total of ALL defects (not just Top 10)
                                                 Long grandTotalObj = processLineFinalResultRepository
-                                                        .getTotalDefects(lStart, lEnd);
+                                                                .getTotalDefects(lStart, lEnd);
 
                                                 long grandTotal = grandTotalObj != null ? grandTotalObj : 0;
                                                 long runningTotal = 0;
@@ -3793,16 +3372,19 @@ public class reportsImpl implements reports {
                                                         long count = row[1] != null ? ((Number) row[1]).longValue() : 0;
 
                                                         double percentage = grandTotal > 0
-                                                                ? (count * 100.0 / grandTotal)
-                                                                : 0;
+                                                                        ? (count * 100.0 / grandTotal)
+                                                                        : 0;
 
                                                         runningTotal += count;
-                                                        double cumulative = grandTotal > 0 ? (runningTotal * 100.0 / grandTotal) : 0;
-                                                        StageRejectionDto dto = new StageRejectionDto(name, (double) count,
+                                                        double cumulative = grandTotal > 0
+                                                                        ? (runningTotal * 100.0 / grandTotal)
+                                                                        : 0;
+                                                        StageRejectionDto dto = new StageRejectionDto(name,
+                                                                        (double) count,
                                                                         palette[i % palette.length]);
                                                         dto.setCumulative(Math.round(cumulative * 10.0) / 10.0);
                                                         dto.setPercentage(
-                                                                Math.round(percentage * 10.0) / 10.0);
+                                                                        Math.round(percentage * 10.0) / 10.0);
                                                         result.add(dto);
                                                 }
                                         }
@@ -3813,8 +3395,6 @@ public class reportsImpl implements reports {
                 }
                 return paretoAnalysisCache;
         }
-
-
 
         @Override
 
@@ -3899,7 +3479,7 @@ public class reportsImpl implements reports {
 
                 } else {
 
-                        return getParetoAnalysis(startDate,endDate);
+                        return getParetoAnalysis(startDate, endDate);
 
                 }
 
@@ -3929,6 +3509,16 @@ public class reportsImpl implements reports {
 
         private List<InspectionCallStatusDto> getInspectionCallStatusWithExclLogic(String vendorPlantCode,
                         String zonalRailway, String startDate, String endDate) {
+
+                // Check if vendorPlantCode belongs to Rail Pad (e.g. contains '/' or matches
+                // Rail Pad vendor plant)
+                boolean isRailPadVendor = vendorPlantCode != null && (vendorPlantCode.contains("/") ||
+                                railVendorPlantsRepository.existsByPlantId(vendorPlantCode) ||
+                                railVendorPlantsRepository.existsByVendorCode(vendorPlantCode));
+
+                if (isRailPadVendor) {
+                        return getRailPadStagewiseCallCounts(vendorPlantCode, zonalRailway, startDate, endDate);
+                }
 
                 String excludePo = "DummyPo_001";
 
@@ -3973,6 +3563,49 @@ public class reportsImpl implements reports {
 
         }
 
+        private List<InspectionCallStatusDto> getRailPadStagewiseCallCounts(String vendorPlantCode,
+                        String zonalRailway, String startDateStr, String endDateStr) {
+                java.time.LocalDateTime startDate = (startDateStr == null || startDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(startDateStr).atStartOfDay();
+                java.time.LocalDateTime endDate = (endDateStr == null || endDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(endDateStr).atTime(23, 59, 59);
+
+                List<Object[]> raw = railWorkflowTransactionRepository.getRailPadStagewiseCallCountsRaw(
+                                vendorPlantCode == null ? "" : vendorPlantCode,
+                                zonalRailway == null ? "" : zonalRailway,
+                                startDate, endDate);
+
+                Map<String, long[]> map = new HashMap<>();
+                map.put("Process", new long[] { 0, 0 });
+                map.put("Final", new long[] { 0, 0 });
+
+                long totalUnder = 0;
+                long totalPending = 0;
+
+                if (raw != null) {
+                        for (Object[] row : raw) {
+                                String stage = row[0] != null ? row[0].toString() : "";
+                                long pending = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                                long under = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+
+                                if (map.containsKey(stage)) {
+                                        map.put(stage, new long[] { under, pending });
+                                }
+                                totalUnder += under;
+                                totalPending += pending;
+                        }
+                }
+
+                List<InspectionCallStatusDto> list = new ArrayList<>();
+                list.add(new InspectionCallStatusDto("Total", totalUnder, totalPending));
+                long[] proc = map.get("Process");
+                list.add(new InspectionCallStatusDto("Process", proc[0], proc[1]));
+                long[] fin = map.get("Final");
+                list.add(new InspectionCallStatusDto("Final", fin[0], fin[1]));
+
+                return list;
+        }
+
         // ================= REVISED LOGIC FOR PROCESS REJECTION % =================
 
         // Logic: (Total pieces rejected / Total pieces produced in Shearing) * 100
@@ -4010,26 +3643,40 @@ public class reportsImpl implements reports {
         }
 
         @Override
-
         public List<InspectionDetailsDto> getInspectionDetails(String startDateStr, String endDateStr,
                         String vendorPlantCode, String zonalRailway) {
-                LocalDate startDate = (startDateStr != null && !startDateStr.trim().isEmpty()) ? LocalDate.parse(startDateStr) : LocalDate.of(2000, 1, 1);
+                return getInspectionDetails(startDateStr, endDateStr, vendorPlantCode, zonalRailway, null);
+        }
 
-                LocalDate endDate = (endDateStr != null && !endDateStr.trim().isEmpty()) ? LocalDate.parse(endDateStr) : LocalDate.now();
+        @Override
+        public List<InspectionDetailsDto> getInspectionDetails(String startDateStr, String endDateStr,
+                        String vendorPlantCode, String zonalRailway, String product) {
+                if ("RailPad".equalsIgnoreCase(product) || "Rail Pad".equalsIgnoreCase(product) || "Rail Pads".equalsIgnoreCase(product)) {
+                        return getRailPadInspectionDetails(startDateStr, endDateStr, vendorPlantCode, zonalRailway);
+                }
+
+                LocalDate startDate = (startDateStr != null && !startDateStr.trim().isEmpty())
+                                ? LocalDate.parse(startDateStr)
+                                : LocalDate.of(2000, 1, 1);
+
+                LocalDate endDate = (endDateStr != null && !endDateStr.trim().isEmpty()) ? LocalDate.parse(endDateStr)
+                                : LocalDate.now();
 
                 String vendor = vendorPlantCode == null ? "" : vendorPlantCode;
 
                 String zone = zonalRailway == null ? "" : zonalRailway;
 
                 // Run RM, Process, Final queries in PARALLEL
-                CompletableFuture<List<Object[]>> cfRm = CompletableFuture.supplyAsync(() ->
-                                rmHeatFinalResultRepository.sumRmAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone));
+                CompletableFuture<List<Object[]>> cfRm = CompletableFuture.supplyAsync(() -> rmHeatFinalResultRepository
+                                .sumRmAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone));
 
-                CompletableFuture<List<Object[]>> cfProc = CompletableFuture.supplyAsync(() ->
-                                processLineFinalResultRepository.sumProcessAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone));
+                CompletableFuture<List<Object[]>> cfProc = CompletableFuture.supplyAsync(
+                                () -> processLineFinalResultRepository.sumProcessAcceptedAndRejectedRevisedLogic(
+                                                startDate, endDate, vendor, zone));
 
-                CompletableFuture<List<Object[]>> cfFinal = CompletableFuture.supplyAsync(() ->
-                                finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(startDate, endDate, vendor, zone));
+                CompletableFuture<List<Object[]>> cfFinal = CompletableFuture.supplyAsync(
+                                () -> finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(
+                                                startDate, endDate, vendor, zone));
 
                 CompletableFuture.allOf(cfRm, cfProc, cfFinal).join();
 
@@ -4077,6 +3724,42 @@ public class reportsImpl implements reports {
 
         }
 
+        private List<InspectionDetailsDto> getRailPadInspectionDetails(String startDateStr, String endDateStr,
+                        String vendorPlantCode, String zonalRailway) {
+                LocalDateTime start = (startDateStr != null && !startDateStr.trim().isEmpty())
+                                ? LocalDate.parse(startDateStr).atStartOfDay()
+                                : null;
+                LocalDateTime end = (endDateStr != null && !endDateStr.trim().isEmpty())
+                                ? LocalDate.parse(endDateStr).atTime(23, 59, 59)
+                                : null;
+
+                List<Object[]> processSummary = railWorkflowTransactionRepository.getRailPadProcessInspectionSummary(
+                                vendorPlantCode, zonalRailway, start, end);
+                List<Object[]> finalSummary = railWorkflowTransactionRepository.getRailPadFinalInspectionSummary(
+                                vendorPlantCode, zonalRailway, start, end);
+
+                long procAccNos = 0, procAccSet = 0, procRejNos = 0, procRejSet = 0;
+                if (processSummary != null && !processSummary.isEmpty() && processSummary.get(0) != null) {
+                        Object[] row = processSummary.get(0);
+                        procAccNos = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                        procRejNos = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                }
+
+                long finalAccNos = 0, finalAccSet = 0, finalRejNos = 0, finalRejSet = 0;
+                if (finalSummary != null && !finalSummary.isEmpty() && finalSummary.get(0) != null) {
+                        Object[] row = finalSummary.get(0);
+                        finalAccNos = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                        finalAccSet = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                        finalRejNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        finalRejSet = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                }
+
+                List<InspectionDetailsDto> result = new ArrayList<>();
+                result.add(new InspectionDetailsDto("Process", procAccNos + procAccSet, procRejNos + procRejSet, procAccNos, procAccSet, procRejNos, procRejSet));
+                result.add(new InspectionDetailsDto("Final", finalAccNos + finalAccSet, finalRejNos + finalRejSet, finalAccNos, finalAccSet, finalRejNos, finalRejSet));
+
+                return result;
+        }
 
         @Override
         public InspectionDetailsDto getProcessOverallRejectionAllTime() {
@@ -4279,15 +3962,30 @@ public class reportsImpl implements reports {
                 java.time.LocalDateTime endDate = endDStr.isEmpty() ? java.time.LocalDateTime.of(2100, 12, 31, 23, 59)
                                 : java.time.LocalDate.parse(endDStr).atTime(23, 59, 59);
 
-                List<PoIssuedDetailDto> list = poItemRepository.getPoIssuedDetails(itemCatDescr, vCode, zCode,
-                                startDate, endDate);
-                if (list != null) {
-                        for (PoIssuedDetailDto dto : list) {
-                                long poQty = dto.getPoQuantity() != null ? dto.getPoQuantity() : 0L;
-                                long acceptedQty = dto.getAcceptedQtyAfterFinalInspection() != null
-                                                ? dto.getAcceptedQtyAfterFinalInspection()
-                                                : 0L;
-                                dto.setBalanceQuantity(poQty - acceptedQty);
+                List<Object[]> rawList = poItemRepository.fetchPoIssuedDetailsRaw(itemCatDescr, vCode, zCode, startDate,
+                                endDate);
+                List<PoIssuedDetailDto> list = new ArrayList<>();
+                if (rawList != null) {
+                        for (Object[] row : rawList) {
+                                String rly = row[0] != null ? row[0].toString() : "";
+                                String poNo = row[1] != null ? row[1].toString() : "";
+                                java.time.LocalDateTime poDate = null;
+                                if (row[2] != null) {
+                                        if (row[2] instanceof java.time.LocalDateTime) {
+                                                poDate = (java.time.LocalDateTime) row[2];
+                                        } else if (row[2] instanceof java.sql.Timestamp) {
+                                                poDate = ((java.sql.Timestamp) row[2]).toLocalDateTime();
+                                        }
+                                }
+                                String vendorDetails = row[3] != null ? row[3].toString() : "";
+                                long poQty = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                                String uom = row[5] != null ? row[5].toString() : "";
+                                long acceptedQty = row[6] != null ? ((Number) row[6]).longValue() : 0L;
+                                long balanceQty = poQty - acceptedQty;
+
+                                PoIssuedDetailDto dto = new PoIssuedDetailDto(
+                                                rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty);
+                                list.add(dto);
                         }
                 }
                 return list;
@@ -5465,43 +5163,45 @@ public class reportsImpl implements reports {
         }
 
         @Override
-
         public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(
                         String status) {
+                return getRailPadInspectionCallStatusDetails("ALL", status, "", "", "", "");
+        }
+
+        @Override
+        public List<com.sarthi.dto.reports.InspectionCallDetailDto> getRailPadInspectionCallStatusDetails(
+                        String stage, String status, String vendorPlantCode, String zonalRailway, String startDateStr,
+                        String endDateStr) {
+
+                java.time.LocalDateTime startDate = (startDateStr == null || startDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(startDateStr).atStartOfDay();
+                java.time.LocalDateTime endDate = (endDateStr == null || endDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(endDateStr).atTime(23, 59, 59);
 
                 List<Object[]> rawList = railWorkflowTransactionRepository
-                                .getRailPadInspectionCallStatusDetailsRaw(status);
+                                .getRailPadInspectionCallStatusDetailsFiltered(
+                                                stage == null ? "ALL" : stage,
+                                                status == null ? "ALL" : status,
+                                                vendorPlantCode == null ? "" : vendorPlantCode,
+                                                zonalRailway == null ? "" : zonalRailway,
+                                                startDate, endDate);
 
                 List<com.sarthi.dto.reports.InspectionCallDetailDto> dtoList = new java.util.ArrayList<>();
 
                 if (rawList != null) {
-
                         for (Object[] row : rawList) {
-
                                 dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
-
                                                 .inspectionCallNumber(row[0] != null ? row[0].toString() : "")
-
                                                 .vendor(row[1] != null ? row[1].toString() : "")
-
                                                 .callSubmissionDateTime(row[2] != null ? row[2].toString() : "")
-
                                                 .stageOfInspection(row[3] != null ? row[3].toString() : "")
-
                                                 .poSrNo(row[4] != null ? row[4].toString() : "")
-
                                                 .dpDate(row[5] != null ? row[5].toString() : "")
-
                                                 .status(row[6] != null ? row[6].toString() : "")
-
                                                 .build());
-
                         }
-
                 }
-
                 return dtoList;
-
         }
 
         @Override
@@ -5732,6 +5432,38 @@ public class reportsImpl implements reports {
                                         rejectedQtyNos += rej;
                                 }
                         }
+                }
+
+                return RailPadFinalInspectionSummaryDto.builder()
+                                .acceptedQtyNos(acceptedQtyNos)
+                                .acceptedQtySet(acceptedQtySet)
+                                .rejectedQtyNos(rejectedQtyNos)
+                                .rejectedQtySet(rejectedQtySet)
+                                .build();
+        }
+
+        @Override
+        public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary(String vendorPlantCode,
+                        String zonalRailway, String startDateStr, String endDateStr) {
+                LocalDateTime start = (startDateStr != null && !startDateStr.trim().isEmpty())
+                                ? LocalDate.parse(startDateStr).atStartOfDay()
+                                : null;
+                LocalDateTime end = (endDateStr != null && !endDateStr.trim().isEmpty())
+                                ? LocalDate.parse(endDateStr).atTime(23, 59, 59)
+                                : null;
+
+                List<Object[]> results = railWorkflowTransactionRepository.getRailPadFinalInspectionSummary(
+                                vendorPlantCode == null ? "" : vendorPlantCode,
+                                zonalRailway == null ? "" : zonalRailway,
+                                start, end);
+
+                long acceptedQtyNos = 0L, acceptedQtySet = 0L, rejectedQtyNos = 0L, rejectedQtySet = 0L;
+                if (results != null && !results.isEmpty() && results.get(0) != null) {
+                        Object[] row = results.get(0);
+                        acceptedQtyNos = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                        acceptedQtySet = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                        rejectedQtyNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        rejectedQtySet = row[3] != null ? ((Number) row[3]).longValue() : 0L;
                 }
 
                 return RailPadFinalInspectionSummaryDto.builder()
@@ -6169,15 +5901,25 @@ public class reportsImpl implements reports {
         }
 
         @Override
-        public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product, String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-                List<Object[]> rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(vendorPlantCode, zonalRailway, startDate, endDate);
-                List<com.sarthi.dto.reports.IcAnnexuresReportDto> resultList = new java.util.ArrayList<>();
+        public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product,
+                        String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate,
+                        java.time.LocalDate endDate) {
+                String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
+                boolean isRailPad = filterProduct.contains("pad") || "rail pad".equals(filterProduct) || "railpad".equals(filterProduct);
 
+                List<Object[]> rawList;
+                if (isRailPad) {
+                        rawList = railWorkflowTransactionRepository.findRailPadDownloadIcAnnexuresReportRaw(
+                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                } else {
+                        rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(
+                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                }
+
+                List<com.sarthi.dto.reports.IcAnnexuresReportDto> resultList = new java.util.ArrayList<>();
                 if (rawList == null) {
                         return resultList;
                 }
-
-                String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
 
                 for (Object[] row : rawList) {
                         String itemCatDescr = row[8] != null ? row[8].toString() : "";
@@ -6195,14 +5937,10 @@ public class reportsImpl implements reports {
                                         .itemCatDescr(itemCatDescr)
                                         .build();
 
-                        if (!filterProduct.isEmpty()) {
+                        if (!filterProduct.isEmpty() && !isRailPad) {
                                 String catLower = itemCatDescr.toLowerCase();
                                 if (filterProduct.contains("sleeper") || "sleeper".equals(filterProduct)) {
                                         if (catLower.contains("sleeper")) {
-                                                resultList.add(dto);
-                                        }
-                                } else if (filterProduct.contains("pad") || "rail pad".equals(filterProduct)) {
-                                        if (catLower.contains("pad")) {
                                                 resultList.add(dto);
                                         }
                                 } else if (filterProduct.contains("erc") || "erc".equals(filterProduct)) {
@@ -6844,13 +6582,49 @@ public class reportsImpl implements reports {
         @Override
         public java.util.List<java.util.Map<String, String>> getRailPadClosedLoopManufacturers() {
                 List<Object[]> rows = railPadPincodePoIMappingRepository.findDistinctManufacturers();
+                java.util.Set<String> seen = new java.util.HashSet<>();
                 List<java.util.Map<String, String>> list = new ArrayList<>();
                 for (Object[] r : rows) {
-                        java.util.Map<String, String> map = new java.util.HashMap<>();
-                        map.put("vendorCode", r[0] != null ? r[0].toString() : "");
-                        map.put("companyName", r[1] != null ? r[1].toString() : "");
-                        map.put("poiCode", r[2] != null ? r[2].toString() : "");
-                        list.add(map);
+                        String vCode = r[0] != null ? r[0].toString().trim() : "";
+                        String cName = r[1] != null ? r[1].toString().trim() : "";
+                        String pCode = r[2] != null ? r[2].toString().trim() : "";
+                        if (!vCode.isEmpty() || !cName.isEmpty()) {
+                                java.util.Map<String, String> map = new java.util.HashMap<>();
+                                map.put("vendorCode", vCode);
+                                map.put("companyName", !cName.isEmpty() ? cName : vCode);
+                                map.put("poiCode", pCode);
+                                list.add(map);
+                                if (!vCode.isEmpty())
+                                        seen.add(vCode);
+                        }
+                }
+
+                try {
+                        List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> plants = railVendorPlantsRepository
+                                        .findAll();
+                        for (com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants p : plants) {
+                                if (p.getVendorCode() != null && !p.getVendorCode().trim().isEmpty()) {
+                                        String vCode = p.getVendorCode().trim();
+                                        if (!seen.contains(vCode)) {
+                                                seen.add(vCode);
+                                                java.util.Map<String, String> map = new java.util.HashMap<>();
+                                                map.put("vendorCode", vCode);
+                                                String cName = (p.getCompanyName() != null
+                                                                && !p.getCompanyName().trim().isEmpty())
+                                                                                ? p.getCompanyName().trim()
+                                                                                : ((p.getPlantName() != null && !p
+                                                                                                .getPlantName().trim()
+                                                                                                .isEmpty()) ? p.getPlantName()
+                                                                                                                .trim()
+                                                                                                                : vCode);
+                                                map.put("companyName", cName);
+                                                map.put("poiCode", "");
+                                                list.add(map);
+                                        }
+                                }
+                        }
+                } catch (Exception e) {
+                        // ignore
                 }
                 return list;
         }
@@ -7062,7 +6836,7 @@ public class reportsImpl implements reports {
                         return "12.00mm GRSP";
                 }
 
-                if (lower.contains("rt-8746") || lower.contains("t-8746") || lower.contains("t-8747")) {
+                if (lower.contains("rt-8746") || lower.contains("t-8746") || lower.contains("t-8747") || lower.contains("t-8528") || lower.contains("t-8998") || lower.contains("t-8694") || lower.contains("rt-8694")) {
                         return "10.00mm CGRSP";
                 }
                 if (lower.contains("t-6618") || lower.contains("t-8327")) {
@@ -7225,20 +6999,22 @@ public class reportsImpl implements reports {
                 String parsedZone = zonalRailway == null ? "" : zonalRailway;
 
                 // Run all 3 count queries in PARALLEL
-                CompletableFuture<Long> cfOpen = CompletableFuture.supplyAsync(() ->
-                                workflowTransitionRepository.getTotalOpenCallsWithFilters(parsedStartDate, parsedEndDate, parsedVendor, parsedZone));
+                CompletableFuture<Long> cfOpen = CompletableFuture.supplyAsync(
+                                () -> workflowTransitionRepository.getTotalOpenCallsWithFilters(parsedStartDate,
+                                                parsedEndDate, parsedVendor, parsedZone));
 
-                CompletableFuture<Long> cfUnder = CompletableFuture.supplyAsync(() ->
-                                workflowTransitionRepository.getTotalUnderInspectionCallsWithFilters(parsedStartDate, parsedEndDate, parsedVendor, parsedZone));
+                CompletableFuture<Long> cfUnder = CompletableFuture
+                                .supplyAsync(() -> workflowTransitionRepository.getTotalUnderInspectionCallsWithFilters(
+                                                parsedStartDate, parsedEndDate, parsedVendor, parsedZone));
 
-                CompletableFuture<Long> cfPending = CompletableFuture.supplyAsync(() ->
-                                workflowTransitionRepository.getTotalPendingCallsWithFilters(parsedStartDate, parsedEndDate, parsedVendor, parsedZone));
+                CompletableFuture<Long> cfPending = CompletableFuture.supplyAsync(
+                                () -> workflowTransitionRepository.getTotalPendingCallsWithFilters(parsedStartDate,
+                                                parsedEndDate, parsedVendor, parsedZone));
 
                 CompletableFuture.allOf(cfOpen, cfUnder, cfPending).join();
 
                 return new TotalCallsSummaryDTO(cfOpen.join(), cfUnder.join(), cfPending.join());
         }
-
 
         @Override
         public List<InspectionCallDetailDto> getUnderInspectionCalls(String vendorPlantCode, String zonalRailway,
@@ -7370,24 +7146,34 @@ public class reportsImpl implements reports {
 
         @Override
         public String getRegionByCallNo(String callNo) {
-            String requestId = callNo;
-            if (callNo != null && callNo.contains("/")) {
-                String[] parts = callNo.split("/");
-                if (parts.length >= 2) {
-                    requestId = parts[1];
+                String requestId = callNo;
+                if (callNo != null && callNo.contains("/")) {
+                        String[] parts = callNo.split("/");
+                        if (parts.length >= 2) {
+                                requestId = parts[1];
+                        }
                 }
-            }
-            String rio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(requestId);
-            String regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
-            if (rio != null) {
-                switch(rio.toUpperCase()) {
-                    case "NRIO": regionName = "RITES LIMITED, NORTHERN REGION, DELHI"; break;
-                    case "WRIO": regionName = "RITES LIMITED, WESTERN REGION, MUMBAI"; break;
-                    case "SRIO": regionName = "RITES LIMITED, SOUTHEN REGION, CHENNAI"; break;
-                    case "ERIO": regionName = "RITES LIMITED, EASTERN REGION, KOLKATA"; break;
-                    case "CRIO": regionName = "RITES LIMITED, CENTRAL REGION, BHILAI"; break;
+                String rio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(requestId);
+                String regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
+                if (rio != null) {
+                        switch (rio.toUpperCase()) {
+                                case "NRIO":
+                                        regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
+                                        break;
+                                case "WRIO":
+                                        regionName = "RITES LIMITED, WESTERN REGION, MUMBAI";
+                                        break;
+                                case "SRIO":
+                                        regionName = "RITES LIMITED, SOUTHEN REGION, CHENNAI";
+                                        break;
+                                case "ERIO":
+                                        regionName = "RITES LIMITED, EASTERN REGION, KOLKATA";
+                                        break;
+                                case "CRIO":
+                                        regionName = "RITES LIMITED, CENTRAL REGION, BHILAI";
+                                        break;
+                        }
                 }
-            }
-            return regionName;
+                return regionName;
         }
 }

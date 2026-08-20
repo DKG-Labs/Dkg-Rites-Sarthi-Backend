@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.service.DashboardService;
 import com.sarthi.dto.reports.IeOperationalSlaPerformanceSummaryDto;
 import com.sarthi.dto.reports.IeWiseCallStatusWorkloadSummaryDto;
 import com.sarthi.dto.reports.InspectionCallsReportDto;
+import com.sarthi.util.CommonUtils;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -198,14 +199,11 @@ public class SleeperDashboard {
 
     @GetMapping("/mpr")
     public ResponseEntity<Object> getMpr(
-            @RequestParam String startDate,
-            @RequestParam String endDate
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate
     ) {
-
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        LocalDate start = LocalDate.parse(startDate, formatter);
-        LocalDate end = LocalDate.parse(endDate, formatter);
+        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate end = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -217,7 +215,7 @@ public class SleeperDashboard {
 
     @GetMapping("/manufacturer-performance/{plantId}")
     public ResponseEntity<Object>  getPerformance(
-            @RequestParam String plantId) {
+            @PathVariable(required = false) String plantId) {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -229,7 +227,7 @@ public class SleeperDashboard {
 
     @GetMapping("/process-defect-distribution")
     public ResponseEntity<Object>  getProcessDefectDistribution(
-            @RequestParam String plantId) {
+            @RequestParam(required = false) String plantId) {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -241,13 +239,11 @@ public class SleeperDashboard {
 
     @GetMapping("/defect-distribution-analysis")
     public ResponseEntity<Object> getDefectDistribution(
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        LocalDate start = LocalDate.parse(startDate, formatter);
-        LocalDate end = LocalDate.parse(endDate, formatter);
+        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate end = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -259,13 +255,11 @@ public class SleeperDashboard {
 
     @GetMapping("/pareto-analysis")
     public ResponseEntity<Object> getParetoAnalysis(
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        LocalDate start = LocalDate.parse(startDate, formatter);
-        LocalDate end = LocalDate.parse(endDate, formatter);
+        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate end = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -277,67 +271,49 @@ public class SleeperDashboard {
 
     @GetMapping("/employee-wise-performance")
     public ResponseEntity<Object> getEmployeeWisePerformance(
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
-        DateTimeFormatter formatter =
-                DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        LocalDate start = LocalDate.parse(startDate, formatter);
-
-        LocalDate end = LocalDate.parse(endDate, formatter);
+        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate end = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
 
         return new ResponseEntity<>(
-
                 ResponseBuilder.getSuccessResponse(
                         dashboardService.getEmployeePerformance(start, end)
-
                 ),
-
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/shift-wise-production")
     public ResponseEntity<Object> getShiftWiseProductionReport(
-            @RequestParam String startDate,
-            @RequestParam String endDate, @RequestParam String plantId) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String plantId) {
 
-        DateTimeFormatter formatter =
-                DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        LocalDate start = LocalDate.parse(startDate, formatter);
-
-        LocalDate end = LocalDate.parse(endDate, formatter);
+        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate end = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
 
         return new ResponseEntity<>(
-
                 ResponseBuilder.getSuccessResponse(
                        dashboardService.getReport(start, end, plantId)
                 ),
-
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/qtyOfPSCSleepers")
     public ResponseEntity<Object> getQtyOfPscSleeperReport(
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
-        DateTimeFormatter formatter =
-                DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        LocalDate start = LocalDate.parse(startDate, formatter);
-
-        LocalDate end = LocalDate.parse(endDate, formatter);
+        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        LocalDate end = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
 
         return new ResponseEntity<>(
-
                 ResponseBuilder.getSuccessResponse(
                         dashboardService.getQtyPscSleeperReport(start, end)
                 ),
-
                 HttpStatus.OK
         );
     }

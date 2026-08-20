@@ -29,9 +29,11 @@ public class ProcessInspectionSaveDto {
         private Long declarationBatchId;
         private String batchNo;
         private String drawingNo;
+        private String reasonForRejection;
         private LocalDate productionDate;
         private Integer qtyManufactured;
         private Integer qtyRejected;
         private Integer qtyAccepted;
+        private Integer previouslyOfferedQty;
     }
 }

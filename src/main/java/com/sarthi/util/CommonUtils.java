@@ -356,17 +356,46 @@ public class CommonUtils {
         return username;
     }
 
-    public static LocalTime convertStringToTimeObject(String timeString) {
+    public static LocalDate parseDateFlexible(String dateStr, LocalDate defaultDate) {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
+            return defaultDate;
+        }
+        dateStr = dateStr.trim();
+        if (dateStr.contains("/")) {
+            try {
+                return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            } catch (Exception e1) {
+                try {
+                    return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("d/M/yyyy"));
+                } catch (Exception e2) {
+                    // continue
+                }
+            }
+        }
+        if (dateStr.contains("-")) {
+            try {
+                return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            } catch (Exception e1) {
+                try {
+                    return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+                } catch (Exception e2) {
+                    // continue
+                }
+            }
+        }
+        try {
+            return LocalDate.parse(dateStr);
+        } catch (Exception e) {
+            return defaultDate;
+        }
+    }
 
+    public static LocalTime convertStringToTimeObject(String timeString) {
         if (timeString == null || timeString.trim().isEmpty()) {
             return null;
         }
-
-        DateTimeFormatter formatter =
-                DateTimeFormatter.ofPattern("HH:mm"); // 13:45
-
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
         return LocalTime.parse(timeString, formatter);
     }
-
 
 }

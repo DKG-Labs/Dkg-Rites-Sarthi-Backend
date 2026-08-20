@@ -28,9 +28,12 @@ public class RailWorkFlowController {
     }
 
     @GetMapping("/allPendingWorkflowTransition")
-    public ResponseEntity<Object> allPendingWorkflowTransition(@RequestParam String roleName)  {
+    public ResponseEntity<Object> allPendingWorkflowTransition(
+            @RequestParam String roleName,
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) Long workflowId)  {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName)), HttpStatus.OK);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName, plantId, workflowId)), HttpStatus.OK);
     }
 
     @GetMapping("/WorkflowTransitionHistory")
@@ -40,9 +43,12 @@ public class RailWorkFlowController {
     }
 
     @GetMapping("/allCompletedCalls")
-    public ResponseEntity<Object> AllCompletedTransition()  {
+    public ResponseEntity<Object> AllCompletedTransition(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) Long workflowId)  {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allCompletedWorkflowTransitions()), HttpStatus.OK);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allCompletedWorkflowTransitions(userId, plantId, workflowId)), HttpStatus.OK);
     }
 
     @GetMapping("/allFInalCallCompletedCalls")

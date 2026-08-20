@@ -24,6 +24,7 @@ public class FinalIcSaveChangesDTO {
     private String maNumberAndDate;
     private String purchasingAuthority;
     private String description;
+    private String manufacturer;
     private String trRecDate;
     private String noOfVisits;
     private String datesOfInspection;

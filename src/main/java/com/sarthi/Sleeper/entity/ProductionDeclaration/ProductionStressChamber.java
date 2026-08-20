@@ -17,6 +17,8 @@ public class ProductionStressChamber {
 
     private Integer chamberNo;
 
+    private java.time.LocalTime lbcTime;
+
     @ManyToOne
     @JoinColumn(name="declaration_id")
     private ProductionDeclaration declaration;

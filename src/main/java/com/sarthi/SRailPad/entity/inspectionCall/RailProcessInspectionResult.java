@@ -37,7 +37,7 @@ public class RailProcessInspectionResult {
     @Column(name = "total_accepted_qty")
     private Integer totalAcceptedQty;
 
-    @Column(name = "reason_for_rejection")
+    @Column(name = "reason_for_rejection", columnDefinition = "LONGTEXT")
     private String reasonForRejection;
 
     @Column(name = "lot_range_from")
@@ -46,7 +46,7 @@ public class RailProcessInspectionResult {
     @Column(name = "lot_range_to")
     private String lotRangeTo;
 
-    @Column(name = "remarks")
+    @Column(name = "remarks", columnDefinition = "LONGTEXT")
     private String remarks;
 
     @Column(name = "inspection_start_date")

@@ -8,7 +8,7 @@ public class ProductionBenchGroupResponseDto {
 
     private Long id;
 
-    private Integer benchNo;
+    private String benchNo;
 
     private String sleeperType;
 

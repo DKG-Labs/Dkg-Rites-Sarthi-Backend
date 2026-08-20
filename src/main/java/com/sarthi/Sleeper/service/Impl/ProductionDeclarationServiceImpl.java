@@ -63,6 +63,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
         entity.setVendorCode(dto.getVendorCode());
 
         entity.setLbcTime(pTime);
+        entity.setPoNo(dto.getPoNo());
 
         entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
         entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
@@ -82,6 +83,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 ProductionStressChamber chamber = new ProductionStressChamber();
 
                 chamber.setChamberNo(chamberDto.getChamberNo());
+                if (chamberDto.getLbcTime() != null && !chamberDto.getLbcTime().isEmpty()) {
+                    chamber.setLbcTime(CommonUtils.convertStringToTimeObject(chamberDto.getLbcTime()));
+                }
                 chamber.setDeclaration(entity);
 
                 List<ProductionBenchGroup> benchList = new ArrayList<>();
@@ -157,6 +161,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 gang.setSleeperCategory(gangDto.getSleeperCategory());
                 gang.setTotalSleepers(gangDto.getTotalSleepers());
                 gang.setRft(gangDto.getRft());
+                if (gangDto.getLbcTime() != null && !gangDto.getLbcTime().isEmpty()) {
+                    gang.setLbcTime(CommonUtils.convertStringToTimeObject(gangDto.getLbcTime()));
+                }
 
                 gang.setDeclaration(entity);
 
@@ -236,6 +243,9 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
                 ProductionStressChamber chamber = new ProductionStressChamber();
 
                 chamber.setChamberNo(chamberDto.getChamberNo());
+                if (chamberDto.getLbcTime() != null && !chamberDto.getLbcTime().isEmpty()) {
+                    chamber.setLbcTime(CommonUtils.convertStringToTimeObject(chamberDto.getLbcTime()));
+                }
                 chamber.setDeclaration(entity);
 
                 List<ProductionBenchGroup> benchList = new ArrayList<>();
@@ -397,6 +407,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             gang.setGangNo(gangDto.getGangNo());
             gang.setSleeperType(gangDto.getSleeperType());
             gang.setMouldsPerGang(gangDto.getMouldsPerGang());
+            if (gangDto.getLbcTime() != null && !gangDto.getLbcTime().isEmpty()) {
+                gang.setLbcTime(CommonUtils.convertStringToTimeObject(gangDto.getLbcTime()));
+            }
             gang.setDeclaration(entity);
 
             List<ProductionSleeper> sleepers = new ArrayList<>();
@@ -439,6 +452,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setMixDesignReference(dto.getMixDesignReference());
         entity.setLbcTime(CommonUtils.convertStringToTimeObject(dto.getLbcTime()));
+        entity.setPoNo(dto.getPoNo());
         entity.setTotalCastedSleepers(dto.getTotalCastedSleepers());
         entity.setTotalSleeperTypes(dto.getTotalSleeperTypes());
         entity.setTotalRft(dto.getTotalRft());
@@ -469,6 +483,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             }
 
             chamber.setChamberNo(chamberDto.getChamberNo());
+            if (chamberDto.getLbcTime() != null && !chamberDto.getLbcTime().isEmpty()) {
+                chamber.setLbcTime(CommonUtils.convertStringToTimeObject(chamberDto.getLbcTime()));
+            }
 
             // ================= BENCH =================
 
@@ -585,6 +602,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             gang.setSleeperCategory(gangDto.getSleeperCategory());
             gang.setTotalSleepers(gangDto.getTotalSleepers());
             gang.setRft(gangDto.getRft());
+            if (gangDto.getLbcTime() != null && !gangDto.getLbcTime().isEmpty()) {
+                gang.setLbcTime(CommonUtils.convertStringToTimeObject(gangDto.getLbcTime()));
+            }
 
             // ================= SLEEPERS =================
 
@@ -650,6 +670,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         response.setBatchNumber(entity.getBatchNumber());
         response.setMixDesignReference(entity.getMixDesignReference());
         response.setLbcTime(entity.getLbcTime());
+        response.setPoNo(entity.getPoNo());
 
         response.setVendorCode(entity.getVendorCode());
         response.setPlantId(entity.getPlantId());
@@ -684,6 +705,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 
                 chamberDto.setId(chamber.getId());
                 chamberDto.setChamberNo(chamber.getChamberNo());
+                chamberDto.setLbcTime(chamber.getLbcTime());
 
                 List<ProductionBenchGroupResponseDto> benchList = new ArrayList<>();
 
@@ -757,6 +779,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                     gangDto.setSleeperCategory(gang.getSleeperCategory());
                     gangDto.setTotalSleepers(gang.getTotalSleepers());
                     gangDto.setRft(gang.getRft());
+                    gangDto.setLbcTime(gang.getLbcTime());
 
 
                   /*  List<String> sleeperNumbers = new ArrayList<>();
@@ -888,6 +911,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
         response.setBatchNumber(entity.getBatchNumber());
         response.setMixDesignReference(entity.getMixDesignReference());
         response.setLbcTime(entity.getLbcTime());
+        response.setPoNo(entity.getPoNo());
         response.setVendorCode(entity.getVendorCode());
         response.setPlantId(entity.getPlantId());
         response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
@@ -946,6 +970,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
         response.setBatchNumber(entity.getBatchNumber());
         response.setMixDesignReference(entity.getMixDesignReference());
         response.setLbcTime(entity.getLbcTime());
+        response.setPoNo(entity.getPoNo());
         response.setVendorCode(entity.getVendorCode());
         response.setPlantId(entity.getPlantId());
         response.setTotalCastedSleepers(entity.getTotalCastedSleepers());
@@ -1008,6 +1033,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
                 ProductionStressChamberResponseDto chamberDto = new ProductionStressChamberResponseDto();
                 chamberDto.setId(chamber.getId());
                 chamberDto.setChamberNo(chamber.getChamberNo());
+                chamberDto.setLbcTime(chamber.getLbcTime());
 
                 if (chamber.getBenchGroups() != null) {
 
@@ -1196,6 +1222,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         gangDto.setGangNo(gang.getGangNo());
                         gangDto.setSleeperType(gang.getSleeperType());
                         gangDto.setMouldsPerGang(gang.getMouldsPerGang());
+                        gangDto.setLbcTime(gang.getLbcTime());
 
                         //ADD THIS (IMPORTANT)
 //                        if (gang.getSleepers() != null) {
@@ -1305,16 +1332,16 @@ public List<String> getBatchNumbers(Long vendorId,
             return new ArrayList<>(finalSet);
         }*/
   @Override
-  public List<String> getBenchNumbers(String batchNo, String productionUnit) {
+  public List<String> getBenchNumbers(String batchNo, String productionUnit, java.time.LocalDate castingDate) {
 
       Set<String> finalSet = new LinkedHashSet<>();
 
       //  Bench Numbers (STRESS)
-      List<String> benches = repository.findBenchNumbers(batchNo, productionUnit);
+      List<String> benches = repository.findBenchNumbers(batchNo, productionUnit, castingDate);
       finalSet.addAll(benches);
 
       //  Gang Ranges (LONG LINE)
-      List<Object[]> gangResults = repository.findGangRanges(batchNo, productionUnit);
+      List<Object[]> gangResults = repository.findGangRanges(batchNo, productionUnit, castingDate);
 
      /* for (Object[] row : gangResults) {
 
@@ -1331,22 +1358,29 @@ public List<String> getBatchNumbers(Long vendorId,
       for (Object[] row : gangResults) {
 
           String mode = row[0] != null ? row[0].toString() : null;
-          Integer gangFrom = row[1] != null ? ((Number) row[1]).intValue() : null;
-          Integer gangTo = row[2] != null ? ((Number) row[2]).intValue() : null;
-          Integer gangNo = row[3] != null ? ((Number) row[3]).intValue() : null;
+          String gangFromStr = row[1] != null ? row[1].toString() : null;
+          String gangToStr = row[2] != null ? row[2].toString() : null;
+          String gangNoStr = row[3] != null ? row[3].toString() : null;
 
           if ("RANGE".equalsIgnoreCase(mode)) {
 
-              if (gangFrom != null && gangTo != null) {
-                  for (int i = gangFrom; i <= gangTo; i++) {
-                      finalSet.add(String.valueOf(i));
+              if (gangFromStr != null && gangToStr != null) {
+                  try {
+                      int from = Integer.parseInt(gangFromStr);
+                      int to = Integer.parseInt(gangToStr);
+                      for (int i = from; i <= to; i++) {
+                          finalSet.add(String.valueOf(i));
+                      }
+                  } catch (NumberFormatException e) {
+                      finalSet.add(gangFromStr);
+                      finalSet.add(gangToStr);
                   }
               }
 
           } else if ("SINGLE".equalsIgnoreCase(mode)) {
 
-              if (gangNo != null) {
-                  finalSet.add(String.valueOf(gangNo));
+              if (gangNoStr != null) {
+                  finalSet.add(gangNoStr);
               }
           }
       }
@@ -1359,35 +1393,59 @@ public List<String> getBatchNumbers(Long vendorId,
 //        return productionBenchGroupRepository.findSleeperTypes(batchNo, benchNo);
 //    }
     @Override
-    public List<String> getSleeperTypes(String batchNo, Integer benchNo, String productionUnit) {
+    public List<String> getSleeperTypes(String batchNo, String benchNo, String productionUnit) {
 
-        ProductionDeclaration declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
+        List<ProductionDeclaration> declarations;
+        if (productionUnit != null && !productionUnit.isEmpty()) {
+            declarations = repository.findAllByBatchNumberAndProductionUnit(batchNo, productionUnit);
+        } else {
+            declarations = repository.findAllByBatchNumber(batchNo);
+        }
 
         Set<String> sleeperTypes = new LinkedHashSet<>();
+        int benchInt = -1;
+        if (benchNo != null) {
+            try { benchInt = Integer.parseInt(benchNo.trim()); } catch (Exception e) {}
+        }
 
-        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
-            if (declaration.getChambers() != null) {
-                for (ProductionStressChamber chamber : declaration.getChambers()) {
-                    if (chamber.getBenchGroups() != null) {
-                        for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
-                            if (benchNo.equals(bench.getBenchNo()) && bench.getSleeperType() != null) {
-                                sleeperTypes.add(bench.getSleeperType());
+        if (declarations != null) {
+            for (ProductionDeclaration declaration : declarations) {
+                if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+                    if (declaration.getChambers() != null) {
+                        for (ProductionStressChamber chamber : declaration.getChambers()) {
+                            if (chamber.getBenchGroups() != null) {
+                                for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
+                                    if (benchNo != null && benchNo.equalsIgnoreCase(bench.getBenchNo()) && bench.getSleeperType() != null) {
+                                        sleeperTypes.add(bench.getSleeperType());
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
-        } else { // LONG_LINE
-            if (declaration.getGangs() != null) {
-                for (ProductionLongLineGang gang : declaration.getGangs()) {
-                    boolean matchesBench = false;
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchNo >= gang.getGangFrom() && benchNo <= gang.getGangTo()) {
-                        matchesBench = true;
-                    } else if (gang.getGangNo() != null && gang.getGangNo().equals(benchNo)) {
-                        matchesBench = true;
-                    }
-                    if (matchesBench && gang.getSleeperType() != null) {
-                        sleeperTypes.add(gang.getSleeperType());
+                } else { // LONG_LINE
+                    if (declaration.getGangs() != null) {
+                        for (ProductionLongLineGang gang : declaration.getGangs()) {
+                            boolean matchesBench = false;
+                            int gangFromInt = -1;
+                            int gangToInt = -1;
+                            if (gang.getGangFrom() != null) {
+                                try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
+                            }
+                            if (gang.getGangTo() != null) {
+                                try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
+                            }
+
+                            if (gang.getGangFrom() != null && gang.getGangTo() != null) {
+                                if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                                    matchesBench = true;
+                                }
+                            } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
+                                matchesBench = true;
+                            }
+                            if (matchesBench && gang.getSleeperType() != null) {
+                                sleeperTypes.add(gang.getSleeperType());
+                            }
+                        }
                     }
                 }
             }
@@ -1402,27 +1460,42 @@ public List<String> getBatchNumbers(Long vendorId,
 //    }
 
     @Override
-    public List<String> getSleepers(String batchNo, Integer benchNo, String sleeperType, String productionUnit) {
+    public List<String> getSleepers(String batchNo, String benchNo, String sleeperType, String productionUnit) {
 
-        ProductionDeclaration declaration;
+        List<ProductionDeclaration> declarations;
         if (productionUnit != null && !productionUnit.isEmpty()) {
-            declaration = repository.findByBatchNumberAndProductionUnit(batchNo, productionUnit);
+            declarations = repository.findAllByBatchNumberAndProductionUnit(batchNo, productionUnit);
         } else {
-            declaration = repository.findByBatchNumber(batchNo);
+            declarations = repository.findAllByBatchNumber(batchNo);
+        }
+
+        if (declarations == null || declarations.isEmpty()) {
+            return new ArrayList<>();
         }
 
         List<String> sleepers = new ArrayList<>();
+        int benchInt = -1;
+        if (benchNo != null && !benchNo.trim().isEmpty()) {
+            try { benchInt = Integer.parseInt(benchNo.trim()); } catch (Exception e) {}
+        }
 
-        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
-            if (declaration.getChambers() != null) {
-                for (ProductionStressChamber chamber : declaration.getChambers()) {
-                    if (chamber.getBenchGroups() != null) {
-                        for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
-                            if (benchNo.equals(bench.getBenchNo()) && sleeperType.equals(bench.getSleeperType())) {
-                                if (bench.getSleepers() != null) {
-                                    for (ProductionSleeper sleeper : bench.getSleepers()) {
-                                        if (sleeper.getSleeperNo() != null) {
-                                            sleepers.add(sleeper.getSleeperNo());
+        boolean filterBench = (benchNo != null && !benchNo.trim().isEmpty());
+        boolean filterType = (sleeperType != null && !sleeperType.trim().isEmpty());
+
+        for (ProductionDeclaration declaration : declarations) {
+            if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
+                if (declaration.getChambers() != null) {
+                    for (ProductionStressChamber chamber : declaration.getChambers()) {
+                        if (chamber.getBenchGroups() != null) {
+                            for (ProductionBenchGroup bench : chamber.getBenchGroups()) {
+                                boolean matchesBench = !filterBench || (bench.getBenchNo() != null && bench.getBenchNo().equalsIgnoreCase(benchNo.trim()));
+                                boolean matchesType = !filterType || (bench.getSleeperType() != null && bench.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
+                                if (matchesBench && matchesType) {
+                                    if (bench.getSleepers() != null) {
+                                        for (ProductionSleeper sleeper : bench.getSleepers()) {
+                                            if (sleeper.getSleeperNo() != null) {
+                                                sleepers.add(sleeper.getSleeperNo());
+                                            }
                                         }
                                     }
                                 }
@@ -1430,22 +1503,39 @@ public List<String> getBatchNumbers(Long vendorId,
                         }
                     }
                 }
-            }
-        } else { // LONG_LINE
-            if (declaration.getGangs() != null) {
-                for (ProductionLongLineGang gang : declaration.getGangs()) {
-                    boolean matchesBench = false;
-                    if (gang.getGangFrom() != null && gang.getGangTo() != null && benchNo >= gang.getGangFrom() && benchNo <= gang.getGangTo()) {
-                        matchesBench = true;
-                    } else if (gang.getGangNo() != null && gang.getGangNo().equals(benchNo)) {
-                        matchesBench = true;
-                    }
-                    
-                    if (matchesBench && sleeperType.equals(gang.getSleeperType())) {
-                        if (gang.getSleepers() != null) {
-                            for (ProductionSleeper sleeper : gang.getSleepers()) {
-                                if (sleeper.getSleeperNo() != null) {
-                                    sleepers.add(sleeper.getSleeperNo());
+            } else { // LONG_LINE
+                if (declaration.getGangs() != null) {
+                    for (ProductionLongLineGang gang : declaration.getGangs()) {
+                        boolean matchesBench = false;
+                        if (!filterBench) {
+                            matchesBench = true;
+                        } else {
+                            int gangFromInt = -1;
+                            int gangToInt = -1;
+                            if (gang.getGangFrom() != null) {
+                                try { gangFromInt = Integer.parseInt(gang.getGangFrom()); } catch (Exception e) {}
+                            }
+                            if (gang.getGangTo() != null) {
+                                try { gangToInt = Integer.parseInt(gang.getGangTo()); } catch (Exception e) {}
+                            }
+
+                            if (gang.getGangFrom() != null && gang.getGangTo() != null) {
+                                if (gang.getGangFrom().equalsIgnoreCase(benchNo) || gang.getGangTo().equalsIgnoreCase(benchNo) || (benchInt >= 0 && gangFromInt >= 0 && gangToInt >= gangFromInt && benchInt >= gangFromInt && benchInt <= gangToInt)) {
+                                    matchesBench = true;
+                                }
+                            } else if (gang.getGangNo() != null && gang.getGangNo().equalsIgnoreCase(benchNo)) {
+                                matchesBench = true;
+                            }
+                        }
+
+                        boolean matchesType = !filterType || (gang.getSleeperType() != null && gang.getSleeperType().equalsIgnoreCase(sleeperType.trim()));
+
+                        if (matchesBench && matchesType) {
+                            if (gang.getSleepers() != null) {
+                                for (ProductionSleeper sleeper : gang.getSleepers()) {
+                                    if (sleeper.getSleeperNo() != null) {
+                                        sleepers.add(sleeper.getSleeperNo());
+                                    }
                                 }
                             }
                         }

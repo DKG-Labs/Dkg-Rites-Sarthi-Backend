@@ -52,6 +52,9 @@ public class ProcessIcEdit {
     @Column(name = "DESCRIPTION", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "MANUFACTURER", columnDefinition = "TEXT")
+    private String manufacturer;
+
     @Column(name = "QAP_NO", columnDefinition = "TEXT")
     private String qapNo;
 

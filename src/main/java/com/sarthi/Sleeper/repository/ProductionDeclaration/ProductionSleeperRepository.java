@@ -77,7 +77,7 @@ List<String> getSleeperTypeByBatch(Long batchId);
             "AND s.benchGroup.benchNo = :benchNo " +
             "AND s.benchGroup.sleeperType = :sleeperType")
     List<String> findSleepers(@Param("batchNo") String batchNo,
-                              @Param("benchNo") Integer benchNo,
+                              @Param("benchNo") String benchNo,
                               @Param("sleeperType") String sleeperType);
 
    /* @Query("""

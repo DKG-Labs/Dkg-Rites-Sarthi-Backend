@@ -70,6 +70,7 @@ public interface SleeperWorkflowRepository
           OR LOWER(:plantId) LIKE LOWER(CONCAT('%', t.plantId, '%'))
           OR REPLACE(LOWER(t.plantId), ':', '') = REPLACE(LOWER(:plantId), ':', '')
       )
+    ORDER BY t.workflowTransitionId DESC
 """)
     Page<SleeperWorkflowTransaction> findLastPendingRequestsByRole(
             @Param("roleName") String roleName,
@@ -87,6 +88,7 @@ WHERE t.workflowTransitionId IN (
 )
 AND UPPER(t.status) IN ('CREATED','PENDING')
 AND t.nextRole = :roleName
+ORDER BY t.workflowTransitionId DESC
 """)
     List<SleeperWorkflowTransaction> findLatestByRole(String roleName);
 
@@ -98,6 +100,7 @@ AND t.nextRole = :roleName
                     GROUP BY t2.requestId
                 )
                 AND t.status = 'COMPLETED'
+                ORDER BY t.workflowTransitionId DESC
             """)
     List<SleeperWorkflowTransaction> findLastCompletedRequests();
 
@@ -109,6 +112,7 @@ AND t.nextRole = :roleName
         GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
     )
     AND t.status = 'Completed'
+    ORDER BY t.workflowTransitionId DESC
 """)
    List<SleeperWorkflowTransaction> findCompletedRequests();
 
@@ -123,6 +127,7 @@ AND t.nextRole = :roleName
       AND t.moduleId = :moduleId
       AND t.status = 'Completed'
       AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', ''))
+    ORDER BY t.workflowTransitionId DESC
 """)
     Page<SleeperWorkflowTransaction> findCompletedRequests(
             @Param("moduleId") Integer moduleId,

@@ -29,6 +29,12 @@ public class RailProcessInspectionBatch {
     @Column(name = "batch_no")
     private String batchNo;
 
+    @Column(name = "drawing_no")
+    private String drawingNo;
+
+    @Column(name = "reason_for_rejection", columnDefinition = "TEXT")
+    private String reasonForRejection;
+
     @Column(name = "production_date")
     private LocalDate productionDate;
 

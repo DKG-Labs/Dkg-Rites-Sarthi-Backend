@@ -5,6 +5,8 @@ import lombok.Data;
 @Data
 public class SleeperPoiIeMappingReqDto {
 
+    private Long id;
+
     private String poiCode;
 
     private String plantId;

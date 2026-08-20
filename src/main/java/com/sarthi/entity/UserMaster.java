@@ -83,6 +83,8 @@ public class UserMaster implements UserDetails {
     @Column(name = "PROFILE_PHOTO_PATH", columnDefinition = "LONGTEXT")
     private String profilePhotoPath;
 
+    private String status;
+
     @Column(name = "NOTIFICATION_PREFERENCES")
     private String notificationPreferences;
 

@@ -122,6 +122,11 @@ public class UserServiceImpl implements UserService {
         userMaster.setDesignation(userDto.getDesignation());
         userMaster.setDiscipline(userDto.getDiscipline());
         userMaster.setZonalRly(userDto.getZonalRly());
+        if ("Inactive".equalsIgnoreCase(userDto.getStatus())){
+            userMaster.setStatus(AppConstant.USER_STATUS_INACTIVE);
+        }else{
+            userMaster.setStatus(AppConstant.USER_STATUS);
+        }
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
         userMaster.setRio(userDto.getRio());
@@ -461,6 +466,16 @@ public class UserServiceImpl implements UserService {
                             "Invalid login type."));
         }
 
+        // ================= STATUS CHECK =================
+        if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Your account is inactive. Please contact the administrator."));
+        }
+
         // ================= PASSWORD CHECK =================
         if (!loginDto.getPassword().equals(user.getPassword())) {
 
@@ -673,9 +688,21 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserDto> getUsersByRole(String roleName) {
-        return userMasterRepository.findUsersByRoleNameViaJoin(roleName).stream()
+        if (roleName == null || roleName.trim().isEmpty()) {
+            return getAllUsers();
+        }
+        List<UserDto> users = userMasterRepository.findUsersByRoleNameViaJoin(roleName).stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
+
+        if (users == null || users.isEmpty()) {
+            List<UserMaster> containingUsers = userMasterRepository.findByRoleNameContaining(roleName);
+            if (containingUsers != null && !containingUsers.isEmpty()) {
+                users = containingUsers.stream().map(this::mapToResponseDTO).collect(Collectors.toList());
+            }
+        }
+
+        return users != null ? users : new ArrayList<>();
     }
 
     @Override
@@ -751,8 +778,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<String> getEmployeeCodesByCallNo(String callNo) {
 
-        callNo = callNo.trim();
+        if (callNo == null || callNo.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
 
+        callNo = callNo.trim();
         String prefix = callNo.split("-")[0];
 
         String poiCode = null;
@@ -768,19 +798,23 @@ public class UserServiceImpl implements UserService {
             poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
         }
 
-        if (poiCode == null) {
-            throw new RuntimeException("Invalid Call No");
-        }
+        List<String> result = new ArrayList<>();
 
         if ("EP".equalsIgnoreCase(prefix)) {
-            return pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
+            // EP calls: Strictly use poi_process_ie_mapping table via place_of_inspection
+            if (poiCode != null) {
+                result = pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
+            }
         } else if ("RPF".equalsIgnoreCase(prefix) || "RPP".equalsIgnoreCase(prefix)) {
-            return railPoiIeMappingRepository.findIeEmpCodeWithNameAndPlantId(poiCode, plantId);
+            result = railPoiIeMappingRepository.findIeEmpCodeWithNameAndPlantId(poiCode, plantId);
         } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
-            return iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
-        } else {
-            throw new RuntimeException("Invalid Call Type");
+            // ER / EF calls: Strictly use ie_pincode_poi_mapping table via place_of_inspection
+            if (poiCode != null) {
+                result = iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
+            }
         }
+
+        return result != null ? result : new ArrayList<>();
     }
 
 
@@ -819,6 +853,9 @@ public class UserServiceImpl implements UserService {
 
         List<IePincodePoiMapping> toSave = new ArrayList<>();
 
+        // Lookup pincode from pincode_poi_mapping table for this POI Code
+        String foundPinCode = pincodePoIMappingRepository.findPinCodeByPoiCode(poiCode);
+
         for (IePinPoiDto dto : newList) {
 
             IePincodePoiMapping entity = existingMap.get(dto.getEmployeeCode());
@@ -829,9 +866,21 @@ public class UserServiceImpl implements UserService {
                 entity.setPoiCode(poiCode);
             }
 
-            entity.setProduct(dto.getProduct());
-            entity.setPinCode(dto.getPinCode());
-            entity.setIeType(dto.getIeType());
+            // Set product to ERC if not explicitly provided or DEFAULT
+            String product = dto.getProduct();
+            if (product == null || product.trim().isEmpty() || "DEFAULT".equalsIgnoreCase(product)) {
+                product = "ERC";
+            }
+
+            // Set pinCode from pincode_poi_mapping lookup if missing or default
+            String pinCode = dto.getPinCode();
+            if (pinCode == null || pinCode.trim().isEmpty() || "000000".equals(pinCode)) {
+                pinCode = foundPinCode;
+            }
+
+            entity.setProduct(product);
+            entity.setPinCode(pinCode != null ? pinCode : "000000");
+            entity.setIeType(dto.getIeType() != null ? dto.getIeType() : "PRIMARY");
 
             toSave.add(entity);
         }

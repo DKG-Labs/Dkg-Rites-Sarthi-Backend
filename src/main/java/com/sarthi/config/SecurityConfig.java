@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/vendor/poData",
+                                "/api/vendor/po-data",
                                 "/api/vendor/po-assigned",
                                 "/api/vendor/proxy-pdf",
                                 "/sarthi-backend/api/auth",
@@ -74,7 +75,8 @@ public class SecurityConfig {
                                 "/swagger-resources/**",
                                 "/webjars/**",
                                 "/configuration/ui",
-                                "/configuration/security"
+                                "/configuration/security",
+                                "/api/test/**"
                         ).permitAll()
 
                         .requestMatchers(

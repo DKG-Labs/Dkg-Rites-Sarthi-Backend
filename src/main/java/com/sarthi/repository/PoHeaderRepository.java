@@ -26,15 +26,53 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
 	List<PoHeader> findByPoNoIn(List<String> poNos);
 
-	@Query("SELECT DISTINCT ph.rlyShortName " +
-			"FROM PoHeader ph " +
-			"JOIN PincodePoIMapping ppm ON ph.vendorCode = ppm.vendorCode " +
-			"WHERE ppm.poiCode = :poiCode AND ph.rlyShortName IS NOT NULL " +
-			"ORDER BY ph.rlyShortName ASC")
+	@Query(value = """
+		SELECT DISTINCT ph.rly_short_name 
+		FROM po_header ph 
+		WHERE ph.rly_short_name IS NOT NULL 
+		AND (
+			ph.vendor_code = :poiCode OR 
+			ph.vendor_code = CONCAT(':', :poiCode) OR 
+			ph.vendor_code = SUBSTRING_INDEX(:poiCode, '/', 1) OR 
+			ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:poiCode, '/', 1)) OR 
+			ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :poiCode OR rvp.vendor_code = :poiCode) OR 
+			ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :poiCode) OR 
+			ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :poiCode)
+		)
+		ORDER BY ph.rly_short_name ASC
+	""", nativeQuery = true)
 	List<String> findZonalRailwaysByPoiCode(@Param("poiCode") String poiCode);
 
 	@Query(value = "SELECT DISTINCT ph.rly_short_name FROM po_header ph WHERE ph.rly_short_name IS NOT NULL ORDER BY ph.rly_short_name ASC", nativeQuery = true)
 	List<String> findAllZonalRailways();
+
+	@Query(value = """
+		SELECT DISTINCT ph.rly_short_name 
+		FROM po_header ph 
+		WHERE LOWER(TRIM(ph.item_cat_descr)) LIKE '%rail pad%' 
+		  AND ph.rly_short_name IS NOT NULL 
+		  AND TRIM(ph.rly_short_name) != '' 
+		ORDER BY ph.rly_short_name ASC
+	""", nativeQuery = true)
+	List<String> findRailPadZonalRailways();
+
+	@Query(value = """
+		SELECT DISTINCT 
+			rvp.plant_id AS poiCode,
+			rvp.company_name AS companyName,
+			rvp.plant_name AS unitName,
+			rvp.plant_name AS address
+		FROM po_header ph
+		JOIN rail_vendor_plant rvp ON (
+			rvp.vendor_code = ph.vendor_code OR 
+			rvp.vendor_code = CONCAT(':', ph.vendor_code) OR 
+			REPLACE(rvp.vendor_code, ':', '') = REPLACE(ph.vendor_code, ':', '')
+		)
+		WHERE LOWER(TRIM(ph.item_cat_descr)) LIKE '%rail pad%'
+		  AND (:zone IS NULL OR :zone = '' OR ph.rly_short_name = :zone)
+		ORDER BY rvp.plant_name ASC
+	""", nativeQuery = true)
+	List<Object[]> findRailPadVendorPlantsByZone(@Param("zone") String zone);
 
 	/**
 	 * Find PO Header by PO Number with items eagerly loaded (JOIN FETCH).
@@ -60,18 +98,20 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
                 select distinct h
                 from PoHeader h
                 left join fetch h.items i
-                where h.vendorCode = :vendorCode
+                where LOWER(TRIM(REPLACE(h.vendorCode, ':', ''))) = LOWER(TRIM(REPLACE(:vendorCode, ':', '')))
+                   OR LOWER(TRIM(h.vendorCode)) = LOWER(TRIM(:vendorCode))
             """)
-    List<PoHeader> findAllByVendorCodeWithItems(String vendorCode);
+    List<PoHeader> findAllByVendorCodeWithItems(@Param("vendorCode") String vendorCode);
 
 	@Query("""
        select distinct h
        from PoHeader h
        left join fetch h.items i
-       where h.vendorCode = :vendorCode
-       and h.itemCatDescr = :itemCatDescr
+       where (LOWER(TRIM(REPLACE(h.vendorCode, ':', ''))) = LOWER(TRIM(REPLACE(:vendorCode, ':', '')))
+              OR LOWER(TRIM(h.vendorCode)) = LOWER(TRIM(:vendorCode)))
+       and (:itemCatDescr IS NULL OR :itemCatDescr = '' OR LOWER(TRIM(h.itemCatDescr)) = LOWER(TRIM(:itemCatDescr)))
        """)
-	List<PoHeader> findAllByVendorCodeAndItemCatDescrWithItems(String vendorCode, String itemCatDescr);
+	List<PoHeader> findAllByVendorCodeAndItemCatDescrWithItems(@Param("vendorCode") String vendorCode, @Param("itemCatDescr") String itemCatDescr);
 
     /*
      * @Query("""
@@ -179,12 +219,20 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
     @Query(value = """
         SELECT COUNT(DISTINCT ph.po_no) 
         FROM po_header ph 
-        WHERE ph.item_cat_descr = :itemCatDescr
+        WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%')))
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
-        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ph.vendor_code IN (
-            SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode
-        ))
+        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway OR ph.rly_cd = :zonalRailway)
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
+             ph.vendor_code = :vendorPlantCode OR 
+             ph.vendor_code = CONCAT(':', :vendorPlantCode) OR 
+             ph.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
+             ph.vendor_code = CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) OR 
+             ph.vendor_code IN (SELECT rvp.vendor_code FROM rail_vendor_plant rvp WHERE rvp.plant_id = :vendorPlantCode OR rvp.vendor_code = :vendorPlantCode OR rvp.company_name LIKE CONCAT('%', :vendorPlantCode, '%') OR rvp.plant_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM railpad_pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode OR ppm.company_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR 
+             ph.vendor_code IN (SELECT ppm.vendor_code FROM pincode_poi_mapping ppm WHERE ppm.poi_code = :vendorPlantCode OR ppm.company_name LIKE CONCAT('%', :vendorPlantCode, '%')) OR
+             ph.vendor_details LIKE CONCAT('%', :vendorPlantCode, '%') OR
+             ph.firm_details LIKE CONCAT('%', :vendorPlantCode, '%')
+        )
     """, nativeQuery = true)
     long countFilteredPoByItemCatDescr(
             @Param("itemCatDescr") String itemCatDescr,

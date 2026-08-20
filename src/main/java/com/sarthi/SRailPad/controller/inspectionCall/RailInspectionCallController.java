@@ -110,20 +110,8 @@ public class RailInspectionCallController {
     @PostMapping(value = "/create", consumes = {"application/json", "application/json;charset=UTF-8", "*/*"})
     public ResponseEntity<Object> create(@RequestBody RailInspectionCall call) {
         RailInspectionCall createdCall = service.create(call);
-        String callNo = createdCall.getCallNo();
-
-        railWorkflowService.initiateWorkflow(
-            callNo,
-            0L, // moduleId
-            2L, // workflowId
-            createdCall.getCreatedBy(),
-            createdCall.getVendorCode(),
-            createdCall.getPlantId(),
-            null // shift
-        );
-
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(callNo),
+                ResponseBuilder.getSuccessResponse(createdCall.getCallNo()),
                 HttpStatus.OK
         );
     }
@@ -246,6 +234,21 @@ public class RailInspectionCallController {
         try {
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(service.modifyCall(dto)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(400, 1000, "ERROR", e.getMessage())),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @PostMapping("/withdraw")
+    public ResponseEntity<Object> withdrawCall(@RequestBody com.sarthi.SRailPad.dto.RailWithdrawRequestDto dto) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(service.withdrawCall(dto)),
                     HttpStatus.OK
             );
         } catch (Exception e) {

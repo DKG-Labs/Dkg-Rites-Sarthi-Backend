@@ -319,7 +319,7 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         if ("Raw Material".equalsIgnoreCase(ic.getTypeOfCall()) && rmDetails != null) {
             return rmDetails.getOfferedQtyErc();
         } else if ("Process".equalsIgnoreCase(ic.getTypeOfCall()) && processList != null && !processList.isEmpty()) {
-            return processList.get(0).getOfferedQty();
+            return processList.stream().filter(p -> p.getOfferedQty() != null).mapToInt(p -> p.getOfferedQty()).sum();
         } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall()) && finalDetails != null) {
             return finalDetails.getTotalOfferedQty();
         }

@@ -25,13 +25,15 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     java.util.List<UserMaster> findByRoleNameContaining(String roleName);
 
-    @Query("""
-                SELECT u
-                FROM UserMaster u
-                JOIN UserRoleMaster ur ON u.userId = ur.userId
-                JOIN RoleMaster r ON ur.roleId = r.roleId
-                WHERE r.roleName LIKE %:roleName%
-            """)
+    @Query(value = """
+        SELECT DISTINCT um.* 
+        FROM user_master um 
+        JOIN user_role_master urm ON um.userid = urm.userid 
+        JOIN role_master rm ON urm.roleid = rm.roleid 
+        WHERE rm.rolename = :roleName 
+           OR LOWER(REPLACE(rm.rolename, ' ', '')) = LOWER(REPLACE(:roleName, ' ', ''))
+           OR LOWER(rm.rolename) LIKE LOWER(CONCAT('%', :roleName, '%'))
+    """, nativeQuery = true)
     java.util.List<UserMaster> findUsersByRoleNameViaJoin(@org.springframework.data.repository.query.Param("roleName") String roleName);
 
     @Query("""

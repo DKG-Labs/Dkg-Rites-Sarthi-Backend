@@ -30,4 +30,6 @@ public interface DemouldingInspectionService {
            String vendorCode,
            String shift,
            String createdBy, String date);
+
+   public List<DemouldingInspectionResponseDTO> getByBatchNo(String batchNo);
 }
