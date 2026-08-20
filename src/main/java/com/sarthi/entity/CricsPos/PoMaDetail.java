@@ -16,6 +16,7 @@ public class PoMaDetail {
 
         @ManyToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "ma_po_header_id")
+        @com.fasterxml.jackson.annotation.JsonIgnore
         private PoMaHeader maPoHeader;
 
         private String rly;

@@ -206,10 +206,10 @@ public class crisServiceImpl implements crisService {
         h.setItemCatDescr(m.getITEM_CAT_DESCR());
 
         if (m.getPO_DT() != null)
-            h.setPoDate(LocalDateTime.parse(m.getPO_DT(), PO_DT_FMT));
+            h.setPoDate(parseFlexibleDateTime(m.getPO_DT()));
 
         if (m.getRECV_DT() != null)
-            h.setReceivedDate(LocalDateTime.parse(m.getRECV_DT(), TS_FMT));
+            h.setReceivedDate(parseFlexibleDateTime(m.getRECV_DT()));
 
         return h;
     }
@@ -258,13 +258,13 @@ public class crisServiceImpl implements crisService {
         i.setValue(bd(m.getVALUE()));
 
         if (m.getDELV_DT() != null)
-            i.setDeliveryDate(LocalDateTime.parse(m.getDELV_DT(), PO_DT_FMT));
+            i.setDeliveryDate(parseFlexibleDateTime(m.getDELV_DT()));
 
         if (m.getEXT_DELV_DT() != null)
-            i.setExtendedDeliveryDate(LocalDateTime.parse(m.getEXT_DELV_DT(), PO_DT_FMT));
+            i.setExtendedDeliveryDate(parseFlexibleDateTime(m.getEXT_DELV_DT()));
 
         if (m.getDATETIME() != null)
-            i.setCrisTimestamp(LocalDateTime.parse(m.getDATETIME(), TS_FMT));
+            i.setCrisTimestamp(parseFlexibleDateTime(m.getDATETIME()));
 
         i.setAllocation(m.getALLOCATION());
         i.setUserId(m.getUSER_ID());
@@ -272,10 +272,48 @@ public class crisServiceImpl implements crisService {
         return i;
     }
 
-    private static final DateTimeFormatter PO_DT_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-    // private static final DateTimeFormatter TS_FMT =
-    // DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S");
+    private LocalDateTime parseFlexibleDateTime(String str) {
+        if (str == null || str.isBlank()) return null;
+        str = str.trim();
+        String[] patterns = {
+            "dd/MM/yyyy HH:mm:ss",
+            "dd/MM/yyyy HH:mm",
+            "dd/MM/yyyy",
+            "yyyy-MM-dd HH:mm:ss.SSS",
+            "yyyy-MM-dd HH:mm:ss.SS",
+            "yyyy-MM-dd HH:mm:ss.S",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd",
+            "dd-MM-yyyy HH:mm:ss",
+            "dd-MM-yyyy HH:mm",
+            "dd-MM-yyyy"
+        };
+        for (String pat : patterns) {
+            try {
+                if (pat.contains("HH") || pat.contains("T")) {
+                    return LocalDateTime.parse(str, DateTimeFormatter.ofPattern(pat));
+                } else {
+                    return LocalDate.parse(str, DateTimeFormatter.ofPattern(pat)).atStartOfDay();
+                }
+            } catch (Exception ignored) {}
+        }
+        try {
+            return LocalDateTime.parse(str);
+        } catch (Exception ignored) {}
+        try {
+            return LocalDate.parse(str).atStartOfDay();
+        } catch (Exception ignored) {}
+        return null;
+    }
 
+    private LocalDate parseFlexibleLocalDate(String str) {
+        LocalDateTime ldt = parseFlexibleDateTime(str);
+        return ldt != null ? ldt.toLocalDate() : null;
+    }
+
+    private static final DateTimeFormatter PO_DT_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final DateTimeFormatter TS_FMT = new DateTimeFormatterBuilder()
             .appendPattern("yyyy-MM-dd HH:mm:ss")
             .optionalStart()
@@ -585,73 +623,106 @@ public class crisServiceImpl implements crisService {
     public void saveMaPo(MaPoRequestDTO request) {
 
         try {
+            if (request == null || request.getData() == null) {
+                throw new RuntimeException("Request data cannot be empty");
+            }
+
+            // 1. Resolve poKey from any available field (MmpPomaHdr or PoDtl)
+            String poKey = null;
+            if (request.getData().getMmpPomaHdr() != null && request.getData().getMmpPomaHdr().getPoKey() != null && !request.getData().getMmpPomaHdr().getPoKey().isBlank()) {
+                poKey = request.getData().getMmpPomaHdr().getPoKey();
+            } else if (request.getData().getPoDtl() != null && !request.getData().getPoDtl().isEmpty() && request.getData().getPoDtl().get(0).getPoKey() != null) {
+                poKey = request.getData().getPoDtl().get(0).getPoKey();
+            }
+
+            // 2. Fetch or auto-create base PoHeader if poKey is present
+            PoHeader poHeader = null;
+            if (poKey != null) {
+                poHeader = headerRepo.findByPoKey(poKey).orElse(null);
+            }
+
+            if (poHeader == null && poKey != null) {
+                poHeader = new PoHeader();
+                poHeader.setPoKey(poKey);
+                if (request.getData().getPoHdr() != null) {
+                    AmendedPoHeaderDTO ph = request.getData().getPoHdr();
+                    if (ph.getPoNo() != null) poHeader.setPoNo(ph.getPoNo());
+                    if (ph.getRlyCd() != null) poHeader.setRlyCd(ph.getRlyCd());
+                    if (ph.getVendorCode() != null) poHeader.setVendorCode(ph.getVendorCode());
+                    if (ph.getBillPayOff() != null) poHeader.setBillPayOff(ph.getBillPayOff());
+                    if (ph.getInspectingAgency() != null) poHeader.setInspectingAgency(ph.getInspectingAgency());
+                    if (ph.getPoStatus() != null) poHeader.setPoStatus(ph.getPoStatus());
+                    if (ph.getPoDate() != null) poHeader.setPoDate(parseFlexibleDateTime(ph.getPoDate()));
+                }
+                if (request.getData().getPoDtl() != null && !request.getData().getPoDtl().isEmpty()) {
+                    AmendedPoItemDTO firstItem = request.getData().getPoDtl().get(0);
+                    if (poHeader.getRlyCd() == null) poHeader.setRlyCd(firstItem.getRly());
+                    if (poHeader.getBillPayOff() == null) poHeader.setBillPayOff(firstItem.getBillPayOff());
+                } else if (request.getData().getMmpPomaDtl() != null && !request.getData().getMmpPomaDtl().isEmpty()) {
+                    MaPoItemDTO firstItem = request.getData().getMmpPomaDtl().get(0);
+                    if (poHeader.getRlyCd() == null) poHeader.setRlyCd(firstItem.getRly());
+                }
+                if (poHeader.getPoNo() == null && request.getData().getMmpPomaHdr() != null && request.getData().getMmpPomaHdr().getPoNo() != null) {
+                    poHeader.setPoNo(request.getData().getMmpPomaHdr().getPoNo());
+                }
+                poHeader.setSourceSystem("CRIS_MA");
+                poHeader = headerRepo.save(poHeader);
+            } else if (poHeader != null) {
+                if (poHeader.getPoDate() == null && request.getData().getPoHdr() != null && request.getData().getPoHdr().getPoDate() != null) {
+                    poHeader.setPoDate(parseFlexibleDateTime(request.getData().getPoHdr().getPoDate()));
+                    headerRepo.save(poHeader);
+                }
+            }
 
             // ======================================
             // SAVE MA HEADER
             // ======================================
-
             PoMaHeader savedMaHeader = saveMaHeader(
-                    request.getData()
-                            .getMmpPomaHdr());
+                    request.getData().getMmpPomaHdr(),
+                    poHeader,
+                    poKey
+            );
 
             // ======================================
             // SAVE MA DETAILS
             // ======================================
-
-            saveMaDetails(
-                    savedMaHeader,
-                    request.getData()
-                            .getMmpPomaDtl());
-
-            // ======================================
-            // SAVE AMENDED HEADER
-            // ======================================
-
-            // AmendedPoHeader amendedHeader =
-            // saveAmendedPoHeader(
-            // request.getData()
-            // .getMmpPoHdr());
-            AmendedPoHeader amendedHeader = saveAmendedPoHeader(
-                    request.getData().getPoDtl());
+            if (request.getData().getMmpPomaDtl() != null && !request.getData().getMmpPomaDtl().isEmpty()) {
+                saveMaDetails(
+                        savedMaHeader,
+                        request.getData().getMmpPomaDtl()
+                );
+            }
 
             // ======================================
-            // SAVE AMENDED ITEMS
+            // SAVE AMENDED HEADER & ITEMS
             // ======================================
+            AmendedPoHeader amendedHeader = null;
+            if (request.getData().getPoDtl() != null && !request.getData().getPoDtl().isEmpty()) {
+                amendedHeader = saveAmendedPoHeader(
+                        request.getData().getPoDtl(),
+                        poHeader,
+                        poKey
+                );
 
-            // saveAmendedPoItems(
-            // amendedHeader,
-            // request.getData()
-            // .getMmpPoItem());
+                saveAmendedPoItems(
+                        amendedHeader,
+                        request.getData().getPoDtl()
+                );
 
-            saveAmendedPoItems(
-                    amendedHeader,
-                    request.getData().getPoDtl());
-
-            // ======================================
-            // UPDATE LIVE PO HEADER
-            // ======================================
-
-            syncPoHeader(amendedHeader);
-
-            // ======================================
-            // UPDATE LIVE PO ITEMS
-            // ======================================
-
-            syncPoItems(
-                    amendedHeader);
-            PoHeader poHeader = headerRepo.findByPoKey(
-                    savedMaHeader.getPoKey())
-                    .orElseThrow(() -> new RuntimeException(
-                            "PO not found"));
+                // UPDATE LIVE PO HEADER & ITEMS
+                syncPoHeader(amendedHeader);
+                syncPoItems(amendedHeader);
+            }
 
             updateAmendmentStatus(
                     poHeader,
-                    savedMaHeader);
+                    savedMaHeader
+            );
 
         } catch (Exception e) {
-
+            e.printStackTrace();
             throw new RuntimeException(
-                    "Failed to save MA PO",
+                    "Failed to save MA PO: " + e.getMessage(),
                     e);
         }
     }
@@ -659,6 +730,10 @@ public class crisServiceImpl implements crisService {
     private void updateAmendmentStatus(
             PoHeader poHeader,
             PoMaHeader maHeader) {
+
+        if (poHeader == null) {
+            return;
+        }
 
         poHeader.setIsAmended(true);
 
@@ -669,50 +744,81 @@ public class crisServiceImpl implements crisService {
         poHeader.setAmendmentCount(
                 count + 1);
 
-        poHeader.setLastAmendmentNo(
-                maHeader.getMaNo());
+        if (maHeader != null) {
+            if (maHeader.getMaNo() != null) {
+                poHeader.setLastAmendmentNo(
+                        maHeader.getMaNo());
+            }
 
-        if (maHeader.getMaDate() != null) {
-
-            poHeader.setLastAmendmentDate(
-                    maHeader.getMaDate()
-                            .atStartOfDay());
+            if (maHeader.getMaDate() != null) {
+                poHeader.setLastAmendmentDate(
+                        maHeader.getMaDate()
+                                .atStartOfDay());
+            }
         }
 
         headerRepo.save(poHeader);
     }
 
     private PoMaHeader saveMaHeader(
-            MaPoHeaderDTO hdr) {
+            MaPoHeaderDTO hdr,
+            PoHeader poHeader,
+            String poKey) {
 
         PoMaHeader header = new PoMaHeader();
 
-        BeanUtils.copyProperties(
-                hdr,
-                header);
+        if (hdr != null) {
+            BeanUtils.copyProperties(
+                    hdr,
+                    header);
 
-        if (hdr.getMaDate() != null) {
-            header.setMaDate(
-                    LocalDate.parse(
-                            hdr.getMaDate()));
+            if (hdr.getMaDate() != null && !hdr.getMaDate().isBlank()) {
+                try {
+                    header.setMaDate(
+                            LocalDate.parse(
+                                    hdr.getMaDate()));
+                } catch (Exception ignored) {}
+            }
+
+            if (hdr.getRefDate() != null && !hdr.getRefDate().isBlank()) {
+                try {
+                    header.setRefDate(
+                            LocalDate.parse(
+                                    hdr.getRefDate()));
+                } catch (Exception ignored) {}
+            }
+
+            if (hdr.getMaKeyDate() != null && !hdr.getMaKeyDate().isBlank()) {
+                try {
+                    header.setMaKeyDate(
+                            LocalDate.parse(
+                                    hdr.getMaKeyDate()));
+                } catch (Exception ignored) {}
+            }
+
+            if (hdr.getVetDate() != null && !hdr.getVetDate().isBlank()) {
+                try {
+                    header.setVetDate(
+                            LocalDate.parse(
+                                    hdr.getVetDate()));
+                } catch (Exception ignored) {}
+            }
         }
 
-        if (hdr.getRefDate() != null) {
-            header.setRefDate(
-                    LocalDate.parse(
-                            hdr.getRefDate()));
+        if ((header.getPoKey() == null || header.getPoKey().isBlank()) && poKey != null) {
+            header.setPoKey(poKey);
         }
 
-        if (hdr.getMaKeyDate() != null) {
-            header.setMaKeyDate(
-                    LocalDate.parse(
-                            hdr.getMaKeyDate()));
-        }
-
-        if (hdr.getVetDate() != null) {
-            header.setVetDate(
-                    LocalDate.parse(
-                            hdr.getVetDate()));
+        if (poHeader != null) {
+            if (header.getPoNo() == null || header.getPoNo().isBlank()) {
+                header.setPoNo(poHeader.getPoNo());
+            }
+            if (header.getRly() == null || header.getRly().isBlank()) {
+                header.setRly(poHeader.getRlyCd());
+            }
+            if (header.getVendorCode() == null || header.getVendorCode().isBlank()) {
+                header.setVendorCode(poHeader.getVendorCode());
+            }
         }
 
         return poMaHeaderRepository.save(
@@ -743,95 +849,53 @@ public class crisServiceImpl implements crisService {
                 items);
     }
 
-    /*
-     * private AmendedPoHeader saveAmendedPoHeader(
-     * AmendedPoHeaderDTO dto) {
-     * 
-     * AmendedPoHeader entity =
-     * new AmendedPoHeader();
-     * 
-     * entity.setPoKey(dto.getPoKey());
-     * entity.setPoNo(dto.getPoNo());
-     * entity.setRlyCd(dto.getRlyCd());
-     * 
-     * entity.setVendorCode(
-     * dto.getVendorCode());
-     * 
-     * entity.setInspectingAgency(
-     * dto.getInspectingAgency());
-     * 
-     * entity.setPoStatus(
-     * dto.getPoStatus());
-     * 
-     * entity.setBillPayOff(
-     * dto.getBillPayOff());
-     * 
-     * entity.setRegionCode(
-     * dto.getPurDiv());
-     * 
-     * if (dto.getPoDate() != null) {
-     * 
-     * entity.setPoDate(
-     * LocalDate.parse(
-     * dto.getPoDate())
-     * .atStartOfDay());
-     * }
-     * 
-     * return amendmentPoHeaderRepository.save(
-     * entity);
-     * }
-     */
     private AmendedPoHeader saveAmendedPoHeader(
-            List<AmendedPoItemDTO> items) {
+            List<AmendedPoItemDTO> items,
+            PoHeader poHeader,
+            String poKey) {
 
-        if (items == null || items.isEmpty()) {
+        if ((items == null || items.isEmpty()) && poKey == null) {
             throw new RuntimeException(
                     "PO Detail not found");
         }
 
-        String poKey = items.get(0).getPoKey();
-
-        // FIND ORIGINAL PO HEADER
-        PoHeader poHeader = headerRepo.findByPoKey(poKey)
-                .orElseThrow(() -> new RuntimeException(
-                        "PO Header not found for poKey : "
-                                + poKey));
+        String effectivePoKey = (poKey != null) ? poKey : items.get(0).getPoKey();
 
         AmendedPoHeader entity = new AmendedPoHeader();
+        entity.setPoKey(effectivePoKey);
 
-        // ===================================
-        // COPY FROM ORIGINAL PO HEADER
-        // ===================================
+        if (poHeader != null) {
+            entity.setPoNo(
+                    poHeader.getPoNo());
 
-        entity.setPoKey(
-                poHeader.getPoKey());
+            entity.setL5PoNo(
+                    poHeader.getL5PoNo());
 
-        entity.setPoNo(
-                poHeader.getPoNo());
+            entity.setRlyCd(
+                    poHeader.getRlyCd());
 
-        entity.setL5PoNo(
-                poHeader.getL5PoNo());
+            entity.setVendorCode(
+                    poHeader.getVendorCode());
 
-        entity.setRlyCd(
-                poHeader.getRlyCd());
+            entity.setInspectingAgency(
+                    poHeader.getInspectingAgency());
 
-        entity.setVendorCode(
-                poHeader.getVendorCode());
+            entity.setPoStatus(
+                    poHeader.getPoStatus());
 
-        entity.setInspectingAgency(
-                poHeader.getInspectingAgency());
+            entity.setBillPayOff(
+                    poHeader.getBillPayOff());
 
-        entity.setPoStatus(
-                poHeader.getPoStatus());
+            entity.setPoDate(
+                    poHeader.getPoDate());
 
-        entity.setBillPayOff(
-                poHeader.getBillPayOff());
-
-        entity.setPoDate(
-                poHeader.getPoDate());
-
-        entity.setRegionCode(
-                poHeader.getRegionCode());
+            entity.setRegionCode(
+                    poHeader.getRegionCode());
+        } else if (items != null && !items.isEmpty()) {
+            AmendedPoItemDTO first = items.get(0);
+            entity.setRlyCd(first.getRly());
+            entity.setBillPayOff(first.getBillPayOff());
+        }
 
         return amendmentPoHeaderRepository.save(
                 entity);
@@ -1126,34 +1190,26 @@ public class crisServiceImpl implements crisService {
     private void syncPoHeader(
             AmendedPoHeader amendedHeader) {
 
+        if (amendedHeader == null || amendedHeader.getPoKey() == null) {
+            return;
+        }
+
         PoHeader poHeader = headerRepo.findByPoKey(
                 amendedHeader.getPoKey())
-                .orElseThrow(() -> new RuntimeException(
-                        "PO not found"));
+                .orElse(null);
 
-        poHeader.setPoNo(
-                amendedHeader.getPoNo());
+        if (poHeader == null) {
+            return;
+        }
 
-        poHeader.setRlyCd(
-                amendedHeader.getRlyCd());
-
-        poHeader.setVendorCode(
-                amendedHeader.getVendorCode());
-
-        poHeader.setInspectingAgency(
-                amendedHeader.getInspectingAgency());
-
-        poHeader.setPoStatus(
-                amendedHeader.getPoStatus());
-
-        poHeader.setBillPayOff(
-                amendedHeader.getBillPayOff());
-
-        poHeader.setRegionCode(
-                amendedHeader.getRegionCode());
-
-        poHeader.setPoDate(
-                amendedHeader.getPoDate());
+        if (amendedHeader.getPoNo() != null) poHeader.setPoNo(amendedHeader.getPoNo());
+        if (amendedHeader.getRlyCd() != null) poHeader.setRlyCd(amendedHeader.getRlyCd());
+        if (amendedHeader.getVendorCode() != null) poHeader.setVendorCode(amendedHeader.getVendorCode());
+        if (amendedHeader.getInspectingAgency() != null) poHeader.setInspectingAgency(amendedHeader.getInspectingAgency());
+        if (amendedHeader.getPoStatus() != null) poHeader.setPoStatus(amendedHeader.getPoStatus());
+        if (amendedHeader.getBillPayOff() != null) poHeader.setBillPayOff(amendedHeader.getBillPayOff());
+        if (amendedHeader.getRegionCode() != null) poHeader.setRegionCode(amendedHeader.getRegionCode());
+        if (amendedHeader.getPoDate() != null) poHeader.setPoDate(amendedHeader.getPoDate());
 
         headerRepo.save(
                 poHeader);
@@ -1162,10 +1218,18 @@ public class crisServiceImpl implements crisService {
     private void syncPoItems(
             AmendedPoHeader amendedHeader) {
 
+        if (amendedHeader == null || amendedHeader.getPoKey() == null) {
+            return;
+        }
+
         PoHeader poHeader = headerRepo
                 .findByPoKey(
                         amendedHeader.getPoKey())
-                .orElseThrow();
+                .orElse(null);
+
+        if (poHeader == null) {
+            return;
+        }
 
         List<AmendedPoItem> amendedItems = amendmentPoItemRepository
                 .findByAmendedPoHeader(
@@ -1637,19 +1701,38 @@ public class crisServiceImpl implements crisService {
     }
 
     @Override
+    public PoHeader getPoHeaderByPoNo(String poNo) {
+        return headerRepo.findByPoNo(poNo).orElse(null);
+    }
+
+    @Override
     public Object fetchPoData(java.util.Map<String, String> requestValues) {
         String token = getImmsToken();
 
         String urlEnding = "/purchase/getPOData";
         java.util.Map<String, String> payload = new java.util.HashMap<>(requestValues);
 
-        if (payload.containsKey("amended")) {
-            urlEnding = "/purchase/getAmendedPoData";
-            payload.remove("amended");
-        } else if (payload.containsKey("maNo")) {
+        if (payload.containsKey("maNo")) {
             urlEnding = "/purchase/getPoMaData";
         } else if (payload.containsKey("caNo")) {
             urlEnding = "/purchase/getPoCaData";
+        } else if (payload.containsKey("amended")) {
+            urlEnding = "/purchase/getAmendedPoData";
+            payload.remove("amended");
+        }
+
+        if (!payload.containsKey("poDate") || payload.get("poDate") == null || payload.get("poDate").isBlank()) {
+            if (payload.containsKey("poNo") && payload.get("poNo") != null && !payload.get("poNo").isBlank()) {
+                String cleanPoNo = payload.get("poNo").trim();
+                PoHeader header = headerRepo.findByPoNo(cleanPoNo).orElse(null);
+                if (header != null && header.getPoDate() != null) {
+                    java.time.LocalDate localDate = header.getPoDate()
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .withZoneSameInstant(java.time.ZoneOffset.UTC)
+                            .toLocalDate();
+                    payload.put("poDate", localDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+                }
+            }
         }
 
         String url = crisBaseUrl + urlEnding;
@@ -1670,6 +1753,16 @@ public class crisServiceImpl implements crisService {
                     Object.class);
             return response.getBody();
         } catch (Exception e) {
+            if ("/purchase/getPOData".equals(urlEnding)) {
+                String amendedUrl = crisBaseUrl + "/purchase/getAmendedPoData";
+                System.out.println("CRIS getPOData returned error/417, retrying with getAmendedPoData: " + amendedUrl);
+                try {
+                    org.springframework.http.ResponseEntity<Object> amendedResponse = crisRestTemplate.postForEntity(amendedUrl, entity, Object.class);
+                    return amendedResponse.getBody();
+                } catch (Exception ex) {
+                    System.err.println("Fallback getAmendedPoData also failed: " + ex.getMessage());
+                }
+            }
             throw new RuntimeException("Error fetching data from CRIS: " + e.getMessage());
         }
     }
