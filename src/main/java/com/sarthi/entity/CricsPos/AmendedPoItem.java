@@ -1,14 +1,20 @@
 package com.sarthi.entity.CricsPos;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "amendment_po_item")
-@Data
+@Getter
+@Setter
+@ToString(exclude = "amendedPoHeader")
+@EqualsAndHashCode(exclude = "amendedPoHeader")
 public class AmendedPoItem {
 
         @Id
