@@ -40,12 +40,14 @@ FROM ProcessTurningData p
 WHERE p.inspectionCallNo = :callNo
 AND p.lotNo = :lotNo
 AND p.shift = :shift
+AND (:lineNo IS NULL OR p.lineNo = :lineNo)
 AND p.createdAt BETWEEN :startDate AND :endDate
 """)
     List<Object[]> getTurningSumByDate(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate")   LocalDateTime endDate
     );

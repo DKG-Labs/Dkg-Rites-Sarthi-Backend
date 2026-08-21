@@ -68,6 +68,60 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
     );
 
     /**
+     * Calculate total offered quantity for a specific heat number scoped strictly to an RM IC
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(pid.offered_qty), 0)
+        FROM process_inspection_details pid
+        WHERE pid.heat_number = :heatNo
+        AND (
+            (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId)
+            OR pid.rm_ic_number IN :rmCallCandidates
+            OR EXISTS (
+                SELECT 1 FROM process_rm_ic_mapping prim
+                WHERE prim.process_ic_id = pid.ic_id
+                AND (
+                    (:rmIcId IS NOT NULL AND prim.rm_ic_id = :rmIcId)
+                    OR prim.rm_ic_number IN :rmCallCandidates
+                )
+            )
+        )
+    """, nativeQuery = true)
+    Integer sumOfferedQtyByRmIcAndHeatNo(
+            @Param("rmIcId") Long rmIcId,
+            @Param("rmCallCandidates") List<String> rmCallCandidates,
+            @Param("heatNo") String heatNo
+    );
+
+    /**
+     * Find distinct process call numbers raised under a specific RM IC
+     */
+    @Query(value = """
+        SELECT DISTINCT ic.ic_number
+        FROM inspection_calls ic
+        WHERE EXISTS (
+            SELECT 1 FROM process_inspection_details pid
+            WHERE pid.ic_id = ic.id
+            AND (
+                (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId)
+                OR pid.rm_ic_number IN :rmCallCandidates
+            )
+        )
+        OR EXISTS (
+            SELECT 1 FROM process_rm_ic_mapping prim
+            WHERE prim.process_ic_id = ic.id
+            AND (
+                (:rmIcId IS NOT NULL AND prim.rm_ic_id = :rmIcId)
+                OR prim.rm_ic_number IN :rmCallCandidates
+            )
+        )
+    """, nativeQuery = true)
+    List<String> findProcessCallNumbersByRmIc(
+            @Param("rmIcId") Long rmIcId,
+            @Param("rmCallCandidates") List<String> rmCallCandidates
+    );
+
+    /**
      * Find distinct RM IC numbers by Process IC certificate number
      * Joins with inspection_calls and inspection_complete_details
      */

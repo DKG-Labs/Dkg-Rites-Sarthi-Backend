@@ -2478,22 +2478,18 @@ public class reportsImpl implements reports {
                         process.setQuenchingProductionQty(p.getQuenchingManufactured() != null ? p.getQuenchingManufactured() : 0);
                         process.setQuenchingRejectionQty(p.getQuenchingRejected() != null ? p.getQuenchingRejected() : 0);
                         process.setTemperingProductionQty(p.getTemperingManufactured() != null ? p.getTemperingManufactured() : 0);
+                        process.setTemperingRejectionQty(p.getTemperingRejected() != null ? p.getTemperingRejected() : 0);
+                        dto.setProcessQty(process);
 
                         LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : LocalDateTime.now();
                         LocalDateTime startDate = createdAt.minusMinutes(2);
                         LocalDateTime endDate = createdAt.plusMinutes(2);
-
-                        Integer totalTemperingRejected = processLineFinalResultRepository.getTotalTemperingRejected(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
-                        process.setTemperingRejectionQty(totalTemperingRejected != null
-                                        ? totalTemperingRejected
-                                        : (p.getTemperingRejected() != null ? p.getTemperingRejected() : 0));
-                        dto.setProcessQty(process);
+                        String lineNo = p.getLineNo();
 
                         // ================= SHEARING DEFECTS =================
 
                         List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Object[] sums = (list != null && !list.isEmpty()) ? list.get(0) : null;
 
                         ShearingDefectsDto shearing = new ShearingDefectsDto();
@@ -2513,7 +2509,7 @@ public class reportsImpl implements reports {
                         // ================= TURNING DEFECTS =================
 
                         List<Object[]> tList = processTurningDataRepository.getTurningSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Object[] tSums = (tList != null && !tList.isEmpty()) ? tList.get(0) : null;
 
                         TurningDefectsDto turning = new TurningDefectsDto();
@@ -2531,21 +2527,21 @@ public class reportsImpl implements reports {
                         // ================= QUENCHING DEFECTS =================
 
                         Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
 
                         QuenchingDefectsDto quenching = new QuenchingDefectsDto();
                         quenching.setQuenchingHardness(quenchingHardness != null ? quenchingHardness : 0);
 
                         Integer qBoxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         quenching.setBoxGaugeRejected(qBoxGauge != null ? qBoxGauge : 0);
 
                         Integer qFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         quenching.setFlatBearingAreaRejected(qFlat != null ? qFlat : 0);
 
                         Integer qFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         quenching.setFallingGaugeRejected(qFall != null ? qFall : 0);
 
                         dto.setQuenchingDefects(quenching);
@@ -2553,7 +2549,7 @@ public class reportsImpl implements reports {
                         // ================= TEMPERING DEFECTS =================
 
                         List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Object[] temperingSums = (temperingList != null && !temperingList.isEmpty()) ? temperingList.get(0) : null;
 
                         TemperingDefectsDto tempering = new TemperingDefectsDto();
@@ -2569,7 +2565,7 @@ public class reportsImpl implements reports {
                         // ================= FORGING DEFECTS =================
 
                         List<Object[]> fList = processForgingDataRepository.getForgingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Object[] fSums = (fList != null && !fList.isEmpty()) ? fList.get(0) : null;
 
                         ForgingDefectsDto forging = new ForgingDefectsDto();
@@ -2589,7 +2585,7 @@ public class reportsImpl implements reports {
                         // ================= VISUAL DEFECTS =================
 
                         List<Object[]> vList = processFinalCheckDataRepository.getVisualDefectsSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Object[] visualSums = (vList != null && !vList.isEmpty()) ? vList.get(0) : null;
 
                         VisualDefectsDto visual = new VisualDefectsDto();
@@ -2603,9 +2599,9 @@ public class reportsImpl implements reports {
                         }
 
                         Integer forgingEmbossing = processForgingDataRepository.getForgingEmbossingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Integer finalEmbossing = processFinalCheckDataRepository.getFinalEmbossingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         visual.setEmbossingDefect((forgingEmbossing != null ? forgingEmbossing : 0)
                                         + (finalEmbossing != null ? finalEmbossing : 0));
                         dto.setVisualDefects(visual);
@@ -2613,9 +2609,9 @@ public class reportsImpl implements reports {
                         // ================= TESTING DEFECTS =================
 
                         Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         List<Object[]> tfList = processTestingFinishingDataRepository.getTestingFinishingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Object[] tfSums = (tfList != null && !tfList.isEmpty()) ? tfList.get(0) : null;
 
                         TestingDefectsDto testing = new TestingDefectsDto();
@@ -2644,17 +2640,17 @@ public class reportsImpl implements reports {
                         // ================= DIMENSIONAL DEFECTS =================
 
                         Integer boxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Integer finalBox = processFinalCheckDataRepository.getFinalBoxGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Integer quenchFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Integer quenchFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Integer finalFlat = processFinalCheckDataRepository.getFinalFlatBearingSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
                         Integer finalFall = processFinalCheckDataRepository.getFinalFallingGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), startDate, endDate);
+                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
 
                         DimensionalDefectsDto dimensional = new DimensionalDefectsDto();
                         dimensional.setBoxGauge((boxGauge != null ? boxGauge : 0) + (finalBox != null ? finalBox : 0));

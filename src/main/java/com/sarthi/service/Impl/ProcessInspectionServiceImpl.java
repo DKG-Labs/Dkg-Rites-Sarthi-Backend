@@ -165,7 +165,7 @@ public class ProcessInspectionServiceImpl implements ProcessInspectionService {
                     List<ProcessLineFinalResult> toDelete = finalResults.stream().filter(r ->
                         (lineNo == null || lineNo.equalsIgnoreCase(r.getLineNo())) &&
                         (shift == null || shift.equalsIgnoreCase(r.getShift())) &&
-                        (lotNo == null || lotNo.equalsIgnoreCase(r.getLotNumber())) &&
+                        (lotNo == null || r.getLotNumber() == null || lotNo.trim().equalsIgnoreCase(r.getLotNumber().trim())) &&
                         (userId == null || userId.equals(r.getCreatedBy()))
                     ).collect(Collectors.toList());
                     if (!toDelete.isEmpty()) {
