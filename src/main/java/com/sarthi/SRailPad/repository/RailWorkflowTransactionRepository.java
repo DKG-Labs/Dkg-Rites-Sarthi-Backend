@@ -200,6 +200,9 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     RailWorkflowTransaction findFirstByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
 
+    @Query(value = "SELECT rio FROM rail_workflow_transaction WHERE request_id = :requestId AND rio IS NOT NULL ORDER BY workflow_transition_id ASC LIMIT 1", nativeQuery = true)
+    String findRioByRequestId(@Param("requestId") String requestId);
+
     @Query(value = "SELECT status FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
     Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
 
