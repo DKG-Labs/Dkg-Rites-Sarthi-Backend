@@ -66,11 +66,17 @@ public class crisController {
 
         } catch (Exception e) {
 
+            // Include root cause so the real error is visible (not just the wrapper)
+            String rootCause = e.getCause() != null ? e.getCause().getMessage() : null;
+            String fullMessage = rootCause != null
+                    ? e.getMessage() + " → " + rootCause
+                    : e.getMessage();
+
             ErrorDetails error = new ErrorDetails(
                     1001,                      // errorCode
                     400,                       // errorTypeCode (HTTP)
                     "BAD_REQUEST",             // errorType
-                    e.getMessage()             // message
+                    fullMessage                // message with root cause
             );
 
             return new ResponseEntity<>(

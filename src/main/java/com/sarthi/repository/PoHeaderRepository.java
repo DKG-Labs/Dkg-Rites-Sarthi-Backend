@@ -307,6 +307,8 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
 
     Optional<PoHeader> findByPoKey(String poKey);
 
+    Optional<PoHeader> findFirstByPoKey(String poKey);
+
 	@Query(value = """
     SELECT rly_short_name
     FROM po_header

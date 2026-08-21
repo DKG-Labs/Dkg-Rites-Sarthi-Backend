@@ -1,5 +1,6 @@
 package com.sarthi.dto.crisDtos;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
@@ -12,10 +13,15 @@ public class AmendedPoItemDTO {
         @JsonProperty("POKEY")
         private String poKey;
 
+        @JsonProperty("PO_NO")
+        @JsonAlias({"PO_NO", "PONO", "PO_NUMBER", "PO_NUM"})
+        private String poNo;
+
         @JsonProperty("PL_NO")
         private String plNo;
 
         @JsonProperty("ITEM_SRNO")
+        @JsonAlias({"PO_SR", "ITEM_SR_NO", "PO_SERIAL_NO", "SLNO"})
         private String itemSrNo;
 
         @JsonProperty("ITEM_DESC")

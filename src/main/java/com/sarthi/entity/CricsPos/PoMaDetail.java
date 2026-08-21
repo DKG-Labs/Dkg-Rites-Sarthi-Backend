@@ -1,13 +1,19 @@
 package com.sarthi.entity.CricsPos;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "po_ma_detail")
-@Data
+@Getter
+@Setter
+@ToString(exclude = "maPoHeader")
+@EqualsAndHashCode(exclude = "maPoHeader")
 public class PoMaDetail {
 
         @Id

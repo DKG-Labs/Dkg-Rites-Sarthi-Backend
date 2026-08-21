@@ -1,7 +1,10 @@
 package com.sarthi.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,7 +13,10 @@ import java.util.List;
 
 @Entity
 @Table(name = "po_item")
-@Data
+@Getter
+@Setter
+@ToString(exclude = "poHeader")
+@EqualsAndHashCode(exclude = "poHeader")
 public class PoItem {
  @Id
  @GeneratedValue(strategy = GenerationType.IDENTITY)
