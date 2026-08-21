@@ -451,7 +451,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         // Verify that the transaction is not already in a terminal state
         if (("COMPLETED".equalsIgnoreCase(current.getStatus()) || "COMPLETED".equalsIgnoreCase(current.getJobStatus())) 
-            && !req.getAction().equalsIgnoreCase("IC_ISSUE") && !req.getAction().equalsIgnoreCase("IC_GENERATION")) {
+            && !req.getAction().equalsIgnoreCase("IC_ISSUE") 
+            && !req.getAction().equalsIgnoreCase("IC_GENERATION")
+            && !req.getAction().equalsIgnoreCase("DSC_SIGN_IC")
+            && !req.getAction().equalsIgnoreCase("GENERATE_IC")) {
             throw new BusinessException(
                     new ErrorDetails(
                             AppConstant.ERROR_CODE_RESOURCE,
