@@ -38,8 +38,17 @@ public class RailPoSummaryServiceImpl implements RailPoSummaryService {
     public RailPoSummaryDto getSummaryByPoAndSr(String poNo, String poSrNo) {
         if (poNo == null || poNo.isBlank()) return null;
 
-        // Extract bare PO number if it contains a slash (e.g. "60260074102063/001")
-        String barePoNo = poNo.contains("/") ? poNo.split("/")[0] : poNo;
+        // Extract bare PO number and serial if it contains a slash (e.g. "60265359103833/001")
+        String barePoNo = poNo.trim();
+        String effectiveSrNo = (poSrNo != null && !poSrNo.isBlank() && !"null".equalsIgnoreCase(poSrNo)) ? poSrNo.trim() : null;
+
+        if (barePoNo.contains("/")) {
+            String[] parts = barePoNo.split("/");
+            barePoNo = parts[0].trim();
+            if (effectiveSrNo == null) {
+                effectiveSrNo = parts[parts.length - 1].trim();
+            }
+        }
 
         Optional<PoHeader> headerOpt = poHeaderRepository.findByPoNoWithItems(barePoNo);
         if (headerOpt.isEmpty()) {
@@ -50,7 +59,7 @@ public class RailPoSummaryServiceImpl implements RailPoSummaryService {
         PoHeader header = headerOpt.get();
         List<PoMaHeader> maHeaders = poMaHeaderRepository.findByPoNo(barePoNo);
 
-        return buildDto(header, maHeaders, poSrNo);
+        return buildDto(header, maHeaders, effectiveSrNo);
     }
 
     // -------------------------------------------------------------------------
