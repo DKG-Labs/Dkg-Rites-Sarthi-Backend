@@ -85,8 +85,16 @@ public class RailInspectionCallController {
         // Always overlay Railpad-specific fields from rail_inspection_call
         summary.setErcType(call.getRailPadType());
         summary.setTotalOfferedQty(call.getTotalQty());
-        if (call.getPoSr() != null && summary.getPoSerialNo() == null) {
-            summary.setPoSerialNo(call.getPoSr());
+        String effectiveCallSr = (call.getPoSr() != null && !call.getPoSr().isBlank() && !"null".equalsIgnoreCase(call.getPoSr())) ? call.getPoSr().trim() : null;
+        if (effectiveCallSr == null && call.getPoNo() != null && call.getPoNo().contains("/")) {
+            String[] parts = call.getPoNo().split("/");
+            effectiveCallSr = parts[parts.length - 1].trim();
+        }
+        if (effectiveCallSr != null && !effectiveCallSr.isBlank()) {
+            summary.setPoSerialNo(effectiveCallSr);
+            if (summary.getRlyPoNo() != null) {
+                summary.setRlyPoNoSerial(summary.getRlyPoNo() + "/" + effectiveCallSr);
+            }
         }
 
         // If it's a PROCESS call, overlay the drawing number from details

@@ -247,16 +247,18 @@ public class CallLetterServiceImpl implements CallLetterService {
             logger.error("Error fetching IE details for requestId: {}", requestId, e);
         }
 
-        // Raw PO number stored on the IC (e.g. "26255265205057")
+        // Raw PO number stored on the IC (e.g. "26255265205057" or "60265359103833/001")
         String rawPoNo = ic.getPoNo();
-
-        // poSerialNo may be stored as a composite like "26255265205057 / 012" — extract
-        // the last part only
         String rawPoSerialNo = ic.getPoSerialNo();
         String poSerialNo = null;
-        if (rawPoSerialNo != null) {
+
+        if (rawPoSerialNo != null && !rawPoSerialNo.isBlank()) {
             String[] parts = rawPoSerialNo.split("/");
             poSerialNo = parts[parts.length - 1].trim(); // take last segment, e.g. "012"
+        } else if (rawPoNo != null && rawPoNo.contains("/")) {
+            String[] parts = rawPoNo.split("/");
+            poSerialNo = parts[parts.length - 1].trim();
+            rawPoNo = parts[0].trim();
         }
         logger.info("Resolved poNo: {}, poSerialNo: {} (raw: {})", rawPoNo, poSerialNo, rawPoSerialNo);
 
