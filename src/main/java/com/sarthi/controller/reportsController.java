@@ -71,19 +71,25 @@ public class reportsController {
                                         zonalRailway == null ? "" : zonalRailway,
                                         sDate, eDate);
 
-                        long totalIcIssued = 0;
+                        long processIcIssued = 0;
+                        long finalIcIssued = 0;
                         if (raw != null) {
                                 for (Object[] row : raw) {
+                                        String stage = row[0] != null ? row[0].toString() : "";
                                         long icIssued = row[4] != null ? ((Number) row[4]).longValue() : 0L;
-                                        totalIcIssued += icIssued;
+                                        if ("Process".equalsIgnoreCase(stage)) {
+                                                processIcIssued += icIssued;
+                                        } else {
+                                                finalIcIssued += icIssued;
+                                        }
                                 }
                         }
 
                         IcIssuedCountDto dto = new IcIssuedCountDto();
                         dto.setRmCount(0);
-                        dto.setProcessCount(0);
-                        dto.setFinalCount(totalIcIssued);
-                        dto.setTotal(totalIcIssued);
+                        dto.setProcessCount(processIcIssued);
+                        dto.setFinalCount(finalIcIssued);
+                        dto.setTotal(processIcIssued + finalIcIssued);
                         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
                 }
 

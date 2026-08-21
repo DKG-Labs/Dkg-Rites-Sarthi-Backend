@@ -609,6 +609,8 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             transition = new RailTransitionMaster();
             transition.setNextRoleId(null); // Keep it in a terminal state
             tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setStatus(AppConstant.COMPLETED_TYPE);
+            tx.setJobStatus(AppConstant.COMPLETED_TYPE);
             
         } else if(current.getWorkflowId().equals(2L)) {
 
@@ -665,7 +667,6 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             if(current.getWorkflowId() == 2) {
                 tx.setJobStatus(determineJobStatus(req.getAction()));
             }
-        }
 
             if(transition == null) {
                 throw new BusinessException(
@@ -733,11 +734,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 tx.setRio(rio);
             }
 
-        }
-
-
-
-        else {
+        } else {
             Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
             String ieRole = (modId != null && modId == 3) ? "Rail Process IE" : "Rail Main IE";
 

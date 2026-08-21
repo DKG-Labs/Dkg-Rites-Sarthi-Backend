@@ -359,8 +359,8 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     stage,
                     SUM(CASE WHEN action IN ('CREATED', 'CREATE', 'VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL') THEN 1 ELSE 0 END) AS pending_calls,
                     SUM(CASE WHEN action IN ('PO_VERIFICATION', 'PAUSE', 'RESUME') THEN 1 ELSE 0 END) AS under_inspection_calls,
-                    SUM(CASE WHEN action IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION') THEN 1 ELSE 0 END) AS completed_calls,
-                    SUM(CASE WHEN action = 'IC_GENERATION' THEN 1 ELSE 0 END) AS ic_issued_calls
+                    SUM(CASE WHEN action IN ('FINISH', 'COMPLETED', 'IC_GENERATION', 'GENERATE_IC', 'DSC_SIGN_IC') THEN 1 ELSE 0 END) AS completed_calls,
+                    SUM(CASE WHEN action IN ('GENERATE_IC', 'DSC_SIGN_IC', 'IC_GENERATION') THEN 1 ELSE 0 END) AS ic_issued_calls
                 FROM (
                     SELECT
                         rwt.request_id,
@@ -378,7 +378,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     INNER JOIN (
                         SELECT request_id, MAX(workflow_transition_id) AS max_id
                         FROM rail_workflow_transaction
-                        WHERE workflow_id = 2
+                        WHERE workflow_id IN (1, 2)
                         GROUP BY request_id
                     ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
                     LEFT JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
@@ -545,8 +545,8 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             INNER JOIN (
                 SELECT request_id, MAX(workflow_transition_id) AS max_id
                 FROM rail_workflow_transaction
-                WHERE workflow_id = 2
-                  AND action = 'IC_GENERATION'
+                WHERE workflow_id IN (1, 2)
+                  AND action IN ('GENERATE_IC', 'DSC_SIGN_IC', 'IC_GENERATION')
                 GROUP BY request_id
             ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
             INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
