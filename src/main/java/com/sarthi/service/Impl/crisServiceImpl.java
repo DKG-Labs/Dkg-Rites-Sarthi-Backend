@@ -693,13 +693,6 @@ public class crisServiceImpl implements crisService {
             // ======================================
             // SAVE AMENDED HEADER & ITEMS IF PRESENT
             // ======================================
-            AmendedPoHeader amendedHeader = null;
-            if (request.getData().getPoDtl() != null && !request.getData().getPoDtl().isEmpty()) {
-                amendedHeader = saveAmendedPoHeader(
-                        request.getData().getPoDtl(),
-                        poHeader,
-                        poKey
-                );
 
             if (request.getData() != null && request.getData().getPoDtl() != null && !request.getData().getPoDtl().isEmpty()) {
                 AmendedPoHeader amendedHeader = saveAmendedPoHeader(request.getData().getPoDtl());
@@ -714,8 +707,9 @@ public class crisServiceImpl implements crisService {
             // UPDATE LIVE PO HEADER & DELIVERY DATES
             // ======================================
 
-            PoHeader poHeader = findPoHeaderByPoKeyOrPoNo(
-                    savedMaHeader.getPoKey(), savedMaHeader.getPoNo());
+            if (poHeader == null) {
+                poHeader = findPoHeaderByPoKeyOrPoNo(savedMaHeader.getPoKey(), savedMaHeader.getPoNo());
+            }
 
             if (poHeader != null) {
                 updateAmendmentStatus(poHeader, savedMaHeader);
@@ -1034,23 +1028,19 @@ public class crisServiceImpl implements crisService {
         }
     }
 
-    private AmendedPoHeader saveAmendedPoHeader(
-            List<AmendedPoItemDTO> items,
-            PoHeader poHeader,
-            String poKey) {
+    private AmendedPoHeader saveAmendedPoHeader(List<AmendedPoItemDTO> items) {
 
         if (items == null || items.isEmpty()) {
             return null;
         }
 
-        String poKey = items.get(0).getPoKey();
-        String poNo = items.get(0).getPoNo();
+        String itemPoKey = items.get(0).getPoKey();
+        String itemPoNo = items.get(0).getPoNo();
 
         // FIND ORIGINAL PO HEADER
-        PoHeader poHeader = findPoHeaderByPoKeyOrPoNo(poKey, poNo);
+        PoHeader poHeader = findPoHeaderByPoKeyOrPoNo(itemPoKey, itemPoNo);
 
         AmendedPoHeader entity = new AmendedPoHeader();
-        entity.setPoKey(effectivePoKey);
 
         // ===================================
         // COPY FROM ORIGINAL PO HEADER IF PRESENT
@@ -1068,8 +1058,8 @@ public class crisServiceImpl implements crisService {
             entity.setPoDate(poHeader.getPoDate());
             entity.setRegionCode(poHeader.getRegionCode());
         } else {
-            entity.setPoKey(poKey);
-            entity.setPoNo(poNo);
+            entity.setPoKey(itemPoKey);
+            entity.setPoNo(itemPoNo);
         }
 
         return amendmentPoHeaderRepository.save(
@@ -1371,10 +1361,6 @@ public class crisServiceImpl implements crisService {
                 amendedHeader.getPoKey(), amendedHeader.getPoNo());
 
         if (poHeader == null) return;
-
-        if (poHeader == null) {
-            return;
-        }
 
         if (amendedHeader.getPoNo() != null) poHeader.setPoNo(amendedHeader.getPoNo());
         if (amendedHeader.getRlyCd() != null) poHeader.setRlyCd(amendedHeader.getRlyCd());

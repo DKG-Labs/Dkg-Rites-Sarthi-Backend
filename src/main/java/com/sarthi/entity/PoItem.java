@@ -15,20 +15,20 @@ import java.util.List;
 @Table(name = "po_item")
 @Getter
 @Setter
-@ToString(exclude = "poHeader")
-@EqualsAndHashCode(exclude = "poHeader")
+@ToString
+@EqualsAndHashCode
 public class PoItem {
- @Id
- @GeneratedValue(strategy = GenerationType.IDENTITY)
- private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
- // ---- RELATION ----
- @ManyToOne(fetch = FetchType.LAZY)
- @JoinColumn(name = "po_header_id", nullable = false)
- @com.fasterxml.jackson.annotation.JsonIgnore
- @lombok.ToString.Exclude
- @lombok.EqualsAndHashCode.Exclude
- private PoHeader poHeader;
+    // ---- RELATION ----
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "po_header_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private PoHeader poHeader;
 
  // ---- BASIC ----
  private String rly;
