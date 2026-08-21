@@ -468,7 +468,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         // Verify that the transaction is not already in a terminal state
         if (("COMPLETED".equalsIgnoreCase(current.getStatus()) || "COMPLETED".equalsIgnoreCase(current.getJobStatus())) 
-            && !req.getAction().equalsIgnoreCase("IC_ISSUE") && !req.getAction().equalsIgnoreCase("IC_GENERATION")) {
+            && !req.getAction().equalsIgnoreCase("IC_ISSUE") 
+            && !req.getAction().equalsIgnoreCase("IC_GENERATION")
+            && !req.getAction().equalsIgnoreCase("DSC_SIGN_IC")
+            && !req.getAction().equalsIgnoreCase("GENERATE_IC")) {
             throw new BusinessException(
                     new ErrorDetails(
                             AppConstant.ERROR_CODE_RESOURCE,
@@ -613,7 +616,20 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
 
-        if(current.getWorkflowId().equals(2L)) {
+        RailTransitionMaster transition = null;
+
+        if (req.getAction().equalsIgnoreCase("IC_ISSUE") 
+                || req.getAction().equalsIgnoreCase("IC_GENERATION")
+                || req.getAction().equalsIgnoreCase("GENERATE_IC")
+                || req.getAction().equalsIgnoreCase("DSC_SIGN_IC")) {
+            
+            transition = new RailTransitionMaster();
+            transition.setNextRoleId(null); // Keep it in a terminal state
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setStatus(AppConstant.COMPLETED_TYPE);
+            tx.setJobStatus(AppConstant.COMPLETED_TYPE);
+            
+        } else if(current.getWorkflowId().equals(2L)) {
 
             List<RailTransitionMaster> transitions =
                     railTransitionMasterRepository
@@ -623,18 +639,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                                     req.getAction()
                             );
 
-            RailTransitionMaster transition = null;
-
             if(transitions.size() == 1){
 
                 transition = transitions.get(0);
 
-            } else if (req.getAction().equalsIgnoreCase("IC_ISSUE") || req.getAction().equalsIgnoreCase("IC_GENERATION")) {
-                
-                transition = new RailTransitionMaster();
-                transition.setNextRoleId(null); // Keep it in a terminal state
-                tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
-                
             } else {
 
                 List<RailTransitionMaster> trans = null;
@@ -649,11 +657,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
                     trans =
                             railTransitionMasterRepository
-                                    .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
-                                            current.getWorkflowId().intValue(),
-                                            getRoleId(current.getCurrentRole()),
-                                            current.getAction()
-                                    );
+                                     .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                             current.getWorkflowId().intValue(),
+                                             getRoleId(current.getCurrentRole()),
+                                             current.getAction()
+                                     );
 
                     transition = trans.stream()
                             .filter(t ->
@@ -743,11 +751,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 tx.setRio(rio);
             }
 
-        }
-
-
-
-        else {
+        } else {
             Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
             String ieRole = (modId != null && modId == 3) ? "Rail Process IE" : "Rail Main IE";
 
