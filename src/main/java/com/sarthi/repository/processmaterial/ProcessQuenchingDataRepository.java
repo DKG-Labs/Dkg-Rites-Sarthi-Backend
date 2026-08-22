@@ -49,12 +49,14 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
         WHERE p.inspectionCallNo = :callNo
         AND p.lotNo = :lotNo
         AND p.shift = :shift
+        AND (:lineNo IS NULL OR p.lineNo = :lineNo)
         AND p.createdAt BETWEEN :startDate AND :endDate
         """)
  Integer getQuenchingBoxGaugeSum(
          @Param("callNo") String callNo,
          @Param("lotNo") String lotNo,
          @Param("shift") String shift,
+         @Param("lineNo") String lineNo,
          @Param("startDate") LocalDateTime startDate,
          @Param("endDate") LocalDateTime endDate
  );
@@ -82,12 +84,14 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
         WHERE p.inspectionCallNo = :callNo
         AND p.lotNo = :lotNo
         AND p.shift = :shift
+        AND (:lineNo IS NULL OR p.lineNo = :lineNo)
         AND p.createdAt BETWEEN :startDate AND :endDate
         """)
     Integer getQuenchingFlatBearingSum(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
@@ -98,12 +102,14 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
         WHERE p.inspectionCallNo = :callNo
         AND p.lotNo = :lotNo
         AND p.shift = :shift
+        AND (:lineNo IS NULL OR p.lineNo = :lineNo)
         AND p.createdAt BETWEEN :startDate AND :endDate
         """)
     Integer getQuenchingFallingGaugeSum(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
@@ -114,13 +120,15 @@ public interface ProcessQuenchingDataRepository extends JpaRepository<ProcessQue
             WHERE inspection_call_no = :callId
             AND lot_no = :lotNumber
             AND shift = :shift
+            AND (:lineNo IS NULL OR line_no = :lineNo)
             AND created_at BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     Integer getQuenchingHardnessSum(
-            String callId,
-            String lotNumber,
-            String shift,
-            LocalDateTime startDate,
-            LocalDateTime endDate);
+            @Param("callId") String callId,
+            @Param("lotNumber") String lotNumber,
+            @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 
 }

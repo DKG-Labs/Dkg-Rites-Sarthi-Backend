@@ -662,9 +662,43 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String rejectionReasonTemplate = qtyNowRejected > 0 ? "REJECTED DURING INSPECTION AS DETAILED IN ANNEXURE-I"
                 : "Not Applicable";
 
+        // Determine Region from rail_workflow_transaction RIO
+        String rio = railWorkflowTransactionRepository.findRioByCallNo(callNo);
+        String regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
+        String rioFirstLetter = "X";
+        if (rio != null && !rio.trim().isEmpty()) {
+            rioFirstLetter = rio.trim().substring(0, 1).toUpperCase();
+            switch (rio.trim().toUpperCase()) {
+                case "NRIO":
+                    regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
+                    break;
+                case "WRIO":
+                    regionName = "RITES LIMITED, WESTERN REGION, MUMBAI";
+                    break;
+                case "SRIO":
+                    regionName = "RITES LIMITED, SOUTHERN REGION, CHENNAI";
+                    break;
+                case "ERIO":
+                    regionName = "RITES LIMITED, EASTERN REGION, KOLKATA";
+                    break;
+                case "CRIO":
+                    regionName = "RITES LIMITED, CENTRAL REGION, BHILAI";
+                    break;
+            }
+        }
+
         String certificateNo = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo)
                 .map(RailInspectionCompleteDetails::getCertificateNo)
                 .orElse("");
+        if (certificateNo != null && !certificateNo.isEmpty()) {
+            String[] parts = certificateNo.split("/");
+            if (parts.length >= 3) {
+                certificateNo = rioFirstLetter + "/" + parts[1] + "/" + parts[2].toUpperCase();
+            } else if (certificateNo.contains("/")) {
+                int lastSlash = certificateNo.lastIndexOf('/');
+                certificateNo = rioFirstLetter + "/" + certificateNo.substring(certificateNo.indexOf('/') + 1, lastSlash + 1) + certificateNo.substring(lastSlash + 1).toUpperCase();
+            }
+        }
 
         String itemSr = poItem != null && poItem.getItemSrNo() != null && !poItem.getItemSrNo().trim().isEmpty()
                 ? poItem.getItemSrNo().trim()
@@ -685,6 +719,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setSetNo("");
         dto.setCertificateDate(LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         dto.setCertificateNo(certificateNo);
+        dto.setRegion(regionName);
         dto.setOfferedInsttNo("");
         dto.setPassedInsttNo("");
         dto.setContractorName(vendorFull);

@@ -235,6 +235,9 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                         rmCallCandidates.add(ic.getIcNumber());
                 }
 
+                Long rmIcId = ic != null ? ic.getId() : null;
+                List<String> safeCandidates = !rmCallCandidates.isEmpty() ? rmCallCandidates : java.util.List.of("__NONE__");
+
                 // 2. Fetch RM accepted weights strictly from the specific RM IC
                 BigDecimal rmAcceptedQty = BigDecimal.ZERO;
                 BigDecimal weightAcceptedMt = BigDecimal.ZERO;
@@ -250,7 +253,7 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                                 weightAcceptedMt = exactResult.getWeightAcceptedMt() != null ? exactResult.getWeightAcceptedMt() : BigDecimal.ZERO;
                                 rmAcceptedQty = exactResult.getAcceptedQtyMt() != null ? exactResult.getAcceptedQtyMt() : BigDecimal.ZERO;
                                 if (rmAcceptedQty.compareTo(BigDecimal.ZERO) == 0 && weightAcceptedMt.compareTo(BigDecimal.ZERO) > 0) {
-                                        rmAcceptedQty = weightAcceptedMt.multiply(new BigDecimal("1000")).divide(new BigDecimal("1.133"), 0, java.math.RoundingMode.HALF_UP);
+                                        rmAcceptedQty = weightAcceptedMt.multiply(new BigDecimal("1000")).divide(new BigDecimal("1.14"), 0, java.math.RoundingMode.HALF_UP);
                                 }
                                 sealingType = exactResult.getSealingType();
                                 steelStampNumber = exactResult.getSteelStampNumber();
@@ -258,33 +261,45 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                         }
                 }
 
-                // 3. Process inspection calls for "manufactured" and "offered earlier" under this PO scoped by vendor
-                List<String> processCallNos = new java.util.ArrayList<>();
-                if (poSerialNo != null && !poSerialNo.isBlank()) {
-                        List<String> poCalls = (vendorCode != null && !vendorCode.isBlank())
-                                        ? inspectionCallRepository.findCallNumbersByVendorAndPo(vendorCode.trim(), poSerialNo.trim())
-                                        : inspectionCallRepository.findCallNumbersByPoNo(poSerialNo.trim());
-                        if (poCalls != null) {
-                                processCallNos.addAll(poCalls);
+                // 3. Process inspection calls for "manufactured" and "offered earlier"
+                // When an RM IC is specified, scope strictly to calls / details under this RM IC!
+                TotalManufaturedQtyOfPoDto dto = new TotalManufaturedQtyOfPoDto();
+                Integer offeredEarlier = 0;
+
+                if (rmIcId != null || !rmCallCandidates.isEmpty()) {
+                        List<String> rmProcessCalls = processInspectionDetailsRepository.findProcessCallNumbersByRmIc(rmIcId, safeCandidates);
+                        if (rmProcessCalls != null && !rmProcessCalls.isEmpty()) {
+                                dto = processIeQtyRepository.sumProcessQty(rmProcessCalls, heatNo);
+                                if (dto == null) {
+                                        dto = new TotalManufaturedQtyOfPoDto();
+                                }
+                        }
+                        offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByRmIcAndHeatNo(rmIcId, safeCandidates, heatNo);
+                } else {
+                        // Fallback: If no RM IC was specified, scope by PO
+                        List<String> processCallNos = new java.util.ArrayList<>();
+                        if (poSerialNo != null && !poSerialNo.isBlank()) {
+                                List<String> poCalls = (vendorCode != null && !vendorCode.isBlank())
+                                                ? inspectionCallRepository.findCallNumbersByVendorAndPo(vendorCode.trim(), poSerialNo.trim())
+                                                : inspectionCallRepository.findCallNumbersByPoNo(poSerialNo.trim());
+                                if (poCalls != null) {
+                                        processCallNos.addAll(poCalls);
+                                }
+                        }
+
+                        if (!processCallNos.isEmpty()) {
+                                dto = processIeQtyRepository.sumProcessQty(processCallNos, heatNo);
+                                if (dto == null) {
+                                        dto = new TotalManufaturedQtyOfPoDto();
+                                }
+                                offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByCallNosAndHeatNo(processCallNos, heatNo);
+                        }
+
+                        if (weightAcceptedMt.compareTo(BigDecimal.ZERO) == 0 && !processCallNos.isEmpty()) {
+                                rmAcceptedQty = rmHeatFinalResultRepository.sumRmAcceptedQty(processCallNos, heatNo);
+                                weightAcceptedMt = rmHeatFinalResultRepository.sumWeightAcceptedMt(processCallNos, heatNo);
                         }
                 }
-
-                TotalManufaturedQtyOfPoDto dto = !processCallNos.isEmpty() 
-                                ? processIeQtyRepository.sumProcessQty(processCallNos, heatNo) 
-                                : new TotalManufaturedQtyOfPoDto();
-                if (dto == null) {
-                        dto = new TotalManufaturedQtyOfPoDto();
-                }
-
-                // Fallback for RM accepted quantity only if no specific RM candidate was found and processCallNos is available
-                if (weightAcceptedMt.compareTo(BigDecimal.ZERO) == 0 && !processCallNos.isEmpty()) {
-                        rmAcceptedQty = rmHeatFinalResultRepository.sumRmAcceptedQty(processCallNos, heatNo);
-                        weightAcceptedMt = rmHeatFinalResultRepository.sumWeightAcceptedMt(processCallNos, heatNo);
-                }
-
-                Integer offeredEarlier = !processCallNos.isEmpty()
-                                ? processInspectionDetailsRepository.sumOfferedQtyByCallNosAndHeatNo(processCallNos, heatNo)
-                                : 0;
 
                 dto.setRmAcceptedQty(rmAcceptedQty);
                 dto.setHeatNo(heatNo);

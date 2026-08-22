@@ -11,4 +11,6 @@ public interface PoMaHeaderRepository extends JpaRepository<PoMaHeader, Long> {
     boolean existsByMaKey(String maKey);
 
     List<PoMaHeader> findByPoNo(String poNo);
+
+    List<PoMaHeader> findByPoKey(String poKey);
 }

@@ -1,7 +1,8 @@
 package com.sarthi.entity.CricsPos;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -9,7 +10,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "amendment_po_header")
-@Data
+@Getter
+@Setter
 public class AmendedPoHeader{
 
         @Id

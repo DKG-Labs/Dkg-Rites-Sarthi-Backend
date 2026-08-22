@@ -37,17 +37,17 @@ FROM ProcessFinalCheckData p
 WHERE p.inspectionCallNo = :callNo
 AND p.lotNo = :lotNo
 AND p.shift = :shift
+AND (:lineNo IS NULL OR p.lineNo = :lineNo)
 AND p.createdAt BETWEEN :startDate AND :endDate
 """)
     List<Object[]> getVisualDefectsSumByDate(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate")   LocalDateTime endDate
     );
-
-
 
     @Query("""
         SELECT COALESCE(SUM(p.embossingDefectRejected),0)
@@ -55,31 +55,17 @@ AND p.createdAt BETWEEN :startDate AND :endDate
         WHERE p.inspectionCallNo = :callNo
         AND p.lotNo = :lotNo
         AND p.shift = :shift
+        AND (:lineNo IS NULL OR p.lineNo = :lineNo)
         AND p.createdAt BETWEEN :startDate AND :endDate
         """)
     Integer getFinalEmbossingSumByDate(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
-
-
-//    @Query("""
-//            SELECT COALESCE(SUM(p.temperingHardnessRejected),0)
-//            FROM ProcessFinalCheckData p
-//            WHERE p.inspectionCallNo = :callNo
-//            AND p.lotNo = :lotNo
-//            AND p.shift = :shift
-//            AND DATE(p.createdAt) = :date
-//            """)
-//    Integer getTemperingHardnessSumByDate(
-//            @Param("callNo") String callNo,
-//            @Param("lotNo") String lotNo,
-//            @Param("shift") String shift,
-//            @Param("date") LocalDate date
-//    );
 
     @Query(value = """
 SELECT COALESCE(SUM(tempering_hardness_rejected),0)
@@ -87,30 +73,34 @@ FROM process_final_check_data
 WHERE inspection_call_no = :callId
 AND lot_no = :lotNumber
 AND shift = :shift
+AND (:lineNo IS NULL OR line_no = :lineNo)
 AND created_at BETWEEN :startDate AND :endDate
 """, nativeQuery = true)
     Integer getTemperingHardnessSumByDate(
-            String callId,
-            String lotNumber,
-            String shift,
-            LocalDateTime startDate,
-            LocalDateTime endDate);
+            @Param("callId") String callId,
+            @Param("lotNumber") String lotNumber,
+            @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
     @Query("""
         SELECT COALESCE(SUM(p.boxGaugeRejected),0)
         FROM ProcessFinalCheckData p
         WHERE p.inspectionCallNo = :callNo
         AND p.lotNo = :lotNo
         AND p.shift = :shift
+        AND (:lineNo IS NULL OR p.lineNo = :lineNo)
         AND p.createdAt BETWEEN :startDate AND :endDate
         """)
     Integer getFinalBoxGaugeSum(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
-
 
     @Query("""
             SELECT
@@ -135,12 +125,14 @@ AND created_at BETWEEN :startDate AND :endDate
         WHERE p.inspectionCallNo = :callNo
         AND p.lotNo = :lotNo
         AND p.shift = :shift
+        AND (:lineNo IS NULL OR p.lineNo = :lineNo)
         AND p.createdAt BETWEEN :startDate AND :endDate
         """)
     Integer getFinalFlatBearingSum(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
@@ -151,12 +143,14 @@ AND created_at BETWEEN :startDate AND :endDate
         WHERE p.inspectionCallNo = :callNo
         AND p.lotNo = :lotNo
         AND p.shift = :shift
+        AND (:lineNo IS NULL OR p.lineNo = :lineNo)
         AND p.createdAt BETWEEN :startDate AND :endDate
         """)
     Integer getFinalFallingGaugeSum(
             @Param("callNo") String callNo,
             @Param("lotNo") String lotNo,
             @Param("shift") String shift,
+            @Param("lineNo") String lineNo,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );

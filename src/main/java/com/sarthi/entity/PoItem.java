@@ -1,7 +1,10 @@
 package com.sarthi.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,19 +13,22 @@ import java.util.List;
 
 @Entity
 @Table(name = "po_item")
-@Data
+@Getter
+@Setter
+@ToString
+@EqualsAndHashCode
 public class PoItem {
- @Id
- @GeneratedValue(strategy = GenerationType.IDENTITY)
- private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
- // ---- RELATION ----
- @ManyToOne(fetch = FetchType.LAZY)
- @JoinColumn(name = "po_header_id", nullable = false)
- @com.fasterxml.jackson.annotation.JsonIgnore
- @lombok.ToString.Exclude
- @lombok.EqualsAndHashCode.Exclude
- private PoHeader poHeader;
+    // ---- RELATION ----
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "po_header_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private PoHeader poHeader;
 
  // ---- BASIC ----
  private String rly;

@@ -451,7 +451,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         // Verify that the transaction is not already in a terminal state
         if (("COMPLETED".equalsIgnoreCase(current.getStatus()) || "COMPLETED".equalsIgnoreCase(current.getJobStatus())) 
-            && !req.getAction().equalsIgnoreCase("IC_ISSUE") && !req.getAction().equalsIgnoreCase("IC_GENERATION")) {
+            && !req.getAction().equalsIgnoreCase("IC_ISSUE") 
+            && !req.getAction().equalsIgnoreCase("IC_GENERATION")
+            && !req.getAction().equalsIgnoreCase("DSC_SIGN_IC")
+            && !req.getAction().equalsIgnoreCase("GENERATE_IC")) {
             throw new BusinessException(
                     new ErrorDetails(
                             AppConstant.ERROR_CODE_RESOURCE,
@@ -596,7 +599,20 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
 
-        if(current.getWorkflowId().equals(2L)) {
+        RailTransitionMaster transition = null;
+
+        if (req.getAction().equalsIgnoreCase("IC_ISSUE") 
+                || req.getAction().equalsIgnoreCase("IC_GENERATION")
+                || req.getAction().equalsIgnoreCase("GENERATE_IC")
+                || req.getAction().equalsIgnoreCase("DSC_SIGN_IC")) {
+            
+            transition = new RailTransitionMaster();
+            transition.setNextRoleId(null); // Keep it in a terminal state
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setStatus(AppConstant.COMPLETED_TYPE);
+            tx.setJobStatus(AppConstant.COMPLETED_TYPE);
+            
+        } else if(current.getWorkflowId().equals(2L)) {
 
             List<RailTransitionMaster> transitions =
                     railTransitionMasterRepository
@@ -606,18 +622,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                                     req.getAction()
                             );
 
-            RailTransitionMaster transition = null;
-
             if(transitions.size() == 1){
 
                 transition = transitions.get(0);
 
-            } else if (req.getAction().equalsIgnoreCase("IC_ISSUE") || req.getAction().equalsIgnoreCase("IC_GENERATION")) {
-                
-                transition = new RailTransitionMaster();
-                transition.setNextRoleId(null); // Keep it in a terminal state
-                tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
-                
             } else {
 
                 List<RailTransitionMaster> trans = null;
@@ -632,11 +640,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
                     trans =
                             railTransitionMasterRepository
-                                    .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
-                                            current.getWorkflowId().intValue(),
-                                            getRoleId(current.getCurrentRole()),
-                                            current.getAction()
-                                    );
+                                     .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                             current.getWorkflowId().intValue(),
+                                             getRoleId(current.getCurrentRole()),
+                                             current.getAction()
+                                     );
 
                     transition = trans.stream()
                             .filter(t ->
@@ -726,11 +734,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 tx.setRio(rio);
             }
 
-        }
-
-
-
-        else {
+        } else {
             Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
             String ieRole = (modId != null && modId == 3) ? "Rail Process IE" : "Rail Main IE";
 
@@ -821,22 +825,15 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 
                 String userShortName = user != null && user.getShortName() != null ? user.getShortName() : "XX";
                 
-                String rlyShortName = "X";
-                if (ic.getPoNo() != null) {
-                    String basePoNo = ic.getPoNo();
-                    if (basePoNo.contains("/")) {
-                        basePoNo = basePoNo.substring(0, basePoNo.indexOf("/"));
-                    }
-                    com.sarthi.entity.PoHeader poHeader = poHeaderRepository.findByPoNo(basePoNo).orElse(null);
-                    if (poHeader != null && poHeader.getRlyShortName() != null) {
-                        rlyShortName = poHeader.getRlyShortName();
-                    }
+                String rio = railWorkflowTransactionRepository.findRioByCallNo(tx.getRequestId());
+                if (rio == null || rio.trim().isEmpty()) {
+                    rio = current.getRio();
                 }
                 
                 RailInspectionCompleteDetails details = new RailInspectionCompleteDetails();
                 details.setCallNo(ic.getCallNo());
                 details.setPoNo(ic.getPoNo());
-                details.setCertificateNo(generateCertificateNo(rlyShortName, ic.getCallNo(), userShortName));
+                details.setCertificateNo(generateCertificateNo(rio, ic.getCallNo(), userShortName));
                 details.setCreatedOn(LocalDateTime.now());
                 
                 railInspectionCompleteDetailsRepository.save(details);
@@ -847,16 +844,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         return mapToResponse(saved);
     }
 
-    private String generateCertificateNo(String rlyShortName, String callNo, String userShortName) {
-        String rlyPrefix = (rlyShortName != null && !rlyShortName.isEmpty())
-                ? rlyShortName.toUpperCase()
+    private String generateCertificateNo(String rioName, String callNo, String userShortName) {
+        String rioFirstLetter = (rioName != null && !rioName.trim().isEmpty())
+                ? rioName.trim().substring(0, 1).toUpperCase()
                 : "X";
-        // Convert user short name to Title Case or just use it as-is if it's already correctly cased
-        // We'll capitalize the first letter to ensure it matches "Suryaprakash" format
-        if (userShortName != null && userShortName.length() > 0) {
-            userShortName = userShortName.substring(0, 1).toUpperCase() + userShortName.substring(1).toLowerCase();
-        }
-        return rlyPrefix + "/" + callNo + "/" + userShortName;
+        String userSuffix = (userShortName != null && !userShortName.trim().isEmpty())
+                ? userShortName.trim().toUpperCase()
+                : "XX";
+        return rioFirstLetter + "/" + callNo + "/" + userSuffix;
     }
 
     private String determineJobStatus(String action) {
