@@ -68,6 +68,9 @@ public class IbsServiceImpl implements IbsService {
     private final ProcessLineFinalResultRepository processLineFinalResultRepository;
     private final FinalCumulativeResultsRepository finalCumulativeResultsRepository;
 
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailpadProcessIcEditRepository railpadProcessIcEditRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailpadFinalIcEditRepository railpadFinalIcEditRepository;
+
     private final IbsCallRegistrationRepository ibsCallRegistrationRepository;
 
     private final IbsBillDetailsRepository ibsBillDetailsRepository;
@@ -673,6 +676,18 @@ public class IbsServiceImpl implements IbsService {
                 )
         );
 
+        responseList.addAll(
+                mapResult(
+                        railpadProcessIcEditRepository.getRailpadProcessInspectionCalls()
+                )
+        );
+
+        responseList.addAll(
+                mapResult(
+                        railpadFinalIcEditRepository.getRailpadFinalInspectionCalls()
+                )
+        );
+
         return responseList;
     }
 
@@ -692,9 +707,13 @@ public class IbsServiceImpl implements IbsService {
                     (String) row[0]
             );
 
-            dto.setCallDate(
-                    ((java.sql.Date) row[1]).toLocalDate()
-            );
+            if (row[1] instanceof java.sql.Date) {
+                dto.setCallDate(((java.sql.Date) row[1]).toLocalDate());
+            } else if (row[1] instanceof java.time.LocalDate) {
+                dto.setCallDate((java.time.LocalDate) row[1]);
+            } else if (row[1] instanceof java.util.Date) {
+                dto.setCallDate(((java.util.Date) row[1]).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+            }
 
             dto.setPlaceOfInspection(
                     (String) row[2]
@@ -704,7 +723,7 @@ public class IbsServiceImpl implements IbsService {
             );
 
             dto.setIeEmployeeNumber(
-                    (String) row[4]
+                    row[4] != null ? row[4].toString() : null
             );
 
             dto.setCallStatus(
@@ -716,34 +735,38 @@ public class IbsServiceImpl implements IbsService {
             );
 
             dto.setPoItemSerialNumbers(
-                    List.of((String) row[7])
+                    List.of(row[7] != null ? row[7].toString() : "1")
             );
 
             dto.setBkNumber(
-                    (String) row[8]
+                    row[8] != null ? row[8].toString() : ""
             );
 
             dto.setSetNumber(
-                    (String) row[9]
+                    row[9] != null ? row[9].toString() : ""
             );
 
-            dto.setIcDate(
-                    ((java.sql.Date) row[10]).toLocalDate()
-            );
+            if (row[10] instanceof java.sql.Date) {
+                dto.setIcDate(((java.sql.Date) row[10]).toLocalDate());
+            } else if (row[10] instanceof java.time.LocalDate) {
+                dto.setIcDate((java.time.LocalDate) row[10]);
+            } else if (row[10] instanceof java.util.Date) {
+                dto.setIcDate(((java.util.Date) row[10]).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+            }
 
             dto.setQuantityOffered(
-                    ((Number) row[11]).intValue()
+                    row[11] != null ? ((Number) row[11]).intValue() : 0
             );
 
             dto.setQuantityPassed(
-                    ((Number) row[12]).intValue()
+                    row[12] != null ? ((Number) row[12]).intValue() : 0
             );
 
             dto.setQuantityRejected(
-                    ((Number) row[13]).intValue()
+                    row[13] != null ? ((Number) row[13]).intValue() : 0
             );
 
-            String callNumber = (String) row[14];
+            String callNumber = row[14] != null ? row[14].toString() : "";
 
             dto.setIcFileLink(
                     "https://api.ritesqasarthi.com"
@@ -753,12 +776,13 @@ public class IbsServiceImpl implements IbsService {
             );
 
             dto.setCallNumber(callNumber);
-            dto.setIcNumber((String) row[15]);
+            dto.setIcNumber(row[15] != null ? row[15].toString() : callNumber);
             list.add(dto);
         }
 
         return list;
     }
+
 
     private String extractIcNumber(String icNumber) {
 
