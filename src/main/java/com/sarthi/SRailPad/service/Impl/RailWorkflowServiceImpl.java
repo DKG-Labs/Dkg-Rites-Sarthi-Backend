@@ -842,22 +842,15 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 
                 String userShortName = user != null && user.getShortName() != null ? user.getShortName() : "XX";
                 
-                String rlyShortName = "X";
-                if (ic.getPoNo() != null) {
-                    String basePoNo = ic.getPoNo();
-                    if (basePoNo.contains("/")) {
-                        basePoNo = basePoNo.substring(0, basePoNo.indexOf("/"));
-                    }
-                    com.sarthi.entity.PoHeader poHeader = poHeaderRepository.findByPoNo(basePoNo).orElse(null);
-                    if (poHeader != null && poHeader.getRlyShortName() != null) {
-                        rlyShortName = poHeader.getRlyShortName();
-                    }
+                String rio = railWorkflowTransactionRepository.findRioByCallNo(tx.getRequestId());
+                if (rio == null || rio.trim().isEmpty()) {
+                    rio = current.getRio();
                 }
                 
                 RailInspectionCompleteDetails details = new RailInspectionCompleteDetails();
                 details.setCallNo(ic.getCallNo());
                 details.setPoNo(ic.getPoNo());
-                details.setCertificateNo(generateCertificateNo(rlyShortName, ic.getCallNo(), userShortName));
+                details.setCertificateNo(generateCertificateNo(rio, ic.getCallNo(), userShortName));
                 details.setCreatedOn(LocalDateTime.now());
                 
                 railInspectionCompleteDetailsRepository.save(details);
@@ -868,14 +861,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         return mapToResponse(saved);
     }
 
-    private String generateCertificateNo(String rlyShortName, String callNo, String userShortName) {
-        String rlyPrefix = (rlyShortName != null && !rlyShortName.isEmpty())
-                ? rlyShortName.toUpperCase()
+    private String generateCertificateNo(String rioName, String callNo, String userShortName) {
+        String rioFirstLetter = (rioName != null && !rioName.trim().isEmpty())
+                ? rioName.trim().substring(0, 1).toUpperCase()
                 : "X";
         String userSuffix = (userShortName != null && !userShortName.trim().isEmpty())
                 ? userShortName.trim().toUpperCase()
                 : "XX";
-        return rlyPrefix + "/" + callNo + "/" + userSuffix;
+        return rioFirstLetter + "/" + callNo + "/" + userSuffix;
     }
 
     private String determineJobStatus(String action) {
