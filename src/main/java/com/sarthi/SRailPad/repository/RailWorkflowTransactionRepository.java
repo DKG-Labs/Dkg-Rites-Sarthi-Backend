@@ -574,4 +574,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             @Param("zonalRailway") String zonalRailway,
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate);
+
+    @Query(value = "SELECT rio FROM rail_workflow_transaction WHERE (request_id = :callNo OR request_id LIKE CONCAT('%', :callNo, '%')) AND rio IS NOT NULL AND rio != '' ORDER BY workflow_transition_id ASC LIMIT 1", nativeQuery = true)
+    String findRioByCallNo(@Param("callNo") String callNo);
 }

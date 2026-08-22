@@ -43,4 +43,5 @@ public class RailpadIcCertificateDto {
     private String trRecDt; // blank
     private String reasonOfRejection; // editable
     private String caseNo; // from po_item or po_header
+    private String region;
 }

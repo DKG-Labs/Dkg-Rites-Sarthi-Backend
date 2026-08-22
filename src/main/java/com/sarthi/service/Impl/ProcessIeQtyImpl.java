@@ -253,7 +253,7 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                                 weightAcceptedMt = exactResult.getWeightAcceptedMt() != null ? exactResult.getWeightAcceptedMt() : BigDecimal.ZERO;
                                 rmAcceptedQty = exactResult.getAcceptedQtyMt() != null ? exactResult.getAcceptedQtyMt() : BigDecimal.ZERO;
                                 if (rmAcceptedQty.compareTo(BigDecimal.ZERO) == 0 && weightAcceptedMt.compareTo(BigDecimal.ZERO) > 0) {
-                                        rmAcceptedQty = weightAcceptedMt.multiply(new BigDecimal("1000")).divide(new BigDecimal("1.133"), 0, java.math.RoundingMode.HALF_UP);
+                                        rmAcceptedQty = weightAcceptedMt.multiply(new BigDecimal("1000")).divide(new BigDecimal("1.14"), 0, java.math.RoundingMode.HALF_UP);
                                 }
                                 sealingType = exactResult.getSealingType();
                                 steelStampNumber = exactResult.getSteelStampNumber();
