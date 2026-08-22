@@ -855,12 +855,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         String rlyPrefix = (rlyShortName != null && !rlyShortName.isEmpty())
                 ? rlyShortName.toUpperCase()
                 : "X";
-        // Convert user short name to Title Case or just use it as-is if it's already correctly cased
-        // We'll capitalize the first letter to ensure it matches "Suryaprakash" format
-        if (userShortName != null && userShortName.length() > 0) {
-            userShortName = userShortName.substring(0, 1).toUpperCase() + userShortName.substring(1).toLowerCase();
-        }
-        return rlyPrefix + "/" + callNo + "/" + userShortName;
+        String userSuffix = (userShortName != null && !userShortName.trim().isEmpty())
+                ? userShortName.trim().toUpperCase()
+                : "XX";
+        return rlyPrefix + "/" + callNo + "/" + userSuffix;
     }
 
     private String determineJobStatus(String action) {

@@ -7149,7 +7149,22 @@ public class reportsImpl implements reports {
                                 requestId = parts[1];
                         }
                 }
-                String rio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(requestId);
+                // 1. Check rail_workflow_transaction for Railpad calls
+                String rio = null;
+                if (railWorkflowTransactionRepository != null) {
+                        rio = railWorkflowTransactionRepository.findRioByCallNo(callNo);
+                        if (rio == null && !callNo.equals(requestId)) {
+                                rio = railWorkflowTransactionRepository.findRioByCallNo(requestId);
+                        }
+                }
+
+                // 2. If not found, check workflow_transition (ERC / Sleeper / General)
+                if (rio == null && workflowTransitionRepository != null) {
+                        rio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(requestId);
+                        if (rio == null && !callNo.equals(requestId)) {
+                                rio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(callNo);
+                        }
+                }
                 String regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
                 if (rio != null) {
                         switch (rio.toUpperCase()) {
@@ -7160,7 +7175,7 @@ public class reportsImpl implements reports {
                                         regionName = "RITES LIMITED, WESTERN REGION, MUMBAI";
                                         break;
                                 case "SRIO":
-                                        regionName = "RITES LIMITED, SOUTHEN REGION, CHENNAI";
+                                        regionName = "RITES LIMITED, SOUTHERN REGION, CHENNAI";
                                         break;
                                 case "ERIO":
                                         regionName = "RITES LIMITED, EASTERN REGION, KOLKATA";
