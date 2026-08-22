@@ -662,18 +662,12 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String rejectionReasonTemplate = qtyNowRejected > 0 ? "REJECTED DURING INSPECTION AS DETAILED IN ANNEXURE-I"
                 : "Not Applicable";
 
-        String certificateNo = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo)
-                .map(RailInspectionCompleteDetails::getCertificateNo)
-                .orElse("");
-        if (certificateNo != null && certificateNo.contains("/")) {
-            int lastSlash = certificateNo.lastIndexOf('/');
-            certificateNo = certificateNo.substring(0, lastSlash + 1) + certificateNo.substring(lastSlash + 1).toUpperCase();
-        }
-
         // Determine Region from rail_workflow_transaction RIO
         String rio = railWorkflowTransactionRepository.findRioByCallNo(callNo);
         String regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
-        if (rio != null) {
+        String rioFirstLetter = "X";
+        if (rio != null && !rio.trim().isEmpty()) {
+            rioFirstLetter = rio.trim().substring(0, 1).toUpperCase();
             switch (rio.trim().toUpperCase()) {
                 case "NRIO":
                     regionName = "RITES LIMITED, NORTHERN REGION, DELHI";
@@ -690,6 +684,19 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 case "CRIO":
                     regionName = "RITES LIMITED, CENTRAL REGION, BHILAI";
                     break;
+            }
+        }
+
+        String certificateNo = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo)
+                .map(RailInspectionCompleteDetails::getCertificateNo)
+                .orElse("");
+        if (certificateNo != null && !certificateNo.isEmpty()) {
+            String[] parts = certificateNo.split("/");
+            if (parts.length >= 3) {
+                certificateNo = rioFirstLetter + "/" + parts[1] + "/" + parts[2].toUpperCase();
+            } else if (certificateNo.contains("/")) {
+                int lastSlash = certificateNo.lastIndexOf('/');
+                certificateNo = rioFirstLetter + "/" + certificateNo.substring(certificateNo.indexOf('/') + 1, lastSlash + 1) + certificateNo.substring(lastSlash + 1).toUpperCase();
             }
         }
 
