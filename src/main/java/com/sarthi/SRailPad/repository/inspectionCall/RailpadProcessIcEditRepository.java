@@ -17,7 +17,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 ph.case_no                                              AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
                 ic.plant_id                                             AS placeOfInspection,
-                COALESCE(pm.ibs_vendor_code, ic.plant_id)               AS ibsManufacturedCode,
+                COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
                 CAST(COALESCE(um.employee_code, p.created_by) AS CHAR)  AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'P'                                                     AS typeOfCall,
@@ -36,14 +36,14 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 p.ic_number                                             AS callNumber
             FROM railpad_process_ic_edit p
             INNER JOIN rail_inspection_call ic
-                    ON ic.call_no COLLATE utf8mb4_unicode_ci = 
-                       SUBSTRING_INDEX(SUBSTRING_INDEX(p.ic_number, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci
+                    ON CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                       CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(p.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
-                   ON ph.po_no COLLATE utf8mb4_unicode_ci = 
-                      (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um
-                   ON CAST(um.userid AS CHAR) = CAST(p.created_by AS CHAR)
-                   OR um.employee_code = p.created_by
+                   ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT icr1.*
                 FROM ibs_call_registration icr1
@@ -52,12 +52,12 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                     FROM ibs_call_registration
                     GROUP BY call_number
                 ) latest
-                    ON latest.call_number = icr1.call_number
+                    ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    AND latest.max_version = icr1.version
             ) icr
-                    ON icr.call_number COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                    ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON pm.poi_code = ic.plant_id
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
             WHERE icr.call_number IS NULL
                OR UPPER(icr.status) = 'FAILED'
             GROUP BY
