@@ -15,7 +15,8 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
     @Query("SELECT i, v, d FROM RailIEProductionVerification v " +
            "JOIN v.productionInfos i " +
            "JOIN RailProductionDeclaration d ON v.requestId = d.id " +
-           "WHERE d.poNo = :poNo AND i.productType = :railPadType " +
+           "WHERE (d.poNo = :poNo OR d.poNo LIKE CONCAT('%', :poNo, '%') OR :poNo LIKE CONCAT('%', d.poNo, '%')) " +
+           "AND i.productType = :railPadType " +
            "AND i.id NOT IN (" +
            "  SELECT ib.declarationBatchId FROM RailProcessInspectionBatch ib " +
            "  WHERE ib.declarationBatchId IS NOT NULL " +
