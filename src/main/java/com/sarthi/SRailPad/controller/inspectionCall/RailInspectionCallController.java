@@ -2,6 +2,7 @@ package com.sarthi.SRailPad.controller.inspectionCall;
 
 import com.sarthi.SRailPad.dto.RailPoSummaryDto;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
+import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
 import com.sarthi.SRailPad.service.inspectionCall.RailInspectionCallService;
 import com.sarthi.SRailPad.service.RailWorkflowService;
 import com.sarthi.SRailPad.service.inspectionCall.RailPoSummaryService;
@@ -31,16 +32,19 @@ public class RailInspectionCallController {
      */
     private final RailPoSummaryService railPoSummaryService;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository;
+    private final RailWorkflowTransactionRepository railWorkflowTransactionRepository;
 
     @Autowired
     public RailInspectionCallController(RailInspectionCallService service,
                                         RailWorkflowService railWorkflowService,
                                         RailPoSummaryService railPoSummaryService,
-                                        com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository) {
+                                        com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository,
+                                        RailWorkflowTransactionRepository railWorkflowTransactionRepository) {
         this.service = service;
         this.railWorkflowService = railWorkflowService;
         this.railPoSummaryService = railPoSummaryService;
         this.processCallDetailsRepository = processCallDetailsRepository;
+        this.railWorkflowTransactionRepository = railWorkflowTransactionRepository;
     }
 
     /**
@@ -107,6 +111,12 @@ public class RailInspectionCallController {
                     summary.setItemDesc("Drawing: " + details.getDrawingNo() + (summary.getItemDesc() != null ? " (" + summary.getItemDesc() + ")" : ""));
                 }
             }
+        }
+
+        // Set rio from the workflow transaction (fetches earliest non-null rio value — set at CREATED stage)
+        String rioValue = railWorkflowTransactionRepository.findRioByRequestId(callNo);
+        if (rioValue != null && !rioValue.isBlank()) {
+            summary.setRio(rioValue);
         }
 
         return new ResponseEntity<>(
