@@ -97,6 +97,9 @@ public class RailPoSummaryDto {
      */
     private String drawingNo;
 
+    /** RITES RIO code from rail_workflow_transaction.rio e.g. NRIO, SRIO, ERIO, WRIO, CRIO */
+    private String rio;
+
     public String getRlyPoNo() { return rlyPoNo; }
     public void setRlyPoNo(String rlyPoNo) { this.rlyPoNo = rlyPoNo; }
 
@@ -168,4 +171,7 @@ public class RailPoSummaryDto {
 
     public String getDrawingNo() { return drawingNo; }
     public void setDrawingNo(String drawingNo) { this.drawingNo = drawingNo; }
+
+    public String getRio() { return rio; }
+    public void setRio(String rio) { this.rio = rio; }
 }
