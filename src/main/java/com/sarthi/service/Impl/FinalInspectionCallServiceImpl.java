@@ -65,6 +65,32 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     @Autowired
     private com.sarthi.service.WorkflowService workflowService;
 
+    private Optional<InspectionCall> findInspectionCallByCertOrCallNo(String certOrCallNo) {
+        if (certOrCallNo == null || certOrCallNo.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        String clean = certOrCallNo.trim();
+        Optional<InspectionCall> opt = inspectionCallRepository.findByIcNumber(clean);
+        if (opt.isPresent()) {
+            return opt;
+        }
+
+        // Try extracting call number from certificate format (e.g. N/EP-0814260008/S.K.P -> EP-0814260008)
+        if (clean.matches("^[A-Z0-9/]+-.*")) {
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("[^/]+/([^/]+)/");
+            java.util.regex.Matcher matcher = pattern.matcher(clean);
+            if (matcher.find()) {
+                String extractedCallNo = matcher.group(1);
+                opt = inspectionCallRepository.findByIcNumber(extractedCallNo);
+                if (opt.isPresent()) {
+                    return opt;
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
     @Override
     @Transactional
     public InspectionCall createFinalInspectionCall(
@@ -91,17 +117,15 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         inspectionCall.setTypeOfCall(icRequest.getTypeOfCall());
         inspectionCall.setErcType(icRequest.getErcType());
         inspectionCall.setStatus(icRequest.getStatus());
-
         inspectionCall.setPlaceOfInspection(icRequest.getPlaceOfInspection());
-
         inspectionCall.setVendorId(icRequest.getVendorId());
 
-        inspectionCall.setDesiredInspectionDate(
-                LocalDate.parse(icRequest.getDesiredInspectionDate()));
+        if (icRequest.getDesiredInspectionDate() != null) {
+            inspectionCall.setDesiredInspectionDate(LocalDate.parse(icRequest.getDesiredInspectionDate()));
+        }
 
         if (icRequest.getActualInspectionDate() != null) {
-            inspectionCall.setActualInspectionDate(
-                    LocalDate.parse(icRequest.getActualInspectionDate()));
+            inspectionCall.setActualInspectionDate(LocalDate.parse(icRequest.getActualInspectionDate()));
         }
 
         inspectionCall.setCompanyId(icRequest.getCompanyId());
@@ -110,23 +134,19 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         inspectionCall.setUnitName(icRequest.getUnitName());
         inspectionCall.setUnitAddress(icRequest.getUnitAddress());
         inspectionCall.setRemarks(icRequest.getRemarks());
-
         inspectionCall.setCreatedBy(icRequest.getCreatedBy());
         inspectionCall.setUpdatedBy(icRequest.getUpdatedBy());
         inspectionCall.setCreatedAt(LocalDateTime.now());
         inspectionCall.setUpdatedAt(LocalDateTime.now());
 
-        // Save inspection call first to get the ID
         inspectionCall = inspectionCallRepository.save(inspectionCall);
-        logger.info(" Inspection Call saved with ID: {}", inspectionCall.getId());
+        logger.info("✅ Final Inspection Call saved with ID: {}", inspectionCall.getId());
 
         // ================== 2. CREATE FINAL INSPECTION DETAILS ==================
         FinalInspectionDetails finalInspectionDetails = new FinalInspectionDetails();
         finalInspectionDetails.setInspectionCall(inspectionCall);
 
         // ---- Resolve RM IC numbers (support both single and multi-select) ----
-        // If rmIcNumbers list is provided (new multi-select flow), use it; else fall
-        // back to single rmIcNumber
         List<String> rmIcList = (finalDetails.getRmIcNumbers() != null && !finalDetails.getRmIcNumbers().isEmpty())
                 ? finalDetails.getRmIcNumbers()
                 : (finalDetails.getRmIcNumber() != null ? List.of(finalDetails.getRmIcNumber()) : List.of());
@@ -137,7 +157,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         // Set primary RM IC ID using the first IC in the list
         Optional<InspectionCall> rmIcOpt = rmIcList.isEmpty()
                 ? Optional.empty()
-                : inspectionCallRepository.findByIcNumber(rmIcList.get(0));
+                : findInspectionCallByCertOrCallNo(rmIcList.get(0));
         if (rmIcOpt.isPresent()) {
             finalInspectionDetails.setRmIcId(rmIcOpt.get().getId().longValue());
         }
@@ -155,7 +175,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         // Set primary Process IC ID using the first IC in the list
         Optional<InspectionCall> processIcOpt = processIcList.isEmpty()
                 ? Optional.empty()
-                : inspectionCallRepository.findByIcNumber(processIcList.get(0));
+                : findInspectionCallByCertOrCallNo(processIcList.get(0));
         if (processIcOpt.isPresent()) {
             finalInspectionDetails.setProcessIcId(processIcOpt.get().getId().longValue());
         }
@@ -200,8 +220,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
 
                 // Set Process IC reference if available
                 if (lotDto.getProcessIcNumber() != null) {
-                    Optional<InspectionCall> processIcForLot = inspectionCallRepository
-                            .findByIcNumber(lotDto.getProcessIcNumber());
+                    Optional<InspectionCall> processIcForLot = findInspectionCallByCertOrCallNo(lotDto.getProcessIcNumber());
                     if (processIcForLot.isPresent()) {
                         lotDetails.setProcessIcId(processIcForLot.get().getId().longValue());
                     }
@@ -217,7 +236,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         // Create mapping entries for each lot × each Process IC selected
         if (!processIcList.isEmpty() && lotDetailsList != null && !lotDetailsList.isEmpty()) {
             for (String processIcNumber : processIcList) {
-                Optional<InspectionCall> processIcForMapping = inspectionCallRepository.findByIcNumber(processIcNumber);
+                Optional<InspectionCall> processIcForMapping = findInspectionCallByCertOrCallNo(processIcNumber);
                 if (!processIcForMapping.isPresent()) {
                     logger.warn("⚠️ Process IC not found for number: {}. Skipping mapping.", processIcNumber);
                     continue;
@@ -459,7 +478,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
             if (!rmIcList.isEmpty()) {
                 String rmIcNumbersCsv = rmIcList.stream().collect(Collectors.joining(","));
                 finalDetails.setRmIcNumber(rmIcNumbersCsv);
-                Optional<InspectionCall> rmIcOpt = inspectionCallRepository.findByIcNumber(rmIcList.get(0));
+                Optional<InspectionCall> rmIcOpt = findInspectionCallByCertOrCallNo(rmIcList.get(0));
                 if (rmIcOpt.isPresent()) {
                     finalDetails.setRmIcId(rmIcOpt.get().getId().longValue());
                 }
@@ -472,7 +491,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
             if (!processIcList.isEmpty()) {
                 String processIcNumbersCsv = processIcList.stream().collect(Collectors.joining(","));
                 finalDetails.setProcessIcNumber(processIcNumbersCsv);
-                Optional<InspectionCall> processIcOpt = inspectionCallRepository.findByIcNumber(processIcList.get(0));
+                Optional<InspectionCall> processIcOpt = findInspectionCallByCertOrCallNo(processIcList.get(0));
                 if (processIcOpt.isPresent()) {
                     finalDetails.setProcessIcId(processIcOpt.get().getId().longValue());
                 }
@@ -541,7 +560,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                     }
                     
                     if (lotDto.getProcessIcNumber() != null) {
-                        Optional<InspectionCall> processIcForLot = inspectionCallRepository.findByIcNumber(lotDto.getProcessIcNumber());
+                        Optional<InspectionCall> processIcForLot = findInspectionCallByCertOrCallNo(lotDto.getProcessIcNumber());
                         if (processIcForLot.isPresent()) {
                             newLot.setProcessIcId(processIcForLot.get().getId().longValue());
                         }
@@ -563,7 +582,7 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
             if (!processIcList.isEmpty()) {
                 for (String processIcNumber : processIcList) {
                     String cleanProcessIcNo = processIcNumber.trim();
-                    Optional<InspectionCall> processIcForMapping = inspectionCallRepository.findByIcNumber(cleanProcessIcNo);
+                    Optional<InspectionCall> processIcForMapping = findInspectionCallByCertOrCallNo(cleanProcessIcNo);
                     if (!processIcForMapping.isPresent()) {
                         continue;
                     }

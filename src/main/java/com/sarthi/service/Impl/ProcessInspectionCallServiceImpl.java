@@ -375,17 +375,25 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
             // 3. Recreate ProcessRmIcMapping
             processMappingRepository.deleteByProcessIcId(inspection.getId());
 
-            // Create new mapping rows
-            ProcessInspectionDetailsRequestDto firstDetail = processDetailsList.isEmpty() ? null : processDetailsList.get(0);
-            String rmIcNumberFromRequest = firstDetail != null ? firstDetail.getRmIcNumber() : null;
+            // Create new mapping rows across all selected RM IC numbers
+            java.util.Set<String> allRmIcNumbers = new java.util.LinkedHashSet<>();
+            for (ProcessInspectionDetailsRequestDto detail : processDetailsList) {
+                if (detail.getRmIcNumber() != null && !detail.getRmIcNumber().trim().isEmpty()) {
+                    for (String num : detail.getRmIcNumber().split(",")) {
+                        String trimmed = num.trim();
+                        if (!trimmed.isEmpty()) {
+                            allRmIcNumbers.add(trimmed);
+                        }
+                    }
+                }
+            }
 
-            if (rmIcNumberFromRequest != null && !rmIcNumberFromRequest.isEmpty()) {
-                String[] allRmIcNumbers = rmIcNumberFromRequest.split(",");
+            if (!allRmIcNumbers.isEmpty()) {
                 for (String rawRmIcEntry : allRmIcNumbers) {
                     String singleCertNo = rawRmIcEntry.trim();
                     String singleCallNo = singleCertNo;
-                    if (singleCertNo.matches("^[A-Z]/.*")) {
-                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("^[A-Z]/([^/]+)/");
+                    if (singleCertNo.matches("^[A-Z0-9/]+-.*")) {
+                        java.util.regex.Pattern p = java.util.regex.Pattern.compile("[^/]+/([^/]+)/");
                         java.util.regex.Matcher m = p.matcher(singleCertNo);
                         if (m.find()) {
                             singleCallNo = m.group(1);
