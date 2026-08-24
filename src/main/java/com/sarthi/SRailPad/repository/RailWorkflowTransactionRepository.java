@@ -529,7 +529,17 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query(value = """
             SELECT DISTINCT
-                COALESCE(vm.vendor_name, ic.vendor_code, '') AS vendorName,
+                COALESCE(
+                    CASE 
+                        WHEN vm.vendor_name IS NOT NULL AND vm.vendor_name != '' AND vm.vendor_name NOT REGEXP '^[0-9]+$' 
+                        THEN vm.vendor_name 
+                        ELSE NULL 
+                    END,
+                    NULLIF(SUBSTRING_INDEX(ph.vendor_details, '~', 1), ''),
+                    NULLIF(ph.firm_details, ''),
+                    ic.vendor_code,
+                    ''
+                ) AS vendorName,
                 COALESCE(ph.rly_short_name, '') AS railwayShortName,
                 SUBSTRING_INDEX(ic.po_no, '/', 1) AS poNumberOnly,
                 CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1) ELSE COALESCE(ic.po_sr, '') END AS poSerialNumber,
