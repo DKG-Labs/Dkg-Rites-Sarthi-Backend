@@ -366,6 +366,34 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Workflow transition not found")));
 
+        if ("UNLOCK".equalsIgnoreCase(req.getAction())) {
+            repository.deleteById(req.getWorkflowTransitionId());
+
+            List<SleeperWorkflowTransaction> existingTxs = repository.findByRequestIdOrderByCreatedDateAsc(req.getRequestId());
+            boolean hasRemaining = existingTxs.stream()
+                    .anyMatch(t -> t.getModuleId() != null && t.getModuleId().equals(req.getModuleId()) 
+                                   && !t.getWorkflowTransitionId().equals(current.getWorkflowTransitionId()));
+
+            if (!hasRemaining) {
+                SleeperWorkflowTransaction newTx = new SleeperWorkflowTransaction();
+                newTx.setRequestId(req.getRequestId());
+                newTx.setModuleId(req.getModuleId());
+                newTx.setWorkflowId(current.getWorkflowId() != null ? current.getWorkflowId() : 1L);
+                newTx.setVendorCode(current.getVendorCode());
+                newTx.setPlantId(current.getPlantId());
+                newTx.setPoiCode(current.getPoiCode());
+                newTx.setCurrentRole("Vendor");
+                newTx.setNextRole("IE");
+                newTx.setAction(AppConstant.CREATED_TYPE);
+                newTx.setStatus(AppConstant.CREATED_TYPE);
+                newTx.setCreatedBy(current.getCreatedBy());
+                newTx.setCreatedDate(LocalDateTime.now());
+                repository.save(newTx);
+            }
+
+            return mapToResponse(current);
+        }
+
         if (current.getWorkflowId() == 1 && "IE".equalsIgnoreCase(current.getNextRole())) {
             // validateUserForPoi(current.getPoiCode(), req.getActionBy());
             validateUserForPoi(current.getPoiCode(), current.getPlantId(), req.getActionBy());
