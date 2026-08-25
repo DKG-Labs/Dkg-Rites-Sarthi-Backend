@@ -219,12 +219,14 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                 lotDetails.setRejectionReason(null);
 
                 // Set Process IC reference if available
-                if (lotDto.getProcessIcNumber() != null) {
-                    Optional<InspectionCall> processIcForLot = findInspectionCallByCertOrCallNo(lotDto.getProcessIcNumber());
+                if (lotDto.getProcessIcNumber() != null && !lotDto.getProcessIcNumber().trim().isEmpty()) {
+                    String procIcNo = lotDto.getProcessIcNumber().trim();
+                    String primaryProcIc = procIcNo.contains(",") ? procIcNo.split(",")[0].trim() : procIcNo;
+                    Optional<InspectionCall> processIcForLot = findInspectionCallByCertOrCallNo(primaryProcIc);
                     if (processIcForLot.isPresent()) {
                         lotDetails.setProcessIcId(processIcForLot.get().getId().longValue());
                     }
-                    lotDetails.setProcessIcNumber(lotDto.getProcessIcNumber());
+                    lotDetails.setProcessIcNumber(procIcNo);
                 }
 
                 finalInspectionLotDetailsRepository.save(lotDetails);
@@ -559,12 +561,14 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                         newLot.setNoOfBags((int) Math.ceil((double) lotDto.getOfferedQty() / 50));
                     }
                     
-                    if (lotDto.getProcessIcNumber() != null) {
-                        Optional<InspectionCall> processIcForLot = findInspectionCallByCertOrCallNo(lotDto.getProcessIcNumber());
+                    if (lotDto.getProcessIcNumber() != null && !lotDto.getProcessIcNumber().trim().isEmpty()) {
+                        String procIcNo = lotDto.getProcessIcNumber().trim();
+                        String primaryProcIc = procIcNo.contains(",") ? procIcNo.split(",")[0].trim() : procIcNo;
+                        Optional<InspectionCall> processIcForLot = findInspectionCallByCertOrCallNo(primaryProcIc);
                         if (processIcForLot.isPresent()) {
                             newLot.setProcessIcId(processIcForLot.get().getId().longValue());
                         }
-                        newLot.setProcessIcNumber(lotDto.getProcessIcNumber());
+                        newLot.setProcessIcNumber(procIcNo);
                     }
                     newLot.setCreatedAt(LocalDateTime.now());
                     newLot.setUpdatedAt(LocalDateTime.now());
