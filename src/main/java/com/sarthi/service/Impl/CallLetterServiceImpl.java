@@ -74,6 +74,9 @@ public class CallLetterServiceImpl implements CallLetterService {
     @Autowired
     private com.sarthi.repository.PoiProcessIeMappingRepository poiProcessIeMappingRepository;
 
+    @Autowired
+    private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
+
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public CallLetterDetailsDto getCallLetterDetails(String requestId) {
@@ -87,7 +90,13 @@ public class CallLetterServiceImpl implements CallLetterService {
         // -------------------------------------------------------
         Optional<InspectionCall> icOpt = inspectionCallRepository.findFirstByIcNumber(requestId);
         if (icOpt.isEmpty()) {
-            logger.warn("No InspectionCall found for requestId: {}", requestId);
+            // Check if it is a Sleeper Inspection Call
+            Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> sleeperOpt = sleeperInspectionCallRepository.findByCallNo(requestId);
+            if (sleeperOpt.isPresent()) {
+                return enrichFromSleeperCall(sleeperOpt.get(), dto);
+            }
+
+            logger.warn("No InspectionCall or SleeperInspectionCall found for requestId: {}", requestId);
             return dto;
         }
         InspectionCall ic = icOpt.get();
@@ -565,5 +574,172 @@ public class CallLetterServiceImpl implements CallLetterService {
                 .replaceAll("unit[-\\s]*ii\\b", "unit-2")
                 .replaceAll("unit[-\\s]*i\\b", "unit-1")
                 .replaceAll("[\\s-]", "");
+    }
+
+    private CallLetterDetailsDto enrichFromSleeperCall(com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall sleeperCall, CallLetterDetailsDto dto) {
+        dto.setRequestId(sleeperCall.getCallNo());
+        dto.setTypeOfCall("Final Inspection");
+        dto.setProductType("Prestressed Concrete Sleepers (" + (sleeperCall.getSleeperType() != null ? sleeperCall.getSleeperType() : "") + ")");
+        dto.setCallQty(String.valueOf(sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0));
+        dto.setCallUnit("Nos.");
+        dto.setOfferedInstallmentNo(sleeperCall.getCallNo());
+
+        if (sleeperCall.getDesiredInspectionDate() != null) {
+            dto.setDesiredInspectionDate(sleeperCall.getDesiredInspectionDate().format(DATE_FMT));
+        } else if (sleeperCall.getCreatedAt() != null) {
+            dto.setDesiredInspectionDate(sleeperCall.getCreatedAt().format(DATE_FMT));
+        }
+
+        // Contact info from creator
+        if (sleeperCall.getCreatedBy() != null) {
+            try {
+                Optional<UserMaster> userOpt = userMasterRepository.findById(sleeperCall.getCreatedBy().intValue());
+                if (userOpt.isPresent()) {
+                    UserMaster u = userOpt.get();
+                    dto.setContactPersonName(u.getFullName() != null ? u.getFullName() : u.getUsername());
+                    dto.setContactMobile(u.getMobileNumber());
+                    dto.setContactEmail(u.getEmail());
+                }
+            } catch (Exception e) {
+                logger.error("Error looking up user for sleeper call createdBy: {}", sleeperCall.getCreatedBy(), e);
+            }
+        }
+
+        // RIO info from workflow
+        try {
+            com.sarthi.entity.WorkflowTransition wt = workflowTransitionRepository
+                    .findFirstByRequestIdAndRioIsNotNullOrderByWorkflowTransitionIdDesc(sleeperCall.getCallNo());
+            if (wt != null && wt.getRio() != null) {
+                dto.setRio(wt.getRio());
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching RIO for sleeper call: {}", sleeperCall.getCallNo(), e);
+        }
+
+        // IE Details from workflow
+        try {
+            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository
+                    .findByRequestIdOrderByWorkflowTransitionIdDesc(sleeperCall.getCallNo());
+            if (transitions != null) {
+                for (com.sarthi.entity.WorkflowTransition transition : transitions) {
+                    Integer ieUserId = transition.getAssignedToUser() != null ? transition.getAssignedToUser() : transition.getProcessIeUserId();
+                    if (ieUserId != null) {
+                        Optional<UserMaster> ieUserOpt = userMasterRepository.findById(ieUserId);
+                        if (ieUserOpt.isPresent()) {
+                            UserMaster ieUser = ieUserOpt.get();
+                            dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
+                            dto.setIeMobile(ieUser.getMobileNumber());
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching IE details for sleeper call: {}", sleeperCall.getCallNo(), e);
+        }
+
+        // PO Header & Item lookup
+        String rawPoNo = sleeperCall.getPoNo();
+        String rawSrNo = sleeperCall.getSrNo();
+
+        if (rawPoNo != null) {
+            try {
+                Optional<PoHeader> phOpt = poHeaderRepository.findFirstByPoNo(rawPoNo);
+                if (phOpt.isPresent()) {
+                    PoHeader ph = phOpt.get();
+                    dto.setRlyShortName(ph.getRlyShortName());
+                    dto.setPoNo(ph.getPoNo());
+                    dto.setPurchaserDetail(ph.getPurchaserDetail());
+                    if (ph.getFirmDetails() != null) {
+                        dto.setVendorName(ph.getFirmDetails());
+                        dto.setManufacturerName(ph.getFirmDetails());
+                    }
+                    if (ph.getPoDate() != null) {
+                        dto.setPoDate(ph.getPoDate().format(DATE_FMT));
+                    }
+                    dto.setRlyPoSr(buildRlyPoSr(ph.getRlyShortName(), ph.getPoNo(), rawSrNo));
+
+                    if (ph.getItems() != null && !ph.getItems().isEmpty()) {
+                        int totalQty = ph.getItems().stream()
+                                .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
+                                .sum();
+                        dto.setPoQuantity(totalQty);
+
+                        BigDecimal totalVal = ph.getItems().stream()
+                                .map(item -> item.getValue() != null ? item.getValue() : BigDecimal.ZERO)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        dto.setPoValue(totalVal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString());
+                    }
+                } else {
+                    dto.setPoNo(rawPoNo);
+                }
+            } catch (Exception e) {
+                logger.error("Error fetching PoHeader for sleeper call: {}", rawPoNo, e);
+                dto.setPoNo(rawPoNo);
+            }
+        }
+
+        if (rawPoNo != null && rawSrNo != null) {
+            try {
+                Optional<PoItem> piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, rawSrNo);
+                if (piOpt.isEmpty() && rawSrNo.length() < 3) {
+                    try {
+                        String padded = String.format("%03d", Integer.parseInt(rawSrNo));
+                        piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, padded);
+                    } catch (Exception ignore) {}
+                }
+                if (piOpt.isPresent()) {
+                    PoItem pi = piOpt.get();
+                    dto.setItemSrNo(pi.getItemSrNo());
+                    dto.setItemDesc(pi.getItemDesc());
+                    dto.setPoQty(pi.getQty());
+                    dto.setUom(pi.getUom() != null ? pi.getUom() : "Nos.");
+                    dto.setConsigneeDetail(pi.getConsigneeDetail());
+                    dto.setBillPayOffDesc(pi.getBillPayOffDesc());
+                    if (pi.getDeliveryDate() != null) {
+                        dto.setDeliveryDate(pi.getDeliveryDate().format(DATE_FMT));
+                    }
+                    if (pi.getExtendedDeliveryDate() != null) {
+                        dto.setExtendedDeliveryDate(pi.getExtendedDeliveryDate().format(DATE_FMT));
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Error fetching PoItem for sleeper call: poNo={}, srNo={}", rawPoNo, rawSrNo, e);
+            }
+        }
+
+        // Batches to heatDetails
+        if (sleeperCall.getBatchesSelected() != null && !sleeperCall.getBatchesSelected().isEmpty()) {
+            List<CallLetterDetailsDto.HeatDetail> heatDetailsList = new java.util.ArrayList<>();
+            for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch batch : sleeperCall.getBatchesSelected()) {
+                CallLetterDetailsDto.HeatDetail hd = new CallLetterDetailsDto.HeatDetail();
+                hd.setHeatNo("Batch " + (batch.getBatchNo() != null ? batch.getBatchNo() : "-"));
+                int goodCount = batch.getGoodSleepers() != null ? batch.getGoodSleepers().size() : 0;
+                int badCount = batch.getBadSleepers() != null ? batch.getBadSleepers().size() : 0;
+                hd.setTcNo("Good: " + goodCount + (badCount > 0 ? " | Rejected: " + badCount : ""));
+                hd.setQtyOffered(String.valueOf(goodCount));
+                heatDetailsList.add(hd);
+            }
+            dto.setHeatDetails(heatDetailsList);
+        }
+
+        // Calculate cumulative passed quantity
+        try {
+            List<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> allCalls = sleeperInspectionCallRepository.getCalls(rawPoNo, rawSrNo);
+            int passedQty = 0;
+            if (allCalls != null) {
+                for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall c : allCalls) {
+                    if ("Accepted".equalsIgnoreCase(c.getStatus()) || "Completed".equalsIgnoreCase(c.getStatus()) || "Verified".equalsIgnoreCase(c.getStatus())) {
+                        passedQty += (c.getTotalOffered() != null ? c.getTotalOffered() : 0);
+                    }
+                }
+            }
+            dto.setFinalAcceptedQty(passedQty > 0 ? passedQty + " Nos." : "0 Nos.");
+            dto.setRawMaterialQtyPassed("N/A");
+        } catch (Exception e) {
+            logger.error("Error calculating sleeper cumulative quantities", e);
+        }
+
+        return dto;
     }
 }
