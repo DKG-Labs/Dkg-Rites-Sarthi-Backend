@@ -69,6 +69,10 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         LocalDate today = LocalDate.now();
         long dailySequence = inspectionCallRepository.countByTypeOfCallAndCreatedDate("Raw Material", today) + 1;
         String icNumber = icNumberGenerator.generateIcNumber("Raw Material", dailySequence);
+        while (inspectionCallRepository.existsByIcNumber(icNumber)) {
+            dailySequence++;
+            icNumber = icNumberGenerator.generateIcNumber("Raw Material", dailySequence);
+        }
         logger.info("Generated IC Number: {} (Daily Sequence: {})", icNumber, dailySequence);
 
         inspectionCall.setIcNumber(icNumber);
