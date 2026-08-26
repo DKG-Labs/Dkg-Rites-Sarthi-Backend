@@ -109,6 +109,10 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         LocalDate today = LocalDate.now();
         long dailySequence = inspectionCallRepository.countByTypeOfCallAndCreatedDate("Final", today) + 1;
         String icNumber = icNumberGenerator.generateIcNumber("Final", dailySequence);
+        while (inspectionCallRepository.existsByIcNumber(icNumber)) {
+            dailySequence++;
+            icNumber = icNumberGenerator.generateIcNumber("Final", dailySequence);
+        }
         logger.info("Generated IC Number: {} (Daily Sequence: {})", icNumber, dailySequence);
 
         inspectionCall.setIcNumber(icNumber);

@@ -403,7 +403,7 @@ public class UserServiceImpl implements UserService {
         String token = jwtService.generateToken(user);
 
         String vendorName = null;
-        if (roleNames.contains("Vendor") || roleNames.contains("Sleeper Vendor")) {
+        if (roleNames.contains("Vendor") || roleNames.contains("Sleeper Vendor") || roleNames.contains("Rail Vendor")) {
             Optional<VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername());
             if (vendorOpt.isEmpty() && user.getUsername().startsWith(":")) {
                 vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername().substring(1));
@@ -504,7 +504,7 @@ public class UserServiceImpl implements UserService {
         String token = jwtService.generateToken(user);
 
         String vendorName = null;
-        if (roleNames.contains("Vendor") || roleNames.contains("Sleeper Vendor")) {
+        if (roleNames.contains("Vendor") || roleNames.contains("Sleeper Vendor") || roleNames.contains("Rail Vendor")) {
             Optional<VendorMaster> vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername());
             if (vendorOpt.isEmpty() && user.getUsername().startsWith(":")) {
                 vendorOpt = vendorMasterRepository.findByVendorCode(user.getUsername().substring(1));

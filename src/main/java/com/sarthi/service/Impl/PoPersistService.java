@@ -201,15 +201,13 @@ public class PoPersistService {
     private String getVendorRole(String itemCatDescr) {
         if (itemCatDescr == null) return "Vendor";
 
-        switch (itemCatDescr.trim()) {
-            case "Elastic Rail Clips":
-                return "ERC Vendor";
-            case "PSC Mainline Sleeper":
-                return "Sleeper Vendor";
-            case "Rail Pads":
-                return "Rail Pad Vendor";
-            default:
-                return "Vendor";
+        String cat = itemCatDescr.trim().toLowerCase();
+        if (cat.contains("sleeper")) {
+            return "Sleeper Vendor";
+        } else if (cat.contains("rail pad") || cat.contains("railpad") || cat.contains("pad")) {
+            return "Rail Vendor";
+        } else {
+            return "Vendor";
         }
     }
     @Transactional

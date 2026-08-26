@@ -67,6 +67,10 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
         LocalDate today = LocalDate.now();
         long dailySequence = inspectionCallRepository.countByTypeOfCallAndCreatedDate("Process", today) + 1;
         String icNumber = icNumberGenerator.generateIcNumber("Process", dailySequence);
+        while (inspectionCallRepository.existsByIcNumber(icNumber)) {
+            dailySequence++;
+            icNumber = icNumberGenerator.generateIcNumber("Process", dailySequence);
+        }
         logger.info("Generated IC Number: {} (Daily Sequence: {})", icNumber, dailySequence);
 
         logger.info("🔍 DEBUG: icRequest.getErcType() = {}", icRequest.getErcType());
