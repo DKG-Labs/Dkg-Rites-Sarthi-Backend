@@ -1,6 +1,7 @@
 package com.sarthi.controller;
 
 import com.sarthi.dto.*;
+import com.sarthi.dto.MFA.VerifyOtpRequestDto;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.service.UserService;
 import com.sarthi.util.ResponseBuilder;
@@ -32,12 +33,48 @@ public class UserMasterController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
 
-    @PostMapping("/loginBasedOnType")
+  /*  @PostMapping("/loginBasedOnType")
     public ResponseEntity<Object> loginBasedOnType(@RequestBody LoginRequestBasedTypeDto loginRequestBasedTypeDto) {
         LoginResponseDto res = userService.loginBasedOnType(loginRequestBasedTypeDto);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+//    }*/
+
+    @PostMapping("/loginBasedOnType")
+    public ResponseEntity<Object> loginBasedOnType(
+            @RequestBody LoginRequestBasedTypeDto loginRequestBasedTypeDto) {
+
+        // =====================================================
+        // MFA STEP 1
+        //
+        // This now checks username/password and sends OTP.
+        // It does NOT generate JWT.
+        // =====================================================
+
+        Object res =
+                userService.loginBasedOnType(
+                        loginRequestBasedTypeDto);
+
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(res),
+                HttpStatus.OK);
     }
 
+    // =====================================================
+// MFA STEP 2
+// Verify OTP and complete login
+// =====================================================
+
+    @PostMapping("/verifyOtp")
+    public ResponseEntity<Object> verifyOtp(
+            @RequestBody VerifyOtpRequestDto request) {
+
+        LoginResponseDto res =
+                userService.verifyOtp(request);
+
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(res),
+                HttpStatus.OK);
+    }
     @PostMapping("/forgot-password")
     public ResponseEntity<Object> forgotPassword(@RequestBody ForgotPasswordRequestDto requestDto) {
         userService.forgotPassword(requestDto);

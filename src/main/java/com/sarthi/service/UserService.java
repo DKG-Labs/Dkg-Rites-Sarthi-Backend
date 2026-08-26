@@ -2,6 +2,7 @@ package com.sarthi.service;
 
 import com.sarthi.dto.*;
 import com.sarthi.dto.ForgotPasswordRequestDto;
+import com.sarthi.dto.MFA.VerifyOtpRequestDto;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.entity.IePincodePoiMapping;
 import com.sarthi.entity.PincodePoIMapping;
@@ -18,8 +19,8 @@ public interface UserService {
 
     public LoginResponseDto login(LoginRequestDto loginRequestDto);
 
-    public LoginResponseDto loginBasedOnType(LoginRequestBasedTypeDto loginDto);
-
+   // public LoginResponseDto loginBasedOnType(LoginRequestBasedTypeDto loginDto);
+    public Object loginBasedOnType(LoginRequestBasedTypeDto loginDto);
     public void forgotPassword(ForgotPasswordRequestDto requestDto);
 
     public Object mapProcessIe(Long userId,
@@ -69,4 +70,6 @@ public interface UserService {
     public void deleteUser(Integer userId);
     public String updateUserRegion(Integer userId, String newRegion);
     public String updateUserRole(Integer userId, List<String> newRoles);
+
+    LoginResponseDto verifyOtp(VerifyOtpRequestDto request);
 }
