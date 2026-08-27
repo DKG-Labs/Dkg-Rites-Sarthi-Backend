@@ -1,16 +1,21 @@
 package com.sarthi.service.Impl;
 
+import com.sarthi.config.SecurityConfig;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.*;
+import com.sarthi.dto.MFA.MfaLoginResponseDto;
+import com.sarthi.dto.MFA.VerifyOtpRequestDto;
 import com.sarthi.dto.WorkflowDtos.ProductCmDto;
 import com.sarthi.dto.WorkflowDtos.userRequestDto;
 import com.sarthi.entity.*;
 import com.sarthi.entity.PoiProcessIeMapping;
 import com.sarthi.entity.ProcessIeUsers;
+import com.sarthi.entity.mfa.LoginOtp;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
 import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
+import com.sarthi.repository.mfa.LoginOtpRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
@@ -19,6 +24,8 @@ import com.sarthi.repository.UserProfileAuditRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,7 +93,10 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
-
+    @Autowired
+    private OtpService otpService;
+    @Autowired
+    private LoginOtpRepository loginOtpRepository;
 
 
 
@@ -427,7 +437,7 @@ public class UserServiceImpl implements UserService {
                 user.getEmployeeCode()
         );
     }
-
+/*
     @Override
     public LoginResponseDto loginBasedOnType(LoginRequestBasedTypeDto loginDto) {
 
@@ -527,6 +537,396 @@ public class UserServiceImpl implements UserService {
                 user.getShortName(),
                 user.getEmployeeCode());
     }
+*/
+
+    @Override
+    public Object loginBasedOnType(LoginRequestBasedTypeDto loginDto) {
+
+        UserMaster user;
+
+        String loginType = loginDto.getLoginType();
+        String loginId = loginDto.getLoginId();
+
+        // ================= IE LOGIN =================
+        if ("IE".equalsIgnoreCase(loginType)) {
+
+            user = userMasterRepository
+                    .findFirstByEmployeeCode(loginId)
+                    .orElse(null);
+
+            if (user == null) {
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_INVALID,
+                                "Invalid login credentials."
+                        )
+                );
+            }
+        }
+
+        // ================= VENDOR LOGIN =================
+        else if ("VENDOR".equalsIgnoreCase(loginType)) {
+
+            user = userMasterRepository
+                    .findFirstByUserName(loginId)
+                    .orElseThrow(() ->
+                            new BusinessException(
+                                    new ErrorDetails(
+                                            AppConstant.ERROR_CODE_INVALID,
+                                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                                            AppConstant.ERROR_TYPE_INVALID,
+                                            "Invalid Vendor credentials."
+                                    )
+                            )
+                    );
+        }
+
+        // ================= INVALID TYPE =================
+        else {
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Invalid login type."
+                    )
+            );
+        }
+
+        // ================= STATUS CHECK =================
+        if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Your account is inactive. Please contact the administrator."
+                    )
+            );
+        }
+
+        // ================= PASSWORD CHECK =================
+        if (!loginDto.getPassword().equals(user.getPassword())) {
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Invalid login credentials."
+                    )
+            );
+        }
+
+
+        // ============================================================
+        // MFA START
+        // ============================================================
+        // Password is correct.
+        //
+        // DO NOT generate JWT here.
+        // DO NOT execute your existing role/token code here.
+        //
+        // Generate OTP and send it to registered mobile number.
+        // ============================================================
+
+        String transactionId = otpService.generateAndSendOtp(user);
+
+        String mobile = user.getMobileNumber();
+        boolean hasMobile = mobile != null && !mobile.trim().isEmpty();
+
+        String noticeMessage;
+        if (hasMobile && mobile.trim().length() >= 4) {
+            String cleanMobile = mobile.trim();
+            noticeMessage = "OTP sent to your registered mobile number ending with •••• " + cleanMobile.substring(cleanMobile.length() - 4) + ".";
+        } else {
+            noticeMessage = "Mobile number not found. Please enter default OTP •••• 123456.";
+        }
+
+        return new MfaLoginResponseDto(
+                true,
+                transactionId,
+                noticeMessage
+        );
+    }
+
+    @Override
+    public LoginResponseDto verifyOtp(VerifyOtpRequestDto request) {
+
+        // ============================================================
+        // STEP 1: Find OTP
+        // ============================================================
+
+        Long otpId;
+
+        try {
+            otpId = Long.parseLong(request.getTransactionId());
+
+        } catch (NumberFormatException e) {
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Invalid OTP transaction."
+                    )
+            );
+        }
+
+
+        // ============================================================
+        // STEP 2: Get OTP record
+        // ============================================================
+
+        LoginOtp loginOtp =
+                loginOtpRepository.findById(otpId)
+                        .orElseThrow(() ->
+                                new BusinessException(
+                                        new ErrorDetails(
+                                                AppConstant.ERROR_CODE_INVALID,
+                                                AppConstant.ERROR_TYPE_CODE_INVALID,
+                                                AppConstant.ERROR_TYPE_INVALID,
+                                                "Invalid or expired OTP."
+                                        )
+                                )
+                        );
+
+
+        // ============================================================
+        // STEP 3: Check OTP already used
+        // ============================================================
+
+        if (Boolean.TRUE.equals(loginOtp.getUsed())) {
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "OTP has already been used."
+                    )
+            );
+        }
+
+
+        // ============================================================
+        // STEP 4: Check OTP expiry
+        // ============================================================
+
+        if (LocalDateTime.now().isAfter(loginOtp.getExpiresAt())) {
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "OTP has expired. Please request a new OTP."
+                    )
+            );
+        }
+
+
+        // ============================================================
+        // STEP 5: Maximum attempts
+        // ============================================================
+
+        if (loginOtp.getAttemptCount() >= 5) {
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Maximum OTP attempts exceeded."
+                    )
+            );
+        }
+
+
+        // ============================================================
+        // STEP 6: Get USER
+        // ============================================================
+
+        UserMaster user =
+                userMasterRepository
+                        .findByUserId(Math.toIntExact(loginOtp.getUserId()))
+                        .orElseThrow(() ->
+                                new BusinessException(
+                                        new ErrorDetails(
+                                                AppConstant.ERROR_CODE_INVALID,
+                                                AppConstant.ERROR_TYPE_CODE_INVALID,
+                                                AppConstant.ERROR_TYPE_INVALID,
+                                                "User not found."
+                                        )
+                                )
+                        );
+
+
+        // ============================================================
+        // STEP 7: Verify OTP
+        // Users WITH saved mobile number -> MUST enter real OTP
+        // Users WITHOUT saved mobile number -> ALLOW 123456 fallback
+        // ============================================================
+
+        String userMobile = user.getMobileNumber();
+        boolean hasSavedMobile = userMobile != null && !userMobile.trim().isEmpty();
+
+        boolean otpCorrect;
+        if (hasSavedMobile) {
+            // Strict verification against generated SMS OTP
+            otpCorrect = request.getOtp() != null && request.getOtp().trim().equals(loginOtp.getOtp());
+        } else {
+            // Fallback for users with no mobile number saved
+            otpCorrect = "123456".equals(request.getOtp() != null ? request.getOtp().trim() : "")
+                    || (request.getOtp() != null && request.getOtp().trim().equals(loginOtp.getOtp()));
+        }
+
+
+        // ============================================================
+        // WRONG OTP
+        // ============================================================
+
+        if (!otpCorrect) {
+
+            loginOtp.setAttemptCount(
+                    loginOtp.getAttemptCount() + 1
+            );
+
+            loginOtpRepository.save(loginOtp);
+
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_INVALID,
+                            "Invalid OTP."
+                    )
+            );
+        }
+
+
+        // ============================================================
+        // OTP CORRECT
+        // ============================================================
+
+        loginOtp.setUsed(true);
+
+        loginOtpRepository.save(loginOtp);
+
+
+        // ============================================================
+        // FROM HERE:
+        // YOUR EXISTING LOGIN CODE
+        // ============================================================
+
+        List<UserRoleMaster> userRoles =
+                userRoleMasterRepository
+                        .findByUserId(user.getUserId());
+
+
+        List<String> roleNames =
+                userRoles.stream()
+                        .map(userRole ->
+                                roleMasterRepository
+                                        .findByRoleId(
+                                                userRole.getRoleId()
+                                        )
+                                        .map(RoleMaster::getRoleName)
+                                        .orElse(null)
+                        )
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+
+        if (roleNames.isEmpty() && user.getRoleName() != null && !user.getRoleName().trim().isEmpty()) {
+            roleNames = Arrays.stream(user.getRoleName().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        }
+
+
+        // ================= RIO =================
+
+        String rio =
+                rioUserRepository
+                        .findFirstByEmployeeCode(
+                                user.getEmployeeCode()
+                        )
+                        .map(RioUser::getRio)
+                        .orElse(null);
+
+
+        // ================= TOKEN =================
+
+        // IMPORTANT:
+        // JWT is generated ONLY AFTER OTP verification.
+
+        String token =
+                jwtService.generateToken(user);
+
+
+        // ================= VENDOR =================
+
+        String vendorName = null;
+
+        if (roleNames.contains("Vendor")
+                || roleNames.contains("Sleeper Vendor")
+                || roleNames.contains("Rail Vendor")
+                || (user.getRoleName() != null && user.getRoleName().toUpperCase().contains("VENDOR"))) {
+
+            Optional<VendorMaster> vendorOpt =
+                    vendorMasterRepository
+                            .findByVendorCode(
+                                    user.getUsername()
+                            );
+
+            if (vendorOpt.isEmpty()
+                    && user.getUsername().startsWith(":")) {
+
+                vendorOpt =
+                        vendorMasterRepository
+                                .findByVendorCode(
+                                        user.getUsername()
+                                                .substring(1)
+                                );
+            }
+
+            if (vendorOpt.isPresent()) {
+
+                vendorName =
+                        vendorOpt.get().getVendorName();
+            }
+        }
+
+
+        // ================= LAST LOGIN =================
+
+        user.setLastLoginDate(
+                LocalDateTime.now()
+        );
+
+        userMasterRepository.save(user);
+
+
+        // ================= EXISTING RESPONSE =================
+
+        return new LoginResponseDto(
+                user.getUserId(),
+                user.getUsername(),
+                vendorName,
+                roleNames,
+                token,
+                rio,
+                user.getShortName(),
+                user.getEmployeeCode()
+        );
+    }
+
 
     public UserDetails loadUserByUsername(Integer userId) throws UsernameNotFoundException {
         return userMasterRepository.findByUserId(userId)

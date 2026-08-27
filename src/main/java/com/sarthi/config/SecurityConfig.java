@@ -46,7 +46,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints - no authentication required
                         .requestMatchers(
-                                "/api/auth/login",
+                                "/api/auth/**",
                                 "/api/vendor/poData",
                                 "/api/vendor/po-data",
                                 "/api/vendor/po-assigned",
@@ -76,13 +76,14 @@ public class SecurityConfig {
                                 "/webjars/**",
                                 "/configuration/ui",
                                 "/configuration/security",
-                                "/api/test/**"
+                                "/api/test/**",
+                                "/api/v1/profile",
+                                "/api/v1/profile/**"
                         ).permitAll()
 
                         .requestMatchers(
                                 "/api/ibs/callData",
-                                "/api/ibs/acknowledge",
-                                "/api/v1/profile/**"
+                                "/api/ibs/acknowledge"
                         ).authenticated()
                         // All other requests - permit for now (can be changed to authenticated() later)
                         .anyRequest().permitAll()

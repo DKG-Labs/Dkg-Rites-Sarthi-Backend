@@ -17,6 +17,8 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
 import com.sarthi.entity.UserMaster;
+import com.sarthi.SRailPad.entity.RailCallCancellationDetail;
+import com.sarthi.SRailPad.entity.RailVendorFinancialLiability;
 import com.sarthi.SRailPad.dto.RailpadRemapSubmitDto;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCompleteDetails;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository;
@@ -64,6 +66,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private PincodePoIMappingRepository pincodePoIMappingRepository;
 
     private NotificationService notificationService;
+    private RailCallCancellationDetailRepository railCallCancellationDetailRepository;
+    private RailVendorFinancialLiabilityRepository railVendorFinancialLiabilityRepository;
+    private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional
@@ -618,7 +624,106 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         RailTransitionMaster transition = null;
 
-        if (req.getAction().equalsIgnoreCase("IC_ISSUE") 
+        if ((req.getAction().equalsIgnoreCase("VERIFY_MATERIAL_AVAILABILITY") && "NO".equalsIgnoreCase(req.getMaterialAvailable()))
+                || req.getAction().equalsIgnoreCase("CANCEL_CALL")
+                || req.getAction().equalsIgnoreCase("CANCELLED")) {
+            
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setNextRole(null);
+            tx.setStatus("CANCELLED");
+            tx.setJobStatus("CANCELLED");
+            tx.setAction("VERIFY_MATERIAL_AVAILABILITY");
+
+            String cancelRemarks = req.getRemarks() != null && !req.getRemarks().isEmpty()
+                    ? req.getRemarks()
+                    : "Cancelled - Material Not Available";
+            tx.setRemarks(cancelRemarks);
+
+            // 1. Update rail_inspection_call status to CANCELLED
+            try {
+                Optional<RailInspectionCall> icOpt = railInspectionCallRepository.findByCallNo(req.getRequestId());
+                if (icOpt.isPresent()) {
+                    RailInspectionCall ic = icOpt.get();
+                    ic.setStatus("CANCELLED");
+                    railInspectionCallRepository.save(ic);
+                }
+            } catch (Exception ex) {
+                System.err.println("⚠️ Could not update RailInspectionCall status: " + ex.getMessage());
+            }
+
+            // 2. Release/Reset batch quantities for this call in rail_inspection_batch
+            try {
+                if (jdbcTemplate != null) {
+                    jdbcTemplate.update(
+                            "UPDATE rail_inspection_batch b " +
+                            "JOIN rail_inspection_lot l ON b.lot_id = l.id " +
+                            "JOIN rail_inspection_call c ON l.inspection_call_id = c.id " +
+                            "SET b.qty_to_use = 0, b.quantity = 0, b.balance_qty = 0 " +
+                            "WHERE c.call_no = ?",
+                            req.getRequestId()
+                    );
+                }
+            } catch (Exception ex) {
+                System.err.println("⚠️ Could not reset rail_inspection_batch quantities: " + ex.getMessage());
+            }
+
+            // 3. Save to rail_call_cancellation_details
+            try {
+                String dynamicVendorCode = req.getVendorCode();
+                if (dynamicVendorCode == null || dynamicVendorCode.isEmpty()) {
+                    dynamicVendorCode = current.getVendorCode() != null ? current.getVendorCode() : "";
+                }
+
+                String creatorId = req.getActionBy() != null ? String.valueOf(req.getActionBy()) :
+                                  (req.getUpdatedBy() != null ? req.getUpdatedBy() : null);
+
+                RailCallCancellationDetail cancellationDetail = new RailCallCancellationDetail();
+                cancellationDetail.setCallNumber(req.getRequestId());
+                cancellationDetail.setVendorCode(dynamicVendorCode);
+                cancellationDetail.setCancellationBasis(req.getCancellationBasis() != null ? req.getCancellationBasis() : "NON_CHARGEABLE");
+                cancellationDetail.setVisitStatus(req.getVisitStatus());
+                cancellationDetail.setReasons(req.getCancellationReasons() != null ? String.join("; ", req.getCancellationReasons()) : req.getRemarks());
+                cancellationDetail.setCancellationDescription(req.getCancellationDescription());
+                cancellationDetail.setMaterialValue(req.getMaterialValue());
+                cancellationDetail.setPercentage(req.getCancellationPercentage());
+                cancellationDetail.setCalculatedCharges(req.getCalculatedCharges());
+                cancellationDetail.setMaximumCap(req.getMaximumCap());
+                cancellationDetail.setFinalCancellationCharges(req.getFinalCancellationCharges() != null ? req.getFinalCancellationCharges() : java.math.BigDecimal.ZERO);
+                cancellationDetail.setDocumentName(req.getDocumentName());
+                cancellationDetail.setActionBy(req.getActionBy() != null ? req.getActionBy() : 0L);
+                cancellationDetail.setCreatedBy(creatorId);
+                cancellationDetail.setUpdatedBy(creatorId);
+
+                railCallCancellationDetailRepository.save(cancellationDetail);
+
+                // 4. If CHARGEABLE and charges > 0, log vendor financial liability
+                if ("CHARGEABLE".equalsIgnoreCase(req.getCancellationBasis()) && 
+                    req.getFinalCancellationCharges() != null && 
+                    req.getFinalCancellationCharges().compareTo(java.math.BigDecimal.ZERO) > 0) {
+
+                    RailVendorFinancialLiability liability = new RailVendorFinancialLiability();
+                    liability.setCallNumber(req.getRequestId());
+                    liability.setVendorCode(dynamicVendorCode);
+                    liability.setLiabilityType("CANCELLATION_CHARGES");
+                    liability.setAmount(req.getFinalCancellationCharges());
+                    liability.setPaymentStatus("PENDING");
+                    liability.setCreatedBy(creatorId);
+                    liability.setUpdatedBy(creatorId);
+
+                    railVendorFinancialLiabilityRepository.save(liability);
+                }
+            } catch (Exception ex) {
+                System.err.println("⚠️ Failed to persist RailCallCancellationDetail / RailVendorFinancialLiability: " + ex.getMessage());
+            }
+
+            tx.setCreatedBy(current.getCreatedBy());
+            tx.setModifiedBy(req.getActionBy());
+            tx.setCreatedDate(LocalDateTime.now());
+            tx.setUpdatedDate(LocalDateTime.now());
+
+            RailWorkflowTransaction saved = railWorkflowTransactionRepository.save(tx);
+            return mapToResponse(saved);
+        } else if (req.getAction().equalsIgnoreCase("IC_ISSUE") 
                 || req.getAction().equalsIgnoreCase("IC_GENERATION")
                 || req.getAction().equalsIgnoreCase("GENERATE_IC")
                 || req.getAction().equalsIgnoreCase("DSC_SIGN_IC")) {

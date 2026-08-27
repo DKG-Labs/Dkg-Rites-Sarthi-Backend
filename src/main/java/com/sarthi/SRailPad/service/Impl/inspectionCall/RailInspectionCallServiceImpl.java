@@ -516,6 +516,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         }
 
         com.sarthi.entity.PoHeader poHeader = poHeaderRepository.findByPoNo(poNo).orElse(null);
+        if (poHeader == null) {
+            poHeader = poHeaderRepository.findFirstByPoNoOrL5PoNo(poNo).orElse(null);
+        }
         com.sarthi.entity.PoItem poItem = null;
         if (poHeader != null) {
             List<com.sarthi.entity.PoItem> items = poItemRepository.findByPoHeader_Id(poHeader.getId());
@@ -648,9 +651,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 ? poHeader.getPoDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                 : "";
 
-        String caseNo = (poItem != null && poItem.getCaseNo() != null && !poItem.getCaseNo().trim().isEmpty())
-                ? poItem.getCaseNo().trim()
-                : (poHeader != null && poHeader.getCaseNo() != null ? poHeader.getCaseNo().trim() : "");
+        String caseNo = (poHeader != null && poHeader.getCaseNo() != null && !poHeader.getCaseNo().trim().isEmpty())
+                ? poHeader.getCaseNo().trim()
+                : (poItem != null && poItem.getCaseNo() != null ? poItem.getCaseNo().trim() : "");
         String caseNoBracket = (caseNo != null && !caseNo.isBlank()) ? " (CASE NO. " + caseNo + ")" : "";
 
         String uom = poItem != null && poItem.getUom() != null ? poItem.getUom() : "Nos";

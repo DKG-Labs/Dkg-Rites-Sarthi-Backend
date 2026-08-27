@@ -15,6 +15,10 @@ public class RailFinalLoadTestResponseDto {
     private Integer offeredQty;
     private java.time.LocalDate dateOfShift;
 
+    // Load Tonnes (Rows 1 to 8)
+    private String load1; private String load2; private String load3; private String load4;
+    private String load5; private String load6; private String load7; private String load8;
+
     // Pad 1 L & R
     private String pad1L1; private String pad1L2; private String pad1L3; private String pad1L4;
     private String pad1L5; private String pad1L6; private String pad1L7; private String pad1L8;

@@ -77,6 +77,10 @@ public class RailFinalLoadTestServiceImpl implements RailFinalLoadTestService {
         entity.setOfferedQty(dto.getOfferedQty());
         entity.setDateOfShift(dto.getDateOfShift());
 
+        // Load Tonnes (Rows 1 to 8)
+        entity.setLoad1(dto.getLoad1()); entity.setLoad2(dto.getLoad2()); entity.setLoad3(dto.getLoad3()); entity.setLoad4(dto.getLoad4());
+        entity.setLoad5(dto.getLoad5()); entity.setLoad6(dto.getLoad6()); entity.setLoad7(dto.getLoad7()); entity.setLoad8(dto.getLoad8());
+
         // Pad 1 L & R
         entity.setPad1L1(dto.getPad1L1()); entity.setPad1L2(dto.getPad1L2()); entity.setPad1L3(dto.getPad1L3()); entity.setPad1L4(dto.getPad1L4());
         entity.setPad1L5(dto.getPad1L5()); entity.setPad1L6(dto.getPad1L6()); entity.setPad1L7(dto.getPad1L7()); entity.setPad1L8(dto.getPad1L8());
@@ -129,6 +133,10 @@ public class RailFinalLoadTestServiceImpl implements RailFinalLoadTestService {
         dto.setRailpadType(entity.getRailpadType());
         dto.setOfferedQty(entity.getOfferedQty());
         dto.setDateOfShift(entity.getDateOfShift());
+
+        // Load Tonnes (Rows 1 to 8)
+        dto.setLoad1(entity.getLoad1()); dto.setLoad2(entity.getLoad2()); dto.setLoad3(entity.getLoad3()); dto.setLoad4(entity.getLoad4());
+        dto.setLoad5(entity.getLoad5()); dto.setLoad6(entity.getLoad6()); dto.setLoad7(entity.getLoad7()); dto.setLoad8(entity.getLoad8());
 
         // Pad 1 L & R
         dto.setPad1L1(entity.getPad1L1()); dto.setPad1L2(entity.getPad1L2()); dto.setPad1L3(entity.getPad1L3()); dto.setPad1L4(entity.getPad1L4());

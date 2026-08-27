@@ -8,6 +8,7 @@ import java.util.List;
 
 @Repository
 public interface PoMaDetailRepository extends JpaRepository<PoMaDetail, Long> {
+    List<PoMaDetail> findByMaKey(String maKey);
     List<PoMaDetail> findByMaPoHeaderPoNo(String poNo);
     List<PoMaDetail> findByMaPoHeaderPoKey(String poKey);
 }
