@@ -81,6 +81,21 @@ public class RailpadFinalIcSaveChanges {
     @Column(name = "inspecting_engineer")
     private String inspectingEngineer;
 
+    @Column(name = "certificate_date")
+    private String certificateDate;
+
+    @Column(name = "contractor", columnDefinition = "TEXT")
+    private String contractor;
+
+    @Column(name = "place_of_inspection", columnDefinition = "TEXT")
+    private String placeOfInspection;
+
+    @Column(name = "no_of_visits")
+    private String noOfVisits;
+
+    @Column(name = "date_of_call")
+    private String dateOfCall;
+
     // Audit Fields
     @Column(name = "created_by", length = 50)
     private String createdBy;

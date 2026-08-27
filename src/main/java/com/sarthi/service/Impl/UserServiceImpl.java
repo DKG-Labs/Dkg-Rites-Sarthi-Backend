@@ -636,15 +636,21 @@ public class UserServiceImpl implements UserService {
 
         String transactionId = otpService.generateAndSendOtp(user);
 
+        String mobile = user.getMobileNumber();
+        boolean hasMobile = mobile != null && !mobile.trim().isEmpty();
 
-        // ============================================================
-        // Return response saying OTP is required
-        // ============================================================
+        String noticeMessage;
+        if (hasMobile && mobile.trim().length() >= 4) {
+            String cleanMobile = mobile.trim();
+            noticeMessage = "OTP sent to your registered mobile number ending with •••• " + cleanMobile.substring(cleanMobile.length() - 4) + ".";
+        } else {
+            noticeMessage = "Mobile number not found. Please enter default OTP •••• 123456.";
+        }
 
         return new MfaLoginResponseDto(
                 true,
                 transactionId,
-                "OTP sent to your registered mobile number."
+                noticeMessage
         );
     }
 
@@ -763,10 +769,22 @@ public class UserServiceImpl implements UserService {
 
         // ============================================================
         // STEP 7: Verify OTP
+        // Users WITH saved mobile number -> MUST enter real OTP
+        // Users WITHOUT saved mobile number -> ALLOW 123456 fallback
         // ============================================================
 
-        boolean otpCorrect =
-                request.getOtp().equals(loginOtp.getOtp());
+        String userMobile = user.getMobileNumber();
+        boolean hasSavedMobile = userMobile != null && !userMobile.trim().isEmpty();
+
+        boolean otpCorrect;
+        if (hasSavedMobile) {
+            // Strict verification against generated SMS OTP
+            otpCorrect = request.getOtp() != null && request.getOtp().trim().equals(loginOtp.getOtp());
+        } else {
+            // Fallback for users with no mobile number saved
+            otpCorrect = "123456".equals(request.getOtp() != null ? request.getOtp().trim() : "")
+                    || (request.getOtp() != null && request.getOtp().trim().equals(loginOtp.getOtp()));
+        }
 
 
         // ============================================================
@@ -822,7 +840,14 @@ public class UserServiceImpl implements UserService {
                                         .orElse(null)
                         )
                         .filter(Objects::nonNull)
-                        .toList();
+                        .collect(Collectors.toList());
+
+        if (roleNames.isEmpty() && user.getRoleName() != null && !user.getRoleName().trim().isEmpty()) {
+            roleNames = Arrays.stream(user.getRoleName().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        }
 
 
         // ================= RIO =================
@@ -850,7 +875,9 @@ public class UserServiceImpl implements UserService {
         String vendorName = null;
 
         if (roleNames.contains("Vendor")
-                || roleNames.contains("Sleeper Vendor")) {
+                || roleNames.contains("Sleeper Vendor")
+                || roleNames.contains("Rail Vendor")
+                || (user.getRoleName() != null && user.getRoleName().toUpperCase().contains("VENDOR"))) {
 
             Optional<VendorMaster> vendorOpt =
                     vendorMasterRepository

@@ -42,6 +42,16 @@ public class RailFinalLoadTest extends BaseEntity {
     @Column(name = "date_of_shift")
     private LocalDate dateOfShift;
 
+    // Load Tonnes (Rows 1 to 8)
+    @Column(name = "load1") private String load1;
+    @Column(name = "load2") private String load2;
+    @Column(name = "load3") private String load3;
+    @Column(name = "load4") private String load4;
+    @Column(name = "load5") private String load5;
+    @Column(name = "load6") private String load6;
+    @Column(name = "load7") private String load7;
+    @Column(name = "load8") private String load8;
+
     // Pad 1 L & R
     @Column(name = "pad1_l1") private String pad1L1;
     @Column(name = "pad1_l2") private String pad1L2;

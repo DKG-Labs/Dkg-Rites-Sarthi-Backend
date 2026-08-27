@@ -76,31 +76,29 @@ public class OtpService {
                 loginOtpRepository.save(loginOtp);
 
         // ============================================================
-        // STEP 4: Get registered mobile number
+        // STEP 4: Get registered mobile number & Send SMS
         // ============================================================
 
-        String mobileNumber =
-                user.getMobileNumber();
+        String mobileNumber = user.getMobileNumber();
 
-        if (mobileNumber == null ||
-                mobileNumber.isBlank()) {
+        System.out.println("=================================================");
+        System.out.println("🔐 [SARTHI MFA OTP] User: " + (user.getEmployeeCode() != null ? user.getEmployeeCode() : user.getUsername()) + " | Role: " + user.getRoleName() + " | Mobile: " + (mobileNumber != null ? mobileNumber : "N/A") + " | Generated OTP: " + otp);
+        System.out.println("=================================================");
 
-            throw new RuntimeException(
-                    "Mobile number is not registered for this user"
-            );
+        // Send live SMS if a valid mobile number is present for the user
+        if (mobileNumber != null && !mobileNumber.isBlank()) {
+            try {
+                smsService.sendOtp(
+                        mobileNumber.trim(),
+                        otp
+                );
+            } catch (Exception e) {
+                System.err.println("⚠️ Warning: Could not deliver SMS to " + mobileNumber + ": " + e.getMessage());
+            }
         }
 
         // ============================================================
-        // STEP 5: Send OTP through XpertSMS
-        // ============================================================
-
-        smsService.sendOtp(
-                mobileNumber,
-                otp
-        );
-
-        // ============================================================
-        // STEP 6: Return transaction ID
+        // STEP 5: Return transaction ID
         // ============================================================
 
         return String.valueOf(

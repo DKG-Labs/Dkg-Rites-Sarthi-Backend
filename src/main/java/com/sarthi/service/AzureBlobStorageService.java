@@ -175,6 +175,37 @@ public class AzureBlobStorageService {
         return uploadFileBytes(fileBytes, fileName, this.containerName);
     }
 
+    /**
+     * Deletes a file from Azure Blob Storage using the default container
+     *
+     * @param fileName The name of the file to delete
+     * @return true if the blob existed and was deleted, false otherwise
+     */
+    public boolean deleteFile(String fileName) {
+        return deleteFile(fileName, this.containerName);
+    }
+
+    /**
+     * Deletes a file from a specific Azure Blob Storage container
+     *
+     * @param fileName The name of the file to delete
+     * @param targetContainerName The container name
+     * @return true if the blob existed and was deleted, false otherwise
+     */
+    public boolean deleteFile(String fileName, String targetContainerName) {
+        try {
+            log.info("Deleting file from Azure Blob Storage container '{}': {}", targetContainerName, fileName);
+            BlobContainerClient targetContainer = getContainerClient(targetContainerName);
+            BlobClient blobClient = targetContainer.getBlobClient(fileName);
+            boolean deleted = blobClient.deleteIfExists();
+            log.info("File '{}' deletion status in container '{}': {}", fileName, targetContainerName, deleted);
+            return deleted;
+        } catch (Exception e) {
+            log.error("Error deleting file '{}' from Azure container '{}': {}", fileName, targetContainerName, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete file from Azure storage", e);
+        }
+    }
+
     private byte[] compressToTargetSize(byte[] imageBytes, int targetKB) {
 
         try {
