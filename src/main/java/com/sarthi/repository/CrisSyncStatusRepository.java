@@ -9,4 +9,6 @@ import org.springframework.stereotype.Repository;
 public interface CrisSyncStatusRepository extends JpaRepository<CrisSyncStatus, Long> {
 
     boolean existsByRefTypeAndRefKey(String po, String pokey);
+
+    java.util.Optional<CrisSyncStatus> findByRefTypeAndRefKey(String refType, String refKey);
 }
