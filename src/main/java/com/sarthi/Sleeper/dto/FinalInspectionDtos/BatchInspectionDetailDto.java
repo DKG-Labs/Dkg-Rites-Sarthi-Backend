@@ -12,6 +12,7 @@ public class BatchInspectionDetailDto {
     private String batchNumber;
     private LocalDate castingDate;
     private String sleeperType;
+    private String sleeperCategory;
     private Long totalSleepers;
 
     private List<SleeperDto> sleepers;
