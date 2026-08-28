@@ -590,4 +590,21 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query(value = "SELECT rio FROM rail_workflow_transaction WHERE (request_id = :callNo OR request_id LIKE CONCAT('%', :callNo, '%')) AND rio IS NOT NULL AND rio != '' ORDER BY workflow_transition_id ASC LIMIT 1", nativeQuery = true)
     String findRioByCallNo(@Param("callNo") String callNo);
+
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            WHERE t.workflow_transition_id IN (
+                SELECT MAX(t2.workflow_transition_id)
+                FROM rail_workflow_transaction t2
+                WHERE (UPPER(t2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.job_status, '')) LIKE '%CANCEL%')
+                GROUP BY t2.request_id
+            )
+            AND (:plantId IS NULL OR :plantId = '' 
+                 OR REPLACE(t.plant_id, ':', '') = :plantId)
+            AND (:vendorCode IS NULL OR :vendorCode = '' 
+                 OR REPLACE(t.vendor_code, ':', '') = :vendorCode 
+                 OR REPLACE(t.plant_id, ':', '') LIKE CONCAT(:vendorCode, '%'))
+            ORDER BY t.created_date DESC
+            """, nativeQuery = true)
+    List<RailWorkflowTransaction> findLatestCancelledTransactions(@Param("plantId") String plantId, @Param("vendorCode") String vendorCode);
 }
