@@ -161,4 +161,19 @@ public class RailWorkFlowController {
             );
         }
     }
+
+    @GetMapping("/cancellation-details")
+    public ResponseEntity<Object> getCancellationDetails(@RequestParam String callNo) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getCancellationDetails(callNo)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Failed to fetch cancellation details: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
 }

@@ -122,7 +122,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 WHERE t2.requestId = t.requestId
                 AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
-            AND UPPER(t.status) = 'COMPLETED'
+            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             """)
     List<RailWorkflowTransaction> findCompletedRequests();
 
@@ -134,7 +134,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 WHERE t2.requestId = t.requestId
                 AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
-            AND UPPER(t.status) = 'COMPLETED'
+            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND (:workflowId IS NULL OR t.workflowId = :workflowId)
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
             """)
@@ -149,7 +149,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 WHERE t2.requestId = t.requestId
                 AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
-            AND UPPER(t.status) = 'COMPLETED'
+            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
             """)
     List<RailWorkflowTransaction> findCompletedRequestsByPlantId(@Param("plantId") String plantId);
@@ -162,9 +162,9 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 WHERE t2.requestId = t.requestId
                 AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
                 AND t2.workflowId = 2
-                AND UPPER(t2.status) = 'COMPLETED'
+                AND (UPPER(t2.status) = 'COMPLETED' OR UPPER(t2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.action, '')) LIKE '%CANCEL%')
             )
-            AND UPPER(t.status) = 'COMPLETED'
+            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND t.workflowId = 2
             """)
     List<RailWorkflowTransaction> findFinalCompletedRequests();
@@ -205,6 +205,9 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query(value = "SELECT status FROM rail_workflow_transaction WHERE request_id = :requestId ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
     Optional<String> findLatestStatusByRequestId(@Param("requestId") String requestId);
+
+    @Query(value = "SELECT status FROM rail_workflow_transaction WHERE request_id = :requestId AND (UPPER(status) LIKE '%CANCEL%' OR UPPER(COALESCE(job_status, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(action, '')) LIKE '%CANCEL%') ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
+    Optional<String> findLatestCancelledStatusByRequestId(@Param("requestId") String requestId);
 
     @Query(value = """
                 SELECT

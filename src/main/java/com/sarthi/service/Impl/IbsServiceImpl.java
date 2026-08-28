@@ -70,6 +70,7 @@ public class IbsServiceImpl implements IbsService {
 
     private final com.sarthi.SRailPad.repository.inspectionCall.RailpadProcessIcEditRepository railpadProcessIcEditRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailpadFinalIcEditRepository railpadFinalIcEditRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
 
     private final IbsCallRegistrationRepository ibsCallRegistrationRepository;
 
@@ -688,6 +689,12 @@ public class IbsServiceImpl implements IbsService {
                 )
         );
 
+        responseList.addAll(
+                mapResult(
+                        railInspectionCallRepository.getRailpadCancelledInspectionCalls()
+                )
+        );
+
         return responseList;
     }
 
@@ -767,16 +774,42 @@ public class IbsServiceImpl implements IbsService {
             );
 
             String callNumber = row[14] != null ? row[14].toString() : "";
+            String callStatus = row[5] != null ? row[5].toString() : "A";
 
-            dto.setIcFileLink(
-                    "https://api.ritesqasarthi.com"
-                            + "/sarthi-backend/api/certificate-storage/view/"
-                            + callNumber
-                            + ".pdf"
-            );
+            if ("C".equalsIgnoreCase(callStatus) || "CANCELLED".equalsIgnoreCase(callStatus)) {
+                dto.setIcFileLink("");
+            } else {
+                dto.setIcFileLink(
+                        "https://api.ritesqasarthi.com"
+                                + "/sarthi-backend/api/certificate-storage/view/"
+                                + callNumber
+                                + ".pdf"
+                );
+            }
+
 
             dto.setCallNumber(callNumber);
             dto.setIcNumber(row[15] != null ? row[15].toString() : callNumber);
+
+            double cancelCharges = 0.0;
+            double rejectCharges = 0.0;
+
+            if (row.length > 16 && row[16] != null) {
+                cancelCharges = ((Number) row[16]).doubleValue();
+            }
+            if (row.length > 17 && row[17] != null) {
+                rejectCharges = ((Number) row[17]).doubleValue();
+            }
+
+            dto.setCancellationCharges(cancelCharges);
+            dto.setRejectionCharges(rejectCharges);
+
+            if (cancelCharges > 0.0 || rejectCharges > 0.0) {
+                dto.setIsBlocked(1);
+            } else {
+                dto.setIsBlocked(0);
+            }
+
             list.add(dto);
         }
 

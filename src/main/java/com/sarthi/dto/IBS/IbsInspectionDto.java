@@ -43,5 +43,12 @@ public class IbsInspectionDto {
                 private String callNumber;
                 private String icNumber;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("is_blocked")
+    private Integer isBlocked;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("cancellation_charges")
+    private Double cancellationCharges;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("rejection_charges")
+    private Double rejectionCharges;
 }

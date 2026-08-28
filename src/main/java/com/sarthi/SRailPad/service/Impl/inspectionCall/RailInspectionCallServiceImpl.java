@@ -43,6 +43,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnProcessCallRepository railWithdrawnProcessCallRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnFinalCallRepository railWithdrawnFinalCallRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
+    private final com.sarthi.SRailPad.repository.RailCallCancellationDetailRepository railCallCancellationDetailRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     private jakarta.persistence.EntityManager entityManager;
@@ -425,10 +426,17 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
         // 3. Fetch latest status dynamically from workflow transactions
         if (call.getCallNo() != null) {
-            String latestStatus = railWorkflowTransactionRepository
-                    .findLatestStatusByRequestId(call.getCallNo())
-                    .orElse(call.getStatus());
-            call.setStatus(latestStatus);
+            Optional<String> cancelTx = railWorkflowTransactionRepository.findLatestCancelledStatusByRequestId(call.getCallNo());
+            if (cancelTx.isPresent() && !cancelTx.get().isBlank()) {
+                call.setStatus("CANCELLED");
+            } else if (railCallCancellationDetailRepository != null && railCallCancellationDetailRepository.findByCallNumber(call.getCallNo()).isPresent()) {
+                call.setStatus("CANCELLED");
+            } else {
+                String latestStatus = railWorkflowTransactionRepository
+                        .findLatestStatusByRequestId(call.getCallNo())
+                        .orElse(call.getStatus());
+                call.setStatus(latestStatus);
+            }
         }
 
         // 4. Populate IE Assigned Name & Check IC_GENERATION action in workflow

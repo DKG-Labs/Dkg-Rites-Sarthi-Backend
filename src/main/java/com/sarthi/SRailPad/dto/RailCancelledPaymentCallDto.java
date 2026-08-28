@@ -33,5 +33,7 @@ public class RailCancelledPaymentCallDto {
     private String paymentStatus;
     private String plantId;
     private String vendorCode;
+    private String rio;
+    private String rioEmail;
     private LocalDateTime createdDate;
 }
