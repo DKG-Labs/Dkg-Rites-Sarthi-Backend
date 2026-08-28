@@ -145,15 +145,28 @@ public interface RailFinalInspectionLotResultsRepository extends JpaRepository<R
 
     @Query(value = """
         SELECT 
-            COALESCE(SUM(r.accepted_qty), 0) AS totalAccepted,
-            COALESCE(SUM(r.rejected_qty), 0) AS totalRejected
-        FROM rail_final_inspection_lot_results r
-        JOIN rail_inspection_call ic ON r.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
-        WHERE 
-            (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) = :poNo
-            AND (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1) ELSE ic.po_sr END) = :poSr
-            AND ic.call_type = 'FINAL'
-            AND ic.created_at < :createdAt
+            COALESCE(SUM(call_res.accepted_qty), 0) AS totalAccepted,
+            COALESCE(SUM(call_res.rejected_qty), 0) AS totalRejected
+        FROM (
+            SELECT 
+                r.call_no,
+                CASE 
+                    WHEN UPPER(MAX(COALESCE(r.railpad_type, ''))) LIKE '%NCR%' OR UPPER(MAX(COALESCE(r.railpad_type, ''))) LIKE '%NYLON%' THEN MAX(COALESCE(r.accepted_qty, 0))
+                    ELSE SUM(COALESCE(r.accepted_qty, 0))
+                END AS accepted_qty,
+                CASE 
+                    WHEN UPPER(MAX(COALESCE(r.railpad_type, ''))) LIKE '%NCR%' OR UPPER(MAX(COALESCE(r.railpad_type, ''))) LIKE '%NYLON%' THEN MAX(COALESCE(r.rejected_qty, 0))
+                    ELSE SUM(COALESCE(r.rejected_qty, 0))
+                END AS rejected_qty
+            FROM rail_final_inspection_lot_results r
+            JOIN rail_inspection_call ic ON r.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+            WHERE 
+                (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) = :poNo
+                AND (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1) ELSE ic.po_sr END) = :poSr
+                AND ic.call_type = 'FINAL'
+                AND ic.created_at < :createdAt
+            GROUP BY r.call_no
+        ) call_res
     """, nativeQuery = true)
     List<Object[]> sumQtyByPoAndSrBeforeDate(@org.springframework.data.repository.query.Param("poNo") String poNo, @org.springframework.data.repository.query.Param("poSr") String poSr, @org.springframework.data.repository.query.Param("createdAt") java.time.LocalDateTime createdAt);
 }

@@ -58,4 +58,8 @@ public interface RailWorkflowService {
     public List<String> getMappedCompanyNames(Long userId);
 
     public List<String> getPlantsByCompanyName(String companyName);
+
+    public List<com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto> getCancelledCallsForPayment(String plantId, String vendorCode);
+
+    public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode);
 }

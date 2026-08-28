@@ -109,6 +109,11 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             call.setPlantId(call.getPlantId().replaceAll("^:", ""));
         }
 
+        // Validate if plant is blocked due to pending cancellation charges
+        if (call.getPlantId() != null && railWorkflowService.isPlantBlockedForCallRaising(call.getPlantId(), call.getVendorCode())) {
+            throw new RuntimeException("Call raising is blocked for plant (" + call.getPlantId() + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module.");
+        }
+
         // Validate and initiate workflow BEFORE persisting to database
         railWorkflowService.initiateWorkflow(
                 generatedCallNo,
@@ -205,7 +210,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
                 "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
                 "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
-                "CANCEL", "Cancel", "FINISH", "Finish");
+                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish");
         Page<RailInspectionCall> page;
         if ("pending".equalsIgnoreCase(statusType)) {
             page = repository.findPendingCallsForPlantNative(plantId, terminalStatuses, pageable);
@@ -224,7 +229,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
                 "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
                 "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
-                "CANCEL", "Cancel", "FINISH", "Finish");
+                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish");
         Page<RailInspectionCall> page = repository.findCompletedCallsForPlantNative(plantId, exactStatuses, pageable);
         page.forEach(this::enrichCallData);
         return page;
@@ -568,14 +573,41 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 .findAllByCallNo(callNo);
         Double qtyNowPassed = 0.0;
         Double qtyNowRejected = 0.0;
-        for (com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults r : currentResults) {
-            if (r.getAcceptedQty() != null)
-                qtyNowPassed += r.getAcceptedQty().doubleValue();
-            if (r.getRejectedQty() != null)
-                qtyNowRejected += r.getRejectedQty().doubleValue();
+
+        boolean isNCRGRSP = (call.getRailPadType() != null && (call.getRailPadType().toUpperCase().contains("NCR") || call.getRailPadType().toUpperCase().contains("NYLON CORD") || call.getRailPadType().toUpperCase().contains("9790")))
+                || (currentResults.stream().anyMatch(r -> r.getRailpadType() != null && (r.getRailpadType().toUpperCase().contains("NCR") || r.getRailpadType().toUpperCase().contains("NYLON CORD") || r.getRailpadType().toUpperCase().contains("9790"))))
+                || (poItem != null && poItem.getUom() != null && "SET".equalsIgnoreCase(poItem.getUom().trim()));
+
+        if (isNCRGRSP) {
+            // For NCRGRSP, set accepted/rejected is repeated for each lot in the call.
+            // Take the value directly without adding/summing them.
+            if (!currentResults.isEmpty()) {
+                qtyNowPassed = currentResults.stream()
+                        .map(r -> r.getAcceptedQty() != null ? r.getAcceptedQty().doubleValue() : 0.0)
+                        .max(Double::compare).orElse(0.0);
+                qtyNowRejected = currentResults.stream()
+                        .map(r -> r.getRejectedQty() != null ? r.getRejectedQty().doubleValue() : 0.0)
+                        .max(Double::compare).orElse(0.0);
+            }
+        } else {
+            for (com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults r : currentResults) {
+                if (r.getAcceptedQty() != null)
+                    qtyNowPassed += r.getAcceptedQty().doubleValue();
+                if (r.getRejectedQty() != null)
+                    qtyNowRejected += r.getRejectedQty().doubleValue();
+            }
         }
 
         Double qtyNowOffered = call.getTotalQty() != null ? call.getTotalQty().doubleValue() : 0.0;
+        if (isNCRGRSP) {
+            if (call.getNoOfSets() != null && call.getNoOfSets() > 0) {
+                qtyNowOffered = call.getNoOfSets().doubleValue();
+            } else if (!currentResults.isEmpty()) {
+                qtyNowOffered = currentResults.stream()
+                        .map(r -> r.getOfferedQty() != null ? r.getOfferedQty().doubleValue() : 0.0)
+                        .max(Double::compare).orElse(qtyNowOffered);
+            }
+        }
         Double qtyStillDue = qtyOnOrder - prevPassed - qtyNowPassed;
 
         List<com.sarthi.SRailPad.entity.RailWorkflowTransaction> transitions = railWorkflowTransactionRepository

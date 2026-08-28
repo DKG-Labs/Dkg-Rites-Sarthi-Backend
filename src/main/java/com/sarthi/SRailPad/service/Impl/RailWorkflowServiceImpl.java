@@ -1950,4 +1950,144 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         return "Railpad mapping created successfully";
     }
+
+    @Override
+    public List<com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto> getCancelledCallsForPayment(String plantId, String vendorCode) {
+        String effectivePlantId = (plantId != null && !plantId.trim().isEmpty() && !"1".equals(plantId.trim())) 
+                ? plantId.replace(":", "").trim() : null;
+        String effectiveVendorCode = (vendorCode != null && !vendorCode.trim().isEmpty()) 
+                ? vendorCode.replace(":", "").trim() : null;
+
+        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findLatestCancelledTransactions(effectivePlantId, effectiveVendorCode);
+        List<com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto> result = new java.util.ArrayList<>();
+
+        for (RailWorkflowTransaction tx : txList) {
+            String callNo = tx.getRequestId();
+            if (callNo == null || callNo.isBlank()) continue;
+
+            String callPlantId = tx.getPlantId();
+            com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall callEntity = null;
+
+            if (railInspectionCallRepository != null) {
+                java.util.Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> callOpt = railInspectionCallRepository.findByCallNo(callNo);
+                if (callOpt.isPresent()) {
+                    callEntity = callOpt.get();
+                    if (callEntity.getPlantId() != null && !callEntity.getPlantId().isBlank()) {
+                        callPlantId = callEntity.getPlantId();
+                    }
+                }
+            }
+
+            if (effectivePlantId != null && !effectivePlantId.isBlank()) {
+                String cleanCallPlant = (callPlantId != null) ? callPlantId.replace(":", "").trim() : "";
+                if (!cleanCallPlant.equalsIgnoreCase(effectivePlantId)) {
+                    continue;
+                }
+            }
+
+            com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto dto = new com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto();
+            dto.setWorkflowTransitionId(tx.getWorkflowTransitionId());
+            dto.setCallNo(callNo);
+            dto.setStatus("CANCELLED");
+            dto.setCancelRemarks(tx.getRemarks());
+            dto.setAction(tx.getAction());
+            dto.setPlantId(callPlantId);
+            dto.setVendorCode(tx.getVendorCode());
+            dto.setCreatedDate(tx.getCreatedDate());
+            if (callEntity != null) {
+                dto.setPoNo(callEntity.getPoNo());
+                dto.setPoSr(callEntity.getPoSr());
+                dto.setOfferedQty(callEntity.getTotalQty() != null ? callEntity.getTotalQty() : 0L);
+                dto.setCallDate(callEntity.getInspectionDate() != null ? String.valueOf(callEntity.getInspectionDate()) : null);
+                dto.setDrawingNo(callEntity.getDrawingNo());
+                dto.setRailPadType(callEntity.getRailPadType());
+
+                // Fetch PO Header for Case No
+                String rawPoNo = callEntity.getPoNo();
+                String barePoNo = rawPoNo;
+                if (barePoNo != null && barePoNo.contains("/")) {
+                    barePoNo = barePoNo.split("/")[0].trim();
+                }
+                if (barePoNo != null && poHeaderRepository != null) {
+                    java.util.Optional<com.sarthi.entity.PoHeader> headerOpt = poHeaderRepository.findByPoNo(barePoNo);
+                    if (headerOpt.isPresent() && headerOpt.get().getCaseNo() != null) {
+                        dto.setIbsCaseNo(headerOpt.get().getCaseNo());
+                    }
+                }
+            }
+            dto.setIbsCallNo("");
+
+            double base = 0.0;
+            if (railCallCancellationDetailRepository != null) {
+                java.util.Optional<com.sarthi.SRailPad.entity.RailCallCancellationDetail> cancelOpt = railCallCancellationDetailRepository.findByCallNumber(callNo);
+                if (cancelOpt.isPresent()) {
+                    com.sarthi.SRailPad.entity.RailCallCancellationDetail cd = cancelOpt.get();
+                    if ("CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
+                        if (cd.getFinalCancellationCharges() != null) {
+                            base = cd.getFinalCancellationCharges().doubleValue();
+                        } else if (cd.getCalculatedCharges() != null) {
+                            base = cd.getCalculatedCharges().doubleValue();
+                        }
+                    } else {
+                        base = 0.0;
+                    }
+                }
+            }
+            if (base == 0.0 && railVendorFinancialLiabilityRepository != null) {
+                java.util.Optional<com.sarthi.SRailPad.entity.RailVendorFinancialLiability> liabOpt = railVendorFinancialLiabilityRepository.findByCallNumber(callNo);
+                if (liabOpt.isPresent() && liabOpt.get().getAmount() != null) {
+                    base = liabOpt.get().getAmount().doubleValue();
+                }
+            }
+            if (base == 0.0 && tx.getRemarks() != null) {
+                String rem = tx.getRemarks().toUpperCase();
+                if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
+                    base = 0.0;
+                } else if (rem.contains("FINAL CANCELLATION CHARGES")) {
+                    try {
+                        String after = rem.substring(rem.indexOf("FINAL CANCELLATION CHARGES"));
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[0-9]+(?:,[0-9]+)*(?:\\.[0-9]+)?").matcher(after);
+                        if (m.find()) {
+                            base = Double.parseDouble(m.group().replace(",", ""));
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            double gst = Math.round((base * 18.0) / 100.0);
+            dto.setBasePayableAmount(base);
+            dto.setGst(gst);
+            dto.setTotalPayableAmount(base + gst);
+            dto.setBankAccountDetails("SBI A/c: 39482910482, IFSC: SBIN0001234, Branch: RITES Central");
+            dto.setPaymentReason("Cancellation");
+            dto.setChargeType("Cancellation");
+            dto.setPaymentStatus("Payment Pending");
+
+            result.add(dto);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode) {
+        List<com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto> list = getCancelledCallsForPayment(plantId, vendorCode);
+        for (com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto item : list) {
+            // Check if this call is chargeable
+            boolean isChargeable = (item.getTotalPayableAmount() != null && item.getTotalPayableAmount() > 0);
+            if (!isChargeable && item.getCancelRemarks() != null) {
+                String rem = item.getCancelRemarks().toUpperCase();
+                if (rem.contains("CHARGEABLE") && !rem.contains("NON_CHARGEABLE") && !rem.contains("NON-CHARGEABLE")) {
+                    isChargeable = true;
+                }
+            }
+            if (isChargeable) {
+                // If payment is pending or not approved, plant is blocked from raising new calls
+                String status = item.getPaymentStatus();
+                if (status == null || (!"Approved by RITES Finance".equalsIgnoreCase(status) && !"APPROVED".equalsIgnoreCase(status))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

@@ -29,13 +29,39 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
 
     Page<RailInspectionCall> findByPlantIdOrderByCreatedAtDesc(String plantId, Pageable pageable);
 
-    @Query(value = "SELECT c.* FROM rail_inspection_call c WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) NOT IN (:statuses) ORDER BY c.created_at DESC",
-           countQuery = "SELECT count(c.id) FROM rail_inspection_call c WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) NOT IN (:statuses)",
+    @Query(value = """
+            SELECT c.* FROM rail_inspection_call c 
+            WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') 
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT IN (:statuses)
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%CANCEL%'
+            ORDER BY c.created_at DESC
+            """,
+           countQuery = """
+            SELECT count(c.id) FROM rail_inspection_call c 
+            WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') 
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT IN (:statuses)
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%CANCEL%'
+            """,
            nativeQuery = true)
     Page<RailInspectionCall> findPendingCallsForPlantNative(@Param("plantId") String plantId, @Param("statuses") List<String> statuses, Pageable pageable);
     
-    @Query(value = "SELECT c.* FROM rail_inspection_call c WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) IN (:statuses) ORDER BY c.created_at DESC",
-           countQuery = "SELECT count(c.id) FROM rail_inspection_call c WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') AND (SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1) IN (:statuses)",
+    @Query(value = """
+            SELECT c.* FROM rail_inspection_call c 
+            WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') 
+            AND (
+                UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) IN (:statuses)
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%CANCEL%'
+            )
+            ORDER BY c.created_at DESC
+            """,
+           countQuery = """
+            SELECT count(c.id) FROM rail_inspection_call c 
+            WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') 
+            AND (
+                UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) IN (:statuses)
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%CANCEL%'
+            )
+            """,
            nativeQuery = true)
     Page<RailInspectionCall> findCompletedCallsForPlantNative(@Param("plantId") String plantId, @Param("statuses") List<String> statuses, Pageable pageable);
 
