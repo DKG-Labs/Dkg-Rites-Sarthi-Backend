@@ -123,11 +123,11 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
 
     @Query(value = """
             SELECT
-                ph.case_no                                              AS caseNumber,
+                COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
                 ic.plant_id                                             AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
-                CAST(COALESCE(um.employee_code, wt.created_by) AS CHAR) AS ieEmployeeNumber,
+                CAST(COALESCE(um.employee_code, cd.created_by, wt.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'C'                                                     AS callStatus,
                 (CASE WHEN ic.call_type = 'PROCESS' THEN 'P' ELSE 'F' END) AS typeOfCall,
                 (CASE 
@@ -137,7 +137,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 END)                                                    AS poItemSerialNumber,
                 ''                                                      AS bkNumber,
                 ''                                                      AS setNumber,
-                DATE(wt.created_date)                                   AS icDate,
+                DATE(COALESCE(cd.cancellation_date, wt.created_date, ic.updated_at, ic.created_at)) AS icDate,
                 COALESCE(ic.total_qty, 0)                               AS quantityOffered,
                 0                                                       AS quantityPassed,
                 0                                                       AS quantityRejected,
@@ -150,23 +150,23 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 )                                                       AS cancellationCharges,
                 0.0                                                     AS rejectionCharges
             FROM rail_inspection_call ic
-            INNER JOIN rail_workflow_transaction wt
-                    ON wt.workflow_transition_id = (
-                        SELECT MAX(wt2.workflow_transition_id)
-                        FROM rail_workflow_transaction wt2
-                        WHERE wt2.request_id = ic.call_no
-                          AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
-                    )
+            LEFT JOIN rail_call_cancellation_details cd
+                   ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN rail_workflow_transaction wt
+                   ON wt.workflow_transition_id = (
+                       SELECT MAX(wt2.workflow_transition_id)
+                       FROM rail_workflow_transaction wt2
+                       WHERE wt2.request_id = ic.call_no
+                         AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
+                   )
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um
-                   ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN rail_call_cancellation_details cd
-                   ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_vendor_financial_liability vfl_c
                    ON CONVERT(vfl_c.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
                   AND vfl_c.liability_type = 'CANCELLATION_CHARGES'
@@ -182,18 +182,29 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                    AND latest.max_version = icr1.version
             ) icr
                     ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            WHERE icr.call_number IS NULL
-               OR UPPER(icr.status) = 'FAILED'
+            WHERE (
+                UPPER(ic.status) LIKE '%CANCEL%'
+                OR cd.call_number IS NOT NULL
+                OR wt.workflow_transition_id IS NOT NULL
+            )
+            AND (
+                icr.call_number IS NULL
+                OR UPPER(icr.status) = 'FAILED'
+            )
             GROUP BY
                 ph.case_no,
                 ic.created_at,
+                ic.updated_at,
                 ic.plant_id,
                 pm.ibs_vendor_code,
                 um.employee_code,
+                cd.created_by,
                 wt.created_by,
+                ic.created_by,
                 ic.call_type,
                 ic.po_no,
                 ic.po_sr,
+                cd.cancellation_date,
                 wt.created_date,
                 ic.total_qty,
                 ic.call_no,
@@ -204,5 +215,4 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 vfl_c.amount
             """, nativeQuery = true)
     List<Object[]> getRailpadCancelledInspectionCalls();
-
 }
