@@ -1163,6 +1163,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 }
 
                 if (poHeader != null) {
+                    if (poHeader.getCaseNo() != null && !poHeader.getCaseNo().trim().isEmpty()) {
+                        dto.setCaseNo(poHeader.getCaseNo().trim());
+                        dto.setIbsCaseNo(poHeader.getCaseNo().trim());
+                    }
+
                     rlyShortName = poHeader.getRlyShortName() != null && !poHeader.getRlyShortName().trim().isEmpty() ? poHeader.getRlyShortName().trim()
                             : (poHeader.getRlyCd() != null ? poHeader.getRlyCd().trim() : "");
 
@@ -1181,6 +1186,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                     }
 
                     if (poItem != null) {
+                        if ((dto.getCaseNo() == null || dto.getCaseNo().isEmpty()) && poItem.getCaseNo() != null && !poItem.getCaseNo().trim().isEmpty()) {
+                            dto.setCaseNo(poItem.getCaseNo().trim());
+                            dto.setIbsCaseNo(poItem.getCaseNo().trim());
+                        }
                         if (poItem.getDeliveryDate() != null) {
                             dto.setDpDate(poItem.getDeliveryDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")));
                         }
@@ -2000,6 +2009,28 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
             dto.setIbsCallNo("");
 
+            String effectiveRio = tx.getRio();
+            if ((effectiveRio == null || effectiveRio.isBlank()) && railWorkflowTransactionRepository != null) {
+                effectiveRio = railWorkflowTransactionRepository.findRioByCallNo(callNo);
+            }
+            if (effectiveRio == null || effectiveRio.isBlank()) {
+                effectiveRio = "Northern";
+            }
+            dto.setRio(effectiveRio);
+
+            String rioLower = effectiveRio.toLowerCase();
+            String rioEmail = "sbu.ninsp@rites.com";
+            if (rioLower.contains("east") || rioLower.contains("er") || rioLower.contains("kolkata")) {
+                rioEmail = "sbu.einsp@rites.com";
+            } else if (rioLower.contains("west") || rioLower.contains("wr") || rioLower.contains("mumbai")) {
+                rioEmail = "sbu.winsp@rites.com";
+            } else if (rioLower.contains("south") || rioLower.contains("sr") || rioLower.contains("chennai")) {
+                rioEmail = "sbu.sinsp@rites.com";
+            } else if (rioLower.contains("cent") || rioLower.contains("bhilai") || rioLower.contains("raipur")) {
+                rioEmail = "sbu.cinsp@rites.com";
+            }
+            dto.setRioEmail(rioEmail);
+
             double base = 0.0;
             if (railCallCancellationDetailRepository != null) {
                 java.util.Optional<com.sarthi.SRailPad.entity.RailCallCancellationDetail> cancelOpt = railCallCancellationDetailRepository.findByCallNumber(callNo);
@@ -2072,5 +2103,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
         return false;
+    }
+
+    @Override
+    public com.sarthi.SRailPad.entity.RailCallCancellationDetail getCancellationDetails(String callNo) {
+        if (callNo == null || callNo.isBlank()) return null;
+        if (railCallCancellationDetailRepository != null) {
+            return railCallCancellationDetailRepository.findByCallNumber(callNo.trim()).orElse(null);
+        }
+        return null;
     }
 }

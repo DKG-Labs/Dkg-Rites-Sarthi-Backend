@@ -40,6 +40,8 @@ public class RailWorkflowTransactionDto {
         private String rlyShortName;
         private String poNo;
         private String poSr;
+        private String caseNo;
+        private String ibsCaseNo;
         private String dpDate;
         private String extDpDate;
         private String placeOfInspection;

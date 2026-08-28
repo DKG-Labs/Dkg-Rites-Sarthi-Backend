@@ -62,4 +62,6 @@ public interface RailWorkflowService {
     public List<com.sarthi.SRailPad.dto.RailCancelledPaymentCallDto> getCancelledCallsForPayment(String plantId, String vendorCode);
 
     public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode);
+
+    public com.sarthi.SRailPad.entity.RailCallCancellationDetail getCancellationDetails(String callNo);
 }
