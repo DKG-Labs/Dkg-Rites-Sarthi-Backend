@@ -26,6 +26,7 @@ import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepositor
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
 import com.sarthi.util.NotificationService;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 @Service
+@Slf4j
 @AllArgsConstructor
 @Transactional(readOnly = true)
 public class RailWorkflowServiceImpl implements RailWorkflowService {
@@ -68,6 +70,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private NotificationService notificationService;
     private RailCallCancellationDetailRepository railCallCancellationDetailRepository;
     private RailVendorFinancialLiabilityRepository railVendorFinancialLiabilityRepository;
+    private com.sarthi.repository.IbsCallRegistrationRepository ibsCallRegistrationRepository;
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
@@ -2007,7 +2010,19 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                     }
                 }
             }
-            dto.setIbsCallNo("");
+            // Fetch IBS Call No (sr_no from ibs_call_registration table)
+            String ibsCallNo = "";
+            if (ibsCallRegistrationRepository != null) {
+                try {
+                    java.util.List<String> srNos = ibsCallRegistrationRepository.findSrNoByCallNumber(callNo);
+                    if (srNos != null && !srNos.isEmpty() && srNos.get(0) != null) {
+                        ibsCallNo = srNos.get(0).trim();
+                    }
+                } catch (Exception ex) {
+                    log.warn("Could not fetch sr_no for call {}: {}", callNo, ex.getMessage());
+                }
+            }
+            dto.setIbsCallNo(ibsCallNo);
 
             String effectiveRio = tx.getRio();
             if ((effectiveRio == null || effectiveRio.isBlank()) && railWorkflowTransactionRepository != null) {
@@ -2032,32 +2047,35 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             dto.setRioEmail(rioEmail);
 
             double base = 0.0;
+            boolean isNonChargeable = false;
             if (railCallCancellationDetailRepository != null) {
                 java.util.Optional<com.sarthi.SRailPad.entity.RailCallCancellationDetail> cancelOpt = railCallCancellationDetailRepository.findByCallNumber(callNo);
                 if (cancelOpt.isPresent()) {
                     com.sarthi.SRailPad.entity.RailCallCancellationDetail cd = cancelOpt.get();
-                    if ("CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
+                    if ("NON_CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
+                        isNonChargeable = true;
+                        base = 0.0;
+                    } else {
                         if (cd.getFinalCancellationCharges() != null) {
                             base = cd.getFinalCancellationCharges().doubleValue();
                         } else if (cd.getCalculatedCharges() != null) {
                             base = cd.getCalculatedCharges().doubleValue();
                         }
-                    } else {
-                        base = 0.0;
                     }
                 }
             }
-            if (base == 0.0 && railVendorFinancialLiabilityRepository != null) {
+            if (base == 0.0 && !isNonChargeable && railVendorFinancialLiabilityRepository != null) {
                 java.util.Optional<com.sarthi.SRailPad.entity.RailVendorFinancialLiability> liabOpt = railVendorFinancialLiabilityRepository.findByCallNumber(callNo);
                 if (liabOpt.isPresent() && liabOpt.get().getAmount() != null) {
                     base = liabOpt.get().getAmount().doubleValue();
                 }
             }
-            if (base == 0.0 && tx.getRemarks() != null) {
+            if (tx.getRemarks() != null) {
                 String rem = tx.getRemarks().toUpperCase();
                 if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
+                    isNonChargeable = true;
                     base = 0.0;
-                } else if (rem.contains("FINAL CANCELLATION CHARGES")) {
+                } else if (base == 0.0 && rem.contains("FINAL CANCELLATION CHARGES")) {
                     try {
                         String after = rem.substring(rem.indexOf("FINAL CANCELLATION CHARGES"));
                         java.util.regex.Matcher m = java.util.regex.Pattern.compile("[0-9]+(?:,[0-9]+)*(?:\\.[0-9]+)?").matcher(after);
@@ -2066,6 +2084,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                         }
                     } catch (Exception ignored) {}
                 }
+            }
+
+            // Calls cancelled on non-chargeable basis (or with zero charges) should not go to Payment Details module
+            if (isNonChargeable || base <= 0.0) {
+                continue;
             }
 
             double gst = Math.round((base * 18.0) / 100.0);

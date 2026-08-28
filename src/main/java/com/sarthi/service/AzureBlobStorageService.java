@@ -131,6 +131,8 @@ public class AzureBlobStorageService {
 
             if (isImage) {
                 decodedBytes = compressToTargetSize(decodedBytes, 20); // target 20 KB
+            } else if (fileName.toLowerCase().endsWith(".pdf")) {
+                decodedBytes = compressPdfBytes(decodedBytes);
             }
             
             ByteArrayInputStream inputStream = new ByteArrayInputStream(decodedBytes);
@@ -149,6 +151,30 @@ public class AzureBlobStorageService {
     }
 
     /**
+     * Compresses PDF bytes using OpenPDF FullCompression and maximum deflate level (9).
+     */
+    public byte[] compressPdfBytes(byte[] pdfBytes) {
+        if (pdfBytes == null || pdfBytes.length == 0) return pdfBytes;
+        try {
+            com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(pdfBytes);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            com.lowagie.text.pdf.PdfStamper stamper = new com.lowagie.text.pdf.PdfStamper(reader, baos, com.lowagie.text.pdf.PdfWriter.VERSION_1_5);
+            stamper.setFullCompression();
+            stamper.getWriter().setCompressionLevel(9);
+            stamper.close();
+            reader.close();
+            byte[] compressed = baos.toByteArray();
+            log.info("PDF compressed from {} bytes to {} bytes ({:.2f}% size)", 
+                     pdfBytes.length, compressed.length, 
+                     (compressed.length * 100.0 / pdfBytes.length));
+            return (compressed.length < pdfBytes.length) ? compressed : pdfBytes;
+        } catch (Exception e) {
+            log.warn("PDF compression skipped or failed, using original bytes: {}", e.getMessage());
+            return pdfBytes;
+        }
+    }
+
+    /**
      * Uploads raw bytes to Azure Blob Storage
      *
      * @param fileBytes The byte array to upload
@@ -159,6 +185,9 @@ public class AzureBlobStorageService {
     public String uploadFileBytes(byte[] fileBytes, String fileName, String targetContainerName) {
         try {
             log.info("Uploading file bytes to Azure Blob Storage container '{}': {}", targetContainerName, fileName);
+            if (fileName.toLowerCase().endsWith(".pdf")) {
+                fileBytes = compressPdfBytes(fileBytes);
+            }
             ByteArrayInputStream inputStream = new ByteArrayInputStream(fileBytes);
             BlobClient blobClient = getContainerClient(targetContainerName).getBlobClient(fileName);
             blobClient.upload(inputStream, fileBytes.length, true);
