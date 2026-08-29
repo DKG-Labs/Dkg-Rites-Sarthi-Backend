@@ -40,6 +40,8 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setSleeperType(dto.getSleeperType());
         entity.setCastingDate(dto.getCastingDate());
+        entity.setBenchNumber(dto.getBenchNumber());
+        entity.setSleeperNo(dto.getSleeperNo());
 
         Optional<MomentOfResistance> moment = momentOfResistanceRepository.findById(dto.getMonmentOfResistanceId());
         MomentOfResistance mr = null;
@@ -52,6 +54,7 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         entity.setVendorCode(dto.getVendorCode());
         entity.setPlantId(dto.getPlantId());
         entity.setShift(dto.getShift());
+        entity.setTestResult(dto.getTestResult());
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
 
@@ -61,7 +64,8 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
                     detail.setDataType(d.getDataType());
                     detail.setCt(d.getCt());
                     detail.setCb(d.getCb());
-                    detail.setRs(d.getRs());
+                    detail.setRs1(d.getRs1());
+                    detail.setRs2(d.getRs2());
                     detail.setMrTest(entity);
                     return detail;
                 }).collect(Collectors.toList());
@@ -110,10 +114,13 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setSleeperType(dto.getSleeperType());
         entity.setCastingDate(dto.getCastingDate());
+        entity.setBenchNumber(dto.getBenchNumber());
+        entity.setSleeperNo(dto.getSleeperNo());
 
         entity.setVendorCode(dto.getVendorCode());
         entity.setPlantId(dto.getPlantId());
         entity.setShift(dto.getShift());
+        entity.setTestResult(dto.getTestResult());
 
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
@@ -127,7 +134,8 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
                     detail.setDataType(d.getDataType());
                     detail.setCt(d.getCt());
                     detail.setCb(d.getCb());
-                    detail.setRs(d.getRs());
+                    detail.setRs1(d.getRs1());
+                    detail.setRs2(d.getRs2());
                     detail.setMrTest(entity);
                     return detail;
                 }).collect(Collectors.toList());
@@ -179,10 +187,13 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         dto.setBatchNumber(entity.getBatchNumber());
         dto.setSleeperType(entity.getSleeperType());
         dto.setCastingDate(entity.getCastingDate());
+        dto.setBenchNumber(entity.getBenchNumber());
+        dto.setSleeperNo(entity.getSleeperNo());
 
         dto.setVendorCode(entity.getVendorCode());
         dto.setPlantId(entity.getPlantId());
         dto.setShift(entity.getShift());
+        dto.setTestResult(entity.getTestResult());
 
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedDate(entity.getCreatedDate());
@@ -197,7 +208,8 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
                     res.setDataType(d.getDataType());
                     res.setCt(d.getCt());
                     res.setCb(d.getCb());
-                    res.setRs(d.getRs());
+                    res.setRs1(d.getRs1());
+                    res.setRs2(d.getRs2());
                     return res;
                 }).collect(Collectors.toList());
 

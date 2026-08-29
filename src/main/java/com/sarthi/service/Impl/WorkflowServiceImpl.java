@@ -3922,17 +3922,18 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
             if(wt.getRequestId() != null && wt.getRequestId().startsWith("EP")){
 
                 Integer processIe = wt.getProcessIeUserId();
-                String poi = i.getPlaceOfInspection();
-
+                String poi = i != null ? i.getPlaceOfInspection() : null;
 
                 List<Integer> ieUsers = null;
+                if (poi != null) {
+                    try {
+                        ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+                    } catch (Exception e) {
+                        log.warn("Could not find process IE mapping for POI {}: {}", poi, e.getMessage());
+                    }
+                }
 
-                ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
-
-
-
-                // ieUsers.add(processIe);
-                dto.setProcessIes(ieUsers);
+                dto.setProcessIes(ieUsers != null ? ieUsers : Collections.emptyList());
             }
 
             if (i != null && "Final".equalsIgnoreCase(i.getTypeOfCall())) {

@@ -28,4 +28,5 @@ public class UserDto {
     private String shortName;
     private String productType;
     private String profilePhotoPath;
+    private String status;
 }

@@ -11,5 +11,6 @@ public class MomentOfResistanceDetailResponseDTO {
 
     private Double ct;
     private Double cb;
-    private Double rs;
+    private Double rs1;
+    private Double rs2;
 }

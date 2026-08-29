@@ -13,6 +13,10 @@ import java.util.Optional;
 public interface IeFieldsMappingRepository extends JpaRepository<IEFieldsMapping, Long> {
     Optional<IEFieldsMapping> findByPinCodeAndProductAndStage(String pinCode, String product, String stage);
 
+    boolean existsByPinCodeAndProduct(String pinCode, String product);
+
+    Optional<IEFieldsMapping> findFirstByPinCodeAndProduct(String pinCode, String product);
+
     List<IEFieldsMapping> findByPinCodeInAndProduct(List<String> pinCodes, String product);
 
     @Query("""
