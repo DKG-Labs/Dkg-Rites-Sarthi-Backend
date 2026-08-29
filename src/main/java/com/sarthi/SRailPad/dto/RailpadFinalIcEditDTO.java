@@ -36,6 +36,11 @@ public class RailpadFinalIcEditDTO {
     private String facsimileText;
     private String reasonsForRejection;
     private String inspectingEngineer;
+    private String certificateDate;
+    private String contractor;
+    private String placeOfInspection;
+    private String noOfVisits;
+    private String dateOfCall;
 
     // Read-only audit fields
     private String createdBy;

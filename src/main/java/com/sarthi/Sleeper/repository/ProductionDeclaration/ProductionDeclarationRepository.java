@@ -99,6 +99,7 @@ SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDt
 d.id,
 d.batchNumber,
 b.sleeperType,
+b.sleeperCategory,
 d.totalCastedSleepers,
 CAST(d.totalCastedSleepers as long),
 0.0,
@@ -111,7 +112,7 @@ FROM ProductionDeclaration d
 JOIN d.chambers c
 JOIN c.benchGroups b
 WHERE d.plantId = :plantId
-GROUP BY d.id,d.batchNumber,b.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
+GROUP BY d.id,d.batchNumber,b.sleeperType,b.sleeperCategory,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
     List<BatchTestingListResponseDto> getAllBatchTesting(String plantId);
   /*  @Query("""
@@ -142,6 +143,7 @@ SELECT new com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDt
 d.id,
 d.batchNumber,
 g.sleeperType,
+g.sleeperCategory,
 d.totalCastedSleepers,
 CAST(d.totalCastedSleepers as long),
 0.0,
@@ -153,7 +155,7 @@ d.castingDate
 FROM ProductionDeclaration d
 JOIN d.gangs g
 WHERE d.plantId = :plantId
-GROUP BY d.id,d.batchNumber,g.sleeperType,d.totalCastedSleepers,d.plantId,d.castingDate
+GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleepers,d.plantId,d.castingDate
 """)
   List<BatchTestingListResponseDto> getLongLineBatchTesting(String plantId);
     @Query("""

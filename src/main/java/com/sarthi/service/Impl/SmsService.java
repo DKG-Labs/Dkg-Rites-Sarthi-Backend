@@ -64,10 +64,10 @@ public class SmsService {
                         .queryParam("entityid", entityId);
 
         try {
-
+            java.net.URI uri = builder.build().toUri();
             ResponseEntity<String> response =
                     restTemplate.getForEntity(
-                            builder.toUriString(),
+                            uri,
                             String.class
                     );
 

@@ -55,6 +55,11 @@ public class RailpadFinalIcSaveChangesServiceImpl implements RailpadFinalIcSaveC
         entity.setFacsimileText(dto.getFacsimileText());
         entity.setReasonsForRejection(dto.getReasonsForRejection());
         entity.setInspectingEngineer(dto.getInspectingEngineer());
+        entity.setCertificateDate(dto.getCertificateDate());
+        entity.setContractor(dto.getContractor());
+        entity.setPlaceOfInspection(dto.getPlaceOfInspection());
+        entity.setNoOfVisits(dto.getNoOfVisits());
+        entity.setDateOfCall(dto.getDateOfCall());
         if(entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy());
         }
@@ -85,6 +90,11 @@ public class RailpadFinalIcSaveChangesServiceImpl implements RailpadFinalIcSaveC
                 .facsimileText(entity.getFacsimileText())
                 .reasonsForRejection(entity.getReasonsForRejection())
                 .inspectingEngineer(entity.getInspectingEngineer())
+                .certificateDate(entity.getCertificateDate())
+                .contractor(entity.getContractor())
+                .placeOfInspection(entity.getPlaceOfInspection())
+                .noOfVisits(entity.getNoOfVisits())
+                .dateOfCall(entity.getDateOfCall())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

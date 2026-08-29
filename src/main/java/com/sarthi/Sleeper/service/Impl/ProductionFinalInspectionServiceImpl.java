@@ -969,8 +969,26 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         dto.setBatchId(declaration.getId());
         dto.setBatchNumber(declaration.getBatchNumber());
         dto.setCastingDate(declaration.getCastingDate());
-        dto.setTotalSleepers((long) sleepers.size());
         dto.setSleeperType(sleeperType);
+        dto.setTotalSleepers((long) sleepers.size());
+
+        String category = null;
+        if ("STRESS".equalsIgnoreCase(declaration.getPlantType()) && declaration.getChambers() != null) {
+            category = declaration.getChambers().stream()
+                    .filter(c -> c.getBenchGroups() != null)
+                    .flatMap(c -> c.getBenchGroups().stream())
+                    .filter(b -> sleeperType != null && sleeperType.equalsIgnoreCase(b.getSleeperType()))
+                    .map(b -> b.getSleeperCategory())
+                    .findFirst()
+                    .orElse(null);
+        } else if (declaration.getGangs() != null) {
+            category = declaration.getGangs().stream()
+                    .filter(g -> sleeperType != null && sleeperType.equalsIgnoreCase(g.getSleeperType()))
+                    .map(g -> g.getSleeperCategory())
+                    .findFirst()
+                    .orElse(null);
+        }
+        dto.setSleeperCategory(category);
 
         List<SleeperDto> sleeperDtos = sleepers.stream()
                 .map(s -> {

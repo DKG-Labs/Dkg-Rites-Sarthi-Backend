@@ -74,9 +74,17 @@ public class crisServiceImpl implements crisService {
         PoHeaderDto hdr = request.getPoHdr();
         List<PoItemDto> items = request.getPoDtl();
 
-        // Validation
         if (hdr == null) {
-            throw new RuntimeException("PoHdr missing");
+            hdr = new PoHeaderDto();
+        }
+
+        // If POKEY missing in header, extract from items
+        if ((hdr.getPOKEY() == null || hdr.getPOKEY().isBlank()) && items != null && !items.isEmpty()) {
+            PoItemDto first = items.get(0);
+            hdr.setPOKEY(first.getPOKEY());
+            if (hdr.getRLY_CD() == null) hdr.setRLY_CD(first.getRLY());
+            if (hdr.getPO_NO() == null) hdr.setPO_NO(first.getPO_NO());
+            if (hdr.getBILL_PAY_OFF() == null) hdr.setBILL_PAY_OFF(first.getBILL_PAY_OFF());
         }
 
         // Validation
@@ -87,77 +95,176 @@ public class crisServiceImpl implements crisService {
         String poKey = hdr.getPOKEY();
         String rly = hdr.getRLY_CD();
 
-        // Check already processed (STATUS TABLE)
-        if (statusRepo.existsByRefTypeAndRefKey("PO", poKey)) {
-            throw new RuntimeException("PO already processed: " + poKey);
+        // Vendor Code cleanup
+        String vendorCode = hdr.getIMMS_VENDOR_CODE();
+        if (vendorCode != null) {
+            hdr.setIMMS_VENDOR_CODE(vendorCode);
         }
 
-        // Create status (FETCHED)
-        CrisSyncStatus status = new CrisSyncStatus();
-        status.setRefType("PO");
-        status.setRefKey(poKey);
-        status.setRly(rly);
-        status.setStatus("FETCHED");
-        status.setFetchedAt(LocalDateTime.now());
-
-        statusRepo.save(status);
+        // Vendor + User creation
+        createVendorIfNotExists(hdr);
 
         try {
+            PoHeader header = headerRepo.findByPoKey(poKey).orElse(null);
 
-            // Duplicate check in main table
-            if (headerRepo.existsByPoKey(poKey)) {
-                throw new RuntimeException("PO already exists in DB: " + poKey);
-            }
+            if (header == null) {
+                // Save New Header
+                header = buildPoHeaderFromDto(hdr);
+                header.setSourceSystem("FRONTEND");
+                header = headerRepo.save(header);
 
-            // Vendor Code cleanup
-            String vendorCode = hdr.getIMMS_VENDOR_CODE();
-            if (vendorCode != null) {
-                // vendorCode = vendorCode.replace(":", "");
-                hdr.setIMMS_VENDOR_CODE(vendorCode);
-            }
-
-            // Vendor + User creation
-            createVendorIfNotExists(hdr);
-
-            // Save Header
-            PoHeader header = buildPoHeaderFromDto(hdr);
-            header.setSourceSystem("FRONTEND");
-            headerRepo.save(header);
-
-            // Item validation
-            if (items == null || items.isEmpty()) {
-                throw new RuntimeException("PoDtl cannot be empty");
-            }
-
-            for (PoItemDto m : items) {
-
-                if (m.getITEM_SRNO() == null) {
-                    throw new RuntimeException("ITEM_SRNO missing");
+                if (items != null) {
+                    for (PoItemDto m : items) {
+                        if (m.getITEM_SRNO() == null || m.getPL_NO() == null) continue;
+                        PoItem item = buildPoItemFromDto(m, header);
+                        item.setSourceSystem("FRONTEND");
+                        itemRepo.save(item);
+                    }
                 }
-
-                if (m.getPL_NO() == null) {
-                    throw new RuntimeException("PL_NO missing");
+            } else {
+                // Update Existing Header
+                if (hdr.getITEM_CAT_DESCR() != null && !hdr.getITEM_CAT_DESCR().isBlank()) {
+                    header.setItemCatDescr(hdr.getITEM_CAT_DESCR());
                 }
+                if (hdr.getPO_NO() != null && !hdr.getPO_NO().isBlank()) {
+                    header.setPoNo(hdr.getPO_NO());
+                }
+                if (hdr.getRLY_CD() != null && !hdr.getRLY_CD().isBlank()) {
+                    header.setRlyCd(hdr.getRLY_CD());
+                }
+                if (hdr.getIMMS_VENDOR_CODE() != null && !hdr.getIMMS_VENDOR_CODE().isBlank()) {
+                    header.setVendorCode(hdr.getIMMS_VENDOR_CODE());
+                }
+                header.setIsAmended(true);
+                Integer count = header.getAmendmentCount() == null ? 1 : header.getAmendmentCount() + 1;
+                header.setAmendmentCount(count);
+                headerRepo.save(header);
 
-                PoItem item = buildPoItemFromDto(m, header);
-                item.setSourceSystem("FRONTEND");
-                itemRepo.save(item);
+                // Update / Insert PoItems
+                if (items != null) {
+                    for (PoItemDto m : items) {
+                        if (m.getITEM_SRNO() == null || m.getPL_NO() == null) continue;
+                        PoItem existingItem = itemRepo.findByPoHeaderAndItemSrNo(header, m.getITEM_SRNO()).orElse(null);
+                        if (existingItem != null) {
+                            if (m.getQTY() != null) existingItem.setQty(parseInteger(m.getQTY()));
+                            if (m.getRATE() != null) existingItem.setRate(bd(m.getRATE()));
+                            if (m.getBASIC_VALUE() != null) existingItem.setBasicValue(bd(m.getBASIC_VALUE()));
+                            if (m.getSALES_TAX() != null) existingItem.setSalesTax(bd(m.getSALES_TAX()));
+                            if (m.getSALES_TAX_PER() != null) existingItem.setSalesTaxPercent(bd(m.getSALES_TAX_PER()));
+                            if (m.getVALUE() != null) existingItem.setValue(bd(m.getVALUE()));
+                            if (m.getDELV_DT() != null && !m.getDELV_DT().isBlank()) {
+                                existingItem.setDeliveryDate(parseFlexibleDateTime(m.getDELV_DT()));
+                            }
+                            if (m.getEXT_DELV_DT() != null && !m.getEXT_DELV_DT().isBlank()) {
+                                existingItem.setExtendedDeliveryDate(parseFlexibleDateTime(m.getEXT_DELV_DT()));
+                            }
+                            if (m.getITEM_DESC() != null && !m.getITEM_DESC().isBlank()) {
+                                existingItem.setItemDesc(m.getITEM_DESC());
+                            }
+                            itemRepo.save(existingItem);
+                        } else {
+                            PoItem newItem = buildPoItemFromDto(m, header);
+                            newItem.setSourceSystem("FRONTEND");
+                            itemRepo.save(newItem);
+                        }
+                    }
+                }
             }
 
-            // SUCCESS STATUS
+            // Always save AmendedPoHeader and AmendedPoItems for full historical audit
+            if (items != null && !items.isEmpty()) {
+                List<AmendedPoItemDTO> amendDtos = convertPoItemDtosToAmendedDtos(items, poKey);
+                AmendedPoHeaderDTO amendHdrDto = convertPoHdrDtoToAmendedHdrDto(hdr);
+                AmendedPoHeader amendedHeader = saveAmendedPoHeader(amendDtos, amendHdrDto);
+                if (amendedHeader != null) {
+                    saveAmendedPoItems(amendedHeader, amendDtos);
+                }
+            }
+
+            // Record status
+            CrisSyncStatus status = statusRepo.findByRefTypeAndRefKey("PO", poKey).orElse(new CrisSyncStatus());
+            status.setRefType("PO");
+            status.setRefKey(poKey);
+            status.setRly(rly);
             status.setStatus("SAVED");
             status.setProcessedAt(LocalDateTime.now());
             statusRepo.save(status);
 
         } catch (Exception e) {
-
-            // FAILURE STATUS
+            CrisSyncStatus status = statusRepo.findByRefTypeAndRefKey("PO", poKey).orElse(new CrisSyncStatus());
+            status.setRefType("PO");
+            status.setRefKey(poKey);
+            status.setRly(rly);
             status.setStatus("FAILED");
             status.setErrorMessage(e.getMessage());
             statusRepo.save(status);
-
-            throw e; // optional (to send error to API)
+            throw e;
         }
+    }
+
+    private List<AmendedPoItemDTO> convertPoItemDtosToAmendedDtos(List<PoItemDto> items, String poKey) {
+        List<AmendedPoItemDTO> dtos = new ArrayList<>();
+        if (items == null) return dtos;
+        for (PoItemDto it : items) {
+            if (it == null) continue;
+            AmendedPoItemDTO dto = new AmendedPoItemDTO();
+            dto.setPoKey(it.getPOKEY() != null ? it.getPOKEY() : poKey);
+            dto.setRly(it.getRLY());
+            dto.setPoNo(it.getPO_NO());
+            dto.setPlNo(it.getPL_NO());
+            dto.setItemSrNo(it.getITEM_SRNO());
+            dto.setItemDesc(it.getITEM_DESC());
+            dto.setConsigneeCd(it.getCONSIGNEE_CD());
+            dto.setImmsConsigneeCd(it.getIMMS_CONSIGNEE_CD());
+            dto.setImmsConsigneeName(it.getIMMS_CONSIGNEE_NAME());
+            dto.setConsigneeDetail(it.getCONSIGNEE_DETAIL());
+            dto.setQty(it.getQTY());
+            dto.setQtyCancelled(it.getQTY_CANCELLED());
+            dto.setRate(it.getRATE());
+            dto.setUomCd(it.getUOM_CD());
+            dto.setUom(it.getUOM());
+            dto.setBasicValue(it.getBASIC_VALUE());
+            dto.setSalesTaxPercent(it.getSALES_TAX_PER());
+            dto.setSalesTax(it.getSALES_TAX());
+            dto.setExciseType(it.getEXCISE_TYPE());
+            dto.setExcisePercent(it.getEXCISE_PER());
+            dto.setExcise(it.getEXCISE());
+            dto.setDiscountType(it.getDISCOUNT_TYPE());
+            dto.setDiscountPercent(it.getDISCOUNT_PER());
+            dto.setDiscount(it.getDISCOUNT());
+            dto.setOtChargeType(it.getOT_CHARGE_TYPE());
+            dto.setOtChargePercent(it.getOT_CHARGE_PER());
+            dto.setOtherCharges(it.getOTHER_CHARGES());
+            dto.setValue(it.getVALUE());
+            dto.setDeliveryDate(it.getDELV_DT());
+            dto.setExtendedDeliveryDate(it.getEXT_DELV_DT());
+            dto.setUserId(it.getUSER_ID());
+            dto.setCrisTimestamp(it.getDATETIME());
+            dto.setAllocation(it.getALLOCATION());
+            dto.setConsigneeRly(it.getCONSIGNEE_RLY());
+            dto.setConsigneeRlyShortName(it.getCONSIGNEE_RLY_SHORTNAME());
+            dto.setPRly(it.getP_RLY());
+            dto.setBillPayOff(it.getBILL_PAY_OFF());
+            dto.setBillPayOffDesc(it.getBILL_PAY_OFF_DESC());
+            dto.setBillPassOff(it.getBILL_PASS_OFF());
+            dtos.add(dto);
+        }
+        return dtos;
+    }
+
+    private AmendedPoHeaderDTO convertPoHdrDtoToAmendedHdrDto(PoHeaderDto hdr) {
+        if (hdr == null) return null;
+        AmendedPoHeaderDTO dto = new AmendedPoHeaderDTO();
+        dto.setPoKey(hdr.getPOKEY());
+        dto.setPoNo(hdr.getPO_NO());
+        dto.setRlyCd(hdr.getRLY_CD());
+        dto.setVendorCode(hdr.getIMMS_VENDOR_CODE());
+        dto.setBillPayOff(hdr.getBILL_PAY_OFF());
+        dto.setInspectingAgency(hdr.getINSPECTING_AGENCY());
+        dto.setPoStatus(hdr.getPO_STATUS());
+        dto.setPoDate(hdr.getPO_DT());
+        dto.setCrisTimestamp(hdr.getDATETIME());
+        return dto;
     }
 
     private PoHeader buildPoHeaderFromDto(PoHeaderDto m) {
@@ -322,7 +429,25 @@ public class crisServiceImpl implements crisService {
             .toFormatter();
 
     private BigDecimal bd(Object o) {
-        return o == null ? null : new BigDecimal(o.toString());
+        if (o == null) return null;
+        String s = o.toString().trim();
+        if (s.isEmpty() || s.equalsIgnoreCase("null")) return null;
+        try {
+            return new BigDecimal(s);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Integer parseInteger(Object o) {
+        if (o == null) return null;
+        String s = o.toString().trim();
+        if (s.isEmpty() || s.equalsIgnoreCase("null")) return null;
+        try {
+            return new BigDecimal(s).setScale(0, java.math.RoundingMode.HALF_UP).intValue();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String getVendorRole(String itemCatDescr) {
@@ -693,11 +818,17 @@ public class crisServiceImpl implements crisService {
             // ======================================
 
             if (request.getData() != null && request.getData().getPoDtl() != null && !request.getData().getPoDtl().isEmpty()) {
-                AmendedPoHeader amendedHeader = saveAmendedPoHeader(request.getData().getPoDtl());
-                if (amendedHeader != null) {
-                    saveAmendedPoItems(amendedHeader, request.getData().getPoDtl());
-                    syncPoHeader(amendedHeader);
-                    syncPoItems(amendedHeader);
+                List<AmendedPoItemDTO> validPoDtls = request.getData().getPoDtl().stream()
+                        .filter(it -> it != null && it.getItemSrNo() != null && !it.getItemSrNo().isBlank())
+                        .collect(java.util.stream.Collectors.toList());
+
+                if (!validPoDtls.isEmpty()) {
+                    AmendedPoHeader amendedHeader = saveAmendedPoHeader(validPoDtls, request.getData().getPoHdr());
+                    if (amendedHeader != null) {
+                        saveAmendedPoItems(amendedHeader, validPoDtls);
+                        syncPoHeader(amendedHeader);
+                        syncPoItems(amendedHeader);
+                    }
                 }
             }
 
@@ -713,7 +844,7 @@ public class crisServiceImpl implements crisService {
                 updateAmendmentStatus(poHeader, savedMaHeader);
             }
 
-            syncMaDeliveryDates(savedMaHeader);
+            applyMaAmendmentsToPo(savedMaHeader);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -772,8 +903,8 @@ public class crisServiceImpl implements crisService {
         return null;
     }
 
-    private void syncMaDeliveryDates(PoMaHeader maHeader) {
-        if (maHeader == null || maHeader.getItems() == null || maHeader.getItems().isEmpty()) {
+    private void applyMaAmendmentsToPo(PoMaHeader maHeader) {
+        if (maHeader == null) {
             return;
         }
 
@@ -787,34 +918,209 @@ public class crisServiceImpl implements crisService {
 
         if (poHeader == null) return;
 
-        List<PoItem> items = itemRepo.findByPoHeader(poHeader);
-        if (items == null || items.isEmpty()) return;
+        // 1. Update overall PO Value if provided in header
+        if (maHeader.getNewPoValue() != null && !maHeader.getNewPoValue().isBlank()) {
+            try {
+                // If PO header tracking is needed
+            } catch (Exception ignored) {}
+        }
 
-        for (PoMaDetail d : maHeader.getItems()) {
+        List<PoItem> items = itemRepo.findByPoHeader(poHeader);
+        if (items == null) {
+            items = new ArrayList<>();
+        }
+
+        List<PoMaDetail> details = maHeader.getItems();
+        if (details == null || details.isEmpty()) {
+            if (maHeader.getMaKey() != null && !maHeader.getMaKey().isBlank()) {
+                details = poMaDetailRepository.findByMaKey(maHeader.getMaKey());
+            } else if (poNo != null && !poNo.isBlank()) {
+                details = poMaDetailRepository.findByMaPoHeaderPoNo(poNo);
+            }
+        }
+
+        if (details == null || details.isEmpty()) {
+            return;
+        }
+
+        for (PoMaDetail d : details) {
             String maFld = d.getMaFld();
             String maFldDescr = d.getMaFldDescr();
+            String poSr = d.getPoSr();
 
-            boolean isDp = (maFld != null && (maFld.equalsIgnoreCase("DP") || maFld.equalsIgnoreCase("DELV_DT") || maFld.equalsIgnoreCase("EXT_DELV_DT")))
-                    || (maFldDescr != null && (maFldDescr.toLowerCase().contains("delivery period") || maFldDescr.toLowerCase().contains("delivery date") || maFldDescr.toLowerCase().contains("dp")));
+            // -------------------------------------------------------------
+            // A. Delivery Period / Extended Delivery Date Update
+            // -------------------------------------------------------------
+            boolean isDp = isMatch(maFld, "DP", "DELV_DT", "EXT_DELV_DT")
+                    || containsAny(maFldDescr, "delivery period", "delivery date", "ext dp", "dp");
 
-            if (isDp) {
+            if (isDp && d.getNewValue() != null && !d.getNewValue().isBlank()) {
                 LocalDate parsedDate = VendorPoServiceImpl.parseDateFromMaValue(d.getNewValue());
                 if (parsedDate != null) {
                     for (PoItem item : items) {
-                        String srNo = item.getItemSrNo();
-                        String poSr = d.getPoSr();
-
-                        boolean match = (poSr != null && srNo != null && (poSr.trim().equalsIgnoreCase(srNo.trim())
-                                || tryParseInt(poSr) == tryParseInt(srNo)));
-
-                        if (match) {
+                        if (isPoSrMatch(poSr, item.getItemSrNo())) {
                             item.setExtendedDeliveryDate(parsedDate.atStartOfDay());
                             itemRepo.save(item);
-                            System.out.println("[MA Sync] Updated PoItem EDP to " + parsedDate + " for item_sr_no: " + srNo);
+                            System.out.println("[MA Sync] Updated PoItem EDP to " + parsedDate + " for item_sr_no: " + item.getItemSrNo());
                         }
                     }
                 }
             }
+
+            // -------------------------------------------------------------
+            // B. Order Quantity Amendment
+            // -------------------------------------------------------------
+            boolean isQty = isMatch(maFld, "QTY", "ORD_QTY", "QUANTITY")
+                    || containsAny(maFldDescr, "order qty", "quantity", "qty", "allotment");
+
+            if (isQty && d.getNewValue() != null && !d.getNewValue().isBlank()) {
+                try {
+                    int newQty = (int) Math.round(Double.parseDouble(d.getNewValue().trim().replace(",", "")));
+                    for (PoItem item : items) {
+                        if (isPoSrMatch(poSr, item.getItemSrNo())) {
+                            item.setQty(newQty);
+                            itemRepo.save(item);
+                            System.out.println("[MA Sync] Updated PoItem Qty to " + newQty + " for item_sr_no: " + item.getItemSrNo());
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("[MA Sync] Failed to parse QTY value: " + d.getNewValue() + " -> " + e.getMessage());
+                }
+            }
+
+            // -------------------------------------------------------------
+            // C. New PO Item Added (NEW / New P.O.Sr.No. / NEW_POSR_DATA)
+            // -------------------------------------------------------------
+            boolean isNewItem = isMatch(maFld, "NEW", "NEW_POSR", "NEW_ITEM")
+                    || containsAny(maFldDescr, "new p.o.sr", "new posr", "new item", "new sr");
+
+            if (isNewItem) {
+                String targetSrNo = (poSr != null && !poSr.isBlank()) ? poSr : d.getSlNo();
+                boolean alreadyExists = items.stream().anyMatch(it -> isPoSrMatch(targetSrNo, it.getItemSrNo()));
+
+                if (!alreadyExists && d.getNewPoSrData() != null && !d.getNewPoSrData().isBlank()) {
+                    PoItem newItem = parseAndBuildNewPoItem(d.getNewPoSrData(), poHeader, targetSrNo, d.getPlNo());
+                    if (newItem != null) {
+                        PoItem savedItem = itemRepo.save(newItem);
+                        items.add(savedItem);
+                        System.out.println("[MA Sync] Created new PoItem " + savedItem.getItemSrNo() + " (Qty: " + savedItem.getQty() + ") for PO " + poHeader.getPoNo());
+                    }
+                }
+            }
+        }
+    }
+
+    private PoItem parseAndBuildNewPoItem(String rawData, PoHeader poHeader, String defaultPoSr, String defaultPlNo) {
+        if (rawData == null || rawData.isBlank()) return null;
+
+        try {
+            String[] tokens = rawData.split(":", -1);
+
+            PoItem item = new PoItem();
+            item.setPoHeader(poHeader);
+            item.setRly(poHeader.getRlyCd());
+            item.setCaseNo(poHeader.getCaseNo());
+            item.setSourceSystem("CRIS_MA");
+
+            // Token 0: Item Sr No (e.g., "002")
+            String srNo = (tokens.length > 0 && !tokens[0].isBlank()) ? tokens[0].trim() : defaultPoSr;
+            item.setItemSrNo(srNo);
+
+            // Token 1: PL No (e.g., "601601162462")
+            String plNo = (tokens.length > 1 && !tokens[1].isBlank()) ? tokens[1].trim() : defaultPlNo;
+            item.setPlNo(plNo);
+
+            // Token 2 & 3: Allocation / Indent Ref
+            if (tokens.length > 2 && !tokens[2].isBlank()) item.setAllocation(tokens[2].trim());
+
+            // Token 4: Consignee Code (e.g., "039429")
+            if (tokens.length > 4 && !tokens[4].isBlank()) item.setConsigneeCd(tokens[4].trim());
+
+            // Token 5: Order Qty (e.g., "400000")
+            if (tokens.length > 5 && !tokens[5].isBlank()) {
+                try {
+                    item.setQty((int) Math.round(Double.parseDouble(tokens[5].trim().replace(",", ""))));
+                } catch (Exception ignored) {}
+            }
+
+            // Token 6: UOM (e.g., "01")
+            if (tokens.length > 6 && !tokens[6].isBlank()) {
+                item.setUomCd(tokens[6].trim());
+                item.setUom(tokens[6].trim());
+            }
+
+            // Token 8: Delivery Date / EDP (e.g., "14/07/27")
+            if (tokens.length > 8 && !tokens[8].isBlank()) {
+                LocalDate edp = VendorPoServiceImpl.parseDateFromMaValue(tokens[8]);
+                if (edp != null) {
+                    item.setExtendedDeliveryDate(edp.atStartOfDay());
+                    item.setDeliveryDate(edp.atStartOfDay());
+                }
+            }
+
+            // Token 12: Basic Rate (e.g., "105.6")
+            if (tokens.length > 12 && !tokens[12].isBlank()) {
+                try {
+                    item.setRate(new BigDecimal(tokens[12].trim().replace(",", "")));
+                } catch (Exception ignored) {}
+            }
+
+            // Token 13: Sales Tax / GST % (e.g., "18")
+            if (tokens.length > 13 && !tokens[13].isBlank()) {
+                try {
+                    item.setSalesTaxPercent(new BigDecimal(tokens[13].trim().replace(",", "")));
+                } catch (Exception ignored) {}
+            }
+
+            // Token 18: Total Item Value (e.g., "51731200")
+            if (tokens.length > 18 && !tokens[18].isBlank()) {
+                try {
+                    item.setValue(new BigDecimal(tokens[18].trim().replace(",", "")));
+                } catch (Exception ignored) {}
+            }
+
+            // Token 24: Original Delivery Date (if present, e.g. "14/01/27")
+            if (tokens.length > 24 && !tokens[24].isBlank()) {
+                LocalDate odp = VendorPoServiceImpl.parseDateFromMaValue(tokens[24]);
+                if (odp != null) {
+                    item.setDeliveryDate(odp.atStartOfDay());
+                }
+            }
+
+            return item;
+        } catch (Exception e) {
+            System.err.println("[MA Sync] Error parsing NEW_POSR_DATA: " + rawData + " -> " + e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean isMatch(String val, String... candidates) {
+        if (val == null) return false;
+        String clean = val.trim();
+        for (String c : candidates) {
+            if (clean.equalsIgnoreCase(c)) return true;
+        }
+        return false;
+    }
+
+    private boolean containsAny(String descr, String... keywords) {
+        if (descr == null) return false;
+        String lower = descr.toLowerCase();
+        for (String kw : keywords) {
+            if (lower.contains(kw.toLowerCase())) return true;
+        }
+        return false;
+    }
+
+    private boolean isPoSrMatch(String maPoSr, String itemSrNo) {
+        if (maPoSr == null || itemSrNo == null) return false;
+        String cleanMa = maPoSr.trim();
+        String cleanItem = itemSrNo.trim();
+        if (cleanMa.equalsIgnoreCase(cleanItem)) return true;
+        try {
+            return Integer.parseInt(cleanMa) == Integer.parseInt(cleanItem);
+        } catch (NumberFormatException e) {
+            return false;
         }
     }
 
@@ -827,7 +1133,22 @@ public class crisServiceImpl implements crisService {
     }
 
     private PoMaHeader saveMaHeader(MaPoHeaderDTO hdr, MaPoRequestDTO request) {
-        PoMaHeader header = new PoMaHeader();
+        PoMaHeader header = null;
+
+        String maKey = hdr != null ? hdr.getMaKey() : null;
+        if ((maKey == null || maKey.isBlank()) && request != null && request.getData() != null && request.getData().getMmpPomaHdr() != null) {
+            maKey = request.getData().getMmpPomaHdr().getMaKey();
+        }
+
+        if (maKey != null && !maKey.isBlank()) {
+            Optional<PoMaHeader> opt = poMaHeaderRepository.findFirstByMaKey(maKey.trim());
+            if (opt.isPresent()) {
+                header = opt.get();
+            }
+        }
+        if (header == null) {
+            header = new PoMaHeader();
+        }
 
         if (hdr != null) {
             header.setRly(hdr.getRly());
@@ -1022,11 +1343,17 @@ public class crisServiceImpl implements crisService {
         }
 
         if (!items.isEmpty()) {
+            if (header.getItems() == null) {
+                header.setItems(new ArrayList<>());
+            } else {
+                header.getItems().clear();
+            }
+            header.getItems().addAll(items);
             poMaDetailRepository.saveAll(items);
         }
     }
 
-    private AmendedPoHeader saveAmendedPoHeader(List<AmendedPoItemDTO> items) {
+    private AmendedPoHeader saveAmendedPoHeader(List<AmendedPoItemDTO> items, AmendedPoHeaderDTO poHdrDto) {
 
         if (items == null || items.isEmpty()) {
             return null;
@@ -1049,305 +1376,141 @@ public class crisServiceImpl implements crisService {
             entity.setPoNo(poHeader.getPoNo());
             entity.setL5PoNo(poHeader.getL5PoNo());
             entity.setRlyCd(poHeader.getRlyCd());
+            entity.setRlyShortName(poHeader.getRlyShortName());
+            entity.setPurchaserCode(poHeader.getPurchaserCode());
+            entity.setPurchaserDetail(poHeader.getPurchaserDetail());
+            entity.setStockNonStock(poHeader.getStockNonStock());
+            entity.setRlyNonRly(poHeader.getRlyNonRly());
+            entity.setPoOrLetter(poHeader.getPoOrLetter());
             entity.setVendorCode(poHeader.getVendorCode());
+            entity.setVendorDetails(poHeader.getVendorDetails());
+            entity.setFirmDetails(poHeader.getFirmDetails());
             entity.setInspectingAgency(poHeader.getInspectingAgency());
             entity.setPoStatus(poHeader.getPoStatus());
-            entity.setBillPayOff(poHeader.getBillPayOff());
+            entity.setPdfPath(poHeader.getPdfPath());
             entity.setPoDate(poHeader.getPoDate());
+            entity.setReceivedDate(poHeader.getReceivedDate());
+            entity.setCrisTimestamp(poHeader.getCrisTimestamp());
+            entity.setUserId(poHeader.getUserId());
+            entity.setSourceSystem(poHeader.getSourceSystem() != null ? poHeader.getSourceSystem() : "CRIS_AMEND");
             entity.setRegionCode(poHeader.getRegionCode());
+            entity.setRemarks(poHeader.getRemarks());
+            entity.setBillPayOff(poHeader.getBillPayOff());
+            entity.setBillPayOffName(poHeader.getBillPayOffName());
+            entity.setPoiCd(poHeader.getPoiCd());
+            entity.setItemCat(poHeader.getItemCat());
+            entity.setItemCatDescr(poHeader.getItemCatDescr());
+            entity.setCaseNo(poHeader.getCaseNo());
+            entity.setCaseStatus(poHeader.getCaseStatus());
         } else {
             entity.setPoKey(itemPoKey);
             entity.setPoNo(itemPoNo);
+            if (!items.isEmpty()) {
+                entity.setRlyCd(items.get(0).getRly());
+                entity.setBillPayOff(items.get(0).getBillPayOff());
+                entity.setBillPayOffName(items.get(0).getBillPayOffDesc());
+            }
+            entity.setSourceSystem("CRIS_AMEND");
         }
 
-        return amendmentPoHeaderRepository.save(
-                entity);
+        // Overlay with poHdrDto if present
+        if (poHdrDto != null) {
+            if (poHdrDto.getPoKey() != null && !poHdrDto.getPoKey().isBlank()) entity.setPoKey(poHdrDto.getPoKey());
+            if (poHdrDto.getPoNo() != null && !poHdrDto.getPoNo().isBlank()) entity.setPoNo(poHdrDto.getPoNo());
+            if (poHdrDto.getRlyCd() != null && !poHdrDto.getRlyCd().isBlank()) entity.setRlyCd(poHdrDto.getRlyCd());
+            if (poHdrDto.getVendorCode() != null && !poHdrDto.getVendorCode().isBlank()) entity.setVendorCode(poHdrDto.getVendorCode());
+            if (poHdrDto.getInspectingAgency() != null && !poHdrDto.getInspectingAgency().isBlank()) entity.setInspectingAgency(poHdrDto.getInspectingAgency());
+            if (poHdrDto.getPoStatus() != null && !poHdrDto.getPoStatus().isBlank()) entity.setPoStatus(poHdrDto.getPoStatus());
+            if (poHdrDto.getBillPayOff() != null && !poHdrDto.getBillPayOff().isBlank()) entity.setBillPayOff(poHdrDto.getBillPayOff());
+            if (poHdrDto.getPoDate() != null && !poHdrDto.getPoDate().isBlank()) entity.setPoDate(parseFlexibleDateTime(poHdrDto.getPoDate()));
+            if (poHdrDto.getCrisTimestamp() != null && !poHdrDto.getCrisTimestamp().isBlank()) entity.setCrisTimestamp(parseFlexibleDateTime(poHdrDto.getCrisTimestamp()));
+        }
+
+        return amendmentPoHeaderRepository.save(entity);
     }
 
-    /*
-     * private void saveAmendedPoItems(
-     * AmendedPoHeader header,
-     * List<AmendedPoItemDTO> dtos) {
-     * 
-     * List<AmendedPoItem> items =
-     * new ArrayList<>();
-     * 
-     * for (AmendedPoItemDTO dto : dtos) {
-     * 
-     * AmendedPoItem item =
-     * new AmendedPoItem();
-     * 
-     * item.setAmendedPoHeader(
-     * header);
-     * 
-     * item.setRly(dto.getRly());
-     * 
-     * item.setItemSrNo(
-     * dto.getPoSr());
-     * 
-     * item.setPlNo(
-     * dto.getPlNo());
-     * 
-     * item.setConsigneeCd(
-     * dto.getConsigneeCd());
-     * 
-     * item.setAllocation(
-     * dto.getAllocation());
-     * 
-     * item.setBillPayOff(
-     * dto.getBillPayOff());
-     * 
-     * item.setBillPassOff(
-     * dto.getBillPassOff());
-     * 
-     * item.setConsigneeRly(
-     * dto.getConsigneeRly());
-     * 
-     * item.setPRly(
-     * dto.getPRly());
-     * 
-     * if (dto.getPoQty() != null) {
-     * 
-     * item.setQty(
-     * Integer.parseInt(
-     * dto.getPoQty()));
-     * }
-     * 
-     * if (dto.getQtyCancelled() != null) {
-     * 
-     * item.setQtyCancelled(
-     * Integer.parseInt(
-     * dto.getQtyCancelled()));
-     * }
-     * 
-     * if (dto.getRate() != null) {
-     * 
-     * item.setRate(
-     * new BigDecimal(
-     * dto.getRate()));
-     * }
-     * 
-     * items.add(item);
-     * }
-     * 
-     * amendmentPoItemRepository.saveAll(
-     * items);
-     * }
-     */
     private void saveAmendedPoItems(
             AmendedPoHeader header,
             List<AmendedPoItemDTO> dtos) {
 
         List<AmendedPoItem> items = new ArrayList<>();
 
-        DateTimeFormatter deliveryFormatter = DateTimeFormatter.ofPattern(
-                "dd/MM/yyyy HH:mm");
-
-        DateTimeFormatter crisFormatter = DateTimeFormatter.ofPattern(
-                "yyyy-MM-dd HH:mm:ss");
-
         for (AmendedPoItemDTO dto : dtos) {
 
             AmendedPoItem item = new AmendedPoItem();
 
-            item.setAmendedPoHeader(
-                    header);
+            item.setAmendedPoHeader(header);
 
             // BASIC
-
-            item.setRly(
-                    dto.getRly());
-
-            item.setItemSrNo(
-                    dto.getItemSrNo());
-            item.setPoKey(dto.getPoKey());
-
-            item.setPlNo(
-                    dto.getPlNo());
-
-            item.setItemDesc(
-                    dto.getItemDesc());
+            item.setRly(dto.getRly() != null ? dto.getRly() : header.getRlyCd());
+            item.setItemSrNo(dto.getItemSrNo());
+            item.setPoKey(dto.getPoKey() != null ? dto.getPoKey() : header.getPoKey());
+            item.setCaseNo(dto.getPoKey() != null ? dto.getPoKey() : header.getCaseNo());
+            item.setPlNo(dto.getPlNo());
+            item.setItemDesc(dto.getItemDesc());
 
             // CONSIGNEE
+            item.setConsigneeCd(dto.getConsigneeCd());
+            item.setImmsConsigneeCd(dto.getImmsConsigneeCd());
+            item.setImmsConsigneeName(dto.getImmsConsigneeName());
+            item.setConsigneeDetail(dto.getConsigneeDetail());
+            item.setConsigneeRly(dto.getConsigneeRly());
+            item.setConsigneeRlyShortName(dto.getConsigneeRlyShortName());
+            item.setPRly(dto.getPRly());
 
-            item.setConsigneeCd(
-                    dto.getConsigneeCd());
-
-            item.setImmsConsigneeCd(
-                    dto.getImmsConsigneeCd());
-
-            item.setImmsConsigneeName(
-                    dto.getImmsConsigneeName());
-
-            item.setConsigneeDetail(
-                    dto.getConsigneeDetail());
+            // BILLING
+            item.setBillPayOff(dto.getBillPayOff() != null ? dto.getBillPayOff() : header.getBillPayOff());
+            item.setBillPayOffDesc(dto.getBillPayOffDesc());
+            item.setBillPassOff(dto.getBillPassOff());
 
             // UOM
-
-            item.setUomCd(
-                    dto.getUomCd());
-
-            item.setUom(
-                    dto.getUom());
+            item.setUomCd(dto.getUomCd());
+            item.setUom(dto.getUom());
 
             // OTHER
-
-            item.setAllocation(
-                    dto.getAllocation());
-
-            item.setUserId(
-                    dto.getUserId());
-
-            item.setConsigneeRly(
-                    dto.getConsigneeRly());
-
-            item.setConsigneeRlyShortName(
-                    dto.getConsigneeRlyShortName());
-
-            item.setPRly(
-                    dto.getPRly());
-
-            item.setBillPayOff(
-                    dto.getBillPayOff());
-
-            item.setBillPayOffDesc(
-                    dto.getBillPayOffDesc());
-
-            item.setBillPassOff(
-                    dto.getBillPassOff());
+            item.setAllocation(dto.getAllocation());
+            item.setUserId(dto.getUserId());
+            item.setSourceSystem("CRIS_AMEND");
 
             // QUANTITY
-
-            if (dto.getQty() != null
-                    && !dto.getQty().isBlank()) {
-
-                item.setQty(
-                        Integer.parseInt(
-                                dto.getQty()));
-            }
-
-            if (dto.getQtyCancelled() != null
-                    && !dto.getQtyCancelled().isBlank()) {
-
-                item.setQtyCancelled(
-                        Integer.parseInt(
-                                dto.getQtyCancelled()));
-            }
+            item.setQty(parseInteger(dto.getQty()));
+            item.setQtyCancelled(parseInteger(dto.getQtyCancelled()));
 
             // FINANCIAL
-
-            if (dto.getRate() != null
-                    && !dto.getRate().isBlank()) {
-
-                item.setRate(
-                        new BigDecimal(
-                                dto.getRate()));
-            }
-
-            if (dto.getBasicValue() != null
-                    && !dto.getBasicValue().isBlank()) {
-
-                item.setBasicValue(
-                        new BigDecimal(
-                                dto.getBasicValue()));
-            }
-
-            if (dto.getSalesTaxPercent() != null
-                    && !dto.getSalesTaxPercent().isBlank()) {
-
-                item.setSalesTaxPercent(
-                        new BigDecimal(
-                                dto.getSalesTaxPercent()));
-            }
-
-            if (dto.getSalesTax() != null
-                    && !dto.getSalesTax().isBlank()) {
-
-                item.setSalesTax(
-                        new BigDecimal(
-                                dto.getSalesTax()));
-            }
-
-            item.setDiscountType(
-                    dto.getDiscountType());
-
-            if (dto.getDiscountPercent() != null
-                    && !dto.getDiscountPercent().isBlank()) {
-
-                item.setDiscountPercent(
-                        new BigDecimal(
-                                dto.getDiscountPercent()));
-            }
-
-            if (dto.getDiscount() != null
-                    && !dto.getDiscount().isBlank()) {
-
-                item.setDiscount(
-                        new BigDecimal(
-                                dto.getDiscount()));
-            }
-
-            if (dto.getValue() != null
-                    && !dto.getValue().isBlank()) {
-
-                item.setValue(
-                        new BigDecimal(
-                                dto.getValue()));
-            }
-
-            item.setOtChargeType(
-                    dto.getOtChargeType());
-
-            if (dto.getOtChargePercent() != null
-                    && !dto.getOtChargePercent().isBlank()) {
-
-                item.setOtChargePercent(
-                        new BigDecimal(
-                                dto.getOtChargePercent()));
-            }
-
-            if (dto.getOtherCharges() != null
-                    && !dto.getOtherCharges().isBlank()) {
-
-                item.setOtherCharges(
-                        new BigDecimal(
-                                dto.getOtherCharges()));
-            }
+            item.setRate(bd(dto.getRate()));
+            item.setBasicValue(bd(dto.getBasicValue()));
+            item.setSalesTaxPercent(bd(dto.getSalesTaxPercent()));
+            item.setSalesTax(bd(dto.getSalesTax()));
+            item.setDiscountType(dto.getDiscountType());
+            item.setDiscountPercent(bd(dto.getDiscountPercent()));
+            item.setDiscount(bd(dto.getDiscount()));
+            item.setValue(bd(dto.getValue()));
+            item.setOtChargeType(dto.getOtChargeType());
+            item.setOtChargePercent(bd(dto.getOtChargePercent()));
+            item.setOtherCharges(bd(dto.getOtherCharges()));
 
             // DATES
-
-            if (dto.getDeliveryDate() != null
-                    && !dto.getDeliveryDate().isBlank()) {
-
-                item.setDeliveryDate(
-                        LocalDateTime.parse(
-                                dto.getDeliveryDate(),
-                                deliveryFormatter));
+            if (dto.getDeliveryDate() != null && !dto.getDeliveryDate().isBlank()) {
+                item.setDeliveryDate(parseFlexibleDateTime(dto.getDeliveryDate()));
             }
 
-            if (dto.getExtendedDeliveryDate() != null
-                    && !dto.getExtendedDeliveryDate().isBlank()) {
-
-                item.setExtendedDeliveryDate(
-                        LocalDateTime.parse(
-                                dto.getExtendedDeliveryDate(),
-                                deliveryFormatter));
+            if (dto.getExtendedDeliveryDate() != null && !dto.getExtendedDeliveryDate().isBlank()) {
+                item.setExtendedDeliveryDate(parseFlexibleDateTime(dto.getExtendedDeliveryDate()));
             }
 
-            if (dto.getCrisTimestamp() != null
-                    && !dto.getCrisTimestamp().isBlank()) {
-
-                item.setCrisTimestamp(
-                        LocalDateTime.parse(
-                                dto.getCrisTimestamp(),
-                                crisFormatter));
+            if (dto.getCrisTimestamp() != null && !dto.getCrisTimestamp().isBlank()) {
+                item.setCrisTimestamp(parseFlexibleDateTime(dto.getCrisTimestamp()));
             }
 
             items.add(item);
         }
 
-        amendmentPoItemRepository.saveAll(
-                items);
+        if (header.getItems() == null) {
+            header.setItems(new ArrayList<>());
+        }
+        header.getItems().addAll(items);
+
+        amendmentPoItemRepository.saveAll(items);
     }
 
     private void syncPoHeader(

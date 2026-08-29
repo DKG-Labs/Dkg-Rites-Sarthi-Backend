@@ -14,11 +14,11 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
 
     @Query(value = """
             SELECT
-                ph.case_no                                              AS caseNumber,
+                COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
                 ic.plant_id                                             AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
-                CAST(COALESCE(um.employee_code, f.created_by) AS CHAR)  AS ieEmployeeNumber,
+                CAST(COALESCE(um.employee_code, f.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'F'                                                     AS typeOfCall,
                 (CASE 
@@ -26,9 +26,9 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                     WHEN ic.po_sr IS NOT NULL AND TRIM(ic.po_sr) <> '' THEN TRIM(ic.po_sr)
                     ELSE '1'
                 END)                                                    AS poItemSerialNumber,
-                CAST(f.book_no AS CHAR)                                 AS bkNumber,
-                CAST(f.set_no AS CHAR)                                  AS setNumber,
-                DATE(f.created_at)                                      AS icDate,
+                CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
+                CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
+                DATE(COALESCE(f.created_at, ic.updated_at, ic.created_at)) AS icDate,
                 COALESCE(SUM(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
                 COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
                 COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,
@@ -36,8 +36,11 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 f.ic_number                                             AS callNumber
             FROM railpad_final_ic_edit f
             INNER JOIN rail_inspection_call ic
-                    ON CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                    ON CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                       CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -65,10 +68,12 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             GROUP BY
                 ph.case_no,
                 ic.created_at,
+                ic.updated_at,
                 ic.plant_id,
                 pm.ibs_vendor_code,
                 um.employee_code,
                 f.created_by,
+                ic.created_by,
                 ic.po_no,
                 ic.po_sr,
                 f.book_no,
@@ -80,4 +85,5 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             """, nativeQuery = true)
     List<Object[]> getRailpadFinalInspectionCalls();
 }
+
 

@@ -121,4 +121,59 @@ public class RailWorkFlowController {
             );
         }
     }
+
+    @GetMapping("/cancelledCallsForPayment")
+    public ResponseEntity<Object> getCancelledCallsForPayment(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String vendorCode) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getCancelledCallsForPayment(plantId, vendorCode)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Failed to fetch cancelled calls: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @GetMapping("/checkPlantPaymentBlock")
+    public ResponseEntity<Object> checkPlantPaymentBlock(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String vendorCode) {
+        try {
+            boolean isBlocked = workflowService.isPlantBlockedForCallRaising(plantId, vendorCode);
+            java.util.Map<String, Object> result = new java.util.HashMap<>();
+            result.put("isBlocked", isBlocked);
+            if (isBlocked) {
+                result.put("message", "Call raising is blocked for this plant due to pending cancellation charges.");
+            }
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(result),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Failed to check plant block status: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @GetMapping("/cancellation-details")
+    public ResponseEntity<Object> getCancellationDetails(@RequestParam String callNo) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getCancellationDetails(callNo)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Failed to fetch cancellation details: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
 }

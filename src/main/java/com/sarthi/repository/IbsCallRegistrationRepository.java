@@ -33,4 +33,14 @@ public interface IbsCallRegistrationRepository
             )
            """)
     List<IbsCallRegistration> findPendingBillingCalls();
+
+    @Query("""
+        SELECT i.srNo 
+        FROM IbsCallRegistration i 
+        WHERE i.callNumber = :callNumber 
+          AND i.srNo IS NOT NULL 
+          AND TRIM(i.srNo) <> ''
+        ORDER BY i.version DESC, i.id DESC
+    """)
+    List<String> findSrNoByCallNumber(@Param("callNumber") String callNumber);
 }

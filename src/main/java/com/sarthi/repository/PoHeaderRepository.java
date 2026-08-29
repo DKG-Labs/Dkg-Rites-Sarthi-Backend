@@ -24,6 +24,9 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
 
 	Optional<PoHeader> findFirstByPoNo(String poNo);
 
+	@Query("SELECT h FROM PoHeader h WHERE h.poNo = :poNo OR h.l5PoNo = :poNo OR REPLACE(h.l5PoNo, ' ', '') = REPLACE(:poNo, ' ', '') OR h.poKey = :poNo")
+	Optional<PoHeader> findFirstByPoNoOrL5PoNo(@Param("poNo") String poNo);
+
 	List<PoHeader> findByPoNoIn(List<String> poNos);
 
 	@Query(value = """
