@@ -242,4 +242,26 @@ public class UserMasterController {
         String res = userService.updateUserRegion(userId, request.get("region"));
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
+
+    @PutMapping("/api/pincode-poi/{poiCode}/contact")
+    public ResponseEntity<Object> updateUnitContact(
+            @PathVariable String poiCode,
+            @RequestBody Map<String, String> request) {
+        String contactPerson = request.get("contactPerson");
+        String contactPersonNumber = request.get("contactPersonNumber");
+        String res = userService.updateUnitContact(poiCode, contactPerson, contactPersonNumber);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+    }
+
+    @PostMapping("/api/erc-vendor")
+    public ResponseEntity<Object> createOrUpdateErcVendor(@RequestBody com.sarthi.dto.ErcVendorCreationDto dto) {
+        Object response = userService.createOrUpdateErcVendor(dto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/erc-vendor/{userId}")
+    public ResponseEntity<Object> getErcVendorDetails(@PathVariable Integer userId) {
+        Object response = userService.getErcVendorDetails(userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
 }

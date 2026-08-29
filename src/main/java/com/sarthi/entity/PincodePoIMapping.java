@@ -41,5 +41,11 @@ public class PincodePoIMapping {
     private String poiCode;
 
     private String vendorCode;
+
+    @Column(name = "contact_person", length = 255)
+    private String contactPerson;
+
+    @Column(name = "contact_person_number", length = 20)
+    private String contactPersonNumber;
 }
 

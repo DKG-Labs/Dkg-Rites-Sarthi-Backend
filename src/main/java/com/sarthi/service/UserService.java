@@ -71,5 +71,11 @@ public interface UserService {
     public String updateUserRegion(Integer userId, String newRegion);
     public String updateUserRole(Integer userId, List<String> newRoles);
 
+    public String updateUnitContact(String poiCode, String contactPerson, String contactPersonNumber);
+
+    public Object createOrUpdateErcVendor(com.sarthi.dto.ErcVendorCreationDto dto);
+
+    public Object getErcVendorDetails(Integer userId);
+
     LoginResponseDto verifyOtp(VerifyOtpRequestDto request);
 }
