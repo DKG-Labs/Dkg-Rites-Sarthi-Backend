@@ -12,6 +12,7 @@ public class UserDto {
     private String userName;
     private String mobileNumber;
     private String roleName;
+    private java.util.List<String> roleNames;
     private String createdBy;
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDateTime createdDate;

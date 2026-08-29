@@ -8,4 +8,6 @@ import java.util.Optional;
 @Repository
 public interface RmIcEditRepository extends JpaRepository<RmIcEdit, Long> {
     Optional<RmIcEdit> findByIcNumber(String icNumber);
+    Optional<RmIcEdit> findFirstByIcNumber(String icNumber);
+    Optional<RmIcEdit> findFirstByIcNumberOrderByIdDesc(String icNumber);
 }

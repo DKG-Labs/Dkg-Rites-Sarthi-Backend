@@ -137,6 +137,12 @@ public class WorkflowServiceImpl implements WorkflowService {
     private CallCancellationDetailRepository callCancellationDetailRepository;
     @Autowired
     private VendorFinancialLiabilityRepository vendorFinancialLiabilityRepository;
+    @Autowired
+    private PoItemRepository poItemRepository;
+    @Autowired(required = false)
+    private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
+    @Autowired(required = false)
+    private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
 
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
@@ -4791,5 +4797,178 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 workflowTransitionRepository.updateAssignedToUserForLatestTransaction(callNo, newUser.getUserId());
             }
         }
+    }
+
+    @Override
+    public com.sarthi.dto.PoItemCalculationDto getPoItemCalculationDetails(String callNo, String rawPoNo, String itemSrNo) {
+        com.sarthi.dto.PoItemCalculationDto dto = new com.sarthi.dto.PoItemCalculationDto();
+        dto.setCallNo(callNo);
+
+        Double offeredQty = null;
+
+        // 1. Resolve from callNo if provided
+        if (callNo != null && !callNo.isBlank()) {
+            // A) Check ERC Inspection Calls
+            Optional<InspectionCall> icOpt = inspectionCallRepository.findFirstByIcNumber(callNo);
+            if (icOpt.isPresent()) {
+                InspectionCall ic = icOpt.get();
+                if (rawPoNo == null || rawPoNo.isBlank()) rawPoNo = ic.getPoNo();
+                if (itemSrNo == null || itemSrNo.isBlank()) itemSrNo = ic.getPoSerialNo();
+                dto.setVendorName(ic.getCompanyName());
+
+                // 1. Check RM details
+                Optional<RmInspectionDetails> rmOpt = rmInspectionDetailsRepository.findByIcId(ic.getId());
+                if (rmOpt.isPresent()) {
+                    RmInspectionDetails rm = rmOpt.get();
+                    if (rm.getOfferedQtyErc() != null && rm.getOfferedQtyErc() > 0) {
+                        offeredQty = rm.getOfferedQtyErc().doubleValue();
+                    } else if (rm.getTotalOfferedQtyMt() != null && rm.getTotalOfferedQtyMt().compareTo(BigDecimal.ZERO) > 0) {
+                        offeredQty = rm.getTotalOfferedQtyMt().doubleValue();
+                    }
+                }
+
+                // 2. Check Process details
+                if (offeredQty == null) {
+                    try {
+                        int procSum = processInspectionDetailsRepository.sumOfferedQtyByIcId(ic.getId());
+                        if (procSum > 0) {
+                            offeredQty = (double) procSum;
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                // 3. Check Final details
+                if (offeredQty == null) {
+                    Optional<com.sarthi.entity.finalmaterial.FinalInspectionDetails> finOpt = finalInspectionDetailsRepository.findByIcId(ic.getId());
+                    if (finOpt.isPresent() && finOpt.get().getTotalOfferedQty() != null && finOpt.get().getTotalOfferedQty() > 0) {
+                        offeredQty = finOpt.get().getTotalOfferedQty().doubleValue();
+                    }
+                }
+            }
+
+            // B) Check Railpad Calls
+            if (offeredQty == null && railInspectionCallRepository != null) {
+                try {
+                    Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> ricOpt = railInspectionCallRepository.findByCallNo(callNo);
+                    if (ricOpt.isPresent()) {
+                        com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall ric = ricOpt.get();
+                        if (rawPoNo == null || rawPoNo.isBlank()) rawPoNo = ric.getPoNo();
+                        if (itemSrNo == null || itemSrNo.isBlank()) itemSrNo = ric.getPoSr();
+                        if (ric.getTotalQty() != null) {
+                            offeredQty = ric.getTotalQty().doubleValue();
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // C) Check Sleeper Calls
+            if (offeredQty == null && sleeperInspectionCallRepository != null) {
+                try {
+                    Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> sicOpt = sleeperInspectionCallRepository.findByCallNo(callNo);
+                    if (sicOpt.isPresent()) {
+                        com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall sic = sicOpt.get();
+                        if (rawPoNo == null || rawPoNo.isBlank()) rawPoNo = sic.getPoNo();
+                        if (itemSrNo == null || itemSrNo.isBlank()) itemSrNo = sic.getSrNo();
+                        if (sic.getTotalOffered() != null) {
+                            offeredQty = sic.getTotalOffered().doubleValue();
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        // 2. Parse bare PO No and itemSrNo
+        String barePoNo = rawPoNo;
+        String cleanItemSrNo = itemSrNo;
+
+        if (rawPoNo != null && rawPoNo.contains("/")) {
+            String[] parts = rawPoNo.split("/");
+            if (parts.length >= 2) {
+                barePoNo = parts[parts.length - 2].trim();
+                if (cleanItemSrNo == null || cleanItemSrNo.isBlank()) {
+                    cleanItemSrNo = parts[parts.length - 1].trim();
+                }
+            } else {
+                barePoNo = parts[0].trim();
+            }
+        }
+        if (cleanItemSrNo != null && cleanItemSrNo.contains("/")) {
+            String[] parts = cleanItemSrNo.split("/");
+            cleanItemSrNo = parts[parts.length - 1].trim();
+        }
+
+        dto.setRawPoNo(rawPoNo);
+        dto.setBarePoNo(barePoNo);
+        dto.setItemSrNo(cleanItemSrNo);
+
+        // 3. Lookup in PoHeader and PoItem
+        if (barePoNo != null && !barePoNo.isBlank()) {
+            Optional<PoHeader> phOpt = poHeaderRepository.findFirstByPoNo(barePoNo);
+            if (phOpt.isPresent()) {
+                PoHeader ph = phOpt.get();
+                dto.setRlyShortName(ph.getRlyShortName());
+                if (dto.getVendorName() == null) dto.setVendorName(ph.getFirmDetails());
+                if (ph.getPoDate() != null) {
+                    dto.setPoDate(ph.getPoDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+                }
+
+                // Determine Category (A, B, C)
+                LocalDate cutoff = LocalDate.of(2022, 11, 25);
+                String cat = "B";
+                if (ph.getRlyCd() != null && ph.getRlyCd().toUpperCase().contains("NON")) {
+                    cat = "C";
+                } else if (ph.getPoNo() != null && ph.getPoNo().toUpperCase().startsWith("LOA")) {
+                    cat = "A";
+                } else if (ph.getPoDate() != null && ph.getPoDate().toLocalDate().isBefore(cutoff)) {
+                    cat = "A";
+                }
+                dto.setPoCategory(cat);
+
+                // Fetch PoItem
+                PoItem matchedItem = null;
+                if (cleanItemSrNo != null && !cleanItemSrNo.isBlank()) {
+                    Optional<PoItem> piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(barePoNo, cleanItemSrNo);
+                    if (piOpt.isPresent()) {
+                        matchedItem = piOpt.get();
+                    } else if (ph.getItems() != null) {
+                        for (PoItem pi : ph.getItems()) {
+                            if (pi.getItemSrNo() != null) {
+                                if (pi.getItemSrNo().equalsIgnoreCase(cleanItemSrNo)) {
+                                    matchedItem = pi; break;
+                                }
+                                try {
+                                    if (Integer.parseInt(pi.getItemSrNo().trim()) == Integer.parseInt(cleanItemSrNo.trim())) {
+                                        matchedItem = pi; break;
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                    }
+                }
+                if (matchedItem == null && ph.getItems() != null && !ph.getItems().isEmpty()) {
+                    matchedItem = ph.getItems().get(0);
+                }
+
+                if (matchedItem != null) {
+                    dto.setItemSrNo(matchedItem.getItemSrNo());
+                    dto.setPoQty(matchedItem.getQty());
+                    BigDecimal val = matchedItem.getValue() != null ? matchedItem.getValue() : matchedItem.getBasicValue();
+                    dto.setPoValue(val != null ? val.setScale(2, java.math.RoundingMode.HALF_UP) : null);
+                    
+                    BigDecimal r = matchedItem.getRate();
+                    if (r == null && val != null && matchedItem.getQty() != null && matchedItem.getQty() > 0) {
+                        r = val.divide(BigDecimal.valueOf(matchedItem.getQty()), 4, java.math.RoundingMode.HALF_UP);
+                    }
+                    dto.setRate(r != null ? r.setScale(2, java.math.RoundingMode.HALF_UP) : null);
+
+                    if (offeredQty != null && r != null) {
+                        dto.setOfferedQty(offeredQty);
+                        dto.setMaterialValue(r.multiply(BigDecimal.valueOf(offeredQty)).setScale(2, java.math.RoundingMode.HALF_UP));
+                    }
+                }
+            }
+        }
+
+        return dto;
     }
 }

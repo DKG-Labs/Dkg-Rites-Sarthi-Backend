@@ -118,8 +118,16 @@ public class RailPoSummaryServiceImpl implements RailPoSummaryService {
             );
 
             // PO_QTY = qty of the specific serial number being inspected (from po_item.qty)
-            // NOT the sum of all items — we want the qty for serial 001, not the whole PO total
             dto.setPoQty(matched.getQty());
+            dto.setPoSrQty(matched.getQty());
+            if (matched.getValue() != null) {
+                dto.setPoSrValue(matched.getValue());
+            } else if (matched.getBasicValue() != null) {
+                dto.setPoSrValue(matched.getBasicValue());
+            }
+            if (matched.getRate() != null) {
+                dto.setRate(matched.getRate());
+            }
 
             // Build full serial: SER/60260074102063/001
             // Use the actual item_sr_no from DB as the canonical suffix (e.g. "001")

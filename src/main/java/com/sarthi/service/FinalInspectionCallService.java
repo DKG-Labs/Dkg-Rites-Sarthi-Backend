@@ -136,4 +136,16 @@ public interface FinalInspectionCallService {
      * @return Sum of offered quantity
      */
     Integer getOfferedEarlierQuantity(String heatNo, String lotNumber);
+
+    /**
+     * Get the total quantity offered in previous Final Inspection Calls for a
+     * specific heat, lot, PO, and PO Serial Number
+     * 
+     * @param heatNo     - Heat number
+     * @param lotNumber  - Lot number
+     * @param poNo       - Purchase Order Number (optional)
+     * @param poSerialNo - PO Serial Number (optional)
+     * @return Sum of offered quantity
+     */
+    Integer getOfferedEarlierQuantity(String heatNo, String lotNumber, String poNo, String poSerialNo);
 }

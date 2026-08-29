@@ -41,6 +41,23 @@ public interface FinalInspectionLotDetailsRepository extends JpaRepository<Final
     Integer sumOfferedQtyByHeatNumberAndLotNumber(@org.springframework.data.repository.query.Param("heatNumber") String heatNumber, @org.springframework.data.repository.query.Param("lotNumber") String lotNumber);
 
     @Query("""
+        SELECT COALESCE(SUM(l.offeredQty), 0)
+        FROM FinalInspectionLotDetails l
+        JOIN FinalInspectionDetails f ON l.finalDetailId = f.id
+        JOIN InspectionCall i ON f.inspectionCall.id = i.id
+        WHERE l.heatNumber = :heatNumber
+          AND l.lotNumber = :lotNumber
+          AND (:poNo IS NULL OR i.poNo = :poNo)
+          AND (:poSerialNo IS NULL OR i.poSerialNo = :poSerialNo)
+          AND (i.status IS NULL OR UPPER(i.status) != 'CANCELLED')
+    """)
+    Integer sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+            @Param("heatNumber") String heatNumber,
+            @Param("lotNumber") String lotNumber,
+            @Param("poNo") String poNo,
+            @Param("poSerialNo") String poSerialNo);
+
+    @Query("""
 SELECT
     i.icNumber,
     SUM(COALESCE(l.offeredQty,0))

@@ -438,8 +438,17 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
 
     @Override
     public Integer getOfferedEarlierQuantity(String heatNo, String lotNumber) {
-        logger.info("Fetching offered earlier quantity for heat: {} and lot: {}", heatNo, lotNumber);
-        Integer quantity = finalInspectionLotDetailsRepository.sumOfferedQtyByHeatNumberAndLotNumber(heatNo, lotNumber);
+        return getOfferedEarlierQuantity(heatNo, lotNumber, null, null);
+    }
+
+    @Override
+    public Integer getOfferedEarlierQuantity(String heatNo, String lotNumber, String poNo, String poSerialNo) {
+        logger.info("Fetching offered earlier quantity for heat: {}, lot: {}, poNo: {}, poSerialNo: {}", heatNo, lotNumber, poNo, poSerialNo);
+        String cleanPoNo = (poNo != null && !poNo.trim().isEmpty()) ? poNo.trim() : null;
+        String cleanPoSerialNo = (poSerialNo != null && !poSerialNo.trim().isEmpty()) ? poSerialNo.trim() : null;
+
+        Integer quantity = finalInspectionLotDetailsRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+                heatNo, lotNumber, cleanPoNo, cleanPoSerialNo);
         logger.info("Offered earlier quantity: {}", quantity);
         return quantity != null ? quantity : 0;
     }

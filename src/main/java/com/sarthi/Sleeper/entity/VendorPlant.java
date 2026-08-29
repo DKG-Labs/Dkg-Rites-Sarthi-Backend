@@ -24,5 +24,9 @@ public class VendorPlant {
 
     private String zonalRailway;
 
+    @Column(name = "contact_person", length = 255)
+    private String contactPerson;
 
+    @Column(name = "contact_person_number", length = 20)
+    private String contactPersonNumber;
 }

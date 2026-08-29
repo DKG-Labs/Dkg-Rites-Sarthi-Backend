@@ -102,4 +102,12 @@ public class WorkflowController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allDisposedWorkflowTransitions(rio)), HttpStatus.OK);
     }
 
+    @GetMapping("/api/call/po-item-details")
+    public ResponseEntity<Object> getCallPoItemDetails(
+            @RequestParam(required = false) String callNo,
+            @RequestParam(required = false) String poNo,
+            @RequestParam(required = false) String itemSrNo) {
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(
+                workflowService.getPoItemCalculationDetails(callNo, poNo, itemSrNo)), HttpStatus.OK);
+    }
 }
