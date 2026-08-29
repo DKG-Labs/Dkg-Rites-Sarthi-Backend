@@ -70,6 +70,15 @@ public class RailPoSummaryDto {
      */
     private Integer poSrQty;
 
+    /** Value of this specific PO serial number (from po_item.value or basicValue) */
+    private java.math.BigDecimal poSrValue;
+
+    /** Rate of this specific PO serial number (from po_item.rate) */
+    private java.math.BigDecimal rate;
+
+    /** Total PO Value */
+    private String poValue;
+
     /** UOM from po_item.uom e.g. Nos. */
     private String unit;
 

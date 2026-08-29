@@ -52,4 +52,6 @@ public interface WorkflowService {
     public List<WorkflowTransitionDto> getPendingWorkflowByPoi(
             String roleName,
             String poi);
+
+    public com.sarthi.dto.PoItemCalculationDto getPoItemCalculationDetails(String callNo, String rawPoNo, String itemSrNo);
 }

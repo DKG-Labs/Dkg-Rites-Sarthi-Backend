@@ -77,5 +77,9 @@ public interface UserService {
 
     public Object getErcVendorDetails(Integer userId);
 
+    public Object createOrUpdateSleeperVendor(com.sarthi.dto.SleeperVendorCreationDto dto);
+
+    public Object getSleeperVendorDetails(Integer userId);
+
     LoginResponseDto verifyOtp(VerifyOtpRequestDto request);
 }

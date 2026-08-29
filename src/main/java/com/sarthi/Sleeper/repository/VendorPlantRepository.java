@@ -17,6 +17,10 @@ import java.util.Optional;
 public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> {
     List<VendorPlant> findByVendorCode(String vendorCode);
 
+    Optional<VendorPlant> findByPlantId(String plantId);
+
+    Optional<VendorPlant> findByCompanyNameAndPlantName(String companyName, String plantName);
+
 
     @Query("""
     SELECT DISTINCT m.plantId 

@@ -99,6 +99,10 @@ public class UserServiceImpl implements UserService {
     private LoginOtpRepository loginOtpRepository;
     @Autowired
     private IeFieldsMappingRepository ieFieldsMappingRepository;
+    @Autowired
+    private com.sarthi.Sleeper.repository.SleeperPincodePoIMappingRepository sleeperPincodePoIMappingRepository;
+    @Autowired
+    private com.sarthi.Sleeper.repository.VendorPlantRepository vendorPlantRepository;
 
 
 
@@ -350,7 +354,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserDto mapToResponseDTO(UserMaster userMaster) {
-        return mapToResponseDTOWithContext(userMaster, null, null, null, null);
+        return mapToResponseDTOWithContext(userMaster, null, null, null, null, null);
     }
 
     private UserDto mapToResponseDTOWithContext(
@@ -358,20 +362,45 @@ public class UserServiceImpl implements UserService {
             Map<String, String> vendorCodeToName,
             Map<String, String> rioUserMap,
             Map<String, List<PincodePoIMapping>> vendorCodeToPpm,
-            Map<String, String> ieFieldsRioMap) {
+            Map<String, String> ieFieldsRioMap,
+            Map<Integer, List<String>> userRolesMap) {
 
         UserDto userDto = new UserDto();
         userDto.setUserId(userMaster.getUserId());
         userDto.setUserName(userMaster.getUsername());
         userDto.setPassword(userMaster.getPassword());
         userDto.setMobileNumber(userMaster.getMobileNumber());
-        userDto.setRoleName(userMaster.getRoleName());
         userDto.setCreatedDate(userMaster.getCreatedDate());
         userDto.setCreatedBy(userMaster.getCreatedBy());
 
+        // Resolve all roles from user_role_master
+        List<String> rolesFromMaster = (userRolesMap != null && userMaster.getUserId() != null) 
+                ? userRolesMap.get(userMaster.getUserId()) 
+                : null;
+        if (rolesFromMaster == null && userMaster.getUserId() != null) {
+            try {
+                rolesFromMaster = userMasterRepository.findRoleNamesByUserId(userMaster.getUserId());
+            } catch (Exception ignored) {}
+        }
+
+        if (rolesFromMaster != null && !rolesFromMaster.isEmpty()) {
+            userDto.setRoleNames(rolesFromMaster);
+            userDto.setRoleName(String.join(", ", rolesFromMaster));
+        } else if (userMaster.getRoleName() != null && !userMaster.getRoleName().trim().isEmpty()) {
+            userDto.setRoleName(userMaster.getRoleName());
+            userDto.setRoleNames(Arrays.stream(userMaster.getRoleName().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList()));
+        } else {
+            userDto.setRoleNames(Collections.emptyList());
+            userDto.setRoleName("");
+        }
+
         // 1. Resolve employeeCode
-        boolean isVendor = userMaster.getRoleName() != null && 
-                (userMaster.getRoleName().contains("Vendor") || userMaster.getRoleName().equalsIgnoreCase("Vendor"));
+        String allRoles = userDto.getRoleName();
+        boolean isVendor = allRoles != null && 
+                (allRoles.contains("Vendor") || allRoles.equalsIgnoreCase("Vendor"));
 
         String empCode = userMaster.getEmployeeCode();
         if (empCode == null || empCode.trim().isEmpty()) {
@@ -1608,8 +1637,21 @@ public class UserServiceImpl implements UserService {
             }
         } catch (Exception ignored) {}
 
+        // 5. Bulk preload User Roles from USER_ROLE_MASTER
+        Map<Integer, List<String>> userRolesMap = new HashMap<>();
+        try {
+            List<Object[]> roleRows = userRoleMasterRepository.findAllUserRolesWithRoleNames();
+            for (Object[] row : roleRows) {
+                if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                    Integer uId = ((Number) row[0]).intValue();
+                    String rName = row[1].toString().trim();
+                    userRolesMap.computeIfAbsent(uId, k -> new ArrayList<>()).add(rName);
+                }
+            }
+        } catch (Exception ignored) {}
+
         return allUsers.stream()
-                .map(u -> mapToResponseDTOWithContext(u, vendorCodeToName, rioUserMap, vendorCodeToPpm, ieFieldsRioMap))
+                .map(u -> mapToResponseDTOWithContext(u, vendorCodeToName, rioUserMap, vendorCodeToPpm, ieFieldsRioMap, userRolesMap))
                 .collect(Collectors.toList());
     }
 
@@ -1623,14 +1665,91 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(Integer userId) {
         UserMaster user = userMasterRepository.findById(userId).orElse(null);
         if (user != null) {
+            String empCode = user.getEmployeeCode();
+            String rawCode = empCode != null ? empCode.replaceAll("^:", "").trim() : null;
+            String colonCode = rawCode != null && !rawCode.isEmpty() ? ":" + rawCode : null;
+
+            // 1. Delete from USER_ROLE_MASTER
             userRoleMasterRepository.deleteByUserId(userId);
-            if (user.getEmployeeCode() != null) {
+
+            // 2. Delete from IE_PROFILE if it's an IE
+            if (empCode != null) {
                 try {
-                    ieProfileRepository.deleteByEmployeeCode(user.getEmployeeCode());
-                } catch (Exception e) {
-                    // Ignore if no profile found or error deleting profile
-                }
+                    ieProfileRepository.deleteByEmployeeCode(empCode);
+                } catch (Exception ignored) {}
             }
+
+            // 3. Delete from VENDOR_MASTER
+            try {
+                if (colonCode != null) {
+                    vendorMasterRepository.findByVendorCode(colonCode).ifPresent(vendorMasterRepository::delete);
+                }
+                if (rawCode != null) {
+                    vendorMasterRepository.findByVendorCode(rawCode).ifPresent(vendorMasterRepository::delete);
+                }
+            } catch (Exception ignored) {}
+
+            // 4. Delete ERC units from PINCODE_POI_MAPPING
+            try {
+                if (colonCode != null) {
+                    List<PincodePoIMapping> units = pincodePoIMappingRepository.findByVendorCode(colonCode);
+                    if (units != null && !units.isEmpty()) {
+                        pincodePoIMappingRepository.deleteAll(units);
+                    }
+                }
+                if (rawCode != null) {
+                    List<PincodePoIMapping> units = pincodePoIMappingRepository.findByVendorCode(rawCode);
+                    if (units != null && !units.isEmpty()) {
+                        pincodePoIMappingRepository.deleteAll(units);
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // 5. Delete Sleeper registered unit from SLEEPER_PINCODE_POI_MAPPING
+            try {
+                List<com.sarthi.Sleeper.entity.SleeperPincodePoIMapping> spList = new ArrayList<>();
+                com.sarthi.Sleeper.entity.SleeperPincodePoIMapping sp1 = sleeperPincodePoIMappingRepository.findByVendorCode(userId.toString());
+                if (sp1 != null) spList.add(sp1);
+                if (colonCode != null) {
+                    com.sarthi.Sleeper.entity.SleeperPincodePoIMapping sp2 = sleeperPincodePoIMappingRepository.findByVendorCode(colonCode);
+                    if (sp2 != null && !spList.contains(sp2)) spList.add(sp2);
+                }
+                if (rawCode != null) {
+                    com.sarthi.Sleeper.entity.SleeperPincodePoIMapping sp3 = sleeperPincodePoIMappingRepository.findByVendorCode(rawCode);
+                    if (sp3 != null && !spList.contains(sp3)) spList.add(sp3);
+                }
+                if (!spList.isEmpty()) {
+                    sleeperPincodePoIMappingRepository.deleteAll(spList);
+                }
+            } catch (Exception ignored) {}
+
+            // 6. Delete Sleeper plants from VENDOR_PLANT
+            try {
+                List<com.sarthi.Sleeper.entity.VendorPlant> plants = new ArrayList<>();
+                List<com.sarthi.Sleeper.entity.VendorPlant> p1 = vendorPlantRepository.findByVendorId(userId.longValue());
+                if (p1 != null) plants.addAll(p1);
+                if (colonCode != null) {
+                    List<com.sarthi.Sleeper.entity.VendorPlant> p2 = vendorPlantRepository.findByVendorCode(colonCode);
+                    if (p2 != null) {
+                        for (com.sarthi.Sleeper.entity.VendorPlant vp : p2) {
+                            if (!plants.contains(vp)) plants.add(vp);
+                        }
+                    }
+                }
+                if (rawCode != null) {
+                    List<com.sarthi.Sleeper.entity.VendorPlant> p3 = vendorPlantRepository.findByVendorCode(rawCode);
+                    if (p3 != null) {
+                        for (com.sarthi.Sleeper.entity.VendorPlant vp : p3) {
+                            if (!plants.contains(vp)) plants.add(vp);
+                        }
+                    }
+                }
+                if (!plants.isEmpty()) {
+                    vendorPlantRepository.deleteAll(plants);
+                }
+            } catch (Exception ignored) {}
+
+            // 7. Delete from USER_MASTER (ie_fields_mapping is preserved)
             userMasterRepository.deleteById(userId);
         }
     }
@@ -1760,10 +1879,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
         userMaster.setStatus("Inactive".equalsIgnoreCase(dto.getStatus()) ? AppConstant.USER_STATUS_INACTIVE : AppConstant.USER_STATUS);
 
-        userMaster = userMasterRepository.save(userMaster);
-
-        // 2. Assign USER_ROLE_MASTER (roleId = 1 for Vendor)
-        userRoleMasterRepository.deleteByUserId(userMaster.getUserId());
+        // 2. Assign USER_ROLE_MASTER (roleId = 1 for Vendor) without deleting other existing roles
         RoleMaster vendorRole = roleMasterRepository.findByRoleName("Vendor")
                 .orElseGet(() -> {
                     RoleMaster rm = new RoleMaster();
@@ -1772,14 +1888,25 @@ public class UserServiceImpl implements UserService {
                     return rm;
                 });
 
-        UserRoleMaster userRole = new UserRoleMaster();
-        userRole.setUserId(userMaster.getUserId());
-        userRole.setRoleId(vendorRole.getRoleId() != null ? vendorRole.getRoleId() : 1);
-        userRole.setReadPermission(true);
-        userRole.setWritePermission(true);
-        userRole.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
-        userRole.setCreatedDate(new Date());
-        userRoleMasterRepository.save(userRole);
+        Integer vendorRoleId = vendorRole.getRoleId() != null ? vendorRole.getRoleId() : 1;
+        boolean hasVendorRole = userRoleMasterRepository.existsByUserIdAndRoleId(userMaster.getUserId(), vendorRoleId);
+        if (!hasVendorRole) {
+            UserRoleMaster userRole = new UserRoleMaster();
+            userRole.setUserId(userMaster.getUserId());
+            userRole.setRoleId(vendorRoleId);
+            userRole.setReadPermission(true);
+            userRole.setWritePermission(true);
+            userRole.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
+            userRole.setCreatedDate(new Date());
+            userRoleMasterRepository.save(userRole);
+        }
+
+        // Sync user_master.role_name with all assigned roles
+        List<String> currentRoles = userMasterRepository.findRoleNamesByUserId(userMaster.getUserId());
+        if (currentRoles != null && !currentRoles.isEmpty()) {
+            userMaster.setRoleName(String.join(", ", currentRoles));
+            userMasterRepository.save(userMaster);
+        }
 
         // 3. Save or Update VENDOR_MASTER
         VendorMaster vendorMaster = vendorMasterRepository.findByVendorCode(vendorCodeFormatted)
@@ -1981,6 +2108,320 @@ public class UserServiceImpl implements UserService {
             return "CRIO";
         }
         return "WRIO";
+    }
+
+    @Transactional
+    @Override
+    public Object createOrUpdateSleeperVendor(com.sarthi.dto.SleeperVendorCreationDto dto) {
+        if (dto.getCompanyName() == null || dto.getCompanyName().trim().isEmpty()) {
+            throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Company Name is required"));
+        }
+        if (dto.getVendorCode() == null || dto.getVendorCode().trim().isEmpty()) {
+            throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Vendor Code is required"));
+        }
+
+        String cleanVendorCode = dto.getVendorCode().trim();
+        String cleanCompanyName = dto.getCompanyName().trim();
+        final String vendorCodeFormatted = cleanVendorCode.startsWith(":") ? cleanVendorCode : ":" + cleanVendorCode;
+
+        // 1. Save or Update USER_MASTER
+        UserMaster userMaster;
+        if (dto.getUserId() != null) {
+            userMaster = userMasterRepository.findById(dto.getUserId()).orElse(new UserMaster());
+        } else {
+            userMaster = userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanVendorCode)
+                    .orElseGet(() -> {
+                        if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
+                            return userMasterRepository.findFirstByEmail(dto.getEmail().trim()).orElse(new UserMaster());
+                        }
+                        return new UserMaster();
+                    }));
+            if (userMaster.getUserId() == null) {
+                userMaster.setCreatedDate(LocalDateTime.now());
+            }
+        }
+
+        userMaster.setUserName(cleanCompanyName);
+        userMaster.setFullName(cleanCompanyName);
+        userMaster.setShortName(vendorCodeFormatted);
+        userMaster.setEmployeeCode(vendorCodeFormatted);
+        userMaster.setEmail(dto.getEmail());
+        userMaster.setMobileNumber(null); // Mobile numbers are stored per-plant in vendor_plant
+        if (dto.getPassword() != null && !dto.getPassword().trim().isEmpty()) {
+            userMaster.setPassword(dto.getPassword());
+        }
+        userMaster.setRoleName("Sleeper Vendor");
+        userMaster.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
+        userMaster.setStatus("Inactive".equalsIgnoreCase(dto.getStatus()) ? AppConstant.USER_STATUS_INACTIVE : AppConstant.USER_STATUS);
+
+        // 2. Assign USER_ROLE_MASTER (roleId = 12 for Sleeper Vendor) without deleting other existing roles
+        RoleMaster sleeperVendorRole = roleMasterRepository.findByRoleName("Sleeper Vendor")
+                .orElseGet(() -> {
+                    RoleMaster rm = new RoleMaster();
+                    rm.setRoleId(12);
+                    rm.setRoleName("Sleeper Vendor");
+                    return rm;
+                });
+
+        Integer sleeperRoleId = sleeperVendorRole.getRoleId() != null ? sleeperVendorRole.getRoleId() : 12;
+        boolean hasSleeperRole = userRoleMasterRepository.existsByUserIdAndRoleId(userMaster.getUserId(), sleeperRoleId);
+        if (!hasSleeperRole) {
+            UserRoleMaster userRole = new UserRoleMaster();
+            userRole.setUserId(userMaster.getUserId());
+            userRole.setRoleId(sleeperRoleId);
+            userRole.setReadPermission(true);
+            userRole.setWritePermission(true);
+            userRole.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
+            userRole.setCreatedDate(new Date());
+            userRoleMasterRepository.save(userRole);
+        }
+
+        // Sync user_master.role_name with all assigned roles
+        List<String> currentRoles = userMasterRepository.findRoleNamesByUserId(userMaster.getUserId());
+        if (currentRoles != null && !currentRoles.isEmpty()) {
+            userMaster.setRoleName(String.join(", ", currentRoles));
+            userMasterRepository.save(userMaster);
+        }
+
+        // 3. Save or Update VENDOR_MASTER
+        VendorMaster vendorMaster = vendorMasterRepository.findByVendorCode(vendorCodeFormatted)
+                .orElseGet(() -> vendorMasterRepository.findByVendorCode(cleanVendorCode)
+                        .orElse(new VendorMaster()));
+        vendorMaster.setVendorCode(vendorCodeFormatted);
+        vendorMaster.setVendorName(cleanCompanyName);
+        if (vendorMaster.getId() == null) {
+            vendorMaster.setCreatedDate(LocalDateTime.now());
+        }
+        vendorMasterRepository.save(vendorMaster);
+
+        // 4. Save Single Unit into SLEEPER_PINCODE_POI_MAPPING
+        com.sarthi.Sleeper.entity.SleeperPincodePoIMapping spm = null;
+        if (dto.getUnitId() != null) {
+            spm = sleeperPincodePoIMappingRepository.findById(dto.getUnitId()).orElse(null);
+        }
+        if (spm == null && userMaster.getUserId() != null) {
+            spm = sleeperPincodePoIMappingRepository.findByVendorCode(userMaster.getUserId().toString());
+        }
+        if (spm == null) {
+            spm = sleeperPincodePoIMappingRepository.findByCompanyNameAndUnitName(cleanCompanyName, dto.getUnitName() != null ? dto.getUnitName().trim() : cleanCompanyName)
+                    .orElse(new com.sarthi.Sleeper.entity.SleeperPincodePoIMapping());
+        }
+
+        String unitName = (dto.getUnitName() != null && !dto.getUnitName().trim().isEmpty())
+                ? dto.getUnitName().trim()
+                : (cleanCompanyName + " - Head Office / Unit");
+        String unitPin = dto.getUnitPinCode() != null ? dto.getUnitPinCode().trim() : "";
+        String poiCode = (dto.getPoiCode() != null && !dto.getPoiCode().trim().isEmpty())
+                ? dto.getPoiCode().trim()
+                : (spm.getPoiCode() != null ? spm.getPoiCode() : generateNextSleeperPoiCode());
+
+        spm.setCompanyName(cleanCompanyName);
+        spm.setUnitName(unitName);
+        spm.setPinCode(unitPin);
+        spm.setCin(dto.getCin() != null ? dto.getCin().trim() : "");
+        spm.setAddress(dto.getUnitAddress() != null ? dto.getUnitAddress().trim() : "");
+        spm.setDistrict(dto.getUnitDistrict() != null ? dto.getUnitDistrict().trim() : "");
+        spm.setState(dto.getUnitState() != null ? dto.getUnitState().trim() : "");
+        spm.setPoiCode(poiCode);
+        spm.setVendorCode(userMaster.getUserId() != null ? userMaster.getUserId().toString() : vendorCodeFormatted);
+        spm.setStatus(dto.getStatus() != null ? dto.getStatus() : "ACTIVE");
+        sleeperPincodePoIMappingRepository.save(spm);
+
+        // 5. Save Multiple Plants into VENDOR_PLANT
+        if (dto.getPlants() != null && !dto.getPlants().isEmpty()) {
+            Set<String> seenPlantIds = new HashSet<>();
+            Set<String> seenPlantNames = new HashSet<>();
+
+            for (com.sarthi.dto.SleeperVendorPlantDto plantDto : dto.getPlants()) {
+                if (plantDto.getPlantName() == null || plantDto.getPlantName().trim().isEmpty()) {
+                    continue;
+                }
+
+                String plantName = plantDto.getPlantName().trim();
+                String plantNameLower = plantName.toLowerCase();
+                if (seenPlantNames.contains(plantNameLower)) {
+                    throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Duplicate Plant Name '" + plantName + "' found. Each plant must have a unique name."));
+                }
+                seenPlantNames.add(plantNameLower);
+
+                String plantPincode = plantDto.getPinCode() != null ? plantDto.getPinCode().trim() : "";
+
+                if (plantDto.getPlantId() != null && !plantDto.getPlantId().trim().isEmpty()) {
+                    String pid = plantDto.getPlantId().trim().toLowerCase();
+                    if (seenPlantIds.contains(pid)) {
+                        throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Duplicate Plant ID '" + plantDto.getPlantId() + "' found in plant '" + plantName + "'. Each plant must have a unique Plant ID."));
+                    }
+                    seenPlantIds.add(pid);
+                }
+                
+                String plantId = (plantDto.getPlantId() != null && !plantDto.getPlantId().trim().isEmpty())
+                        ? plantDto.getPlantId().trim()
+                        : plantName;
+
+                String cleanPhone = plantDto.getContactPersonNumber() != null 
+                        ? plantDto.getContactPersonNumber().replaceAll("\\D", "") 
+                        : null;
+                if (cleanPhone != null && !cleanPhone.isEmpty() && cleanPhone.length() != 10) {
+                    throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Contact Person Number for plant " + plantName + " must be exactly 10 digits"));
+                }
+
+                String derivedRio = plantDto.getRio() != null && !plantDto.getRio().trim().isEmpty()
+                        ? plantDto.getRio().trim()
+                        : deriveRioFromState(dto.getUnitState());
+
+                // Save/Update VENDOR_PLANT
+                com.sarthi.Sleeper.entity.VendorPlant vp = null;
+                if (plantDto.getId() != null) {
+                    vp = vendorPlantRepository.findById(plantDto.getId()).orElse(null);
+                }
+                if (vp == null && plantDto.getPlantId() != null && !plantDto.getPlantId().trim().isEmpty()) {
+                    vp = vendorPlantRepository.findByPlantId(plantDto.getPlantId().trim()).orElse(null);
+                }
+                if (vp == null) {
+                    vp = vendorPlantRepository.findByCompanyNameAndPlantName(cleanCompanyName, plantName)
+                            .orElse(new com.sarthi.Sleeper.entity.VendorPlant());
+                }
+
+                vp.setVendorCode(vendorCodeFormatted);
+                vp.setCompanyName(cleanCompanyName);
+                vp.setPlantName(plantName);
+                vp.setPlantId(plantId);
+                vp.setPlantPincode(plantPincode);
+                vp.setRio(derivedRio);
+                vp.setZonalRailway(plantDto.getZonalRailway());
+                vp.setContactPerson(plantDto.getContactPerson() != null ? plantDto.getContactPerson().trim() : null);
+                vp.setContactPersonNumber(cleanPhone);
+                if (userMaster.getUserId() != null) {
+                    vp.setVendorId(userMaster.getUserId().longValue());
+                }
+                vendorPlantRepository.save(vp);
+
+                // Ensure entry in IE_FIELDS_MAPPING for product Sleeper
+                if (!plantPincode.isEmpty()) {
+                    boolean exists = ieFieldsMappingRepository.existsByPinCodeAndProduct(plantPincode, "Sleeper");
+                    if (!exists) {
+                        IEFieldsMapping ieMap = new IEFieldsMapping();
+                        ieMap.setPinCode(plantPincode);
+                        ieMap.setProduct("Sleeper");
+                        ieMap.setStage("Sleeper");
+                        ieMap.setPlantPincode(plantPincode);
+                        ieMap.setRio(derivedRio);
+                        ieFieldsMappingRepository.save(ieMap);
+                    }
+                }
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("userId", userMaster.getUserId());
+        result.put("userName", userMaster.getUsername());
+        result.put("employeeCode", userMaster.getEmployeeCode());
+        result.put("message", "Sleeper Vendor registered successfully!");
+        return result;
+    }
+
+    private synchronized String generateNextSleeperPoiCode() {
+        try {
+            String maxPoi = sleeperPincodePoIMappingRepository.findMaxNumericPoiCode();
+            if (maxPoi != null && maxPoi.toUpperCase().startsWith("POI")) {
+                int num = Integer.parseInt(maxPoi.substring(3).trim());
+                return String.format("POI%02d", num + 1);
+            }
+        } catch (Exception ignored) {
+        }
+        return String.format("POI%02d", sleeperPincodePoIMappingRepository.count() + 1);
+    }
+
+    @Override
+    public Object getSleeperVendorDetails(Integer userId) {
+        UserMaster user = userMasterRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "User not found")));
+
+        com.sarthi.dto.SleeperVendorCreationDto dto = new com.sarthi.dto.SleeperVendorCreationDto();
+        dto.setUserId(user.getUserId());
+
+        // 1. Resolve Vendor Code
+        String empCode = user.getEmployeeCode();
+        if (empCode == null || empCode.trim().isEmpty()) {
+            if (user.getUsername() != null && !user.getUsername().trim().isEmpty()) {
+                empCode = user.getUsername().trim();
+            } else if (user.getEmail() != null && user.getEmail().contains("@")) {
+                empCode = user.getEmail().substring(0, user.getEmail().indexOf("@")).trim();
+            }
+        }
+        if (empCode != null && !empCode.startsWith(":")) {
+            empCode = ":" + empCode;
+        }
+        dto.setVendorCode(empCode);
+
+        // 2. Resolve Company Name
+        String compName = user.getFullName();
+        if (compName == null || compName.trim().isEmpty()) {
+            compName = user.getUsername();
+        }
+        dto.setCompanyName(compName);
+        dto.setEmail(user.getEmail());
+        dto.setStatus(user.getStatus());
+
+        // 3. Fetch Single Unit info from SLEEPER_PINCODE_POI_MAPPING
+        com.sarthi.Sleeper.entity.SleeperPincodePoIMapping spm = null;
+        if (userId != null) {
+            spm = sleeperPincodePoIMappingRepository.findByVendorCode(userId.toString());
+        }
+        if (spm == null && empCode != null) {
+            String rawCode = empCode.replaceAll("^:", "");
+            spm = sleeperPincodePoIMappingRepository.findByVendorCode(empCode);
+            if (spm == null) {
+                spm = sleeperPincodePoIMappingRepository.findByVendorCode(rawCode);
+            }
+        }
+        if (spm != null) {
+            dto.setUnitId(spm.getId());
+            dto.setUnitName(spm.getUnitName());
+            dto.setUnitPinCode(spm.getPinCode());
+            dto.setCin(spm.getCin());
+            dto.setUnitAddress(spm.getAddress());
+            dto.setUnitDistrict(spm.getDistrict());
+            dto.setUnitState(spm.getState());
+            dto.setPoiCode(spm.getPoiCode());
+        }
+
+        // 4. Fetch Multiple Plants from VENDOR_PLANT
+        List<com.sarthi.dto.SleeperVendorPlantDto> plantList = new ArrayList<>();
+        List<com.sarthi.Sleeper.entity.VendorPlant> vpList = new ArrayList<>();
+        if (userId != null) {
+            vpList = vendorPlantRepository.findByVendorId(userId.longValue());
+        }
+        if ((vpList == null || vpList.isEmpty()) && empCode != null) {
+            String rawCode = empCode.replaceAll("^:", "");
+            vpList = vendorPlantRepository.findByVendorCode(empCode);
+            if (vpList == null || vpList.isEmpty()) {
+                vpList = vendorPlantRepository.findByVendorCode(rawCode);
+            }
+            if (vpList == null || vpList.isEmpty()) {
+                vpList = vendorPlantRepository.findByVendorCode(":" + rawCode);
+            }
+        }
+
+        if (vpList != null && !vpList.isEmpty()) {
+            for (com.sarthi.Sleeper.entity.VendorPlant vp : vpList) {
+                com.sarthi.dto.SleeperVendorPlantDto pDto = new com.sarthi.dto.SleeperVendorPlantDto();
+                pDto.setId(vp.getId());
+                pDto.setPlantName(vp.getPlantName());
+                pDto.setPlantId(vp.getPlantId());
+                pDto.setPinCode(vp.getPlantPincode());
+                pDto.setRio(vp.getRio());
+                pDto.setZonalRailway(vp.getZonalRailway());
+                pDto.setContactPerson(vp.getContactPerson());
+                pDto.setContactPersonNumber(vp.getContactPersonNumber());
+                pDto.setStatus("Active");
+                plantList.add(pDto);
+            }
+        }
+
+        dto.setPlants(plantList);
+        return dto;
     }
 }
 

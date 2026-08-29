@@ -264,4 +264,16 @@ public class UserMasterController {
         Object response = userService.getErcVendorDetails(userId);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
     }
+
+    @PostMapping("/api/sleeper-vendor")
+    public ResponseEntity<Object> createOrUpdateSleeperVendor(@RequestBody com.sarthi.dto.SleeperVendorCreationDto dto) {
+        Object response = userService.createOrUpdateSleeperVendor(dto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/sleeper-vendor/{userId}")
+    public ResponseEntity<Object> getSleeperVendorDetails(@PathVariable Integer userId) {
+        Object response = userService.getSleeperVendorDetails(userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
 }
