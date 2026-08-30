@@ -81,5 +81,11 @@ public interface UserService {
 
     public Object getSleeperVendorDetails(Integer userId);
 
+    public Object createOrUpdateRailpadVendor(com.sarthi.dto.RailpadVendorCreationDto dto);
+
+    public Object getRailpadVendorDetails(Integer userId);
+
     LoginResponseDto verifyOtp(VerifyOtpRequestDto request);
+
+    public Map<String, Object> migrateAllPlainTextPasswords();
 }

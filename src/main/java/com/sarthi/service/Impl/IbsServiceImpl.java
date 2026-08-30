@@ -93,7 +93,7 @@ public class IbsServiceImpl implements IbsService {
                         )));
 
         // Password Validation
-        if (!request.getPassword().equals(user.getPassword())) {
+        if (!com.sarthi.util.PasswordEncryptionUtil.matches(request.getPassword(), user.getPassword())) {
 
             throw new BusinessException(
                     new ErrorDetails(

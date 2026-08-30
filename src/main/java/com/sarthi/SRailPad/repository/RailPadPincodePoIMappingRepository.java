@@ -39,5 +39,10 @@ where r.poiCode = :poiCode
     @Query("SELECT DISTINCT r.vendorCode, r.companyName, r.poiCode FROM RailPadPincodePoIMapping r WHERE r.vendorCode IS NOT NULL ORDER BY r.companyName")
     List<Object[]> findDistinctManufacturers();
 
+    Optional<RailPadPincodePoIMapping> findByCompanyNameAndUnitName(String companyName, String unitName);
+
+    @Query(value = "SELECT poi_code FROM railpad_pincode_poi_mapping WHERE poi_code LIKE 'POI%' ORDER BY CAST(SUBSTRING(poi_code, 4) AS UNSIGNED) DESC LIMIT 1", nativeQuery = true)
+    String findMaxNumericPoiCode();
+
   //  Optional<RailPadPincodePoIMapping> findByPoiCodeAndPlantId(String poiCode, String plantId);
 }
