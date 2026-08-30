@@ -416,7 +416,7 @@ WHERE d.batch_number = :batchNo
     @Query(value = """
                 SELECT pd.* FROM production_declaration pd
                 WHERE pd.batch_number COLLATE utf8mb4_unicode_ci NOT IN (
-                    SELECT mor.batch_number COLLATE utf8mb4_unicode_ci FROM moment_of_resistance mor
+                    SELECT mor.batch_number COLLATE utf8mb4_unicode_ci FROM moment_of_resistance mor WHERE mor.batch_number IS NOT NULL
                 )
             """, nativeQuery = true)
     List<ProductionDeclaration> findAllExcludingMR();

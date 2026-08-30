@@ -45,5 +45,7 @@ public class ProductionDeclarationResponseDto {
 
 
     private Boolean waterCubeTestStatus;
+    private Boolean condition2;
+    private Integer mrSamplesRequired;
 
 }
