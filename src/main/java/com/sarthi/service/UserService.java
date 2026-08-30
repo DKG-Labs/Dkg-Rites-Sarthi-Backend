@@ -71,5 +71,21 @@ public interface UserService {
     public String updateUserRegion(Integer userId, String newRegion);
     public String updateUserRole(Integer userId, List<String> newRoles);
 
+    public String updateUnitContact(String poiCode, String contactPerson, String contactPersonNumber);
+
+    public Object createOrUpdateErcVendor(com.sarthi.dto.ErcVendorCreationDto dto);
+
+    public Object getErcVendorDetails(Integer userId);
+
+    public Object createOrUpdateSleeperVendor(com.sarthi.dto.SleeperVendorCreationDto dto);
+
+    public Object getSleeperVendorDetails(Integer userId);
+
+    public Object createOrUpdateRailpadVendor(com.sarthi.dto.RailpadVendorCreationDto dto);
+
+    public Object getRailpadVendorDetails(Integer userId);
+
     LoginResponseDto verifyOtp(VerifyOtpRequestDto request);
+
+    public Map<String, Object> migrateAllPlainTextPasswords();
 }

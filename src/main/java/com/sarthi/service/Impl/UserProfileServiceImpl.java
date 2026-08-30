@@ -174,7 +174,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
         // System currently uses plain text passwords for login, so we must match that behavior.
         // Fallback to passwordEncoder in case the system migrates to encoded passwords in the future.
-        boolean isCurrentPasswordCorrect = request.getCurrentPassword().equals(user.getPassword()) || 
+        boolean isCurrentPasswordCorrect = com.sarthi.util.PasswordEncryptionUtil.matches(request.getCurrentPassword(), user.getPassword()) || 
                                            passwordEncoder.matches(request.getCurrentPassword(), user.getPassword());
 
         if (!isCurrentPasswordCorrect) {
@@ -185,7 +185,7 @@ public class UserProfileServiceImpl implements UserProfileService {
             throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "New password and confirm password do not match."));
         }
 
-        if (request.getNewPassword().equals(user.getPassword()) || passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+        if (com.sarthi.util.PasswordEncryptionUtil.matches(request.getNewPassword(), user.getPassword()) || passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
             throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "New password cannot match the current password."));
         }
 
@@ -194,8 +194,8 @@ public class UserProfileServiceImpl implements UserProfileService {
             throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Password must be at least 8 characters, contain one uppercase, one lowercase, one number, and one special character."));
         }
 
-        // Save as plain text to remain compatible with UserServiceImpl.login()
-        user.setPassword(request.getNewPassword());
+        // Save as encrypted password
+        user.setPassword(com.sarthi.util.PasswordEncryptionUtil.encrypt(request.getNewPassword()));
         user.setUpdatedBy(username);
         user.setUpdatedDate(LocalDateTime.now());
 

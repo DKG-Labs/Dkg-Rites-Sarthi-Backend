@@ -21,6 +21,8 @@ where r.vendorCode = :vendorCode
 
     Optional<RailVendorPlants> findByPlantId(String plantId);
     java.util.List<RailVendorPlants> findByVendorCode(String vendorCode);
+    Optional<RailVendorPlants> findByCompanyNameAndPlantName(String companyName, String plantName);
+    java.util.List<RailVendorPlants> findByVendorId(Long vendorId);
     boolean existsByPlantId(String plantId);
     boolean existsByVendorCode(String vendorCode);
 

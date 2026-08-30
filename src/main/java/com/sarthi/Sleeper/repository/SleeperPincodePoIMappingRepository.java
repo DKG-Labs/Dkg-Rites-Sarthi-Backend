@@ -16,6 +16,9 @@ import java.util.Optional;
 public interface SleeperPincodePoIMappingRepository extends JpaRepository<SleeperPincodePoIMapping, Long> {
     SleeperPincodePoIMapping findByVendorCode(String s);
 
+    List<SleeperPincodePoIMapping> findAllByVendorCode(String vendorCode);
+
+    Optional<SleeperPincodePoIMapping> findByCompanyNameAndUnitName(String companyName, String unitName);
 
     Optional<SleeperPincodePoIMapping> findByPoiCode(String poiCode);
 
@@ -30,6 +33,9 @@ public interface SleeperPincodePoIMappingRepository extends JpaRepository<Sleepe
     FROM sleeper_pincode_poi_mapping
 """, nativeQuery = true)
     List<CompanyProjection> getCompanies();
+
+    @Query(value = "SELECT poi_code FROM sleeper_pincode_poi_mapping WHERE poi_code LIKE 'POI%' ORDER BY CAST(SUBSTRING(poi_code, 4) AS UNSIGNED) DESC LIMIT 1", nativeQuery = true)
+    String findMaxNumericPoiCode();
 
     @Query("""
     SELECT DISTINCT s

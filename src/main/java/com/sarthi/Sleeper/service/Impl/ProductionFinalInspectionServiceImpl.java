@@ -3,6 +3,8 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.BadSleeperDto;
 import com.sarthi.Sleeper.dto.BatchInspectionResponseDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.*;
+import com.sarthi.Sleeper.entity.DemouldingInspection;
+import com.sarthi.Sleeper.entity.DemouldingDefectiveSleeper;
 import com.sarthi.Sleeper.entity.EtSleeperDetails;
 import com.sarthi.Sleeper.entity.FinalInspection.*;
 import com.sarthi.Sleeper.entity.InspectionReasonMaster;
@@ -308,38 +310,24 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         boolean completed = false;
 
         // MODULE 1 → VISUAL
-        if(moduleId == 1){
-
-            if(testedPercentage == 100){
+        if (moduleId == 1) {
+            if (testedPercentage >= 99.99 || testedPercentage == 100) {
                 completed = true;
             }
-
         }
 
-        // MODULE 2 → CRITICAL DIMENSION
-        if(moduleId == 2){
-
-            if("RT-8521".equalsIgnoreCase(sleeperType) && testedPercentage >= 10){
+        // MODULE 2 → CRITICAL DIMENSION (10% sampling)
+        if (moduleId == 2) {
+            if (testedPercentage >= 10) {
                 completed = true;
             }
-
-            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 10){
-                completed = true;
-            }
-
         }
 
-        // MODULE 3 → NON CRITICAL
-        if(moduleId == 3){
-
-            if("RT-8521".equalsIgnoreCase(sleeperType) && testedPercentage >= 1){
+        // MODULE 3 → NON CRITICAL (1% sampling)
+        if (moduleId == 3) {
+            if (testedPercentage >= 1) {
                 completed = true;
             }
-
-            if("RT-8746".equalsIgnoreCase(sleeperType) && testedPercentage >= 1){
-                completed = true;
-            }
-
         }
 
         if (testedPercentage >= 99.99) {
@@ -697,30 +685,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             }
 
-// MODULE 2 → CRITICAL DIMENSION
+            // MODULE 2 → CRITICAL DIMENSION (10% sampling)
             if (moduleId == 2) {
-
-                if ("RT-8521".equalsIgnoreCase(dto.getSleeperType()) && percent >= 10) {
+                if (percent >= 10) {
                     completed = true;
                 }
-
-                if ("RT-8746".equalsIgnoreCase(dto.getSleeperType()) && percent >= 10) {
-                    completed = true;
-                }
-
             }
 
-// MODULE 3 → NON CRITICAL
+            // MODULE 3 → NON CRITICAL (1% sampling)
             if (moduleId == 3) {
-
-                if ("RT-8521".equalsIgnoreCase(dto.getSleeperType()) && percent >= 1) {
+                if (percent >= 1) {
                     completed = true;
                 }
-
-                if ("RT-8746".equalsIgnoreCase(dto.getSleeperType()) && percent >= 1) {
-                    completed = true;
-                }
-
             }
 
             if (percent >= 99.99) {
@@ -1126,6 +1102,52 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
 
+            // Include Demoulding Defective Sleepers for this batch
+            if (declaration != null && declaration.getBatchNumber() != null) {
+                List<DemouldingInspection> demouldings =
+                        demouldingInspectionRepository.findByBatchNoOrderByIdDesc(declaration.getBatchNumber());
+
+                Set<String> existingBadSleeperNos = badSleepers.stream()
+                        .map(BadSleeperDto::getSleeperNo)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+
+                if (demouldings != null) {
+                    for (DemouldingInspection di : demouldings) {
+                        if (di.getDefectiveSleepers() != null) {
+                            for (DemouldingDefectiveSleeper dds : di.getDefectiveSleepers()) {
+                                String visReason = dds.getVisualReason() != null ? dds.getVisualReason().trim() : "";
+                                String dimReason = dds.getDimReason() != null ? dds.getDimReason().trim() : "";
+                                if (!visReason.isEmpty() || !dimReason.isEmpty()) {
+                                    String sleeperNo = dds.getSleeperNo();
+                                    if (sleeperNo != null && !sleeperNo.isBlank() && !existingBadSleeperNos.contains(sleeperNo)) {
+                                        BadSleeperDto bad = new BadSleeperDto();
+                                        bad.setSleeperNo(sleeperNo);
+                                        bad.setReason(!visReason.isEmpty() ? visReason : dimReason);
+
+                                        Optional<SleeperDto> goodMatch = goodSleepers.stream()
+                                                .filter(g -> sleeperNo.equalsIgnoreCase(g.getSleeperNo()))
+                                                .findFirst();
+
+                                        if (goodMatch.isPresent()) {
+                                            bad.setSleeperId(goodMatch.get().getSleeperId());
+                                            bad.setCallRaised(goodMatch.get().getCallRaised());
+                                            goodSleepers.remove(goodMatch.get());
+                                        } else {
+                                            bad.setSleeperId(0L);
+                                            bad.setCallRaised(false);
+                                        }
+
+                                        badSleepers.add(bad);
+                                        existingBadSleeperNos.add(sleeperNo);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             BatchInspectionResponseDto response =
                     new BatchInspectionResponseDto();
 
@@ -1162,8 +1184,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                             : ""
             );
 
-            //  response.setTotalSleepers((long) results.size());
-            response.setTotalSleepers((long) grouped.size());
+            Long totalCasted = productionSleeperRepository.countByBatchId(batchId);
+            response.setTotalSleepers(totalCasted != null && totalCasted > 0 ? totalCasted : (long) grouped.size());
             response.setGoodCount((long) goodSleepers.size());
             response.setBadCount((long) badSleepers.size());
             response.setGoodSleepers(goodSleepers);

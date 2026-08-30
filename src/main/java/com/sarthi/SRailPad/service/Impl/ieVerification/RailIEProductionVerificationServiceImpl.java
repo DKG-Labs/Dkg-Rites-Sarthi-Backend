@@ -25,6 +25,8 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
 
     private final RailIEProductionVerificationRepository repository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
+    private final com.sarthi.SRailPad.repository.plantDeclaration.RailProductionDeclarationRepository railProductionDeclarationRepository;
+    private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
 
     @Override
     @Transactional
@@ -163,10 +165,79 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
     @Override
     @Transactional
     public void deleteByRequestId(Long requestId) {
-        repository.findTopByRequestIdOrderByIdDesc(requestId).ifPresent(verification -> {
-            System.out.println("[IE Verification] Deleting record for RequestID: " + requestId);
-            repository.delete(verification);
+        if (requestId == null) return;
+        logger.info("[Delete Verification] Starting deletion for RequestID: {}", requestId);
+
+        // 1. Delete IE Production Verification and its children (info & rejections)
+        List<RailIEProductionVerification> verifications = repository.findAllByRequestId(requestId);
+        if (!verifications.isEmpty()) {
+            logger.info("[Delete Verification] Removing {} verification record(s) for RequestID: {}", verifications.size(), requestId);
+            repository.deleteAll(verifications);
+        }
+
+        // 2. Delete Workflow Transactions for Module 3 (Production Declaration)
+        logger.info("[Delete Verification] Removing workflow transactions for RequestID: {}", requestId);
+        railWorkflowTransactionRepository.deleteByRequestIdAndModuleId(String.valueOf(requestId), 3L);
+
+        // 3. Delete Production Declaration and its children (products & batches)
+        railProductionDeclarationRepository.findById(requestId).ifPresent(declaration -> {
+            logger.info("[Delete Verification] Removing production declaration and batches for RequestID: {}", requestId);
+            railProductionDeclarationRepository.delete(declaration);
         });
+    }
+
+    @Override
+    @Transactional
+    public java.util.Map<String, Object> deleteVerifiedProductionByCriteria(String dateStr, String shift, String productionLine, String poNo) {
+        logger.info("[Delete Verification by Criteria] Date: {}, Shift: {}, ProductionLine: {}, PoNo: {}", dateStr, shift, productionLine, poNo);
+
+        if (dateStr == null || dateStr.trim().isEmpty() || shift == null || shift.trim().isEmpty()) {
+            throw new IllegalArgumentException("Date and shift are required parameters.");
+        }
+
+        java.time.LocalDate date = parseDateFlexible(dateStr.trim());
+        String cleanShift = shift.trim();
+        String cleanLine = (productionLine != null && !productionLine.trim().isEmpty()) ? productionLine.trim() : null;
+        String cleanPo = (poNo != null && !poNo.trim().isEmpty()) ? poNo.trim() : null;
+
+        List<com.sarthi.SRailPad.entity.plantDeclaration.RailProductionDeclaration> declarations =
+                railProductionDeclarationRepository.findByShiftDetails(date, cleanShift, cleanLine, cleanPo);
+
+        List<Long> deletedRequestIds = new ArrayList<>();
+        int deletedBatchesCount = 0;
+
+        for (com.sarthi.SRailPad.entity.plantDeclaration.RailProductionDeclaration decl : declarations) {
+            Long reqId = decl.getId();
+            if (reqId != null) {
+                if (decl.getProducts() != null) {
+                    for (com.sarthi.SRailPad.entity.plantDeclaration.RailProductionProduct p : decl.getProducts()) {
+                        if (p.getBatches() != null) {
+                            deletedBatchesCount += p.getBatches().size();
+                        }
+                    }
+                }
+                deleteByRequestId(reqId);
+                deletedRequestIds.add(reqId);
+            }
+        }
+
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("deletedCount", deletedRequestIds.size());
+        result.put("deletedRequestIds", deletedRequestIds);
+        result.put("deletedBatchesCount", deletedBatchesCount);
+        result.put("message", "Successfully deleted " + deletedRequestIds.size() + " verified production declaration(s) and " + deletedBatchesCount + " batch(es).");
+        return result;
+    }
+
+    private java.time.LocalDate parseDateFlexible(String dateStr) {
+        String[] patterns = {"yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy", "yyyy/MM/dd", "d-M-yyyy", "d/M/yyyy"};
+        for (String pattern : patterns) {
+            try {
+                return java.time.LocalDate.parse(dateStr, java.time.format.DateTimeFormatter.ofPattern(pattern));
+            } catch (Exception ignored) {
+            }
+        }
+        throw new IllegalArgumentException("Unable to parse date: " + dateStr + ". Expected format: yyyy-MM-dd or dd-MM-yyyy");
     }
 
     @Override

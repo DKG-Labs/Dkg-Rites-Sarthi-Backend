@@ -25,6 +25,12 @@ public class MomentOfResistanceTest {
         @Column(name = "casting_date")
         private String castingDate;
 
+        @Column(name = "bench_number")
+        private String benchNumber;
+
+        @Column(name = "sleeper_no")
+        private String sleeperNo;
+
         @Column(name = "vendor_code")
         private String vendorCode;
 
@@ -33,6 +39,9 @@ public class MomentOfResistanceTest {
 
         @Column(name = "shift")
         private String shift;
+
+        @Column(name = "test_result")
+        private String testResult;
 
         @Column(name = "created_by")
         private Long createdBy;

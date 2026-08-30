@@ -48,6 +48,18 @@ public class RailIEProductionVerificationController {
         return ResponseEntity.ok(ResponseBuilder.getSuccessResponse("Record deleted successfully"));
     }
 
+    @DeleteMapping("/delete-verified-production")
+    public ResponseEntity<APIResponse> deleteVerifiedProduction(
+            @RequestParam String date,
+            @RequestParam String shift,
+            @RequestParam(required = false) String productionLineId,
+            @RequestParam(required = false) String poNumber) {
+
+        java.util.Map<String, Object> response = service.deleteVerifiedProductionByCriteria(
+                date, shift, productionLineId, poNumber);
+        return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(response));
+    }
+
     @GetMapping("/accepted-inventory")
     public ResponseEntity<APIResponse> getAcceptedInventory(
             @RequestParam String productionUnit,

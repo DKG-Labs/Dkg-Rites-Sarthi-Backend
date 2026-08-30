@@ -221,4 +221,8 @@ WHERE :poiCode IS NULL OR :poiCode = ''
 
         List<PincodePoIMapping> findByVendorCode(String vendorCode);
 
+        @Query(value = "SELECT poi_code FROM pincode_poi_mapping WHERE poi_code REGEXP '^POI[0-9]+$' ORDER BY CAST(SUBSTRING(poi_code, 4) AS UNSIGNED) DESC LIMIT 1", nativeQuery = true)
+        String findMaxNumericPoiCode();
+
+        List<PincodePoIMapping> findByCompanyName(String companyName);
 }

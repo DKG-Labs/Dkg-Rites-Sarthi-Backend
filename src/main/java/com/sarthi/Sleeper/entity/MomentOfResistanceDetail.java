@@ -26,7 +26,9 @@ public class MomentOfResistanceDetail {
         @Column(name = "cb")
         private Double cb;
 
-        @Column(name = "rs")
-        private Double rs;
+        @Column(name = "rs1")
+        private Double rs1;
 
+        @Column(name = "rs2")
+        private Double rs2;
 }

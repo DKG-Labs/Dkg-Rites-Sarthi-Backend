@@ -89,12 +89,37 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
         // Use the first lot's details (primary lot)
         ProcessInspectionDetails processDetails = processDetailsList.get(0);
 
-        // 3. Fetch PO Header data
-        PoHeader poHeader = poHeaderRepository.findByPoNoWithItems(ic.getPoNo())
-                .orElse(null);
+        // 3. Fetch PO Header data (handle bare PO No)
+        String rawPoNo = ic.getPoNo();
+        String barePoNo = rawPoNo;
+        if (rawPoNo != null && rawPoNo.contains("/")) {
+            String[] parts = rawPoNo.split("/");
+            if (parts.length >= 2) {
+                barePoNo = parts[parts.length - 2].trim();
+            } else {
+                barePoNo = parts[0].trim();
+            }
+        }
+
+        PoHeader poHeader = null;
+        if (rawPoNo != null) {
+            poHeader = poHeaderRepository.findByPoNoWithItems(rawPoNo).orElse(null);
+            if (poHeader == null && barePoNo != null && !barePoNo.equals(rawPoNo)) {
+                poHeader = poHeaderRepository.findByPoNoWithItems(barePoNo).orElse(null);
+            }
+            if (poHeader == null && barePoNo != null) {
+                poHeader = poHeaderRepository.findFirstByPoNo(barePoNo).orElse(null);
+            }
+        }
 
         // 4. Fetch MA (Amendment) data using targeted query
-        List<PoMaHeader> maHeaders = poMaHeaderRepository.findByPoNo(ic.getPoNo());
+        List<PoMaHeader> maHeaders = new ArrayList<>();
+        if (rawPoNo != null) {
+            maHeaders = poMaHeaderRepository.findByPoNo(rawPoNo);
+            if (maHeaders.isEmpty() && barePoNo != null && !barePoNo.equals(rawPoNo)) {
+                maHeaders = poMaHeaderRepository.findByPoNo(barePoNo);
+            }
+        }
 
         // 5. Fetch RM IC Mappings (heat numbers)
         List<ProcessRmIcMapping> rmMappings = processRmIcMappingRepository.findByProcessIcId(ic.getId());
@@ -111,7 +136,7 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
             }
         }
         
-        String formattedPoNo = ic.getPoNo();
+        String formattedPoNo = rawPoNo;
         String rlyPoNo = formattedPoNo;
         if (rlyPrefix != null) {
             rlyPoNo = rlyPrefix + " / " + formattedPoNo;
@@ -286,10 +311,34 @@ public class ProcessInitiationDataServiceImpl implements ProcessInitiationDataSe
             return null;
         }
         String cleanIc = icNumber.trim();
-        Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(cleanIc);
-        if (rmIcEditOpt.isPresent() && rmIcEditOpt.get().getCreatedAt() != null) {
-            return rmIcEditOpt.get().getCreatedAt().format(DATE_TIME_FORMATTER);
+        try {
+            Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findFirstByIcNumberOrderByIdDesc(cleanIc);
+            if (rmIcEditOpt.isPresent() && rmIcEditOpt.get().getCreatedAt() != null) {
+                return rmIcEditOpt.get().getCreatedAt().format(DATE_TIME_FORMATTER);
+            }
+        } catch (Exception e) {
+            log.warn("Notice checking rm_ic_edit for {}: {}", cleanIc, e.getMessage());
         }
+
+        // Fallback: check actual InspectionCall record
+        try {
+            Optional<InspectionCall> icOpt = inspectionCallRepository.findFirstByIcNumber(cleanIc);
+            if (icOpt.isPresent()) {
+                InspectionCall rmIc = icOpt.get();
+                if (rmIc.getDesiredInspectionDate() != null) {
+                    return rmIc.getDesiredInspectionDate().format(DATE_TIME_FORMATTER);
+                }
+                if (rmIc.getActualInspectionDate() != null) {
+                    return rmIc.getActualInspectionDate().format(DATE_TIME_FORMATTER);
+                }
+                if (rmIc.getCreatedAt() != null) {
+                    return rmIc.getCreatedAt().format(DATE_TIME_FORMATTER);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Notice checking inspection_calls for {}: {}", cleanIc, e.getMessage());
+        }
+
         return null;
     }
 

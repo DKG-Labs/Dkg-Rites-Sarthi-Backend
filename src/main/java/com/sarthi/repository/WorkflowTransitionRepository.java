@@ -159,6 +159,12 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             FROM WorkflowTransition wt
             LEFT JOIN ProcessIeUsers pm
                    ON wt.processIeUserId = pm.processUserId
+            LEFT JOIN com.sarthi.entity.rawmaterial.InspectionCall ic
+                   ON wt.requestId = ic.icNumber
+            LEFT JOIN com.sarthi.entity.PoiProcessIeMapping pim
+                   ON pim.poiCode = ic.placeOfInspection
+            LEFT JOIN com.sarthi.entity.UserMaster um
+                   ON um.employeeCode = pim.employeeCode
             WHERE wt.workflowTransitionId IN (
                 SELECT MAX(wt2.workflowTransitionId)
                 FROM WorkflowTransition wt2
@@ -167,11 +173,9 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             AND (wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED') OR wt.status LIKE '%CANCEL%')
               AND (
                    (wt.requestId LIKE 'EP%' AND
-                       (pm.ieUserId = :userId
-                        OR wt.processIeUserId = :userId
-                        OR wt.modifiedBy = :userId
-                        OR wt.createdBy = :userId
-                        OR wt.assignedToUser = :userId)
+                       (um.userId = :userId
+                        OR pm.ieUserId = :userId
+                        OR wt.processIeUserId = :userId)
                    )
                    OR
                    (wt.requestId NOT LIKE 'EP%'
@@ -187,6 +191,12 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             FROM WorkflowTransition wt
             LEFT JOIN ProcessIeUsers pm
                    ON wt.processIeUserId = pm.processUserId
+            LEFT JOIN com.sarthi.entity.rawmaterial.InspectionCall ic
+                   ON wt.requestId = ic.icNumber
+            LEFT JOIN com.sarthi.entity.PoiProcessIeMapping pim
+                   ON pim.poiCode = ic.placeOfInspection
+            LEFT JOIN com.sarthi.entity.UserMaster um
+                   ON um.employeeCode = pim.employeeCode
             WHERE wt.workflowTransitionId IN (
                 SELECT MAX(wt2.workflowTransitionId)
                 FROM WorkflowTransition wt2
@@ -195,11 +205,9 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             AND (wt.status IN ('DSC_SIGN_IC', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED') OR wt.status LIKE '%CANCEL%')
               AND (
                    (wt.requestId LIKE 'EP%' AND
-                       (pm.ieUserId = :userId
-                        OR wt.processIeUserId = :userId
-                        OR wt.modifiedBy = :userId
-                        OR wt.createdBy = :userId
-                        OR wt.assignedToUser = :userId)
+                       (um.userId = :userId
+                        OR pm.ieUserId = :userId
+                        OR wt.processIeUserId = :userId)
                    )
                    OR
                    (wt.requestId NOT LIKE 'EP%'

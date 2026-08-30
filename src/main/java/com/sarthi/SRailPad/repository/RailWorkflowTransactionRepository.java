@@ -11,6 +11,11 @@ import java.util.List;
 
 @Repository
 public interface RailWorkflowTransactionRepository extends JpaRepository<RailWorkflowTransaction, Integer> {
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM RailWorkflowTransaction t WHERE t.requestId = :requestId AND t.moduleId = :moduleId")
+    void deleteByRequestIdAndModuleId(@Param("requestId") String requestId, @Param("moduleId") Long moduleId);
+
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
             WHERE t.workflowTransitionId = (

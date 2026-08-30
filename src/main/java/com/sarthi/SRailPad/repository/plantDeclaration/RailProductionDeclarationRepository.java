@@ -11,6 +11,15 @@ import java.util.List;
 public interface RailProductionDeclarationRepository extends JpaRepository<RailProductionDeclaration, Long> {
     List<RailProductionDeclaration> findByPlantIdOrderByProductionDateDesc(String plantId);
 
+    @Query("SELECT d FROM RailProductionDeclaration d WHERE d.productionDate = :date AND d.shift = :shift " +
+           "AND (:productionLine IS NULL OR :productionLine = '' OR d.productionLine = :productionLine OR TRIM(d.productionLine) = TRIM(:productionLine) OR REPLACE(d.productionLine, ' ', '') = REPLACE(:productionLine, ' ', '')) " +
+           "AND (:poNo IS NULL OR :poNo = '' OR d.poNo = :poNo OR d.poNo LIKE CONCAT('%', :poNo, '%') OR :poNo LIKE CONCAT('%', d.poNo, '%'))")
+    List<RailProductionDeclaration> findByShiftDetails(
+        @Param("date") java.time.LocalDate date,
+        @Param("shift") String shift,
+        @Param("productionLine") String productionLine,
+        @Param("poNo") String poNo);
+
     @Query(value = """
         SELECT 
             d.po_no AS poNo,

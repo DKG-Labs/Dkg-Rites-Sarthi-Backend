@@ -242,4 +242,56 @@ public class UserMasterController {
         String res = userService.updateUserRegion(userId, request.get("region"));
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
+
+    @PutMapping("/api/pincode-poi/{poiCode}/contact")
+    public ResponseEntity<Object> updateUnitContact(
+            @PathVariable String poiCode,
+            @RequestBody Map<String, String> request) {
+        String contactPerson = request.get("contactPerson");
+        String contactPersonNumber = request.get("contactPersonNumber");
+        String res = userService.updateUnitContact(poiCode, contactPerson, contactPersonNumber);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+    }
+
+    @PostMapping("/api/erc-vendor")
+    public ResponseEntity<Object> createOrUpdateErcVendor(@RequestBody com.sarthi.dto.ErcVendorCreationDto dto) {
+        Object response = userService.createOrUpdateErcVendor(dto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/erc-vendor/{userId}")
+    public ResponseEntity<Object> getErcVendorDetails(@PathVariable Integer userId) {
+        Object response = userService.getErcVendorDetails(userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @PostMapping("/api/sleeper-vendor")
+    public ResponseEntity<Object> createOrUpdateSleeperVendor(@RequestBody com.sarthi.dto.SleeperVendorCreationDto dto) {
+        Object response = userService.createOrUpdateSleeperVendor(dto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/sleeper-vendor/{userId}")
+    public ResponseEntity<Object> getSleeperVendorDetails(@PathVariable Integer userId) {
+        Object response = userService.getSleeperVendorDetails(userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @PostMapping("/api/railpad-vendor")
+    public ResponseEntity<Object> createOrUpdateRailpadVendor(@RequestBody com.sarthi.dto.RailpadVendorCreationDto dto) {
+        Object response = userService.createOrUpdateRailpadVendor(dto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/railpad-vendor/{userId}")
+    public ResponseEntity<Object> getRailpadVendorDetails(@PathVariable Integer userId) {
+        Object response = userService.getRailpadVendorDetails(userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @PostMapping("/api/migrate-passwords")
+    public ResponseEntity<Object> migratePasswords() {
+        Map<String, Object> response = userService.migrateAllPlainTextPasswords();
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
 }

@@ -372,16 +372,18 @@ public class FinalInspectionCallController {
 
     /**
      * Get the total quantity offered in previous Final Inspection Calls for a
-     * specific heat and lot
-     * GET /api/final-material/offered-earlier?heatNo=xxx&lotNo=yyy
+     * specific heat, lot, PO, and PO Serial Number
+     * GET /api/final-material/offered-earlier?heatNo=xxx&lotNo=yyy&poNo=zzz&poSerialNo=1
      */
     @GetMapping("/offered-earlier")
-    @Operation(summary = "Get offered earlier quantity", description = "Get the total quantity offered in previous Final Inspection Calls for a specific heat and lot")
+    @Operation(summary = "Get offered earlier quantity", description = "Get the total quantity offered in previous Final Inspection Calls for a specific heat, lot, PO, and PO Serial")
     public ResponseEntity<Object> getOfferedEarlierQuantity(
             @RequestParam String heatNo,
-            @RequestParam String lotNo) {
-        logger.info("Fetching offered earlier quantity for heat: {} and lot: {}", heatNo, lotNo);
-        Integer quantity = finalInspectionCallService.getOfferedEarlierQuantity(heatNo, lotNo);
+            @RequestParam String lotNo,
+            @RequestParam(required = false) String poNo,
+            @RequestParam(required = false) String poSerialNo) {
+        logger.info("Fetching offered earlier quantity for heat: {}, lot: {}, poNo: {}, poSerialNo: {}", heatNo, lotNo, poNo, poSerialNo);
+        Integer quantity = finalInspectionCallService.getOfferedEarlierQuantity(heatNo, lotNo, poNo, poSerialNo);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(quantity), HttpStatus.OK);
     }
 
