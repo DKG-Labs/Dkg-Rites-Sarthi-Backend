@@ -2091,6 +2091,23 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 continue;
             }
 
+            String liabilityPaymentStatus = "Payment Pending";
+            if (railVendorFinancialLiabilityRepository != null) {
+                java.util.Optional<com.sarthi.SRailPad.entity.RailVendorFinancialLiability> liabOpt = railVendorFinancialLiabilityRepository.findByCallNumber(callNo);
+                if (liabOpt.isPresent() && liabOpt.get().getPaymentStatus() != null) {
+                    String ps = liabOpt.get().getPaymentStatus().trim();
+                    if ("PAID".equalsIgnoreCase(ps) 
+                            || "COMPLETED".equalsIgnoreCase(ps) 
+                            || "PAYMENT COMPLETED".equalsIgnoreCase(ps) 
+                            || "APPROVED".equalsIgnoreCase(ps) 
+                            || "Approved by RITES Finance".equalsIgnoreCase(ps)) {
+                        liabilityPaymentStatus = "Approved by RITES Finance";
+                    } else if (!ps.isEmpty()) {
+                        liabilityPaymentStatus = ps;
+                    }
+                }
+            }
+
             double gst = Math.round((base * 18.0) / 100.0);
             dto.setBasePayableAmount(base);
             dto.setGst(gst);
@@ -2098,7 +2115,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             dto.setBankAccountDetails("SBI A/c: 39482910482, IFSC: SBIN0001234, Branch: RITES Central");
             dto.setPaymentReason("Cancellation");
             dto.setChargeType("Cancellation");
-            dto.setPaymentStatus("Payment Pending");
+            dto.setPaymentStatus(liabilityPaymentStatus);
 
             result.add(dto);
         }
@@ -2120,7 +2137,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             if (isChargeable) {
                 // If payment is pending or not approved, plant is blocked from raising new calls
                 String status = item.getPaymentStatus();
-                if (status == null || (!"Approved by RITES Finance".equalsIgnoreCase(status) && !"APPROVED".equalsIgnoreCase(status))) {
+                if (status == null || (!"Approved by RITES Finance".equalsIgnoreCase(status) 
+                        && !"APPROVED".equalsIgnoreCase(status)
+                        && !"PAID".equalsIgnoreCase(status)
+                        && !"COMPLETED".equalsIgnoreCase(status)
+                        && !"PAYMENT COMPLETED".equalsIgnoreCase(status))) {
                     return true;
                 }
             }
