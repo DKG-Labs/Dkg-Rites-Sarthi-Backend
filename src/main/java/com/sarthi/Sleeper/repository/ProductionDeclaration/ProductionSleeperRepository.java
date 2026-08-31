@@ -13,63 +13,52 @@ public interface ProductionSleeperRepository extends JpaRepository<ProductionSle
     @Query("""
 SELECT s
 FROM ProductionSleeper s
-JOIN s.benchGroup b
-JOIN b.chamber c
-JOIN c.declaration d
-WHERE d.id = :batchId
+LEFT JOIN s.benchGroup b
+LEFT JOIN b.chamber c
+LEFT JOIN s.gang g
+WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
 """)
     List<ProductionSleeper> getSleepersByBatch(Long batchId);
-   @Query("""
+
+    @Query("""
 SELECT s
 FROM ProductionSleeper s
-JOIN s.benchGroup b
-JOIN b.chamber c
-JOIN c.declaration d
-WHERE d.id = :batchId
-AND b.sleeperType = :sleeperType
+LEFT JOIN s.benchGroup b
+LEFT JOIN b.chamber c
+LEFT JOIN s.gang g
+WHERE (c.declaration.id = :batchId AND b.sleeperType = :sleeperType)
+   OR (g.declaration.id = :batchId AND g.sleeperType = :sleeperType)
 """)
    List<ProductionSleeper> getSleepersByBatchAndType(Long batchId, String sleeperType);
 
     @Query("""
 SELECT COUNT(s.id)
 FROM ProductionSleeper s
-JOIN s.benchGroup b
-JOIN b.chamber c
-JOIN c.declaration d
-WHERE d.id = :batchId
+LEFT JOIN s.benchGroup b
+LEFT JOIN b.chamber c
+LEFT JOIN s.gang g
+WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
 """)
     Long countByBatchId(Long batchId);
 
-/*  @Query(value = """
-SELECT COUNT(*)
-FROM production_sleeper s
-JOIN production_bench_group b ON s.bench_group_id = b.id
-JOIN production_stress_chamber c ON b.chamber_id = c.id
-JOIN production_declaration d ON c.declaration_id = d.id
-WHERE d.id = :batchId
-AND s.sleeper_no NOT IN (
-    SELECT ds.sleeper_no
-    FROM demoulding_defective_sleepers ds
-    JOIN demoulding_inspection di 
-        ON ds.inspection_id = di.id
-    WHERE di.batch_no COLLATE utf8mb4_unicode_ci = d.batch_number COLLATE utf8mb4_unicode_ci
-)
-""", nativeQuery = true)
-  Long countByBatchId(Long batchId);*/
-//   @Query("""
-//SELECT DISTINCT b.sleeperType
-//FROM ProductionBenchGroup b
-//JOIN b.chamber c
-//JOIN c.declaration d
-//WHERE d.id = :batchId
-//""")
-//    String getSleeperTypeByBatch(Long batchId);
+    @Query("""
+SELECT COUNT(s.id)
+FROM ProductionSleeper s
+LEFT JOIN s.benchGroup b
+LEFT JOIN b.chamber c
+LEFT JOIN s.gang g
+WHERE (c.declaration.id = :batchId AND b.sleeperType = :sleeperType)
+   OR (g.declaration.id = :batchId AND g.sleeperType = :sleeperType)
+""")
+    Long countByBatchIdAndType(Long batchId, String sleeperType);
+
 @Query("""
-SELECT DISTINCT b.sleeperType
-FROM ProductionBenchGroup b
-JOIN b.chamber c
-JOIN c.declaration d
-WHERE d.id = :batchId
+SELECT DISTINCT COALESCE(b.sleeperType, g.sleeperType)
+FROM ProductionSleeper s
+LEFT JOIN s.benchGroup b
+LEFT JOIN b.chamber c
+LEFT JOIN s.gang g
+WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
 """)
 List<String> getSleeperTypeByBatch(Long batchId);
     @Query("SELECT s.sleeperNo FROM ProductionSleeper s " +

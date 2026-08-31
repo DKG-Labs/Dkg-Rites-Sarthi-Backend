@@ -5,6 +5,7 @@ import com.sarthi.Sleeper.entity.MomentOfResistance;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -37,5 +38,10 @@ public interface MomentOfResistanceTestRepository extends JpaRepository<MomentOf
 """, nativeQuery = true)
     DateOnlyProjection getMRData(String batchNo);
 
-
+    @Query("""
+SELECT COUNT(m) > 0 
+FROM MomentOfResistanceTest m 
+WHERE m.batchNumber = :batchNo
+""")
+    boolean existsMomentOfResistance(@Param("batchNo") String batchNo);
 }

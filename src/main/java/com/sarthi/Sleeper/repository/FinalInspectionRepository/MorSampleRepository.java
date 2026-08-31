@@ -5,9 +5,12 @@ import com.sarthi.Sleeper.entity.FinalInspection.MorSampleDeclaration;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+@Repository
 public interface MorSampleRepository extends JpaRepository<MorSampleDeclaration, Long> {
 
     @Query("SELECT m FROM MorSampleDeclaration m WHERE NOT EXISTS (" +
