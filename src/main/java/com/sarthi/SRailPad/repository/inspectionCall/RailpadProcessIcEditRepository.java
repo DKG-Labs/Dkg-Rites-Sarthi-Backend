@@ -59,8 +59,10 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                    AND latest.max_version = icr1.version
             ) icr
                     ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN railpad_pincode_poi_mapping rpp
+                   ON CONVERT(rpp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
                   AND pm.product_type = 'railpad'
             WHERE icr.call_number IS NULL
                OR UPPER(icr.status) = 'FAILED'
