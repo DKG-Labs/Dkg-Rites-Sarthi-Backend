@@ -127,7 +127,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
-                ic.plant_id                                             AS placeOfInspection,
+                COALESCE(CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
                 CAST(COALESCE(um.employee_code, cd.created_by, wt.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'C'                                                     AS callStatus,
@@ -139,7 +139,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 END)                                                    AS poItemSerialNumber,
                 ''                                                      AS bkNumber,
                 ''                                                      AS setNumber,
-                DATE(COALESCE(cd.cancellation_date, wt.created_date, ic.updated_at, ic.created_at)) AS icDate,
+                DATE(COALESCE(cd.created_date, wt.created_date, ic.updated_at, ic.created_at)) AS icDate,
                 COALESCE(ic.total_qty, 0)                               AS quantityOffered,
                 0                                                       AS quantityPassed,
                 0                                                       AS quantityRejected,
@@ -167,8 +167,14 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             LEFT JOIN user_master um
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN railpad_pincode_poi_mapping rpp
+                   ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND pm.product_type = 'railpad'
             LEFT JOIN rail_vendor_financial_liability vfl_c
                    ON CONVERT(vfl_c.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
                   AND vfl_c.liability_type = 'CANCELLATION_CHARGES'
@@ -198,6 +204,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 ic.created_at,
                 ic.updated_at,
                 ic.plant_id,
+                rpp.poi_code,
                 pm.ibs_vendor_code,
                 um.employee_code,
                 cd.created_by,
@@ -206,7 +213,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 ic.call_type,
                 ic.po_no,
                 ic.po_sr,
-                cd.cancellation_date,
+                cd.created_date,
                 wt.created_date,
                 ic.total_qty,
                 ic.call_no,
