@@ -16,7 +16,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
-                ic.plant_id                                             AS placeOfInspection,
+                COALESCE(CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
                 CAST(COALESCE(um.employee_code, f.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
@@ -62,7 +62,10 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             ) icr
                     ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN railpad_pincode_poi_mapping rpp
-                   ON CONVERT(rpp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
                   AND pm.product_type = 'railpad'
@@ -73,6 +76,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 ic.created_at,
                 ic.updated_at,
                 ic.plant_id,
+                rpp.poi_code,
                 pm.ibs_vendor_code,
                 um.employee_code,
                 f.created_by,
