@@ -125,7 +125,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
-                ic.plant_id                                             AS placeOfInspection,
+                COALESCE(CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
                 CAST(COALESCE(um.employee_code, cd.created_by, wt.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'C'                                                     AS callStatus,
@@ -166,7 +166,10 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN railpad_pincode_poi_mapping rpp
-                   ON CONVERT(rpp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
                   AND pm.product_type = 'railpad'
@@ -199,6 +202,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 ic.created_at,
                 ic.updated_at,
                 ic.plant_id,
+                rpp.poi_code,
                 pm.ibs_vendor_code,
                 um.employee_code,
                 cd.created_by,
