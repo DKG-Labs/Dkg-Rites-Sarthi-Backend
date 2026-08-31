@@ -39,9 +39,10 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
              AND h.batchId IN (
                  SELECT d.id
                  FROM ProductionDeclaration d
-                 JOIN d.chambers c
-                 JOIN c.benchGroups b
-                 WHERE d.createdBy = :userId AND b.sleeperType = :sleeperType
+                 LEFT JOIN d.chambers c
+                 LEFT JOIN c.benchGroups b
+                 LEFT JOIN d.gangs g
+                 WHERE d.createdBy = :userId AND (b.sleeperType = :sleeperType OR g.sleeperType = :sleeperType)
              )
              GROUP BY h.batchId
              HAVING COUNT(DISTINCT h.module.id)=3
@@ -49,13 +50,14 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
     List<Long> findCompletedBatchIdsBySleeperTypeAndUserId(String sleeperType, Long userId);
 
     @Query("""
-             SELECT DISTINCT b.sleeperType
+             SELECT DISTINCT COALESCE(b.sleeperType, g.sleeperType)
              FROM ProductionDeclaration d
-             JOIN d.chambers c
-             JOIN c.benchGroups b
+             LEFT JOIN d.chambers c
+             LEFT JOIN c.benchGroups b
+             LEFT JOIN d.gangs g
              WHERE d.createdBy = :userId
-             AND b.sleeperType IS NOT NULL
-             AND b.sleeperType <> ''
+             AND (b.sleeperType IS NOT NULL OR g.sleeperType IS NOT NULL)
+             AND (b.sleeperType <> '' OR g.sleeperType <> '')
              AND d.id IN (
                  SELECT h.batchId
                  FROM InspectionTestHeader h

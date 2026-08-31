@@ -74,6 +74,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     private DemouldingInspectionRepository demouldingInspectionRepository;
     @Autowired
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
+    @Autowired
+    private MorSampleRepository morSampleRepository;
 
     @Autowired
     private EtSleeperDetailsRepository etSleeperDetailsRepository;
@@ -284,23 +286,26 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         }
     }
 
-    private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId,String sleeperT) {
+    private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId, String sleeperT) {
 
-        Long totalSleepers = productionSleeperRepository.countByBatchId(batchId);
+        Long totalSleepers = 0L;
+        if (sleeperT != null && !sleeperT.isBlank()) {
+            totalSleepers = productionSleeperRepository.countByBatchIdAndType(batchId, sleeperT);
+        }
+        if (totalSleepers == null || totalSleepers == 0L) {
+            totalSleepers = productionSleeperRepository.countByBatchId(batchId);
+        }
 
         Long testedSleepers = resultRepository.countTestedSleepers(batchId, moduleId, sleeperT);
+        if (testedSleepers == null) testedSleepers = 0L;
 
-      //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
-
-        String sleeperType = sleeperT;
         String batchNo = productionDeclarationRepository.getBatchNoById(batchId);
 
         Long demouldRejected =
                 demouldingInspectionRepository.countDemouldingRejected(batchNo);
+        if (demouldRejected == null) demouldRejected = 0L;
 
-      //  double validSleepers = totalSleepers - demouldRejected;
-      //  double testedPercentage = ((double) testedSleepers / totalSleepers) * 100;
-        double validSleepers = totalSleepers - demouldRejected;
+        double validSleepers = (totalSleepers != null ? totalSleepers : 0L) - demouldRejected;
 
         double testedPercentage = 0;
 
@@ -311,7 +316,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         // MODULE 1 → VISUAL
         if (moduleId == 1) {
-            if (testedPercentage >= 99.99 || testedPercentage == 100) {
+            if (testedPercentage >= 99.99 || testedPercentage >= 100) {
                 completed = true;
             }
         }
@@ -335,7 +340,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         }
 
         if(completed){
-            updateModuleStatus(batchId,moduleId);
+            updateModuleStatus(batchId, moduleId);
         }
     }
 
@@ -344,12 +349,12 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         InspectionTestHeader header =
                 headerRepository
-                        .findTopByBatchIdAndModuleIdOrderByIdDesc(batchId,moduleId);
+                        .findTopByBatchIdAndModuleIdOrderByIdDesc(batchId, moduleId);
 
-
-        header.setStatus("Completed");
-
-        headerRepository.save(header);
+        if (header != null) {
+            header.setStatus("Completed");
+            headerRepository.save(header);
+        }
     }
 
     @Transactional
@@ -1165,13 +1170,12 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             String batchNo = declaration.getBatchNumber();
 
-            boolean steamDone = steamCubeSampleDeclarationRepository.existsSteamCube(batchNo);
             boolean demouldingDone = demouldingInspectionRepository.existsDemoulding(batchNo);
             boolean waterDone = waterCubeStrengthTestRepository.existsWaterCube(batchNo);
-           // boolean modulusDone = modulusRepo.existsModulus(batchNo);
+            boolean morDone = morSampleRepository.existsMorForBatch(batchNo);
 
 //  If any missing → skip batch
-            if (!steamDone || !demouldingDone || !waterDone ) {
+            if (!demouldingDone || !waterDone || !morDone) {
                 continue;
             }
 

@@ -37,4 +37,7 @@ public class MorSampleDeclaration {
     private String shift;
     private String plantId;
     private String vendorCode;
+
+    @Column(name = "batch_no")
+    private String batchNo;
 }
