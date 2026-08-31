@@ -276,4 +276,22 @@ public class UserMasterController {
         Object response = userService.getSleeperVendorDetails(userId);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
     }
+
+    @PostMapping("/api/railpad-vendor")
+    public ResponseEntity<Object> createOrUpdateRailpadVendor(@RequestBody com.sarthi.dto.RailpadVendorCreationDto dto) {
+        Object response = userService.createOrUpdateRailpadVendor(dto);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/railpad-vendor/{userId}")
+    public ResponseEntity<Object> getRailpadVendorDetails(@PathVariable Integer userId) {
+        Object response = userService.getRailpadVendorDetails(userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @PostMapping("/api/migrate-passwords")
+    public ResponseEntity<Object> migratePasswords() {
+        Map<String, Object> response = userService.migrateAllPlainTextPasswords();
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
 }

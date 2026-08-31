@@ -29,6 +29,24 @@ public class RailVendorPlants {
         @Column(name = "plant_id", length = 100)
         private String plantId;
 
+        @Column(name = "plant_pincode", length = 20)
+        private String plantPincode;
+
+        @Column(name = "rio", length = 20)
+        private String rio;
+
+        @Column(name = "zonal_railway", length = 50)
+        private String zonalRailway;
+
+        @Column(name = "contact_person", length = 255)
+        private String contactPerson;
+
+        @Column(name = "contact_person_number", length = 20)
+        private String contactPersonNumber;
+
+        @Column(name = "status", length = 50)
+        private String status;
+
     @Column(name = "created_by")
     private Long createdBy;
 
