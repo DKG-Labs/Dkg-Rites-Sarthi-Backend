@@ -945,20 +945,25 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         obj -> String.valueOf(obj[1])
                 ));
 
-        // Get all batch numbers from water cube test
-        Set<String> waterCubeBatchSet = new HashSet<>(
-                waterCubeStrengthTestRepository.findAllBatchNumbers()
-        );
+        // Get water cube strength test map by batch number
+        Map<String, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestMap = waterCubeStrengthTestRepository.findAll()
+                .stream()
+                .filter(t -> t.getBatchNumber() != null)
+                .collect(Collectors.toMap(
+                        com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest::getBatchNumber,
+                        test -> test,
+                        (existing, replacement) -> replacement
+                ));
 
         return entities.stream()
-                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeBatchSet))
+                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestMap))
                 .toList();
     }
 
     private ProductionDeclarationResponseDto mapToResponseWithWaterCube(
             ProductionDeclaration entity,
             Map<String, String> statusMap,
-            Set<String> waterCubeBatchSet) {
+            Map<String, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestMap) {
 
         ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
 
@@ -986,8 +991,16 @@ public List<ProductionDeclarationResponseDto> getAll() {
         String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
         response.setStatus(status);
 
-        boolean exists = waterCubeBatchSet.contains(entity.getBatchNumber());
-        response.setWaterCubeTestStatus(exists);
+        com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest wcTest = waterCubeTestMap.get(entity.getBatchNumber());
+        if (wcTest != null) {
+            response.setWaterCubeTestStatus(true);
+            response.setCondition2(Boolean.TRUE.equals(wcTest.getCondition2()));
+            response.setMrSamplesRequired(wcTest.getMrSamplesRequired() != null ? wcTest.getMrSamplesRequired() : (Boolean.TRUE.equals(wcTest.getCondition2()) ? 2 : 1));
+        } else {
+            response.setWaterCubeTestStatus(false);
+            response.setCondition2(false);
+            response.setMrSamplesRequired(1);
+        }
 
         return response;
     }

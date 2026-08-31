@@ -13,9 +13,9 @@ public interface MomentOfResistanceRepository extends JpaRepository<MomentOfResi
     @Query("""
     SELECT m FROM MomentOfResistance m
     LEFT JOIN MomentOfResistanceTest t
-        ON m.batchNumber = t.batchNumber
-    WHERE m.plantId = :plantId
-    AND m.vendorCode = :vendorCode
+        ON m.batchNumber = t.batchNumber AND (t.testResult = 'Pass' OR t.testResult = 'Fail')
+    WHERE (m.plantId = :plantId OR REPLACE(m.plantId, ':', '') = REPLACE(:plantId, ':', '') OR :plantId IS NULL)
+    AND (m.vendorCode = :vendorCode OR REPLACE(m.vendorCode, ':', '') = REPLACE(:vendorCode, ':', '') OR :vendorCode IS NULL)
     AND m.shift = :shift
     AND m.createdBy = :createdBy
     AND m.createdDate BETWEEN :startOfDay AND :endOfDay
