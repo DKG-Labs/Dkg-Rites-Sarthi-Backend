@@ -63,6 +63,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                     ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND pm.product_type = 'railpad'
             WHERE icr.call_number IS NULL
                OR UPPER(icr.status) = 'FAILED'
             GROUP BY

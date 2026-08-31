@@ -953,6 +953,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
 
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON pm.poi_code = ic.place_of_inspection
+                  AND pm.product_type = 'erc'
 
             WHERE icr.call_number IS NULL
                OR UPPER(icr.status) = 'FAILED'
