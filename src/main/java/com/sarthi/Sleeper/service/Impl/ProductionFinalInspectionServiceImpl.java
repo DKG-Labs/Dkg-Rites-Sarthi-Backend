@@ -75,7 +75,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Autowired
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
     @Autowired
-    private MorSampleRepository morSampleRepository;
+    private MomentOfResistanceTestRepository momentOfResistanceTestRepository;
 
     @Autowired
     private EtSleeperDetailsRepository etSleeperDetailsRepository;
@@ -1172,7 +1172,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             boolean demouldingDone = demouldingInspectionRepository.existsDemoulding(batchNo);
             boolean waterDone = waterCubeStrengthTestRepository.existsWaterCube(batchNo);
-            boolean morDone = morSampleRepository.existsMorForBatch(batchNo);
+            boolean morDone = momentOfResistanceTestRepository.existsMomentOfResistance(batchNo);
 
 //  If any missing → skip batch
             if (!demouldingDone || !waterDone || !morDone) {

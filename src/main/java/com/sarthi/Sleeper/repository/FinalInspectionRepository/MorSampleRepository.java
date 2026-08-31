@@ -16,12 +16,4 @@ public interface MorSampleRepository extends JpaRepository<MorSampleDeclaration,
     @Query("SELECT m FROM MorSampleDeclaration m WHERE NOT EXISTS (" +
             "SELECT 1 FROM MorTestResult t WHERE t.morSample.id = m.id)")
     List<MorSampleDeclaration> findAllNotTested();
-
-    @Query("""
-SELECT COUNT(m) > 0
-FROM MorSampleDeclaration m
-WHERE m.batchNo = :batchNo
-AND EXISTS (SELECT 1 FROM MorTestResult t WHERE t.morSample.id = m.id)
-""")
-    boolean existsMorForBatch(@Param("batchNo") String batchNo);
 }
