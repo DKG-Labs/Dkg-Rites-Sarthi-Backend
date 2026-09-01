@@ -43,14 +43,23 @@ public class SmsCommonUtils implements ApplicationContextAware {
                                     "Invalid Token")
                                 );
         }
-        String username = jwtService.extractUserId(authHeader.substring(7));
-        UserMaster user = userMasterRepository.findFirstByUserName(username)
-                            .orElseThrow(() -> new SmsInvalidArgumentException(
-                                    new SmsErrorDetails(AppConstant.ERROR_CODE_VALIDATION,
-                                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                            AppConstant.ERROR_TYPE_VALIDATION,
-                                            "User not found")
-                            ));
+        String subject = jwtService.extractUserId(authHeader.substring(7));
+        UserMaster user = null;
+        try {
+            Integer uid = Integer.valueOf(subject.trim());
+            user = userMasterRepository.findByUserId(uid).orElse(null);
+        } catch (Exception ignored) {
+        }
+
+        if (user == null) {
+            user = userMasterRepository.findFirstByUserName(subject)
+                    .orElseThrow(() -> new SmsInvalidArgumentException(
+                            new SmsErrorDetails(AppConstant.ERROR_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "User not found")
+                    ));
+        }
         return user.getUserId();
     }
 
