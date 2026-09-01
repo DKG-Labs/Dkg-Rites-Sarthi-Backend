@@ -45,10 +45,12 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             @Param("endDate") String endDate);
 
     @Query(value = "SELECT * FROM WORKFLOW_TRANSITION WHERE WORKFLOWTRANSITIONID IN (" +
-            "  SELECT MAX(WORKFLOWTRANSITIONID) " +
-            "  FROM WORKFLOW_TRANSITION " +
-            "  WHERE (:rio IS NULL OR RIO = :rio) " +
-            "  GROUP BY REQUESTID" +
+            "  SELECT MAX(wt.WORKFLOWTRANSITIONID) " +
+            "  FROM WORKFLOW_TRANSITION wt " +
+            "  WHERE (:rio IS NULL OR wt.RIO = :rio OR wt.REQUESTID IN (" +
+            "    SELECT wt2.REQUESTID FROM WORKFLOW_TRANSITION wt2 WHERE wt2.RIO = :rio" +
+            "  )) " +
+            "  GROUP BY wt.REQUESTID" +
             ")", nativeQuery = true)
     List<WorkflowTransition> findLatestByRio(@Param("rio") String rio);
 
