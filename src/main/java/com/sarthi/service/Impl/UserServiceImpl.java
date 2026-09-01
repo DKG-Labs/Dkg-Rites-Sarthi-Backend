@@ -107,6 +107,8 @@ public class UserServiceImpl implements UserService {
     private com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
     @Autowired
     private com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
+    @Autowired
+    private com.sarthi.repository.WorkflowTransitionRepository workflowTransitionRepository;
 
 
 
@@ -1354,6 +1356,19 @@ public class UserServiceImpl implements UserService {
             }
         } else {
             poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
+        }
+
+        // For ER / EF calls: if already verified and assigned to a specific IE, return that assigned IE
+        if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
+            WorkflowTransition tx = workflowTransitionRepository.findTopByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+            if (tx != null && tx.getAssignedToUser() != null) {
+                Optional<UserMaster> optUser = userMasterRepository.findById(tx.getAssignedToUser());
+                if (optUser.isPresent()) {
+                    List<String> list = new ArrayList<>();
+                    list.add(optUser.get().getFullName() + " (" + optUser.get().getEmployeeCode() + ")");
+                    return list;
+                }
+            }
         }
 
         List<String> result = new ArrayList<>();
