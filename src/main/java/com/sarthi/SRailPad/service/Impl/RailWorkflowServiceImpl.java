@@ -2098,15 +2098,15 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             dto.setRio(effectiveRio);
 
             String rioLower = effectiveRio.toLowerCase();
-            String rioEmail = "sbu.ninsp@rites.com";
+            String rioEmail = "nrinspn.fin@rites.com";
             if (rioLower.contains("east") || rioLower.contains("er") || rioLower.contains("kolkata")) {
-                rioEmail = "sbu.einsp@rites.com";
+                rioEmail = "callletter.er@rites.com";
             } else if (rioLower.contains("west") || rioLower.contains("wr") || rioLower.contains("mumbai")) {
-                rioEmail = "sbu.winsp@rites.com";
+                rioEmail = "dfo.wrio@rites.com";
             } else if (rioLower.contains("south") || rioLower.contains("sr") || rioLower.contains("chennai")) {
-                rioEmail = "sbu.sinsp@rites.com";
-            } else if (rioLower.contains("cent") || rioLower.contains("bhilai") || rioLower.contains("raipur")) {
-                rioEmail = "sbu.cinsp@rites.com";
+                rioEmail = "dfo.srio@rites.com";
+            } else if (rioLower.contains("cent") || rioLower.contains("bhilai") || rioLower.contains("raipur") || rioLower.contains("cr") || rioLower.contains("crio")) {
+                rioEmail = "dfo.crio@rites.com";
             }
             dto.setRioEmail(rioEmail);
 
