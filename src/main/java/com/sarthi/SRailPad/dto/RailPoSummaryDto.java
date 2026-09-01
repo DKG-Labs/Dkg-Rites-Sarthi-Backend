@@ -109,6 +109,9 @@ public class RailPoSummaryDto {
     /** RITES RIO code from rail_workflow_transaction.rio e.g. NRIO, SRIO, ERIO, WRIO, CRIO */
     private String rio;
 
+    /** Offered Installment Number (count of inspection calls raised for this PO) */
+    private String offeredInstallmentNo;
+
     public String getRlyPoNo() { return rlyPoNo; }
     public void setRlyPoNo(String rlyPoNo) { this.rlyPoNo = rlyPoNo; }
 
@@ -181,6 +184,21 @@ public class RailPoSummaryDto {
     public String getDrawingNo() { return drawingNo; }
     public void setDrawingNo(String drawingNo) { this.drawingNo = drawingNo; }
 
+    /** Case Number from po_header */
+    private String caseNo;
+
+    public String getCaseNo() { return caseNo; }
+    public void setCaseNo(String caseNo) { this.caseNo = caseNo; }
+
+    /** Remarks from rail_inspection_call */
+    private String remarks;
+
+    public String getRemarks() { return remarks; }
+    public void setRemarks(String remarks) { this.remarks = remarks; }
+
     public String getRio() { return rio; }
     public void setRio(String rio) { this.rio = rio; }
+
+    public String getOfferedInstallmentNo() { return offeredInstallmentNo; }
+    public void setOfferedInstallmentNo(String offeredInstallmentNo) { this.offeredInstallmentNo = offeredInstallmentNo; }
 }

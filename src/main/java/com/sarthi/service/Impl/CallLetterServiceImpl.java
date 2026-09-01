@@ -103,6 +103,7 @@ public class CallLetterServiceImpl implements CallLetterService {
 
         dto.setTypeOfCall(ic.getTypeOfCall());
         dto.setProductType(ic.getTypeOfCall());
+        dto.setRemarks(ic.getRemarks());
 
         String poiCode = ic.getPlaceOfInspection();
 
@@ -283,6 +284,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     dto.setPoNo(ph.getPoNo());
                     dto.setPurchaserDetail(ph.getPurchaserDetail());
                     dto.setVendorName(ph.getFirmDetails());
+                    dto.setCaseNo(ph.getCaseNo());
 
                     // Format PO date
                     if (ph.getPoDate() != null) {
@@ -654,6 +656,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                         dto.setVendorName(ph.getFirmDetails());
                         dto.setManufacturerName(ph.getFirmDetails());
                     }
+                    dto.setCaseNo(ph.getCaseNo());
                     if (ph.getPoDate() != null) {
                         dto.setPoDate(ph.getPoDate().format(DATE_FMT));
                     }

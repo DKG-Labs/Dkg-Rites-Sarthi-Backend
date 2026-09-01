@@ -86,6 +86,7 @@ public class RailPoSummaryServiceImpl implements RailPoSummaryService {
 
         // Purchasing authority
         dto.setPurchasingAuthority(header.getPurchaserDetail());
+        dto.setCaseNo(header.getCaseNo());
 
         // MA details
         if (maHeaders != null && !maHeaders.isEmpty()) {

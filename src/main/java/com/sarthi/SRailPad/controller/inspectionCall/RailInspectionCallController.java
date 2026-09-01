@@ -33,18 +33,21 @@ public class RailInspectionCallController {
     private final RailPoSummaryService railPoSummaryService;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository;
     private final RailWorkflowTransactionRepository railWorkflowTransactionRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
 
     @Autowired
     public RailInspectionCallController(RailInspectionCallService service,
                                         RailWorkflowService railWorkflowService,
                                         RailPoSummaryService railPoSummaryService,
                                         com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository,
-                                        RailWorkflowTransactionRepository railWorkflowTransactionRepository) {
+                                        RailWorkflowTransactionRepository railWorkflowTransactionRepository,
+                                        com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository) {
         this.service = service;
         this.railWorkflowService = railWorkflowService;
         this.railPoSummaryService = railPoSummaryService;
         this.processCallDetailsRepository = processCallDetailsRepository;
         this.railWorkflowTransactionRepository = railWorkflowTransactionRepository;
+        this.railInspectionCallRepository = railInspectionCallRepository;
     }
 
     /**
@@ -84,11 +87,13 @@ public class RailInspectionCallController {
             summary.setPlaceOfInspection(call.getPlantId());
             summary.setMaNo("N/A");
             summary.setMaDate("N/A");
+            summary.setCaseNo("N/A");
         }
 
         // Always overlay Railpad-specific fields from rail_inspection_call
         summary.setErcType(call.getRailPadType());
         summary.setTotalOfferedQty(call.getTotalQty());
+        summary.setRemarks(call.getRemarks());
         String effectiveCallSr = (call.getPoSr() != null && !call.getPoSr().isBlank() && !"null".equalsIgnoreCase(call.getPoSr())) ? call.getPoSr().trim() : null;
         if (effectiveCallSr == null && call.getPoNo() != null && call.getPoNo().contains("/")) {
             String[] parts = call.getPoNo().split("/");
@@ -117,6 +122,19 @@ public class RailInspectionCallController {
         String rioValue = railWorkflowTransactionRepository.findRioByRequestId(callNo);
         if (rioValue != null && !rioValue.isBlank()) {
             summary.setRio(rioValue);
+        }
+
+        // Ensure placeOfInspection fallback to call plantId if null or empty
+        if (summary.getPlaceOfInspection() == null || summary.getPlaceOfInspection().isBlank() || "N/A".equalsIgnoreCase(summary.getPlaceOfInspection())) {
+            summary.setPlaceOfInspection(call.getPlantId());
+        }
+
+        // Calculate Offered Installment Number (count of inspection calls for this PO)
+        if (call.getPoNo() != null && !call.getPoNo().isBlank()) {
+            long count = railInspectionCallRepository.countByPoNo(call.getPoNo());
+            summary.setOfferedInstallmentNo(String.valueOf(count > 0 ? count : 1));
+        } else {
+            summary.setOfferedInstallmentNo("1");
         }
 
         return new ResponseEntity<>(

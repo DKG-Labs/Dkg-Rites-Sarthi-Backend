@@ -21,6 +21,7 @@ public class CallLetterDetailsDto {
     private String rlyPoSr; // Composite e.g. "WR / 26255265205057 / 012"
     private String poDate; // Formatted PO date
     private String purchaserDetail; // Purchaser (from po_header)
+    private String caseNo; // Case Number from po_header
 
     // ---- PO Item fields ----
     private String itemSrNo; // Serial number e.g. "012"
@@ -55,6 +56,7 @@ public class CallLetterDetailsDto {
     private String finalAcceptedQty; // Final Accepted Qty of this PO Sr. No.
     private Integer poQuantity; // Total PO Quantity
     private String poValue; // Total PO Value
+    private String remarks; // Remarks from inspection call
 
     // ---- Contact Details ----
     private String contactPersonName;
