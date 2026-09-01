@@ -184,6 +184,18 @@ public class RailPoSummaryDto {
     public String getDrawingNo() { return drawingNo; }
     public void setDrawingNo(String drawingNo) { this.drawingNo = drawingNo; }
 
+    /** Case Number from po_header */
+    private String caseNo;
+
+    public String getCaseNo() { return caseNo; }
+    public void setCaseNo(String caseNo) { this.caseNo = caseNo; }
+
+    /** Remarks from rail_inspection_call */
+    private String remarks;
+
+    public String getRemarks() { return remarks; }
+    public void setRemarks(String remarks) { this.remarks = remarks; }
+
     public String getRio() { return rio; }
     public void setRio(String rio) { this.rio = rio; }
 

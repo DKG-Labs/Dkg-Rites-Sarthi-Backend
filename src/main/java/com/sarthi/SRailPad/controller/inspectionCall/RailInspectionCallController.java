@@ -87,11 +87,13 @@ public class RailInspectionCallController {
             summary.setPlaceOfInspection(call.getPlantId());
             summary.setMaNo("N/A");
             summary.setMaDate("N/A");
+            summary.setCaseNo("N/A");
         }
 
         // Always overlay Railpad-specific fields from rail_inspection_call
         summary.setErcType(call.getRailPadType());
         summary.setTotalOfferedQty(call.getTotalQty());
+        summary.setRemarks(call.getRemarks());
         String effectiveCallSr = (call.getPoSr() != null && !call.getPoSr().isBlank() && !"null".equalsIgnoreCase(call.getPoSr())) ? call.getPoSr().trim() : null;
         if (effectiveCallSr == null && call.getPoNo() != null && call.getPoNo().contains("/")) {
             String[] parts = call.getPoNo().split("/");
