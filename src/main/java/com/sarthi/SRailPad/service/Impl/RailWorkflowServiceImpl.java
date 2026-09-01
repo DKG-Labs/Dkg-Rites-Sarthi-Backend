@@ -2116,6 +2116,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 java.util.Optional<com.sarthi.SRailPad.entity.RailCallCancellationDetail> cancelOpt = railCallCancellationDetailRepository.findByCallNumber(callNo);
                 if (cancelOpt.isPresent()) {
                     com.sarthi.SRailPad.entity.RailCallCancellationDetail cd = cancelOpt.get();
+                    if (cd.getDocumentName() != null && !cd.getDocumentName().isBlank()) {
+                        dto.setDocumentName(cd.getDocumentName());
+                    }
                     if ("NON_CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
                         isNonChargeable = true;
                         base = 0.0;
