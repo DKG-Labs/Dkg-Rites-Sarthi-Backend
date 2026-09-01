@@ -35,5 +35,6 @@ public class RailCancelledPaymentCallDto {
     private String vendorCode;
     private String rio;
     private String rioEmail;
+    private String documentName;
     private LocalDateTime createdDate;
 }

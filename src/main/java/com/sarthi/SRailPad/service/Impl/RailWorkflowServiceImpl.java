@@ -476,6 +476,28 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
 
+        // Strict Assigned User Verification for in-progress / initiated calls
+        if (current.getAssignedToUser() != null && req.getActionBy() != null) {
+            Long assignedUserId = current.getAssignedToUser();
+            Long actionBy = req.getActionBy();
+            
+            if (!actionBy.equals(assignedUserId) && !"Rail Vendor".equalsIgnoreCase(current.getNextRole())) {
+                boolean isSuperAdmin = userMasterRepository.findById(Math.toIntExact(actionBy))
+                        .map(u -> u.getRoleName() != null && (u.getRoleName().toUpperCase().contains("ADMIN") || u.getRoleName().toUpperCase().contains("SUPER")))
+                        .orElse(false);
+                if (!isSuperAdmin) {
+                    throw new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "This inspection call is assigned to and in progress with another Inspector (IE)."
+                            )
+                    );
+                }
+            }
+        }
+
         if(current.getWorkflowId() == 1) {
             Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
             String requiredIeType = (modId != null && modId == 3) ? "Process IE" : "Main IE";
@@ -871,16 +893,21 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 tx.setStatus("RESUBMITTED");
                 tx.setJobStatus("RESUBMITTED");
             } else {
-                System.out.println("[Workflow Service] Action is " + req.getAction() + ", setting status to PENDING");
                 tx.setStatus("PENDING");
                 tx.setJobStatus("PENDING");
             }
-            System.out.println("[Workflow Service] Final Status before save: " + tx.getStatus());
+        }
+
+        if (tx.getRio() == null || tx.getRio().isBlank()) {
+            tx.setRio(current.getRio());
         }
 
         // Determine assignedToUser based on nextRole & plant mapping
         Long targetAssignedUser = req.getActionBy();
-        if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || "VERIFY".equalsIgnoreCase(req.getAction())) {
+        if (current.getAssignedToUser() != null) {
+            // Retain original assigned IE for in-progress inspections until completion / IC signing
+            targetAssignedUser = current.getAssignedToUser();
+        } else if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || "VERIFY".equalsIgnoreCase(req.getAction())) {
             Optional<RailPoiIeMapping> mappingOpt = poiIeMappingRepository
                     .findByPlantIdAndIeType(current.getPlantId(), "Main IE");
             if (mappingOpt.isEmpty()) {
@@ -1270,9 +1297,19 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         dto.setAssignedToUser(tx.getAssignedToUser());
         dto.setCreatedBy(tx.getCreatedBy());
         dto.setModifiedBy(tx.getModifiedBy());
-        dto.setCreatedDate(tx.getCreatedDate());
-        dto.setUpdatedDate(tx.getUpdatedDate());
-        dto.setRio(tx.getRio());
+        String effectiveRio = tx.getRio();
+        if ((effectiveRio == null || effectiveRio.isBlank()) && tx.getRequestId() != null) {
+            String rioCacheKey = "rio_" + tx.getRequestId();
+            if (cache != null && cache.containsKey(rioCacheKey)) {
+                effectiveRio = (String) cache.get(rioCacheKey);
+            } else if (railWorkflowTransactionRepository != null) {
+                effectiveRio = railWorkflowTransactionRepository.findRioByCallNo(tx.getRequestId());
+                if (cache != null) {
+                    cache.put(rioCacheKey, effectiveRio);
+                }
+            }
+        }
+        dto.setRio(effectiveRio);
         dto.setJobStatus(tx.getJobStatus());
 
         List<RailPoiIeMapping> mappings = null;
@@ -1327,10 +1364,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
 
-        dto.setAccessibleUserIds(userIds);
-
-        if (dto.getAssignedToUser() == null && userIds != null && !userIds.isEmpty()) {
-            dto.setAssignedToUser(userIds.get(0).longValue());
+        if (tx.getAssignedToUser() != null) {
+            dto.setAssignedToUser(tx.getAssignedToUser());
+            dto.setAccessibleUserIds(java.util.Collections.singletonList(tx.getAssignedToUser().intValue()));
+        } else {
+            dto.setAccessibleUserIds(userIds);
+            if (dto.getAssignedToUser() == null && userIds != null && !userIds.isEmpty()) {
+                dto.setAssignedToUser(userIds.get(0).longValue());
+            }
         }
 
         if (dto.getAssignedToUser() != null) {
@@ -1592,11 +1633,20 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         List<String> pendingActions = java.util.Arrays.asList(
             "VERIFY",
             "MAIN_IE_SCHEDULE_CALL",
+            "SCHEDULE_CALL",
+            "SCHEDULE",
+            "START_INSPECTION",
+            "START_CALL",
             "INITIATE_CALL",
             "PO_VERIFICATION",
             "PAUSE",
             "RESUME",
-            "RESCHEDULE_CALL"
+            "RESCHEDULE_CALL",
+            "RESCHEDULE",
+            "ENTER_SHIFT_DETAILS",
+            "SHIFT_DETAILS",
+            "ISSUE_IC",
+            "IC_ISSUE"
         );
         List<RailWorkflowTransaction> list = railWorkflowTransactionRepository.findPendingVerifiedCalls(pendingActions);
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
@@ -1636,6 +1686,20 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             String callCacheKey = "call_" + reqId;
             if (!cache.containsKey(callCacheKey)) {
                 cache.put(callCacheKey, null);
+            }
+        }
+
+        // 1b. Preload RIOs from initial transitions
+        if (!requestIds.isEmpty()) {
+            try {
+                List<Object[]> rioRows = railWorkflowTransactionRepository.findInitialRiosByRequestIds(requestIds);
+                for (Object[] row : rioRows) {
+                    if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                        cache.put("rio_" + row[0].toString().trim(), row[1].toString().trim());
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error preloading RIOs: " + e.getMessage());
             }
         }
 
@@ -2034,15 +2098,15 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             dto.setRio(effectiveRio);
 
             String rioLower = effectiveRio.toLowerCase();
-            String rioEmail = "sbu.ninsp@rites.com";
+            String rioEmail = "nrinspn.fin@rites.com";
             if (rioLower.contains("east") || rioLower.contains("er") || rioLower.contains("kolkata")) {
-                rioEmail = "sbu.einsp@rites.com";
+                rioEmail = "callletter.er@rites.com";
             } else if (rioLower.contains("west") || rioLower.contains("wr") || rioLower.contains("mumbai")) {
-                rioEmail = "sbu.winsp@rites.com";
+                rioEmail = "dfo.wrio@rites.com";
             } else if (rioLower.contains("south") || rioLower.contains("sr") || rioLower.contains("chennai")) {
-                rioEmail = "sbu.sinsp@rites.com";
-            } else if (rioLower.contains("cent") || rioLower.contains("bhilai") || rioLower.contains("raipur")) {
-                rioEmail = "sbu.cinsp@rites.com";
+                rioEmail = "dfo.srio@rites.com";
+            } else if (rioLower.contains("cent") || rioLower.contains("bhilai") || rioLower.contains("raipur") || rioLower.contains("cr") || rioLower.contains("crio")) {
+                rioEmail = "dfo.crio@rites.com";
             }
             dto.setRioEmail(rioEmail);
 
@@ -2052,6 +2116,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 java.util.Optional<com.sarthi.SRailPad.entity.RailCallCancellationDetail> cancelOpt = railCallCancellationDetailRepository.findByCallNumber(callNo);
                 if (cancelOpt.isPresent()) {
                     com.sarthi.SRailPad.entity.RailCallCancellationDetail cd = cancelOpt.get();
+                    if (cd.getDocumentName() != null && !cd.getDocumentName().isBlank()) {
+                        dto.setDocumentName(cd.getDocumentName());
+                    }
                     if ("NON_CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
                         isNonChargeable = true;
                         base = 0.0;
