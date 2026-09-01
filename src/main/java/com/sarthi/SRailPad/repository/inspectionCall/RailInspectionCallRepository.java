@@ -129,7 +129,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 DATE(ic.created_at)                                     AS callDate,
                 COALESCE(CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
-                CAST(COALESCE(um.employee_code, cd.created_by, wt.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
+                CAST(COALESCE(um_assigned.employee_code, um.employee_code, cd.created_by, wt.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'C'                                                     AS callStatus,
                 (CASE WHEN ic.call_type = 'PROCESS' THEN 'P' ELSE 'F' END) AS typeOfCall,
                 (CASE 
@@ -152,6 +152,20 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 )                                                       AS cancellationCharges,
                 0.0                                                     AS rejectionCharges
             FROM rail_inspection_call ic
+            LEFT JOIN (
+                SELECT rwt1.request_id, rwt1.assigned_to_user
+                FROM rail_workflow_transaction rwt1
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    FROM rail_workflow_transaction
+                    WHERE assigned_to_user IS NOT NULL
+                    GROUP BY request_id
+                ) latest_wt
+                    ON rwt1.workflow_transition_id = latest_wt.max_wt_id
+            ) wt_assigned
+                    ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_assigned
+                   ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_call_cancellation_details cd
                    ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_workflow_transaction wt
@@ -206,6 +220,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 ic.plant_id,
                 rpp.poi_code,
                 pm.ibs_vendor_code,
+                um_assigned.employee_code,
                 um.employee_code,
                 cd.created_by,
                 wt.created_by,
