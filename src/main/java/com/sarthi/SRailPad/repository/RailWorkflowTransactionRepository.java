@@ -106,18 +106,38 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     List<RailWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            WHERE t.workflow_transition_id IN (
+                SELECT MAX(wt.workflow_transition_id)
+                FROM rail_workflow_transaction wt
+                GROUP BY wt.request_id
             )
-            AND t.action IN :pendingActions
-            AND UPPER(t.status) = 'PENDING'
-            """)
+            AND (
+                t.action IN :pendingActions
+                OR UPPER(t.status) = 'PENDING'
+                OR UPPER(t.status) = 'RIO_VERIFIED'
+                OR UPPER(COALESCE(t.job_status, '')) IN ('RIO_VERIFIED', 'SCHEDULED', 'ASSIGNED', 'IN_PROGRESS', 'INITIATED', 'PAUSED', 'RESUMED')
+            )
+            AND UPPER(t.status) NOT IN ('CREATED', 'RESUBMITTED')
+            AND UPPER(t.status) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(t.job_status, '')) NOT LIKE '%CANCEL%'
+            AND t.action NOT IN ('DSC_SIGN_IC', 'SIGN_IC')
+            """, nativeQuery = true)
     List<RailWorkflowTransaction> findPendingVerifiedCalls(@Param("pendingActions") List<String> pendingActions);
+
+    @Query(value = """
+            SELECT wt.request_id, wt.rio 
+            FROM rail_workflow_transaction wt
+            WHERE wt.workflow_transition_id IN (
+                SELECT MIN(wt2.workflow_transition_id)
+                FROM rail_workflow_transaction wt2
+                WHERE wt2.request_id IN :requestIds
+                  AND wt2.rio IS NOT NULL AND wt2.rio != ''
+                GROUP BY wt2.request_id
+            )
+            """, nativeQuery = true)
+    List<Object[]> findInitialRiosByRequestIds(@Param("requestIds") List<String> requestIds);
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t

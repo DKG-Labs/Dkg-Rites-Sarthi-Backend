@@ -307,6 +307,7 @@ public class WorkflowServiceImpl implements WorkflowService {
             entry.setJobStatus("ASSIGNED");
             entry.setProcessIeUserId(last.getProcessIeUserId());
             entry.setWorkflowSequence(last.getWorkflowSequence()+1);
+            entry.setRio(last != null ? last.getRio() : null);
             workflowTransitionRepository.save(entry);
 
             if("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
@@ -2011,7 +2012,15 @@ System.out.print(last);
      //   next.setCreatedBy(req.getActionBy());
         next.setCreatedBy(current.getCreatedBy());
         next.setModifiedBy(req.getActionBy());
-        next.setRio(current.getRio());
+        
+        String currentRio = current.getRio();
+        if (currentRio == null || currentRio.isBlank()) {
+            currentRio = last != null ? last.getRio() : null;
+        }
+        if (currentRio == null || currentRio.isBlank()) {
+            currentRio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(req.getRequestId());
+        }
+        next.setRio(currentRio);
       //  String inspectionType = "PROCESS";
      //   String inspectionType ="Raw Material";
 
@@ -3215,7 +3224,12 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         
         dto.setWorkflowSequence(wt.getWorkflowSequence());
         dto.setModifiedBy(formatUserName(wt.getModifiedBy(), userMap));
-        dto.setRio(wt.getRio());
+        
+        String effectiveRio = wt.getRio();
+        if (effectiveRio == null || effectiveRio.isBlank()) {
+            effectiveRio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(wt.getRequestId());
+        }
+        dto.setRio(effectiveRio);
 
         if (i != null) {
             // PO No Formatting: Railway / PoNo / PoSrNo
@@ -4343,7 +4357,16 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                            status.contains("LAB") ||
                            status.contains("BILLING") ||
                            status.contains("PAYMENT") ||
-                           status.contains("BLOCKED");
+                           status.contains("BLOCKED") ||
+                           status.contains("ASSIGNED") ||
+                           "ASSIGNED".equalsIgnoreCase(wt.getJobStatus()) ||
+                           "IN_PROGRESS".equalsIgnoreCase(wt.getJobStatus()) ||
+                           (wt.getAction() != null && (
+                               wt.getAction().toUpperCase().contains("SCHEDULE") ||
+                               wt.getAction().toUpperCase().contains("INITIATE") ||
+                               wt.getAction().toUpperCase().contains("VERIFY") ||
+                               wt.getAction().toUpperCase().contains("INSPECT")
+                           ));
                 })
                 .collect(Collectors.toList());
 
