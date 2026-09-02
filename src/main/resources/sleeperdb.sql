@@ -1775,6 +1775,7 @@ CREATE TABLE final_call_rejected_sleepers (
 
     reason VARCHAR(255),
     type VARCHAR(100),
+    sleeper_final_result_id BIGINT,
 
     batch_id BIGINT,
 
@@ -1790,6 +1791,8 @@ CREATE TABLE final_call_et_sleeper (
 
     sleeper_id BIGINT,
     sleeper_code VARCHAR(100),
+    reason VARCHAR(255),
+    sleeper_final_result_id BIGINT,
 
     batch_id BIGINT,
 
@@ -2217,10 +2220,47 @@ VALUES
 
 
 ALTER TABLE inspection_parameter_result
-ADD COLUMN reason_master_id BIGINT NULL;
-
-
-ALTER TABLE inspection_parameter_result
 ADD CONSTRAINT fk_reason_master
 FOREIGN KEY (reason_master_id)
 REFERENCES inspection_reason_master(id);
+
+-- =========================================================
+-- SLEEPER FINAL INSPECTION RESULT TABLES
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS sleeper_final_result (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    call_number VARCHAR(100) NOT NULL,
+    po_no VARCHAR(100),
+    sr_no VARCHAR(50),
+    shift VARCHAR(50),
+    date_of_inspection DATE,
+    sleeper_type VARCHAR(100),
+    total_offered_quantity DECIMAL(12,2),
+    total_accepted DECIMAL(12,2),
+    total_rejected DECIMAL(12,2),
+    plant_id VARCHAR(100),
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_sfr_call_no (call_number)
+);
+
+CREATE TABLE IF NOT EXISTS sleeper_batch_results (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    sleeper_final_result_id BIGINT NOT NULL,
+    batch_no VARCHAR(100),
+    batch_offered_quantity DECIMAL(12,2),
+    batch_passed_quantity DECIMAL(12,2),
+    batch_rejected_quantity DECIMAL(12,2),
+    rejected_sleepers LONGTEXT,
+    epoxy_treated_sleepers LONGTEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_sbr_final_result FOREIGN KEY (sleeper_final_result_id) REFERENCES sleeper_final_result(id) ON DELETE CASCADE
+);
+
+ALTER TABLE final_call_et_sleeper
+ADD COLUMN IF NOT EXISTS reason VARCHAR(255) NULL,
+ADD COLUMN IF NOT EXISTS sleeper_final_result_id BIGINT NULL;

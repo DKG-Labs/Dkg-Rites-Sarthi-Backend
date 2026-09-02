@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 public class SleeperIcResponseDto {
 
     private String certificateNo;
+    private String bookNo;
+    private String setNo;
     private LocalDate date;
 
     private Integer offeredInstallmentNumber;

@@ -7,4 +7,6 @@ public class SleeperDto {
 
     private Long sleeperId;
     private String sleeperCode;
+    private String reason;
+    private Long sleeperFinalResultId;
 }

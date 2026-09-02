@@ -1,0 +1,85 @@
+package com.sarthi.Sleeper.entity.FinalInspection;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "SLEEPER_FINAL_IC_SAVE_CHANGES", indexes = {
+    @Index(name = "idx_sleeper_final_ic_save_changes_ic_no", columnList = "IC_NUMBER", unique = true)
+})
+@Data
+public class SleeperFinalIcSaveChanges {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "IC_NUMBER", unique = true, nullable = false)
+    private String icNumber;
+
+    @Column(name = "CERTIFICATE_ID")
+    private Long certificateId;
+
+    @Column(name = "BOOK_NO")
+    private String bookNo;
+
+    @Column(name = "SET_NO")
+    private String setNo;
+
+    @Column(name = "OFFERED_INSTALLMENT_NO")
+    private String offeredInstallmentNo;
+
+    @Column(name = "PASSED_INSTALLMENT_NO")
+    private String passedInstallmentNo;
+
+    @Column(name = "CONSIGNEE", columnDefinition = "TEXT")
+    private String consignee;
+
+    @Column(name = "CUMM_QTY_OFFERED_PREV")
+    private String cummQtyOfferedPrev;
+
+    @Column(name = "QTY_PREV_PASSED")
+    private String qtyPrevPassed;
+
+    @Column(name = "QTY_STILL_DUE")
+    private String qtyStillDue;
+
+    @Column(name = "MA_NUMBER_AND_DATE", columnDefinition = "TEXT")
+    private String maNumberAndDate;
+
+    @Column(name = "PURCHASING_AUTHORITY", columnDefinition = "TEXT")
+    private String purchasingAuthority;
+
+    @Column(name = "DESCRIPTION", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "MANUFACTURER", columnDefinition = "TEXT")
+    private String manufacturer;
+
+    @Column(name = "TR_REC_DATE")
+    private String trRecDate;
+
+    @Column(name = "NO_OF_VISITS")
+    private String noOfVisits;
+
+    @Column(name = "DATES_OF_INSPECTION", columnDefinition = "TEXT")
+    private String datesOfInspection;
+
+    @Column(name = "CREATED_BY")
+    private String createdBy;
+
+    @CreationTimestamp
+    @Column(name = "CREATED_AT", updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "UPDATED_BY")
+    private String updatedBy;
+
+    @UpdateTimestamp
+    @Column(name = "UPDATED_AT")
+    private LocalDateTime updatedAt;
+}

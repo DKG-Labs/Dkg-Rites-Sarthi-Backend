@@ -9,4 +9,5 @@ public class RejectedDto {
     private String sleeperCode;
     private String reason;
     private String type;
+    private Long sleeperFinalResultId;
 }

@@ -17,5 +17,6 @@ public interface FinalCallInspectionService {
     public SleeperScheduleRequest create(SleeperScheduleRequest req);
 
     public SleeperScheduleRequest update(SleeperScheduleRequest req);
-
+    
+    public SleeperScheduleRequest getSchedule(String callNo);
 }

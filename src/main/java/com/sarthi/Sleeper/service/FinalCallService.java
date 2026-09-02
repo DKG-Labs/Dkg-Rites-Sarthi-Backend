@@ -20,4 +20,6 @@ public interface FinalCallService {
     public FinalCallInspectionHeaderResponse update(FinalCallInspectionHeaderRequest dto);
     public FinalCallInspectionHeaderResponse getHeaderByCallNo(String callNo);
 
-    }
+    public com.sarthi.Sleeper.entity.FInalCall.SleeperFinalResult saveOrUpdateSleeperFinalResult(com.sarthi.Sleeper.dto.FinalCalDtos.SleeperFinalResultRequestDto dto);
+    public com.sarthi.Sleeper.entity.FInalCall.SleeperFinalResult getSleeperFinalResult(String callNumber);
+}

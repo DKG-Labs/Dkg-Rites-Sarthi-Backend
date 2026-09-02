@@ -12,20 +12,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sarthi.Sleeper.repository.FInalCallRepo.SleeperBatchResultRepository;
+import com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
 public class FinalCallServiceImpl implements FinalCallService {
 
-
-
-        private final IEBatchSummaryRepository repository;
-
+    private final IEBatchSummaryRepository repository;
     private final FinalCallInspectionHeaderRepository finalCallInspectionHeaderRepository;
+    private final SleeperFinalResultRepository sleeperFinalResultRepository;
+    private final SleeperBatchResultRepository sleeperBatchResultRepository;
 
         // ================= CREATE =================
         public FinalCallResponseDto create(FinalCallRequestDto dto) {
@@ -114,8 +117,13 @@ public class FinalCallServiceImpl implements FinalCallService {
                     item = FinalCallETSleeper.builder()
                             .sleeperId(dto.getSleeperId())
                             .sleeperCode(dto.getSleeperCode())
+                            .reason(dto.getReason())
+                            .sleeperFinalResultId(dto.getSleeperFinalResultId())
                             .batch(entity)
                             .build();
+                } else {
+                    item.setReason(dto.getReason());
+                    item.setSleeperFinalResultId(dto.getSleeperFinalResultId());
                 }
 
                 existing.add(item);
@@ -153,14 +161,15 @@ public class FinalCallServiceImpl implements FinalCallService {
         List<FinalCallRejectedSleeper> existing = entity.getRejectedSleepers();
 
         Map<Long, FinalCallRejectedSleeper> map = existing.stream()
-                .collect(Collectors.toMap(FinalCallRejectedSleeper::getSleeperId, e -> e));
+                .filter(e -> e.getSleeperId() != null)
+                .collect(Collectors.toMap(FinalCallRejectedSleeper::getSleeperId, e -> e, (a, b) -> a));
 
         existing.clear();
 
         if (dtoList != null) {
             for (RejectedDto dto : dtoList) {
 
-                FinalCallRejectedSleeper item = map.get(dto.getSleeperId());
+                FinalCallRejectedSleeper item = dto.getSleeperId() != null ? map.get(dto.getSleeperId()) : null;
 
                 if (item == null) {
                     item = FinalCallRejectedSleeper.builder()
@@ -168,11 +177,13 @@ public class FinalCallServiceImpl implements FinalCallService {
                             .sleeperCode(dto.getSleeperCode())
                             .reason(dto.getReason())
                             .type(dto.getType())
+                            .sleeperFinalResultId(dto.getSleeperFinalResultId())
                             .batch(entity)
                             .build();
                 } else {
                     item.setReason(dto.getReason());
                     item.setType(dto.getType());
+                    item.setSleeperFinalResultId(dto.getSleeperFinalResultId());
                 }
 
                 existing.add(item);
@@ -184,24 +195,27 @@ public class FinalCallServiceImpl implements FinalCallService {
         List<FinalInspectionRejection> existing = entity.getFinalRejections();
 
         Map<Long, FinalInspectionRejection> map = existing.stream()
-                .collect(Collectors.toMap(FinalInspectionRejection::getSleeperId, e -> e));
+                .filter(e -> e.getSleeperId() != null)
+                .collect(Collectors.toMap(FinalInspectionRejection::getSleeperId, e -> e, (a, b) -> a));
 
         existing.clear();
 
         if (dtoList != null) {
             for (RejectedDto dto : dtoList) {
 
-                FinalInspectionRejection item = map.get(dto.getSleeperId());
+                FinalInspectionRejection item = dto.getSleeperId() != null ? map.get(dto.getSleeperId()) : null;
 
                 if (item == null) {
                     item = FinalInspectionRejection.builder()
                             .sleeperId(dto.getSleeperId())
                             .sleeperCode(dto.getSleeperCode())
                             .reason(dto.getReason())
+                            .sleeperFinalResultId(dto.getSleeperFinalResultId())
                             .batch(entity)
                             .build();
                 } else {
                     item.setReason(dto.getReason());
+                    item.setSleeperFinalResultId(dto.getSleeperFinalResultId());
                 }
 
                 existing.add(item);
@@ -272,6 +286,7 @@ public class FinalCallServiceImpl implements FinalCallService {
                                     .sleeperCode(s.getSleeperCode())
                                     .reason(s.getReason())
                                     .type(s.getType())
+                                    .sleeperFinalResultId(s.getSleeperFinalResultId())
                                     .batch(entity)
                                     .build()
                     ));
@@ -284,6 +299,8 @@ public class FinalCallServiceImpl implements FinalCallService {
                             FinalCallETSleeper.builder()
                                     .sleeperId(s.getSleeperId())
                                     .sleeperCode(s.getSleeperCode())
+                                    .reason(s.getReason())
+                                    .sleeperFinalResultId(s.getSleeperFinalResultId())
                                     .batch(entity)
                                     .build()
                     ));
@@ -309,45 +326,65 @@ public class FinalCallServiceImpl implements FinalCallService {
                                     .sleeperId(s.getSleeperId())
                                     .sleeperCode(s.getSleeperCode())
                                     .reason(s.getReason())
+                                    .sleeperFinalResultId(s.getSleeperFinalResultId())
                                     .batch(entity)
                                     .build()
                     ));
         }
+
+        // Auto-link SleeperFinalResultId if available
+        if (dto.getCallNo() != null) {
+            sleeperFinalResultRepository.findByCallNumber(dto.getCallNo().trim()).ifPresent(sfr -> {
+                Long sfrId = sfr.getId();
+                if (entity.getRejectedSleepers() != null) {
+                    entity.getRejectedSleepers().forEach(r -> {
+                        if (r.getSleeperFinalResultId() == null) r.setSleeperFinalResultId(sfrId);
+                    });
+                }
+                if (entity.getFinalRejections() != null) {
+                    entity.getFinalRejections().forEach(r -> {
+                        if (r.getSleeperFinalResultId() == null) r.setSleeperFinalResultId(sfrId);
+                    });
+                }
+                if (entity.getEtSleepers() != null) {
+                    entity.getEtSleepers().forEach(et -> {
+                        if (et.getSleeperFinalResultId() == null) et.setSleeperFinalResultId(sfrId);
+                    });
+                }
+            });
+        }
     }
 
-    private FinalCallResponseDto mapToResponse(IEBatchSummary e) {
+    private FinalCallResponseDto mapToResponse(IEBatchSummary entity) {
 
-        return FinalCallResponseDto.builder()
-                .id(e.getId())
-                .batchNo(e.getBatchNo())
-                .callNo(e.getCallNo())
-                .dateCasted(e.getDateCasted())
+        FinalCallResponseDto dto = new FinalCallResponseDto();
 
-                .casted(e.getCasted())
-                .offeredPrev(e.getOfferedPrev())
-                .offeredNow(e.getOfferedNow())
+        dto.setId(entity.getId());
+        dto.setBatchNo(entity.getBatchNo());
+        dto.setCallNo(entity.getCallNo());
+        dto.setDateCasted(entity.getDateCasted());
+        dto.setCasted(entity.getCasted());
+        dto.setOfferedPrev(entity.getOfferedPrev());
+        dto.setOfferedNow(entity.getOfferedNow());
+        dto.setPassed(entity.getPassed());
+        dto.setRejected(entity.getRejected());
+        dto.setTotalOffered(entity.getTotalOffered());
+        dto.setTotalAccepted(entity.getTotalAccepted());
+        dto.setTotalRejected(entity.getTotalRejected());
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
 
-                .passed(e.getPassed())
-                .rejected(e.getRejected())
+        dto.setGoodSleepers(mapGood(entity.getGoodSleepers()));
+        dto.setRejectedSleepers(mapRejected(entity.getRejectedSleepers()));
+        dto.setEtSleepers(mapGood(entity.getEtSleepers()));
+        dto.setMfSleepers(mapGood(entity.getMfSleepers()));
+        dto.setFinalRejections(mapRejected(entity.getFinalRejections()));
 
-                .totalOffered(e.getTotalOffered())
-                .totalAccepted(e.getTotalAccepted())
-                .totalRejected(e.getTotalRejected())
-
-                .shift(e.getShift())
-                .plantId(e.getPlantId())
-                .vendorCode(e.getVendorCode())
-
-                .goodSleepers(mapSleepers(e.getGoodSleepers()))
-                .etSleepers(mapSleepers(e.getEtSleepers()))
-                .mfSleepers(mapSleepers(e.getMfSleepers()))
-                .rejectedSleepers(mapRejected(e.getRejectedSleepers()))
-                .finalRejections(mapRejected(e.getFinalRejections()))
-
-                .build();
+        return dto;
     }
 
-    private List<SleeperDto> mapSleepers(List<? extends Object> list) {
+    private List<SleeperDto> mapGood(List<? extends Object> list) {
         return list.stream().map(obj -> {
             SleeperDto dto = new SleeperDto();
             if (obj instanceof FinalGoodSleepers s) {
@@ -356,6 +393,8 @@ public class FinalCallServiceImpl implements FinalCallService {
             } else if (obj instanceof FinalCallETSleeper s) {
                 dto.setSleeperId(s.getSleeperId());
                 dto.setSleeperCode(s.getSleeperCode());
+                dto.setReason(s.getReason());
+                dto.setSleeperFinalResultId(s.getSleeperFinalResultId());
             } else if (obj instanceof FinalMFSleeper s) {
                 dto.setSleeperId(s.getSleeperId());
                 dto.setSleeperCode(s.getSleeperCode());
@@ -371,10 +410,12 @@ public class FinalCallServiceImpl implements FinalCallService {
                 dto.setSleeperCode(s.getSleeperCode());
                 dto.setReason(s.getReason());
                 dto.setType(s.getType());
+                dto.setSleeperFinalResultId(s.getSleeperFinalResultId());
             } else if (obj instanceof FinalInspectionRejection s) {
                 dto.setSleeperId(s.getSleeperId());
                 dto.setSleeperCode(s.getSleeperCode());
                 dto.setReason(s.getReason());
+                dto.setSleeperFinalResultId(s.getSleeperFinalResultId());
             }
             return dto;
         }).toList();
@@ -487,4 +528,94 @@ public class FinalCallServiceImpl implements FinalCallService {
                 .build();
     }
 
+    @Transactional
+    @Override
+    public SleeperFinalResult saveOrUpdateSleeperFinalResult(SleeperFinalResultRequestDto dto) {
+        if (dto.getCallNumber() == null || dto.getCallNumber().trim().isEmpty()) {
+            throw new RuntimeException("Call number cannot be empty");
+        }
+
+        SleeperFinalResult result = sleeperFinalResultRepository.findByCallNumber(dto.getCallNumber().trim())
+                .orElseGet(() -> {
+                    SleeperFinalResult newResult = new SleeperFinalResult();
+                    newResult.setCreatedAt(java.time.LocalDateTime.now());
+                    newResult.setCreatedBy(dto.getCreatedBy());
+                    return newResult;
+                });
+
+        result.setCallNumber(dto.getCallNumber().trim());
+        result.setPoNo(dto.getPoNo());
+        result.setSrNo(dto.getSrNo());
+        result.setShift(dto.getShift());
+        if (dto.getDateOfInspection() != null && !dto.getDateOfInspection().trim().isEmpty()) {
+            try {
+                result.setDateOfInspection(CommonUtils.convertStringToDateObject(dto.getDateOfInspection()));
+            } catch (Exception e) {
+                try {
+                    result.setDateOfInspection(LocalDate.parse(dto.getDateOfInspection()));
+                } catch (Exception ex) {
+                    result.setDateOfInspection(LocalDate.now());
+                }
+            }
+        } else if (result.getDateOfInspection() == null) {
+            result.setDateOfInspection(LocalDate.now());
+        }
+
+        result.setSleeperType(dto.getSleeperType());
+        result.setTotalOfferedQuantity(dto.getTotalOfferedQuantity());
+        result.setTotalAccepted(dto.getTotalAccepted());
+        result.setTotalRejected(dto.getTotalRejected());
+        result.setPlantId(dto.getPlantId());
+        result.setUpdatedBy(dto.getUpdatedBy());
+        result.setUpdatedAt(java.time.LocalDateTime.now());
+
+        SleeperFinalResult saved = sleeperFinalResultRepository.save(result);
+
+        // Save / Update batch results
+        if (dto.getBatches() != null && !dto.getBatches().isEmpty()) {
+            // Remove existing batch results if any
+            sleeperBatchResultRepository.deleteBySleeperFinalResultId(saved.getId());
+            sleeperBatchResultRepository.flush();
+
+            List<SleeperBatchResult> batchEntities = new java.util.ArrayList<>();
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            for (SleeperBatchResultDto bDto : dto.getBatches()) {
+                String rejectedJson = "[]";
+                String etJson = "[]";
+                try {
+                    if (bDto.getRejectedSleepers() != null) {
+                        rejectedJson = objectMapper.writeValueAsString(bDto.getRejectedSleepers());
+                    }
+                    if (bDto.getEpoxyTreatedSleepers() != null) {
+                        etJson = objectMapper.writeValueAsString(bDto.getEpoxyTreatedSleepers());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error serializing sleepers JSON: " + e.getMessage());
+                }
+
+                SleeperBatchResult bEntity = SleeperBatchResult.builder()
+                        .sleeperFinalResult(saved)
+                        .batchNo(bDto.getBatchNo())
+                        .batchOfferedQuantity(bDto.getBatchOfferedQuantity())
+                        .batchPassedQuantity(bDto.getBatchPassedQuantity())
+                        .batchRejectedQuantity(bDto.getBatchRejectedQuantity())
+                        .rejectedSleepers(rejectedJson)
+                        .epoxyTreatedSleepers(etJson)
+                        .createdAt(java.time.LocalDateTime.now())
+                        .updatedAt(java.time.LocalDateTime.now())
+                        .build();
+
+                batchEntities.add(bEntity);
+            }
+            sleeperBatchResultRepository.saveAll(batchEntities);
+        }
+
+        return saved;
+    }
+
+    @Override
+    public SleeperFinalResult getSleeperFinalResult(String callNumber) {
+        return sleeperFinalResultRepository.findByCallNumber(callNumber).orElse(null);
+    }
 }

@@ -22,6 +22,9 @@ public class FinalCallRejectedSleeper {
     private String reason;
     private String type;
 
+    @Column(name = "sleeper_final_result_id")
+    private Long sleeperFinalResultId;
+
     @ManyToOne
     @JoinColumn(name = "batch_id")
     private IEBatchSummary batch;

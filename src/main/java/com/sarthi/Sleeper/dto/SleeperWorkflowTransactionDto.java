@@ -81,4 +81,18 @@ public class SleeperWorkflowTransactionDto {
     private LocalDate validFrom;
     private LocalDate validTo;
 
+    // Call Desk & Inspection details
+    private String poNo;
+    private String poSr;
+    private String rlyShortName;
+    private String rlyPoSrNo;
+    private String vendorName;
+    private String stageOfInspection;
+    private String placeOfInspection;
+    private LocalDate desiredInspectionDate;
+    private String dpDate;
+    private String extDpDate;
+    private String ieName;
+    private String productType;
+
 }

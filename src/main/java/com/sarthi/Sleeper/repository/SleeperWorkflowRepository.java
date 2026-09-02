@@ -39,7 +39,9 @@ public interface SleeperWorkflowRepository
         GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
     )
     AND (t.moduleId = t.moduleId OR (t.moduleId IS NULL AND t.moduleId IS NULL))
-    AND t.status IN ('Created','PENDING')
+    AND UPPER(t.status) IN ('CREATED','PENDING')
+    AND UPPER(COALESCE(t.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
+    AND UPPER(COALESCE(t.jobStatus, '')) NOT IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
     AND t.nextRole = :roleName
 """ )
    List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
@@ -87,10 +89,68 @@ WHERE t.workflowTransitionId IN (
     GROUP BY t2.requestId
 )
 AND UPPER(t.status) IN ('CREATED','PENDING')
+AND UPPER(COALESCE(t.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
+AND UPPER(COALESCE(t.jobStatus, '')) NOT IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
 AND t.nextRole = :roleName
 ORDER BY t.workflowTransitionId DESC
 """)
     List<SleeperWorkflowTransaction> findLatestByRole(String roleName);
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        GROUP BY t2.requestId
+    )
+    AND UPPER(t.status) IN ('CREATED','PENDING')
+    AND UPPER(COALESCE(t.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
+    AND UPPER(COALESCE(t.jobStatus, '')) NOT IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+    AND t.nextRole = :roleName
+    AND (:assignedTo IS NULL OR t.assignedToUser = :assignedTo)
+    AND (
+        :plantId IS NULL OR :plantId = '' 
+        OR t.plantId IS NULL OR t.plantId = '' 
+        OR LOWER(t.plantId) LIKE LOWER(CONCAT('%', :plantId, '%')) 
+        OR LOWER(:plantId) LIKE LOWER(CONCAT('%', t.plantId, '%'))
+        OR REPLACE(LOWER(COALESCE(t.plantId, '')), ':', '') = REPLACE(LOWER(:plantId), ':', '')
+    )
+    ORDER BY t.workflowTransitionId DESC
+    """)
+    List<SleeperWorkflowTransaction> findLatestByRoleAndAssignedTo(
+            @Param("roleName") String roleName,
+            @Param("assignedTo") Long assignedTo,
+            @Param("plantId") String plantId);
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        GROUP BY t2.requestId
+    )
+    AND UPPER(t.status) IN ('CREATED','PENDING')
+    AND UPPER(COALESCE(t.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
+    AND UPPER(COALESCE(t.jobStatus, '')) NOT IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+    AND t.nextRole = :roleName
+    AND (
+        :rio IS NULL OR :rio = '' 
+        OR t.rio = :rio 
+        OR LOWER(t.rio) = LOWER(:rio)
+    )
+    AND (
+        :plantId IS NULL OR :plantId = '' 
+        OR t.plantId IS NULL OR t.plantId = '' 
+        OR LOWER(t.plantId) LIKE LOWER(CONCAT('%', :plantId, '%')) 
+        OR LOWER(:plantId) LIKE LOWER(CONCAT('%', t.plantId, '%'))
+        OR REPLACE(LOWER(COALESCE(t.plantId, '')), ':', '') = REPLACE(LOWER(:plantId), ':', '')
+    )
+    ORDER BY t.workflowTransitionId DESC
+    """)
+    List<SleeperWorkflowTransaction> findLatestByRoleAndRio(
+            @Param("roleName") String roleName,
+            @Param("rio") String rio,
+            @Param("plantId") String plantId);
 
     @Query("""
                 SELECT t FROM SleeperWorkflowTransaction t
@@ -142,8 +202,13 @@ ORDER BY t.workflowTransitionId DESC
         WHERE t2.workflowId = 2
         GROUP BY t2.requestId
     )
-    AND t.status = 'Completed'
+    AND (
+        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+    )
     AND t.workflowId = 2
+    ORDER BY t.workflowTransitionId DESC
 """)
     List<SleeperWorkflowTransaction> findFinalCompletedRequests();
 
