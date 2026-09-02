@@ -98,15 +98,4 @@ WHERE (REPLACE(rpm.plant_id, ':', '') = REPLACE(:plantId, ':', '') OR (:poiCode 
             @org.springframework.data.repository.query.Param("plantId") String plantId,
             @org.springframework.data.repository.query.Param("poiCode") String poiCode
     );
-
-    @org.springframework.data.jpa.repository.Query(value = """
-SELECT DISTINCT um.* 
-FROM user_master um 
-JOIN rail_poi_ie_mapping rpm ON rpm.ie_user_id = um.userid 
-WHERE UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'MAIN_IE' 
-   OR UPPER(rpm.ie_type) = 'MAIN IE' 
-   OR UPPER(rpm.ie_type) LIKE '%MAIN%'
-ORDER BY COALESCE(NULLIF(TRIM(um.FULL_NAME), ''), um.username) ASC
-""", nativeQuery = true)
-    List<com.sarthi.entity.UserMaster> findDistinctMainIeUsers();
 }

@@ -378,14 +378,17 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 int sumQty = qtyLong.intValue();
 
                 if (bNo != null) {
-                    String normD = dNo.replaceAll("(?i)^(RDSO/|RDSO-)", "").trim().toUpperCase();
-                    offeredMap.put(bNo + "|" + dNo, offeredMap.getOrDefault(bNo + "|" + dNo, 0) + sumQty);
-                    if (!normD.isEmpty()) {
-                        offeredMap.put(bNo + "|" + normD, offeredMap.getOrDefault(bNo + "|" + normD, 0) + sumQty);
-                        offeredMap.put(bNo + "|RDSO/" + normD, offeredMap.getOrDefault(bNo + "|RDSO/" + normD, 0) + sumQty);
-                        offeredMap.put(bNo + "|RDSO-" + normD, offeredMap.getOrDefault(bNo + "|RDSO-" + normD, 0) + sumQty);
+                    String cleanExactD = dNo.trim().toUpperCase();
+                    String normD = normalizeDrawingNo(dNo);
+
+                    if (!cleanExactD.isEmpty()) {
+                        String exactKey = bNo + "|" + cleanExactD;
+                        offeredMap.put(exactKey, offeredMap.getOrDefault(exactKey, 0) + sumQty);
                     }
-                    offeredMap.put(bNo + "|ALL", offeredMap.getOrDefault(bNo + "|ALL", 0) + sumQty);
+                    if (!normD.isEmpty()) {
+                        String normKey = bNo + "|" + normD;
+                        offeredMap.put(normKey, offeredMap.getOrDefault(normKey, 0) + sumQty);
+                    }
                 }
             }
         }
@@ -396,17 +399,15 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             String dNo = b.getDrawingNo() != null ? b.getDrawingNo().trim() : "";
             int alreadyOffered = 0;
 
-            String normD = dNo.replaceAll("(?i)^(RDSO/|RDSO-)", "").trim().toUpperCase();
+            String cleanExactD = dNo.trim().toUpperCase();
+            String normD = normalizeDrawingNo(dNo);
+
             if (!normD.isEmpty() && offeredMap.containsKey(bNo + "|" + normD)) {
                 alreadyOffered = offeredMap.get(bNo + "|" + normD);
-            } else if (!dNo.isEmpty() && offeredMap.containsKey(bNo + "|" + dNo)) {
-                alreadyOffered = offeredMap.get(bNo + "|" + dNo);
-            } else if (!normD.isEmpty() && offeredMap.containsKey(bNo + "|RDSO/" + normD)) {
-                alreadyOffered = offeredMap.get(bNo + "|RDSO/" + normD);
-            } else if (!normD.isEmpty() && offeredMap.containsKey(bNo + "|RDSO-" + normD)) {
-                alreadyOffered = offeredMap.get(bNo + "|RDSO-" + normD);
+            } else if (!cleanExactD.isEmpty() && offeredMap.containsKey(bNo + "|" + cleanExactD)) {
+                alreadyOffered = offeredMap.get(bNo + "|" + cleanExactD);
             } else {
-                alreadyOffered = offeredMap.getOrDefault(bNo + "|ALL", 0);
+                alreadyOffered = 0;
             }
 
             int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
@@ -419,6 +420,15 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         }
         dto.setBatches(availableBatches);
         return dto;
+    }
+
+    private String normalizeDrawingNo(String dNo) {
+        if (dNo == null) return "";
+        String clean = dNo.trim().toUpperCase()
+                .replaceAll("(?i)^(RDSO[/\\-_\\s]*)", "")
+                .replaceAll("(?i)^(RT|T)[/\\-_\\s]*", "")
+                .replaceAll("[\\-_\\s/]", "");
+        return clean.isEmpty() ? dNo.trim().toUpperCase() : clean;
     }
 
     private void recordHistory(RailProcessCallDetails details, String fieldName, String oldValue, String newValue, Long userId) {

@@ -124,6 +124,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 requestPath.startsWith("/v3/api-docs") ||
                 requestPath.startsWith("/swagger-ui") ||
                 requestPath.startsWith("/dashboard/images") ||
+                requestPath.startsWith("/api/images") ||
                 requestPath.startsWith("/public");
     }
 }

@@ -48,6 +48,12 @@ public class RailIEProductionVerificationController {
         return ResponseEntity.ok(ResponseBuilder.getSuccessResponse("Record deleted successfully"));
     }
 
+    @RequestMapping(value = "/unblock/{requestId}", method = {RequestMethod.POST, RequestMethod.DELETE})
+    public ResponseEntity<APIResponse> unblockProductionVerification(@PathVariable Long requestId) {
+        service.unblockProductionVerification(requestId);
+        return ResponseEntity.ok(ResponseBuilder.getSuccessResponse("Production declaration unblocked and returned to pending list successfully"));
+    }
+
     @DeleteMapping("/delete-verified-production")
     public ResponseEntity<APIResponse> deleteVerifiedProduction(
             @RequestParam String date,

@@ -1501,8 +1501,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     public List<String> getMappedPlantIdsForUser(Integer userId, String ieType) {
         List<RailPoiIeMapping> mappings = poiIeMappingRepository.findByIeUserId(userId);
         return mappings.stream()
-                .filter(m -> m.getIeType() != null && m.getIeType().replace(" ", "_").equalsIgnoreCase(ieType.replace(" ", "_")))
+                .filter(m -> m.getIeType() != null && (ieType == null || ieType.isBlank() || ieType.equalsIgnoreCase("ALL") || m.getIeType().replace(" ", "_").equalsIgnoreCase(ieType.replace(" ", "_"))))
                 .map(RailPoiIeMapping::getPlantId)
+                .filter(p -> p != null && !p.isBlank())
                 .distinct()
                 .toList();
     }
@@ -1828,18 +1829,29 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers() {
-        List<UserMaster> users = poiIeMappingRepository.findDistinctMainIeUsers();
+        List<UserMaster> users = userMasterRepository.findUsersByRoleId(15);
+        if (users == null || users.isEmpty()) {
+            users = userMasterRepository.findUsersByRoleNameViaJoin("Rail Main IE");
+        }
+        if (users == null || users.isEmpty()) {
+            users = userMasterRepository.findByRoleNameContaining("Rail Main IE");
+        }
+        if (users == null || users.isEmpty()) {
+            users = userMasterRepository.findByRoleNameContaining("Railpad Main IE");
+        }
         if (users == null || users.isEmpty()) {
             users = userMasterRepository.findByRoleNameContaining("Main IE");
         }
         List<java.util.Map<String, Object>> available = new ArrayList<>();
-        for (UserMaster u : users) {
-            java.util.Map<String, Object> emp = new java.util.HashMap<>();
-            emp.put("userId", u.getUserId());
-            emp.put("employeeCode", u.getEmployeeCode());
-            emp.put("fullName", u.getFullName());
-            emp.put("role", "Rail Main IE");
-            available.add(emp);
+        if (users != null) {
+            for (UserMaster u : users) {
+                java.util.Map<String, Object> emp = new java.util.HashMap<>();
+                emp.put("userId", u.getUserId());
+                emp.put("employeeCode", u.getEmployeeCode());
+                emp.put("fullName", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
+                emp.put("role", "Rail Main IE");
+                available.add(emp);
+            }
         }
         return available;
     }
