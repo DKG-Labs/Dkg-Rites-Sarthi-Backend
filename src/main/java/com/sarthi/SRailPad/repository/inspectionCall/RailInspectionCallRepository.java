@@ -144,7 +144,19 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 0                                                       AS quantityPassed,
                 0                                                       AS quantityRejected,
                 ic.call_no                                              AS callNo,
-                ic.call_no                                              AS callNumber,
+                COALESCE(
+                    NULLIF(ricd.certificate_no, ''),
+                    CONCAT(
+                        COALESCE(
+                            NULLIF(LEFT(TRIM(wt_assigned.rio), 1), ''),
+                            'C'
+                        ),
+                        '/',
+                        ic.call_no,
+                        '/',
+                        UPPER(COALESCE(NULLIF(um_assigned.short_name, ''), 'IE'))
+                    )
+                )                                                       AS callNumber,
                 COALESCE(
                     (CASE WHEN cd.cancellation_basis = 'CHARGEABLE' THEN COALESCE(cd.final_cancellation_charges, cd.calculated_charges, 0) ELSE 0 END),
                     (CASE WHEN vfl_c.liability_type = 'CANCELLATION_CHARGES' THEN COALESCE(vfl_c.amount, 0) ELSE 0 END),
@@ -153,7 +165,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 0.0                                                     AS rejectionCharges
             FROM rail_inspection_call ic
             LEFT JOIN (
-                SELECT rwt1.request_id, rwt1.assigned_to_user
+                SELECT rwt1.request_id, rwt1.assigned_to_user, rwt1.rio
                 FROM rail_workflow_transaction rwt1
                 INNER JOIN (
                     SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
@@ -166,6 +178,17 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                     ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                    ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT ricd1.call_no, ricd1.certificate_no
+                FROM rail_inspection_complete_details ricd1
+                INNER JOIN (
+                    SELECT call_no, MAX(id) AS max_id
+                    FROM rail_inspection_complete_details
+                    GROUP BY call_no
+                ) latest_ricd
+                    ON ricd1.id = latest_ricd.max_id
+            ) ricd
+                    ON CONVERT(ricd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_call_cancellation_details cd
                    ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_workflow_transaction wt
@@ -221,6 +244,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 rpp.poi_code,
                 pm.ibs_vendor_code,
                 um_assigned.employee_code,
+                um_assigned.short_name,
                 um.employee_code,
                 cd.created_by,
                 wt.created_by,
@@ -232,6 +256,8 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 wt.created_date,
                 ic.total_qty,
                 ic.call_no,
+                ricd.certificate_no,
+                wt_assigned.rio,
                 cd.cancellation_basis,
                 cd.final_cancellation_charges,
                 cd.calculated_charges,
