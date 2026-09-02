@@ -950,7 +950,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
         // --- Save to inspection_complete_details when Railpad inspection is FINISHED ---
-        if (current.getWorkflowId().equals(2L) && "COMPLETED".equalsIgnoreCase(tx.getStatus()) && req.getAction().equalsIgnoreCase("FINISH")) {
+        if ((Long.valueOf(1L).equals(current.getWorkflowId()) || Long.valueOf(2L).equals(current.getWorkflowId())) && "COMPLETED".equalsIgnoreCase(tx.getStatus()) && req.getAction().equalsIgnoreCase("FINISH")) {
             Optional<RailInspectionCall> callOpt = railInspectionCallRepository.findByCallNo(tx.getRequestId());
             if (callOpt.isPresent()) {
                 Optional<RailInspectionCompleteDetails> existingOpt = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId());

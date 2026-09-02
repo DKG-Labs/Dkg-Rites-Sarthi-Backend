@@ -33,7 +33,20 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
                 COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,
                 ic.call_no                                              AS callNo,
-                f.ic_number                                             AS callNumber
+                COALESCE(
+                    NULLIF(ricd.certificate_no, ''),
+                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
+                    CONCAT(
+                        COALESCE(
+                            NULLIF(LEFT(TRIM(wt_assigned.rio), 1), ''),
+                            'C'
+                        ),
+                        '/',
+                        ic.call_no,
+                        '/',
+                        UPPER(COALESCE(NULLIF(um_assigned.short_name, ''), NULLIF(um.short_name, ''), 'IE'))
+                    )
+                )                                                       AS callNumber
             FROM railpad_final_ic_edit f
             INNER JOIN rail_inspection_call ic
                     ON CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -42,7 +55,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                     OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
-                SELECT rwt1.request_id, rwt1.assigned_to_user
+                SELECT rwt1.request_id, rwt1.assigned_to_user, rwt1.rio
                 FROM rail_workflow_transaction rwt1
                 INNER JOIN (
                     SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
@@ -55,6 +68,17 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                     ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                    ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT ricd1.call_no, ricd1.certificate_no
+                FROM rail_inspection_complete_details ricd1
+                INNER JOIN (
+                    SELECT call_no, MAX(id) AS max_id
+                    FROM rail_inspection_complete_details
+                    GROUP BY call_no
+                ) latest_ricd
+                    ON ricd1.id = latest_ricd.max_id
+            ) ricd
+                    ON CONVERT(ricd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -93,7 +117,9 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 rpp.poi_code,
                 pm.ibs_vendor_code,
                 um_assigned.employee_code,
+                um_assigned.short_name,
                 um.employee_code,
+                um.short_name,
                 f.created_by,
                 ic.created_by,
                 ic.po_no,
@@ -103,6 +129,8 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 f.created_at,
                 ic.call_no,
                 f.ic_number,
+                ricd.certificate_no,
+                wt_assigned.rio,
                 ic.total_qty
             """, nativeQuery = true)
     List<Object[]> getRailpadFinalInspectionCalls();
