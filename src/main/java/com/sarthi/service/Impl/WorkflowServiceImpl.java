@@ -9,20 +9,27 @@ import com.sarthi.dto.WorkflowDtos.TransitionActionReqDto;
 import com.sarthi.dto.WorkflowDtos.TransitionDto;
 import com.sarthi.dto.WorkflowDtos.WorkflowTransitionDto;
 import com.sarthi.entity.*;
+import com.sarthi.entity.WorkflowDeleteHistory;
+import com.sarthi.entity.finalmaterial.FinalIcEdit;
+import com.sarthi.entity.processmaterial.ProcessIcEdit;
 import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmHeatQuantity;
+import com.sarthi.entity.rawmaterial.RmIcEdit;
 import com.sarthi.entity.rawmaterial.RmInspectionDetails;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
+import com.sarthi.repository.finalmaterial.FinalIcEditRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalProcessIcMappingRepository;
+import com.sarthi.repository.processmaterial.ProcessIcEditRepository;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
+import com.sarthi.repository.rawmaterial.RmIcEditRepository;
 import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
 import com.sarthi.service.WorkflowService;
 
@@ -143,7 +150,14 @@ public class WorkflowServiceImpl implements WorkflowService {
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
     @Autowired(required = false)
     private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
-
+    @Autowired
+    private WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
+    @Autowired
+    private RmIcEditRepository  rmIcEditRepository;
+    @Autowired
+    private ProcessIcEditRepository  processIcEditRepository;
+    @Autowired
+    private FinalIcEditRepository finalIcEditRepository;
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
 
@@ -4987,4 +5001,504 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
 
         return dto;
     }
+
+
+
+
+    @Transactional
+    public void deleteInspectionCompleteRequest(
+            String requestId,
+            Integer deletedBy) {
+
+        // ---------------------------------------------------------
+        // 0. Validate request ID
+        // ---------------------------------------------------------
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Request ID is required");
+        }
+
+        final String normalizedRequestId =
+                requestId.trim().toUpperCase();
+
+        // ---------------------------------------------------------
+        // 1. Validate request ID prefix
+        // ---------------------------------------------------------
+        String requestType;
+
+        if (normalizedRequestId.startsWith("EF")) {
+            requestType = "EF";
+        } else if (normalizedRequestId.startsWith("ER")) {
+            requestType = "ER";
+        } else if (normalizedRequestId.startsWith("EP")) {
+            requestType = "EP";
+        } else {
+            throw new IllegalArgumentException(
+                    "Unsupported request ID prefix: "
+                            + normalizedRequestId);
+        }
+
+        // ---------------------------------------------------------
+        // 2. Get latest workflow transition
+        // ---------------------------------------------------------
+        WorkflowTransition transition =
+                workflowTransitionRepository
+                        .findTopByRequestIdOrderByWorkflowTransitionIdDesc(
+                                normalizedRequestId);
+
+        if (transition == null) {
+            throw new RuntimeException(
+                    "No workflow transition found for request ID: "
+                            + normalizedRequestId);
+        }
+
+        // ---------------------------------------------------------
+        // 3. Validate latest transition status
+        // ---------------------------------------------------------
+        if (!"INSPECTION_COMPLETE_CONFIRM"
+                .equalsIgnoreCase(transition.getStatus())) {
+
+            throw new IllegalStateException(
+                    "Request " + normalizedRequestId
+                            + " cannot be deleted. Latest transition status is: "
+                            + transition.getStatus());
+        }
+
+        // ---------------------------------------------------------
+        // 4. Get inspection complete details
+        // ---------------------------------------------------------
+        InspectionCompleteDetails inspectionDetails =
+                inspectionCompleteDetailsRepository
+                        .findByCallNo(normalizedRequestId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Inspection complete details not found for request ID: "
+                                                + normalizedRequestId));
+
+        // ---------------------------------------------------------
+        // 5. Create history BEFORE deleting anything
+        // ---------------------------------------------------------
+        WorkflowDeleteHistory history =
+                new WorkflowDeleteHistory();
+
+        // Request information
+        history.setRequestId(normalizedRequestId);
+        history.setRequestType(requestType);
+
+        // ---------------------------------------------------------
+        // Workflow information
+        // ---------------------------------------------------------
+        history.setWorkflowTransitionId(
+                transition.getWorkflowTransitionId());
+
+        history.setWorkflowId(
+                transition.getWorkflowId());
+
+        history.setTransitionId(
+                transition.getTransitionId());
+
+        history.setCurrentRole(
+                transition.getCurrentRole());
+
+        history.setNextRole(
+                transition.getNextRole());
+
+        history.setCurrentRoleName(
+                transition.getCurrentRoleName());
+
+        history.setNextRoleName(
+                transition.getNextRoleName());
+
+        history.setStatus(
+                transition.getStatus());
+
+        history.setAction(
+                transition.getAction());
+
+        history.setRemarks(
+                transition.getRemarks());
+
+        history.setCreatedBy(
+                transition.getCreatedBy());
+
+        history.setModifiedBy(
+                transition.getModifiedBy());
+
+        history.setAssignedToUser(
+                transition.getAssignedToUser());
+
+        history.setJobStatus(
+                transition.getJobStatus());
+
+        history.setProcessIeUserId(
+                transition.getProcessIeUserId());
+
+        history.setWorkflowSequence(
+                transition.getWorkflowSequence());
+
+        history.setRio(
+                transition.getRio());
+
+        history.setSwiftCode(
+                transition.getSwiftCode());
+
+        history.setPrimarySwift(
+                transition.getPrimarySwift());
+
+        history.setTransitionCreatedDate(
+                transition.getCreatedDate());
+
+        // ---------------------------------------------------------
+        // Inspection complete details
+        // ---------------------------------------------------------
+        history.setPoNo(
+                inspectionDetails.getPoNo());
+
+        history.setCertificateNo(
+                inspectionDetails.getCertificateNo());
+
+        history.setInspectionCreatedOn(
+                inspectionDetails.getCreatedOn());
+
+        // ---------------------------------------------------------
+        // Deletion audit information
+        // ---------------------------------------------------------
+        history.setDeletedBy(deletedBy);
+        history.setDeletedOn(new Date());
+
+        // Save history FIRST
+        workflowDeleteHistoryRepository.save(history);
+
+        // ---------------------------------------------------------
+        // 6. EF -> Delete FINAL_IE_MAPPING
+        // ---------------------------------------------------------
+        if ("EF".equals(requestType)) {
+
+            finalIeMappingRepository
+                    .deleteByRequestId(normalizedRequestId);
+        }
+
+        // ---------------------------------------------------------
+        // 7. Delete inspection complete details
+        // ---------------------------------------------------------
+        inspectionCompleteDetailsRepository
+                .deleteByCallNo(normalizedRequestId);
+
+        // ---------------------------------------------------------
+        // 8. Delete latest workflow transition
+        // ---------------------------------------------------------
+        workflowTransitionRepository.delete(transition);
+    }
+
+
+    @Transactional
+    public void deleteEsignTransition(
+            String requestId,
+            Integer deletedBy) {
+
+        // ---------------------------------------------------------
+        // 1. Validate request ID
+        // ---------------------------------------------------------
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Request ID is required");
+        }
+
+        final String normalizedRequestId =
+                requestId.trim().toUpperCase();
+
+        // ---------------------------------------------------------
+        // 2. Validate request type
+        // ---------------------------------------------------------
+        String requestType;
+
+        if (normalizedRequestId.startsWith("ER")) {
+            requestType = "ER";
+        } else if (normalizedRequestId.startsWith("EF")) {
+            requestType = "EF";
+        } else if (normalizedRequestId.startsWith("EP")) {
+            requestType = "EP";
+        } else {
+            throw new IllegalArgumentException(
+                    "Unsupported request ID: " + normalizedRequestId);
+        }
+
+        // ---------------------------------------------------------
+        // 3. Get latest two workflow transitions
+        // ---------------------------------------------------------
+        List<WorkflowTransition> transitions =
+                workflowTransitionRepository
+                        .findTop2ByRequestIdOrderByWorkflowTransitionIdDesc(
+                                normalizedRequestId);
+
+        if (transitions.size() < 2) {
+            throw new IllegalStateException(
+                    "Required workflow transitions not found for request ID: "
+                            + normalizedRequestId);
+        }
+
+        // Latest transition
+        WorkflowTransition dscSignTransition = transitions.get(0);
+
+        // Previous transition
+        WorkflowTransition generateIcTransition = transitions.get(1);
+
+        // ---------------------------------------------------------
+        // 4. Validate latest transition
+        // ---------------------------------------------------------
+        if (!"DSC_SIGN_IC".equalsIgnoreCase(
+                dscSignTransition.getStatus())) {
+
+            throw new IllegalStateException(
+                    "Request " + normalizedRequestId
+                            + " cannot be deleted. Latest transition status is: "
+                            + dscSignTransition.getStatus());
+        }
+
+        // ---------------------------------------------------------
+        // 5. Validate previous transition
+        // ---------------------------------------------------------
+        if (!"GENERATE_IC".equalsIgnoreCase(
+                generateIcTransition.getStatus())) {
+
+            throw new IllegalStateException(
+                    "Request " + normalizedRequestId
+                            + " cannot be deleted. Previous transition status is: "
+                            + generateIcTransition.getStatus());
+        }
+
+        // ---------------------------------------------------------
+        // 6. Save DSC_SIGN_IC history
+        // ---------------------------------------------------------
+        WorkflowDeleteHistory dscHistory =
+                new WorkflowDeleteHistory();
+
+        dscHistory.setRequestId(
+                dscSignTransition.getRequestId());
+
+        dscHistory.setWorkflowTransitionId(
+                dscSignTransition.getWorkflowTransitionId());
+
+        dscHistory.setWorkflowId(
+                dscSignTransition.getWorkflowId());
+
+        dscHistory.setTransitionId(
+                dscSignTransition.getTransitionId());
+
+        dscHistory.setCurrentRole(
+                dscSignTransition.getCurrentRole());
+
+        dscHistory.setNextRole(
+                dscSignTransition.getNextRole());
+
+        dscHistory.setCurrentRoleName(
+                dscSignTransition.getCurrentRoleName());
+
+        dscHistory.setNextRoleName(
+                dscSignTransition.getNextRoleName());
+
+        dscHistory.setStatus(
+                dscSignTransition.getStatus());
+
+        dscHistory.setAction(
+                dscSignTransition.getAction());
+
+        dscHistory.setRemarks(
+                dscSignTransition.getRemarks());
+
+        dscHistory.setCreatedBy(
+                dscSignTransition.getCreatedBy());
+
+        dscHistory.setModifiedBy(
+                dscSignTransition.getModifiedBy());
+
+        dscHistory.setAssignedToUser(
+                dscSignTransition.getAssignedToUser());
+
+        dscHistory.setJobStatus(
+                dscSignTransition.getJobStatus());
+
+        dscHistory.setProcessIeUserId(
+                dscSignTransition.getProcessIeUserId());
+
+        dscHistory.setWorkflowSequence(
+                dscSignTransition.getWorkflowSequence());
+
+        dscHistory.setRio(
+                dscSignTransition.getRio());
+
+        dscHistory.setSwiftCode(
+                dscSignTransition.getSwiftCode());
+
+        dscHistory.setPrimarySwift(
+                dscSignTransition.getPrimarySwift());
+
+        dscHistory.setTransitionCreatedDate(
+                dscSignTransition.getCreatedDate());
+
+        dscHistory.setDeletedBy(deletedBy);
+        dscHistory.setDeletedOn(new Date());
+
+        workflowDeleteHistoryRepository.save(dscHistory);
+
+        // ---------------------------------------------------------
+        // 7. Save GENERATE_IC history
+        // ---------------------------------------------------------
+        WorkflowDeleteHistory generateHistory =
+                new WorkflowDeleteHistory();
+
+        generateHistory.setRequestId(
+                generateIcTransition.getRequestId());
+
+        generateHistory.setWorkflowTransitionId(
+                generateIcTransition.getWorkflowTransitionId());
+
+        generateHistory.setWorkflowId(
+                generateIcTransition.getWorkflowId());
+
+        generateHistory.setTransitionId(
+                generateIcTransition.getTransitionId());
+
+        generateHistory.setCurrentRole(
+                generateIcTransition.getCurrentRole());
+
+        generateHistory.setNextRole(
+                generateIcTransition.getNextRole());
+
+        generateHistory.setCurrentRoleName(
+                generateIcTransition.getCurrentRoleName());
+
+        generateHistory.setNextRoleName(
+                generateIcTransition.getNextRoleName());
+
+        generateHistory.setStatus(
+                generateIcTransition.getStatus());
+
+        generateHistory.setAction(
+                generateIcTransition.getAction());
+
+        generateHistory.setRemarks(
+                generateIcTransition.getRemarks());
+
+        generateHistory.setCreatedBy(
+                generateIcTransition.getCreatedBy());
+
+        generateHistory.setModifiedBy(
+                generateIcTransition.getModifiedBy());
+
+        generateHistory.setAssignedToUser(
+                generateIcTransition.getAssignedToUser());
+
+        generateHistory.setJobStatus(
+                generateIcTransition.getJobStatus());
+
+        generateHistory.setProcessIeUserId(
+                generateIcTransition.getProcessIeUserId());
+
+        generateHistory.setWorkflowSequence(
+                generateIcTransition.getWorkflowSequence());
+
+        generateHistory.setRio(
+                generateIcTransition.getRio());
+
+        generateHistory.setSwiftCode(
+                generateIcTransition.getSwiftCode());
+
+        generateHistory.setPrimarySwift(
+                generateIcTransition.getPrimarySwift());
+
+        generateHistory.setTransitionCreatedDate(
+                generateIcTransition.getCreatedDate());
+
+        generateHistory.setDeletedBy(deletedBy);
+        generateHistory.setDeletedOn(new Date());
+
+        workflowDeleteHistoryRepository.save(generateHistory);
+
+        // ---------------------------------------------------------
+        // 8. ER specific processing
+        // ---------------------------------------------------------
+        if ("ER".equals(requestType)) {
+
+            // -----------------------------------------------------
+            // Get inspection complete details using CALL_NO
+            // -----------------------------------------------------
+            InspectionCompleteDetails inspectionDetails =
+                    inspectionCompleteDetailsRepository
+                            .findByCallNo(normalizedRequestId)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Inspection complete details not found for request ID: "
+                                                    + normalizedRequestId));
+
+            // CERTIFICATE_NO is the IC number
+            String icNumber =
+                    inspectionDetails.getCertificateNo();
+
+            if (icNumber == null || icNumber.trim().isEmpty()) {
+                throw new IllegalStateException(
+                        "Certificate number not found for request ID: "
+                                + normalizedRequestId);
+            }
+
+            // -----------------------------------------------------
+            // RM_IC
+            // -----------------------------------------------------
+            RmIcEdit rmIc =
+                    rmIcEditRepository
+                            .findByIcNumber(icNumber)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "RM_IC record not found for IC number: "
+                                                    + icNumber));
+
+            rmIc.setStatus("DELETED");
+            rmIc.setDeletedBy(deletedBy);
+
+            rmIcEditRepository.save(rmIc);
+
+            // -----------------------------------------------------
+            // PROCESS_IC
+            // -----------------------------------------------------
+            ProcessIcEdit processIc =
+                    processIcEditRepository
+                            .findByIcNumber(icNumber)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "PROCESS_IC record not found for IC number: "
+                                                    + icNumber));
+
+            processIc.setStatus("DELETED");
+            processIc.setDeletedBy(deletedBy);
+
+            processIcEditRepository.save(processIc);
+
+            // -----------------------------------------------------
+            // FINAL_IC
+            // -----------------------------------------------------
+            FinalIcEdit finalIc =
+                    finalIcEditRepository
+                            .findByIcNumber(icNumber)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "FINAL_IC record not found for IC number: "
+                                                    + icNumber));
+
+            finalIc.setStatus("DELETED");
+            finalIc.setDeletedBy(deletedBy);
+
+            finalIcEditRepository.save(finalIc);
+        }
+
+        // ---------------------------------------------------------
+        // 9. Delete DSC_SIGN_IC transition
+        // ---------------------------------------------------------
+        workflowTransitionRepository.delete(
+                dscSignTransition);
+
+        // ---------------------------------------------------------
+        // 10. Delete GENERATE_IC transition
+        // ---------------------------------------------------------
+        workflowTransitionRepository.delete(
+                generateIcTransition);
+    }
+
 }

@@ -253,11 +253,35 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     @Override
     @Transactional(readOnly = true)
     public InventoryEntryResponseDto getInventoryEntryByHeatAndTc(String heatNumber, String tcNumber) {
-        logger.info("Fetching inventory entry by heat number: {} and TC number: {}", heatNumber, tcNumber);
+        return getInventoryEntryByHeatAndTcAndSubPo(heatNumber, tcNumber, null);
+    }
 
-        return inventoryEntryRepository.findByHeatNumberAndTcNumber(heatNumber, tcNumber)
-                .map(this::mapEntityToResponse)
-                .orElse(null);
+    @Override
+    @Transactional(readOnly = true)
+    public InventoryEntryResponseDto getInventoryEntryByHeatAndTcAndSubPo(String heatNumber, String tcNumber, String subPoNumber) {
+        logger.info("Fetching inventory entry by heat number: {}, TC number: {}, Sub PO: {}", heatNumber, tcNumber, subPoNumber);
+
+        List<InventoryEntry> entries = (subPoNumber != null && !subPoNumber.isEmpty())
+                ? inventoryEntryRepository.findAllByHeatNumberAndTcNumberAndSubPoNumber(heatNumber, tcNumber, subPoNumber)
+                : inventoryEntryRepository.findAllByHeatNumberAndTcNumber(heatNumber, tcNumber);
+
+        if (entries == null || entries.isEmpty()) {
+            // Fallback without subPoNumber if specific sub PO row was not found
+            if (subPoNumber != null && !subPoNumber.isEmpty()) {
+                entries = inventoryEntryRepository.findAllByHeatNumberAndTcNumber(heatNumber, tcNumber);
+            }
+        }
+
+        if (entries == null || entries.isEmpty()) {
+            return null;
+        }
+
+        InventoryEntry entry = entries.stream()
+                .filter(e -> e.getQtyLeftForInspection() != null && e.getQtyLeftForInspection().compareTo(BigDecimal.ZERO) > 0)
+                .findFirst()
+                .orElse(entries.get(entries.size() - 1));
+
+        return mapEntityToResponse(entry);
     }
 
     @Override
@@ -346,30 +370,43 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     }
 
     @Override
-    @Transactional
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = {Exception.class})
     public InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, BigDecimal offeredQty) {
-        logger.info("Updating offered quantity for heat: {}, TC: {}, offered: {}", heatNumber, tcNumber, offeredQty);
+        return updateOfferedQuantity(heatNumber, tcNumber, null, offeredQty);
+    }
 
-        // Find inventory entry by heat number and TC number
-        java.util.Optional<InventoryEntry> entryOpt = inventoryEntryRepository.findByHeatNumberAndTcNumber(heatNumber, tcNumber);
-        if (entryOpt.isEmpty()) {
-            logger.warn("Inventory entry not found for heat: {}, TC: {}", heatNumber, tcNumber);
+    @Override
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = {Exception.class})
+    public InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, String subPoNumber, BigDecimal offeredQty) {
+        logger.info("Updating offered quantity for heat: {}, TC: {}, Sub PO: {}, offered: {}", heatNumber, tcNumber, subPoNumber, offeredQty);
+
+        // Find inventory entries by heat number, TC number, and optional sub PO number
+        List<InventoryEntry> entries = (subPoNumber != null && !subPoNumber.isEmpty())
+                ? inventoryEntryRepository.findAllByHeatNumberAndTcNumberAndSubPoNumber(heatNumber, tcNumber, subPoNumber)
+                : inventoryEntryRepository.findAllByHeatNumberAndTcNumber(heatNumber, tcNumber);
+
+        if (entries == null || entries.isEmpty()) {
+            if (subPoNumber != null && !subPoNumber.isEmpty()) {
+                entries = inventoryEntryRepository.findAllByHeatNumberAndTcNumber(heatNumber, tcNumber);
+            }
+        }
+
+        if (entries == null || entries.isEmpty()) {
+            logger.warn("Inventory entry not found for heat: {}, TC: {}, Sub PO: {}", heatNumber, tcNumber, subPoNumber);
             return null;
         }
-        InventoryEntry entry = entryOpt.get();
+        InventoryEntry entry = entries.stream()
+                .filter(e -> e.getQtyLeftForInspection() != null && e.getQtyLeftForInspection().compareTo(BigDecimal.ZERO) > 0)
+                .findFirst()
+                .orElse(entries.get(entries.size() - 1));
 
         // Validate that offered quantity doesn't exceed TC Qty Remaining
         BigDecimal tcQtyRemaining = entry.getQtyLeftForInspection() != null ? entry.getQtyLeftForInspection()
                 : BigDecimal.ZERO;
         if (offeredQty.compareTo(tcQtyRemaining) > 0) {
-            logger.warn("Offered quantity {} exceeds TC Qty Remaining {} for heat: {}, TC: {}",
+            logger.warn("⚠️ Offered quantity {} exceeds TC Qty Remaining {} for heat: {}, TC: {}. Adjusting offered deduction to remaining quantity.",
                     offeredQty, tcQtyRemaining, heatNumber, tcNumber);
-            throw new BusinessException(
-                    new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                            AppConstant.ERROR_TYPE_RESOURCE,
-                            "Offered Qty (" + offeredQty + ") cannot be more than TC Qty Remaining with Vendor ("
-                                    + tcQtyRemaining + ")"));
+            offeredQty = tcQtyRemaining;
         }
 
         // Update offered quantity (add to existing)

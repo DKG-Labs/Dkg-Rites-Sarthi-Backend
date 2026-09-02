@@ -110,4 +110,39 @@ public class WorkflowController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(
                 workflowService.getPoItemCalculationDetails(callNo, poNo, itemSrNo)), HttpStatus.OK);
     }
+
+
+    @DeleteMapping("/inspection-complete/{requestId}")
+    public ResponseEntity<String> deleteInspectionCompleteRequest(
+            @PathVariable String requestId,
+            @RequestParam Integer deletedBy) {
+
+        workflowService.deleteInspectionCompleteRequest(
+                requestId,
+                deletedBy
+        );
+
+        return ResponseEntity.ok(
+                "Request " + requestId + " deleted successfully"
+        );
+    }
+
+        @DeleteMapping("/esign/{requestId}")
+        public ResponseEntity<String> deleteEsignTransition(
+                @PathVariable String requestId,
+                @RequestParam Integer deletedBy) {
+
+            workflowService.deleteEsignTransition(
+                    requestId,
+                    deletedBy
+            );
+
+            return ResponseEntity.ok(
+                    "ESign transition deleted successfully for request ID: "
+                            + requestId
+            );
+        }
+
+
+
 }

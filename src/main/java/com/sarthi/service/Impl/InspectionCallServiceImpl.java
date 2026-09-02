@@ -183,21 +183,22 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     if (heatReq.getHeatNumber() != null && heatReq.getTcNumber() != null
                             && heatReq.getOfferedQty() != null) {
                         
-                        // Check if inventory entry exists first to avoid exception marking transaction as rollbackOnly
-                        com.sarthi.dto.InventoryEntryResponseDto existingEntry = inventoryEntryService.getInventoryEntryByHeatAndTc(heatReq.getHeatNumber(), heatReq.getTcNumber());
+                        String subPoNo = rmRequest.getSubPoNumber();
+                        com.sarthi.dto.InventoryEntryResponseDto existingEntry = inventoryEntryService.getInventoryEntryByHeatAndTcAndSubPo(heatReq.getHeatNumber(), heatReq.getTcNumber(), subPoNo);
                         
                         if (existingEntry != null) {
-                            logger.info("Updating inventory for Heat: {}, TC: {}, Offered: {}",
-                                    heatReq.getHeatNumber(), heatReq.getTcNumber(), heatReq.getOfferedQty());
+                            logger.info("Updating inventory for Heat: {}, TC: {}, Sub PO: {}, Offered: {}",
+                                    heatReq.getHeatNumber(), heatReq.getTcNumber(), subPoNo, heatReq.getOfferedQty());
 
                             inventoryEntryService.updateOfferedQuantity(
                                     heatReq.getHeatNumber(),
                                     heatReq.getTcNumber(),
+                                    subPoNo,
                                     toBigDecimal(heatReq.getOfferedQty()));
 
                             logger.info("✅ Inventory updated successfully for Heat: {}", heatReq.getHeatNumber());
                         } else {
-                            logger.warn("⚠️ Inventory entry not found for Heat: {}, TC: {}. Skipping inventory update. Inspection call will still be created.", heatReq.getHeatNumber(), heatReq.getTcNumber());
+                            logger.warn("⚠️ Inventory entry not found for Heat: {}, TC: {}, Sub PO: {}. Skipping inventory update. Inspection call will still be created.", heatReq.getHeatNumber(), heatReq.getTcNumber(), subPoNo);
                         }
                     }
                 } catch (Exception e) {
