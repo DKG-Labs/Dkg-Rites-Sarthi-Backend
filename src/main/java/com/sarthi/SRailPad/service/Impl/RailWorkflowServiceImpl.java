@@ -262,47 +262,35 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 && transition.getNextRoleId() != null
                 && transition.getNextRoleId().equals(2)) {
 
-            String pincode = mapping != null ? mapping.getPinCode() : null;
-            String product = "Rail Pad";
-            String stage = "F";
+            String rio = (plant != null && plant.getRio() != null && !plant.getRio().isBlank())
+                    ? plant.getRio().trim()
+                    : null;
 
-            IEFieldsMapping ieMap = null;
+            if (rio == null || rio.isBlank()) {
+                String pincode = mapping != null ? mapping.getPinCode() : null;
+                String product = "Rail Pad";
+                String stage = "F";
 
-            if (pincode != null && !pincode.isEmpty()) {
-                // Tier 1: pincode + "Rail Pad"
-                ieMap = ieFieldsMappingRepository.findByPinCodeProductAndStageMatch(pincode, product, stage).orElse(null);
-                // Tier 2: pincode + "ERC"
-                if (ieMap == null) {
-                    ieMap = ieFieldsMappingRepository.findByPinCodeProductAndStageMatch(pincode, "ERC", stage).orElse(null);
-                }
-                // Tier 3: plantPincode + "Rail Pad"
-                if (ieMap == null) {
-                    ieMap = ieFieldsMappingRepository.findByPlantPincodeAndProductAndStageMatch(pincode, product, stage).orElse(null);
-                }
-                // Tier 4: plantPincode + "ERC"
-                if (ieMap == null) {
-                    ieMap = ieFieldsMappingRepository.findByPlantPincodeAndProductAndStageMatch(pincode, "ERC", stage).orElse(null);
-                }
-                // Tier 5: Prefix matching (e.g. Haryana pincode prefix "12")
-                if (ieMap == null && pincode.length() >= 2) {
-                    String prefix2 = pincode.substring(0, 2);
-                    List<IEFieldsMapping> allList = ieFieldsMappingRepository.findAll();
-                    ieMap = allList.stream()
-                            .filter(m -> m.getPinCode() != null && m.getPinCode().startsWith(prefix2))
-                            .findFirst()
-                            .orElse(null);
+                Optional<IEFieldsMapping> ieMapOpt = (pincode != null && !pincode.isEmpty())
+                        ? ieFieldsMappingRepository.findByPlantPincodeAndProductAndStageMatch(pincode, product, stage)
+                        : Optional.empty();
+                if (ieMapOpt.isPresent() && ieMapOpt.get().getRio() != null) {
+                    rio = ieMapOpt.get().getRio().trim();
                 }
             }
 
-            // Fallback default RIO if no exact pincode record exists
-            String rio = "NRIO";
-            if (ieMap != null && ieMap.getRio() != null && !ieMap.getRio().isEmpty()) {
-                rio = ieMap.getRio();
+            if (rio == null || rio.isBlank()) {
+                rio = "NRIO"; // Default fallback if not mapped
             }
 
             tx.setRio(rio);
+            tx.setAssignedToUser(null);
             String productType = "Rail Pad";
-            notificationService.sendInspectionCallAssignedToRio(productType, requestId, rio);
+            try {
+                notificationService.sendInspectionCallAssignedToRio(productType, rio, requestId);
+            } catch (Exception e) {
+                log.warn("Could not send RIO notification for {}: {}", requestId, e.getMessage());
+            }
 
         }
 
@@ -516,36 +504,48 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         }
 
         if(current.getWorkflowId() == 1) {
-            Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
-            String requiredIeType = (modId != null && modId == 3) ? "Process IE" : "Main IE";
+            boolean isDirectlyAssigned = current.getAssignedToUser() != null 
+                    && req.getActionBy() != null 
+                    && current.getAssignedToUser().equals(req.getActionBy());
 
-            boolean exists = poiIeMappingRepository
-                    .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
-                            current.getPoiCode(),
-                            current.getPlantId(),
-                            Math.toIntExact(req.getActionBy()),
-                            requiredIeType
+            if (!isDirectlyAssigned) {
+                Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
+                String requiredIeType = (modId != null && modId == 3) ? "Process IE" : "Main IE";
+
+                boolean exists = poiIeMappingRepository
+                        .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                                current.getPoiCode(),
+                                current.getPlantId(),
+                                Math.toIntExact(req.getActionBy()),
+                                requiredIeType
+                        );
+
+                if (!exists && current.getPlantId() != null) {
+                    List<RailPoiIeMapping> userMappings = poiIeMappingRepository
+                            .findByIeUserId(Math.toIntExact(req.getActionBy()));
+                    exists = userMappings.stream().anyMatch(m ->
+                            m.getIeType() != null &&
+                            (m.getIeType().replace(" ", "_").equalsIgnoreCase(requiredIeType.replace(" ", "_")) ||
+                             m.getIeType().toLowerCase().contains(requiredIeType.toLowerCase()))
                     );
+                }
 
-            if (!exists && current.getPlantId() != null) {
-                List<RailPoiIeMapping> userMappings = poiIeMappingRepository
-                        .findByIeUserId(Math.toIntExact(req.getActionBy()));
-                exists = userMappings.stream().anyMatch(m ->
-                        m.getIeType() != null &&
-                        (m.getIeType().replace(" ", "_").equalsIgnoreCase(requiredIeType.replace(" ", "_")) ||
-                         m.getIeType().toLowerCase().contains(requiredIeType.toLowerCase()))
-                );
-            }
+                if (!exists) {
+                    exists = userMasterRepository.findById(Math.toIntExact(req.getActionBy()))
+                            .map(u -> u.getRoleName() != null && u.getRoleName().toLowerCase().contains("ie"))
+                            .orElse(false);
+                }
 
-            if(!exists){
-                throw new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "User not mapped as " + requiredIeType
-                        )
-                );
+                if(!exists){
+                    throw new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "User not mapped as " + requiredIeType
+                            )
+                    );
+                }
             }
         }
 
@@ -588,36 +588,48 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
         else if (current.getWorkflowId() == 2
-                && (current.getNextRole() == null || current.getNextRole().toLowerCase().contains("main"))) {
+                && (current.getNextRole() == null || current.getNextRole().toLowerCase().contains("main") || current.getNextRole().toLowerCase().contains("ie"))) {
 
-            boolean exists = poiIeMappingRepository
-                    .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
-                            current.getPoiCode(),
-                            current.getPlantId(),
-                            Math.toIntExact(req.getActionBy()),
-                            "Main IE"
+            boolean isDirectlyAssigned = current.getAssignedToUser() != null 
+                    && req.getActionBy() != null 
+                    && current.getAssignedToUser().equals(req.getActionBy());
+
+            if (!isDirectlyAssigned) {
+                boolean exists = poiIeMappingRepository
+                        .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
+                                current.getPoiCode(),
+                                current.getPlantId(),
+                                Math.toIntExact(req.getActionBy()),
+                                "Main IE"
+                        );
+
+                if (!exists) {
+                    // Fallback check: handle "MAIN_IE", "Main IE", or "MAIN" in rail_poi_ie_mapping
+                    List<RailPoiIeMapping> userMappings = poiIeMappingRepository
+                            .findByIeUserId(Math.toIntExact(req.getActionBy()));
+                    exists = userMappings.stream().anyMatch(m ->
+                            m.getIeType() != null &&
+                            (m.getIeType().replace(" ", "_").equalsIgnoreCase("MAIN_IE") ||
+                             m.getIeType().toLowerCase().contains("main"))
                     );
+                }
 
-            if (!exists) {
-                // Fallback check: handle "MAIN_IE", "Main IE", or "MAIN" in rail_poi_ie_mapping
-                List<RailPoiIeMapping> userMappings = poiIeMappingRepository
-                        .findByIeUserId(Math.toIntExact(req.getActionBy()));
-                exists = userMappings.stream().anyMatch(m ->
-                        m.getIeType() != null &&
-                        (m.getIeType().replace(" ", "_").equalsIgnoreCase("MAIN_IE") ||
-                         m.getIeType().toLowerCase().contains("main"))
-                );
-            }
+                if (!exists) {
+                    exists = userMasterRepository.findById(Math.toIntExact(req.getActionBy()))
+                            .map(u -> u.getRoleName() != null && (u.getRoleName().toLowerCase().contains("main ie") || u.getRoleName().toLowerCase().contains("ie")))
+                            .orElse(false);
+                }
 
-            if (!exists) {
-                throw new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "User is not mapped as Main IE"
-                        )
-                );
+                if (!exists) {
+                    throw new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "User is not mapped as Main IE"
+                            )
+                    );
+                }
             }
         }
 
@@ -925,10 +937,17 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             // Retain original assigned IE for in-progress inspections until completion / IC signing
             targetAssignedUser = current.getAssignedToUser();
         } else if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || "VERIFY".equalsIgnoreCase(req.getAction())) {
+            String pId = current.getPlantId() != null ? current.getPlantId().trim() : "";
             Optional<RailPoiIeMapping> mappingOpt = poiIeMappingRepository
-                    .findByPlantIdAndIeType(current.getPlantId(), "Main IE");
+                    .findByPlantIdAndIeType(pId, "Main IE");
             if (mappingOpt.isEmpty()) {
-                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(current.getPlantId(), "MAIN_IE");
+                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(pId, "MAIN_IE");
+            }
+            if (mappingOpt.isEmpty() && current.getPoiCode() != null) {
+                List<RailPoiIeMapping> poiList = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(current.getPoiCode(), pId, "MAIN_IE");
+                if (poiList != null && !poiList.isEmpty()) {
+                    mappingOpt = Optional.of(poiList.get(0));
+                }
             }
             if (mappingOpt.isPresent() && mappingOpt.get().getIeUserId() != null) {
                 targetAssignedUser = mappingOpt.get().getIeUserId().longValue();
@@ -1385,10 +1404,8 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             dto.setAssignedToUser(tx.getAssignedToUser());
             dto.setAccessibleUserIds(java.util.Collections.singletonList(tx.getAssignedToUser().intValue()));
         } else {
+            dto.setAssignedToUser(null);
             dto.setAccessibleUserIds(userIds);
-            if (dto.getAssignedToUser() == null && userIds != null && !userIds.isEmpty()) {
-                dto.setAssignedToUser(userIds.get(0).longValue());
-            }
         }
 
         if (dto.getAssignedToUser() != null) {
@@ -1812,7 +1829,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers() {
-        List<UserMaster> users = userMasterRepository.findByRoleNameContaining("Main IE");
+        List<UserMaster> users = poiIeMappingRepository.findDistinctMainIeUsers();
+        if (users == null || users.isEmpty()) {
+            users = userMasterRepository.findByRoleNameContaining("Main IE");
+        }
         List<java.util.Map<String, Object>> available = new ArrayList<>();
         for (UserMaster u : users) {
             java.util.Map<String, Object> emp = new java.util.HashMap<>();
