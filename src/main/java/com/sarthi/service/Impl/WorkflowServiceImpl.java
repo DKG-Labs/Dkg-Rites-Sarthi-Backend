@@ -293,15 +293,16 @@ public class WorkflowServiceImpl implements WorkflowService {
             entry.setStatus("IE_SCHEDULED");
             entry.setAction("IE_SCHEDULE_CALL");
             entry.setRemarks("IE has scheduled the call");
-            entry.setCreatedBy(createdBy);
+            entry.setCreatedBy(last != null ? last.getCreatedBy() : createdBy);
+            entry.setModifiedBy(createdBy);
             entry.setCreatedDate(new Date());
             entry.setCurrentRole(String.valueOf(transitionMaster.getCurrentRoleId()));
             entry.setNextRole(String.valueOf(transitionMaster.getNextRoleId()));
             entry.setCurrentRoleName(roleNameById(transitionMaster.getCurrentRoleId()));
             entry.setNextRoleName(roleNameById(transitionMaster.getNextRoleId()));
-            if(ic.getTypeOfCall().equalsIgnoreCase("Raw Material")){
+            if (ic.getTypeOfCall().equalsIgnoreCase("Raw Material") || ic.getTypeOfCall().equalsIgnoreCase("FINAL") || ic.getTypeOfCall().equalsIgnoreCase("Final")) {
                 entry.setAssignedToUser(createdBy);
-            }else{
+            } else {
                 entry.setAssignedToUser(null);
             }
             entry.setJobStatus("ASSIGNED");
@@ -445,7 +446,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
         if(workflow.getWorkflowName().equalsIgnoreCase("INSPECTION CALL")){
 
-            entry.setAssignedToUser(assignedRioUserId);
+            entry.setAssignedToUser(null);
             entry.setRio(rio);
             String productType = "ERC";
             notificationService.sendInspectionCallAssignedToRio(
@@ -1965,6 +1966,11 @@ System.out.print(last);
         Integer assignedUser = current.getAssignedToUser();
         if (assignedUser == null && last != null) {
             assignedUser = last.getAssignedToUser();
+        }
+        if (ic.getTypeOfCall() != null && (ic.getTypeOfCall().equalsIgnoreCase("Raw Material") || ic.getTypeOfCall().equalsIgnoreCase("Final") || ic.getTypeOfCall().equalsIgnoreCase("FINAL"))) {
+            if (req.getActionBy() != null) {
+                assignedUser = req.getActionBy();
+            }
         }
         next.setAssignedToUser(assignedUser);
 
