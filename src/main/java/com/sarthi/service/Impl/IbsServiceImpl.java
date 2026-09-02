@@ -780,12 +780,13 @@ public class IbsServiceImpl implements IbsService {
                 dto.setIcFileLink("");
             } else {
                 dto.setIcFileLink(
-                        "https://sarthibackendservice-bfe2eag3byfkbsa6.canadacentral-01.azurewebsites.net"
+                        "https://api.ritesqasarthi.com"
                                 + "/sarthi-backend/api/certificate-storage/view/"
                                 + callNumber
                                 + ".pdf"
                 );
             }
+
 
             dto.setCallNumber(callNumber);
             dto.setIcNumber(row[15] != null ? row[15].toString() : callNumber);

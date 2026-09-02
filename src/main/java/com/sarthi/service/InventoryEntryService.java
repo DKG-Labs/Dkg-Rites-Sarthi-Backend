@@ -64,6 +64,8 @@ public interface InventoryEntryService {
      */
     InventoryEntryResponseDto getInventoryEntryByHeatAndTc(String heatNumber, String tcNumber);
 
+    InventoryEntryResponseDto getInventoryEntryByHeatAndTcAndSubPo(String heatNumber, String tcNumber, String subPoNumber);
+
     /**
      * Update an existing inventory entry
      * 
@@ -90,6 +92,8 @@ public interface InventoryEntryService {
      * @return The updated inventory entry
      */
     InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, BigDecimal offeredQty);
+
+    InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, String subPoNumber, BigDecimal offeredQty);
 
     /**
      * Check if a TC number already exists in inventory for a vendor

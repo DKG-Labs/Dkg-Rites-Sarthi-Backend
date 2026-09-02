@@ -765,9 +765,11 @@ public class CertificateServiceImpl implements CertificateService {
             for (com.sarthi.entity.WorkflowTransition wt : transitions) {
                 String status = wt.getStatus() != null ? wt.getStatus() : "";
                 String action = wt.getAction() != null ? wt.getAction() : "";
-
-                if ("INSPECTION_INITIATION".equalsIgnoreCase(status) || "INITIATE_INSPECTION".equalsIgnoreCase(action)
-                        || "INSPECTION_IN_PROGRESS".equalsIgnoreCase(status)) {
+                if ("INSPECTION_INITIATION".equalsIgnoreCase(status) || 
+                    "INITIATE_INSPECTION".equalsIgnoreCase(action) || 
+                    "INSPECTION_IN_PROGRESS".equalsIgnoreCase(status) ||
+                    "ENTER_SHIFT_DETAILS_AND_START_INSPECTION".equalsIgnoreCase(status) ||
+                    "ENTER_SHIFT_DETAILS_AND_START_INSPECTION".equalsIgnoreCase(action)) {
                     inspectionStarted = true;
                 }
 
@@ -1069,8 +1071,12 @@ public class CertificateServiceImpl implements CertificateService {
         calculateOfferedInstallment(inspectionCall.getPoNo());
         calculatePassedInstallment(inspectionCall.getPoNo());
 
-        List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
-
+        List<LocalDate> visitDates = lineFinalResults.stream()
+                .map(ProcessLineFinalResult::getDateOfInspection)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
         // 7. Build Certificate DTO
         ProcessMaterialCertificateDto dto = ProcessMaterialCertificateDto.builder()
                 .certificateNo(generateCertificateNumber(inspectionCall))
