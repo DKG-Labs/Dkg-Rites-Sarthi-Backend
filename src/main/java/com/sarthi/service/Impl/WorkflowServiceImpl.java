@@ -311,32 +311,12 @@ public class WorkflowServiceImpl implements WorkflowService {
             entry.setRio(last != null ? last.getRio() : null);
             workflowTransitionRepository.save(entry);
 
-            if("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
-
-
-                //  Fetch IE mappings using POI code
-                List<IePincodePoiMapping> ieMappings =
-                        iePincodePoiMappingRepository.findByPoiCode(ic.getPlaceOfInspection());
-
-                for (IePincodePoiMapping mapping : ieMappings) {
-
-                    String employeeCode = mapping.getEmployeeCode();
-
-                    // Fetch userId using employeeCode
-                    UserMaster userOpt =
-                            userMasterRepository.findByEmployeeCode(employeeCode);
-
-                    Integer userId = userOpt.getUserId();
-
-                    //  Save into FINAL_IE_MAPPING
+            if ("Final".equalsIgnoreCase(ic.getTypeOfCall()) || "FINAL".equalsIgnoreCase(ic.getTypeOfCall())) {
+                if (entry.getAssignedToUser() != null) {
                     FinalIeMapping finalMapping = new FinalIeMapping();
-                    finalMapping.setWorkflowTransitionId(
-                            entry.getWorkflowTransitionId()
-                    );
-                    finalMapping.setIeUserId(userId);
-
+                    finalMapping.setWorkflowTransitionId(entry.getWorkflowTransitionId());
+                    finalMapping.setIeUserId(entry.getAssignedToUser());
                     finalIeMappingRepository.save(finalMapping);
-
                 }
             }
 
@@ -752,15 +732,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
                 if ("FINAL".equalsIgnoreCase(inspectionType)) {
                     workflowTransitionRepository.save(next);
-                    List<FinalIeMapping> prevMappings = finalIeMappingRepository.findByWorkflowTransitionId(current.getWorkflowTransitionId());
-                    if (prevMappings != null && !prevMappings.isEmpty()) {
-                        for (FinalIeMapping prev : prevMappings) {
-                            FinalIeMapping fm = new FinalIeMapping();
-                            fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
-                            fm.setIeUserId(prev.getIeUserId());
-                            finalIeMappingRepository.save(fm);
-                        }
-                    } else if (next.getAssignedToUser() != null) {
+                    if (next.getAssignedToUser() != null) {
                         FinalIeMapping fm = new FinalIeMapping();
                         fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
                         fm.setIeUserId(next.getAssignedToUser());
@@ -1018,15 +990,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
             if ("FINAL".equalsIgnoreCase(inspectionType)) {
                 workflowTransitionRepository.save(next);
-                List<FinalIeMapping> prevMappings = finalIeMappingRepository.findByWorkflowTransitionId(current.getWorkflowTransitionId());
-                if (prevMappings != null && !prevMappings.isEmpty()) {
-                    for (FinalIeMapping prev : prevMappings) {
-                        FinalIeMapping fm = new FinalIeMapping();
-                        fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
-                        fm.setIeUserId(prev.getIeUserId());
-                        finalIeMappingRepository.save(fm);
-                    }
-                } else if (next.getAssignedToUser() != null) {
+                if (next.getAssignedToUser() != null) {
                     FinalIeMapping fm = new FinalIeMapping();
                     fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
                     fm.setIeUserId(next.getAssignedToUser());
