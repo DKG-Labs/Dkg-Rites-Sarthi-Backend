@@ -445,7 +445,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
         if(workflow.getWorkflowName().equalsIgnoreCase("INSPECTION CALL")){
 
-            entry.setAssignedToUser(assignedRioUserId);
+            entry.setAssignedToUser(null);
             entry.setRio(rio);
             String productType = "ERC";
             notificationService.sendInspectionCallAssignedToRio(
