@@ -293,15 +293,16 @@ public class WorkflowServiceImpl implements WorkflowService {
             entry.setStatus("IE_SCHEDULED");
             entry.setAction("IE_SCHEDULE_CALL");
             entry.setRemarks("IE has scheduled the call");
-            entry.setCreatedBy(createdBy);
+            entry.setCreatedBy(last != null ? last.getCreatedBy() : createdBy);
+            entry.setModifiedBy(createdBy);
             entry.setCreatedDate(new Date());
             entry.setCurrentRole(String.valueOf(transitionMaster.getCurrentRoleId()));
             entry.setNextRole(String.valueOf(transitionMaster.getNextRoleId()));
             entry.setCurrentRoleName(roleNameById(transitionMaster.getCurrentRoleId()));
             entry.setNextRoleName(roleNameById(transitionMaster.getNextRoleId()));
-            if(ic.getTypeOfCall().equalsIgnoreCase("Raw Material")){
+            if (ic.getTypeOfCall().equalsIgnoreCase("Raw Material") || ic.getTypeOfCall().equalsIgnoreCase("FINAL") || ic.getTypeOfCall().equalsIgnoreCase("Final")) {
                 entry.setAssignedToUser(createdBy);
-            }else{
+            } else {
                 entry.setAssignedToUser(null);
             }
             entry.setJobStatus("ASSIGNED");
@@ -310,32 +311,12 @@ public class WorkflowServiceImpl implements WorkflowService {
             entry.setRio(last != null ? last.getRio() : null);
             workflowTransitionRepository.save(entry);
 
-            if("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
-
-
-                //  Fetch IE mappings using POI code
-                List<IePincodePoiMapping> ieMappings =
-                        iePincodePoiMappingRepository.findByPoiCode(ic.getPlaceOfInspection());
-
-                for (IePincodePoiMapping mapping : ieMappings) {
-
-                    String employeeCode = mapping.getEmployeeCode();
-
-                    // Fetch userId using employeeCode
-                    UserMaster userOpt =
-                            userMasterRepository.findByEmployeeCode(employeeCode);
-
-                    Integer userId = userOpt.getUserId();
-
-                    //  Save into FINAL_IE_MAPPING
+            if ("Final".equalsIgnoreCase(ic.getTypeOfCall()) || "FINAL".equalsIgnoreCase(ic.getTypeOfCall())) {
+                if (entry.getAssignedToUser() != null) {
                     FinalIeMapping finalMapping = new FinalIeMapping();
-                    finalMapping.setWorkflowTransitionId(
-                            entry.getWorkflowTransitionId()
-                    );
-                    finalMapping.setIeUserId(userId);
-
+                    finalMapping.setWorkflowTransitionId(entry.getWorkflowTransitionId());
+                    finalMapping.setIeUserId(entry.getAssignedToUser());
                     finalIeMappingRepository.save(finalMapping);
-
                 }
             }
 
@@ -445,7 +426,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
         if(workflow.getWorkflowName().equalsIgnoreCase("INSPECTION CALL")){
 
-            entry.setAssignedToUser(assignedRioUserId);
+            entry.setAssignedToUser(null);
             entry.setRio(rio);
             String productType = "ERC";
             notificationService.sendInspectionCallAssignedToRio(
@@ -751,15 +732,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
                 if ("FINAL".equalsIgnoreCase(inspectionType)) {
                     workflowTransitionRepository.save(next);
-                    List<FinalIeMapping> prevMappings = finalIeMappingRepository.findByWorkflowTransitionId(current.getWorkflowTransitionId());
-                    if (prevMappings != null && !prevMappings.isEmpty()) {
-                        for (FinalIeMapping prev : prevMappings) {
-                            FinalIeMapping fm = new FinalIeMapping();
-                            fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
-                            fm.setIeUserId(prev.getIeUserId());
-                            finalIeMappingRepository.save(fm);
-                        }
-                    } else if (next.getAssignedToUser() != null) {
+                    if (next.getAssignedToUser() != null) {
                         FinalIeMapping fm = new FinalIeMapping();
                         fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
                         fm.setIeUserId(next.getAssignedToUser());
@@ -1017,15 +990,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
             if ("FINAL".equalsIgnoreCase(inspectionType)) {
                 workflowTransitionRepository.save(next);
-                List<FinalIeMapping> prevMappings = finalIeMappingRepository.findByWorkflowTransitionId(current.getWorkflowTransitionId());
-                if (prevMappings != null && !prevMappings.isEmpty()) {
-                    for (FinalIeMapping prev : prevMappings) {
-                        FinalIeMapping fm = new FinalIeMapping();
-                        fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
-                        fm.setIeUserId(prev.getIeUserId());
-                        finalIeMappingRepository.save(fm);
-                    }
-                } else if (next.getAssignedToUser() != null) {
+                if (next.getAssignedToUser() != null) {
                     FinalIeMapping fm = new FinalIeMapping();
                     fm.setWorkflowTransitionId(next.getWorkflowTransitionId());
                     fm.setIeUserId(next.getAssignedToUser());
@@ -1965,6 +1930,11 @@ System.out.print(last);
         Integer assignedUser = current.getAssignedToUser();
         if (assignedUser == null && last != null) {
             assignedUser = last.getAssignedToUser();
+        }
+        if (ic.getTypeOfCall() != null && (ic.getTypeOfCall().equalsIgnoreCase("Raw Material") || ic.getTypeOfCall().equalsIgnoreCase("Final") || ic.getTypeOfCall().equalsIgnoreCase("FINAL"))) {
+            if (req.getActionBy() != null) {
+                assignedUser = req.getActionBy();
+            }
         }
         next.setAssignedToUser(assignedUser);
 
