@@ -131,7 +131,7 @@ public class NotificationServiceImpl implements NotificationService {
             String inspectionType;
 
             // ===================== ERC =====================
-            if ("ERC".equalsIgnoreCase(productType) || "Rail pad".equalsIgnoreCase(productType)) {
+            if ("ERC".equalsIgnoreCase(productType)) {
 
                 InspectionCall inspectionCall = inspectionCallRepository
                         .findByIcNumber(requestId)
@@ -142,7 +142,7 @@ public class NotificationServiceImpl implements NotificationService {
                 vendorName = inspectionCall.getPoNo(); // Replace with actual vendor name if available
                 inspectionType = inspectionCall.getTypeOfCall(); // Raw Material / Process / Final
             }
-            else if("Rail pad".equalsIgnoreCase(productType)) {
+            else if ("Rail pad".equalsIgnoreCase(productType) || "Rail Pad".equalsIgnoreCase(productType) || "RAILPAD".equalsIgnoreCase(productType)) {
 
                 RailInspectionCall inspectionCall = railInspectionCallRepository
                         .findByCallNo(requestId)

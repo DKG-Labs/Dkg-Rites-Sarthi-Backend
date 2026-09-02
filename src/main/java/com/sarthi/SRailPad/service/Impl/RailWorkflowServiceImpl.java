@@ -262,30 +262,34 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 && transition.getNextRoleId() != null
                 && transition.getNextRoleId().equals(2)) {
 
-            String pincode =
-                    mapping.getPinCode();
+            String rio = (plant != null && plant.getRio() != null && !plant.getRio().isBlank())
+                    ? plant.getRio().trim()
+                    : null;
 
-            String product = "Rail Pad";
+            if (rio == null || rio.isBlank()) {
+                String pincode = mapping.getPinCode();
+                String product = "Rail Pad";
+                String stage = "F";
 
-            String stage = "F";
+                Optional<IEFieldsMapping> ieMapOpt = ieFieldsMappingRepository
+                        .findByPlantPincodeAndProductAndStageMatch(pincode, product, stage);
+                if (ieMapOpt.isPresent() && ieMapOpt.get().getRio() != null) {
+                    rio = ieMapOpt.get().getRio().trim();
+                }
+            }
 
+            if (rio == null || rio.isBlank()) {
+                rio = "NRIO"; // Default fallback if not mapped
+            }
 
-            IEFieldsMapping ieMap =
-                    ieFieldsMappingRepository
-                            .findByPlantPincodeAndProductAndStageMatch(
-                                    pincode,
-                                    product,
-                                    stage
-                            )
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "RIO mapping not found"));
-
-
-            String rio = ieMap.getRio();
-            tx.setRio(ieMap.getRio());
+            tx.setRio(rio);
+            tx.setAssignedToUser(null);
             String productType = "Rail Pad";
-            notificationService.sendInspectionCallAssignedToRio(productType,requestId,rio);
+            try {
+                notificationService.sendInspectionCallAssignedToRio(productType, rio, requestId);
+            } catch (Exception e) {
+                log.warn("Could not send RIO notification for {}: {}", requestId, e.getMessage());
+            }
 
         }
 
@@ -908,10 +912,17 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             // Retain original assigned IE for in-progress inspections until completion / IC signing
             targetAssignedUser = current.getAssignedToUser();
         } else if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || "VERIFY".equalsIgnoreCase(req.getAction())) {
+            String pId = current.getPlantId() != null ? current.getPlantId().trim() : "";
             Optional<RailPoiIeMapping> mappingOpt = poiIeMappingRepository
-                    .findByPlantIdAndIeType(current.getPlantId(), "Main IE");
+                    .findByPlantIdAndIeType(pId, "Main IE");
             if (mappingOpt.isEmpty()) {
-                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(current.getPlantId(), "MAIN_IE");
+                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(pId, "MAIN_IE");
+            }
+            if (mappingOpt.isEmpty() && current.getPoiCode() != null) {
+                List<RailPoiIeMapping> poiList = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(current.getPoiCode(), pId, "MAIN_IE");
+                if (poiList != null && !poiList.isEmpty()) {
+                    mappingOpt = Optional.of(poiList.get(0));
+                }
             }
             if (mappingOpt.isPresent() && mappingOpt.get().getIeUserId() != null) {
                 targetAssignedUser = mappingOpt.get().getIeUserId().longValue();
@@ -1368,10 +1379,8 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             dto.setAssignedToUser(tx.getAssignedToUser());
             dto.setAccessibleUserIds(java.util.Collections.singletonList(tx.getAssignedToUser().intValue()));
         } else {
+            dto.setAssignedToUser(null);
             dto.setAccessibleUserIds(userIds);
-            if (dto.getAssignedToUser() == null && userIds != null && !userIds.isEmpty()) {
-                dto.setAssignedToUser(userIds.get(0).longValue());
-            }
         }
 
         if (dto.getAssignedToUser() != null) {
@@ -1795,7 +1804,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers() {
-        List<UserMaster> users = userMasterRepository.findByRoleNameContaining("Main IE");
+        List<UserMaster> users = poiIeMappingRepository.findDistinctMainIeUsers();
+        if (users == null || users.isEmpty()) {
+            users = userMasterRepository.findByRoleNameContaining("Main IE");
+        }
         List<java.util.Map<String, Object>> available = new ArrayList<>();
         for (UserMaster u : users) {
             java.util.Map<String, Object> emp = new java.util.HashMap<>();
