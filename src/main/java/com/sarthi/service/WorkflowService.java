@@ -54,4 +54,12 @@ public interface WorkflowService {
             String poi);
 
     public com.sarthi.dto.PoItemCalculationDto getPoItemCalculationDetails(String callNo, String rawPoNo, String itemSrNo);
+    public void deleteInspectionCompleteRequest(
+            String requestId,
+            Integer deletedBy);
+
+    public void deleteEsignTransition(
+            String requestId,
+            Integer deletedBy);
+
 }
