@@ -21,6 +21,12 @@ public class FinalCallETSleeper {
     private Long sleeperId;
     private String sleeperCode;
 
+    @Column(name = "reason")
+    private String reason;
+
+    @Column(name = "sleeper_final_result_id")
+    private Long sleeperFinalResultId;
+
     @ManyToOne
     @JoinColumn(name = "batch_id")
     private IEBatchSummary batch;

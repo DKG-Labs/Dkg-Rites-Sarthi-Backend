@@ -74,4 +74,108 @@ public class InspectionImageController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
+
+    /**
+     * Fetch all captured inspection images for a given call.
+     */
+    @GetMapping("/call/{callNo}")
+    public ResponseEntity<java.util.List<com.sarthi.dto.ImageCaptureDto>> getImagesForCall(
+            @PathVariable String callNo,
+            @RequestParam(required = false) String typeOfCall) {
+        log.info("GET /api/images/call/{} typeOfCall: {}", callNo, typeOfCall);
+        try {
+            java.util.List<InspectionImage> images;
+            if (typeOfCall != null && !typeOfCall.trim().isEmpty()) {
+                images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+            } else {
+                images = inspectionImageRepository.findByInspectionCallNo(callNo);
+            }
+
+            java.util.List<com.sarthi.dto.ImageCaptureDto> dtos = new java.util.ArrayList<>();
+            if (images != null) {
+                for (InspectionImage img : images) {
+                    com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
+                    dto.setBase64Data("/api/images/" + img.getImageName());
+                    dto.setPreview("/api/images/" + img.getImageName());
+                    dto.setLatitude(img.getLatitude());
+                    dto.setLongitude(img.getLongitude());
+                    dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
+                    dtos.add(dto);
+                }
+            }
+            return ResponseEntity.ok(dtos);
+        } catch (Exception e) {
+            log.error("Failed to fetch images for call {}: {}", callNo, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Save captured images for a call (uploads new images to Azure Blob Storage, retains existing, deletes removed).
+     */
+    @PostMapping("/call/{callNo}")
+    public ResponseEntity<java.util.Map<String, Object>> saveImagesForCall(
+            @PathVariable String callNo,
+            @RequestBody com.sarthi.dto.SaveImagesRequestDto request) {
+        log.info("POST /api/images/call/{} type: {}", callNo, request.getTypeOfCall());
+        try {
+            String typeOfCall = request.getTypeOfCall() != null ? request.getTypeOfCall() : "RAILPAD";
+            java.util.List<com.sarthi.dto.ImageCaptureDto> images = request.getCapturedImages() != null ? request.getCapturedImages() : java.util.Collections.emptyList();
+
+            java.util.Set<String> existingImageNames = new java.util.HashSet<>();
+            java.util.List<com.sarthi.dto.ImageCaptureDto> newImages = new java.util.ArrayList<>();
+
+            for (com.sarthi.dto.ImageCaptureDto imageDto : images) {
+                if (imageDto.getBase64Data() != null && !imageDto.getBase64Data().isEmpty()) {
+                    if (imageDto.getBase64Data().startsWith("/api/images/")) {
+                        String existingName = imageDto.getBase64Data().substring("/api/images/".length());
+                        existingImageNames.add(existingName);
+                    } else {
+                        newImages.add(imageDto);
+                    }
+                }
+            }
+
+            // Delete removed images
+            java.util.List<InspectionImage> currentDbImages = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+            for (InspectionImage dbImage : currentDbImages) {
+                if (!existingImageNames.contains(dbImage.getImageName())) {
+                    inspectionImageRepository.delete(dbImage);
+                    log.info("Deleted removed image: {}", dbImage.getImageName());
+                }
+            }
+
+            // Upload and save new images
+            for (com.sarthi.dto.ImageCaptureDto imageDto : newImages) {
+                String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + java.util.UUID.randomUUID().toString() + ".jpg";
+                String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+
+                InspectionImage imageEntity = new InspectionImage();
+                imageEntity.setInspectionCallNo(callNo);
+                imageEntity.setTypeOfCall(typeOfCall);
+                imageEntity.setImageName(fileName);
+                imageEntity.setImageUrl(imageUrl);
+                imageEntity.setLatitude(imageDto.getLatitude());
+                imageEntity.setLongitude(imageDto.getLongitude());
+                imageEntity.setShift(request.getShift());
+                imageEntity.setDateOfInspection(request.getDateOfInspection());
+                imageEntity.setCreatedBy(request.getUserId());
+                imageEntity.setUpdatedBy(request.getUserId());
+
+                inspectionImageRepository.save(imageEntity);
+            }
+
+            java.util.Map<String, Object> resp = new java.util.HashMap<>();
+            resp.put("success", true);
+            resp.put("message", "Images saved successfully");
+            resp.put("totalImages", existingImageNames.size() + newImages.size());
+            return ResponseEntity.ok(resp);
+        } catch (Exception e) {
+            log.error("Failed to save images for call {}: {}", callNo, e.getMessage(), e);
+            java.util.Map<String, Object> resp = new java.util.HashMap<>();
+            resp.put("success", false);
+            resp.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(resp);
+        }
+    }
 }

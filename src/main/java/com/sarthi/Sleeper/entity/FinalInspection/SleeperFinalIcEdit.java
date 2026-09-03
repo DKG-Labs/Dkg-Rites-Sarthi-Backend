@@ -1,22 +1,24 @@
-package com.sarthi.entity.finalmaterial;
+package com.sarthi.Sleeper.entity.FinalInspection;
 
+import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "FINAL_IC_EDIT")
+@Table(name = "SLEEPER_FINAL_IC_EDIT", indexes = {
+    @Index(name = "idx_sleeper_final_ic_edit_ic_no", columnList = "IC_NUMBER", unique = true)
+})
 @Data
-public class FinalIcEdit {
+public class SleeperFinalIcEdit {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "IC_NUMBER", unique = true)
+    @Column(name = "IC_NUMBER", unique = true, nullable = false)
     private String icNumber;
 
     @Column(name = "CERTIFICATE_ID")
@@ -80,10 +82,4 @@ public class FinalIcEdit {
     @UpdateTimestamp
     @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
-
-    @Column(name = "STATUS")
-    private String status;
-
-    @Column(name = "DELETED_BY")
-    private Integer deletedBy;
 }

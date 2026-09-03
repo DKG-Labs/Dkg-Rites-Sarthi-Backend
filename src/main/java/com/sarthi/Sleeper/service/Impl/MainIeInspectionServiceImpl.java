@@ -44,6 +44,11 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             dto.setCallDate(call.getCreatedAt().toLocalDate().toString());
         }
 
+        // Desired Inspection Date
+        if (call.getDesiredInspectionDate() != null) {
+            dto.setDesiredInspectionDate(call.getDesiredInspectionDate().toString());
+        }
+
         // Qty Offered Now
         dto.setQtyOfferedNow(call.getTotalOffered());
 

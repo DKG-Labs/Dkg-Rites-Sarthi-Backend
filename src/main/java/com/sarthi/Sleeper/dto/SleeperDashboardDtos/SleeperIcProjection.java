@@ -8,6 +8,10 @@ public interface SleeperIcProjection {
 
     String getCertificateNo();
 
+    String getBookNo();
+
+    String getSetNo();
+
     String getDate();
 
     Integer getOfferedInstallmentNumber();

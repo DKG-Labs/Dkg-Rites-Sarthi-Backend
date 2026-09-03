@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
@@ -131,7 +130,7 @@ public class NotificationServiceImpl implements NotificationService {
             String inspectionType;
 
             // ===================== ERC =====================
-            if ("ERC".equalsIgnoreCase(productType) || "Rail pad".equalsIgnoreCase(productType)) {
+            if ("ERC".equalsIgnoreCase(productType)) {
 
                 InspectionCall inspectionCall = inspectionCallRepository
                         .findByIcNumber(requestId)
@@ -142,7 +141,7 @@ public class NotificationServiceImpl implements NotificationService {
                 vendorName = inspectionCall.getPoNo(); // Replace with actual vendor name if available
                 inspectionType = inspectionCall.getTypeOfCall(); // Raw Material / Process / Final
             }
-            else if("Rail pad".equalsIgnoreCase(productType)) {
+            else if ("Rail pad".equalsIgnoreCase(productType) || "Rail Pad".equalsIgnoreCase(productType) || "RAILPAD".equalsIgnoreCase(productType)) {
 
                 RailInspectionCall inspectionCall = railInspectionCallRepository
                         .findByCallNo(requestId)
@@ -602,13 +601,17 @@ public class NotificationServiceImpl implements NotificationService {
                             new RuntimeException("Sleeper Call not found"));
 
             // Fetch Main IE
-            SleeperPoiIeMapping mapping =
-                    poiIeMappingRepository
-                            .findByPlantIdAndIeType(
-                                    plantId,
-                                    "Main IE")
-                            .orElseThrow(() ->
-                                    new RuntimeException("Main IE not mapped"));
+            List<SleeperPoiIeMapping> mappings = poiIeMappingRepository.findByPlantIdAndIeType(plantId, "Main IE");
+            if (mappings == null || mappings.isEmpty()) {
+                mappings = poiIeMappingRepository.findByPlantIdAndIeType(plantId, "MAIN_IE");
+            }
+            if (mappings == null || mappings.isEmpty()) {
+                mappings = poiIeMappingRepository.findByPlantId(plantId);
+            }
+            if (mappings == null || mappings.isEmpty()) {
+                throw new RuntimeException("Main IE not mapped for plant: " + plantId);
+            }
+            SleeperPoiIeMapping mapping = mappings.get(0);
 
             UserMaster ie = userMasterRepository
                     .findByUserId(mapping.getIeUserId())

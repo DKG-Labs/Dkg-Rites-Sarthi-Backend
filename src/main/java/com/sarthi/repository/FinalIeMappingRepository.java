@@ -16,4 +16,7 @@ public interface FinalIeMappingRepository extends JpaRepository<FinalIeMapping, 
     List<FinalIeMapping> findByWorkflowTransitionIdIn(List<Integer> workflowTransitionIds);
 
     boolean existsByWorkflowTransitionIdAndIeUserId(Integer workflowTransitionId, Integer actionBy);
+
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteByWorkflowTransitionId(Integer workflowTransitionId);
 }

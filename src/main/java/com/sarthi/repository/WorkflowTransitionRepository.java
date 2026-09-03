@@ -1260,4 +1260,7 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             """, nativeQuery = true)
     List<Object[]> getPendingCalls(@Param("poiCode") String poiCode, @Param("rlyShortName") String rlyShortName,
             @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+
+    List<WorkflowTransition> findTop2ByRequestIdOrderByWorkflowTransitionIdDesc(String normalizedRequestId);
 }

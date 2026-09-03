@@ -27,6 +27,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
     private final com.sarthi.SRailPad.repository.plantDeclaration.RailProductionDeclarationRepository railProductionDeclarationRepository;
     private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
+    private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
 
     @Override
     @Transactional
@@ -183,6 +184,38 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
         railProductionDeclarationRepository.findById(requestId).ifPresent(declaration -> {
             logger.info("[Delete Verification] Removing production declaration and batches for RequestID: {}", requestId);
             railProductionDeclarationRepository.delete(declaration);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void unblockProductionVerification(Long requestId) {
+        if (requestId == null) return;
+        logger.info("[Unblock Verification] Starting unblock for RequestID: {}", requestId);
+
+        // 1. Delete IE Production Verification and its children (info & rejections)
+        List<RailIEProductionVerification> verifications = repository.findAllByRequestId(requestId);
+        if (!verifications.isEmpty()) {
+            logger.info("[Unblock Verification] Removing {} verification record(s) for RequestID: {}", verifications.size(), requestId);
+            repository.deleteAll(verifications);
+        }
+
+        // 2. Delete existing completed workflow transaction for Module 3 (Production Declaration)
+        logger.info("[Unblock Verification] Removing completed workflow transactions for RequestID: {}", requestId);
+        railWorkflowTransactionRepository.deleteByRequestIdAndModuleId(String.valueOf(requestId), 3L);
+
+        // 3. Re-initiate workflow transaction to return it to PENDING for Process IE
+        railProductionDeclarationRepository.findById(requestId).ifPresent(decl -> {
+            logger.info("[Unblock Verification] Re-initiating pending workflow transaction for RequestID: {}", requestId);
+            railWorkflowService.initiateWorkflow(
+                    String.valueOf(decl.getId()),
+                    3L, // MODULE_ID
+                    1L, // WORKFLOW_ID
+                    decl.getCreatedBy(),
+                    decl.getVendorCode(),
+                    decl.getPlantId(),
+                    decl.getShift()
+            );
         });
     }
 

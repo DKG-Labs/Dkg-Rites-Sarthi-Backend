@@ -195,4 +195,5 @@ List<Object[]> findCertificateNosByCallNos(
             nativeQuery = true)
     List<Object[]> findProcessIcNumbersWithDateByMultipleRmIcNumbers(@Param("rmCertificateNos") List<String> rmCertificateNos);
 
+    void deleteByCallNo(String normalizedRequestId);
 }

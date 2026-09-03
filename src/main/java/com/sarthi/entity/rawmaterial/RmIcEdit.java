@@ -86,6 +86,12 @@ public class RmIcEdit {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "STATUS")
+    private String status;
+
+    @Column(name = "DELETED_BY")
+    private Integer deletedBy;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

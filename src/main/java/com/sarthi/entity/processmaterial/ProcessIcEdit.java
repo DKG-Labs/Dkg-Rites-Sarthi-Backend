@@ -80,4 +80,10 @@ public class ProcessIcEdit {
     @UpdateTimestamp
     @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
+
+    @Column(name = "STATUS")
+    private String status;
+
+    @Column(name = "DELETED_BY")
+    private Integer deletedBy;
 }
