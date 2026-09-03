@@ -67,6 +67,9 @@ public class ProcessIcEdit {
     @Column(name = "MAN_DAYS")
     private String manDays;
 
+    @Column(name = "LOT_DETAILS", columnDefinition = "TEXT")
+    private String lotDetails;
+
     @Column(name = "CREATED_BY")
     private String createdBy;
 

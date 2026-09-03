@@ -44,6 +44,7 @@ public class ProcessIcSaveChangesService {
         entity.setChpClause(dto.getChpClause());
         entity.setInspectionDate(dto.getInspectionDate());
         entity.setManDays(dto.getManDays());
+        entity.setLotDetails(dto.getLotDetails());
         
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
@@ -73,6 +74,7 @@ public class ProcessIcSaveChangesService {
                 .chpClause(entity.getChpClause())
                 .inspectionDate(entity.getInspectionDate())
                 .manDays(entity.getManDays())
+                .lotDetails(entity.getLotDetails())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())
