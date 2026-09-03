@@ -1193,12 +1193,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             String batchNo = declaration.getBatchNumber();
 
-            boolean demouldingDone = demouldingInspectionRepository.existsDemoulding(batchNo);
             boolean waterDone = waterCubeStrengthTestRepository.existsWaterCube(batchNo);
             boolean morDone = momentOfResistanceTestRepository.existsMomentOfResistance(batchNo);
 
 //  If any missing → skip batch
-            if (!demouldingDone || !waterDone || !morDone) {
+            if (!waterDone || !morDone) {
                 continue;
             }
 
