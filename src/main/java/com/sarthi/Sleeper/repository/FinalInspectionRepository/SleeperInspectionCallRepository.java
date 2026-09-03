@@ -900,18 +900,36 @@ ORDER BY um.employee_code
         ) AS date,
 
         (
-            SELECT COUNT(*)
-            FROM sleeper_inspection_call sic2
-            WHERE sic2.po_no = sic.po_no
-              AND (sic.created_at IS NULL OR sic2.created_at <= sic.created_at)
+            SELECT COUNT(DISTINCT sfr_inst.id) + 1
+            FROM sleeper_final_result sfr_inst
+            JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no = sfr_inst.call_number
+            WHERE (
+                TRIM(sic_inst.po_no) = TRIM(sic.po_no)
+                OR sic_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
+                OR sfr_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
+            )
+              AND (
+                  LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                  OR CAST(COALESCE(sic_inst.sr_no, sfr_inst.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+              )
+              AND sic_inst.id < sic.id
         ) AS offeredInstallmentNumber,
 
         (
-            SELECT COUNT(*)
+            SELECT COUNT(DISTINCT sfr_inst.id) + 1
             FROM sleeper_final_result sfr_inst
-            WHERE sfr_inst.po_no = sic.po_no
+            JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no = sfr_inst.call_number
+            WHERE (
+                TRIM(sic_inst.po_no) = TRIM(sic.po_no)
+                OR sic_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
+                OR sfr_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
+            )
+              AND (
+                  LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                  OR CAST(COALESCE(sic_inst.sr_no, sfr_inst.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+              )
               AND COALESCE(sfr_inst.total_accepted, 0) > 0
-              AND (sic.created_at IS NULL OR sfr_inst.created_at <= sic.created_at)
+              AND sic_inst.id < sic.id
         ) AS passedInstallmentNumber,
 
         COALESCE(ph.vendor_details, ph.vendor_code) AS contractor,
@@ -934,30 +952,38 @@ ORDER BY um.employee_code
 
         CAST(COALESCE(
             (
-                SELECT SUM(sfr.total_offered_quantity)
-                FROM sleeper_final_result sfr
-                WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
-                AND (
-                    TRIM(sfr.sr_no) = TRIM(sic.sr_no)
-                    OR CAST(sfr.sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                SELECT SUM(sfr_prev.total_offered_quantity)
+                FROM sleeper_final_result sfr_prev
+                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
+                WHERE (
+                    TRIM(sic_prev.po_no) = TRIM(sic.po_no)
+                    OR sic_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
+                    OR sfr_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
                 )
-                AND sfr.call_number <> sic.call_no
-                AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
+                AND (
+                    LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                    OR CAST(COALESCE(sic_prev.sr_no, sfr_prev.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                )
+                AND sic_prev.id < sic.id
             ),
             0
         ) AS SIGNED) AS cumulativeQtyOfferedPreviously,
 
         CAST(COALESCE(
             (
-                SELECT SUM(sfr.total_accepted)
-                FROM sleeper_final_result sfr
-                WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
-                AND (
-                    TRIM(sfr.sr_no) = TRIM(sic.sr_no)
-                    OR CAST(sfr.sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                SELECT SUM(sfr_prev.total_accepted)
+                FROM sleeper_final_result sfr_prev
+                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
+                WHERE (
+                    TRIM(sic_prev.po_no) = TRIM(sic.po_no)
+                    OR sic_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
+                    OR sfr_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
                 )
-                AND sfr.call_number <> sic.call_no
-                AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
+                AND (
+                    LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                    OR CAST(COALESCE(sic_prev.sr_no, sfr_prev.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                )
+                AND sic_prev.id < sic.id
             ),
             0
         ) AS SIGNED) AS quantityPreviouslyPassed,
@@ -973,15 +999,19 @@ ORDER BY um.employee_code
             -
             COALESCE(
                 (
-                    SELECT SUM(sfr.total_accepted)
-                    FROM sleeper_final_result sfr
-                    WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
-                    AND (
-                        TRIM(sfr.sr_no) = TRIM(sic.sr_no)
-                        OR CAST(sfr.sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                    SELECT SUM(sfr_prev.total_accepted)
+                    FROM sleeper_final_result sfr_prev
+                    JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
+                    WHERE (
+                        TRIM(sic_prev.po_no) = TRIM(sic.po_no)
+                        OR sic_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
+                        OR sfr_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
                     )
-                    AND sfr.call_number <> sic.call_no
-                    AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
+                    AND (
+                        LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                        OR CAST(COALESCE(sic_prev.sr_no, sfr_prev.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                    )
+                    AND sic_prev.id < sic.id
                 ),
                 0
             )

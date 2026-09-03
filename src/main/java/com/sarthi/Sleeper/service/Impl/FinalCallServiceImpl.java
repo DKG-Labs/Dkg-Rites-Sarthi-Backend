@@ -559,7 +559,9 @@ public class FinalCallServiceImpl implements FinalCallService {
                         targetSrNo = callEntity.getSrNo().trim();
                     }
                 }
-                if (targetPoNo == null || targetPoNo.trim().isEmpty()) {
+                if (callEntity.getPoNo() != null && !callEntity.getPoNo().trim().isEmpty()) {
+                    targetPoNo = callEntity.getPoNo().trim();
+                } else if (targetPoNo == null || targetPoNo.trim().isEmpty()) {
                     targetPoNo = callEntity.getPoNo();
                 }
             }
