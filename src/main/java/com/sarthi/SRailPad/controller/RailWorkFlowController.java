@@ -122,6 +122,27 @@ public class RailWorkFlowController {
         }
     }
 
+    @PostMapping("/remap-pending")
+    public ResponseEntity<Object> submitPendingRemap(@RequestBody RailpadRemapSubmitDto dto) {
+        try {
+            workflowService.submitRailpadPendingRemap(dto);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse("Remapping successful"),
+                    HttpStatus.OK
+            );
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage()),
+                    HttpStatus.BAD_REQUEST
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Remapping failed: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
     @GetMapping("/cancelledCallsForPayment")
     public ResponseEntity<Object> getCancelledCallsForPayment(
             @RequestParam(required = false) String plantId,
