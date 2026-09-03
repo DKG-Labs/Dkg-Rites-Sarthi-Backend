@@ -1928,41 +1928,72 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Transactional
     public void submitRailpadRemap(RailpadRemapSubmitDto dto) {
         String callNo = dto.getCallNo();
-        String plantId = dto.getPlantId();
-        Integer oldUserId = dto.getOldUserId();
         Integer newUserId = dto.getNewUserId();
 
-        if (callNo == null || plantId == null || newUserId == null) {
-            throw new IllegalArgumentException("callNo, plantId, and newUserId are required for remapping");
+        if (callNo == null || callNo.trim().isEmpty() || newUserId == null) {
+            throw new IllegalArgumentException("callNo and newUserId are required for remapping");
         }
 
-        String cleanPlantId = plantId.replace(":", "");
-        String correctPoiCode = resolveRailpadPoiCode(plantId, null);
-
-        // Update IE mapping in POI-IE mapping
-        poiIeMappingRepository.updateIeUserIdByPlantId(plantId, oldUserId, newUserId);
-
-        // Ensure any mappings for this plantId have proper poiCode (instead of vendorCode)
-        if (correctPoiCode != null && correctPoiCode.startsWith("POI")) {
-            List<RailPoiIeMapping> mappings = poiIeMappingRepository.findAll();
-            for (RailPoiIeMapping m : mappings) {
-                if (m.getPlantId() != null && m.getPlantId().replace(":", "").equalsIgnoreCase(cleanPlantId)) {
-                    if (m.getPoiCode() == null || !m.getPoiCode().toUpperCase().startsWith("POI")) {
-                        m.setPoiCode(correctPoiCode);
-                        poiIeMappingRepository.save(m);
-                    }
-                }
-            }
-        }
-
-        // Update workflow transaction assignedToUser for latest transaction
-        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo);
+        // For Opened and Verified calls: Reassign call by updating assignedToUser in rail_workflow_transaction ONLY
+        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
         if (txList != null && !txList.isEmpty()) {
             RailWorkflowTransaction tx = txList.get(txList.size() - 1);
             tx.setAssignedToUser(Long.valueOf(newUserId));
-            if (correctPoiCode != null && (tx.getPoiCode() == null || !tx.getPoiCode().startsWith("POI"))) {
-                tx.setPoiCode(correctPoiCode);
+            railWorkflowTransactionRepository.save(tx);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void submitRailpadPendingRemap(RailpadRemapSubmitDto dto) {
+        String callNo = dto.getCallNo();
+        String plantId = dto.getPlantId();
+        Integer newUserId = dto.getNewUserId();
+
+        if (callNo == null || newUserId == null) {
+            throw new IllegalArgumentException("callNo and newUserId are required for remapping");
+        }
+
+        if (plantId == null || plantId.trim().isEmpty()) {
+            Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> optCall = railInspectionCallRepository.findByCallNo(callNo);
+            if (optCall.isPresent()) {
+                plantId = optCall.get().getPlantId();
             }
+        }
+
+        if (plantId == null || plantId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Plant ID could not be found for call " + callNo);
+        }
+
+        String cleanPlantId = plantId.replace(":", "");
+
+        // 1. Check if user is already mapped with this plant ID in rail_poi_ie_mapping
+        List<RailPoiIeMapping> allMappings = poiIeMappingRepository.findAll();
+        boolean alreadyMapped = allMappings.stream().anyMatch(m -> 
+            m.getIeUserId() != null && m.getIeUserId().equals(newUserId) &&
+            m.getPlantId() != null && m.getPlantId().replace(":", "").equalsIgnoreCase(cleanPlantId) &&
+            (m.getIeType() != null && (m.getIeType().equalsIgnoreCase("MAIN_IE") || m.getIeType().equalsIgnoreCase("MAIN IE") || m.getIeType().toUpperCase().contains("MAIN")))
+        );
+
+        if (alreadyMapped) {
+            throw new IllegalArgumentException("User is already mapped with this plant ID");
+        }
+
+        // 2. Insert new mapping in rail_poi_ie_mapping
+        RailPoiIeMapping mapping = new RailPoiIeMapping();
+        String correctPoiCode = resolveRailpadPoiCode(plantId, null);
+        mapping.setPoiCode(correctPoiCode != null ? correctPoiCode : "");
+        mapping.setPlantId(plantId);
+        mapping.setIeUserId(newUserId);
+        mapping.setIeType("MAIN_IE");
+        mapping.setCreatedDate(LocalDateTime.now());
+        poiIeMappingRepository.save(mapping);
+
+        // Also update any latest transaction for this call if it exists
+        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
+        if (txList != null && !txList.isEmpty()) {
+            RailWorkflowTransaction tx = txList.get(txList.size() - 1);
+            tx.setAssignedToUser(Long.valueOf(newUserId));
             railWorkflowTransactionRepository.save(tx);
         }
     }

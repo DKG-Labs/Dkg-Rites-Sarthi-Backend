@@ -30,6 +30,8 @@ public interface RailWorkflowService {
 
     public void submitRailpadRemap(RailpadRemapSubmitDto dto);
 
+    public void submitRailpadPendingRemap(RailpadRemapSubmitDto dto);
+
     public String saveRailpadMapping(com.sarthi.SRailPad.dto.RailpadPoiIeMappingReqDto req);
 
     public String resolveRailpadPoiCode(String plantId, String providedPoiCode);

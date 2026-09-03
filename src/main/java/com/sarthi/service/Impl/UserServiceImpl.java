@@ -109,6 +109,8 @@ public class UserServiceImpl implements UserService {
     private com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
     @Autowired
     private com.sarthi.repository.WorkflowTransitionRepository workflowTransitionRepository;
+    @Autowired
+    private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
 
 
 
@@ -1348,11 +1350,30 @@ public class UserServiceImpl implements UserService {
         String poiCode = null;
         String plantId = null;
 
-        if ("RPF".equalsIgnoreCase(prefix) || "RPP".equalsIgnoreCase(prefix)) {
+        if ("RPF".equalsIgnoreCase(prefix) || "RPP".equalsIgnoreCase(prefix) || prefix.toUpperCase().startsWith("RP")) {
             com.sarthi.SRailPad.entity.RailWorkflowTransaction tx = railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
             if (tx != null) {
                 poiCode = tx.getPoiCode();
                 plantId = tx.getPlantId();
+                if (tx.getAssignedToUser() != null) {
+                    Optional<UserMaster> optUser = userMasterRepository.findById(Math.toIntExact(tx.getAssignedToUser()));
+                    if (optUser.isPresent()) {
+                        List<String> list = new ArrayList<>();
+                        list.add(optUser.get().getEmployeeCode() + " - " + (optUser.get().getFullName() != null && !optUser.get().getFullName().isBlank() ? optUser.get().getFullName() : optUser.get().getUsername()));
+                        return list;
+                    }
+                }
+            }
+            if (plantId == null || plantId.trim().isEmpty()) {
+                if (railInspectionCallRepository != null) {
+                    Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> optCall = railInspectionCallRepository.findByCallNo(callNo);
+                    if (optCall.isPresent()) {
+                        plantId = optCall.get().getPlantId();
+                        if (poiCode == null || poiCode.trim().isEmpty()) {
+                            poiCode = optCall.get().getVendorCode();
+                        }
+                    }
+                }
             }
         } else {
             poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
@@ -1378,7 +1399,7 @@ public class UserServiceImpl implements UserService {
             if (poiCode != null) {
                 result = pincodePoIMappingRepository.findProcessIeEmpCodeWithName(poiCode);
             }
-        } else if ("RPF".equalsIgnoreCase(prefix) || "RPP".equalsIgnoreCase(prefix)) {
+        } else if ("RPF".equalsIgnoreCase(prefix) || "RPP".equalsIgnoreCase(prefix) || prefix.toUpperCase().startsWith("RP")) {
             result = railPoiIeMappingRepository.findIeEmpCodeWithNameAndPlantId(poiCode, plantId);
         } else if ("ER".equalsIgnoreCase(prefix) || "EF".equalsIgnoreCase(prefix)) {
             // ER / EF calls: Strictly use ie_pincode_poi_mapping table via place_of_inspection
