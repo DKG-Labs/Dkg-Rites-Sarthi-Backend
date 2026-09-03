@@ -41,12 +41,23 @@ WHERE (REPLACE(plant_id, ':', '') = REPLACE(:plantId, ':', ''))
                                  @org.springframework.data.repository.query.Param("newUserId") Integer newUserId);
 
     @org.springframework.data.jpa.repository.Query(value = """
-SELECT DISTINCT CONCAT(um.employee_code, ' - ', um.username) 
+SELECT DISTINCT CONCAT(um.employee_code, ' - ', COALESCE(NULLIF(TRIM(um.full_name), ''), um.username)) 
 FROM rail_poi_ie_mapping rpm 
 JOIN user_master um ON um.userid = rpm.ie_user_id 
-WHERE (rpm.poi_code = :poiCode OR :poiCode IS NULL) 
-  AND (rpm.plant_id = :plantId OR REPLACE(rpm.plant_id, ':', '') = REPLACE(:plantId, ':', '') OR :plantId IS NULL) 
-  AND (UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'MAIN_IE' OR UPPER(rpm.ie_type) = 'MAIN IE')
+WHERE (
+    (:plantId IS NOT NULL AND :plantId != '' AND (
+        rpm.plant_id = :plantId 
+        OR REPLACE(rpm.plant_id, ':', '') = REPLACE(:plantId, ':', '') 
+        OR REPLACE(SUBSTRING_INDEX(rpm.plant_id, '/', 1), ':', '') = REPLACE(SUBSTRING_INDEX(:plantId, '/', 1), ':', '')
+        OR rpm.plant_id LIKE CONCAT('%', REPLACE(:plantId, ':', ''), '%')
+    ))
+    OR (:poiCode IS NOT NULL AND :poiCode != '' AND (
+        rpm.poi_code = :poiCode 
+        OR rpm.poi_code LIKE CONCAT('%', :poiCode, '%')
+    ))
+    OR (:plantId IS NULL AND :poiCode IS NULL)
+  )
+  AND (UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'MAIN_IE' OR UPPER(rpm.ie_type) = 'MAIN IE' OR UPPER(rpm.ie_type) LIKE '%MAIN%')
 """, nativeQuery = true)
     List<String> findIeEmpCodeWithNameAndPlantId(
             @org.springframework.data.repository.query.Param("poiCode") String poiCode, 
