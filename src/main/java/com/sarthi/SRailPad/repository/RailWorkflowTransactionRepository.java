@@ -530,8 +530,18 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
         SELECT 
             COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_nos,
             COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_set,
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' THEN flr.rejected_qty ELSE 0 END), 0) AS final_rejected_nos,
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.rejected_qty ELSE 0 END), 0) AS final_rejected_set
+            COALESCE(SUM(CASE 
+                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
+                     AND (flr.railpad_type IS NULL OR flr.railpad_type NOT LIKE '%NCRGRSP%') 
+                THEN flr.rejected_qty 
+                ELSE 0 
+            END), 0) AS final_rejected_nos,
+            COALESCE(SUM(CASE 
+                WHEN flr.railpad_type LIKE '%NCRGRSP%' THEN 
+                    (CASE WHEN flr.lot_no IN ('Lot 1', 'LOT 1', 'LOT-1', 'Lot-1', '1') THEN flr.rejected_qty ELSE 0 END)
+                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.rejected_qty 
+                ELSE 0 
+            END), 0) AS final_rejected_set
         FROM rail_final_inspection_lot_results flr
         LEFT JOIN rail_inspection_call ic ON flr.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ic.po_no, '/', 1)), ' ', -1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci
