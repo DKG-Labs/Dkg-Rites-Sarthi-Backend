@@ -94,8 +94,28 @@ public class FinalCallController {
         );
     }
 
+    // ================= SAVE FINAL RESULT (HEADER & BATCHES) =================
+    @PostMapping("/saveFinalResult")
+    public ResponseEntity<Object> saveFinalResult(
+            @RequestBody com.sarthi.Sleeper.dto.FinalCalDtos.SleeperFinalResultRequestDto request) {
 
+        com.sarthi.Sleeper.entity.FInalCall.SleeperFinalResult result = service.saveOrUpdateSleeperFinalResult(request);
 
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK
+        );
+    }
 
+    // ================= GET FINAL RESULT BY CALL NO =================
+    @GetMapping("/getFinalResult/{callNo}")
+    public ResponseEntity<Object> getFinalResult(@PathVariable String callNo) {
 
+        com.sarthi.Sleeper.entity.FInalCall.SleeperFinalResult result = service.getSleeperFinalResult(callNo);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK
+        );
+    }
 }

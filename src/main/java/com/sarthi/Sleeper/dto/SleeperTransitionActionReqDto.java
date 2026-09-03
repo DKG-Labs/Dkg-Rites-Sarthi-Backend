@@ -17,5 +17,9 @@ public class SleeperTransitionActionReqDto {
 
     private Long actionBy;
 
+    private String bookNo;
+
+    private String setNo;
+
 
 }

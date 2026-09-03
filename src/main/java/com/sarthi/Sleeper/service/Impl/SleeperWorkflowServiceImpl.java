@@ -27,12 +27,23 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCompleteDetails;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperFinalIcEdit;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperFinalIcSaveChanges;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCompleteDetailsRepository;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcEditRepository;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcSaveChangesRepository;
 
+import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
+@Slf4j
 @Service
 public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
@@ -71,13 +82,28 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private RawMaterialSourceRepository rawMaterialSourceRepository;
     @Autowired
     private NotificationService notificationService;
+    @Autowired
+    private VendorPlantRepository vendorPlantRepository;
+    @Autowired
+    private SleeperInspectionCallRepository sleeperInspectionCallRepository;
+    @Autowired
+    private SleeperInspectionCompleteDetailsRepository sleeperInspectionCompleteDetailsRepository;
+    @Autowired
+    private SleeperFinalIcEditRepository sleeperFinalIcEditRepository;
+    @Autowired
+    private SleeperFinalIcSaveChangesRepository sleeperFinalIcSaveChangesRepository;
+    @Autowired
+    private PoHeaderRepository poHeaderRepository;
+    @Autowired
+    private PoItemRepository poItemRepository;
 
 
     public void validateUser(Integer userId) {
-        UserMaster userMaster = userMasterRepository.findById(userId)
-                .orElseThrow(() -> new InvalidInputException(
-                        new ErrorDetails(AppConstant.USER_NOT_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                AppConstant.ERROR_TYPE_VALIDATION, "User not found.")));
+        if (!userMasterRepository.existsById(userId)) {
+            throw new InvalidInputException(
+                    new ErrorDetails(AppConstant.USER_NOT_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION, "User not found."));
+        }
     }
 
     /*
@@ -131,6 +157,12 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         SleeperPincodePoIMapping mapping = sleeperPincodePoIMappingRepository
                 .findByVendorCode(String.valueOf(createdBy));
+        if (mapping == null && vendorCode != null && !vendorCode.trim().isEmpty()) {
+            mapping = sleeperPincodePoIMappingRepository.findByVendorCode(vendorCode.trim());
+            if (mapping == null) {
+                mapping = sleeperPincodePoIMappingRepository.findByVendorCode(vendorCode.replaceAll("^[:\\s]+", "").trim());
+            }
+        }
 
         tx.setRequestId(requestId);
         tx.setModuleId(moduleId);
@@ -152,31 +184,68 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             tx.setAction(transition.getCurrentAction());
             tx.setStatus(AppConstant.CREATED_TYPE);
             if (transition.getNextRoleId().equals(2)) {
-                SleeperPincodePoIMapping poi = sleeperPincodePoIMappingRepository.findByPoiCode(mapping.getPoiCode())
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Invalid POI code")));
-                String stage = "F";
-                String product = "Sleeper";
-                String pinCode = poi.getPinCode();
+                String rio = null;
 
-                IEFieldsMapping map = ieFieldsMappingRepository
-                        .findByPinCodeProductAndStageMatch(pinCode, product, stage)
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "No IE mapping for given pin/product/stage")));
+                // Step 1: Pick up RIO from vendor_plant of that plantId
+                if (plantId != null && !plantId.trim().isEmpty()) {
+                    List<com.sarthi.Sleeper.entity.VendorPlant> matchingPlants = vendorPlantRepository.findMatchingPlants(plantId.trim());
+                    if (matchingPlants != null && !matchingPlants.isEmpty()) {
+                        for (com.sarthi.Sleeper.entity.VendorPlant vp : matchingPlants) {
+                            if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                                rio = vp.getRio().trim();
+                                break;
+                            }
+                        }
+                    }
+                    if (rio == null) {
+                        String cleanPlant = plantId.replaceAll("^[:\\s]+", "").trim();
+                        var vpOpt = vendorPlantRepository.findByPlantId(plantId);
+                        if (vpOpt.isEmpty() && !cleanPlant.isEmpty()) {
+                            vpOpt = vendorPlantRepository.findByPlantId(cleanPlant);
+                        }
+                        if (vpOpt.isPresent() && vpOpt.get().getRio() != null && !vpOpt.get().getRio().trim().isEmpty()) {
+                            rio = vpOpt.get().getRio().trim();
+                        }
+                    }
+                }
 
-                String rio = map.getRio();
+                // Fallback to vendorCode lookup in vendor_plant
+                if (rio == null && vendorCode != null && !vendorCode.trim().isEmpty()) {
+                    String cleanVendor = vendorCode.replaceAll("^[:\\s]+", "").trim();
+                    List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findByVendorCode(cleanVendor);
+                    if (vpList != null && !vpList.isEmpty()) {
+                        for (com.sarthi.Sleeper.entity.VendorPlant vp : vpList) {
+                            if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                                rio = vp.getRio().trim();
+                                break;
+                            }
+                        }
+                    }
+                }
 
-                tx.setRio(rio);
-                String productType = "SLEEPER";
-                notificationService.sendInspectionCallAssignedToRio(productType,requestId,rio);
+                // Fallback to IEFieldsMapping if not found in vendor_plant
+                if (rio == null && mapping != null && mapping.getPoiCode() != null) {
+                    try {
+                        SleeperPincodePoIMapping poi = sleeperPincodePoIMappingRepository.findByPoiCode(mapping.getPoiCode()).orElse(null);
+                        if (poi != null && poi.getPinCode() != null) {
+                            String stage = "F";
+                            String product = "Sleeper";
+                            IEFieldsMapping map = ieFieldsMappingRepository
+                                    .findByPinCodeProductAndStageMatch(poi.getPinCode(), product, stage).orElse(null);
+                            if (map != null && map.getRio() != null) {
+                                rio = map.getRio().trim();
+                            }
+                        }
+                    } catch (Exception e) {
+                        // ignore fallback error
+                    }
+                }
 
+                if (rio != null) {
+                    tx.setRio(rio);
+                    String productType = "SLEEPER";
+                    notificationService.sendInspectionCallAssignedToRio(productType, requestId, rio);
+                }
             }
 
         } else {
@@ -284,11 +353,108 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         dto.setAccessibleUserIds(userIds);
 
+        // 1. Enrich PO & Inspection Call details for Sleeper Calls
+        if (tx.getRequestId() != null) {
+            sleeperInspectionCallRepository.findByCallNo(tx.getRequestId()).ifPresent(call -> {
+                dto.setPoNo(call.getPoNo());
+                dto.setPoSr(call.getSrNo());
+                dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
+                dto.setStageOfInspection("Final");
+                dto.setProductType("Sleeper");
+
+                // PO Header lookup
+                String rlyShort = null;
+                String rawPoNo = call.getPoNo();
+                if (call.getPoNo() != null) {
+                    var poHeaderOpt = poHeaderRepository.findByPoNo(call.getPoNo());
+                    if (poHeaderOpt.isPresent()) {
+                        PoHeader poHeader = poHeaderOpt.get();
+                        rlyShort = poHeader.getRlyShortName();
+                        dto.setRlyShortName(rlyShort);
+                        if (dto.getVendorName() == null) {
+                            dto.setVendorName(poHeader.getVendorDetails());
+                        }
+                    }
+                }
+
+                // Format RLY / PO / SR NO (e.g. NCR / 08241015101234 / 001)
+                StringBuilder rlyPoSrBuilder = new StringBuilder();
+                if (rlyShort != null && !rlyShort.trim().isEmpty()) {
+                    rlyPoSrBuilder.append(rlyShort.trim());
+                }
+                if (call.getPoNo() != null && !call.getPoNo().trim().isEmpty()) {
+                    if (rlyPoSrBuilder.length() > 0) rlyPoSrBuilder.append(" / ");
+                    rlyPoSrBuilder.append(call.getPoNo().trim());
+                }
+                if (call.getSrNo() != null && !call.getSrNo().trim().isEmpty()) {
+                    if (rlyPoSrBuilder.length() > 0) rlyPoSrBuilder.append(" / ");
+                    rlyPoSrBuilder.append(call.getSrNo().trim());
+                }
+                dto.setRlyPoSrNo(rlyPoSrBuilder.length() > 0 ? rlyPoSrBuilder.toString() : (rawPoNo != null ? rawPoNo : "-"));
+
+                // PO Item lookup for DP Date and Ext DP Date
+                if (call.getPoNo() != null && call.getSrNo() != null) {
+                    var poItemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(call.getPoNo(), call.getSrNo());
+                    if (poItemOpt.isPresent()) {
+                        PoItem item = poItemOpt.get();
+                        if (item.getDeliveryDate() != null) {
+                            dto.setDpDate(item.getDeliveryDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+                        }
+                        if (item.getExtendedDeliveryDate() != null) {
+                            dto.setExtDpDate(item.getExtendedDeliveryDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. Vendor Name & Place of Inspection from vendor_plant
+        if (tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
+            List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(tx.getPlantId());
+            if (vpList != null && !vpList.isEmpty()) {
+                com.sarthi.Sleeper.entity.VendorPlant vp = vpList.get(0);
+                if (dto.getVendorName() == null && vp.getCompanyName() != null) {
+                    dto.setVendorName(vp.getCompanyName());
+                }
+                if (vp.getPlantName() != null) {
+                    dto.setPlaceOfInspection(vp.getPlantName() + (tx.getPoiCode() != null ? " (" + tx.getPoiCode() + ")" : ""));
+                }
+            }
+        }
+        if (dto.getPlaceOfInspection() == null && tx.getPoiCode() != null) {
+            dto.setPlaceOfInspection(tx.getPoiCode());
+        }
+
+        // 3. Assigned IE Name
         if (dto.getAssignedToUser() != null) {
             userMasterRepository.findById(dto.getAssignedToUser().intValue()).ifPresent(user -> {
                 dto.setAssignedToUserName(user.getFullName());
+                dto.setIeName(user.getFullName());
                 dto.setAssignedToUserEmployeeCode(user.getEmployeeCode());
             });
+        } else {
+            // If call is not yet assigned (e.g. at RIO Help Desk), fetch mapped Main IE for that plant
+            List<SleeperPoiIeMapping> ieMaps = null;
+            if (tx.getPoiCode() != null && tx.getPlantId() != null) {
+                ieMaps = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "Main IE");
+                if (ieMaps == null || ieMaps.isEmpty()) {
+                    ieMaps = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "MAIN_IE");
+                }
+            }
+            if ((ieMaps == null || ieMaps.isEmpty()) && tx.getPlantId() != null) {
+                ieMaps = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "Main IE");
+                if (ieMaps == null || ieMaps.isEmpty()) {
+                    ieMaps = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "MAIN_IE");
+                }
+            }
+            if (ieMaps != null && !ieMaps.isEmpty()) {
+                Integer mappedIeId = ieMaps.get(0).getIeUserId();
+                userMasterRepository.findById(mappedIeId).ifPresent(user -> {
+                    dto.setAssignedToUserName(user.getFullName());
+                    dto.setIeName(user.getFullName());
+                    dto.setAssignedToUserEmployeeCode(user.getEmployeeCode());
+                });
+            }
         }
 
         return dto;
@@ -443,12 +609,18 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                             "Main IE");
 
             if (!exists) {
+                exists = poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserId(current.getPoiCode(), current.getPlantId(), Math.toIntExact(req.getActionBy()))
+                        || poiIeMappingRepository.findByPlantId(current.getPlantId()).stream().anyMatch(m -> m.getIeUserId().equals(Math.toIntExact(req.getActionBy())))
+                        || (current.getAssignedToUser() != null && current.getAssignedToUser().equals(req.getActionBy()));
+            }
+
+            if (!exists) {
                 throw new BusinessException(
                         new ErrorDetails(
                                 AppConstant.ERROR_CODE_RESOURCE,
                                 AppConstant.ERROR_TYPE_CODE_VALIDATION,
                                 AppConstant.ERROR_TYPE_VALIDATION,
-                                "User is not mapped as Main IE for this POI"));
+                                "User is not mapped as Main IE for this POI / Plant"));
             }
         }
         String status = null;
@@ -473,74 +645,150 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         tx.setVendorCode(current.getVendorCode());
         tx.setRio(current.getRio());
 
-        // Workflow 2 → Use TRANSITION_MASTER
-        if (current.getWorkflowId().equals(2L)) {
+        // Workflow 2 → Special actions handling
+        if (req.getAction().equalsIgnoreCase("IC_ISSUE")) {
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setNextRole(current.getNextRole() != null ? current.getNextRole() : "Main IE");
+            tx.setStatus(AppConstant.PENDING_TYPE);
+            tx.setJobStatus("IC_ISSUE");
+        } else if (req.getAction().equalsIgnoreCase("IC_GENERATION")
+                || req.getAction().equalsIgnoreCase("GENERATE_IC")
+                || req.getAction().equalsIgnoreCase("DSC_SIGN_IC")) {
+            
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setNextRole(null); // Keep it in a terminal state
+            tx.setStatus(AppConstant.COMPLETED_TYPE);
+            tx.setJobStatus("GENERATED");
+            
+        } else if (current.getWorkflowId().equals(2L)) {
 
-            List<SleeperTransitionMaster> transitions = sleeperTransitionMasterRepository
-                    .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
-                            current.getWorkflowId().intValue(),
-                            getRoleId(current.getNextRole()),
-                            req.getAction());
+            List<SleeperTransitionMaster> transitions =
+                    sleeperTransitionMasterRepository
+                            .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                    current.getWorkflowId().intValue(),
+                                    getRoleId(current.getNextRole()),
+                                    req.getAction()
+                            );
 
             SleeperTransitionMaster transition = null;
 
             if (transitions.size() == 1) {
-                // ✔ normal case
+
                 transition = transitions.get(0);
+
             } else {
+
                 List<SleeperTransitionMaster> trans = null;
-                if ("PO_VERIFICATION".equalsIgnoreCase(req.getAction())
-                        || "MAIN_IE_SCHEDULE_CALL".equalsIgnoreCase(req.getAction())
-                        || "IC_ISSUE".equalsIgnoreCase(req.getAction())) {
-                    trans = sleeperTransitionMasterRepository
-                            .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
-                                    current.getWorkflowId().intValue(),
-                                    getRoleId(current.getCurrentRole()),
-                                    current.getStatus());
+
+                if (req.getAction().equalsIgnoreCase("PO_VERIFICATION")
+                        || req.getAction().equalsIgnoreCase("MAIN_IE_SCHEDULE_CALL")
+                        || req.getAction().equalsIgnoreCase("PAUSE")
+                        || req.getAction().equalsIgnoreCase("FINISH")
+                        || req.getAction().equalsIgnoreCase("RESUME")
+                        || req.getAction().equalsIgnoreCase("WITHHELD")
+                        || req.getAction().equalsIgnoreCase("RESCHEDULE_CALL")
+                        || req.getAction().equalsIgnoreCase("IC_ISSUE")
+                        || req.getAction().equalsIgnoreCase("IC_GENERATION")) {
+
+                    trans =
+                            sleeperTransitionMasterRepository
+                                     .findByWorkflowIdAndCurrentRoleIdAndCurrentAction(
+                                             current.getWorkflowId().intValue(),
+                                             getRoleId(current.getCurrentRole()),
+                                             current.getAction()
+                                     );
+
                     transition = trans.stream()
-                            .filter(t -> req.getAction().equalsIgnoreCase(t.getNextAction()))
+                            .filter(t ->
+                                    t.getNextAction()
+                                            .equalsIgnoreCase(req.getAction()))
                             .findFirst()
-                            .orElseThrow(() -> new RuntimeException("Transition not configured"));
-                    tx.setCurrentRole(current.getNextRole());
-                }
+                            .orElse(null);
 
-            }
-            tx.setCurrentRole(current.getNextRole());
-            tx.setJobStatus(determineJobStatus(req.getAction()));
-            if (transition.getNextRoleId() != null) {
-                tx.setNextRole(getRoleName(transition.getNextRoleId()));
-            }
+                    if (transition == null) {
+                        List<SleeperTransitionMaster> allWfTransitions = sleeperTransitionMasterRepository.findAll().stream()
+                                 .filter(t -> t.getWorkflowId() != null && t.getWorkflowId().equals(current.getWorkflowId().intValue()))
+                                .toList();
+                        Integer nextRoleId = getRoleId(current.getNextRole());
+                        Integer currentRoleId = getRoleId(current.getCurrentRole());
+                        transition = allWfTransitions.stream()
+                                .filter(t -> (t.getCurrentRoleId() != null && (t.getCurrentRoleId().equals(nextRoleId) || t.getCurrentRoleId().equals(currentRoleId)))
+                                        && (req.getAction().equalsIgnoreCase(t.getNextAction()) || req.getAction().equalsIgnoreCase(t.getCurrentAction())))
+                                .findFirst()
+                                .orElse(null);
+                    }
 
-            if (transition.getNextRoleId() == null) {
-                tx.setStatus(AppConstant.COMPLETED_TYPE);
-            } else {
-                tx.setStatus(AppConstant.PENDING_TYPE);
-            }
-            if (transition.getNextRoleId() != null && transition.getNextRoleId().equals(2)) {
-                SleeperPincodePoIMapping poi = sleeperPincodePoIMappingRepository.findByPoiCode(current.getPoiCode())
-                        .orElseThrow(() -> new BusinessException(
+                    if (transition == null && !req.getAction().equalsIgnoreCase("IC_ISSUE") && !req.getAction().equalsIgnoreCase("IC_GENERATION")) {
+                        throw new BusinessException(
                                 new ErrorDetails(
                                         AppConstant.ERROR_CODE_RESOURCE,
                                         AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                         AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Invalid POI code")));
-                String stage = "F";
-                String product = "Sleeper";
-                String pinCode = poi.getPinCode();
+                                        "Transition not configured for action: " + req.getAction()
+                                ));
+                    }
 
-                IEFieldsMapping map = ieFieldsMappingRepository
-                        .findByPinCodeProductAndStageMatch(pinCode, product, stage)
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "No IE mapping for given pin/product/stage")));
-
-                String rio = map.getRio();
-
-                tx.setRio(rio);
+                    tx.setCurrentRole(current.getNextRole());
+                }
             }
 
+            tx.setCurrentRole(current.getNextRole());
+            if (current.getWorkflowId() == 2) {
+                tx.setJobStatus(determineJobStatus(req.getAction()));
+            }
+
+            if (transition == null) {
+                if (req.getAction().equalsIgnoreCase("IC_ISSUE") || req.getAction().equalsIgnoreCase("IC_GENERATION")) {
+                    tx.setNextRole(current.getNextRole() != null ? current.getNextRole() : "Main IE");
+                    tx.setStatus(req.getAction().equalsIgnoreCase("IC_GENERATION") ? AppConstant.COMPLETED_TYPE : AppConstant.PENDING_TYPE);
+                } else {
+                    throw new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "No valid transition found for action: " + req.getAction()
+                            ));
+                }
+            } else {
+                if (transition.getNextRoleId() != null) {
+                    tx.setNextRole(getRoleName(transition.getNextRoleId()));
+                }
+                if (transition.getNextRoleId() == null) {
+                    tx.setStatus(AppConstant.COMPLETED_TYPE);
+                } else {
+                    tx.setStatus(AppConstant.PENDING_TYPE);
+                }
+            }
+            if (tx.getNextRole() != null && "RIO Help Desk".equalsIgnoreCase(tx.getNextRole())) {
+                if (tx.getRio() == null && tx.getPlantId() != null) {
+                    List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(tx.getPlantId());
+                    if (vpList != null && !vpList.isEmpty()) {
+                        for (com.sarthi.Sleeper.entity.VendorPlant vp : vpList) {
+                            if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                                tx.setRio(vp.getRio().trim());
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (tx.getRio() == null && current.getPoiCode() != null) {
+                    try {
+                        SleeperPincodePoIMapping poi = sleeperPincodePoIMappingRepository.findByPoiCode(current.getPoiCode()).orElse(null);
+                        if (poi != null && poi.getPinCode() != null) {
+                            String stage = "F";
+                            String product = "Sleeper";
+                            IEFieldsMapping map = ieFieldsMappingRepository
+                                    .findByPinCodeProductAndStageMatch(poi.getPinCode(), product, stage).orElse(null);
+                            if (map != null && map.getRio() != null) {
+                                tx.setRio(map.getRio().trim());
+                            }
+                        }
+                    } catch (Exception e) {
+                        // ignore fallback error
+                    }
+                }
+            }
         } else {
             // Existing workflow logic (workflowId = 1)
 
@@ -555,13 +803,103 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
         }
 
-        tx.setAssignedToUser(req.getActionBy());
+        // Step 3: Pick the mapped Main IE user from sleeper_poi_ie_mapping when next role is Main IE
+        if ("Main IE".equalsIgnoreCase(tx.getNextRole())) {
+            List<SleeperPoiIeMapping> ieMappings = null;
+            if (tx.getPoiCode() != null && tx.getPlantId() != null) {
+                ieMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "Main IE");
+                if (ieMappings == null || ieMappings.isEmpty()) {
+                    ieMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "MAIN_IE");
+                }
+            }
+            if ((ieMappings == null || ieMappings.isEmpty()) && tx.getPlantId() != null) {
+                ieMappings = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "Main IE");
+                if (ieMappings == null || ieMappings.isEmpty()) {
+                    ieMappings = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "MAIN_IE");
+                }
+            }
+            if ((ieMappings == null || ieMappings.isEmpty()) && tx.getPoiCode() != null) {
+                ieMappings = poiIeMappingRepository.findByPoiCodeAndIeType(tx.getPoiCode(), "Main IE");
+                if (ieMappings == null || ieMappings.isEmpty()) {
+                    ieMappings = poiIeMappingRepository.findByPoiCodeAndIeType(tx.getPoiCode(), "MAIN_IE");
+                }
+            }
+
+            if (ieMappings != null && !ieMappings.isEmpty()) {
+                Integer mappedIeUserId = ieMappings.get(0).getIeUserId();
+                tx.setAssignedToUser(Long.valueOf(mappedIeUserId));
+            } else if (current.getAssignedToUser() != null) {
+                tx.setAssignedToUser(current.getAssignedToUser());
+            } else {
+                tx.setAssignedToUser(req.getActionBy());
+            }
+        } else if ("Vendor".equalsIgnoreCase(tx.getNextRole())) {
+            tx.setAssignedToUser(current.getCreatedBy());
+        } else {
+            tx.setAssignedToUser(req.getActionBy());
+        }
 
         tx.setCreatedBy(current.getCreatedBy());
         tx.setModifiedBy(req.getActionBy());
         tx.setCreatedDate(LocalDateTime.now());
 
         SleeperWorkflowTransaction saved = repository.save(tx);
+
+        // --- Save to sleeper_inspection_complete_details when Sleeper inspection is FINISHED, IC ISSUED, or IC GENERATED ---
+        if ("COMPLETED".equalsIgnoreCase(tx.getStatus())
+                || "IC_GENERATION".equalsIgnoreCase(req.getAction())
+                || "FINISH".equalsIgnoreCase(req.getAction())
+                || "IC_ISSUE".equalsIgnoreCase(req.getAction())) {
+            Optional<SleeperInspectionCall> callOpt = sleeperInspectionCallRepository.findByCallNo(tx.getRequestId());
+            if (callOpt.isPresent()) {
+                Optional<SleeperInspectionCompleteDetails> existingOpt = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId());
+                if (existingOpt.isEmpty()) {
+                    SleeperInspectionCall ic = callOpt.get();
+                    UserMaster user = null;
+                    if (req.getActionBy() != null) {
+                        user = userMasterRepository.findById(Math.toIntExact(req.getActionBy())).orElse(null);
+                    }
+                    if (user == null && tx.getAssignedToUser() != null) {
+                        user = userMasterRepository.findById(Math.toIntExact(tx.getAssignedToUser())).orElse(null);
+                    }
+                    if (user == null && current.getAssignedToUser() != null) {
+                        user = userMasterRepository.findById(Math.toIntExact(current.getAssignedToUser())).orElse(null);
+                    }
+                    String userShortName = (user != null && user.getShortName() != null && !user.getShortName().trim().isEmpty())
+                            ? user.getShortName().trim().toUpperCase()
+                            : "NV";
+
+                    String rio = tx.getRio();
+                    if (rio == null || rio.trim().isEmpty()) {
+                        rio = current.getRio();
+                    }
+                    if (rio == null || rio.trim().isEmpty()) {
+                        rio = "C";
+                    }
+
+                    SleeperInspectionCompleteDetails details = new SleeperInspectionCompleteDetails();
+                    details.setCallNo(ic.getCallNo());
+                    details.setPoNo(ic.getPoNo());
+                    details.setCertificateNo(generateCertificateNo(rio, ic.getCallNo(), userShortName));
+                    details.setCreatedOn(LocalDateTime.now());
+
+                    sleeperInspectionCompleteDetailsRepository.save(details);
+
+                    if (req.getBookNo() != null || req.getSetNo() != null) {
+                        try {
+                            SleeperFinalIcEdit edit = sleeperFinalIcEditRepository.findByIcNumber(ic.getCallNo())
+                                    .orElse(new SleeperFinalIcEdit());
+                            edit.setIcNumber(ic.getCallNo());
+                            edit.setBookNo(req.getBookNo());
+                            edit.setSetNo(req.getSetNo());
+                            sleeperFinalIcEditRepository.save(edit);
+                        } catch (Exception e) {
+                            log.error("Error saving SleeperFinalIcEdit: ", e);
+                        }
+                    }
+                }
+            }
+        }
 
         // Send notification after RIO Help Desk verifies the call
         if (current.getWorkflowId() == 2
@@ -575,6 +913,16 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             );
         }
         return mapToResponse(saved);
+    }
+
+    private String generateCertificateNo(String rioName, String callNo, String userShortName) {
+        String rioFirstLetter = (rioName != null && !rioName.trim().isEmpty())
+                ? rioName.trim().substring(0, 1).toUpperCase()
+                : "C";
+        String userSuffix = (userShortName != null && !userShortName.trim().isEmpty())
+                ? userShortName.trim().toUpperCase()
+                : "NV";
+        return rioFirstLetter + "/" + callNo + "/" + userSuffix;
     }
 
     private String determineJobStatus(String action) {
@@ -721,12 +1069,27 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
     @Override
     public List<SleeperWorkflowTransactionDto> allPendingWorkflowTransitions(String roleName) {
+        return allPendingWorkflowTransitions(roleName, null, null, null);
+    }
+
+    @Override
+    public List<SleeperWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, Long assignedTo, String rio, String plantId) {
 
         List<SleeperWorkflowTransaction> list = null;
         if (roleName.equalsIgnoreCase("Main IE")) {
-            list = repository.findLatestByRole(roleName);
+            if (assignedTo != null) {
+                list = repository.findLatestByRoleAndAssignedTo(roleName, assignedTo, plantId);
+            } else {
+                list = repository.findLatestByRole(roleName);
+            }
+        } else if (roleName.equalsIgnoreCase("RIO Help Desk")) {
+            if (rio != null && !rio.trim().isEmpty()) {
+                list = repository.findLatestByRoleAndRio(roleName, rio.trim(), plantId);
+            } else {
+                list = repository.findLastPendingRequestsByRole(roleName);
+            }
         } else {
-
             list = repository.findLastPendingRequestsByRole(roleName);
         }
         return list.stream()
@@ -935,12 +1298,23 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             userIds = mappings.stream()
                     .map(SleeperPoiIeMapping::getIeUserId)
                     .toList();
+            if ("Main IE".equalsIgnoreCase(tx.getNextRole()) && !userIds.isEmpty() && dto.getAssignedToUser() == null) {
+                dto.setAssignedToUser(Long.valueOf(userIds.get(0)));
+            }
         }
         if (vendorId != null) {
             dto.setAssignedToUser(Long.valueOf(vendorId));
         }
 
         dto.setAccessibleUserIds(userIds);
+
+        if (dto.getAssignedToUser() != null) {
+            userMasterRepository.findById(dto.getAssignedToUser().intValue()).ifPresent(user -> {
+                dto.setAssignedToUserName(user.getFullName());
+                dto.setIeName(user.getFullName());
+                dto.setAssignedToUserEmployeeCode(user.getEmployeeCode());
+            });
+        }
 
         return dto;
     }
@@ -1017,15 +1391,21 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getSleeperRemapAvailableUsers() {
-        List<UserMaster> users = userMasterRepository.findByRoleNameContaining("Main IE");
+        List<Integer> mainIeUserIds = poiIeMappingRepository.findDistinctMainIeUserIds();
         List<java.util.Map<String, Object>> available = new ArrayList<>();
-        for (UserMaster u : users) {
-            java.util.Map<String, Object> emp = new java.util.HashMap<>();
-            emp.put("userId", u.getUserId());
-            emp.put("employeeCode", u.getEmployeeCode());
-            emp.put("fullName", u.getFullName());
-            emp.put("role", "Main IE");
-            available.add(emp);
+        if (mainIeUserIds != null && !mainIeUserIds.isEmpty()) {
+            List<UserMaster> users = userMasterRepository.findAllById(mainIeUserIds);
+            for (UserMaster u : users) {
+                java.util.Map<String, Object> emp = new java.util.HashMap<>();
+                emp.put("userId", u.getUserId());
+                emp.put("employeeCode", u.getEmployeeCode());
+                emp.put("fullName", u.getFullName());
+                emp.put("name", u.getFullName());
+                emp.put("id", u.getUserId());
+                emp.put("role", "Main IE");
+                emp.put("roleName", "Main IE");
+                available.add(emp);
+            }
         }
         return available;
     }
@@ -1038,27 +1418,24 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         Integer newUserId = dto.getNewUserId();
         String callNo = dto.getCallNo();
 
-        if (plantId == null || newUserId == null || oldUserId == null) {
-            throw new RuntimeException("Plant ID, old user, and new user are required.");
+        if (callNo == null || newUserId == null) {
+            throw new RuntimeException("Call No and new user ID are required.");
         }
 
-        // Check if the new user is already mapped to this plant as MAIN_IE
-        if (poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
-                "", // The repository expects poiCode, but we might just need to check by plant ID. Wait, let's just do it directly.
-                plantId, newUserId, "MAIN_IE"
-        )) {
-            // Wait, we don't know the poiCode. Let's just catch any duplicate via the DB constraints or assume it's fine.
-            // Actually, we can just run the update.
-        }
-
-        poiIeMappingRepository.updateIeUserIdByPlantId(plantId, oldUserId, newUserId);
-
-        // Update workflow transaction assignedToUser for latest transaction
         List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByCreatedDateAsc(callNo);
-        if (txList != null && !txList.isEmpty()) {
-            SleeperWorkflowTransaction tx = txList.get(txList.size() - 1);
-            tx.setAssignedToUser(Long.valueOf(newUserId));
-            repository.save(tx);
+        SleeperWorkflowTransaction latestTx = (txList != null && !txList.isEmpty()) ? txList.get(txList.size() - 1) : null;
+
+        if (plantId == null && latestTx != null) {
+            plantId = latestTx.getPlantId();
+        }
+
+        if (plantId != null && oldUserId != null) {
+            poiIeMappingRepository.updateIeUserIdByPlantId(plantId, oldUserId, newUserId);
+        }
+
+        if (latestTx != null) {
+            latestTx.setAssignedToUser(Long.valueOf(newUserId));
+            repository.save(latestTx);
         }
     }
 }

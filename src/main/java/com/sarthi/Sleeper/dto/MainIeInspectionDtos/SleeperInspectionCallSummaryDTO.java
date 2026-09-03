@@ -22,4 +22,5 @@ public class SleeperInspectionCallSummaryDTO {
     private Integer totalRejected;
 
     private Integer noOfEtSleepers;
+    private String desiredInspectionDate;
 }

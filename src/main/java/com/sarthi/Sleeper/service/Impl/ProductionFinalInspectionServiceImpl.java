@@ -1042,6 +1042,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds());
         raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds());
 
+        Set<String> raisedBadSleeperKeys = new HashSet<>(inspectionCallRepository.findAllRaisedBadSleeperKeys());
+        Set<String> raisedBadBatchNos = new HashSet<>(inspectionCallRepository.findAllRaisedBadBatchNos());
+
         for (Long batchId : batchIds) {
 
             List<InspectionTestResult> results =
@@ -1055,6 +1058,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             ProductionDeclaration declaration =
                     productionDeclarationRepository.findBatchById(batchId);
+
+            String currentBatchNo = declaration != null ? declaration.getBatchNumber() : null;
+            boolean isBatchBadAlreadyRaised = currentBatchNo != null && raisedBadBatchNos.contains(currentBatchNo.trim());
 
             List<EtSleeperDetails> etSleepersList =
                     etSleeperDetailsRepository.findByEt_BatchNumber(declaration.getBatchNumber());
@@ -1077,7 +1083,15 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     BadSleeperDto bad = new BadSleeperDto();
                     bad.setSleeperId(first.getSleeperId());
                     bad.setSleeperNo(first.getSleeperNo());
-                    bad.setCallRaised(raisedSleeperIds.contains(first.getSleeperId()));
+
+                    String badKey = (currentBatchNo != null && first.getSleeperNo() != null)
+                            ? (currentBatchNo.trim() + "_" + first.getSleeperNo().trim()) : "";
+
+                    boolean isRaised = raisedSleeperIds.contains(first.getSleeperId())
+                            || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey))
+                            || isBatchBadAlreadyRaised;
+
+                    bad.setCallRaised(isRaised);
 
                     sleeperResults.stream()
                             .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
@@ -1134,13 +1148,22 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                                                 .filter(g -> sleeperNo.equalsIgnoreCase(g.getSleeperNo()))
                                                 .findFirst();
 
+                                        String badKey = (currentBatchNo != null && sleeperNo != null)
+                                                ? (currentBatchNo.trim() + "_" + sleeperNo.trim()) : "";
+
                                         if (goodMatch.isPresent()) {
                                             bad.setSleeperId(goodMatch.get().getSleeperId());
-                                            bad.setCallRaised(goodMatch.get().getCallRaised());
+                                            boolean isRaised = goodMatch.get().getCallRaised()
+                                                    || raisedSleeperIds.contains(goodMatch.get().getSleeperId())
+                                                    || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey))
+                                                    || isBatchBadAlreadyRaised;
+                                            bad.setCallRaised(isRaised);
                                             goodSleepers.remove(goodMatch.get());
                                         } else {
                                             bad.setSleeperId(0L);
-                                            bad.setCallRaised(false);
+                                            boolean isRaised = (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey))
+                                                    || isBatchBadAlreadyRaised;
+                                            bad.setCallRaised(isRaised);
                                         }
 
                                         badSleepers.add(bad);

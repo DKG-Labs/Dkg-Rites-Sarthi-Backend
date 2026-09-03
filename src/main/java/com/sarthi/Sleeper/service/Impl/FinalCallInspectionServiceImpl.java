@@ -82,8 +82,8 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
         res.setInspectionCallNo(call.getCallNo());
         res.setInspectionCallDate(call.getCreatedAt());
 
-        // Not available
-        res.setInspectionDesiredDate(null);
+        // Desired Inspection Date
+        res.setInspectionDesiredDate(call.getDesiredInspectionDate());
 
         res.setRlyPoSr(poHeader.getRlyShortName() + "/" + poHeader.getPoNo() + "/" + call.getSrNo());
 
@@ -254,14 +254,8 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
     public SleeperScheduleRequest create(SleeperScheduleRequest req) {
 
         if (sleeperScheduleRepository.existsByCallNo(req.getCallNo())) {
-            throw new BusinessException(
-                    new ErrorDetails(
-                            AppConstant.ERROR_CODE_RESOURCE,
-                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                            AppConstant.ERROR_TYPE_VALIDATION,
-                            "Schedule already exists for call no: " + req.getCallNo()
-                    )
-            );
+            req.setUpdatedBy(req.getCreatedBy());
+            return update(req);
         }
 
         SleeperSchedule entity = new SleeperSchedule();
@@ -290,18 +284,19 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
     public SleeperScheduleRequest update(SleeperScheduleRequest req) {
 
         SleeperSchedule entity = sleeperScheduleRepository.findByCallNo(req.getCallNo())
-                .orElseThrow(() -> new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "Sleeper Schedule not found with id : " + req.getCallNo()
-                        )
-                ));
+                .orElse(null);
+
+        if (entity == null) {
+            return create(req);
+        }
 
         entity.setCallNo(req.getCallNo());
         entity.setScheduleDate(req.getScheduleDate());
         entity.setReason(req.getReason());
+
+        if (req.getPlantId() != null) entity.setPlantId(req.getPlantId());
+        if (req.getVendorCode() != null) entity.setVendorCode(req.getVendorCode());
+        if (req.getShift() != null) entity.setShift(req.getShift());
 
         entity.setUpdatedBy(req.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
@@ -326,6 +321,13 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
         res.setCreatedBy(entity.getCreatedBy());
 
         return res;
+    }
+
+    @Override
+    public SleeperScheduleRequest getSchedule(String callNo) {
+        return sleeperScheduleRepository.findByCallNo(callNo)
+                .map(this::mapToResponse)
+                .orElse(null);
     }
 
 }

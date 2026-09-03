@@ -19,6 +19,14 @@ public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> 
 
     Optional<VendorPlant> findByPlantId(String plantId);
 
+    @Query("""
+    SELECT v FROM VendorPlant v 
+    WHERE v.plantId = :plantId 
+       OR REPLACE(COALESCE(v.plantId, ''), ':', '') = REPLACE(:plantId, ':', '')
+       OR LOWER(v.plantId) LIKE LOWER(CONCAT('%', :plantId, '%'))
+    """)
+    List<VendorPlant> findMatchingPlants(@Param("plantId") String plantId);
+
     Optional<VendorPlant> findByCompanyNameAndPlantName(String companyName, String plantName);
 
 

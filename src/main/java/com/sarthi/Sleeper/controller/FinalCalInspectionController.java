@@ -38,6 +38,15 @@ public class FinalCalInspectionController {
         );
     }
 
+    @GetMapping("/schedule/{callNo}")
+    public ResponseEntity<Object> getSchedule(@PathVariable String callNo) {
+        SleeperScheduleRequest result = service.getSchedule(callNo);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(result),
+                HttpStatus.OK
+        );
+    }
+
     @PostMapping("/section1")
     public ResponseEntity<Object> createSectionA(@RequestBody SectionARequest request) {
 

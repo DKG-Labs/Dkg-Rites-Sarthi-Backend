@@ -29,6 +29,13 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
 
     List<SleeperPoiIeMapping> findByPoiCodeAndPlantIdAndIeType(String poiCode, String plantId, String ieType);
 
+    List<SleeperPoiIeMapping> findByPlantIdAndIeType(String plantId, String ieType);
+
+    List<SleeperPoiIeMapping> findByPlantId(String plantId);
+
+    @Query("SELECT DISTINCT m.ieUserId FROM SleeperPoiIeMapping m WHERE UPPER(m.ieType) IN ('MAIN IE', 'MAIN_IE', 'MAIN')")
+    List<Integer> findDistinctMainIeUserIds();
+
 
     boolean existsByPoiCodeAndPlantIdAndIeUserId(String poiCode, String plantId, Integer userId);
 
@@ -58,6 +65,4 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
     @org.springframework.data.jpa.repository.Modifying
     @Query("UPDATE SleeperPoiIeMapping s SET s.ieUserId = :newUserId WHERE s.plantId = :plantId AND s.ieUserId = :oldUserId")
     void updateIeUserIdByPlantId(@Param("plantId") String plantId, @Param("oldUserId") Integer oldUserId, @Param("newUserId") Integer newUserId);
-
-    Optional<SleeperPoiIeMapping> findByPlantIdAndIeType(String plantId, String mainIe);
 }
