@@ -5171,10 +5171,9 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         // ---------------------------------------------------------
         // 6. EF -> Delete FINAL_IE_MAPPING
         // ---------------------------------------------------------
-        if ("EF".equals(requestType)) {
-
+        if ("EF".equals(requestType) && transition.getWorkflowTransitionId() != null) {
             finalIeMappingRepository
-                    .deleteByRequestId(normalizedRequestId);
+                    .deleteByWorkflowTransitionId(transition.getWorkflowTransitionId());
         }
 
         // ---------------------------------------------------------
