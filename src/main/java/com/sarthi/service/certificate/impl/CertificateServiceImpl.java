@@ -1696,6 +1696,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .rmIcDate(rmIcDateStr)
                 .processIcNo(processIcNoStr)
                 .processIcDate(processIcDateStr)
+                .ercType(inspectionCall.getErcType())
                 .lotDetails(buildFinalLotDetails(lotDetails))
                 .build();
         end = System.currentTimeMillis();

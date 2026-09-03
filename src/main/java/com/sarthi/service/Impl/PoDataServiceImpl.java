@@ -218,20 +218,9 @@ public class PoDataServiceImpl implements PoDataService {
                         inspectionCall.getCreatedAt()
                 );
 
-                logger.info("🔍 [Cumulative Calc] Step 1 prevCallNos: {}", prevCallNos);
+                logger.info("🔍 [Cumulative Calc] Step 1 prevCallNos for Serial {}: {}", serialSuffix, prevCallNos);
 
-                if ((prevCallNos == null || prevCallNos.isEmpty()) && poHeader.getPoNo() != null) {
-                    // Fallback to PO-level previous call numbers
-                    prevCallNos = inspectionCallRepository.findPreviousCallNumbersByPoAndSerial(
-                            poHeader.getPoNo(),
-                            "",
-                            inspectionCall.getId() != null ? inspectionCall.getId().longValue() : 0L,
-                            inspectionCall.getCreatedAt()
-                    );
-                    logger.info("🔍 [Cumulative Calc] Step 1 PO Fallback prevCallNos: {}", prevCallNos);
-                }
-
-                // Step 2: Sum results from final_cumulative_results table for those call numbers
+                // Step 2: Sum results from final_cumulative_results table for those specific call numbers
                 if (prevCallNos != null && !prevCallNos.isEmpty()) {
                     List<Object[]> sumsList = finalCumulativeResultsRepository.sumCumulativeByCallNumbers(
                             prevCallNos,
@@ -245,26 +234,7 @@ public class PoDataServiceImpl implements PoDataService {
                             cummOffered  = row[2] != null ? ((Number) row[2]).intValue() : 0;
                         }
                     }
-                    logger.info("🔍 [Cumulative Calc] Step 2 sums -> Passed: {}, Rejected: {}, Offered: {}", cummPassed, cummRejected, cummOffered);
-                }
-
-                if (cummPassed == 0 && cummOffered == 0 && poHeader.getPoNo() != null) {
-                    List<Object[]> poSumsList = finalCumulativeResultsRepository.sumCumulativeByPoNoAndSerialNoExcludingCall(
-                            poHeader.getPoNo(),
-                            serialSuffix,
-                            inspectionCall.getId() != null ? inspectionCall.getId().longValue() : 0L,
-                            inspectionCall.getIcNumber(),
-                            inspectionCall.getCreatedAt()
-                    );
-                    if (poSumsList != null && !poSumsList.isEmpty()) {
-                        Object[] row = poSumsList.get(0);
-                        if (row != null && row.length >= 3) {
-                            cummPassed   = row[0] != null ? ((Number) row[0]).intValue() : 0;
-                            cummRejected = row[1] != null ? ((Number) row[1]).intValue() : 0;
-                            cummOffered  = row[2] != null ? ((Number) row[2]).intValue() : 0;
-                        }
-                    }
-                    logger.info("🔍 [Cumulative Calc] Step 3 direct fallback -> Passed: {}, Rejected: {}, Offered: {}", cummPassed, cummRejected, cummOffered);
+                    logger.info("🔍 [Cumulative Calc] Serial {} sums -> Passed: {}, Rejected: {}, Offered: {}", serialSuffix, cummPassed, cummRejected, cummOffered);
                 }
             } else {
                 logger.warn("⚠️ [Cumulative Calc] inspectionCall is null or poSerialNo is null! inspectionCall={}", inspectionCall);
