@@ -44,22 +44,75 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
                     .orElseThrow(() -> new RuntimeException("Call not found"));
 
             PoHeader poHeader = poHeaderRepo.findByPoNo(call.getPoNo())
-                    .orElseThrow(() -> new RuntimeException("PO not found"));
+                    .orElse(null);
 
-            PoItem poItem = poItemRepo.findByPoHeader_PoNoAndItemSrNo(call.getPoNo(), call.getSrNo())
-                    .orElseThrow(() -> new RuntimeException("PO Item not found"));
+            PoItem poItem = null;
+            if (poHeader != null) {
+                poItem = poItemRepo.findByPoHeader_PoNoAndItemSrNo(call.getPoNo(), call.getSrNo())
+                        .orElse(null);
+
+                if (poItem == null && poHeader.getId() != null) {
+                    try {
+                        String targetSr = call.getSrNo();
+                        if (targetSr != null && targetSr.contains("/")) {
+                            targetSr = targetSr.substring(targetSr.lastIndexOf("/") + 1).trim();
+                        }
+                        final String srToMatch = targetSr != null ? targetSr : "";
+                        poItem = poItemRepo.findByPoHeader_Id(poHeader.getId()).stream()
+                                .filter(pi -> pi.getItemSrNo() != null && (
+                                        pi.getItemSrNo().trim().equals(srToMatch) ||
+                                        pi.getItemSrNo().trim().replaceFirst("^0+(?!$)", "").equals(srToMatch.replaceFirst("^0+(?!$)", ""))
+                                ))
+                                .findFirst()
+                                .orElse(null);
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            String bpo = null;
+            if (poItem != null && poItem.getBillPayOffDesc() != null && !poItem.getBillPayOffDesc().isBlank()) {
+                bpo = poItem.getBillPayOffDesc();
+            } else if (poHeader != null && poHeader.getBillPayOffName() != null && !poHeader.getBillPayOffName().isBlank()) {
+                bpo = poHeader.getBillPayOffName();
+            } else if (poHeader != null && poHeader.getBillPayOff() != null && !poHeader.getBillPayOff().isBlank()) {
+                bpo = poHeader.getBillPayOff();
+            }
+
+            var savedOpt = repoFinalSectionA.findByCallNo(callNo);
+            if (savedOpt.isPresent()) {
+                FinalCallnspectionSectionA saved = savedOpt.get();
+                InspectionCallSection1Response res = new InspectionCallSection1Response();
+                res.setRlyPoNo(saved.getRlyPoNo());
+                res.setPoDate(saved.getPoDate());
+                res.setPoQty(saved.getPoQty());
+                res.setVendorName(saved.getVendorName());
+                res.setMaNo(saved.getMaNo());
+                res.setMaDate(saved.getMaDate() != null ? saved.getMaDate().toString() : "N/A");
+                res.setPurchasingAuthority(saved.getPurchasingAuthority());
+
+                String savedBpo = saved.getBillPayingOfficer();
+                if (savedBpo == null || savedBpo.trim().isEmpty() || savedBpo.trim().equals("-")) {
+                    savedBpo = bpo;
+                }
+                res.setBillPayingOfficer(savedBpo != null && !savedBpo.isBlank() ? savedBpo : "-");
+                return res;
+            }
 
             InspectionCallSection1Response res = new InspectionCallSection1Response();
 
             // Mapping UI fields
-            res.setRlyPoNo(poHeader.getRlyShortName() + " / " + poHeader.getPoNo() + " / " + call.getSrNo());
-            res.setPoDate(poHeader.getPoDate());
-            res.setPoQty(poItem.getQty());
-            res.setVendorName(poHeader.getVendorDetails());
+            if (poHeader != null) {
+                res.setRlyPoNo(poHeader.getRlyShortName() + " / " + poHeader.getPoNo() + " / " + call.getSrNo());
+                res.setPoDate(poHeader.getPoDate());
+                res.setVendorName(poHeader.getVendorDetails());
+                res.setPurchasingAuthority(poHeader.getPurchaserDetail());
+            } else {
+                res.setRlyPoNo(call.getPoNo() + " / " + call.getSrNo());
+            }
+            res.setPoQty(poItem != null ? poItem.getQty() : null);
             res.setMaNo("N/A"); // not available in entity
             res.setMaDate("N/A");
-            res.setPurchasingAuthority(poHeader.getPurchaserDetail());
-            res.setBillPayingOfficer(poHeader.getBillPayOff());
+            res.setBillPayingOfficer(bpo != null && !bpo.isBlank() ? bpo : "-");
 
             return res;
         }

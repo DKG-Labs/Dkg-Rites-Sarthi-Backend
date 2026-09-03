@@ -48,11 +48,11 @@ public interface SleeperIcProjection {
 
     String getQtyStillDue();
 
-    LocalDate getDateOfCall();
+    String getDateOfCall();
 
     Integer getNoOfVisits();
 
-    LocalDateTime getDateOfInspection();
+    String getDateOfInspection();
 
     String getQuantityNowPassedBatchNos();
 }

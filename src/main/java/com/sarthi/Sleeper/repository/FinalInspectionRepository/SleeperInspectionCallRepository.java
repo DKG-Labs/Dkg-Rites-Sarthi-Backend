@@ -893,9 +893,9 @@ ORDER BY um.employee_code
         COALESCE(
             DATE_FORMAT(
                 (SELECT sicd.created_on FROM sleeper_inspection_complete_details sicd WHERE sicd.call_no = sic.call_no ORDER BY sicd.id DESC LIMIT 1),
-                '%d/%m/%Y'
+                '%d.%m.%Y'
             ),
-            DATE_FORMAT(CURRENT_DATE(), '%d/%m/%Y')
+            DATE_FORMAT(CURRENT_DATE(), '%d.%m.%Y')
         ) AS date,
 
         (
@@ -913,118 +913,100 @@ ORDER BY um.employee_code
               AND (sic.created_at IS NULL OR sfr_inst.created_at <= sic.created_at)
         ) AS passedInstallmentNumber,
 
-        ph.vendor_details AS contractor,
+        COALESCE(ph.vendor_details, ph.vendor_code) AS contractor,
 
-        ph.vendor_details AS placeOfInspection,
+        COALESCE(ph.vendor_details, ph.vendor_code) AS placeOfInspection,
 
-        CONCAT(sic.po_no, ' / ', sic.created_at) AS contractRefAndDate,
+        CONCAT(sic.po_no, IF(ph.po_date IS NOT NULL, CONCAT(' dated ', DATE_FORMAT(ph.po_date, '%d.%m.%Y')), IF(sic.created_at IS NOT NULL, CONCAT(' dated ', DATE_FORMAT(sic.created_at, '%d.%m.%Y')), ''))) AS contractRefAndDate,
 
-        ph.bill_pay_off_name AS billPayingOffice,
+        COALESCE(pi.bill_pay_off_desc, ph.bill_pay_off_name, ph.bill_pay_off) AS billPayingOffice,
 
-        pi.consignee_detail AS consignee,
+        COALESCE(pi.consignee_detail, pi.imms_consignee_name, pi.consignee_cd, ph.purchaser_detail) AS consignee,
 
         ph.purchaser_detail AS purchasingAuthority,
 
         sic.sr_no AS itemNo,
 
-        pi.item_desc AS descriptionOfStores,
+        CONCAT(sic.call_no, '/', sic.sr_no, ' - ', COALESCE(pi.item_desc, 'MANUFACTURE AND SUPPLY OF PRESTRESSED MONO-BLOCK CONCRETE LINE SLEEPERES (RT-8746) (PRETENSIONED TYPE) FOR BROAD GAUGE(1673 MM)')) AS descriptionOfStores,
 
-        CONCAT(
-            pi.uom,
-            ' - ',
-            CAST(COALESCE(pi.qty, 0) AS SIGNED)
-        ) AS quantityOnOrder,
+        CAST(COALESCE(pi.qty, 0) AS SIGNED) AS quantityOnOrder,
 
-        CONCAT(
-            pi.uom,
-            ' - ',
-            CAST(COALESCE(
-                (
-                    SELECT SUM(sfr.total_offered_quantity)
-                    FROM sleeper_final_result sfr
-                    WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
-                    AND (
-                        TRIM(sfr.sr_no) = TRIM(sic.sr_no)
-                        OR CAST(sfr.sr_no AS UNSIGNED) = CAST(sic.sr_no AS UNSIGNED)
-                    )
-                    AND sfr.call_number <> sic.call_no
-                    AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
-                ),
-                0
-            ) AS SIGNED)
-        ) AS cumulativeQtyOfferedPreviously,
+        CAST(COALESCE(
+            (
+                SELECT SUM(sfr.total_offered_quantity)
+                FROM sleeper_final_result sfr
+                WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
+                AND (
+                    TRIM(sfr.sr_no) = TRIM(sic.sr_no)
+                    OR CAST(sfr.sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                )
+                AND sfr.call_number <> sic.call_no
+                AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
+            ),
+            0
+        ) AS SIGNED) AS cumulativeQtyOfferedPreviously,
 
-        CONCAT(
-            pi.uom,
-            ' - ',
-            CAST(COALESCE(
+        CAST(COALESCE(
+            (
+                SELECT SUM(sfr.total_accepted)
+                FROM sleeper_final_result sfr
+                WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
+                AND (
+                    TRIM(sfr.sr_no) = TRIM(sic.sr_no)
+                    OR CAST(sfr.sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+                )
+                AND sfr.call_number <> sic.call_no
+                AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
+            ),
+            0
+        ) AS SIGNED) AS quantityPreviouslyPassed,
+
+        CAST(COALESCE(sic.total_offered, (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), 0) AS SIGNED) AS qtyNowOffered,
+
+        CAST(COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), fcih.accepted_qty, 0) AS SIGNED) AS qtyNowPassed,
+
+        CAST(COALESCE((SELECT sfr.total_rejected FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), fcih.rejected_qty, 0) AS SIGNED) AS qtyNowRejected,
+
+        CAST(GREATEST(0, (
+            COALESCE(pi.qty, 0)
+            -
+            COALESCE(
                 (
                     SELECT SUM(sfr.total_accepted)
                     FROM sleeper_final_result sfr
                     WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
                     AND (
                         TRIM(sfr.sr_no) = TRIM(sic.sr_no)
-                        OR CAST(sfr.sr_no AS UNSIGNED) = CAST(sic.sr_no AS UNSIGNED)
+                        OR CAST(sfr.sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
                     )
                     AND sfr.call_number <> sic.call_no
                     AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
                 ),
                 0
-            ) AS SIGNED)
-        ) AS quantityPreviouslyPassed,
+            )
+            -
+            COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), fcih.accepted_qty, 0)
+        )) AS SIGNED) AS qtyStillDue,
 
         CONCAT(
-            pi.uom,
-            ' - ',
-            CAST(COALESCE(sic.total_offered, 0) AS SIGNED)
-        ) AS qtyNowOffered,
-
-        CONCAT(
-            pi.uom,
-            ' - ',
-            CAST(COALESCE(fcih.accepted_qty, 0) AS SIGNED)
-        ) AS qtyNowPassed,
-
-        CONCAT(
-            pi.uom,
-            ' - ',
-            CAST(COALESCE(fcih.rejected_qty, 0) AS SIGNED)
-        ) AS qtyNowRejected,
-
-        CONCAT(
-            pi.uom,
-            ' - ',
-            CAST((
-                COALESCE(pi.qty, 0)
-
-                -
-
-                COALESCE(
-                    (
-                        SELECT SUM(sfr.total_accepted)
-                        FROM sleeper_final_result sfr
-                        WHERE TRIM(sfr.po_no) = TRIM(sic.po_no)
-                        AND (
-                            TRIM(sfr.sr_no) = TRIM(sic.sr_no)
-                            OR CAST(sfr.sr_no AS UNSIGNED) = CAST(sic.sr_no AS UNSIGNED)
-                        )
-                        AND sfr.call_number <> sic.call_no
-                        AND (sic.created_at IS NULL OR sfr.created_at <= sic.created_at)
-                    ),
-                    0
-                )
-
-                -
-
-                COALESCE(fcih.accepted_qty, 0)
-            ) AS SIGNED)
-        ) AS qtyStillDue,
-
-        sic.desired_inspection_date AS dateOfCall,
+            DATE_FORMAT(COALESCE(sic.created_at, CURRENT_DATE()), '%d.%m.%Y'),
+            ', Desired Date: ',
+            DATE_FORMAT(COALESCE(sic.desired_inspection_date, sic.created_at, CURRENT_DATE()), '%d.%m.%Y')
+        ) AS dateOfCall,
 
         1 AS noOfVisits,
 
-        fcih.created_date AS dateOfInspection,
+        COALESCE(
+            (
+                SELECT DATE_FORMAT(sfr.date_of_inspection, '%d.%m.%Y')
+                FROM sleeper_final_result sfr
+                WHERE sfr.call_number = sic.call_no
+                LIMIT 1
+            ),
+            DATE_FORMAT(fcih.call_date, '%d.%m.%Y'),
+            DATE_FORMAT(fcih.created_date, '%d.%m.%Y'),
+            DATE_FORMAT(CURRENT_DATE(), '%d.%m.%Y')
+        ) AS dateOfInspection,
 
         (
             SELECT GROUP_CONCAT(
@@ -1042,7 +1024,12 @@ ORDER BY um.employee_code
 
     LEFT JOIN po_item pi
         ON pi.po_header_id = ph.id
-        AND pi.item_sr_no = sic.sr_no
+        AND (
+            pi.item_sr_no = sic.sr_no
+            OR pi.item_sr_no = SUBSTRING_INDEX(sic.sr_no, '/', -1)
+            OR CAST(pi.item_sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
+            OR LPAD(pi.item_sr_no, 3, '0') = LPAD(SUBSTRING_INDEX(sic.sr_no, '/', -1), 3, '0')
+        )
 
     LEFT JOIN final_call_inspection_header fcih
         ON fcih.call_no = sic.call_no
