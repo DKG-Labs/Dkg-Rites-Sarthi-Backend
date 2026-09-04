@@ -1253,18 +1253,48 @@ public class UserServiceImpl implements UserService {
         if (roleName == null || roleName.trim().isEmpty()) {
             return getAllUsers();
         }
-        List<UserDto> users = userMasterRepository.findUsersByRoleNameViaJoin(roleName).stream()
-                .map(this::mapToResponseDTO)
-                .collect(Collectors.toList());
 
-        if (users == null || users.isEmpty()) {
-            List<UserMaster> containingUsers = userMasterRepository.findByRoleNameContaining(roleName);
-            if (containingUsers != null && !containingUsers.isEmpty()) {
-                users = containingUsers.stream().map(this::mapToResponseDTO).collect(Collectors.toList());
-            }
+        List<UserMaster> matchedUsers = userMasterRepository.findUsersByRoleNameViaJoin(roleName);
+        if (matchedUsers == null || matchedUsers.isEmpty()) {
+            matchedUsers = userMasterRepository.findByRoleNameContaining(roleName);
+        }
+        if (matchedUsers == null || matchedUsers.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        return users != null ? users : new ArrayList<>();
+        // 1. Bulk preload User Roles for matched users in one single query
+        Map<Integer, List<String>> userRolesMap = new HashMap<>();
+        try {
+            List<Integer> userIds = matchedUsers.stream()
+                    .map(UserMaster::getUserId)
+                    .filter(Objects::nonNull)
+                    .toList();
+            if (!userIds.isEmpty()) {
+                List<Object[]> roleRows = userRoleMasterRepository.findUserRolesByUserIds(userIds);
+                for (Object[] row : roleRows) {
+                    if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                        Integer uId = ((Number) row[0]).intValue();
+                        String rName = row[1].toString().trim();
+                        userRolesMap.computeIfAbsent(uId, k -> new ArrayList<>()).add(rName);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 2. Bulk preload RioUser mapping
+        Map<String, String> rioUserMap = new HashMap<>();
+        try {
+            for (RioUser ru : rioUserRepository.findAll()) {
+                if (ru.getEmployeeCode() != null && ru.getRio() != null) {
+                    rioUserMap.put(ru.getEmployeeCode().trim(), ru.getRio().trim());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 3. Map with context (zero per-row database queries)
+        return matchedUsers.stream()
+                .map(u -> mapToResponseDTOWithContext(u, null, rioUserMap, null, null, userRolesMap))
+                .collect(Collectors.toList());
     }
 
     @Override

@@ -28,4 +28,12 @@ public interface UserRoleMasterRepository extends JpaRepository<UserRoleMaster, 
         JOIN role_master rm ON urm.roleid = rm.roleid
     """, nativeQuery = true)
     List<Object[]> findAllUserRolesWithRoleNames();
+
+    @org.springframework.data.jpa.repository.Query(value = """
+        SELECT urm.userid, rm.rolename 
+        FROM user_role_master urm 
+        JOIN role_master rm ON urm.roleid = rm.roleid
+        WHERE urm.userid IN (:userIds)
+    """, nativeQuery = true)
+    List<Object[]> findUserRolesByUserIds(@org.springframework.data.repository.query.Param("userIds") List<Integer> userIds);
 }

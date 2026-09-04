@@ -21,6 +21,8 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     Optional<UserMaster> findFirstByEmployeeCode(String employeeCode);
 
+    java.util.List<UserMaster> findByEmployeeCodeIn(java.util.List<String> employeeCodes);
+
     Optional<UserMaster> findFirstByEmail(String email);
 
     UserMaster findByEmployeeCode(String employeeCode); // Keep for compatibility if needed elsewhere, but use findFirstBy in service
@@ -33,8 +35,17 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
         JOIN user_role_master urm ON um.userid = urm.userid 
         JOIN role_master rm ON urm.roleid = rm.roleid 
         WHERE rm.rolename = :roleName 
-           OR LOWER(REPLACE(rm.rolename, ' ', '')) = LOWER(REPLACE(:roleName, ' ', ''))
-           OR LOWER(rm.rolename) LIKE LOWER(CONCAT('%', :roleName, '%'))
+           OR LOWER(TRIM(rm.rolename)) = LOWER(TRIM(:roleName))
+           OR LOWER(rm.rolename) LIKE LOWER(CONCAT('% ', :roleName, '%'))
+           OR LOWER(rm.rolename) LIKE LOWER(CONCAT('%', :roleName, ' %'))
+           OR LOWER(rm.rolename) LIKE LOWER(CONCAT('%', :roleName))
+           OR LOWER(rm.rolename) LIKE LOWER(CONCAT(:roleName, '%'))
+           OR (LOWER(:roleName) = 'ie' AND (
+               LOWER(rm.rolename) LIKE '%inspection engineer%'
+               OR LOWER(rm.rolename) LIKE '%process ie%'
+               OR LOWER(rm.rolename) LIKE '%main ie%'
+               OR LOWER(rm.rolename) LIKE '%rail main ie%'
+           ))
     """, nativeQuery = true)
     java.util.List<UserMaster> findUsersByRoleNameViaJoin(@org.springframework.data.repository.query.Param("roleName") String roleName);
 
