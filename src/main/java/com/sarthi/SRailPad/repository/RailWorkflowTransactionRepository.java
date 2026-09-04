@@ -531,15 +531,15 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_nos,
             COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_set,
             COALESCE(SUM(CASE 
-                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
-                     AND (flr.railpad_type IS NULL OR flr.railpad_type NOT LIKE '%NCRGRSP%') 
+                WHEN (flr.railpad_type IS NULL OR UPPER(flr.railpad_type) NOT LIKE '%NCRGRSP%') 
+                     AND LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
                 THEN flr.rejected_qty 
                 ELSE 0 
             END), 0) AS final_rejected_nos,
             COALESCE(SUM(CASE 
-                WHEN flr.railpad_type LIKE '%NCRGRSP%' THEN 
-                    (CASE WHEN flr.lot_no IN ('Lot 1', 'LOT 1', 'LOT-1', 'Lot-1', '1') THEN flr.rejected_qty ELSE 0 END)
-                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.rejected_qty 
+                WHEN UPPER(COALESCE(flr.railpad_type, '')) LIKE '%NCRGRSP%' 
+                     OR LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' 
+                THEN flr.rejected_qty 
                 ELSE 0 
             END), 0) AS final_rejected_set
         FROM rail_final_inspection_lot_results flr

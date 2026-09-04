@@ -32,6 +32,9 @@ public class DashboardSummaryDto {
     // Rail Pad total accepted quantities broken down by UOM
     private long totalAcceptedNos;
     private long totalAcceptedSet;
+    // Rail Pad total rejected quantities broken down by UOM
+    private long totalRejectedNos;
+    private long totalRejectedSet;
     private long totalProcessProduced;
     // Rail Pad rejection percentage (process IE rejections / production declared by vendor)
     private double railPadRejectionPercentage;
