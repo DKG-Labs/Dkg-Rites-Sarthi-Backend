@@ -945,12 +945,12 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         obj -> String.valueOf(obj[1])
                 ));
 
-        // Get water cube strength test map by batch number
+        // Get water cube strength test map by normalized plantId and batch number
         Map<String, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestMap = waterCubeStrengthTestRepository.findAll()
                 .stream()
                 .filter(t -> t.getBatchNumber() != null)
                 .collect(Collectors.toMap(
-                        com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest::getBatchNumber,
+                        t -> normalizeKey(t.getPlantId(), t.getBatchNumber()),
                         test -> test,
                         (existing, replacement) -> replacement
                 ));
@@ -958,6 +958,12 @@ public List<ProductionDeclarationResponseDto> getAll() {
         return entities.stream()
                 .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestMap))
                 .toList();
+    }
+
+    private String normalizeKey(String plantId, String batchNumber) {
+        String p = (plantId != null) ? plantId.replace(":", "").replaceAll("\\s+", "").trim().toLowerCase() : "";
+        String b = (batchNumber != null) ? batchNumber.trim().toLowerCase() : "";
+        return p + "_" + b;
     }
 
     private ProductionDeclarationResponseDto mapToResponseWithWaterCube(
@@ -991,7 +997,8 @@ public List<ProductionDeclarationResponseDto> getAll() {
         String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
         response.setStatus(status);
 
-        com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest wcTest = waterCubeTestMap.get(entity.getBatchNumber());
+        String lookupKey = normalizeKey(entity.getPlantId(), entity.getBatchNumber());
+        com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest wcTest = waterCubeTestMap.get(lookupKey);
         if (wcTest != null) {
             response.setWaterCubeTestStatus(true);
             response.setCondition2(Boolean.TRUE.equals(wcTest.getCondition2()));
