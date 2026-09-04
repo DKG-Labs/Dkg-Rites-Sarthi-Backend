@@ -32,10 +32,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -1843,14 +1845,17 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             users = userMasterRepository.findByRoleNameContaining("Main IE");
         }
         List<java.util.Map<String, Object>> available = new ArrayList<>();
+        Set<Integer> seenIds = new HashSet<>();
         if (users != null) {
             for (UserMaster u : users) {
-                java.util.Map<String, Object> emp = new java.util.HashMap<>();
-                emp.put("userId", u.getUserId());
-                emp.put("employeeCode", u.getEmployeeCode());
-                emp.put("fullName", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
-                emp.put("role", "Rail Main IE");
-                available.add(emp);
+                if (u.getUserId() != null && seenIds.add(u.getUserId())) {
+                    java.util.Map<String, Object> emp = new java.util.HashMap<>();
+                    emp.put("userId", u.getUserId());
+                    emp.put("employeeCode", u.getEmployeeCode());
+                    emp.put("fullName", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
+                    emp.put("role", "Rail Main IE");
+                    available.add(emp);
+                }
             }
         }
         return available;
@@ -1878,13 +1883,22 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if (plant != null && plant.getVendorCode() != null && !plant.getVendorCode().isBlank()) {
             vendorCode = plant.getVendorCode().trim();
         } else if (cleanPlantId.contains("/")) {
-            vendorCode = cleanPlantId.substring(0, cleanPlantId.indexOf("/")).trim();
+            vendorCode = cleanPlantId.split("/")[0].trim();
         } else if (providedPoiCode != null && !providedPoiCode.isBlank()) {
             vendorCode = providedPoiCode.trim();
         }
 
         String cleanVendorCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : vendorCode;
         String colonVendorCode = vendorCode.startsWith(":") ? vendorCode : ":" + vendorCode;
+
+        if (poiIeMappingRepository != null && !cleanVendorCode.isEmpty()) {
+            List<com.sarthi.SRailPad.entity.raipadMapping.RailPoiIeMapping> existing = poiIeMappingRepository.findAll();
+            for (com.sarthi.SRailPad.entity.raipadMapping.RailPoiIeMapping m : existing) {
+                if (m.getPlantId() != null && m.getPlantId().replace(":", "").startsWith(cleanVendorCode) && m.getPoiCode() != null && !m.getPoiCode().isBlank()) {
+                    return m.getPoiCode().trim().toUpperCase();
+                }
+            }
+        }
 
         RailPadPincodePoIMapping mapping = null;
         if (!companyName.isEmpty() && !cleanVendorCode.isEmpty()) {
@@ -1928,13 +1942,44 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Transactional
     public void submitRailpadRemap(RailpadRemapSubmitDto dto) {
         String callNo = dto.getCallNo();
+        String plantId = dto.getPlantId();
         Integer newUserId = dto.getNewUserId();
 
         if (callNo == null || callNo.trim().isEmpty() || newUserId == null) {
             throw new IllegalArgumentException("callNo and newUserId are required for remapping");
         }
 
-        // For Opened and Verified calls: Reassign call by updating assignedToUser in rail_workflow_transaction ONLY
+        if (plantId == null || plantId.trim().isEmpty()) {
+            Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> optCall = railInspectionCallRepository.findByCallNo(callNo);
+            if (optCall.isPresent()) {
+                plantId = optCall.get().getPlantId();
+            }
+        }
+
+        // 1. Update or insert in rail_poi_ie_mapping
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            String cleanPlantId = plantId.replace(":", "").trim();
+            Optional<RailPoiIeMapping> existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(plantId, "MAIN_IE");
+            if (existingOpt.isEmpty()) {
+                existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(cleanPlantId, "MAIN_IE");
+            }
+            if (existingOpt.isPresent()) {
+                RailPoiIeMapping existing = existingOpt.get();
+                existing.setIeUserId(newUserId);
+                poiIeMappingRepository.save(existing);
+            } else {
+                RailPoiIeMapping mapping = new RailPoiIeMapping();
+                String correctPoiCode = resolveRailpadPoiCode(plantId, null);
+                mapping.setPoiCode(correctPoiCode != null ? correctPoiCode : "");
+                mapping.setPlantId(plantId);
+                mapping.setIeUserId(newUserId);
+                mapping.setIeType("MAIN_IE");
+                mapping.setCreatedDate(LocalDateTime.now());
+                poiIeMappingRepository.save(mapping);
+            }
+        }
+
+        // 2. Reassign call by updating assignedToUser in rail_workflow_transaction
         List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
         if (txList != null && !txList.isEmpty()) {
             RailWorkflowTransaction tx = txList.get(txList.size() - 1);
@@ -1965,31 +2010,29 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             throw new IllegalArgumentException("Plant ID could not be found for call " + callNo);
         }
 
-        String cleanPlantId = plantId.replace(":", "");
+        String cleanPlantId = plantId.replace(":", "").trim();
 
-        // 1. Check if user is already mapped with this plant ID in rail_poi_ie_mapping
-        List<RailPoiIeMapping> allMappings = poiIeMappingRepository.findAll();
-        boolean alreadyMapped = allMappings.stream().anyMatch(m -> 
-            m.getIeUserId() != null && m.getIeUserId().equals(newUserId) &&
-            m.getPlantId() != null && m.getPlantId().replace(":", "").equalsIgnoreCase(cleanPlantId) &&
-            (m.getIeType() != null && (m.getIeType().equalsIgnoreCase("MAIN_IE") || m.getIeType().equalsIgnoreCase("MAIN IE") || m.getIeType().toUpperCase().contains("MAIN")))
-        );
-
-        if (alreadyMapped) {
-            throw new IllegalArgumentException("User is already mapped with this plant ID");
+        // 1. Update or insert in rail_poi_ie_mapping
+        Optional<RailPoiIeMapping> existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(plantId, "MAIN_IE");
+        if (existingOpt.isEmpty()) {
+            existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(cleanPlantId, "MAIN_IE");
+        }
+        if (existingOpt.isPresent()) {
+            RailPoiIeMapping existing = existingOpt.get();
+            existing.setIeUserId(newUserId);
+            poiIeMappingRepository.save(existing);
+        } else {
+            RailPoiIeMapping mapping = new RailPoiIeMapping();
+            String correctPoiCode = resolveRailpadPoiCode(plantId, null);
+            mapping.setPoiCode(correctPoiCode != null ? correctPoiCode : "");
+            mapping.setPlantId(plantId);
+            mapping.setIeUserId(newUserId);
+            mapping.setIeType("MAIN_IE");
+            mapping.setCreatedDate(LocalDateTime.now());
+            poiIeMappingRepository.save(mapping);
         }
 
-        // 2. Insert new mapping in rail_poi_ie_mapping
-        RailPoiIeMapping mapping = new RailPoiIeMapping();
-        String correctPoiCode = resolveRailpadPoiCode(plantId, null);
-        mapping.setPoiCode(correctPoiCode != null ? correctPoiCode : "");
-        mapping.setPlantId(plantId);
-        mapping.setIeUserId(newUserId);
-        mapping.setIeType("MAIN_IE");
-        mapping.setCreatedDate(LocalDateTime.now());
-        poiIeMappingRepository.save(mapping);
-
-        // Also update any latest transaction for this call if it exists
+        // 2. Also update any latest transaction for this call if it exists
         List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
         if (txList != null && !txList.isEmpty()) {
             RailWorkflowTransaction tx = txList.get(txList.size() - 1);
