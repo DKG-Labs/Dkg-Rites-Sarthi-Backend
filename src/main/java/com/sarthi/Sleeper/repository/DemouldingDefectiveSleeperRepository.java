@@ -38,6 +38,17 @@ AND (
     Set<String> findRejectedSleeperNos(@Param("batchNo") String batchNo);
 
     @Query(value = """
+SELECT DISTINCT d.sleeper_no
+FROM demoulding_defective_sleepers d
+JOIN demoulding_inspection i 
+  ON i.id = d.inspection_id
+WHERE REPLACE(UPPER(i.batch_no), ' ', '') = REPLACE(UPPER(:batchNo), ' ', '')
+AND d.sleeper_no IS NOT NULL
+AND TRIM(d.sleeper_no) <> ''
+""", nativeQuery = true)
+    Set<String> findAllRejectedSleeperNosByBatchNo(@Param("batchNo") String batchNo);
+
+    @Query(value = """
 SELECT COUNT(d.id)
 FROM demoulding_defective_sleepers d
 WHERE (d.visual_reason IS NOT NULL AND d.visual_reason <> '')

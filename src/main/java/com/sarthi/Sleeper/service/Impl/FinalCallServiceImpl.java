@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarthi.Sleeper.repository.FInalCallRepo.SleeperBatchResultRepository;
 import com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -29,6 +30,7 @@ public class FinalCallServiceImpl implements FinalCallService {
     private final FinalCallInspectionHeaderRepository finalCallInspectionHeaderRepository;
     private final SleeperFinalResultRepository sleeperFinalResultRepository;
     private final SleeperBatchResultRepository sleeperBatchResultRepository;
+    private final SleeperInspectionCallRepository sleeperInspectionCallRepository;
 
         // ================= CREATE =================
         public FinalCallResponseDto create(FinalCallRequestDto dto) {
@@ -544,8 +546,28 @@ public class FinalCallServiceImpl implements FinalCallService {
                 });
 
         result.setCallNumber(dto.getCallNumber().trim());
-        result.setPoNo(dto.getPoNo());
-        result.setSrNo(dto.getSrNo());
+        
+        // Auto-resolve true srNo and poNo from SleeperInspectionCall
+        String targetSrNo = dto.getSrNo();
+        String targetPoNo = dto.getPoNo();
+        if (sleeperInspectionCallRepository != null) {
+            var callOpt = sleeperInspectionCallRepository.findByCallNo(dto.getCallNumber().trim());
+            if (callOpt.isPresent()) {
+                var callEntity = callOpt.get();
+                if (callEntity.getSrNo() != null && !callEntity.getSrNo().trim().isEmpty()) {
+                    if (targetSrNo == null || targetSrNo.trim().isEmpty() || "1".equals(targetSrNo.trim()) || "001".equals(targetSrNo.trim())) {
+                        targetSrNo = callEntity.getSrNo().trim();
+                    }
+                }
+                if (callEntity.getPoNo() != null && !callEntity.getPoNo().trim().isEmpty()) {
+                    targetPoNo = callEntity.getPoNo().trim();
+                } else if (targetPoNo == null || targetPoNo.trim().isEmpty()) {
+                    targetPoNo = callEntity.getPoNo();
+                }
+            }
+        }
+        result.setPoNo(targetPoNo);
+        result.setSrNo(targetSrNo);
         result.setShift(dto.getShift());
         if (dto.getDateOfInspection() != null && !dto.getDateOfInspection().trim().isEmpty()) {
             try {
