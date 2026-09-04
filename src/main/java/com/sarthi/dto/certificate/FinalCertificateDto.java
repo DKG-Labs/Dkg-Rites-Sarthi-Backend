@@ -95,6 +95,11 @@ public class FinalCertificateDto {
      * Description: Product description from inspection call
      */
     private String description;
+
+    /**
+     * ERC Type: MK-V, MK-III, ERC-J, etc.
+     */
+    private String ercType;
     
     /* ==================== Inspection Results ==================== */
     

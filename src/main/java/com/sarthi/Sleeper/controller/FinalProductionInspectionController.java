@@ -153,7 +153,12 @@ public class FinalProductionInspectionController {
         String requestId = callNo;
         Long md = 0L;
         Long wid = 2L;
-        sleeperWorkflowService.initiateWorkflow(requestId,md, wid, Long.valueOf(submitDto.getCreatedBy()), submitDto.getVendorCode(), submitDto.getPlantId());
+        Long createdByVal = (submitDto.getCreatedBy() != null) ? submitDto.getCreatedBy() : 1L;
+        try {
+            sleeperWorkflowService.initiateWorkflow(requestId, md, wid, createdByVal, submitDto.getVendorCode(), submitDto.getPlantId());
+        } catch (Exception e) {
+            System.err.println("Workflow initiation warning: " + e.getMessage());
+        }
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(callNo),

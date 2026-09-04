@@ -44,6 +44,7 @@ public class ProcessIcEditService {
         entity.setChpClause(dto.getChpClause());
         entity.setInspectionDate(dto.getInspectionDate());
         entity.setManDays(dto.getManDays());
+        entity.setLotDetails(dto.getLotDetails());
         
         // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
@@ -74,6 +75,7 @@ public class ProcessIcEditService {
                 .chpClause(entity.getChpClause())
                 .inspectionDate(entity.getInspectionDate())
                 .manDays(entity.getManDays())
+                .lotDetails(entity.getLotDetails())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())
