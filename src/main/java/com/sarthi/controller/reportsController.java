@@ -40,11 +40,14 @@ public class reportsController {
         @Autowired
         private com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
 
+        @Autowired
+        private com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
+
         @GetMapping("/region")
         public ResponseEntity<Object> getRegionByCallNo(@RequestParam String callNo) {
                 try {
-                        String regionName = reportService.getRegionByCallNo(callNo);
-                        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(regionName), HttpStatus.OK);
+                        String region = reportService.getRegionByCallNo(callNo);
+                        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(region), HttpStatus.OK);
                 } catch (Exception e) {
                         return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
                                         new ErrorDetails(500, 500, "ERROR", e.getMessage())),
@@ -90,6 +93,26 @@ public class reportsController {
                         dto.setProcessCount(processIcIssued);
                         dto.setFinalCount(finalIcIssued);
                         dto.setTotal(processIcIssued + finalIcIssued);
+                        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
+                }
+
+                if (product != null && (product.equalsIgnoreCase("Sleeper") || product.equalsIgnoreCase("PSC Mainline Sleeper"))) {
+                        java.time.LocalDateTime sDate = (startDate == null || startDate.isEmpty()) ? null
+                                        : java.time.LocalDate.parse(startDate).atStartOfDay();
+                        java.time.LocalDateTime eDate = (endDate == null || endDate.isEmpty()) ? null
+                                        : java.time.LocalDate.parse(endDate).atTime(23, 59, 59);
+
+                        Long sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(
+                                        (vendorPlantCode != null && vendorPlantCode.trim().isEmpty()) ? null : vendorPlantCode,
+                                        (zonalRailway != null && zonalRailway.trim().isEmpty()) ? null : zonalRailway,
+                                        sDate, eDate);
+
+                        long finalIcIssued = sleeperIcIssued != null ? sleeperIcIssued : 0L;
+                        IcIssuedCountDto dto = new IcIssuedCountDto();
+                        dto.setRmCount(0);
+                        dto.setProcessCount(0);
+                        dto.setFinalCount(finalIcIssued);
+                        dto.setTotal(finalIcIssued);
                         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
                 }
 
@@ -467,6 +490,21 @@ public class reportsController {
                 return new ResponseEntity<Object>(
                                 ResponseBuilder.getSuccessResponse(
                                                 reportService.getRailPadInspectionCallStatusDetails(stage, status,
+                                                                vendorPlantCode, zonalRailway, startDate, endDate)),
+                                HttpStatus.OK);
+        }
+
+        @GetMapping("/sleeperInspectionCallStatusDetails")
+        public ResponseEntity<Object> getSleeperInspectionCallStatusDetails(
+                        @RequestParam(required = false, defaultValue = "ALL") String stage,
+                        @RequestParam String status,
+                        @RequestParam(required = false) String vendorPlantCode,
+                        @RequestParam(required = false) String zonalRailway,
+                        @RequestParam(required = false) String startDate,
+                        @RequestParam(required = false) String endDate) {
+                return new ResponseEntity<Object>(
+                                ResponseBuilder.getSuccessResponse(
+                                                reportService.getSleeperInspectionCallStatusDetails(stage, status,
                                                                 vendorPlantCode, zonalRailway, startDate, endDate)),
                                 HttpStatus.OK);
         }

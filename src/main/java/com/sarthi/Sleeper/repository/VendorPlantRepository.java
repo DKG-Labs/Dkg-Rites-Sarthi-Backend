@@ -71,4 +71,29 @@ public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> 
     LIMIT 1
     """, nativeQuery = true)
     String findZonalRailwayByPlantId(@Param("plantId") String plantId);
+
+    @Query("""
+    SELECT DISTINCT v.companyName FROM VendorPlant v 
+    WHERE (:zone IS NULL OR :zone = '' 
+           OR UPPER(TRIM(v.zonalRailway)) = UPPER(TRIM(:zone)) 
+           OR UPPER(v.zonalRailway) LIKE CONCAT('%', UPPER(TRIM(:zone)), '%'))
+      AND v.companyName IS NOT NULL AND v.companyName <> '' 
+    ORDER BY v.companyName
+    """)
+    List<String> findDistinctCompanyNamesByZone(@Param("zone") String zone);
+
+    @Query("""
+    SELECT DISTINCT v.plantId FROM VendorPlant v 
+    WHERE (:companyName IS NULL OR :companyName = '' 
+           OR UPPER(TRIM(v.companyName)) = UPPER(TRIM(:companyName)) 
+           OR UPPER(v.companyName) LIKE CONCAT('%', UPPER(TRIM(:companyName)), '%') 
+           OR UPPER(TRIM(v.vendorCode)) = UPPER(TRIM(:companyName)) 
+           OR UPPER(TRIM(v.plantId)) = UPPER(TRIM(:companyName))
+           OR REPLACE(COALESCE(v.plantId, ''), ':', '') = REPLACE(:companyName, ':', ''))
+      AND (:zone IS NULL OR :zone = '' 
+           OR UPPER(TRIM(v.zonalRailway)) = UPPER(TRIM(:zone)) 
+           OR UPPER(v.zonalRailway) LIKE CONCAT('%', UPPER(TRIM(:zone)), '%'))
+      AND v.plantId IS NOT NULL AND v.plantId <> ''
+    """)
+    List<String> findPlantIdsByCompanyAndZone(@Param("companyName") String companyName, @Param("zone") String zone);
 }

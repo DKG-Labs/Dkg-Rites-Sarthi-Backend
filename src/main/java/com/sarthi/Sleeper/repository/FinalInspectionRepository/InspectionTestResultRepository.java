@@ -129,6 +129,28 @@ AND h.module.id = :moduleId
 
   @Query(value = "SELECT COUNT(id) FROM inspection_test_result WHERE result = 'REJECTED' AND active = 1", nativeQuery = true)
   Long getTotalRejectedCount();
+
+  @Query(value = """
+SELECT COUNT(r.id)
+FROM inspection_test_result r
+JOIN inspection_test_header h ON h.id = r.test_header_id
+JOIN production_declaration pd ON pd.id = h.batch_id
+WHERE r.result = 'REJECTED'
+  AND r.active = 1
+  AND pd.plant_id = :plantId
+""", nativeQuery = true)
+  Long getTotalRejectedCountByPlantId(@Param("plantId") String plantId);
+
+  @Query(value = """
+SELECT COUNT(r.id)
+FROM inspection_test_result r
+JOIN inspection_test_header h ON h.id = r.test_header_id
+JOIN production_declaration pd ON pd.id = h.batch_id
+WHERE r.result = 'REJECTED'
+  AND r.active = 1
+  AND pd.plant_id IN :plantIds
+""", nativeQuery = true)
+  Long getTotalRejectedCountByPlantIds(@Param("plantIds") java.util.Collection<String> plantIds);
 /*
   @Query(value = """
 SELECT vp.plant_id,

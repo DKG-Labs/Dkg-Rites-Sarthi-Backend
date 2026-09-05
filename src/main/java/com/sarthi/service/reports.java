@@ -96,6 +96,10 @@ public interface reports {
                         String stage, String status, String vendorPlantCode, String zonalRailway, String startDate,
                         String endDate);
 
+        public List<com.sarthi.dto.reports.InspectionCallDetailDto> getSleeperInspectionCallStatusDetails(
+                        String stage, String status, String vendorPlantCode, String zonalRailway, String startDate,
+                        String endDate);
+
         public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport();
 
         public List<com.sarthi.dto.reports.RailPadShiftWiseProductionDto> getRailPadShiftWiseProductionReport(

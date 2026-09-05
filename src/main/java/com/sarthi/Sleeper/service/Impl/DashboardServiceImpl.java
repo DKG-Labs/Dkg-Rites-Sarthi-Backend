@@ -1507,6 +1507,14 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<String> getVendorPlantCompanyNames() {
+        return getVendorPlantCompanyNames(null);
+    }
+
+    @Override
+    public List<String> getVendorPlantCompanyNames(String zone) {
+        if (zone != null && !zone.isBlank()) {
+            return vendorPlantRepository.findDistinctCompanyNamesByZone(zone.trim());
+        }
         return vendorPlantRepository.findDistinctCompanyNames();
     }
 
@@ -1802,17 +1810,21 @@ public class DashboardServiceImpl implements DashboardService {
         
         for (SleeperWorkflowTransaction tx : latestTransactions) {
             String jobStatus = tx.getJobStatus();
-            if (jobStatus == null || jobStatus.trim().isEmpty()) {
+            String action = tx.getAction();
+            
+            String statusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
+            String actionUpper = action != null ? action.trim().toUpperCase() : "";
+            
+            if ("COMPLETED".equals(statusUpper) || "IC_ISSUE".equals(statusUpper) || "GENERATED".equals(statusUpper) || "DSC_SIGN_IC".equals(statusUpper) || "IC_SIGNED".equals(statusUpper)
+                    || "FINISH".equals(actionUpper) || "COMPLETED".equals(actionUpper) || "IC_ISSUE".equals(actionUpper) || "IC_GENERATION".equals(actionUpper) || "DSC_SIGN_IC".equals(actionUpper)) {
                 continue;
             }
             
-            String statusUpper = jobStatus.trim().toUpperCase();
-            if ("SCHEDULED".equals(statusUpper)) {
-                pending++;
-            } else if (!"CREATED".equals(statusUpper) 
-                    && !"RIO_VERIFIED".equals(statusUpper) 
-                    && !"COMPLETED".equals(statusUpper)) {
+            if ("INITIATED".equals(statusUpper) || "PO_VERIFICATION".equals(statusUpper) || "PAUSED".equals(statusUpper) || "WITHHELD".equals(statusUpper)
+                    || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper) || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper)) {
                 underInspection++;
+            } else {
+                pending++;
             }
         }
         
@@ -1913,6 +1925,112 @@ public class DashboardServiceImpl implements DashboardService {
         return inspectionCallRepository.getSleeperIcData(callNo);
     }
 
+    @Override
+    public java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone) {
+        boolean hasVendor = vendor != null && !vendor.isBlank();
+        boolean hasZone = zone != null && !zone.isBlank();
+        boolean filtered = hasVendor || hasZone;
+
+        long rejectedInProcess;
+        long rejectedInFinal;
+        double rejectionPercentage;
+        long pending = 0;
+        long underInspection = 0;
+        long totalProduction = 0;
+
+        long sleeperIcIssued = 0;
+
+        if (filtered) {
+            String v = hasVendor ? vendor.trim() : null;
+            String z = hasZone ? zone.trim() : null;
+            List<String> foundPlantIds = vendorPlantRepository.findPlantIdsByCompanyAndZone(v, z);
+
+            if ((foundPlantIds == null || foundPlantIds.isEmpty()) && hasVendor) {
+                foundPlantIds = vendorPlantRepository.findPlantIdsByVendorCode(v);
+            }
+
+            if (foundPlantIds != null && !foundPlantIds.isEmpty()) {
+                java.util.Set<String> plantIdsSet = new java.util.HashSet<>(foundPlantIds);
+                for (String pid : foundPlantIds) {
+                    if (pid != null && !pid.isBlank()) {
+                        String clean = pid.replace(":", "").trim();
+                        plantIdsSet.add(clean);
+                        plantIdsSet.add(":" + clean);
+                    }
+                }
+                List<String> plantIds = new java.util.ArrayList<>(plantIdsSet);
+
+                Long demouldRejected = demouldingDefectiveSleeperRepository.countByWithReasonsAndPlantIds(plantIds);
+                rejectedInProcess = demouldRejected != null ? demouldRejected : 0L;
+
+                Long finalRejected = inspectionTestResultRepository.getTotalRejectedCountByPlantIds(plantIds);
+                rejectedInFinal = finalRejected != null ? finalRejected : 0L;
+
+                Long production = productionDeclarationRepository.getTotalProductionCountByPlantIds(plantIds);
+                totalProduction = production != null ? production : 0L;
+                long totalRejected = rejectedInProcess + rejectedInFinal;
+                rejectionPercentage = totalProduction > 0 ? (totalRejected * 100.0) / totalProduction : 0.0;
+
+                Long icCount = sleeperWorkflowRepository.countSleeperIcIssuedByPlantIds(plantIds);
+                sleeperIcIssued = icCount != null ? icCount : 0L;
+
+                List<SleeperWorkflowTransaction> latestTxs = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2ByPlantIds(plantIds);
+                for (SleeperWorkflowTransaction tx : latestTxs) {
+                    String jobStatus = tx.getJobStatus();
+                    String action = tx.getAction();
+                    String statusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
+                    String actionUpper = action != null ? action.trim().toUpperCase() : "";
+                    
+                    if ("COMPLETED".equals(statusUpper) || "IC_ISSUE".equals(statusUpper) || "GENERATED".equals(statusUpper) || "DSC_SIGN_IC".equals(statusUpper) || "IC_SIGNED".equals(statusUpper)
+                            || "FINISH".equals(actionUpper) || "COMPLETED".equals(actionUpper) || "IC_ISSUE".equals(actionUpper) || "IC_GENERATION".equals(actionUpper) || "DSC_SIGN_IC".equals(actionUpper)) {
+                        continue;
+                    }
+                    
+                    if ("INITIATED".equals(statusUpper) || "PO_VERIFICATION".equals(statusUpper) || "PAUSED".equals(statusUpper) || "WITHHELD".equals(statusUpper)
+                            || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper) || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper)) {
+                        underInspection++;
+                    } else {
+                        pending++;
+                    }
+                }
+            } else {
+                rejectedInProcess = 0L;
+                rejectedInFinal = 0L;
+                rejectionPercentage = 0.0;
+                sleeperIcIssued = 0L;
+            }
+        } else {
+            // Global cached values
+            if (!isCacheInitialized) {
+                synchronized (this) {
+                    if (!isCacheInitialized) updateDashboardMetrics();
+                }
+            }
+            rejectedInProcess = demouldingDefectiveSleeperRepository.countByWithReasons() != null
+                    ? demouldingDefectiveSleeperRepository.countByWithReasons() : 0L;
+            rejectedInFinal = totalRejectedCountCache;
+            rejectionPercentage = rejectionPercentageCache;
+            Long production = productionDeclarationRepository.getTotalProductionCount();
+            totalProduction = production != null ? production : 0L;
+
+            Long icCount = sleeperWorkflowRepository.countSleeperIcIssuedByPlantIds(null);
+            sleeperIcIssued = icCount != null ? icCount : 0L;
+
+            java.util.Map<String, Long> callStatusCounts = getFinalInspectionCallStatusCounts();
+            pending = callStatusCounts.getOrDefault("pending", 0L);
+            underInspection = callStatusCounts.getOrDefault("underInspection", 0L);
+        }
+
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("rejectedInProcess", rejectedInProcess);
+        result.put("rejectedInFinal", rejectedInFinal);
+        result.put("rejectionPercentage", Math.round(rejectionPercentage * 100.0) / 100.0);
+        result.put("pendingCalls", pending);
+        result.put("underInspectionCalls", underInspection);
+        result.put("totalProduction", totalProduction);
+        result.put("sleeperIcIssued", sleeperIcIssued);
+        return result;
+    }
 
 
 }

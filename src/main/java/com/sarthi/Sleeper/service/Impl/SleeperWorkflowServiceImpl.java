@@ -658,7 +658,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
             tx.setNextRole(null); // Keep it in a terminal state
             tx.setStatus(AppConstant.COMPLETED_TYPE);
-            tx.setJobStatus("GENERATED");
+            tx.setJobStatus("IC_GENERATION");
             
         } else if (current.getWorkflowId().equals(2L)) {
 
@@ -966,7 +966,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 return "IC_ISSUE";
 
             case "IC_GENERATION":
-                return "GENERATED";
+            case "GENERATE_IC":
+            case "DSC_SIGN_IC":
+                return "IC_GENERATION";
 
             default:
                 return "PENDING";

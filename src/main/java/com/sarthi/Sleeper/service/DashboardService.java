@@ -66,6 +66,7 @@ public interface DashboardService {
     );
 
     public List<String> getVendorPlantCompanyNames();
+    public List<String> getVendorPlantCompanyNames(String zone);
 
     public List<PlantDTO> getVendorPlantsByCompanyName(String companyName);
 
@@ -93,4 +94,10 @@ public interface DashboardService {
             String plantId,
             String startDate,
             String endDate);
+
+    /**
+     * Consolidated summary for the Sleeper dashboard with optional vendor and zonal railway filter.
+     * Returns: rejectedInProcess, rejectedInFinal, rejectionPercentage, pendingCalls, underInspectionCalls
+     */
+    java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone);
 }

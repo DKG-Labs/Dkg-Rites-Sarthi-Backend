@@ -19,6 +19,7 @@ public class DashboardSummaryDto {
     private long sleeperPoIssued;
     private long sleeperPoQuantityNos;
     private long sleeperPoQuantitySet;
+    private long sleeperIcIssued;
     // Rail Pad specific fields
     private long railPadPoIssued;
     private long railPadPoQuantityNos;

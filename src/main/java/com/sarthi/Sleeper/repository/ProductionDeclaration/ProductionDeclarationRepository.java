@@ -27,7 +27,15 @@ import java.util.Optional;
 public interface ProductionDeclarationRepository extends JpaRepository<ProductionDeclaration, Long> {
 
     @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p")
-    Long getTotalProductionCount();    /*
+    Long getTotalProductionCount();
+
+    @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p WHERE p.plantId = :plantId")
+    Long getTotalProductionCountByPlantId(@Param("plantId") String plantId);
+
+    @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p WHERE p.plantId IN :plantIds")
+    Long getTotalProductionCountByPlantIds(@Param("plantIds") java.util.Collection<String> plantIds);
+
+    /*
      * @Query("""
      * SELECT new
      * com.sarthi.Sleeper.dto.FinalInspectionDtos.BatchTestingListResponseDto(

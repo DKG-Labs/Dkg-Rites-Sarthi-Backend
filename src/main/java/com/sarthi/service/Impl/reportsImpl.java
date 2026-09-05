@@ -33,6 +33,7 @@ import com.sarthi.repository.processmaterial.*;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 
 import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.SRailPad.repository.RailVendorPlantsRepository;
 import com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionLotRepository;
@@ -189,6 +190,8 @@ public class reportsImpl implements reports {
         private RailInspectionLotRepository railInspectionLotRepository;
         @Autowired
         private UserMasterRepository userMasterRepository;
+        @Autowired
+        private SleeperWorkflowRepository sleeperWorkflowRepository;
 
         /*
          * 
@@ -2719,14 +2722,23 @@ public class reportsImpl implements reports {
                                 () -> rmHeatFinalResultRepository.sumRmRejectionWithFilters(parsedStartDate,
                                                 parsedEndDate, vCode, zCode));
 
-                CompletableFuture<Long> cfSleeperPoIssued = CompletableFuture
-                                .supplyAsync(() -> poHeaderRepository.countPoByItemCatDescr("PSC Mainline Sleeper"));
+                String sDate = (startDateStr != null && !startDateStr.trim().isEmpty()) ? startDateStr : null;
+                String eDate = (endDateStr != null && !endDateStr.trim().isEmpty()) ? endDateStr : null;
 
-                CompletableFuture<Long> cfSleeperQtyNos = CompletableFuture
-                                .supplyAsync(() -> getSleeperPoQuantityNos());
+                CompletableFuture<Long> cfSleeperPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
+                                .countFilteredPoByItemCatDescr("PSC Mainline Sleeper", sDate, eDate, vCode, zCode));
 
-                CompletableFuture<Long> cfSleeperQtySet = CompletableFuture
-                                .supplyAsync(() -> getSleeperPoQuantitySet());
+                CompletableFuture<Long> cfSleeperQtyNos = CompletableFuture.supplyAsync(() -> {
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("PSC Mainline Sleeper", sDate,
+                                        eDate, vCode, zCode);
+                        return res != null ? res : 0L;
+                });
+
+                CompletableFuture<Long> cfSleeperQtySet = CompletableFuture.supplyAsync(() -> {
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomSet("PSC Mainline Sleeper", sDate,
+                                        eDate, vCode, zCode);
+                        return res != null ? res : 0L;
+                });
 
                 CompletableFuture<Long> cfRailPadPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
                                 .countFilteredPoByItemCatDescr("Rail Pads", null, null, vCode, zCode));
@@ -2745,6 +2757,15 @@ public class reportsImpl implements reports {
 
                 CompletableFuture<List<Object[]>> cfCallCounts = CompletableFuture
                                 .supplyAsync(() -> railWorkflowTransactionRepository.getFilteredRailPadInspectionCallCounts(vCode, zCode, parsedStartDate, parsedEndDate));
+
+                CompletableFuture<Long> cfSleeperIcIssued = CompletableFuture.supplyAsync(() -> {
+                        Long count = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(
+                                        (vCode == null || vCode.trim().isEmpty()) ? null : vCode,
+                                        (zCode == null || zCode.trim().isEmpty()) ? null : zCode,
+                                        parsedStartDate != null ? parsedStartDate.atStartOfDay() : null,
+                                        parsedEndDate != null ? parsedEndDate.atTime(23, 59, 59) : null);
+                        return count != null ? count : 0L;
+                });
 
                 CompletableFuture<RailPadFinalInspectionSummaryDto> cfFinalSummary = CompletableFuture
                                 .supplyAsync(() -> getRailPadFinalInspectionSummary(vCode, zCode, startDateStr, endDateStr));
@@ -2767,7 +2788,7 @@ public class reportsImpl implements reports {
                 // Wait for all futures to complete
                 CompletableFuture.allOf(cfPoIssued, cfQtyNos, cfQtyMt, cfFinalQtyPassed, cfAvgProd,
                                 cfProcRej, cfFinalRejResults, cfRmRejResults, cfSleeperPoIssued,
-                                cfSleeperQtyNos, cfSleeperQtySet, cfRailPadPoIssued, cfRailPadQtyNos,
+                                cfSleeperQtyNos, cfSleeperQtySet, cfSleeperIcIssued, cfRailPadPoIssued, cfRailPadQtyNos,
                                 cfRailPadQtySet, cfCallCounts, cfFinalSummary, cfTotalRejection,
                                 cfProductionDeclared, cfRpPiecesSum, cfRpPlantCount).join();
 
@@ -2842,6 +2863,7 @@ public class reportsImpl implements reports {
                 dto.setSleeperPoIssued(cfSleeperPoIssued.join());
                 dto.setSleeperPoQuantityNos(cfSleeperQtyNos.join() != null ? cfSleeperQtyNos.join() : 0L);
                 dto.setSleeperPoQuantitySet(cfSleeperQtySet.join() != null ? cfSleeperQtySet.join() : 0L);
+                dto.setSleeperIcIssued(cfSleeperIcIssued.join());
                 dto.setRailPadPoIssued(cfRailPadPoIssued.join());
                 dto.setRailPadPoQuantityNos(cfRailPadQtyNos.join() != null ? cfRailPadQtyNos.join() : 0L);
                 dto.setRailPadPoQuantitySet(cfRailPadQtySet.join() != null ? cfRailPadQtySet.join() : 0L);
@@ -3254,7 +3276,46 @@ public class reportsImpl implements reports {
                         return getRailPadStagewiseCallCounts(vendorPlantCode, zonalRailway, startDate, endDate);
                 }
 
+                boolean isSleeper = (product != null
+                                && (product.equalsIgnoreCase("Sleeper") || product.equalsIgnoreCase("PSC Mainline Sleeper")));
+                if (isSleeper) {
+                        return getSleeperStagewiseCallCounts(vendorPlantCode, zonalRailway, startDate, endDate);
+                }
+
                 return getInspectionCallStatusWithExclLogic(vendorPlantCode, zonalRailway, startDate, endDate);
+        }
+
+        private List<InspectionCallStatusDto> getSleeperStagewiseCallCounts(String vendorPlantCode,
+                        String zonalRailway, String startDateStr, String endDateStr) {
+                java.time.LocalDateTime startDate = (startDateStr == null || startDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(startDateStr).atStartOfDay();
+                java.time.LocalDateTime endDate = (endDateStr == null || endDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(endDateStr).atTime(23, 59, 59);
+
+                List<Object[]> raw = sleeperWorkflowRepository.getSleeperInspectionCallStatusDetailsFiltered(
+                                "Final", "ALL",
+                                vendorPlantCode == null ? "" : vendorPlantCode,
+                                zonalRailway == null ? "" : zonalRailway,
+                                startDate, endDate);
+
+                long underInspection = 0;
+                long pending = 0;
+                if (raw != null) {
+                        for (Object[] row : raw) {
+                                String mainStatus = row[7] != null ? row[7].toString().trim() : "";
+                                if ("Under Inspection".equalsIgnoreCase(mainStatus)) {
+                                        underInspection++;
+                                } else if ("Pending".equalsIgnoreCase(mainStatus) || "Open".equalsIgnoreCase(mainStatus)) {
+                                        pending++;
+                                }
+                        }
+                }
+
+                List<InspectionCallStatusDto> list = new ArrayList<>();
+                list.add(new InspectionCallStatusDto("Total", underInspection, pending));
+                list.add(new InspectionCallStatusDto("Process", 0, 0));
+                list.add(new InspectionCallStatusDto("Final", underInspection, pending));
+                return list;
         }
 
         // ================= NEW LOGIC FOR PROCESS REJECTION % =================
@@ -5201,6 +5262,44 @@ public class reportsImpl implements reports {
         }
 
         @Override
+        public List<com.sarthi.dto.reports.InspectionCallDetailDto> getSleeperInspectionCallStatusDetails(
+                        String stage, String status, String vendorPlantCode, String zonalRailway, String startDateStr,
+                        String endDateStr) {
+
+                java.time.LocalDateTime startDate = (startDateStr == null || startDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(startDateStr).atStartOfDay();
+                java.time.LocalDateTime endDate = (endDateStr == null || endDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(endDateStr).atTime(23, 59, 59);
+
+                List<Object[]> rawList = sleeperWorkflowRepository
+                                .getSleeperInspectionCallStatusDetailsFiltered(
+                                                stage == null ? "ALL" : stage,
+                                                status == null ? "ALL" : status,
+                                                vendorPlantCode == null ? "" : vendorPlantCode,
+                                                zonalRailway == null ? "" : zonalRailway,
+                                                startDate, endDate);
+
+                List<com.sarthi.dto.reports.InspectionCallDetailDto> dtoList = new java.util.ArrayList<>();
+
+                if (rawList != null) {
+                        for (Object[] row : rawList) {
+                                dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
+                                                .inspectionCallNumber(row[0] != null ? row[0].toString() : "")
+                                                .vendor(row[1] != null ? row[1].toString() : "")
+                                                .callSubmissionDateTime(row[2] != null ? row[2].toString() : "")
+                                                .stageOfInspection(row[3] != null ? row[3].toString() : "")
+                                                .poSrNo(row[4] != null ? row[4].toString() : "")
+                                                .dpDate(row[5] != null ? row[5].toString() : "")
+                                                .status(row[6] != null ? row[6].toString() : "")
+                                                .mainStatus(row[7] != null ? row[7].toString() : "")
+                                                .subStatus(row[8] != null ? row[8].toString() : "")
+                                                .build());
+                        }
+                }
+                return dtoList;
+        }
+
+        @Override
 
         public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport() {
 
@@ -5902,10 +6001,14 @@ public class reportsImpl implements reports {
                         java.time.LocalDate endDate) {
                 String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
                 boolean isRailPad = filterProduct.contains("pad") || "rail pad".equals(filterProduct) || "railpad".equals(filterProduct);
+                boolean isSleeper = filterProduct.contains("sleeper") || "sleeper".equals(filterProduct);
 
                 List<Object[]> rawList;
                 if (isRailPad) {
                         rawList = railWorkflowTransactionRepository.findRailPadDownloadIcAnnexuresReportRaw(
+                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                } else if (isSleeper) {
+                        rawList = sleeperWorkflowRepository.findSleeperDownloadIcAnnexuresReportRaw(
                                         vendorPlantCode, zonalRailway, startDate, endDate);
                 } else {
                         rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(
@@ -5933,13 +6036,11 @@ public class reportsImpl implements reports {
                                         .itemCatDescr(itemCatDescr)
                                         .build();
 
-                        if (!filterProduct.isEmpty() && !isRailPad) {
+                        if (isRailPad || isSleeper) {
+                                resultList.add(dto);
+                        } else if (!filterProduct.isEmpty()) {
                                 String catLower = itemCatDescr.toLowerCase();
-                                if (filterProduct.contains("sleeper") || "sleeper".equals(filterProduct)) {
-                                        if (catLower.contains("sleeper")) {
-                                                resultList.add(dto);
-                                        }
-                                } else if (filterProduct.contains("erc") || "erc".equals(filterProduct)) {
+                                if (filterProduct.contains("erc") || "erc".equals(filterProduct)) {
                                         if (catLower.contains("clip") || catLower.contains("erc")) {
                                                 resultList.add(dto);
                                         }

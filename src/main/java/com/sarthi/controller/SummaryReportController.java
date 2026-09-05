@@ -42,8 +42,8 @@ public class SummaryReportController {
     public APIResponse getMonthlyProgress(
             @RequestParam int page,
             @RequestParam int size,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String rio,
             @RequestParam(required = false) String zone,
             @RequestParam(required = false) String vendor) {
