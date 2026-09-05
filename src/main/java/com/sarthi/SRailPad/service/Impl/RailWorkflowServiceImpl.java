@@ -1383,10 +1383,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if (mappings != null) {
             userIds = mappings.stream()
                     .map(RailPoiIeMapping::getIeUserId)
+                    .filter(Objects::nonNull)
                     .toList();
         }
 
-        // Assign vendor user
+        // Assign vendor user if next role is Vendor
         if (vendorId != null) {
             final String finalVendorId = vendorId;
             String vendorUserCacheKey = "vendorUser_" + vendorId;
@@ -1402,27 +1403,61 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
 
-        if (tx.getAssignedToUser() != null) {
-            dto.setAssignedToUser(tx.getAssignedToUser());
-            dto.setAccessibleUserIds(java.util.Collections.singletonList(tx.getAssignedToUser().intValue()));
-        } else {
-            dto.setAssignedToUser(null);
-            dto.setAccessibleUserIds(userIds);
+        Long effectiveAssignedUserId = tx.getAssignedToUser();
+
+        // If not assigned yet on transaction, resolve mapped Main IE from plant_id in rail_poi_ie_mapping
+        if (effectiveAssignedUserId == null && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
+            String pId = tx.getPlantId().trim();
+            String cleanPId = pId.replace(":", "").trim();
+            String colonPId = pId.startsWith(":") ? pId : ":" + cleanPId;
+
+            String mapCacheKey = "plant_main_ie_" + cleanPId;
+            RailPoiIeMapping mainIeMapping = null;
+            if (cache.containsKey(mapCacheKey)) {
+                mainIeMapping = (RailPoiIeMapping) cache.get(mapCacheKey);
+            } else {
+                Optional<RailPoiIeMapping> mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(pId, "MAIN_IE");
+                if (mainIeOpt.isEmpty()) {
+                    mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(cleanPId, "MAIN_IE");
+                }
+                if (mainIeOpt.isEmpty()) {
+                    mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(colonPId, "MAIN_IE");
+                }
+                mainIeMapping = mainIeOpt.orElse(null);
+                cache.put(mapCacheKey, mainIeMapping);
+            }
+
+            if (mainIeMapping != null && mainIeMapping.getIeUserId() != null) {
+                effectiveAssignedUserId = mainIeMapping.getIeUserId().longValue();
+                if (userIds.isEmpty()) {
+                    userIds = java.util.Collections.singletonList(mainIeMapping.getIeUserId());
+                }
+            }
         }
 
-        if (dto.getAssignedToUser() != null) {
-            String userCacheKey = "user_" + dto.getAssignedToUser();
+        // Fallback to first user in userIds if still null
+        if (effectiveAssignedUserId == null && userIds != null && !userIds.isEmpty()) {
+            effectiveAssignedUserId = userIds.get(0).longValue();
+        }
+
+        dto.setAssignedToUser(effectiveAssignedUserId);
+
+        if (effectiveAssignedUserId != null) {
+            dto.setAccessibleUserIds(java.util.Collections.singletonList(effectiveAssignedUserId.intValue()));
+            String userCacheKey = "user_" + effectiveAssignedUserId;
             UserMaster user = null;
             if (cache.containsKey(userCacheKey)) {
                 user = (UserMaster) cache.get(userCacheKey);
             } else {
-                user = userMasterRepository.findById(Math.toIntExact(dto.getAssignedToUser())).orElse(null);
+                user = userMasterRepository.findById(Math.toIntExact(effectiveAssignedUserId)).orElse(null);
                 cache.put(userCacheKey, user);
             }
             if (user != null) {
                 dto.setAssignedToUserName(user.getFullName());
                 dto.setAssignedToUserEmployeeCode(user.getEmployeeCode());
             }
+        } else {
+            dto.setAccessibleUserIds(userIds);
         }
 
         return dto;
@@ -1832,31 +1867,70 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers() {
-        List<UserMaster> users = userMasterRepository.findUsersByRoleId(15);
-        if (users == null || users.isEmpty()) {
-            users = userMasterRepository.findUsersByRoleNameViaJoin("Rail Main IE");
-        }
-        if (users == null || users.isEmpty()) {
-            users = userMasterRepository.findByRoleNameContaining("Rail Main IE");
-        }
-        if (users == null || users.isEmpty()) {
-            users = userMasterRepository.findByRoleNameContaining("Railpad Main IE");
-        }
-        if (users == null || users.isEmpty()) {
-            users = userMasterRepository.findByRoleNameContaining("Main IE");
-        }
-        List<java.util.Map<String, Object>> available = new ArrayList<>();
-        Set<Integer> seenIds = new HashSet<>();
-        if (users != null) {
-            for (UserMaster u : users) {
-                if (u.getUserId() != null && seenIds.add(u.getUserId())) {
-                    java.util.Map<String, Object> emp = new java.util.HashMap<>();
-                    emp.put("userId", u.getUserId());
-                    emp.put("employeeCode", u.getEmployeeCode());
-                    emp.put("fullName", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
-                    emp.put("role", "Rail Main IE");
-                    available.add(emp);
+        Set<Integer> userIds = new java.util.LinkedHashSet<>();
+
+        // 1. All IEs present in rail_poi_ie_mapping
+        try {
+            List<RailPoiIeMapping> allMappings = poiIeMappingRepository.findAll();
+            if (allMappings != null) {
+                for (RailPoiIeMapping m : allMappings) {
+                    if (m.getIeUserId() != null) {
+                        userIds.add(m.getIeUserId());
+                    }
                 }
+            }
+        } catch (Exception ignored) {}
+
+        // 2. All users with relevant IE roles
+        try {
+            List<UserMaster> r15 = userMasterRepository.findUsersByRoleId(15);
+            if (r15 != null) {
+                for (UserMaster u : r15) {
+                    if (u.getUserId() != null) userIds.add(u.getUserId());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            List<UserMaster> roleUsers = userMasterRepository.findUsersByRoleNameViaJoin("Rail Main IE");
+            if (roleUsers != null) {
+                for (UserMaster u : roleUsers) {
+                    if (u.getUserId() != null) userIds.add(u.getUserId());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            List<UserMaster> mainIes = userMasterRepository.findByRoleNameContaining("Main IE");
+            if (mainIes != null) {
+                for (UserMaster u : mainIes) {
+                    if (u.getUserId() != null) userIds.add(u.getUserId());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            List<UserMaster> railpadIes = userMasterRepository.findByRoleNameContaining("Railpad");
+            if (railpadIes != null) {
+                for (UserMaster u : railpadIes) {
+                    if (u.getUserId() != null) userIds.add(u.getUserId());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        List<java.util.Map<String, Object>> available = new ArrayList<>();
+        if (!userIds.isEmpty()) {
+            List<UserMaster> users = userMasterRepository.findAllById(userIds);
+            for (UserMaster u : users) {
+                java.util.Map<String, Object> emp = new java.util.HashMap<>();
+                emp.put("userId", u.getUserId());
+                emp.put("id", u.getUserId());
+                emp.put("employeeCode", u.getEmployeeCode());
+                emp.put("fullName", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
+                emp.put("name", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
+                emp.put("role", "Rail Main IE");
+                emp.put("roleName", "Rail Main IE");
+                available.add(emp);
             }
         }
         return available;
@@ -1940,52 +2014,64 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     }
 
     @Override
+    public List<String> getMappedMainIeNameByCallNo(String callNo) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        String plantId = null;
+        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
+        if (txList != null && !txList.isEmpty()) {
+            for (int i = txList.size() - 1; i >= 0; i--) {
+                if (txList.get(i).getPlantId() != null && !txList.get(i).getPlantId().trim().isEmpty()) {
+                    plantId = txList.get(i).getPlantId().trim();
+                    break;
+                }
+            }
+        }
+        if (plantId == null || plantId.trim().isEmpty()) {
+            Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> optCall = railInspectionCallRepository.findByCallNo(callNo);
+            if (optCall.isPresent() && optCall.get().getPlantId() != null && !optCall.get().getPlantId().trim().isEmpty()) {
+                plantId = optCall.get().getPlantId().trim();
+            }
+        }
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            String cleanPlantId = plantId.replace(":", "").trim();
+            String colonPlantId = plantId.startsWith(":") ? plantId : ":" + cleanPlantId;
+            Optional<RailPoiIeMapping> mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(plantId, "MAIN_IE");
+            if (mainIeOpt.isEmpty()) {
+                mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(cleanPlantId, "MAIN_IE");
+            }
+            if (mainIeOpt.isEmpty()) {
+                mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(colonPlantId, "MAIN_IE");
+            }
+            if (mainIeOpt.isPresent() && mainIeOpt.get().getIeUserId() != null) {
+                Optional<UserMaster> u = userMasterRepository.findById(mainIeOpt.get().getIeUserId());
+                if (u.isPresent() && u.get().getFullName() != null && !u.get().getFullName().isBlank()) {
+                    return java.util.Collections.singletonList(u.get().getFullName().trim());
+                }
+            }
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    @Override
     @Transactional
     public void submitRailpadRemap(RailpadRemapSubmitDto dto) {
         String callNo = dto.getCallNo();
-        String plantId = dto.getPlantId();
         Integer newUserId = dto.getNewUserId();
 
         if (callNo == null || callNo.trim().isEmpty() || newUserId == null) {
-            throw new IllegalArgumentException("callNo and newUserId are required for remapping");
+            throw new IllegalArgumentException("callNo and newUserId are required for reassigning");
         }
 
-        if (plantId == null || plantId.trim().isEmpty()) {
-            Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> optCall = railInspectionCallRepository.findByCallNo(callNo);
-            if (optCall.isPresent()) {
-                plantId = optCall.get().getPlantId();
-            }
-        }
-
-        // 1. Update or insert in rail_poi_ie_mapping
-        if (plantId != null && !plantId.trim().isEmpty()) {
-            String cleanPlantId = plantId.replace(":", "").trim();
-            Optional<RailPoiIeMapping> existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(plantId, "MAIN_IE");
-            if (existingOpt.isEmpty()) {
-                existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(cleanPlantId, "MAIN_IE");
-            }
-            if (existingOpt.isPresent()) {
-                RailPoiIeMapping existing = existingOpt.get();
-                existing.setIeUserId(newUserId);
-                poiIeMappingRepository.save(existing);
-            } else {
-                RailPoiIeMapping mapping = new RailPoiIeMapping();
-                String correctPoiCode = resolveRailpadPoiCode(plantId, null);
-                mapping.setPoiCode(correctPoiCode != null ? correctPoiCode : "");
-                mapping.setPlantId(plantId);
-                mapping.setIeUserId(newUserId);
-                mapping.setIeType("MAIN_IE");
-                mapping.setCreatedDate(LocalDateTime.now());
-                poiIeMappingRepository.save(mapping);
-            }
-        }
-
-        // 2. Reassign call by updating assignedToUser in rail_workflow_transaction
+        // 1. Update assigned_to_user in rail_workflow_transaction
         List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
         if (txList != null && !txList.isEmpty()) {
-            RailWorkflowTransaction tx = txList.get(txList.size() - 1);
-            tx.setAssignedToUser(Long.valueOf(newUserId));
-            railWorkflowTransactionRepository.save(tx);
+            for (RailWorkflowTransaction tx : txList) {
+                tx.setAssignedToUser(newUserId != null ? newUserId.longValue() : null);
+                tx.setUpdatedDate(LocalDateTime.now());
+            }
+            railWorkflowTransactionRepository.saveAll(txList);
         }
     }
 
@@ -2000,10 +2086,23 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             throw new IllegalArgumentException("callNo and newUserId are required for remapping");
         }
 
+        // 1. Fetch plantId from rail_workflow_transaction or rail_inspection_call
+        if (plantId == null || plantId.trim().isEmpty()) {
+            List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
+            if (txList != null && !txList.isEmpty()) {
+                for (int i = txList.size() - 1; i >= 0; i--) {
+                    if (txList.get(i).getPlantId() != null && !txList.get(i).getPlantId().trim().isEmpty()) {
+                        plantId = txList.get(i).getPlantId().trim();
+                        break;
+                    }
+                }
+            }
+        }
+
         if (plantId == null || plantId.trim().isEmpty()) {
             Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> optCall = railInspectionCallRepository.findByCallNo(callNo);
-            if (optCall.isPresent()) {
-                plantId = optCall.get().getPlantId();
+            if (optCall.isPresent() && optCall.get().getPlantId() != null && !optCall.get().getPlantId().trim().isEmpty()) {
+                plantId = optCall.get().getPlantId().trim();
             }
         }
 
@@ -2012,33 +2111,43 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         }
 
         String cleanPlantId = plantId.replace(":", "").trim();
+        String colonPlantId = plantId.startsWith(":") ? plantId : ":" + cleanPlantId;
 
-        // 1. Update or insert in rail_poi_ie_mapping
+        // 2. Fetch main ie user from rail_poi_ie_mapping
         Optional<RailPoiIeMapping> existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(plantId, "MAIN_IE");
         if (existingOpt.isEmpty()) {
             existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(cleanPlantId, "MAIN_IE");
         }
+        if (existingOpt.isEmpty()) {
+            existingOpt = poiIeMappingRepository.findByPlantIdAndIeType(colonPlantId, "MAIN_IE");
+        }
+
         if (existingOpt.isPresent()) {
+            // Plant ID is present: update ie_user_id for this plant
             RailPoiIeMapping existing = existingOpt.get();
             existing.setIeUserId(newUserId);
             poiIeMappingRepository.save(existing);
         } else {
+            // Plant ID not present: insert new mapping with selected userId and role Main IE and poiCode from railpad_pincode_poi_mapping
             RailPoiIeMapping mapping = new RailPoiIeMapping();
             String correctPoiCode = resolveRailpadPoiCode(plantId, null);
+            if (correctPoiCode == null || correctPoiCode.isBlank()) {
+                List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
+                if (txList != null && !txList.isEmpty()) {
+                    for (int i = txList.size() - 1; i >= 0; i--) {
+                        if (txList.get(i).getPoiCode() != null && !txList.get(i).getPoiCode().trim().isEmpty()) {
+                            correctPoiCode = txList.get(i).getPoiCode().trim();
+                            break;
+                        }
+                    }
+                }
+            }
             mapping.setPoiCode(correctPoiCode != null ? correctPoiCode : "");
-            mapping.setPlantId(plantId);
+            mapping.setPlantId(colonPlantId);
             mapping.setIeUserId(newUserId);
-            mapping.setIeType("MAIN_IE");
+            mapping.setIeType("Main IE");
             mapping.setCreatedDate(LocalDateTime.now());
             poiIeMappingRepository.save(mapping);
-        }
-
-        // 2. Also update any latest transaction for this call if it exists
-        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
-        if (txList != null && !txList.isEmpty()) {
-            RailWorkflowTransaction tx = txList.get(txList.size() - 1);
-            tx.setAssignedToUser(Long.valueOf(newUserId));
-            railWorkflowTransactionRepository.save(tx);
         }
     }
 

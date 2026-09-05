@@ -101,12 +101,27 @@ public class RailWorkFlowController {
         }
     }
 
-    @PostMapping("/remap-submit")
-    public ResponseEntity<Object> submitRemap(@RequestBody RailpadRemapSubmitDto dto) {
+    @GetMapping("/call-mapped-ie/{callNo}")
+    public ResponseEntity<Object> getCallMappedIe(@PathVariable String callNo) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getMappedMainIeNameByCallNo(callNo)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage() != null ? e.getMessage() : "Unknown error"),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @PostMapping("/reassign-user")
+    public ResponseEntity<Object> reassignUser(@RequestBody RailpadRemapSubmitDto dto) {
         try {
             workflowService.submitRailpadRemap(dto);
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse("Remapping successful"),
+                    ResponseBuilder.getSuccessResponse("User reassigned successfully"),
                     HttpStatus.OK
             );
         } catch (RuntimeException e) {
@@ -116,7 +131,28 @@ public class RailWorkFlowController {
             );
         } catch (Exception e) {
             return new ResponseEntity<>(
-                    java.util.Map.of("status", "error", "message", "Remapping failed: " + e.getMessage()),
+                    java.util.Map.of("status", "error", "message", "Reassignment failed: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @PostMapping("/remap-submit")
+    public ResponseEntity<Object> submitRemap(@RequestBody RailpadRemapSubmitDto dto) {
+        try {
+            workflowService.submitRailpadRemap(dto);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse("User reassigned successfully"),
+                    HttpStatus.OK
+            );
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage()),
+                    HttpStatus.BAD_REQUEST
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Reassignment failed: " + e.getMessage()),
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
