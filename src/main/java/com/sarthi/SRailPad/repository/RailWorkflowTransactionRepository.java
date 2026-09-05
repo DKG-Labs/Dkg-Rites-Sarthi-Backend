@@ -409,12 +409,13 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     INNER JOIN (
                         SELECT request_id, MAX(workflow_transition_id) AS max_id
                         FROM rail_workflow_transaction
-                        WHERE workflow_id IN (1, 2)
+                        WHERE workflow_id = 2
                         GROUP BY request_id
                     ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
-                    LEFT JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                    INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
                     LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
-                    WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+                    WHERE (rwt.request_id LIKE 'RPP%' OR rwt.request_id LIKE 'RPF%')
+                    AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
                            rwt.plant_id = :vendorPlantCode OR
                            CONCAT(':', rwt.plant_id) = :vendorPlantCode OR
                            rwt.plant_id = REPLACE(:vendorPlantCode, ':', '') OR
@@ -426,7 +427,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                            rwt.poi_code = :vendorPlantCode
                     )
                     AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                    AND (:startDate IS NULL OR :endDate IS NULL OR rwt.created_date BETWEEN :startDate AND :endDate)
+                    AND (:startDate IS NULL OR :endDate IS NULL OR ic.created_at BETWEEN :startDate AND :endDate)
                 ) t
                 GROUP BY stage
             """, nativeQuery = true)
