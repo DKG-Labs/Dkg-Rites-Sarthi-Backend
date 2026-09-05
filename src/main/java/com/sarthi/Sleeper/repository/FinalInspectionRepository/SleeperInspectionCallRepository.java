@@ -22,6 +22,7 @@ public interface SleeperInspectionCallRepository extends JpaRepository<SleeperIn
 
     Optional<SleeperInspectionCall> findByCallNo(String callNo);
     boolean existsByCallNo(String callNo);
+    List<SleeperInspectionCall> findByPoNoOrderByIdAsc(String poNo);
 
     @Query("""
 SELECT DISTINCT s.sleeperId

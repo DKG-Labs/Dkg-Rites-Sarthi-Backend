@@ -43,6 +43,7 @@ public interface SleeperWorkflowRepository
     AND UPPER(COALESCE(t.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
     AND UPPER(COALESCE(t.jobStatus, '')) NOT IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
     AND t.nextRole = :roleName
+    ORDER BY t.workflowTransitionId DESC
 """ )
    List<SleeperWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
 

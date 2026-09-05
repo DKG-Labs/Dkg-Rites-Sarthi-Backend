@@ -104,7 +104,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             "   GROUP BY wt2.requestId" +
             ") " +
             "AND wt.nextRoleName = :roleName " +
-            "AND wt.jobStatus IN ('IN_PROGRESS','VERIFIED','APPROVED','REGISTERED','Created','ASSIGNED','REJECTED','PAUSED')")
+            "AND wt.jobStatus IN ('IN_PROGRESS','VERIFIED','APPROVED','REGISTERED','Created','ASSIGNED','REJECTED','PAUSED') " +
+            "ORDER BY wt.workflowTransitionId DESC")
     List<WorkflowTransition> findPendingByRole(@Param("roleName") String roleName);
 
     @Query("""
@@ -120,6 +121,7 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 'IN_PROGRESS','VERIFIED','APPROVED','REGISTERED',
                 'Created','ASSIGNED','REJECTED','PAUSED'
             )
+            ORDER BY wt.workflowTransitionId DESC
             """)
     List<WorkflowTransition> findPendingByRoles(
             @Param("roleNames") List<String> roleNames);

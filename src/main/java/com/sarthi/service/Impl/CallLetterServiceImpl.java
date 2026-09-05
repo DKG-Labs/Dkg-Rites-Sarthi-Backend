@@ -77,6 +77,15 @@ public class CallLetterServiceImpl implements CallLetterService {
     @Autowired
     private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
 
+    @Autowired
+    private com.sarthi.Sleeper.repository.VendorPlantRepository vendorPlantRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.SleeperPoiIeMappingRepository sleeperPoiIeMappingRepository;
+
+    @Autowired
+    private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
+
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public CallLetterDetailsDto getCallLetterDetails(String requestId) {
@@ -578,13 +587,48 @@ public class CallLetterServiceImpl implements CallLetterService {
                 .replaceAll("[\\s-]", "");
     }
 
+    private String normalizeSrNo(String srNo) {
+        if (srNo == null) return "";
+        return srNo.trim().replaceFirst("^0+(?!$)", "");
+    }
+
     private CallLetterDetailsDto enrichFromSleeperCall(com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall sleeperCall, CallLetterDetailsDto dto) {
         dto.setRequestId(sleeperCall.getCallNo());
         dto.setTypeOfCall("Final Inspection");
         dto.setProductType("Prestressed Concrete Sleepers (" + (sleeperCall.getSleeperType() != null ? sleeperCall.getSleeperType() : "") + ")");
         dto.setCallQty(String.valueOf(sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0));
         dto.setCallUnit("Nos.");
-        dto.setOfferedInstallmentNo(sleeperCall.getCallNo());
+
+        // Calculate offered installment number as integer based on PO Number + Sr Number
+        int installmentNo = 1;
+        if (sleeperCall.getPoNo() != null && !sleeperCall.getPoNo().isBlank()) {
+            try {
+                String targetSrNo = sleeperCall.getSrNo() != null ? sleeperCall.getSrNo().trim() : "";
+                List<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> poCalls =
+                        sleeperInspectionCallRepository.findByPoNoOrderByIdAsc(sleeperCall.getPoNo());
+                if (poCalls != null && !poCalls.isEmpty()) {
+                    int counter = 0;
+                    for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall c : poCalls) {
+                        String cSrNo = c.getSrNo() != null ? c.getSrNo().trim() : "";
+                        boolean isSameSrNo = targetSrNo.isEmpty() || cSrNo.isEmpty()
+                                || cSrNo.equalsIgnoreCase(targetSrNo)
+                                || normalizeSrNo(cSrNo).equalsIgnoreCase(normalizeSrNo(targetSrNo));
+
+                        if (isSameSrNo) {
+                            counter++;
+                            if ((c.getId() != null && c.getId().equals(sleeperCall.getId()))
+                                    || (c.getCallNo() != null && c.getCallNo().equalsIgnoreCase(sleeperCall.getCallNo()))) {
+                                installmentNo = counter;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Error calculating offered installment number for sleeper call: {}", sleeperCall.getCallNo(), e);
+            }
+        }
+        dto.setOfferedInstallmentNo(String.valueOf(installmentNo));
 
         if (sleeperCall.getDesiredInspectionDate() != null) {
             dto.setDesiredInspectionDate(sleeperCall.getDesiredInspectionDate().format(DATE_FMT));
@@ -592,33 +636,176 @@ public class CallLetterServiceImpl implements CallLetterService {
             dto.setDesiredInspectionDate(sleeperCall.getCreatedAt().format(DATE_FMT));
         }
 
-        // Contact info from creator
+        // Contact & Vendor info from creator / VendorMaster / VendorPlant
         if (sleeperCall.getCreatedBy() != null) {
             try {
+                String vendorCode = null;
                 Optional<UserMaster> userOpt = userMasterRepository.findById(sleeperCall.getCreatedBy().intValue());
                 if (userOpt.isPresent()) {
                     UserMaster u = userOpt.get();
                     dto.setContactPersonName(u.getFullName() != null ? u.getFullName() : u.getUsername());
                     dto.setContactMobile(u.getMobileNumber());
                     dto.setContactEmail(u.getEmail());
+                    vendorCode = u.getUsername();
+                }
+
+                // Lookup VendorMaster by ID or VendorCode
+                Optional<com.sarthi.entity.VendorMaster> vmOpt = vendorMasterRepository.findById(sleeperCall.getCreatedBy());
+                if (vmOpt.isEmpty() && vendorCode != null && !vendorCode.isBlank()) {
+                    vmOpt = vendorMasterRepository.findByVendorCode(vendorCode.trim());
+                    if (vmOpt.isEmpty() && vendorCode.contains(":")) {
+                        vmOpt = vendorMasterRepository.findByVendorCode(vendorCode.replace(":", "").trim());
+                    }
+                    if (vmOpt.isEmpty() && !vendorCode.startsWith(":")) {
+                        vmOpt = vendorMasterRepository.findByVendorCode(":" + vendorCode.trim());
+                    }
+                }
+
+                if (vmOpt.isPresent()) {
+                    com.sarthi.entity.VendorMaster vm = vmOpt.get();
+                    if (vm.getVendorName() != null && !vm.getVendorName().isBlank()) {
+                        dto.setVendorName(vm.getVendorName().trim());
+                        dto.setManufacturerName(vm.getVendorName().trim());
+                        // If contactPersonName is missing or is just the raw vendor code e.g. ":41647"
+                        if (dto.getContactPersonName() == null || dto.getContactPersonName().isBlank()
+                                || dto.getContactPersonName().startsWith(":") || dto.getContactPersonName().equalsIgnoreCase(vendorCode)) {
+                            dto.setContactPersonName(vm.getVendorName().trim());
+                        }
+                    }
+                }
+
+                // Check VendorPlant for contact person / mobile fallback
+                List<com.sarthi.Sleeper.entity.VendorPlant> vpByVendor = vendorPlantRepository.findByVendorId(sleeperCall.getCreatedBy());
+                if (vpByVendor != null && !vpByVendor.isEmpty()) {
+                    com.sarthi.Sleeper.entity.VendorPlant vp = vpByVendor.get(0);
+                    if (vp.getContactPerson() != null && !vp.getContactPerson().isBlank()) {
+                        dto.setContactPersonName(vp.getContactPerson().trim());
+                    }
+                    if ((dto.getContactMobile() == null || dto.getContactMobile().isBlank()) && vp.getContactPersonNumber() != null && !vp.getContactPersonNumber().isBlank()) {
+                        dto.setContactMobile(vp.getContactPersonNumber().trim());
+                    }
+                    if ((dto.getVendorName() == null || dto.getVendorName().isBlank()) && vp.getCompanyName() != null && !vp.getCompanyName().isBlank()) {
+                        dto.setVendorName(vp.getCompanyName().trim());
+                        dto.setManufacturerName(vp.getCompanyName().trim());
+                    }
                 }
             } catch (Exception e) {
-                logger.error("Error looking up user for sleeper call createdBy: {}", sleeperCall.getCreatedBy(), e);
+                logger.error("Error looking up vendor/user for sleeper call createdBy: {}", sleeperCall.getCreatedBy(), e);
             }
         }
 
-        // RIO info from workflow
+        // Place of inspection from VendorPlant plantName
+        if (sleeperCall.getPlantId() != null && !sleeperCall.getPlantId().isBlank()) {
+            String pId = sleeperCall.getPlantId().trim();
+            try {
+                List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(pId);
+                if (vpList == null || vpList.isEmpty()) {
+                    String cleanPlant = pId.replace(":", "");
+                    vpList = vendorPlantRepository.findMatchingPlants(cleanPlant);
+                }
+                if ((vpList == null || vpList.isEmpty()) && pId.contains("/")) {
+                    for (String part : pId.split("/")) {
+                        if (!part.trim().isEmpty()) {
+                            vpList = vendorPlantRepository.findMatchingPlants(part.trim());
+                            if (vpList != null && !vpList.isEmpty()) break;
+                        }
+                    }
+                }
+                if (vpList != null && !vpList.isEmpty() && vpList.get(0).getPlantName() != null && !vpList.get(0).getPlantName().isBlank()) {
+                    dto.setPlaceOfInspection(vpList.get(0).getPlantName().trim());
+                } else {
+                    Optional<com.sarthi.Sleeper.entity.VendorPlant> vpOpt = vendorPlantRepository.findByPlantId(pId);
+                    if (vpOpt.isEmpty() && pId.contains("/")) {
+                        for (String part : pId.split("/")) {
+                            vpOpt = vendorPlantRepository.findByPlantId(part.trim());
+                            if (vpOpt.isPresent()) break;
+                        }
+                    }
+                    if (vpOpt.isPresent() && vpOpt.get().getPlantName() != null && !vpOpt.get().getPlantName().isBlank()) {
+                        dto.setPlaceOfInspection(vpOpt.get().getPlantName().trim());
+                    } else if (sleeperCall.getCreatedBy() != null) {
+                        List<com.sarthi.Sleeper.entity.VendorPlant> vpByVendor = vendorPlantRepository.findByVendorId(sleeperCall.getCreatedBy());
+                        if (vpByVendor != null && !vpByVendor.isEmpty() && vpByVendor.get(0).getPlantName() != null && !vpByVendor.get(0).getPlantName().isBlank()) {
+                            dto.setPlaceOfInspection(vpByVendor.get(0).getPlantName().trim());
+                        } else if (pId.contains("/")) {
+                            String[] parts = pId.split("/");
+                            dto.setPlaceOfInspection(parts[parts.length - 1].trim());
+                        } else {
+                            dto.setPlaceOfInspection(pId.replace(":", "").trim());
+                        }
+                    } else if (pId.contains("/")) {
+                        String[] parts = pId.split("/");
+                        dto.setPlaceOfInspection(parts[parts.length - 1].trim());
+                    } else {
+                        dto.setPlaceOfInspection(pId.replace(":", "").trim());
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Error looking up place of inspection for plantId: {}", pId, e);
+                dto.setPlaceOfInspection(pId.replace(":", "").trim());
+            }
+        }
+
+        // RIO info from workflow or VendorPlant
         try {
             com.sarthi.entity.WorkflowTransition wt = workflowTransitionRepository
                     .findFirstByRequestIdAndRioIsNotNullOrderByWorkflowTransitionIdDesc(sleeperCall.getCallNo());
-            if (wt != null && wt.getRio() != null) {
+            if (wt != null && wt.getRio() != null && !wt.getRio().isBlank()) {
                 dto.setRio(wt.getRio());
+            } else if (sleeperCall.getPlantId() != null && !sleeperCall.getPlantId().isBlank()) {
+                String pId = sleeperCall.getPlantId().trim();
+                List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(pId);
+                if (vpList == null || vpList.isEmpty()) {
+                    String cleanPlant = pId.replace(":", "");
+                    vpList = vendorPlantRepository.findMatchingPlants(cleanPlant);
+                }
+                if ((vpList == null || vpList.isEmpty()) && pId.contains("/")) {
+                    for (String part : pId.split("/")) {
+                        if (!part.trim().isEmpty()) {
+                            vpList = vendorPlantRepository.findMatchingPlants(part.trim());
+                            if (vpList != null && !vpList.isEmpty()) break;
+                        }
+                    }
+                }
+                if (vpList != null && !vpList.isEmpty()) {
+                    for (com.sarthi.Sleeper.entity.VendorPlant vp : vpList) {
+                        if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                            dto.setRio(vp.getRio().trim());
+                            break;
+                        }
+                    }
+                }
+                if (dto.getRio() == null || dto.getRio().isBlank()) {
+                    Optional<com.sarthi.Sleeper.entity.VendorPlant> vpOpt = vendorPlantRepository.findByPlantId(pId);
+                    if (vpOpt.isEmpty() && pId.contains("/")) {
+                        for (String part : pId.split("/")) {
+                            vpOpt = vendorPlantRepository.findByPlantId(part.trim());
+                            if (vpOpt.isPresent()) break;
+                        }
+                    }
+                    if (vpOpt.isPresent() && vpOpt.get().getRio() != null && !vpOpt.get().getRio().trim().isEmpty()) {
+                        dto.setRio(vpOpt.get().getRio().trim());
+                    }
+                }
+            }
+
+            // Fallback by createdBy (vendorId) if still not found
+            if ((dto.getRio() == null || dto.getRio().isBlank()) && sleeperCall.getCreatedBy() != null) {
+                List<com.sarthi.Sleeper.entity.VendorPlant> vpByVendor = vendorPlantRepository.findByVendorId(sleeperCall.getCreatedBy());
+                if (vpByVendor != null && !vpByVendor.isEmpty()) {
+                    for (com.sarthi.Sleeper.entity.VendorPlant vp : vpByVendor) {
+                        if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                            dto.setRio(vp.getRio().trim());
+                            break;
+                        }
+                    }
+                }
             }
         } catch (Exception e) {
             logger.error("Error fetching RIO for sleeper call: {}", sleeperCall.getCallNo(), e);
         }
 
-        // IE Details from workflow
+        // IE Details from workflow or Sleeper POI IE Mapping
         try {
             List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository
                     .findByRequestIdOrderByWorkflowTransitionIdDesc(sleeperCall.getCallNo());
@@ -633,6 +820,39 @@ public class CallLetterServiceImpl implements CallLetterService {
                             dto.setIeMobile(ieUser.getMobileNumber());
                             break;
                         }
+                    }
+                }
+            }
+
+            // Fallback: check sleeper_poi_ie_mapping by plantId
+            if ((dto.getIeName() == null || dto.getIeName().isBlank()) && sleeperCall.getPlantId() != null) {
+                String pId = sleeperCall.getPlantId().trim();
+                List<com.sarthi.Sleeper.entity.SleeperPoiIeMapping> ieMaps = sleeperPoiIeMappingRepository.findByPlantIdAndIeType(pId, "Main IE");
+                if (ieMaps == null || ieMaps.isEmpty()) {
+                    ieMaps = sleeperPoiIeMappingRepository.findByPlantIdAndIeType(pId, "MAIN_IE");
+                }
+                if (ieMaps == null || ieMaps.isEmpty()) {
+                    ieMaps = sleeperPoiIeMappingRepository.findByPlantId(pId);
+                }
+                if (ieMaps == null || ieMaps.isEmpty()) {
+                    String cleanPlant = pId.replace(":", "");
+                    ieMaps = sleeperPoiIeMappingRepository.findByPlantId(cleanPlant);
+                }
+                if ((ieMaps == null || ieMaps.isEmpty()) && pId.contains("/")) {
+                    for (String part : pId.split("/")) {
+                        ieMaps = sleeperPoiIeMappingRepository.findByPlantIdAndIeType(part.trim(), "Main IE");
+                        if (ieMaps == null || ieMaps.isEmpty()) {
+                            ieMaps = sleeperPoiIeMappingRepository.findByPlantId(part.trim());
+                        }
+                        if (ieMaps != null && !ieMaps.isEmpty()) break;
+                    }
+                }
+                if (ieMaps != null && !ieMaps.isEmpty() && ieMaps.get(0).getIeUserId() != null) {
+                    Optional<UserMaster> ieUserOpt = userMasterRepository.findById(ieMaps.get(0).getIeUserId());
+                    if (ieUserOpt.isPresent()) {
+                        UserMaster ieUser = ieUserOpt.get();
+                        dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
+                        dto.setIeMobile(ieUser.getMobileNumber());
                     }
                 }
             }

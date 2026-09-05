@@ -70,6 +70,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
+            ORDER BY t.workflowTransitionId DESC
             """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
 
@@ -85,6 +86,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             AND t.nextRole = :roleName
             AND (:workflowId IS NULL OR t.workflowId = :workflowId)
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+            ORDER BY t.workflowTransitionId DESC
             """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(
             @Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId);
@@ -100,6 +102,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+            ORDER BY t.workflowTransitionId DESC
             """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantId(@Param("roleName") String roleName,
             @Param("plantId") String plantId);
@@ -409,12 +412,13 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     INNER JOIN (
                         SELECT request_id, MAX(workflow_transition_id) AS max_id
                         FROM rail_workflow_transaction
-                        WHERE workflow_id IN (1, 2)
+                        WHERE workflow_id = 2
                         GROUP BY request_id
                     ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
-                    LEFT JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                    INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
                     LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
-                    WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+                    WHERE (rwt.request_id LIKE 'RPP%' OR rwt.request_id LIKE 'RPF%')
+                    AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
                            rwt.plant_id = :vendorPlantCode OR
                            CONCAT(':', rwt.plant_id) = :vendorPlantCode OR
                            rwt.plant_id = REPLACE(:vendorPlantCode, ':', '') OR
@@ -426,7 +430,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                            rwt.poi_code = :vendorPlantCode
                     )
                     AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                    AND (:startDate IS NULL OR :endDate IS NULL OR rwt.created_date BETWEEN :startDate AND :endDate)
+                    AND (:startDate IS NULL OR :endDate IS NULL OR ic.created_at BETWEEN :startDate AND :endDate)
                 ) t
                 GROUP BY stage
             """, nativeQuery = true)
@@ -531,18 +535,34 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_nos,
             COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_set,
             COALESCE(SUM(CASE 
-                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
-                     AND (flr.railpad_type IS NULL OR flr.railpad_type NOT LIKE '%NCRGRSP%') 
+                WHEN (flr.railpad_type IS NULL OR UPPER(flr.railpad_type) NOT LIKE '%NCRGRSP%') 
+                     AND LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
                 THEN flr.rejected_qty 
                 ELSE 0 
             END), 0) AS final_rejected_nos,
             COALESCE(SUM(CASE 
-                WHEN flr.railpad_type LIKE '%NCRGRSP%' THEN 
-                    (CASE WHEN flr.lot_no IN ('Lot 1', 'LOT 1', 'LOT-1', 'Lot-1', '1') THEN flr.rejected_qty ELSE 0 END)
-                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.rejected_qty 
+                WHEN UPPER(COALESCE(flr.railpad_type, '')) LIKE '%NCRGRSP%' THEN
+                    CASE 
+                        WHEN flr.id = first_flr.first_lot_id THEN flr.rejected_qty 
+                        ELSE 0 
+                    END
+                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' 
+                THEN flr.rejected_qty 
                 ELSE 0 
             END), 0) AS final_rejected_set
         FROM rail_final_inspection_lot_results flr
+        LEFT JOIN (
+            SELECT call_no, 
+                   CAST(SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY 
+                       CASE 
+                           WHEN lot_no REGEXP '[0-9]+' THEN CAST(REGEXP_SUBSTR(lot_no, '[0-9]+') AS UNSIGNED)
+                           ELSE 999999 
+                       END ASC, 
+                       id ASC
+                   ), ',', 1) AS UNSIGNED) AS first_lot_id
+            FROM rail_final_inspection_lot_results
+            GROUP BY call_no
+        ) first_flr ON flr.call_no COLLATE utf8mb4_unicode_ci = first_flr.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN rail_inspection_call ic ON flr.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ic.po_no, '/', 1)), ' ', -1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
