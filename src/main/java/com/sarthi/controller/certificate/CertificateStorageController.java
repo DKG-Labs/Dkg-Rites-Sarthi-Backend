@@ -317,38 +317,64 @@ public class CertificateStorageController {
         return getCertificateResponse(icNumber);
     }
 
+    private Optional<CertificateStorage> findStorageFlexible(String icNumber) {
+        if (icNumber == null || icNumber.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        String clean = icNumber.trim();
+        if (clean.endsWith(".pdf")) {
+            clean = clean.substring(0, clean.length() - 4);
+        }
+
+        // 1. Direct exact match
+        Optional<CertificateStorage> opt = certificateStorageRepository.findByIcNumber(clean);
+        if (opt.isPresent()) return opt;
+
+        // 2. Direct Call number (LIKE match)
+        opt = certificateStorageRepository.findByCallNumber(clean);
+        if (opt.isPresent()) return opt;
+
+        // 3. Try hyphen-to-slash and slash-to-hyphen / underscore variations
+        String slashVer = clean.replace("-", "/").replace("_", "/");
+        opt = certificateStorageRepository.findByIcNumber(slashVer);
+        if (opt.isPresent()) return opt;
+        opt = certificateStorageRepository.findByCallNumber(slashVer);
+        if (opt.isPresent()) return opt;
+
+        String dashVer = clean.replace("/", "-").replace("_", "-");
+        opt = certificateStorageRepository.findByIcNumber(dashVer);
+        if (opt.isPresent()) return opt;
+        opt = certificateStorageRepository.findByCallNumber(dashVer);
+        if (opt.isPresent()) return opt;
+
+        String underVer = clean.replace("/", "_").replace("-", "_");
+        opt = certificateStorageRepository.findByIcNumber(underVer);
+        if (opt.isPresent()) return opt;
+        opt = certificateStorageRepository.findByCallNumber(underVer);
+        if (opt.isPresent()) return opt;
+
+        // 4. Split tokens if delimiter exists (e.g. 0831260002)
+        String[] tokens = clean.split("[/\\-_]");
+        for (String token : tokens) {
+            String trimmedToken = token.trim();
+            if (trimmedToken.length() >= 4) {
+                opt = certificateStorageRepository.findByIcNumber(trimmedToken);
+                if (opt.isPresent()) return opt;
+                opt = certificateStorageRepository.findByCallNumber(trimmedToken);
+                if (opt.isPresent()) return opt;
+            }
+        }
+
+        return Optional.empty();
+    }
+
     private ResponseEntity<?> getCertificateResponse(String icNumber) {
         log.info("Fetching certificate from Azure for IC: {}", icNumber);
         if (icNumber == null || icNumber.trim().isEmpty()) {
             return ResponseEntity.badRequest().body("Certificate Number is empty.");
         }
-        
-        String cleanIc = icNumber.trim();
-        Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(cleanIc);
-        if (storageOpt.isEmpty()) {
-            storageOpt = certificateStorageRepository.findByCallNumber(cleanIc);
-        }
-        
-        if (storageOpt.isEmpty() && cleanIc.contains("/")) {
-            String[] tokens = cleanIc.split("/");
-            for (String token : tokens) {
-                if (token.length() >= 5) {
-                    storageOpt = certificateStorageRepository.findByIcNumber(token);
-                    if (storageOpt.isEmpty()) {
-                        storageOpt = certificateStorageRepository.findByCallNumber(token);
-                    }
-                    if (storageOpt.isPresent()) break;
-                }
-            }
-        }
-        if (storageOpt.isEmpty() && icNumber != null && icNumber.endsWith(".pdf")) {
-            String cleanKey = icNumber.substring(0, icNumber.length() - 4);
-            storageOpt = certificateStorageRepository.findByIcNumber(cleanKey);
-            if (storageOpt.isEmpty()) {
-                storageOpt = certificateStorageRepository.findByCallNumber(cleanKey);
-            }
-        }
-        
+
+        Optional<CertificateStorage> storageOpt = findStorageFlexible(icNumber);
         if (storageOpt.isEmpty()) {
             return ResponseEntity.status(404).body("No signed certificate found for this IC.");
         }
@@ -382,17 +408,7 @@ public class CertificateStorageController {
     }
 
     private ResponseEntity<?> getCheckResponse(String icNumber) {
-        Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(icNumber);
-        if (storageOpt.isEmpty()) {
-            storageOpt = certificateStorageRepository.findByCallNumber(icNumber);
-        }
-        if (storageOpt.isEmpty() && icNumber != null && icNumber.endsWith(".pdf")) {
-            String cleanKey = icNumber.substring(0, icNumber.length() - 4);
-            storageOpt = certificateStorageRepository.findByIcNumber(cleanKey);
-            if (storageOpt.isEmpty()) {
-                storageOpt = certificateStorageRepository.findByCallNumber(cleanKey);
-            }
-        }
+        Optional<CertificateStorage> storageOpt = findStorageFlexible(icNumber);
         return ResponseEntity.ok(Map.of("exists", storageOpt.isPresent()));
     }
 
