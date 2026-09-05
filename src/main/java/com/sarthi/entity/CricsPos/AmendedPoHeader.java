@@ -78,6 +78,7 @@ public class AmendedPoHeader{
 
         private String itemCatDescr;
 
+        @Column(name = "case_no", columnDefinition = "TEXT")
         private String caseNo;
 
         private String caseStatus;

@@ -20,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Optional;
 import java.awt.image.BufferedImage;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -578,14 +579,20 @@ public class AzureBlobStorageService {
 
         try {
 
-            CertificateStorage storage =
-                    certificateStorageRepository
-                            .findByCallNumber(callNumber)
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "Certificate not found"
-                                    )
-                            );
+            Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByCallNumber(callNumber);
+            if (storageOpt.isEmpty()) {
+                storageOpt = certificateStorageRepository.findByIcNumber(callNumber);
+            }
+            if (storageOpt.isEmpty() && callNumber != null && callNumber.endsWith(".pdf")) {
+                String clean = callNumber.substring(0, callNumber.length() - 4);
+                storageOpt = certificateStorageRepository.findByCallNumber(clean);
+                if (storageOpt.isEmpty()) {
+                    storageOpt = certificateStorageRepository.findByIcNumber(clean);
+                }
+            }
+            CertificateStorage storage = storageOpt.orElseThrow(() ->
+                    new RuntimeException("Certificate not found for: " + callNumber)
+            );
 
             byte[] pdfBytes =
                     downloadFile(storage.getFileName());

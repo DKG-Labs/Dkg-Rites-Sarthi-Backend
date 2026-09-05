@@ -2881,6 +2881,8 @@ public class reportsImpl implements reports {
                 dto.setRailPadAvgProductionPerDay(Math.round(railPadAvg * 100.0) / 100.0);
                 dto.setTotalAcceptedNos(finalSummary.getAcceptedQtyNos());
                 dto.setTotalAcceptedSet(finalSummary.getAcceptedQtySet());
+                dto.setTotalRejectedNos(finalSummary.getRejectedQtyNos());
+                dto.setTotalRejectedSet(finalSummary.getRejectedQtySet());
 
                 return dto;
 

@@ -27,7 +27,7 @@ public class IbsBillDetails {
     @Column(name = "invoice_date")
     private LocalDateTime invoiceDate;
 
-    @Column(name = "case_no")
+    @Column(name = "case_no", columnDefinition = "TEXT")
     private String caseNo;
 
     @Column(name = "call_date")

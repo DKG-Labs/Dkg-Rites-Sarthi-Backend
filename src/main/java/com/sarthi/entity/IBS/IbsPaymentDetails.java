@@ -20,7 +20,7 @@ public class IbsPaymentDetails {
     @Column(name = "ibs_call_registration_id")
     private Long ibsCallRegistrationId;
 
-    @Column(name = "case_no")
+    @Column(name = "case_no", columnDefinition = "TEXT")
     private String caseNo;
 
     @Column(name = "call_recv_dt")

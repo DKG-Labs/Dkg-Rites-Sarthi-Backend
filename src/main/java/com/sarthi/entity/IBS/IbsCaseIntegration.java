@@ -25,6 +25,7 @@ public class IbsCaseIntegration {
 
     private LocalDateTime poDate;
 
+    @Column(name = "case_no", columnDefinition = "TEXT")
     private String caseNo;
 
     // NEW, PENDING, AVAILABLE, FAILED, MAX_RETRY

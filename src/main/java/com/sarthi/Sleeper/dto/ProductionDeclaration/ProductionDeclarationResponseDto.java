@@ -19,6 +19,8 @@ public class ProductionDeclarationResponseDto {
 
     private String batchNumber;
     private String mixDesignReference;
+    private String sleeperType;
+    private String drawingNo;
 
     private LocalTime lbcTime;
     private String poNo;
