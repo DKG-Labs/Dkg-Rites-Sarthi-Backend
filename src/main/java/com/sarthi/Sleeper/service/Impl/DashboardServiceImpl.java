@@ -69,6 +69,8 @@ public class DashboardServiceImpl implements DashboardService {
     private SleeperInspectionCallRepository inspectionCallRepository;
     @Autowired
     private SleeperWorkflowRepository sleeperWorkflowRepository;
+    @Autowired
+    private com.sarthi.repository.PoHeaderRepository poHeaderRepository;
     @Override
     public Long getRejectedSleepersCount() {
         return demouldingDefectiveSleeperRepository.countByWithReasons();
@@ -1927,8 +1929,8 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone) {
-        boolean hasVendor = vendor != null && !vendor.isBlank();
-        boolean hasZone = zone != null && !zone.isBlank();
+        boolean hasVendor = vendor != null && !vendor.isBlank() && !"all".equalsIgnoreCase(vendor.trim());
+        boolean hasZone = zone != null && !zone.isBlank() && !"all".equalsIgnoreCase(zone.trim());
         boolean filtered = hasVendor || hasZone;
 
         long rejectedInProcess;
@@ -1976,6 +1978,26 @@ public class DashboardServiceImpl implements DashboardService {
 
                 List<SleeperWorkflowTransaction> latestTxs = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2ByPlantIds(plantIds);
                 for (SleeperWorkflowTransaction tx : latestTxs) {
+                    // Strict zone filter check on each transaction's call
+                    if (hasZone) {
+                        String callNo = tx.getRequestId();
+                        if (callNo != null && !callNo.isBlank()) {
+                            var callOpt = inspectionCallRepository.findByCallNo(callNo);
+                            if (callOpt.isPresent()) {
+                                var call = callOpt.get();
+                                if (call.getPoNo() != null && !call.getPoNo().isBlank()) {
+                                    var poOpt = poHeaderRepository.findByPoNo(call.getPoNo().trim());
+                                    if (poOpt.isPresent()) {
+                                        String rly = poOpt.get().getRlyShortName();
+                                        if (rly != null && !rly.isBlank() && !rly.trim().equalsIgnoreCase(z)) {
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     String jobStatus = tx.getJobStatus();
                     String action = tx.getAction();
                     String statusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
@@ -2013,7 +2035,7 @@ public class DashboardServiceImpl implements DashboardService {
             Long production = productionDeclarationRepository.getTotalProductionCount();
             totalProduction = production != null ? production : 0L;
 
-            Long icCount = sleeperWorkflowRepository.countSleeperIcIssuedByPlantIds(null);
+            Long icCount = sleeperWorkflowRepository.countAllSleeperIcIssued();
             sleeperIcIssued = icCount != null ? icCount : 0L;
 
             java.util.Map<String, Long> callStatusCounts = getFinalInspectionCallStatusCounts();
