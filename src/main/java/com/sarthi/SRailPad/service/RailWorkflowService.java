@@ -36,6 +36,8 @@ public interface RailWorkflowService {
 
     public String resolveRailpadPoiCode(String plantId, String providedPoiCode);
 
+    public List<String> getMappedMainIeNameByCallNo(String callNo);
+
     public List<String> getMappedPlantIdsForUser(Integer userId, String ieType);
 
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
