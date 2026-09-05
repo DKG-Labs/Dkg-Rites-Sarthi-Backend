@@ -70,6 +70,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
+            ORDER BY t.workflowTransitionId DESC
             """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
 
@@ -85,6 +86,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             AND t.nextRole = :roleName
             AND (:workflowId IS NULL OR t.workflowId = :workflowId)
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+            ORDER BY t.workflowTransitionId DESC
             """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(
             @Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId);
@@ -100,6 +102,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
+            ORDER BY t.workflowTransitionId DESC
             """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantId(@Param("roleName") String roleName,
             @Param("plantId") String plantId);
