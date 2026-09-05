@@ -72,5 +72,13 @@ public class WorkflowTransition {
     @Column(name = "IS_PRIMARY_SWIFT")
     private Boolean primarySwift;
 
+    @PrePersist
+    @PreUpdate
+    public void ensureAssignedToUserNullOnCreated() {
+        if ("Created".equalsIgnoreCase(this.status) || "CREATED".equalsIgnoreCase(this.status)) {
+            this.assignedToUser = null;
+        }
+    }
+
 }
 

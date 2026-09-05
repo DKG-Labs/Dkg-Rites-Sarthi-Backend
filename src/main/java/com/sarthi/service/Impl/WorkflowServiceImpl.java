@@ -427,6 +427,7 @@ public class WorkflowServiceImpl implements WorkflowService {
         entry.setRequestId(requestId);
         entry.setStatus(AppConstant.CREATED_TYPE);
         entry.setJobStatus(AppConstant.CREATED_TYPE);
+        entry.setAssignedToUser(null);
         //entry.setCurrentRole(String.valueOf(transition.getCurrentRoleId()));
         entry.setCurrentRoleName(roleNameById(transition.getCurrentRoleId()));
         entry.setNextRole(String.valueOf(transition.getNextRoleId()));
@@ -3001,8 +3002,10 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
 
     // Pass 1: Resolve all IE IDs for each transition and collect all User IDs for name resolution
     Map<Integer, List<Integer>> wtProcessIeMap = new HashMap<>();
+    Map<Integer, List<Integer>> wtErEfIeMap = new HashMap<>();
     Set<Integer> allTargetUserIds = new HashSet<>();
     Map<String, List<Integer>> localPoiIeCache = new HashMap<>();
+    Map<String, List<Integer>> localErEfPoiIeCache = new HashMap<>();
 
     for (WorkflowTransition wt : pending) {
         if (wt.getAssignedToUser() != null) allTargetUserIds.add(wt.getAssignedToUser());
@@ -3025,6 +3028,35 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                 wtProcessIeMap.put(wt.getWorkflowTransitionId(), finalIeUsers);
                 allTargetUserIds.addAll(finalIeUsers);
             }
+        } else if (wt.getRequestId() != null && (wt.getRequestId().startsWith("ER") || wt.getRequestId().startsWith("EF"))) {
+            if (wt.getAssignedToUser() == null) {
+                InspectionDataDto i = inspectionMap.get(wt.getRequestId());
+                if (i != null && i.placeOfInspection() != null && !i.placeOfInspection().isBlank()) {
+                    String poi = i.placeOfInspection();
+                    List<Integer> erEfIes = localErEfPoiIeCache.computeIfAbsent(
+                            poi,
+                            k -> {
+                                List<IePincodePoiMapping> mappings = iePincodePoiMappingRepository.findByPoiCode(k);
+                                if (mappings == null || mappings.isEmpty()) {
+                                    return Collections.emptyList();
+                                }
+                                List<String> empCodes = mappings.stream()
+                                        .map(IePincodePoiMapping::getEmployeeCode)
+                                        .filter(Objects::nonNull)
+                                        .toList();
+                                if (empCodes.isEmpty()) return Collections.emptyList();
+                                return userMasterRepository.findByEmployeeCodeIn(empCodes).stream()
+                                        .map(UserMaster::getUserId)
+                                        .filter(Objects::nonNull)
+                                        .toList();
+                            }
+                    );
+                    if (!erEfIes.isEmpty()) {
+                        wtErEfIeMap.put(wt.getWorkflowTransitionId(), erEfIes);
+                        allTargetUserIds.addAll(erEfIes);
+                    }
+                }
+            }
         }
         
         // Final IEs
@@ -3042,7 +3074,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
     // Pass 3: Assemble DTOs
     final Map<Integer, UserMaster> finalUserMap = userMap;
     return pending.stream()
-            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
+            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), wtErEfIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
             .collect(Collectors.toList());
 }
 
@@ -3053,6 +3085,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             Map<String, PoHeader> poMap,
             Map<String, VendorMaster> vendorMap,
             List<Integer> preResolvedProcessIes,
+            List<Integer> preResolvedErEfIes,
             Map<Integer, UserMaster> userMap
     ) {
         InspectionDataDto i = inspectionMap.get(wt.getRequestId());
@@ -3084,7 +3117,7 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
         dto.setNextRole(wt.getNextRole());
         dto.setAssignedToUser(wt.getAssignedToUser());
         // Resolve IE Names:
-        // For ER and EF calls -> strictly use assignedToUser from workflow_transition table
+        // For ER and EF calls -> if assignedToUser exists use it; otherwise use mapped IEs from ie_pincode_poi_mapping
         // For EP calls -> use process IEs from POI mapping
         Set<Integer> ieIdsToResolve = new LinkedHashSet<>();
         if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP")) {
@@ -3094,8 +3127,13 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             if (wt.getAssignedToUser() != null) {
                 ieIdsToResolve.add(wt.getAssignedToUser());
             }
+        } else if (wt.getRequestId() != null && (wt.getRequestId().startsWith("ER") || wt.getRequestId().startsWith("EF"))) {
+            if (wt.getAssignedToUser() != null) {
+                ieIdsToResolve.add(wt.getAssignedToUser());
+            } else if (preResolvedErEfIes != null && !preResolvedErEfIes.isEmpty()) {
+                ieIdsToResolve.addAll(preResolvedErEfIes);
+            }
         } else {
-            // ER and EF calls: strictly use assignedToUser from workflow transaction
             if (wt.getAssignedToUser() != null) {
                 ieIdsToResolve.add(wt.getAssignedToUser());
             }
@@ -3111,6 +3149,8 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
             if (!combinedNames.isEmpty()) {
                 dto.setAssignedToUserName(combinedNames);
             }
+        } else if (wt.getRequestId() != null && (wt.getRequestId().startsWith("ER") || wt.getRequestId().startsWith("EF"))) {
+            dto.setAssignedToUserName("Please contact admin to do mapping");
         }
         
         dto.setWorkflowSequence(wt.getWorkflowSequence());
@@ -3259,11 +3299,62 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
 
         Set<Integer> allTargetUserIds = new HashSet<>();
         Map<Integer, List<Integer>> wtProcessIeMap = new HashMap<>();
+        Map<Integer, List<Integer>> wtErEfIeMap = new HashMap<>();
+        Map<String, List<Integer>> localPoiIeCache = new HashMap<>();
+        Map<String, List<Integer>> localErEfPoiIeCache = new HashMap<>();
 
         for (WorkflowTransition wt : pending) {
 
             if (wt.getAssignedToUser() != null) {
                 allTargetUserIds.add(wt.getAssignedToUser());
+            }
+
+            if (wt.getRequestId() != null && wt.getRequestId().startsWith("EP")) {
+                Integer processIe = wt.getProcessIeUserId();
+                InspectionDataDto i = inspectionMap.get(wt.getRequestId());
+                if (i != null) {
+                    String callPoi = i.placeOfInspection();
+                    String cacheKey = processIe + "_" + callPoi;
+                    List<Integer> ieUsers = localPoiIeCache.computeIfAbsent(
+                            cacheKey,
+                            k -> getIeUsersByProcessIeAndPlaceOfInsp(processIe, callPoi)
+                    );
+                    List<Integer> finalIeUsers = new ArrayList<>(ieUsers);
+                    if (processIe != null) {
+                        finalIeUsers.add(processIe);
+                    }
+                    wtProcessIeMap.put(wt.getWorkflowTransitionId(), finalIeUsers);
+                    allTargetUserIds.addAll(finalIeUsers);
+                }
+            } else if (wt.getRequestId() != null && (wt.getRequestId().startsWith("ER") || wt.getRequestId().startsWith("EF"))) {
+                if (wt.getAssignedToUser() == null) {
+                    InspectionDataDto i = inspectionMap.get(wt.getRequestId());
+                    if (i != null && i.placeOfInspection() != null && !i.placeOfInspection().isBlank()) {
+                        String callPoi = i.placeOfInspection();
+                        List<Integer> erEfIes = localErEfPoiIeCache.computeIfAbsent(
+                                callPoi,
+                                k -> {
+                                    List<IePincodePoiMapping> mappings = iePincodePoiMappingRepository.findByPoiCode(k);
+                                    if (mappings == null || mappings.isEmpty()) {
+                                        return Collections.emptyList();
+                                    }
+                                    List<String> empCodes = mappings.stream()
+                                            .map(IePincodePoiMapping::getEmployeeCode)
+                                            .filter(Objects::nonNull)
+                                            .toList();
+                                    if (empCodes.isEmpty()) return Collections.emptyList();
+                                    return userMasterRepository.findByEmployeeCodeIn(empCodes).stream()
+                                            .map(UserMaster::getUserId)
+                                            .filter(Objects::nonNull)
+                                            .toList();
+                                }
+                        );
+                        if (!erEfIes.isEmpty()) {
+                            wtErEfIeMap.put(wt.getWorkflowTransitionId(), erEfIes);
+                            allTargetUserIds.addAll(erEfIes);
+                        }
+                    }
+                }
             }
 
             List<Integer> finalIes =
@@ -3298,6 +3389,8 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
                         poMap,
                         vendorMap,
                         wtProcessIeMap.get(
+                                wt.getWorkflowTransitionId()),
+                        wtErEfIeMap.get(
                                 wt.getWorkflowTransitionId()),
                         finalUserMap))
                 .collect(Collectors.toList());
@@ -4352,7 +4445,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
     // Pass 3: Assemble DTOs
     final Map<Integer, UserMaster> finalUserMap = userMap;
     return verified.stream()
-            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
+            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), null, finalUserMap))
             .collect(Collectors.toList());
 }
 
@@ -4462,7 +4555,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
 
     final Map<Integer, UserMaster> finalUserMap = userMap;
     return disposed.stream()
-            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
+            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), null, finalUserMap))
             .collect(Collectors.toList());
 }
 
@@ -4747,7 +4840,13 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
 
         boolean isPendingVerification = latest.getStatus() == null 
                 || "SUBMITTED".equalsIgnoreCase(latest.getStatus()) 
-                || "PENDING_VERIFICATION".equalsIgnoreCase(latest.getStatus());
+                || "PENDING_VERIFICATION".equalsIgnoreCase(latest.getStatus())
+                || "Created".equalsIgnoreCase(latest.getStatus())
+                || "CREATED".equalsIgnoreCase(latest.getStatus())
+                || "ReSubmitted".equalsIgnoreCase(latest.getStatus())
+                || "RESUBMITTED".equalsIgnoreCase(latest.getStatus())
+                || "RETURN_TO_VENDOR".equalsIgnoreCase(latest.getStatus())
+                || "RETURNED".equalsIgnoreCase(latest.getStatus());
 
         // CASE 1: Process calls (EP) -> Always update the POI Process IE mapping table (no assigned_to_user stored)
         if (isProcessStage) {
@@ -4770,11 +4869,13 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                         poiProcessIeMappingRepository.save(m);
                     }
                 }
+            } else {
+                throw new RuntimeException("Please contact admin to do mapping. No POI Code is available for this call.");
             }
             return;
         }
 
-        // CASE 2: Unverified / Pending Verification calls (ER / EF) -> Update master POI mapping table
+        // CASE 2: Unverified / Pending Verification calls (ER / EF) -> Update master POI mapping table (ie_pincode_poi_mapping)
         if (isPendingVerification) {
             if (poiCode != null && !poiCode.isBlank()) {
                 if (oldEmpCode != null && !oldEmpCode.isBlank()) {
@@ -4782,19 +4883,41 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                     if (updatedRows == 0) {
                         List<IePincodePoiMapping> existing = iePincodePoiMappingRepository.findByPoiCode(poiCode);
                         if (!existing.isEmpty()) {
-                            IePincodePoiMapping m = existing.get(0);
-                            m.setEmployeeCode(newEmpCode);
-                            iePincodePoiMappingRepository.save(m);
+                            for (IePincodePoiMapping m : existing) {
+                                m.setEmployeeCode(newEmpCode);
+                                iePincodePoiMappingRepository.save(m);
+                            }
+                        } else {
+                            IePincodePoiMapping newMapping = new IePincodePoiMapping();
+                            newMapping.setPoiCode(poiCode);
+                            newMapping.setEmployeeCode(newEmpCode);
+                            newMapping.setProduct("ERC");
+                            newMapping.setIeType("PRIMARY");
+                            String foundPinCode = pincodePoIMappingRepository.findPinCodeByPoiCode(poiCode);
+                            newMapping.setPinCode(foundPinCode != null ? foundPinCode : "000000");
+                            iePincodePoiMappingRepository.save(newMapping);
                         }
                     }
                 } else {
                     List<IePincodePoiMapping> existing = iePincodePoiMappingRepository.findByPoiCode(poiCode);
                     if (!existing.isEmpty()) {
-                        IePincodePoiMapping m = existing.get(0);
-                        m.setEmployeeCode(newEmpCode);
-                        iePincodePoiMappingRepository.save(m);
+                        for (IePincodePoiMapping m : existing) {
+                            m.setEmployeeCode(newEmpCode);
+                            iePincodePoiMappingRepository.save(m);
+                        }
+                    } else {
+                        IePincodePoiMapping newMapping = new IePincodePoiMapping();
+                        newMapping.setPoiCode(poiCode);
+                        newMapping.setEmployeeCode(newEmpCode);
+                        newMapping.setProduct("ERC");
+                        newMapping.setIeType("PRIMARY");
+                        String foundPinCode = pincodePoIMappingRepository.findPinCodeByPoiCode(poiCode);
+                        newMapping.setPinCode(foundPinCode != null ? foundPinCode : "000000");
+                        iePincodePoiMappingRepository.save(newMapping);
                     }
                 }
+            } else {
+                throw new RuntimeException("Please contact admin to do mapping. No POI Code is available for this call.");
             }
             return;
         }
