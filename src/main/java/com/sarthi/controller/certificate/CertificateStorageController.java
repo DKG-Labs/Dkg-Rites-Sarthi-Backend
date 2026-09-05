@@ -341,6 +341,13 @@ public class CertificateStorageController {
                 }
             }
         }
+        if (storageOpt.isEmpty() && icNumber != null && icNumber.endsWith(".pdf")) {
+            String cleanKey = icNumber.substring(0, icNumber.length() - 4);
+            storageOpt = certificateStorageRepository.findByIcNumber(cleanKey);
+            if (storageOpt.isEmpty()) {
+                storageOpt = certificateStorageRepository.findByCallNumber(cleanKey);
+            }
+        }
         
         if (storageOpt.isEmpty()) {
             return ResponseEntity.status(404).body("No signed certificate found for this IC.");
@@ -378,6 +385,13 @@ public class CertificateStorageController {
         Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(icNumber);
         if (storageOpt.isEmpty()) {
             storageOpt = certificateStorageRepository.findByCallNumber(icNumber);
+        }
+        if (storageOpt.isEmpty() && icNumber != null && icNumber.endsWith(".pdf")) {
+            String cleanKey = icNumber.substring(0, icNumber.length() - 4);
+            storageOpt = certificateStorageRepository.findByIcNumber(cleanKey);
+            if (storageOpt.isEmpty()) {
+                storageOpt = certificateStorageRepository.findByCallNumber(cleanKey);
+            }
         }
         return ResponseEntity.ok(Map.of("exists", storageOpt.isPresent()));
     }

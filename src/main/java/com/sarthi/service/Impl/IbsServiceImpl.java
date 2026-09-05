@@ -7,6 +7,7 @@ import com.sarthi.dto.ibsDtos.AuthRequestDto;
 import com.sarthi.dto.ibsDtos.AuthResponseDto;
 import com.sarthi.entity.IBS.*;
 import com.sarthi.entity.PoHeader;
+import com.sarthi.entity.PoItem;
 import com.sarthi.entity.RmHeatFinalResult;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.entity.finalmaterial.FinalCumulativeResults;
@@ -236,22 +237,28 @@ public class IbsServiceImpl implements IbsService {
 
                     if ("AVAILABLE".equalsIgnoreCase(status)) {
 
-                        integration.setCaseNo(
-                                response.getData().getCaseNo()
-                        );
+                        String cleanCaseNo = formatCaseNumbers(response.getData().getCaseNo());
+
+                        integration.setCaseNo(cleanCaseNo);
 
                         integration.setCompleted(true);
 
                         PoHeader po =
                                 integration.getPoHeader();
 
-                        po.setCaseNo(
-                                response.getData().getCaseNo()
-                        );
+                        if (po != null) {
+                            po.setCaseNo(cleanCaseNo);
 
-                        po.setCaseStatus(status);
+                            po.setCaseStatus(status);
 
-                        poHeaderRepository.save(po);
+                            if (po.getItems() != null && !po.getItems().isEmpty()) {
+                                for (PoItem item : po.getItems()) {
+                                    item.setCaseNo(cleanCaseNo);
+                                }
+                            }
+
+                            poHeaderRepository.save(po);
+                        }
 
                     }  else {
 
@@ -776,16 +783,12 @@ public class IbsServiceImpl implements IbsService {
             String callNumber = row[14] != null ? row[14].toString() : "";
             String callStatus = row[5] != null ? row[5].toString() : "A";
 
-            if ("C".equalsIgnoreCase(callStatus) || "CANCELLED".equalsIgnoreCase(callStatus)) {
-                dto.setIcFileLink("");
-            } else {
-                dto.setIcFileLink(
-                        "https://api.ritesqasarthi.com"
-                                + "/sarthi-backend/api/certificate-storage/view/"
-                                + callNumber
-                                + ".pdf"
-                );
-            }
+            dto.setIcFileLink(
+                    "https://api.ritesqasarthi.com"
+                            + "/sarthi-backend/api/certificate-storage/view/"
+                            + callNumber
+                            + ".pdf"
+            );
 
 
             dto.setCallNumber(callNumber);
@@ -1183,7 +1186,7 @@ if(po.isPresent()){
                 dataMap = respMap;
             }
 
-            String caseNo = dataMap.get("CASE_NO") != null ? dataMap.get("CASE_NO").toString() :
+            String rawCaseNo = dataMap.get("CASE_NO") != null ? dataMap.get("CASE_NO").toString() :
                     (dataMap.get("caseNo") != null ? dataMap.get("caseNo").toString() : null);
 
             String caseStatus = dataMap.get("STATUS") != null ? dataMap.get("STATUS").toString() :
@@ -1197,8 +1200,9 @@ if(po.isPresent()){
                     (payload.get("POKEY") != null ? payload.get("POKEY").toString() :
                     (payload.get("poKey") != null ? payload.get("poKey").toString() : null));
 
-            if (caseNo != null && !caseNo.trim().isEmpty() && !"N/A".equalsIgnoreCase(caseNo)) {
-                saveCaseNoToPoHeader(poNo, poKey, caseNo.trim(), caseStatus);
+            String cleanCaseNo = formatCaseNumbers(rawCaseNo);
+            if (cleanCaseNo != null && !cleanCaseNo.trim().isEmpty() && !"N/A".equalsIgnoreCase(cleanCaseNo)) {
+                saveCaseNoToPoHeader(poNo, poKey, cleanCaseNo, caseStatus);
             }
         } catch (Exception ex) {
             log.error("Error auto-saving IBS case number to PoHeader: ", ex);
@@ -1213,24 +1217,25 @@ if(po.isPresent()){
                     (payload.get("PO_NO") != null ? payload.get("PO_NO").toString() : null);
             String poKey = payload.get("poKey") != null ? payload.get("poKey").toString() :
                     (payload.get("POKEY") != null ? payload.get("POKEY").toString() : null);
-            String caseNo = payload.get("caseNo") != null ? payload.get("caseNo").toString() :
+            String rawCaseNo = payload.get("caseNo") != null ? payload.get("caseNo").toString() :
                     (payload.get("CASE_NO") != null ? payload.get("CASE_NO").toString() : null);
             String caseStatus = payload.get("caseStatus") != null ? payload.get("caseStatus").toString() :
                     (payload.get("STATUS") != null ? payload.get("STATUS").toString() : "AVAILABLE");
 
-            if (caseNo == null || caseNo.trim().isEmpty()) {
+            String cleanCaseNo = formatCaseNumbers(rawCaseNo);
+            if (cleanCaseNo == null || cleanCaseNo.trim().isEmpty()) {
                 Map<String, Object> err = new HashMap<>();
                 err.put("status", "error");
                 err.put("message", "Case number is mandatory.");
                 return err;
             }
 
-            boolean saved = saveCaseNoToPoHeader(poNo, poKey, caseNo.trim(), caseStatus);
+            boolean saved = saveCaseNoToPoHeader(poNo, poKey, cleanCaseNo, caseStatus);
             Map<String, Object> res = new HashMap<>();
             if (saved) {
                 res.put("status", "success");
                 res.put("message", "IBS Case Number saved to PO Header successfully.");
-                res.put("caseNo", caseNo);
+                res.put("caseNo", cleanCaseNo);
             } else {
                 res.put("status", "error");
                 res.put("message", "PO Header not found for PO No: " + poNo + " / PO Key: " + poKey);
@@ -1245,6 +1250,19 @@ if(po.isPresent()){
         }
     }
 
+    private String formatCaseNumbers(String rawCaseNo) {
+        if (rawCaseNo == null || rawCaseNo.trim().isEmpty() || "N/A".equalsIgnoreCase(rawCaseNo.trim()) || "null".equalsIgnoreCase(rawCaseNo.trim())) {
+            return null;
+        }
+        String[] parts = rawCaseNo.split(",");
+        List<String> list = Arrays.stream(parts)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty() && !"N/A".equalsIgnoreCase(s) && !"null".equalsIgnoreCase(s))
+                .distinct()
+                .collect(Collectors.toList());
+        return list.isEmpty() ? null : String.join(",", list);
+    }
+
     private boolean saveCaseNoToPoHeader(String poNo, String poKey, String caseNo, String caseStatus) {
         Optional<PoHeader> poOpt = Optional.empty();
         if (poNo != null && !poNo.trim().isEmpty()) {
@@ -1256,10 +1274,18 @@ if(po.isPresent()){
 
         if (poOpt.isPresent()) {
             PoHeader po = poOpt.get();
-            po.setCaseNo(caseNo);
+            String cleanCaseNo = formatCaseNumbers(caseNo);
+            po.setCaseNo(cleanCaseNo);
             po.setCaseStatus(caseStatus != null ? caseStatus : "AVAILABLE");
+
+            if (po.getItems() != null && !po.getItems().isEmpty()) {
+                for (PoItem item : po.getItems()) {
+                    item.setCaseNo(cleanCaseNo);
+                }
+            }
+
             poHeaderRepository.save(po);
-            log.info("Saved Case No [{}] and Case Status [{}] to PO Header [ID: {}, PO No: {}]", caseNo, caseStatus, po.getId(), po.getPoNo());
+            log.info("Saved Case No [{}] and Case Status [{}] to PO Header [ID: {}, PO No: {}]", cleanCaseNo, caseStatus, po.getId(), po.getPoNo());
             return true;
         } else {
             log.warn("PoHeader not found for poNo [{}] or poKey [{}] when saving caseNo [{}]", poNo, poKey, caseNo);

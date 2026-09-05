@@ -69,6 +69,7 @@ public class PoHeader {
         private String itemCat;
         private String itemCatDescr;
 
+        @Column(name = "case_no", columnDefinition = "TEXT")
         private String caseNo;
         private String caseStatus;
 

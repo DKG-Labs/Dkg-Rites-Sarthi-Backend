@@ -31,6 +31,7 @@ public class AmendedPoItem {
 
         private String poKey;
 
+        @Column(name = "case_no", columnDefinition = "TEXT")
         private String caseNo;
 
         private String itemSrNo;

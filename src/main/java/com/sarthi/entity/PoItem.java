@@ -32,6 +32,7 @@ public class PoItem {
 
  // ---- BASIC ----
  private String rly;
+ @Column(name = "case_no", columnDefinition = "TEXT")
  private String caseNo;
  private String itemSrNo;
  private String plNo;
