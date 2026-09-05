@@ -537,12 +537,28 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 ELSE 0 
             END), 0) AS final_rejected_nos,
             COALESCE(SUM(CASE 
-                WHEN UPPER(COALESCE(flr.railpad_type, '')) LIKE '%NCRGRSP%' 
-                     OR LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' 
+                WHEN UPPER(COALESCE(flr.railpad_type, '')) LIKE '%NCRGRSP%' THEN
+                    CASE 
+                        WHEN flr.id = first_flr.first_lot_id THEN flr.rejected_qty 
+                        ELSE 0 
+                    END
+                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' 
                 THEN flr.rejected_qty 
                 ELSE 0 
             END), 0) AS final_rejected_set
         FROM rail_final_inspection_lot_results flr
+        LEFT JOIN (
+            SELECT call_no, 
+                   CAST(SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY 
+                       CASE 
+                           WHEN lot_no REGEXP '[0-9]+' THEN CAST(REGEXP_SUBSTR(lot_no, '[0-9]+') AS UNSIGNED)
+                           ELSE 999999 
+                       END ASC, 
+                       id ASC
+                   ), ',', 1) AS UNSIGNED) AS first_lot_id
+            FROM rail_final_inspection_lot_results
+            GROUP BY call_no
+        ) first_flr ON flr.call_no COLLATE utf8mb4_unicode_ci = first_flr.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN rail_inspection_call ic ON flr.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ic.po_no, '/', 1)), ' ', -1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
