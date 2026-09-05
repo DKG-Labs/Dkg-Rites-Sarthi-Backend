@@ -126,7 +126,7 @@ public class MomentOfResistanceServiceImpl implements MomentOfResistanceService 
             MomentOfResistance entity = repository.findById(id)
                     .orElseThrow(() -> new BusinessException(
                             new ErrorDetails(
-                                    AppConstant.ERROR_CODE_RESOURCE,
+                                     AppConstant.ERROR_CODE_RESOURCE,
                                     AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                     AppConstant.ERROR_TYPE_VALIDATION,
                                     "MR record not found for the provided Id.")
@@ -154,7 +154,6 @@ public class MomentOfResistanceServiceImpl implements MomentOfResistanceService 
             dto.setVendorCode(entity.getVendorCode());
             dto.setPlantId(entity.getPlantId());
             dto.setShift(entity.getShift());
-            dto.setShift(entity.getStatus());
 
             dto.setCreatedBy(entity.getCreatedBy());
             dto.setCreatedDate(entity.getCreatedDate());

@@ -927,6 +927,24 @@ public List<ProductionDeclarationResponseDto> getAll() {
         String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
         response.setStatus(status);
 
+        String sleeperDrawing = null;
+        if (entity.getChambers() != null && !entity.getChambers().isEmpty()) {
+            sleeperDrawing = entity.getChambers().stream()
+                    .filter(c -> c.getBenchGroups() != null)
+                    .flatMap(c -> c.getBenchGroups().stream())
+                    .map(ProductionBenchGroup::getSleeperType)
+                    .filter(st -> st != null && !st.isBlank())
+                    .findFirst().orElse(null);
+        }
+        if (sleeperDrawing == null && entity.getGangs() != null && !entity.getGangs().isEmpty()) {
+            sleeperDrawing = entity.getGangs().stream()
+                    .map(ProductionLongLineGang::getSleeperType)
+                    .filter(st -> st != null && !st.isBlank())
+                    .findFirst().orElse(null);
+        }
+        response.setSleeperType(sleeperDrawing);
+        response.setDrawingNo(sleeperDrawing);
+
         return response;
     }
 
@@ -996,6 +1014,24 @@ public List<ProductionDeclarationResponseDto> getAll() {
 
         String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
         response.setStatus(status);
+
+        String sleeperDrawing = null;
+        if (entity.getChambers() != null && !entity.getChambers().isEmpty()) {
+            sleeperDrawing = entity.getChambers().stream()
+                    .filter(c -> c.getBenchGroups() != null)
+                    .flatMap(c -> c.getBenchGroups().stream())
+                    .map(ProductionBenchGroup::getSleeperType)
+                    .filter(st -> st != null && !st.isBlank())
+                    .findFirst().orElse(null);
+        }
+        if (sleeperDrawing == null && entity.getGangs() != null && !entity.getGangs().isEmpty()) {
+            sleeperDrawing = entity.getGangs().stream()
+                    .map(ProductionLongLineGang::getSleeperType)
+                    .filter(st -> st != null && !st.isBlank())
+                    .findFirst().orElse(null);
+        }
+        response.setSleeperType(sleeperDrawing);
+        response.setDrawingNo(sleeperDrawing);
 
         String lookupKey = normalizeKey(entity.getPlantId(), entity.getBatchNumber());
         com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest wcTest = waterCubeTestMap.get(lookupKey);
