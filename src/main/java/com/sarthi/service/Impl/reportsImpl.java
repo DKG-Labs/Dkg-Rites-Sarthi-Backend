@@ -33,6 +33,8 @@ import com.sarthi.repository.processmaterial.*;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 
 import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import com.sarthi.SRailPad.repository.RailVendorPlantsRepository;
 import com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionLotRepository;
@@ -189,6 +191,12 @@ public class reportsImpl implements reports {
         private RailInspectionLotRepository railInspectionLotRepository;
         @Autowired
         private UserMasterRepository userMasterRepository;
+        @Autowired
+        private SleeperWorkflowRepository sleeperWorkflowRepository;
+        @Autowired
+        private com.sarthi.Sleeper.repository.VendorPlantRepository sleeperVendorPlantRepository;
+        @Autowired
+        private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
 
         /*
          * 
@@ -2719,14 +2727,23 @@ public class reportsImpl implements reports {
                                 () -> rmHeatFinalResultRepository.sumRmRejectionWithFilters(parsedStartDate,
                                                 parsedEndDate, vCode, zCode));
 
-                CompletableFuture<Long> cfSleeperPoIssued = CompletableFuture
-                                .supplyAsync(() -> poHeaderRepository.countPoByItemCatDescr("PSC Mainline Sleeper"));
+                String sDate = (startDateStr != null && !startDateStr.trim().isEmpty()) ? startDateStr : null;
+                String eDate = (endDateStr != null && !endDateStr.trim().isEmpty()) ? endDateStr : null;
 
-                CompletableFuture<Long> cfSleeperQtyNos = CompletableFuture
-                                .supplyAsync(() -> getSleeperPoQuantityNos());
+                CompletableFuture<Long> cfSleeperPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
+                                .countFilteredPoByItemCatDescr("PSC Mainline Sleeper", sDate, eDate, vCode, zCode));
 
-                CompletableFuture<Long> cfSleeperQtySet = CompletableFuture
-                                .supplyAsync(() -> getSleeperPoQuantitySet());
+                CompletableFuture<Long> cfSleeperQtyNos = CompletableFuture.supplyAsync(() -> {
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("PSC Mainline Sleeper", sDate,
+                                        eDate, vCode, zCode);
+                        return res != null ? res : 0L;
+                });
+
+                CompletableFuture<Long> cfSleeperQtySet = CompletableFuture.supplyAsync(() -> {
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomSet("PSC Mainline Sleeper", sDate,
+                                        eDate, vCode, zCode);
+                        return res != null ? res : 0L;
+                });
 
                 CompletableFuture<Long> cfRailPadPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
                                 .countFilteredPoByItemCatDescr("Rail Pads", null, null, vCode, zCode));
@@ -2745,6 +2762,15 @@ public class reportsImpl implements reports {
 
                 CompletableFuture<List<Object[]>> cfCallCounts = CompletableFuture
                                 .supplyAsync(() -> railWorkflowTransactionRepository.getFilteredRailPadInspectionCallCounts(vCode, zCode, parsedStartDate, parsedEndDate));
+
+                CompletableFuture<Long> cfSleeperIcIssued = CompletableFuture.supplyAsync(() -> {
+                        Long count = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(
+                                        (vCode == null || vCode.trim().isEmpty()) ? null : vCode,
+                                        (zCode == null || zCode.trim().isEmpty()) ? null : zCode,
+                                        parsedStartDate != null ? parsedStartDate.atStartOfDay() : null,
+                                        parsedEndDate != null ? parsedEndDate.atTime(23, 59, 59) : null);
+                        return count != null ? count : 0L;
+                });
 
                 CompletableFuture<RailPadFinalInspectionSummaryDto> cfFinalSummary = CompletableFuture
                                 .supplyAsync(() -> getRailPadFinalInspectionSummary(vCode, zCode, startDateStr, endDateStr));
@@ -2767,7 +2793,7 @@ public class reportsImpl implements reports {
                 // Wait for all futures to complete
                 CompletableFuture.allOf(cfPoIssued, cfQtyNos, cfQtyMt, cfFinalQtyPassed, cfAvgProd,
                                 cfProcRej, cfFinalRejResults, cfRmRejResults, cfSleeperPoIssued,
-                                cfSleeperQtyNos, cfSleeperQtySet, cfRailPadPoIssued, cfRailPadQtyNos,
+                                cfSleeperQtyNos, cfSleeperQtySet, cfSleeperIcIssued, cfRailPadPoIssued, cfRailPadQtyNos,
                                 cfRailPadQtySet, cfCallCounts, cfFinalSummary, cfTotalRejection,
                                 cfProductionDeclared, cfRpPiecesSum, cfRpPlantCount).join();
 
@@ -2842,6 +2868,7 @@ public class reportsImpl implements reports {
                 dto.setSleeperPoIssued(cfSleeperPoIssued.join());
                 dto.setSleeperPoQuantityNos(cfSleeperQtyNos.join() != null ? cfSleeperQtyNos.join() : 0L);
                 dto.setSleeperPoQuantitySet(cfSleeperQtySet.join() != null ? cfSleeperQtySet.join() : 0L);
+                dto.setSleeperIcIssued(cfSleeperIcIssued.join());
                 dto.setRailPadPoIssued(cfRailPadPoIssued.join());
                 dto.setRailPadPoQuantityNos(cfRailPadQtyNos.join() != null ? cfRailPadQtyNos.join() : 0L);
                 dto.setRailPadPoQuantitySet(cfRailPadQtySet.join() != null ? cfRailPadQtySet.join() : 0L);
@@ -3254,7 +3281,37 @@ public class reportsImpl implements reports {
                         return getRailPadStagewiseCallCounts(vendorPlantCode, zonalRailway, startDate, endDate);
                 }
 
+                boolean isSleeper = (product != null
+                                && (product.equalsIgnoreCase("Sleeper") || product.equalsIgnoreCase("PSC Mainline Sleeper")));
+                if (isSleeper) {
+                        return getSleeperStagewiseCallCounts(vendorPlantCode, zonalRailway, startDate, endDate);
+                }
+
                 return getInspectionCallStatusWithExclLogic(vendorPlantCode, zonalRailway, startDate, endDate);
+        }
+
+        private List<InspectionCallStatusDto> getSleeperStagewiseCallCounts(String vendorPlantCode,
+                        String zonalRailway, String startDateStr, String endDateStr) {
+                List<com.sarthi.dto.reports.InspectionCallDetailDto> openCalls = getSleeperInspectionCallStatusDetails(
+                                "Final", "Open", vendorPlantCode, zonalRailway, startDateStr, endDateStr);
+
+                long underInspection = 0;
+                long pending = 0;
+                if (openCalls != null) {
+                        for (com.sarthi.dto.reports.InspectionCallDetailDto item : openCalls) {
+                                if ("Under Inspection".equalsIgnoreCase(item.getMainStatus())) {
+                                        underInspection++;
+                                } else {
+                                        pending++;
+                                }
+                        }
+                }
+
+                List<InspectionCallStatusDto> list = new ArrayList<>();
+                list.add(new InspectionCallStatusDto("Total", underInspection, pending));
+                list.add(new InspectionCallStatusDto("Process", 0, 0));
+                list.add(new InspectionCallStatusDto("Final", underInspection, pending));
+                return list;
         }
 
         // ================= NEW LOGIC FOR PROCESS REJECTION % =================
@@ -5201,6 +5258,231 @@ public class reportsImpl implements reports {
         }
 
         @Override
+        public List<com.sarthi.dto.reports.InspectionCallDetailDto> getSleeperInspectionCallStatusDetails(
+                        String stage, String status, String vendorPlantCode, String zonalRailway, String startDateStr,
+                        String endDateStr) {
+
+                String v = (vendorPlantCode != null && !vendorPlantCode.isBlank() && !"all".equalsIgnoreCase(vendorPlantCode))
+                                ? vendorPlantCode.trim() : null;
+                String z = (zonalRailway != null && !zonalRailway.isBlank() && !"all".equalsIgnoreCase(zonalRailway))
+                                ? zonalRailway.trim() : null;
+
+                List<SleeperWorkflowTransaction> transactions;
+
+                if (v != null || z != null) {
+                        List<String> foundPlantIds = sleeperVendorPlantRepository.findPlantIdsByCompanyAndZone(v, z);
+                        if ((foundPlantIds == null || foundPlantIds.isEmpty()) && v != null) {
+                                foundPlantIds = sleeperVendorPlantRepository.findPlantIdsByVendorCode(v);
+                        }
+                        if (foundPlantIds != null && !foundPlantIds.isEmpty()) {
+                                java.util.Set<String> plantIdsSet = new java.util.HashSet<>(foundPlantIds);
+                                for (String pid : foundPlantIds) {
+                                        if (pid != null && !pid.isBlank()) {
+                                                String clean = pid.replace(":", "").trim();
+                                                plantIdsSet.add(clean);
+                                                plantIdsSet.add(":" + clean);
+                                        }
+                                }
+                                transactions = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2ByPlantIds(new java.util.ArrayList<>(plantIdsSet));
+                        } else {
+                                transactions = java.util.Collections.emptyList();
+                        }
+                } else {
+                        transactions = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2();
+                }
+
+                String statusFilter = (status != null && !status.isBlank()) ? status.trim() : "ALL";
+                List<com.sarthi.dto.reports.InspectionCallDetailDto> dtoList = new java.util.ArrayList<>();
+
+                if (transactions != null && !transactions.isEmpty()) {
+                        for (SleeperWorkflowTransaction tx : transactions) {
+                                String jobStatus = tx.getJobStatus() != null ? tx.getJobStatus().trim() : "";
+                                String action = tx.getAction() != null ? tx.getAction().trim() : "";
+                                String jobStatusUpper = jobStatus.toUpperCase();
+                                String actionUpper = action.toUpperCase();
+
+                                boolean isCompleted = "COMPLETED".equals(jobStatusUpper) || "IC_ISSUE".equals(jobStatusUpper)
+                                                || "GENERATED".equals(jobStatusUpper) || "IC_GENERATION".equals(jobStatusUpper)
+                                                || "DSC_SIGN_IC".equals(jobStatusUpper) || "IC_SIGNED".equals(jobStatusUpper)
+                                                || "FINISH".equals(actionUpper) || "COMPLETED".equals(actionUpper)
+                                                || "IC_ISSUE".equals(actionUpper) || "IC_GENERATION".equals(actionUpper)
+                                                || "DSC_SIGN_IC".equals(actionUpper);
+
+                                boolean isUnderInspection = "INITIATED".equals(jobStatusUpper) || "PO_VERIFICATION".equals(jobStatusUpper)
+                                                || "PAUSED".equals(jobStatusUpper) || "WITHHELD".equals(jobStatusUpper)
+                                                || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper)
+                                                || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper);
+
+                                String computedStatus;
+                                String computedMainStatus;
+                                String computedSubStatus;
+
+                                if (isCompleted) {
+                                        computedStatus = "Completed";
+                                        computedMainStatus = "Completed";
+                                } else if (isUnderInspection) {
+                                        computedStatus = "Under Inspection";
+                                        computedMainStatus = "Under Inspection";
+                                } else {
+                                        computedStatus = "Pending";
+                                        computedMainStatus = "Pending";
+                                }
+
+                                if ("PO_VERIFICATION".equalsIgnoreCase(action) || "PO_VERIFICATION".equalsIgnoreCase(jobStatus)) {
+                                        computedSubStatus = "PO Verification";
+                                } else if ("PAUSE".equalsIgnoreCase(action) || "PAUSED".equalsIgnoreCase(jobStatus)) {
+                                        computedSubStatus = "Paused";
+                                } else if ("INITIATE_CALL".equalsIgnoreCase(action) || "INITIATED".equalsIgnoreCase(jobStatus)) {
+                                        computedSubStatus = "Initiated";
+                                } else if ("WITHHELD".equalsIgnoreCase(action) || "WITHHELD".equalsIgnoreCase(jobStatus)) {
+                                        computedSubStatus = "Withheld";
+                                } else if ("MAIN_IE_SCHEDULE_CALL".equalsIgnoreCase(action) || "SCHEDULED".equalsIgnoreCase(jobStatus)) {
+                                        computedSubStatus = "Scheduled";
+                                } else if ("VERIFY".equalsIgnoreCase(action) || "RIO_VERIFIED".equalsIgnoreCase(jobStatus)) {
+                                        computedSubStatus = "Assigned to IE";
+                                } else if ("CREATE".equalsIgnoreCase(action) || "CREATED".equalsIgnoreCase(action) || "CALL_CREATED".equalsIgnoreCase(action) || "CREATED".equalsIgnoreCase(jobStatus)) {
+                                        computedSubStatus = "Call Created";
+                                } else {
+                                        computedSubStatus = !action.isEmpty() ? action : (!jobStatus.isEmpty() ? jobStatus : computedMainStatus);
+                                }
+
+                                // Filter by status
+                                if ("Open".equalsIgnoreCase(statusFilter)) {
+                                        if (isCompleted) continue;
+                                } else if ("Under Inspection".equalsIgnoreCase(statusFilter)) {
+                                        if (!isUnderInspection || isCompleted) continue;
+                                } else if ("Pending".equalsIgnoreCase(statusFilter)) {
+                                        if (isUnderInspection || isCompleted) continue;
+                                } else if ("Completed".equalsIgnoreCase(statusFilter) || "IC Issued".equalsIgnoreCase(statusFilter)) {
+                                        if (!"IC_GENERATION".equalsIgnoreCase(jobStatusUpper)) continue;
+                                }
+
+                                String callNo = tx.getRequestId();
+                                String vendorName = "N/A";
+                                String callSubmissionDate = tx.getCreatedDate() != null
+                                                ? tx.getCreatedDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
+                                                : "N/A";
+                                String poSrNo = "N/A";
+                                String dpDate = "N/A";
+                                String rlyShort = "N/A";
+
+                                if (tx.getPlantId() != null && !tx.getPlantId().isBlank()) {
+                                        List<com.sarthi.Sleeper.entity.VendorPlant> vps = sleeperVendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
+                                        if (vps != null && !vps.isEmpty() && vps.get(0).getCompanyName() != null) {
+                                                vendorName = vps.get(0).getCompanyName();
+                                        }
+                                }
+
+                                if (callNo != null && !callNo.isBlank()) {
+                                        Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> callOpt = sleeperInspectionCallRepository.findByCallNo(callNo);
+                                        if (callOpt.isPresent()) {
+                                                com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall ic = callOpt.get();
+                                                if (ic.getCreatedAt() != null) {
+                                                        callSubmissionDate = ic.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
+                                                }
+                                                if (ic.getPoNo() != null && !ic.getPoNo().isBlank()) {
+                                                        var poHeaderOpt = poHeaderRepository.findByPoNo(ic.getPoNo().trim());
+                                                        if (poHeaderOpt.isPresent()) {
+                                                                PoHeader ph = poHeaderOpt.get();
+                                                                if (ph.getRlyShortName() != null && !ph.getRlyShortName().isBlank()) {
+                                                                        rlyShort = ph.getRlyShortName().trim();
+                                                                }
+                                                                if ("N/A".equals(vendorName) && ph.getVendorDetails() != null) {
+                                                                        vendorName = ph.getVendorDetails();
+                                                                }
+                                                        }
+                                                        poSrNo = rlyShort + "/" + ic.getPoNo().trim() + "/" + (ic.getSrNo() != null ? ic.getSrNo().trim() : "N/A");
+
+                                                        if (ic.getSrNo() != null) {
+                                                                var poItemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(ic.getPoNo().trim(), ic.getSrNo().trim());
+                                                                if (poItemOpt.isPresent() && poItemOpt.get().getDeliveryDate() != null) {
+                                                                        dpDate = poItemOpt.get().getDeliveryDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+
+                                if (z != null && !"all".equalsIgnoreCase(z)) {
+                                        boolean matchesZone = false;
+                                        if (rlyShort != null && !"N/A".equalsIgnoreCase(rlyShort)) {
+                                                matchesZone = rlyShort.equalsIgnoreCase(z);
+                                        } else if (tx.getPlantId() != null && !tx.getPlantId().isBlank()) {
+                                                List<com.sarthi.Sleeper.entity.VendorPlant> vps = sleeperVendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
+                                                if (vps != null && !vps.isEmpty() && vps.get(0).getZonalRailway() != null && vps.get(0).getZonalRailway().equalsIgnoreCase(z)) {
+                                                        matchesZone = true;
+                                                }
+                                        }
+                                        if (!matchesZone) continue;
+                                }
+
+                                if (v != null && !"all".equalsIgnoreCase(v)) {
+                                        boolean matchesVendor = false;
+                                        if (vendorName != null && !"N/A".equalsIgnoreCase(vendorName) && (vendorName.equalsIgnoreCase(v) || vendorName.toLowerCase().contains(v.toLowerCase()))) {
+                                                matchesVendor = true;
+                                        } else if (tx.getPlantId() != null && !tx.getPlantId().isBlank()) {
+                                                List<com.sarthi.Sleeper.entity.VendorPlant> vps = sleeperVendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
+                                                if (vps != null && !vps.isEmpty()) {
+                                                        var vp = vps.get(0);
+                                                        if ((vp.getCompanyName() != null && (vp.getCompanyName().equalsIgnoreCase(v) || vp.getCompanyName().toLowerCase().contains(v.toLowerCase())))
+                                                                        || (vp.getVendorCode() != null && vp.getVendorCode().equalsIgnoreCase(v))
+                                                                        || (vp.getPlantId() != null && vp.getPlantId().equalsIgnoreCase(v))) {
+                                                                matchesVendor = true;
+                                                        }
+                                                }
+                                        }
+                                        if (!matchesVendor) continue;
+                                }
+
+                                dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
+                                                .inspectionCallNumber(callNo != null ? callNo : "N/A")
+                                                .vendor(vendorName)
+                                                .callSubmissionDateTime(callSubmissionDate)
+                                                .stageOfInspection("Final Stage")
+                                                .poSrNo(poSrNo)
+                                                .dpDate(dpDate)
+                                                .status(computedStatus)
+                                                .mainStatus(computedMainStatus)
+                                                .subStatus(computedSubStatus)
+                                                .build());
+                        }
+                }
+
+                if (dtoList.isEmpty()) {
+                        java.time.LocalDateTime startDate = (startDateStr == null || startDateStr.isEmpty()) ? null
+                                        : java.time.LocalDate.parse(startDateStr).atStartOfDay();
+                        java.time.LocalDateTime endDate = (endDateStr == null || endDateStr.isEmpty()) ? null
+                                        : java.time.LocalDate.parse(endDateStr).atTime(23, 59, 59);
+
+                        List<Object[]> rawList = sleeperWorkflowRepository
+                                        .getSleeperInspectionCallStatusDetailsFiltered(
+                                                        stage == null ? "ALL" : stage,
+                                                        status == null ? "ALL" : status,
+                                                        vendorPlantCode == null ? "" : vendorPlantCode,
+                                                        zonalRailway == null ? "" : zonalRailway,
+                                                        startDate, endDate);
+
+                        if (rawList != null) {
+                                for (Object[] row : rawList) {
+                                        dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
+                                                        .inspectionCallNumber(row[0] != null ? row[0].toString() : "")
+                                                        .vendor(row[1] != null ? row[1].toString() : "")
+                                                        .callSubmissionDateTime(row[2] != null ? row[2].toString() : "")
+                                                        .stageOfInspection(row[3] != null ? row[3].toString() : "")
+                                                        .poSrNo(row[4] != null ? row[4].toString() : "")
+                                                        .dpDate(row[5] != null ? row[5].toString() : "")
+                                                        .status(row[6] != null ? row[6].toString() : "")
+                                                        .mainStatus(row[7] != null ? row[7].toString() : "")
+                                                        .subStatus(row[8] != null ? row[8].toString() : "")
+                                                        .build());
+                                }
+                        }
+                }
+
+                return dtoList;
+        }
+
+        @Override
 
         public List<com.sarthi.dto.reports.SqcReportDto> getSqcReport() {
 
@@ -5902,10 +6184,14 @@ public class reportsImpl implements reports {
                         java.time.LocalDate endDate) {
                 String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
                 boolean isRailPad = filterProduct.contains("pad") || "rail pad".equals(filterProduct) || "railpad".equals(filterProduct);
+                boolean isSleeper = filterProduct.contains("sleeper") || "sleeper".equals(filterProduct);
 
                 List<Object[]> rawList;
                 if (isRailPad) {
                         rawList = railWorkflowTransactionRepository.findRailPadDownloadIcAnnexuresReportRaw(
+                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                } else if (isSleeper) {
+                        rawList = sleeperWorkflowRepository.findSleeperDownloadIcAnnexuresReportRaw(
                                         vendorPlantCode, zonalRailway, startDate, endDate);
                 } else {
                         rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(
@@ -5933,13 +6219,11 @@ public class reportsImpl implements reports {
                                         .itemCatDescr(itemCatDescr)
                                         .build();
 
-                        if (!filterProduct.isEmpty() && !isRailPad) {
+                        if (isRailPad || isSleeper) {
+                                resultList.add(dto);
+                        } else if (!filterProduct.isEmpty()) {
                                 String catLower = itemCatDescr.toLowerCase();
-                                if (filterProduct.contains("sleeper") || "sleeper".equals(filterProduct)) {
-                                        if (catLower.contains("sleeper")) {
-                                                resultList.add(dto);
-                                        }
-                                } else if (filterProduct.contains("erc") || "erc".equals(filterProduct)) {
+                                if (filterProduct.contains("erc") || "erc".equals(filterProduct)) {
                                         if (catLower.contains("clip") || catLower.contains("erc")) {
                                                 resultList.add(dto);
                                         }

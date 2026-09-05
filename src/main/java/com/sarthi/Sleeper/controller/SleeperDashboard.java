@@ -61,8 +61,8 @@ public class SleeperDashboard {
 
     @GetMapping("/monthly-analysis")
     public ResponseEntity<Object> getMonthlyAnalysis(
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -74,9 +74,9 @@ public class SleeperDashboard {
 
     @GetMapping("/sleeper-powise-monthly-analysis")
     public ResponseEntity<Object> getPoWiseMonthlyAnalysis(
-            @RequestParam String plantId,
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
@@ -324,10 +324,11 @@ public class SleeperDashboard {
      * for Sleeper Shift Wise Production Report manufacturer dropdown
      */
     @GetMapping("/vendor-plant/companies")
-    public ResponseEntity<Object> getVendorPlantCompanies() {
+    public ResponseEntity<Object> getVendorPlantCompanies(
+            @RequestParam(required = false) String zone) {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        dashboardService.getVendorPlantCompanyNames()
+                        dashboardService.getVendorPlantCompanyNames(zone)
                 ),
                 HttpStatus.OK
         );
@@ -405,5 +406,23 @@ public class SleeperDashboard {
         return dashboardService.getSleeperIcData(callNo);
     }
 
+    /**
+     * Consolidated Sleeper Dashboard Summary
+     * Supports optional vendor and zonal railway filtering.
+     * GET /api/sleeper-dashboard/summary?vendor={vendor}&zone={zone}
+     */
+    @GetMapping("/summary")
+    public ResponseEntity<Object> getSleeperDashboardSummary(
+            @RequestParam(required = false) String vendor,
+            @RequestParam(required = false) String zone,
+            @RequestParam(required = false) String plantId) {
+        String effectiveVendor = (vendor != null && !vendor.isBlank()) ? vendor : plantId;
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        dashboardService.getSleeperDashboardSummary(effectiveVendor, zone)
+                ),
+                HttpStatus.OK
+        );
+    }
 
 }

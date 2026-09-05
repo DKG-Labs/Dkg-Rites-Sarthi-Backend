@@ -238,6 +238,39 @@ AND t.status = 'Completed'
 
     @Query("""
         SELECT t FROM SleeperWorkflowTransaction t
+        WHERE t.workflowTransitionId = (
+            SELECT MAX(t2.workflowTransitionId)
+            FROM SleeperWorkflowTransaction t2
+            WHERE t2.requestId = t.requestId
+              AND t2.workflowId = 2
+        )
+        AND t.workflowId = 2
+        AND t.plantId = :plantId
+    """)
+    List<SleeperWorkflowTransaction> findLatestTransactionsForWorkflow2ByPlantId(@Param("plantId") String plantId);
+
+    @Query(value = """
+        SELECT swt.*
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
+        LEFT JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+        WHERE swt.workflow_id = 2
+          AND (
+              swt.plant_id IN (:plantIds)
+              OR REPLACE(COALESCE(swt.plant_id, ''), ':', '') IN (:plantIds)
+              OR sic.plant_id IN (:plantIds)
+              OR REPLACE(COALESCE(sic.plant_id, ''), ':', '') IN (:plantIds)
+          )
+    """, nativeQuery = true)
+    List<SleeperWorkflowTransaction> findLatestTransactionsForWorkflow2ByPlantIds(@Param("plantIds") java.util.Collection<String> plantIds);
+
+    @Query("""
+        SELECT t FROM SleeperWorkflowTransaction t
         WHERE t.workflowTransitionId IN (
             SELECT MAX(t2.workflowTransitionId)
             FROM SleeperWorkflowTransaction t2
@@ -340,4 +373,199 @@ AND t.workflowTransitionId = (
 )
 """)
     Optional<SleeperWorkflowTransaction> findLastRecordByPlantId(String plantId);
+
+    @Query(value = """
+        SELECT
+            swt.request_id AS inspectionCallNumber,
+            COALESCE(vp.company_name, vp.plant_name, ph.vendor_details, ph.firm_details, swt.vendor_code, 'N/A') AS vendor,
+            DATE_FORMAT(COALESCE(sic.created_at, swt.created_date), '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+            'Final Stage' AS stageOfInspection,
+            CASE 
+                WHEN sic.po_no IS NOT NULL THEN CONCAT(COALESCE(ph.rly_short_name, ph.rly_cd, 'N/A'), '/', sic.po_no, '/', COALESCE(sic.sr_no, 'N/A'))
+                ELSE 'N/A'
+            END AS poSrNo,
+            DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
+            CASE
+                WHEN swt.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD') OR UPPER(COALESCE(swt.job_status, '')) IN ('INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD') THEN 'Under Inspection'
+                WHEN swt.action IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION') OR UPPER(COALESCE(swt.job_status, '')) IN ('COMPLETED', 'IC_ISSUE', 'GENERATED', 'IC_GENERATION', 'DSC_SIGN_IC', 'IC_SIGNED') THEN 'Completed'
+                ELSE 'Pending'
+            END AS status,
+            CASE
+                WHEN swt.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD') OR UPPER(COALESCE(swt.job_status, '')) IN ('INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD') THEN 'Under Inspection'
+                WHEN swt.action IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION') OR UPPER(COALESCE(swt.job_status, '')) IN ('COMPLETED', 'IC_ISSUE', 'GENERATED', 'IC_GENERATION', 'DSC_SIGN_IC', 'IC_SIGNED') THEN 'Completed'
+                ELSE 'Pending'
+            END AS mainStatus,
+            CASE
+                WHEN swt.action = 'PO_VERIFICATION' OR UPPER(COALESCE(swt.job_status, '')) = 'PO_VERIFICATION' THEN 'PO Verification'
+                WHEN swt.action = 'PAUSE' OR UPPER(COALESCE(swt.job_status, '')) = 'PAUSED' THEN 'Paused'
+                WHEN swt.action = 'INITIATE_CALL' OR UPPER(COALESCE(swt.job_status, '')) = 'INITIATED' THEN 'Initiated'
+                WHEN swt.action = 'WITHHELD' OR UPPER(COALESCE(swt.job_status, '')) = 'WITHHELD' THEN 'Withheld'
+                WHEN swt.action = 'MAIN_IE_SCHEDULE_CALL' OR UPPER(COALESCE(swt.job_status, '')) = 'SCHEDULED' THEN 'Scheduled'
+                WHEN swt.action = 'VERIFY' OR UPPER(COALESCE(swt.job_status, '')) = 'RIO_VERIFIED' THEN 'Assigned to IE'
+                WHEN swt.action IN ('CREATE', 'CREATED', 'CALL_CREATED') OR UPPER(COALESCE(swt.job_status, '')) = 'CREATED' THEN 'Call Created'
+                ELSE COALESCE(swt.action, swt.job_status, 'Under Inspection')
+            END AS subStatus
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
+        LEFT JOIN sleeper_inspection_call sic ON sic.call_no COLLATE utf8mb4_unicode_ci = swt.request_id COLLATE utf8mb4_unicode_ci
+        LEFT JOIN vendor_plant vp ON (
+            vp.plant_id COLLATE utf8mb4_unicode_ci = swt.plant_id COLLATE utf8mb4_unicode_ci 
+            OR vp.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(COALESCE(swt.plant_id, sic.plant_id, ''), ':', '') COLLATE utf8mb4_unicode_ci
+            OR REPLACE(COALESCE(vp.plant_id, ''), ':', '') COLLATE utf8mb4_unicode_ci = REPLACE(COALESCE(swt.plant_id, sic.plant_id, ''), ':', '') COLLATE utf8mb4_unicode_ci
+            OR (sic.plant_id IS NOT NULL AND vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci)
+        )
+        LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci 
+            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_item pi ON (pi.po_header_id = ph.id 
+            AND (pi.item_sr_no COLLATE utf8mb4_unicode_ci = sic.sr_no COLLATE utf8mb4_unicode_ci 
+                 OR pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci))
+        WHERE swt.workflow_id = 2
+          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
+               swt.plant_id = :vendorPlantCode OR
+               REPLACE(COALESCE(swt.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
+               (sic.plant_id IS NOT NULL AND (sic.plant_id = :vendorPlantCode OR REPLACE(sic.plant_id, ':', '') = REPLACE(:vendorPlantCode, ':', ''))) OR
+               UPPER(TRIM(COALESCE(vp.company_name, ''))) = UPPER(TRIM(:vendorPlantCode)) OR
+               UPPER(COALESCE(vp.company_name, '')) LIKE CONCAT('%', UPPER(TRIM(:vendorPlantCode)), '%') OR
+               UPPER(TRIM(COALESCE(vp.vendor_code, ''))) = UPPER(TRIM(:vendorPlantCode)) OR
+               UPPER(TRIM(COALESCE(swt.vendor_code, ''))) = UPPER(TRIM(:vendorPlantCode)))
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR
+               UPPER(TRIM(COALESCE(vp.zonal_railway, ''))) = UPPER(TRIM(:zonalRailway)) OR
+               UPPER(TRIM(COALESCE(ph.rly_short_name, ''))) = UPPER(TRIM(:zonalRailway)) OR
+               UPPER(TRIM(COALESCE(ph.rly_cd, ''))) = UPPER(TRIM(:zonalRailway)))
+          AND (:startDate IS NULL OR :endDate IS NULL OR COALESCE(sic.created_at, swt.created_date) BETWEEN :startDate AND :endDate OR :status IN ('Open', 'Pending', 'Under Inspection'))
+          AND (
+               :stage = 'ALL' OR :stage IS NULL OR :stage = '' OR :stage = 'Final' OR :stage = 'Final Stage'
+          )
+          AND (
+               :status = 'ALL' OR
+               (:status = 'Open' AND (
+                   UPPER(COALESCE(swt.job_status, '')) NOT IN ('COMPLETED', 'IC_ISSUE', 'GENERATED', 'IC_GENERATION', 'DSC_SIGN_IC', 'IC_SIGNED')
+                   AND UPPER(COALESCE(swt.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'DSC_SIGN_IC')
+               )) OR
+               (:status = 'Under Inspection' AND (
+                   swt.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD')
+                   OR UPPER(COALESCE(swt.job_status, '')) IN ('INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD')
+               )) OR
+               (:status = 'Pending' AND (
+                   UPPER(COALESCE(swt.job_status, '')) NOT IN ('COMPLETED', 'IC_ISSUE', 'GENERATED', 'IC_GENERATION', 'DSC_SIGN_IC', 'IC_SIGNED', 'INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD')
+                   AND UPPER(COALESCE(swt.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'DSC_SIGN_IC', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD')
+               )) OR
+               ((:status = 'Completed' OR :status = 'IC Issued') AND (
+                   UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+               ))
+          )
+        ORDER BY COALESCE(sic.created_at, swt.created_date) DESC, swt.workflow_transition_id DESC
+    """, nativeQuery = true)
+    List<Object[]> getSleeperInspectionCallStatusDetailsFiltered(
+            @Param("stage") String stage,
+            @Param("status") String status,
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway,
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT
+            COALESCE(vp.company_name, vp.plant_name, ph.vendor_details, ph.firm_details, 'N/A') AS vendorName,
+            COALESCE(ph.rly_short_name, ph.rly_cd, 'N/A') AS railwayShortName,
+            SUBSTRING_INDEX(sic.po_no, '/', 1) AS poNumberOnly,
+            COALESCE(sic.sr_no, 'N/A') AS poSerialNumber,
+            sic.call_no AS callNumber,
+            COALESCE(sicd.certificate_no, CONCAT('C/', sic.call_no, '/NV')) AS icNumber,
+            'Final' AS stage,
+            DATE_FORMAT(COALESCE(sicd.created_on, swt.created_date), '%Y-%m-%d') AS icIssuedDate,
+            COALESCE(ph.item_cat_descr, 'PSC Mainline Sleeper') AS itemCatDescr,
+            COALESCE(sicd.created_on, swt.created_date) AS rawCreatedDate
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
+        INNER JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN vendor_plant vp ON (vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+            OR vp.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(sic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN sleeper_inspection_complete_details sicd ON sic.call_no COLLATE utf8mb4_unicode_ci = sicd.call_no COLLATE utf8mb4_unicode_ci
+        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+               sic.plant_id = :vendorPlantCode OR
+               vp.company_name = :vendorPlantCode OR
+               vp.vendor_code = :vendorPlantCode)
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
+          AND (:startDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) >= :startDate)
+          AND (:endDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) <= :endDate)
+        ORDER BY rawCreatedDate DESC
+    """, nativeQuery = true)
+    List<Object[]> findSleeperDownloadIcAnnexuresReportRaw(
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway,
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate);
+
+    @Query(value = """
+        SELECT COUNT(DISTINCT swt.request_id)
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
+        INNER JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN vendor_plant vp ON (vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+            OR vp.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(sic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN sleeper_inspection_complete_details sicd ON sic.call_no COLLATE utf8mb4_unicode_ci = sicd.call_no COLLATE utf8mb4_unicode_ci
+        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+               sic.plant_id = :vendorPlantCode OR
+               vp.company_name = :vendorPlantCode OR
+               vp.vendor_code = :vendorPlantCode)
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
+          AND (:startDate IS NULL OR :endDate IS NULL OR sic.created_at BETWEEN :startDate AND :endDate)
+    """, nativeQuery = true)
+    Long countSleeperIcIssuedFiltered(
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway,
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT COUNT(DISTINCT swt.request_id)
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
+        INNER JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN sleeper_inspection_complete_details sicd ON sic.call_no COLLATE utf8mb4_unicode_ci = sicd.call_no COLLATE utf8mb4_unicode_ci
+        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+          AND (sic.plant_id IN (:plantIds) OR REPLACE(COALESCE(sic.plant_id, ''), ':', '') IN (:plantIds)
+               OR swt.plant_id IN (:plantIds) OR REPLACE(COALESCE(swt.plant_id, ''), ':', '') IN (:plantIds))
+    """, nativeQuery = true)
+    Long countSleeperIcIssuedByPlantIds(@Param("plantIds") java.util.Collection<String> plantIds);
+
+    @Query(value = """
+        SELECT COUNT(DISTINCT swt.request_id)
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
+        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+    """, nativeQuery = true)
+    Long countAllSleeperIcIssued();
 }

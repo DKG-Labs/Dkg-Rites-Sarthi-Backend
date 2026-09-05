@@ -319,10 +319,27 @@ public class CertificateStorageController {
 
     private ResponseEntity<?> getCertificateResponse(String icNumber) {
         log.info("Fetching certificate from Azure for IC: {}", icNumber);
+        if (icNumber == null || icNumber.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Certificate Number is empty.");
+        }
         
-        Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(icNumber);
+        String cleanIc = icNumber.trim();
+        Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(cleanIc);
         if (storageOpt.isEmpty()) {
-            storageOpt = certificateStorageRepository.findByCallNumber(icNumber);
+            storageOpt = certificateStorageRepository.findByCallNumber(cleanIc);
+        }
+        
+        if (storageOpt.isEmpty() && cleanIc.contains("/")) {
+            String[] tokens = cleanIc.split("/");
+            for (String token : tokens) {
+                if (token.length() >= 5) {
+                    storageOpt = certificateStorageRepository.findByIcNumber(token);
+                    if (storageOpt.isEmpty()) {
+                        storageOpt = certificateStorageRepository.findByCallNumber(token);
+                    }
+                    if (storageOpt.isPresent()) break;
+                }
+            }
         }
         
         if (storageOpt.isEmpty()) {
