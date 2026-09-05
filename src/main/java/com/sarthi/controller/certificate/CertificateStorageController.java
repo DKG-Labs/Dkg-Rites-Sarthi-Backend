@@ -384,8 +384,12 @@ public class CertificateStorageController {
             String base64Data = azureBlobStorageService.downloadAsBase64(storage.getFileName());
             
             return ResponseEntity.ok(Map.of(
-                "fileName", storage.getFileName(),
-                "signedData", base64Data
+                "icNumber", storage.getIcNumber() != null ? storage.getIcNumber() : icNumber.trim(),
+                "fileName", storage.getFileName() != null ? storage.getFileName() : "",
+                "signedData", base64Data != null ? base64Data : "",
+                "url", storage.getBlobUrl() != null ? storage.getBlobUrl() : "",
+                "uploadedBy", storage.getUploadedBy() != null ? storage.getUploadedBy() : "Inspecting Engineer",
+                "uploadedAt", storage.getUploadedAt() != null ? storage.getUploadedAt().toString() : ""
             ));
             
         } catch (Exception e) {
