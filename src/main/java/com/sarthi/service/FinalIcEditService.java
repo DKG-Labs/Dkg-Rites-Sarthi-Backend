@@ -44,6 +44,7 @@ public class FinalIcEditService {
         entity.setTrRecDate(dto.getTrRecDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
         entity.setDatesOfInspection(dto.getDatesOfInspection());
+        entity.setSealingPattern(dto.getSealingPattern());
         
         // Use provided user if available, fallback to SYSTEM_USER
         if (entity.getId() == null) {
@@ -74,6 +75,7 @@ public class FinalIcEditService {
                 .trRecDate(entity.getTrRecDate())
                 .noOfVisits(entity.getNoOfVisits())
                 .datesOfInspection(entity.getDatesOfInspection())
+                .sealingPattern(entity.getSealingPattern())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

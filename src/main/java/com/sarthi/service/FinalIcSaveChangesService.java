@@ -44,6 +44,7 @@ public class FinalIcSaveChangesService {
         entity.setTrRecDate(dto.getTrRecDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
         entity.setDatesOfInspection(dto.getDatesOfInspection());
+        entity.setSealingPattern(dto.getSealingPattern());
         
         if (entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "SYSTEM_USER");
@@ -73,6 +74,7 @@ public class FinalIcSaveChangesService {
                 .trRecDate(entity.getTrRecDate())
                 .noOfVisits(entity.getNoOfVisits())
                 .datesOfInspection(entity.getDatesOfInspection())
+                .sealingPattern(entity.getSealingPattern())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())

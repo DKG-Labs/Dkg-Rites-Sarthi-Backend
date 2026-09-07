@@ -171,7 +171,11 @@ ADD COLUMN deleted_by INT;
 
 ALTER TABLE final_ic_edit
 ADD COLUMN status VARCHAR(50),
-ADD COLUMN deleted_by INT;
+ADD COLUMN deleted_by INT,
+ADD COLUMN sealing_pattern TEXT;
+
+ALTER TABLE final_ic_save_changes
+ADD COLUMN sealing_pattern TEXT;
 
 
 CREATE TABLE WORKFLOW_DELETE_HISTORY (
