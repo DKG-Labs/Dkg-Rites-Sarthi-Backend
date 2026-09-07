@@ -26,39 +26,48 @@ public class UserProfileController {
         this.userProfileService = userProfileService;
     }
 
-    private String getAuthenticatedUsername() {
+    private String getAuthenticatedIdentifier() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new RuntimeException("User is not authenticated");
+        }
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof com.sarthi.entity.UserMaster userMaster) {
+            if (userMaster.getEmployeeCode() != null && !userMaster.getEmployeeCode().trim().isEmpty()) {
+                return userMaster.getEmployeeCode().trim();
+            }
+            if (userMaster.getUserId() != null) {
+                return String.valueOf(userMaster.getUserId());
+            }
         }
         return authentication.getName();
     }
 
     @GetMapping
     public ResponseEntity<APIResponse> getUserProfile(@RequestParam(required = false) String empCode) {
-        String identifier = (empCode != null && !empCode.trim().isEmpty()) ? empCode : getAuthenticatedUsername();
+        String identifier = (empCode != null && !empCode.trim().isEmpty()) ? empCode.trim() : getAuthenticatedIdentifier();
         UserProfileResponse profile = userProfileService.getUserProfile(identifier);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(profile), HttpStatus.OK);
     }
 
     @PutMapping
     public ResponseEntity<APIResponse> updateProfile(@RequestBody UpdateProfileRequest request) {
-        String username = getAuthenticatedUsername();
-        UserProfileResponse updatedProfile = userProfileService.updateProfile(username, request);
+        String identifier = getAuthenticatedIdentifier();
+        UserProfileResponse updatedProfile = userProfileService.updateProfile(identifier, request);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updatedProfile), HttpStatus.OK);
     }
 
     @PostMapping("/change-password")
     public ResponseEntity<APIResponse> changePassword(@RequestBody ChangePasswordRequest request) {
-        String username = getAuthenticatedUsername();
-        userProfileService.changePassword(username, request);
+        String identifier = getAuthenticatedIdentifier();
+        userProfileService.changePassword(identifier, request);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse("Password updated successfully."), HttpStatus.OK);
     }
 
     @PutMapping("/security-settings")
     public ResponseEntity<APIResponse> updateSecuritySettings(@RequestBody SecuritySettingsRequest request) {
-        String username = getAuthenticatedUsername();
-        userProfileService.updateSecuritySettings(username, request);
+        String identifier = getAuthenticatedIdentifier();
+        userProfileService.updateSecuritySettings(identifier, request);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse("Security settings updated successfully."), HttpStatus.OK);
     }
 }
