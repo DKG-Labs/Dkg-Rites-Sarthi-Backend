@@ -811,15 +811,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             String poSr) {
         String cleanPoNo = (poNo != null && poNo.contains("/")) ? poNo.split("/")[0].trim() : (poNo != null ? poNo.trim() : null);
 
-        boolean isNcrgrsp = (railPadType != null && railPadType.toUpperCase().contains("NCRGRSP"))
-                || (drawingNo != null && drawingNo.toUpperCase().contains("NCRGRSP"));
-
-        // For NCRGRSP, allow process calls created under any PO Item Sr No of that same PO
-        String effectivePoSr = isNcrgrsp ? "" : (poSr != null ? poSr.trim() : "");
-
-        if ((cleanPoNo != null && !cleanPoNo.isEmpty()) || (!effectivePoSr.isEmpty())) {
+        if (cleanPoNo != null && !cleanPoNo.isEmpty()) {
             List<RailInspectionCompleteDetails> completeDetails = railInspectionCompleteDetailsRepository
-                    .findProcessCallsByPoNoAndSr(cleanPoNo, effectivePoSr);
+                    .findProcessCallsByPoNoAndSr(cleanPoNo, "");
             if (completeDetails != null && !completeDetails.isEmpty()) {
                 List<String> callNos = completeDetails.stream()
                         .map(RailInspectionCompleteDetails::getCallNo)
@@ -834,7 +828,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                     }
                 }
             }
-            return repository.findProcessCalls(railPadType, drawingNo, plantId, cleanPoNo, effectivePoSr);
+            return repository.findProcessCalls(railPadType, drawingNo, plantId, cleanPoNo, "");
         }
         return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
     }
