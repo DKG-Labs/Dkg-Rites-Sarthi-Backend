@@ -47,10 +47,34 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private UserMaster getUserByUsernameOrEmpCode(String identifier) {
-        return userMasterRepository.findFirstByUserName(identifier)
-                .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(identifier)
+        if (identifier == null || identifier.trim().isEmpty()) {
+            throw new BusinessException(new ErrorDetails(
+                    404, 404, "ERROR", "User identifier cannot be empty"));
+        }
+
+        String trimmed = identifier.trim();
+
+        // 1. Check unique employeeCode first
+        java.util.Optional<UserMaster> userByEmpCode = userMasterRepository.findFirstByEmployeeCode(trimmed);
+        if (userByEmpCode.isPresent()) {
+            return userByEmpCode.get();
+        }
+
+        // 2. Try numeric userId if applicable
+        try {
+            Integer uid = Integer.valueOf(trimmed);
+            java.util.Optional<UserMaster> userById = userMasterRepository.findByUserId(uid);
+            if (userById.isPresent()) {
+                return userById.get();
+            }
+        } catch (NumberFormatException ignored) {
+            // Not a numeric userId, proceed to username lookup
+        }
+
+        // 3. Fallback to userName
+        return userMasterRepository.findFirstByUserName(trimmed)
                 .orElseThrow(() -> new BusinessException(new ErrorDetails(
-                        404, 404, "ERROR", "User profile not found for " + identifier))));
+                        404, 404, "ERROR", "User profile not found for " + identifier)));
     }
 
     @Override
