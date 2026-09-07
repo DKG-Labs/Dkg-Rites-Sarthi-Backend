@@ -29,12 +29,21 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
 
         ModulusOfFailure entity = new ModulusOfFailure();
 
-        entity.setSamplingDate(LocalDate.parse(dto.getSamplingDate()));
+        if (dto.getSamplingDate() != null && !dto.getSamplingDate().trim().isEmpty()) {
+            entity.setSamplingDate(LocalDate.parse(dto.getSamplingDate().trim().split("T")[0]));
+        } else {
+            entity.setSamplingDate(LocalDate.now());
+        }
+
         entity.setConcreteGrade(dto.getConcreteGrade());
         entity.setPlantType(dto.getPlantType());
         entity.setShedLineNumber(dto.getShedLineNumber());
         entity.setBatchNo(dto.getBatchNo());
-        entity.setCastingDate(LocalDate.parse(dto.getCastingDate()));
+
+        if (dto.getCastingDate() != null && !dto.getCastingDate().trim().isEmpty()) {
+            entity.setCastingDate(LocalDate.parse(dto.getCastingDate().trim().split("T")[0]));
+        }
+
         entity.setBenchGangNumber(dto.getBenchGangNumber());
         entity.setMouldNo(dto.getMouldNo());
 
@@ -42,12 +51,16 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
 
-        // Auto generate Sample Identification
-        entity.setSampleIdentification(
-                dto.getShedLineNumber() + " + "
-                        + dto.getBenchGangNumber() + " + "
-                        + dto.getMouldNo()
-        );
+        // Sample Identification
+        if (dto.getSampleIdentification() != null && !dto.getSampleIdentification().trim().isEmpty()) {
+            entity.setSampleIdentification(dto.getSampleIdentification().trim());
+        } else if (dto.getShedLineNumber() != null || dto.getBenchGangNumber() != null || dto.getMouldNo() != null) {
+            entity.setSampleIdentification(
+                    (dto.getShedLineNumber() != null ? dto.getShedLineNumber() : "") + " + "
+                            + (dto.getBenchGangNumber() != null ? dto.getBenchGangNumber() : "") + " + "
+                            + (dto.getMouldNo() != null ? dto.getMouldNo() : "")
+            );
+        }
 
         entity.setMrResult(dto.getMrResult());
         entity.setSampleType(dto.getSampleType());
@@ -74,26 +87,36 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Modulus Of Failure record not found")));
 
-        entity.setSamplingDate(LocalDate.parse(dto.getSamplingDate()));
+        if (dto.getSamplingDate() != null && !dto.getSamplingDate().trim().isEmpty()) {
+            entity.setSamplingDate(LocalDate.parse(dto.getSamplingDate().trim().split("T")[0]));
+        }
+
         entity.setConcreteGrade(dto.getConcreteGrade());
         entity.setPlantType(dto.getPlantType());
         entity.setShedLineNumber(dto.getShedLineNumber());
         entity.setBatchNo(dto.getBatchNo());
-        entity.setCastingDate(LocalDate.parse(dto.getCastingDate()));
+
+        if (dto.getCastingDate() != null && !dto.getCastingDate().trim().isEmpty()) {
+            entity.setCastingDate(LocalDate.parse(dto.getCastingDate().trim().split("T")[0]));
+        }
+
         entity.setBenchGangNumber(dto.getBenchGangNumber());
         entity.setMouldNo(dto.getMouldNo());
-
 
         entity.setShift(dto.getShift());
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
 
-        // regenerate identification
-        entity.setSampleIdentification(
-                dto.getShedLineNumber() + " + "
-                        + dto.getBenchGangNumber() + " + "
-                        + dto.getMouldNo()
-        );
+        // Sample Identification
+        if (dto.getSampleIdentification() != null && !dto.getSampleIdentification().trim().isEmpty()) {
+            entity.setSampleIdentification(dto.getSampleIdentification().trim());
+        } else if (dto.getShedLineNumber() != null || dto.getBenchGangNumber() != null || dto.getMouldNo() != null) {
+            entity.setSampleIdentification(
+                    (dto.getShedLineNumber() != null ? dto.getShedLineNumber() : "") + " + "
+                            + (dto.getBenchGangNumber() != null ? dto.getBenchGangNumber() : "") + " + "
+                            + (dto.getMouldNo() != null ? dto.getMouldNo() : "")
+            );
+        }
 
         entity.setMrResult(dto.getMrResult());
         entity.setSampleType(dto.getSampleType());

@@ -114,9 +114,9 @@ public class EpoxyTreatedSleeperServiceImpl implements EpoxyTreatedSleeperServic
     }
 
     @Override
-    public List<EpoxyTreatedSleeperResponseDTO> getAll() {
+    public List<EpoxyTreatedSleeperResponseDTO> getAll(String plantId, String vendorCode, Long createdBy) {
 
-        return epoxyTreatedSleeperRepository.findAll()
+        return epoxyTreatedSleeperRepository.findAllByPlantAndVendor(plantId, vendorCode, createdBy)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -173,9 +173,9 @@ public class EpoxyTreatedSleeperServiceImpl implements EpoxyTreatedSleeperServic
 
 
     @Override
-    public List<EtBatchSummaryResponseDTO> getAllBatchWiseEtSummary() {
+    public List<EtBatchSummaryResponseDTO> getAllBatchWiseEtSummary(String plantId, String vendorCode, Long createdBy) {
 
-        List<Object[]> list = epoxyTreatedSleeperRepository.getBatchWiseEtSummary();
+        List<Object[]> list = epoxyTreatedSleeperRepository.getBatchWiseEtSummary(plantId, vendorCode, createdBy);
 
         List<EtBatchSummaryResponseDTO> response = new ArrayList<>();
 
@@ -187,6 +187,9 @@ public class EpoxyTreatedSleeperServiceImpl implements EpoxyTreatedSleeperServic
 
             Long total = obj[3] != null ? ((Number) obj[3]).longValue() : 0L;
             Long etCount = obj[4] != null ? ((Number) obj[4]).longValue() : 0L;
+            String pId = obj.length > 5 ? (String) obj[5] : null;
+            String vCode = obj.length > 6 ? (String) obj[6] : null;
+            Long cBy = obj.length > 7 ? (Long) obj[7] : null;
 
             double percentage = 0.0;
             if (total > 0) {
@@ -200,6 +203,9 @@ public class EpoxyTreatedSleeperServiceImpl implements EpoxyTreatedSleeperServic
             dto.setTotalSleepers(total);
             dto.setEtSleepers(etCount);
             dto.setEtPercentage(Math.round(percentage * 100.0) / 100.0);
+            dto.setPlantId(pId);
+            dto.setVendorCode(vCode);
+            dto.setCreatedBy(cBy);
 
             response.add(dto);
         }

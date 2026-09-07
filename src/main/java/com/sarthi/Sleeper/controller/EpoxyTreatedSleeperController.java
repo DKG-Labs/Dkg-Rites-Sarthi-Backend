@@ -60,10 +60,13 @@ public class EpoxyTreatedSleeperController {
 
 
     @GetMapping
-    public ResponseEntity<Object> getAll() {
+    public ResponseEntity<Object> getAll(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String vendorCode,
+            @RequestParam(required = false) Long createdBy) {
 
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.getAll()),
+                ResponseBuilder.getSuccessResponse(service.getAll(plantId, vendorCode, createdBy)),
                 HttpStatus.OK
         );
     }
@@ -83,11 +86,14 @@ public class EpoxyTreatedSleeperController {
     }
 
     @GetMapping("/batch-summary")
-    public ResponseEntity<Object> getBatchSummary() {
+    public ResponseEntity<Object> getBatchSummary(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String vendorCode,
+            @RequestParam(required = false) Long createdBy) {
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        service.getAllBatchWiseEtSummary()
+                        service.getAllBatchWiseEtSummary(plantId, vendorCode, createdBy)
                 ),
                 HttpStatus.OK
         );

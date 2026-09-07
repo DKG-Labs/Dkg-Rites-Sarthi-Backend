@@ -32,9 +32,12 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         MfTestDetails entity = new MfTestDetails();
 
         entity.setTestingDate(LocalDate.parse(dto.getTestingDate()));
-        entity.setStrength(dto.getStrength());
-
-        entity.setFinalStrength(dto.getStrength());
+        Double loadVal = dto.getLoadKn() != null ? dto.getLoadKn() : (dto.getStrength() != null ? dto.getStrength() : null);
+        entity.setStrength(loadVal);
+        entity.setLoadKn(loadVal);
+        entity.setFinalStrength(dto.getRs2() != null ? dto.getRs2() : dto.getStrength());
+        entity.setRs1(dto.getRs1() != null ? dto.getRs1() : null);
+        entity.setRs2(dto.getRs2() != null ? dto.getRs2() : null);
 
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
@@ -44,14 +47,6 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         entity.setBatchNo(dto.getBatchNo());
         entity.setCastingDate(dto.getCastingDate());
         entity.setResult(dto.getResult());
-
-        // Result Auto Calculation
-        // if(dto.getStrength() >= 4500){
-        //     entity.setResult("PASS");
-        // } else {
-        //     entity.setResult("FAIL");
-        // }
-
         entity.setRemarks(dto.getRemarks());
 
         ModulusOfFailure mof =
@@ -77,10 +72,12 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         MfTestDetails entity = repository.findById(id).orElseThrow();
 
         entity.setTestingDate(LocalDate.parse(dto.getTestingDate()));
-        entity.setStrength(dto.getStrength());
-
-        entity.setFinalStrength(dto.getStrength());
-
+        Double loadVal = dto.getLoadKn() != null ? dto.getLoadKn() : (dto.getStrength() != null ? dto.getStrength() : null);
+        entity.setStrength(loadVal);
+        entity.setLoadKn(loadVal);
+        entity.setFinalStrength(dto.getRs2() != null ? dto.getRs2() : dto.getStrength());
+        entity.setRs1(dto.getRs1() != null ? dto.getRs1() : null);
+        entity.setRs2(dto.getRs2() != null ? dto.getRs2() : null);
 
         entity.setPlantId(dto.getPlantId());
         entity.setVendorCode(dto.getVendorCode());
@@ -91,10 +88,8 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         entity.setBatchNo(dto.getBatchNo());
         entity.setCastingDate(dto.getCastingDate());
 
-        if(dto.getStrength() >= 4500){
-            entity.setResult("PASS");
-        } else {
-            entity.setResult("FAIL");
+        if (dto.getResult() != null && !dto.getResult().isEmpty()) {
+            entity.setResult(dto.getResult());
         }
 
         entity.setRemarks(dto.getRemarks());
@@ -155,7 +150,10 @@ public class MfTestDetailsServiceImpl implements MfTestDetailsService {
         dto.setModulusOfFailureId(entity.getModulusOfFailure().getId());
         dto.setTestingDate(entity.getTestingDate());
         dto.setStrength(entity.getStrength());
+        dto.setLoadKn(entity.getLoadKn() != null ? entity.getLoadKn() : entity.getStrength());
         dto.setFinalStrength(entity.getFinalStrength());
+        dto.setRs1(entity.getRs1());
+        dto.setRs2(entity.getRs2());
         dto.setResult(entity.getResult());
         dto.setRemarks(entity.getRemarks());
 

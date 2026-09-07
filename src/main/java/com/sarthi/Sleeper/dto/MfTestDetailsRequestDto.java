@@ -12,7 +12,11 @@ public class MfTestDetailsRequestDto {
     private String testingDate;
 
     private Double strength;
+    private Double loadKn;
 
+    private Double rs1;
+
+    private Double rs2;
 
     private String remarks;
 

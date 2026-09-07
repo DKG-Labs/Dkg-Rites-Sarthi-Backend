@@ -17,10 +17,10 @@ public interface EpoxyTreatedSleeperService {
 
     EpoxyTreatedSleeperResponseDTO getById(Long id);
 
-    List<EpoxyTreatedSleeperResponseDTO> getAll();
+    List<EpoxyTreatedSleeperResponseDTO> getAll(String plantId, String vendorCode, Long createdBy);
 
     void delete(Long id);
 
-    public List<EtBatchSummaryResponseDTO> getAllBatchWiseEtSummary();
+    public List<EtBatchSummaryResponseDTO> getAllBatchWiseEtSummary(String plantId, String vendorCode, Long createdBy);
 
 }

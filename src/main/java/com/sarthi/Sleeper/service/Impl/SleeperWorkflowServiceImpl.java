@@ -96,6 +96,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private PoHeaderRepository poHeaderRepository;
     @Autowired
     private PoItemRepository poItemRepository;
+    @Autowired
+    private SleeperScheduleRepository sleeperScheduleRepository;
 
 
     public void validateUser(Integer userId) {
@@ -358,7 +360,11 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             sleeperInspectionCallRepository.findByCallNo(tx.getRequestId()).ifPresent(call -> {
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
+                dto.setSleeperType(call.getSleeperType());
+                dto.setOfferedQty(call.getTotalOffered());
+                dto.setUom("Nos.");
                 dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
+                dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt() : tx.getCreatedDate());
                 dto.setStageOfInspection("Final");
                 dto.setProductType("Sleeper");
 
@@ -371,6 +377,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         PoHeader poHeader = poHeaderOpt.get();
                         rlyShort = poHeader.getRlyShortName();
                         dto.setRlyShortName(rlyShort);
+                        dto.setCaseNo(poHeader.getCaseNo());
                         if (dto.getVendorName() == null) {
                             dto.setVendorName(poHeader.getVendorDetails());
                         }
@@ -406,7 +413,17 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     }
                 }
             });
+
+            // Schedule Date lookup
+            try {
+                sleeperScheduleRepository.findByCallNo(tx.getRequestId()).ifPresent(sched -> {
+                    dto.setScheduleDate(sched.getScheduleDate());
+                });
+            } catch (Exception e) {
+                log.warn("Error fetching sleeper schedule for call {}: {}", tx.getRequestId(), e.getMessage());
+            }
         }
+
 
         // 2. Vendor Name & Place of Inspection from vendor_plant
         if (tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
