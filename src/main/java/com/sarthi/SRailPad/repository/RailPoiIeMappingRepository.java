@@ -24,6 +24,31 @@ WHERE (rpm.poi_code = :poiCode OR :poiCode IS NULL)
                                                             @org.springframework.data.repository.query.Param("plantId") String plantId, 
                                                             @org.springframework.data.repository.query.Param("ieType") String ieType);
 
+    @org.springframework.data.jpa.repository.Query(value = """
+SELECT rpm.* 
+FROM rail_poi_ie_mapping rpm 
+WHERE (
+    (:plantId IS NOT NULL AND :plantId != '' AND (
+        rpm.plant_id = :plantId 
+        OR rpm.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) 
+        OR rpm.plant_id = REPLACE(:plantId, ':', '')
+        OR REPLACE(rpm.plant_id, ':', '') = REPLACE(:plantId, ':', '')
+        OR REPLACE(SUBSTRING_INDEX(rpm.plant_id, '/', 1), ':', '') = REPLACE(SUBSTRING_INDEX(:plantId, '/', 1), ':', '')
+    ))
+    OR (:poiCode IS NOT NULL AND :poiCode != '' AND rpm.poi_code = :poiCode)
+  )
+  AND (
+    (:ieType = 'PROCESS_IE' AND (UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'PROCESS_IE' OR UPPER(rpm.ie_type) LIKE '%PROCESS%'))
+    OR (:ieType = 'MAIN_IE' AND (UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'MAIN_IE' OR UPPER(rpm.ie_type) LIKE '%MAIN%'))
+    OR (:ieType IS NULL OR :ieType = '' OR UPPER(REPLACE(rpm.ie_type, ' ', '_')) = UPPER(REPLACE(:ieType, ' ', '_')))
+  )
+""", nativeQuery = true)
+    List<RailPoiIeMapping> findMappingsByPlantOrPoiAndIeType(
+            @org.springframework.data.repository.query.Param("plantId") String plantId,
+            @org.springframework.data.repository.query.Param("poiCode") String poiCode,
+            @org.springframework.data.repository.query.Param("ieType") String ieType
+    );
+
     List<RailPoiIeMapping> findByIeUserId(Integer ieUserId);
 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.poiCode FROM RailPoiIeMapping p WHERE p.ieUserId = :ieUserId AND p.poiCode IS NOT NULL")

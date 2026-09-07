@@ -176,8 +176,8 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
 
-        // 2. Production Declaration fails if no Process IE is mapped to the company/plant
-        if (workflowId != null && workflowId.equals(1L) && Long.valueOf(3L).equals(moduleId)) {
+        // 2. Production Declaration & other Process IE modules fail if no Process IE is mapped to the company/plant
+        if (workflowId != null && workflowId.equals(1L) && moduleId != null && moduleId >= 2L && moduleId <= 6L) {
             boolean hasProcessIe = poiIeMappingRepository.hasProcessIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
             if (!hasProcessIe) {
                 throw new BusinessException(
@@ -251,7 +251,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                         transition.getNextRoleId()));
 
         if (workflowId.equals(1L)) {
-            if (moduleId != null && moduleId == 3L) {
+            if (moduleId != null && moduleId >= 2L && moduleId <= 6L) {
                 tx.setNextRole("Rail Process IE");
             } else {
                 tx.setNextRole("Rail Main IE");
@@ -896,7 +896,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         } else {
             Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
-            String ieRole = (modId != null && modId == 3) ? "Rail Process IE" : "Rail Main IE";
+            String ieRole = (modId != null && modId >= 2 && modId <= 6) ? "Rail Process IE" : "Rail Main IE";
 
             if(req.getAction().equalsIgnoreCase("RETURN_TO_VENDOR")) {
 
@@ -939,28 +939,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             targetAssignedUser = current.getAssignedToUser();
         } else if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || "VERIFY".equalsIgnoreCase(req.getAction())) {
             String pId = current.getPlantId() != null ? current.getPlantId().trim() : "";
-            Optional<RailPoiIeMapping> mappingOpt = poiIeMappingRepository
-                    .findByPlantIdAndIeType(pId, "Main IE");
-            if (mappingOpt.isEmpty()) {
-                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(pId, "MAIN_IE");
-            }
-            if (mappingOpt.isEmpty() && current.getPoiCode() != null) {
-                List<RailPoiIeMapping> poiList = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(current.getPoiCode(), pId, "MAIN_IE");
-                if (poiList != null && !poiList.isEmpty()) {
-                    mappingOpt = Optional.of(poiList.get(0));
-                }
-            }
-            if (mappingOpt.isPresent() && mappingOpt.get().getIeUserId() != null) {
-                targetAssignedUser = mappingOpt.get().getIeUserId().longValue();
+            List<RailPoiIeMapping> mMappings = poiIeMappingRepository.findMappingsByPlantOrPoiAndIeType(pId, current.getPoiCode(), "MAIN_IE");
+            if (mMappings != null && !mMappings.isEmpty() && mMappings.get(0).getIeUserId() != null) {
+                targetAssignedUser = mMappings.get(0).getIeUserId().longValue();
             }
         } else if ("Rail Process IE".equalsIgnoreCase(tx.getNextRole())) {
-            Optional<RailPoiIeMapping> mappingOpt = poiIeMappingRepository
-                    .findByPlantIdAndIeType(current.getPlantId(), "Process IE");
-            if (mappingOpt.isEmpty()) {
-                mappingOpt = poiIeMappingRepository.findByPlantIdAndIeType(current.getPlantId(), "PROCESS_IE");
-            }
-            if (mappingOpt.isPresent() && mappingOpt.get().getIeUserId() != null) {
-                targetAssignedUser = mappingOpt.get().getIeUserId().longValue();
+            List<RailPoiIeMapping> pMappings = poiIeMappingRepository.findMappingsByPlantOrPoiAndIeType(current.getPlantId(), current.getPoiCode(), "PROCESS_IE");
+            if (pMappings != null && !pMappings.isEmpty() && pMappings.get(0).getIeUserId() != null) {
+                targetAssignedUser = pMappings.get(0).getIeUserId().longValue();
             }
         }
         tx.setAssignedToUser(targetAssignedUser);
@@ -1366,23 +1352,30 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         } else {
             // Process IE / Main IE mappings
-            if (tx.getPoiCode() != null && tx.getPlantId() != null) {
-                String ieType = tx.getWorkflowId().equals(2L) ? "MAIN_IE" : "PROCESS_IE";
-                String mappingCacheKey = "mapping_" + tx.getPoiCode() + "_" + tx.getPlantId() + "_" + ieType;
-                if (cache.containsKey(mappingCacheKey)) {
-                    mappings = (List<RailPoiIeMapping>) cache.get(mappingCacheKey);
-                } else {
-                    mappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), ieType);
-                    cache.put(mappingCacheKey, mappings);
-                }
+            String ieType = "MAIN_IE";
+            if ("Rail Process IE".equalsIgnoreCase(tx.getNextRole()) || 
+                (tx.getWorkflowId() != null && tx.getWorkflowId().equals(1L) && tx.getModuleId() != null && tx.getModuleId() >= 2L && tx.getModuleId() <= 6L)) {
+                ieType = "PROCESS_IE";
+            }
+
+            String plantId = tx.getPlantId() != null ? tx.getPlantId().trim() : null;
+            String poiCode = tx.getPoiCode() != null ? tx.getPoiCode().trim() : null;
+            String mappingCacheKey = "mapping_" + poiCode + "_" + plantId + "_" + ieType;
+
+            if (cache.containsKey(mappingCacheKey)) {
+                mappings = (List<RailPoiIeMapping>) cache.get(mappingCacheKey);
+            } else {
+                mappings = poiIeMappingRepository.findMappingsByPlantOrPoiAndIeType(plantId, poiCode, ieType);
+                cache.put(mappingCacheKey, mappings != null ? mappings : new ArrayList<>());
             }
         }
 
         // Accessible users
-        if (mappings != null) {
+        if (mappings != null && !mappings.isEmpty()) {
             userIds = mappings.stream()
                     .map(RailPoiIeMapping::getIeUserId)
                     .filter(Objects::nonNull)
+                    .distinct()
                     .toList();
         }
 
@@ -1399,50 +1392,28 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
             if (vendorUserId != null) {
                 dto.setAssignedToUser(vendorUserId);
+                userIds = java.util.Collections.singletonList(vendorUserId.intValue());
             }
         }
 
         Long effectiveAssignedUserId = tx.getAssignedToUser();
 
-        // If not assigned yet on transaction, resolve mapped Main IE from plant_id in rail_poi_ie_mapping
-        if (effectiveAssignedUserId == null && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
-            String pId = tx.getPlantId().trim();
-            String cleanPId = pId.replace(":", "").trim();
-            String colonPId = pId.startsWith(":") ? pId : ":" + cleanPId;
-
-            String mapCacheKey = "plant_main_ie_" + cleanPId;
-            RailPoiIeMapping mainIeMapping = null;
-            if (cache.containsKey(mapCacheKey)) {
-                mainIeMapping = (RailPoiIeMapping) cache.get(mapCacheKey);
-            } else {
-                Optional<RailPoiIeMapping> mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(pId, "MAIN_IE");
-                if (mainIeOpt.isEmpty()) {
-                    mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(cleanPId, "MAIN_IE");
-                }
-                if (mainIeOpt.isEmpty()) {
-                    mainIeOpt = poiIeMappingRepository.findByPlantIdAndIeType(colonPId, "MAIN_IE");
-                }
-                mainIeMapping = mainIeOpt.orElse(null);
-                cache.put(mapCacheKey, mainIeMapping);
-            }
-
-            if (mainIeMapping != null && mainIeMapping.getIeUserId() != null) {
-                effectiveAssignedUserId = mainIeMapping.getIeUserId().longValue();
-                if (userIds.isEmpty()) {
-                    userIds = java.util.Collections.singletonList(mainIeMapping.getIeUserId());
+        // If not assigned yet on transaction:
+        // For Main IE (or Call), assign to the mapped Main IE
+        if (effectiveAssignedUserId == null) {
+            if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || 
+                (tx.getWorkflowId() != null && tx.getWorkflowId().equals(2L)) || 
+                (tx.getWorkflowId() != null && tx.getWorkflowId().equals(1L) && Long.valueOf(1L).equals(tx.getModuleId()))) {
+                if (userIds != null && !userIds.isEmpty()) {
+                    effectiveAssignedUserId = userIds.get(0).longValue();
                 }
             }
-        }
-
-        // Fallback to first user in userIds if still null
-        if (effectiveAssignedUserId == null && userIds != null && !userIds.isEmpty()) {
-            effectiveAssignedUserId = userIds.get(0).longValue();
         }
 
         dto.setAssignedToUser(effectiveAssignedUserId);
+        dto.setAccessibleUserIds(userIds);
 
         if (effectiveAssignedUserId != null) {
-            dto.setAccessibleUserIds(java.util.Collections.singletonList(effectiveAssignedUserId.intValue()));
             String userCacheKey = "user_" + effectiveAssignedUserId;
             UserMaster user = null;
             if (cache.containsKey(userCacheKey)) {
@@ -1455,8 +1426,6 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                 dto.setAssignedToUserName(user.getFullName());
                 dto.setAssignedToUserEmployeeCode(user.getEmployeeCode());
             }
-        } else {
-            dto.setAccessibleUserIds(userIds);
         }
 
         return dto;
