@@ -10,4 +10,7 @@ public class SleeperInspectionCallBatchDto {
     private List<String> badSleepers;
     private List<Long> goodSleeperIds;
     private List<Long> badSleeperIds;
+    private Integer totalCasted;
+    private String castDate;
+    private Integer previouslyOffered;
 }

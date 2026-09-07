@@ -78,6 +78,9 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                     }
                 }
                 batchEntity.setBadSleepers(badDetails);
+                batchEntity.setTotalCasted(batchDto.getTotalCasted());
+                batchEntity.setCastDate(batchDto.getCastDate());
+                batchEntity.setPreviouslyOffered(batchDto.getPreviouslyOffered());
                 
                 batchEntities.add(batchEntity);
             }

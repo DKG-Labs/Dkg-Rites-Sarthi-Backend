@@ -20,6 +20,15 @@ public class SleeperInspectionCallBatch {
     @Column(name = "batch_no", nullable = false)
     private String batchNo;
 
+    @Transient
+    private Integer totalCasted;
+
+    @Transient
+    private String castDate;
+
+    @Transient
+    private Integer previouslyOffered;
+
     @ElementCollection
     @CollectionTable(name = "sleeper_ic_good_sleepers", joinColumns = @JoinColumn(name = "batch_id"))
     private List<SleeperDetail> goodSleepers;
