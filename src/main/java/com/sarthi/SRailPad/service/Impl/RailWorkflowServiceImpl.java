@@ -176,8 +176,8 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
 
-        // 2. Production Declaration & other Process IE modules fail if no Process IE is mapped to the company/plant
-        if (workflowId != null && workflowId.equals(1L) && moduleId != null && moduleId >= 2L && moduleId <= 6L) {
+        // 2. Production Declaration fails if no Process IE is mapped to the company/plant
+        if (workflowId != null && workflowId.equals(1L) && Long.valueOf(3L).equals(moduleId)) {
             boolean hasProcessIe = poiIeMappingRepository.hasProcessIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
             if (!hasProcessIe) {
                 throw new BusinessException(
@@ -251,7 +251,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                         transition.getNextRoleId()));
 
         if (workflowId.equals(1L)) {
-            if (moduleId != null && moduleId >= 2L && moduleId <= 6L) {
+            if (moduleId != null && moduleId.equals(3L)) {
                 tx.setNextRole("Rail Process IE");
             } else {
                 tx.setNextRole("Rail Main IE");
@@ -896,7 +896,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         } else {
             Long modId = req.getModuleId() != null ? req.getModuleId() : current.getModuleId();
-            String ieRole = (modId != null && modId >= 2 && modId <= 6) ? "Rail Process IE" : "Rail Main IE";
+            String ieRole = (modId != null && modId.equals(3L)) ? "Rail Process IE" : "Rail Main IE";
 
             if(req.getAction().equalsIgnoreCase("RETURN_TO_VENDOR")) {
 
@@ -1354,7 +1354,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             // Process IE / Main IE mappings
             String ieType = "MAIN_IE";
             if ("Rail Process IE".equalsIgnoreCase(tx.getNextRole()) || 
-                (tx.getWorkflowId() != null && tx.getWorkflowId().equals(1L) && tx.getModuleId() != null && tx.getModuleId() >= 2L && tx.getModuleId() <= 6L)) {
+                (tx.getWorkflowId() != null && tx.getWorkflowId().equals(1L) && Long.valueOf(3L).equals(tx.getModuleId()))) {
                 ieType = "PROCESS_IE";
             }
 
@@ -1403,7 +1403,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if (effectiveAssignedUserId == null) {
             if ("Rail Main IE".equalsIgnoreCase(tx.getNextRole()) || 
                 (tx.getWorkflowId() != null && tx.getWorkflowId().equals(2L)) || 
-                (tx.getWorkflowId() != null && tx.getWorkflowId().equals(1L) && Long.valueOf(1L).equals(tx.getModuleId()))) {
+                (tx.getWorkflowId() != null && tx.getWorkflowId().equals(1L) && !Long.valueOf(3L).equals(tx.getModuleId()))) {
                 if (userIds != null && !userIds.isEmpty()) {
                     effectiveAssignedUserId = userIds.get(0).longValue();
                 }
