@@ -35,6 +35,14 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p WHERE p.plantId IN :plantIds")
     Long getTotalProductionCountByPlantIds(@Param("plantIds") java.util.Collection<String> plantIds);
 
+    ProductionDeclaration findFirstByBatchNumberOrderByIdDesc(String batchNumber);
+
+    @Query(value = "SELECT * FROM production_declaration WHERE TRIM(batch_number) = :batchNo OR batch_number = :batchNo OR batch_number LIKE CONCAT('%', :batchNo, '%') ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    ProductionDeclaration findLatestByBatchNo(@Param("batchNo") String batchNo);
+
+    @Query(value = "SELECT * FROM production_declaration WHERE LOWER(TRIM(batch_number)) = LOWER(TRIM(:batchNo)) OR LOWER(TRIM(batch_number)) = LOWER(TRIM(:cleanBatch)) OR LOWER(batch_number) LIKE LOWER(CONCAT('%', :cleanBatch, '%')) OR LOWER(batch_number) LIKE LOWER(CONCAT('%', :batchNo, '%')) ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    ProductionDeclaration findLatestByBatchNoFlexible(@Param("batchNo") String batchNo, @Param("cleanBatch") String cleanBatch);
+
     /*
      * @Query("""
      * SELECT new

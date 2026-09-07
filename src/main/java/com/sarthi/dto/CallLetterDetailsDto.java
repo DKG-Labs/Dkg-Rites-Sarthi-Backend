@@ -70,10 +70,56 @@ public class CallLetterDetailsDto {
     // ---- Heat Details List ----
     private java.util.List<HeatDetail> heatDetails;
 
+    // ---- Batches Selected for Sleeper Offer List ----
+    private java.util.List<SleeperBatchDetail> batchesSelected;
+
     @Data
     public static class HeatDetail {
         private String heatNo;
         private String tcNo;
         private String qtyOffered;
+        private String castDate;
+        private Integer totalCasted;
+        private Integer previouslyOffered;
+        private Integer goodCount;
+        private Integer badCount;
+        private java.util.List<String> goodSleepers;
+        private java.util.List<String> badSleepers;
+        private java.util.List<String> etSleepers;
+        private String rejNo;
+        private String etNo;
+        private String mfNo;
+        private Integer normAccepted;
+        private Integer etAccepted;
+        private Integer mftAccepted;
+        private Integer rejSurf;
+        private Integer rejDim;
+        private Integer rejOth;
+        private Integer rejSbt;
+        private Integer notOffered;
+    }
+
+    @Data
+    public static class SleeperBatchDetail {
+        private String batchNo;
+        private String castDate;
+        private Integer totalCasted;
+        private Integer previouslyOffered;
+        private Integer goodSleepers;
+        private Integer badSleepers;
+        private java.util.List<String> goodSleepersList;
+        private java.util.List<String> badSleepersList;
+        private java.util.List<String> etSleepers;
+        private String rejNo;
+        private String etNo;
+        private String mfNo;
+        private Integer normAccepted;
+        private Integer etAccepted;
+        private Integer mftAccepted;
+        private Integer rejSurf;
+        private Integer rejDim;
+        private Integer rejOth;
+        private Integer rejSbt;
+        private Integer notOffered;
     }
 }

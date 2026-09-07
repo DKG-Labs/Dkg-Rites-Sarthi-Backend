@@ -18,6 +18,7 @@ import com.sarthi.repository.finalmaterial.FinalCumulativeResultsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
 import com.sarthi.service.CallLetterService;
+import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +86,15 @@ public class CallLetterServiceImpl implements CallLetterService {
 
     @Autowired
     private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository productionDeclarationRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionSleeperRepository productionSleeperRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.EtSleeperDetailsRepository etSleeperDetailsRepository;
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -931,19 +941,208 @@ public class CallLetterServiceImpl implements CallLetterService {
             }
         }
 
-        // Batches to heatDetails
-        if (sleeperCall.getBatchesSelected() != null && !sleeperCall.getBatchesSelected().isEmpty()) {
-            List<CallLetterDetailsDto.HeatDetail> heatDetailsList = new java.util.ArrayList<>();
-            for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch batch : sleeperCall.getBatchesSelected()) {
-                CallLetterDetailsDto.HeatDetail hd = new CallLetterDetailsDto.HeatDetail();
-                hd.setHeatNo("Batch " + (batch.getBatchNo() != null ? batch.getBatchNo() : "-"));
-                int goodCount = batch.getGoodSleepers() != null ? batch.getGoodSleepers().size() : 0;
-                int badCount = batch.getBadSleepers() != null ? batch.getBadSleepers().size() : 0;
-                hd.setTcNo("Good: " + goodCount + (badCount > 0 ? " | Rejected: " + badCount : ""));
-                hd.setQtyOffered(String.valueOf(goodCount));
-                heatDetailsList.add(hd);
+        // Batches to heatDetails and batchesSelected
+        try {
+            if (sleeperCall.getBatchesSelected() != null && !sleeperCall.getBatchesSelected().isEmpty()) {
+                List<CallLetterDetailsDto.HeatDetail> heatDetailsList = new java.util.ArrayList<>();
+                List<CallLetterDetailsDto.SleeperBatchDetail> batchesList = new java.util.ArrayList<>();
+
+                for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch batch : sleeperCall.getBatchesSelected()) {
+                    if (batch == null) continue;
+                    String rawBatchNo = batch.getBatchNo() != null ? batch.getBatchNo().trim() : "-";
+                    String displayBatchNo = rawBatchNo.startsWith("Batch ") ? rawBatchNo : "Batch " + rawBatchNo;
+
+                    List<String> goodSleepersList = new java.util.ArrayList<>();
+                    List<String> badSleepersList = new java.util.ArrayList<>();
+
+                    try {
+                        if (batch.getGoodSleepers() != null) {
+                            for (com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail s : batch.getGoodSleepers()) {
+                                if (s != null && s.getSleeperNo() != null && !s.getSleeperNo().isBlank()) {
+                                    goodSleepersList.add(s.getSleeperNo().trim());
+                                }
+                            }
+                        }
+                    } catch (Exception ignore) {}
+
+                    try {
+                        if (batch.getBadSleepers() != null) {
+                            for (com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail s : batch.getBadSleepers()) {
+                                if (s != null && s.getSleeperNo() != null && !s.getSleeperNo().isBlank()) {
+                                    badSleepersList.add(s.getSleeperNo().trim());
+                                }
+                            }
+                        }
+                    } catch (Exception ignore) {}
+
+                    int goodCount = goodSleepersList.size();
+                    int badCount = badSleepersList.size();
+                    String rejNoStr = String.join(", ", badSleepersList);
+
+                    // Look up ProductionDeclaration for this batch
+                    String castDateStr = batch.getCastDate();
+                    Integer totalCasted = batch.getTotalCasted();
+                    int prevOffered = batch.getPreviouslyOffered() != null ? batch.getPreviouslyOffered() : 0;
+
+                    ProductionDeclaration pd = null;
+
+                    // 1. Try resolving ProductionDeclaration via SleeperDetails (sleeperId)
+                    try {
+                        if (batch.getGoodSleepers() != null) {
+                            for (com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail s : batch.getGoodSleepers()) {
+                                if (s != null && s.getSleeperId() != null) {
+                                    Optional<com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper> psOpt = productionSleeperRepository.findById(s.getSleeperId());
+                                    if (psOpt.isPresent()) {
+                                        com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper ps = psOpt.get();
+                                        if (ps.getBenchGroup() != null && ps.getBenchGroup().getChamber() != null && ps.getBenchGroup().getChamber().getDeclaration() != null) {
+                                            pd = ps.getBenchGroup().getChamber().getDeclaration();
+                                            break;
+                                        } else if (ps.getGang() != null && ps.getGang().getDeclaration() != null) {
+                                            pd = ps.getGang().getDeclaration();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignore) {}
+
+                    // 2. If pd still null, try finding via flexible batch queries
+                    if (pd == null) {
+                        try {
+                            String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                            try {
+                                pd = productionDeclarationRepository.findLatestByBatchNoFlexible(rawBatchNo, cleanBatch);
+                            } catch (Exception ignore) {}
+                            if (pd == null) {
+                                try {
+                                    pd = productionDeclarationRepository.findLatestByBatchNo(cleanBatch);
+                                } catch (Exception ignore) {}
+                            }
+                            if (pd == null && !rawBatchNo.equals(cleanBatch)) {
+                                try {
+                                    pd = productionDeclarationRepository.findLatestByBatchNo(rawBatchNo);
+                                } catch (Exception ignore) {}
+                            }
+                        } catch (Exception ignore) {}
+                    }
+
+                    // 3. Extract castDate and totalCasted from pd if needed
+                    if (pd != null) {
+                        if (castDateStr == null || castDateStr.isBlank() || "-".equals(castDateStr) || "N/A".equalsIgnoreCase(castDateStr)) {
+                            if (pd.getCastingDate() != null) {
+                                castDateStr = pd.getCastingDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                            }
+                        }
+                        if (totalCasted == null || totalCasted <= 0) {
+                            try {
+                                Long count = productionSleeperRepository.countByBatchId(pd.getId());
+                                if (count != null && count > 0) {
+                                    totalCasted = count.intValue();
+                                } else if (pd.getTotalCastedSleepers() != null && pd.getTotalCastedSleepers() > 0) {
+                                    totalCasted = pd.getTotalCastedSleepers();
+                                }
+                            } catch (Exception ignore) {
+                                if (pd.getTotalCastedSleepers() != null && pd.getTotalCastedSleepers() > 0) {
+                                    totalCasted = pd.getTotalCastedSleepers();
+                                }
+                            }
+                        }
+                    }
+
+                    // Fallbacks
+                    if (totalCasted == null || totalCasted <= 0) {
+                        totalCasted = goodCount + badCount;
+                    }
+                    if (castDateStr == null || castDateStr.isBlank() || "-".equals(castDateStr) || "N/A".equalsIgnoreCase(castDateStr)) {
+                        castDateStr = sleeperCall.getCreatedAt() != null ? sleeperCall.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "-";
+                    }
+
+                    // Look up ET sleepers for this batch
+                    List<String> etSleepersList = new java.util.ArrayList<>();
+                    String etNoStr = "";
+                    int etCount = 0;
+                    try {
+                        String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*", "").trim();
+                        List<com.sarthi.Sleeper.entity.EtSleeperDetails> etList = null;
+                        try {
+                            etList = etSleeperDetailsRepository.findByEt_BatchNumber(cleanBatch);
+                        } catch (Exception ignore) {}
+                        if ((etList == null || etList.isEmpty()) && !rawBatchNo.equals(cleanBatch)) {
+                            try {
+                                etList = etSleeperDetailsRepository.findByEt_BatchNumber(rawBatchNo);
+                            } catch (Exception ignore) {}
+                        }
+                        if (etList != null && !etList.isEmpty()) {
+                            for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etList) {
+                                if (et != null && et.getSleeperNo() != null && !et.getSleeperNo().isBlank()) {
+                                    etSleepersList.add(et.getSleeperNo().trim());
+                                }
+                            }
+                            etNoStr = String.join(", ", etSleepersList);
+                            etCount = etSleepersList.size();
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error fetching ET sleepers for batch: {}", rawBatchNo, e);
+                    }
+
+                    int notOffered = Math.max(0, totalCasted - goodCount - badCount);
+
+                    // Populate HeatDetail
+                    CallLetterDetailsDto.HeatDetail hd = new CallLetterDetailsDto.HeatDetail();
+                    hd.setHeatNo(displayBatchNo);
+                    hd.setTcNo("Good: " + goodCount + (badCount > 0 ? " | Rejected: " + badCount : ""));
+                    hd.setQtyOffered(String.valueOf(goodCount));
+                    hd.setCastDate(castDateStr);
+                    hd.setTotalCasted(totalCasted);
+                    hd.setPreviouslyOffered(prevOffered);
+                    hd.setGoodCount(goodCount);
+                    hd.setBadCount(badCount);
+                    hd.setGoodSleepers(goodSleepersList);
+                    hd.setBadSleepers(badSleepersList);
+                    hd.setEtSleepers(etSleepersList);
+                    hd.setRejNo(rejNoStr);
+                    hd.setEtNo(etNoStr);
+                    hd.setMfNo("");
+                    hd.setNormAccepted(0);
+                    hd.setEtAccepted(etCount);
+                    hd.setMftAccepted(0);
+                    hd.setRejSurf(0);
+                    hd.setRejDim(0);
+                    hd.setRejOth(badCount);
+                    hd.setRejSbt(0);
+                    hd.setNotOffered(notOffered);
+                    heatDetailsList.add(hd);
+
+                    // Populate SleeperBatchDetail
+                    CallLetterDetailsDto.SleeperBatchDetail sbd = new CallLetterDetailsDto.SleeperBatchDetail();
+                    sbd.setBatchNo(displayBatchNo);
+                    sbd.setCastDate(castDateStr);
+                    sbd.setTotalCasted(totalCasted);
+                    sbd.setPreviouslyOffered(prevOffered);
+                    sbd.setGoodSleepers(goodCount);
+                    sbd.setBadSleepers(badCount);
+                    sbd.setGoodSleepersList(goodSleepersList);
+                    sbd.setBadSleepersList(badSleepersList);
+                    sbd.setEtSleepers(etSleepersList);
+                    sbd.setRejNo(rejNoStr);
+                    sbd.setEtNo(etNoStr);
+                    sbd.setMfNo("");
+                    sbd.setNormAccepted(0);
+                    sbd.setEtAccepted(etCount);
+                    sbd.setMftAccepted(0);
+                    sbd.setRejSurf(0);
+                    sbd.setRejDim(0);
+                    sbd.setRejOth(badCount);
+                    sbd.setRejSbt(0);
+                    sbd.setNotOffered(notOffered);
+                    batchesList.add(sbd);
+                }
+                dto.setHeatDetails(heatDetailsList);
+                dto.setBatchesSelected(batchesList);
             }
-            dto.setHeatDetails(heatDetailsList);
+        } catch (Exception e) {
+            logger.error("Error processing batches for sleeper call: {}", sleeperCall.getCallNo(), e);
         }
 
         // Calculate cumulative passed quantity
