@@ -67,6 +67,9 @@ public class FinalIcEdit {
     @Column(name = "DATES_OF_INSPECTION", columnDefinition = "TEXT")
     private String datesOfInspection;
 
+    @Column(name = "SEALING_PATTERN", columnDefinition = "TEXT")
+    private String sealingPattern;
+
     @Column(name = "CREATED_BY")
     private String createdBy;
 

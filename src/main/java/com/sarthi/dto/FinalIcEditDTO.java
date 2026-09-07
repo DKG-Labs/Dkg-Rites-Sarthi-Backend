@@ -28,6 +28,7 @@ public class FinalIcEditDTO {
     private String trRecDate;
     private String noOfVisits;
     private String datesOfInspection;
+    private String sealingPattern;
     
     // Read-only audit fields
     private String createdBy;

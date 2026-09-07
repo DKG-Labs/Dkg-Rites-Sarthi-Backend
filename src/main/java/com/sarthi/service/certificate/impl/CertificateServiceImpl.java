@@ -1753,6 +1753,9 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) {
                 dto.setTrRecDate(saveChanges.getTrRecDate());
             }
+            if (saveChanges.getSealingPattern() != null && !saveChanges.getSealingPattern().isBlank()) {
+                dto.setSealingPattern(saveChanges.getSealingPattern());
+            }
         } else {
             Optional<FinalIcEdit> finalIcEditOpt = finalIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
             if (finalIcEditOpt.isPresent()) {
@@ -1802,6 +1805,9 @@ public class CertificateServiceImpl implements CertificateService {
                 }
                 if (finalIcEdit.getTrRecDate() != null && !finalIcEdit.getTrRecDate().isBlank()) {
                     dto.setTrRecDate(finalIcEdit.getTrRecDate());
+                }
+                if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) {
+                    dto.setSealingPattern(finalIcEdit.getSealingPattern());
                 }
             }
         }
