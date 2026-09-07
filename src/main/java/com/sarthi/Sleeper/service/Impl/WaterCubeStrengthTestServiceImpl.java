@@ -29,6 +29,25 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
     @Autowired
     private WaterCubeSampleRepository waterCubeSampleRepository;
 
+    private String normalizeToIsoDate(String dateStr) {
+        if (dateStr == null || dateStr.trim().isEmpty() || "N/A".equalsIgnoreCase(dateStr.trim())) {
+            return null;
+        }
+        String str = dateStr.trim();
+        if (str.contains("/")) {
+            String[] parts = str.split("/");
+            if (parts.length == 3) {
+                try {
+                    return String.format("%04d-%02d-%02d", Integer.parseInt(parts[2]), Integer.parseInt(parts[1]), Integer.parseInt(parts[0]));
+                } catch (Exception ignored) {}
+            }
+        }
+        if (str.contains("-")) {
+            return str.split("T")[0];
+        }
+        return str;
+    }
+
     @Override
     public ResponseEntity<?> saveTestResult(WaterCubeStrengthTestRequestDto requestDto) {
         try {
@@ -42,7 +61,7 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
             test.setBatchNumber(requestDto.getBatchNumber());
             test.setConcreteGrade(requestDto.getConcreteGrade());
             if (requestDto.getCastingDate() != null && !requestDto.getCastingDate().isEmpty()) {
-                test.setCastingDate(requestDto.getCastingDate());
+                test.setCastingDate(normalizeToIsoDate(requestDto.getCastingDate()));
             }
             test.setShift(requestDto.getShift());
             test.setLineNo(requestDto.getLineNo());
@@ -80,7 +99,7 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
                     detail.setStrengthNmm2(detailDto.getStrengthNmm2());
                     
                     if (detailDto.getTestingDate() != null && !detailDto.getTestingDate().isEmpty()) {
-                        detail.setTestingDate(detailDto.getTestingDate());
+                        detail.setTestingDate(normalizeToIsoDate(detailDto.getTestingDate()));
                     }
                     if (detailDto.getTestingTime() != null && !detailDto.getTestingTime().isEmpty()) {
                         detail.setTestingTime(detailDto.getTestingTime());
@@ -144,7 +163,7 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
             // Update fields
             test.setBatchNumber(requestDto.getBatchNumber());
             test.setConcreteGrade(requestDto.getConcreteGrade());
-            test.setCastingDate(requestDto.getCastingDate());
+            test.setCastingDate(normalizeToIsoDate(requestDto.getCastingDate()));
             test.setShift(requestDto.getShift());
             test.setLineNo(requestDto.getLineNo());
             test.setFckTarget(requestDto.getFckTarget());
@@ -183,7 +202,7 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
                     detail.setWeightKg(dto.getWeightKg());
                     detail.setLoadKn(dto.getLoadKn());
                     detail.setStrengthNmm2(dto.getStrengthNmm2());
-                    detail.setTestingDate(dto.getTestingDate());
+                    detail.setTestingDate(normalizeToIsoDate(dto.getTestingDate()));
                     detail.setTestingTime(dto.getTestingTime());
 
                     detail.setStrengthTest(test);
@@ -261,6 +280,7 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
         map.put("createdDate", test.getCreatedDate());
         
         List<java.util.Map<String, Object>> detailsList = new ArrayList<>();
+        String testDate = null;
         if (test.getDetails() != null) {
             for (WaterCubeStrengthDetail d : test.getDetails()) {
                 java.util.Map<String, Object> dm = new java.util.HashMap<>();
@@ -274,8 +294,12 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
                 dm.put("testingDate", d.getTestingDate());
                 dm.put("testingTime", d.getTestingTime() != null ? d.getTestingTime().toString() : null);
                 detailsList.add(dm);
+                if (testDate == null && d.getTestingDate() != null && !d.getTestingDate().isEmpty()) {
+                    testDate = d.getTestingDate();
+                }
             }
         }
+        map.put("testDate", testDate);
         map.put("details", detailsList);
         
         return map;

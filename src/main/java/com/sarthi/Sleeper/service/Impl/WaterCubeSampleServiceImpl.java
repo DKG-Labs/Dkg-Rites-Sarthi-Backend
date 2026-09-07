@@ -33,7 +33,17 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
 
         entity.setProductionDeclarationId(dto.getProductionDeclarationId());
         entity.setBatchNumber(dto.getBatchNumber());
-        entity.setCastingDate(CommonUtils.convertStringToDateObject(dto.getCastingDate()));
+        if (dto.getCastingDate() != null && !dto.getCastingDate().trim().isEmpty()) {
+            try {
+                entity.setCastingDate(CommonUtils.convertStringToDateObject(dto.getCastingDate()));
+            } catch (Exception e) {
+                try {
+                    entity.setCastingDate(CommonUtils.convertIsoDateStringToDateObject(dto.getCastingDate()));
+                } catch (Exception ex) {
+                    entity.setCastingDate(java.time.LocalDate.now());
+                }
+            }
+        }
         entity.setShift(dto.getShift());
         entity.setLineNo(dto.getLineNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
@@ -80,7 +90,17 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
 
         entity.setProductionDeclarationId(dto.getProductionDeclarationId());
         entity.setBatchNumber(dto.getBatchNumber());
-        entity.setCastingDate(CommonUtils.convertStringToDateObject(dto.getCastingDate()));
+        if (dto.getCastingDate() != null && !dto.getCastingDate().trim().isEmpty()) {
+            try {
+                entity.setCastingDate(CommonUtils.convertStringToDateObject(dto.getCastingDate()));
+            } catch (Exception e) {
+                try {
+                    entity.setCastingDate(CommonUtils.convertIsoDateStringToDateObject(dto.getCastingDate()));
+                } catch (Exception ex) {
+                    entity.setCastingDate(java.time.LocalDate.now());
+                }
+            }
+        }
         entity.setShift(dto.getShift());
         entity.setLineNo(dto.getLineNo());
         entity.setConcreteGrade(dto.getConcreteGrade());
