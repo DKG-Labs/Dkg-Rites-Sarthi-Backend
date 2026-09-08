@@ -36,6 +36,10 @@ import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspection
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcEditRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcSaveChangesRepository;
 
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperCallCancellationDetail;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperCallCancellationDetailRepository;
+import com.sarthi.Sleeper.dto.SleeperCancelledPaymentCallDto;
+import java.math.BigDecimal;
 import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -98,7 +102,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private PoItemRepository poItemRepository;
     @Autowired
     private SleeperScheduleRepository sleeperScheduleRepository;
-
+    @Autowired
+    private SleeperCallCancellationDetailRepository sleeperCallCancellationDetailRepository;
 
     public void validateUser(Integer userId) {
         if (!userMasterRepository.existsById(userId)) {
@@ -377,7 +382,29 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         PoHeader poHeader = poHeaderOpt.get();
                         rlyShort = poHeader.getRlyShortName();
                         dto.setRlyShortName(rlyShort);
-                        dto.setCaseNo(poHeader.getCaseNo());
+
+                        // Resolve plant RIO for Sleeper Case No.
+                        String plantRio = tx.getRio();
+                        if (plantRio == null || plantRio.trim().isEmpty()) {
+                            String pId = tx.getPlantId() != null ? tx.getPlantId() : call.getPlantId();
+                            if (pId != null && !pId.trim().isEmpty()) {
+                                List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(pId.trim());
+                                if (vpList != null && !vpList.isEmpty()) {
+                                    for (com.sarthi.Sleeper.entity.VendorPlant vp : vpList) {
+                                        if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                                            plantRio = vp.getRio().trim();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        dto.setCaseNo(resolveSleeperCaseNo(poHeader.getCaseNo(), plantRio));
+                        if (dto.getRio() == null && plantRio != null) {
+                            dto.setRio(plantRio);
+                        }
+
                         if (dto.getVendorName() == null) {
                             dto.setVendorName(poHeader.getVendorDetails());
                         }
@@ -663,7 +690,86 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         tx.setRio(current.getRio());
 
         // Workflow 2 → Special actions handling
-        if (req.getAction().equalsIgnoreCase("IC_ISSUE")) {
+        if (req.getAction().equalsIgnoreCase("CANCEL")
+                || req.getAction().equalsIgnoreCase("CANCEL_CALL")
+                || req.getAction().equalsIgnoreCase("CANCELLED")
+                || (req.getAction().equalsIgnoreCase("VERIFY_MATERIAL_AVAILABILITY") && "NO".equalsIgnoreCase(req.getMaterialAvailable()))) {
+
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setNextRole(null);
+            tx.setStatus("CANCELLED");
+            tx.setJobStatus("CANCELLED");
+            tx.setAction("CANCEL");
+
+            String cancelRemarks = req.getRemarks() != null && !req.getRemarks().isEmpty()
+                    ? req.getRemarks()
+                    : (req.getCancellationDescription() != null ? req.getCancellationDescription() : "Call Cancelled");
+            tx.setRemarks(cancelRemarks);
+
+            // 1. Update sleeper_inspection_call status to CANCELLED
+            try {
+                if (sleeperInspectionCallRepository != null) {
+                    Optional<SleeperInspectionCall> icOpt = sleeperInspectionCallRepository.findByCallNo(req.getRequestId());
+                    if (icOpt.isPresent()) {
+                        SleeperInspectionCall ic = icOpt.get();
+                        ic.setStatus("CANCELLED");
+                        sleeperInspectionCallRepository.save(ic);
+                    }
+                }
+            } catch (Exception ex) {
+                System.err.println("⚠️ Could not update SleeperInspectionCall status: " + ex.getMessage());
+            }
+
+            // 2. Save to sleeper_call_cancellation_details
+            try {
+                if (sleeperCallCancellationDetailRepository != null) {
+                    String dynamicVendorCode = req.getVendorCode();
+                    if (dynamicVendorCode == null || dynamicVendorCode.isEmpty()) {
+                        dynamicVendorCode = current.getVendorCode() != null ? current.getVendorCode() : "";
+                    }
+
+                    String creatorId = req.getActionBy() != null ? String.valueOf(req.getActionBy()) :
+                                      (req.getUpdatedBy() != null ? req.getUpdatedBy() : null);
+
+                    SleeperCallCancellationDetail cancellationDetail = new SleeperCallCancellationDetail();
+                    cancellationDetail.setCallNumber(req.getRequestId());
+                    cancellationDetail.setVendorCode(dynamicVendorCode);
+                    cancellationDetail.setCancellationBasis(req.getCancellationBasis() != null ? req.getCancellationBasis() : "NON_CHARGEABLE");
+                    cancellationDetail.setVisitStatus(req.getVisitStatus());
+                    
+                    String reasonsStr = req.getReasons();
+                    if (reasonsStr == null && req.getCancellationReasons() != null) {
+                        reasonsStr = String.join("; ", req.getCancellationReasons());
+                    }
+                    if (reasonsStr == null) {
+                        reasonsStr = cancelRemarks;
+                    }
+                    cancellationDetail.setReasons(reasonsStr);
+                    cancellationDetail.setCancellationDescription(req.getCancellationDescription() != null ? req.getCancellationDescription() : cancelRemarks);
+                    cancellationDetail.setMaterialValue(req.getMaterialValue());
+                    cancellationDetail.setPercentage(req.getPercentage() != null ? req.getPercentage() : req.getCancellationPercentage());
+                    cancellationDetail.setCalculatedCharges(req.getCalculatedCharges());
+                    cancellationDetail.setMaximumCap(req.getMaximumCap());
+                    cancellationDetail.setFinalCancellationCharges(req.getFinalCancellationCharges() != null ? req.getFinalCancellationCharges() : BigDecimal.ZERO);
+                    cancellationDetail.setDocumentName(req.getDocumentName());
+                    cancellationDetail.setActionBy(req.getActionBy() != null ? req.getActionBy() : 0L);
+                    cancellationDetail.setCreatedBy(creatorId);
+                    cancellationDetail.setUpdatedBy(creatorId);
+
+                    sleeperCallCancellationDetailRepository.save(cancellationDetail);
+                }
+            } catch (Exception ex) {
+                System.err.println("⚠️ Failed to persist SleeperCallCancellationDetail: " + ex.getMessage());
+            }
+
+            tx.setCreatedBy(current.getCreatedBy());
+            tx.setModifiedBy(req.getActionBy());
+            tx.setCreatedDate(LocalDateTime.now());
+            tx.setUpdatedDate(LocalDateTime.now());
+
+            SleeperWorkflowTransaction saved = repository.save(tx);
+            return mapToResponse(saved);
+        } else if (req.getAction().equalsIgnoreCase("IC_ISSUE")) {
             tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
             tx.setNextRole(current.getNextRole() != null ? current.getNextRole() : "Main IE");
             tx.setStatus(AppConstant.PENDING_TYPE);
@@ -1456,5 +1562,197 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             latestTx.setAssignedToUser(Long.valueOf(newUserId));
             repository.save(latestTx);
         }
+    }
+
+    private String resolveSleeperCaseNo(String rawCaseNo, String rio) {
+        if (rawCaseNo == null || rawCaseNo.trim().isEmpty()) {
+            return null;
+        }
+        String trimmedCaseNo = rawCaseNo.trim();
+        String[] parts = trimmedCaseNo.split(",");
+
+        if (rio != null && !rio.trim().isEmpty()) {
+            String cleanRio = rio.trim().toUpperCase();
+            String firstLetter = cleanRio.substring(0, 1);
+            for (String part : parts) {
+                String p = part.trim();
+                if (p.toUpperCase().startsWith(firstLetter)) {
+                    return p;
+                }
+            }
+            return null;
+        }
+
+        for (String part : parts) {
+            String p = part.trim();
+            if (!p.isEmpty()) {
+                return p;
+            }
+        }
+        return parts[0].trim();
+    }
+
+    @Override
+    public List<SleeperCancelledPaymentCallDto> getCancelledCallsForPayment(String plantId, String vendorCode) {
+        String effectivePlantId = (plantId != null && !plantId.trim().isEmpty() && !"1".equals(plantId.trim())) 
+                ? plantId.replace(":", "").trim() : null;
+        String effectiveVendorCode = (vendorCode != null && !vendorCode.trim().isEmpty()) 
+                ? vendorCode.replace(":", "").trim() : null;
+
+        List<SleeperWorkflowTransaction> txList = repository.findLatestCancelledTransactions(effectivePlantId, effectiveVendorCode);
+        List<SleeperCancelledPaymentCallDto> result = new ArrayList<>();
+
+        for (SleeperWorkflowTransaction tx : txList) {
+            String callNo = tx.getRequestId();
+            if (callNo == null || callNo.isBlank()) continue;
+
+            String callPlantId = tx.getPlantId();
+            SleeperInspectionCall callEntity = null;
+
+            if (sleeperInspectionCallRepository != null) {
+                Optional<SleeperInspectionCall> callOpt = sleeperInspectionCallRepository.findByCallNo(callNo);
+                if (callOpt.isPresent()) {
+                    callEntity = callOpt.get();
+                    if (callEntity.getPlantId() != null && !callEntity.getPlantId().isBlank()) {
+                        callPlantId = callEntity.getPlantId();
+                    }
+                }
+            }
+
+            if (effectivePlantId != null && !effectivePlantId.isBlank()) {
+                String cleanCallPlant = (callPlantId != null) ? callPlantId.replace(":", "").trim() : "";
+                if (!cleanCallPlant.equalsIgnoreCase(effectivePlantId)) {
+                    continue;
+                }
+            }
+
+            SleeperCancelledPaymentCallDto dto = new SleeperCancelledPaymentCallDto();
+            dto.setWorkflowTransitionId(tx.getWorkflowTransitionId());
+            dto.setCallNo(callNo);
+            dto.setStatus("CANCELLED");
+            dto.setCancelRemarks(tx.getRemarks());
+            dto.setAction(tx.getAction());
+            dto.setPlantId(callPlantId);
+            dto.setVendorCode(tx.getVendorCode());
+            dto.setCreatedDate(tx.getCreatedDate());
+
+            String plantRio = tx.getRio();
+            if ((plantRio == null || plantRio.isBlank()) && callPlantId != null && vendorPlantRepository != null) {
+                try {
+                    String cleanPId = callPlantId.replace(":", "").trim();
+                    Optional<com.sarthi.Sleeper.entity.VendorPlant> vpOpt = vendorPlantRepository.findByPlantId(cleanPId);
+                    if (vpOpt.isEmpty()) {
+                        vpOpt = vendorPlantRepository.findByPlantId(callPlantId);
+                    }
+                    if (vpOpt.isPresent() && vpOpt.get().getRio() != null) {
+                        plantRio = vpOpt.get().getRio().trim();
+                    }
+                } catch (Exception ignored) {}
+            }
+            dto.setRio(plantRio);
+
+            if (callEntity != null) {
+                dto.setPoNo(callEntity.getPoNo());
+                dto.setSrNo(callEntity.getSrNo());
+                dto.setOfferedQty(callEntity.getTotalOffered() != null ? Long.valueOf(callEntity.getTotalOffered()) : 0L);
+                dto.setCallDate(callEntity.getCreatedAt() != null ? callEntity.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : null);
+                dto.setSleeperType(callEntity.getSleeperType());
+
+                // Fetch Case No using plant RIO logic
+                String rawPoNo = callEntity.getPoNo();
+                String barePoNo = rawPoNo;
+                if (barePoNo != null && barePoNo.contains("/")) {
+                    barePoNo = barePoNo.split("/")[0].trim();
+                }
+                if (barePoNo != null && poHeaderRepository != null) {
+                    Optional<PoHeader> headerOpt = poHeaderRepository.findByPoNo(barePoNo);
+                    if (headerOpt.isPresent() && headerOpt.get().getCaseNo() != null) {
+                        String matchedCaseNo = resolveSleeperCaseNo(headerOpt.get().getCaseNo(), plantRio);
+                        dto.setIbsCaseNo(matchedCaseNo != null ? matchedCaseNo : headerOpt.get().getCaseNo());
+                    }
+                }
+            }
+
+            // Determine RIO Email
+            String rioEmail = "nrinspn.fin@rites.com";
+            if (plantRio != null) {
+                String uRio = plantRio.toUpperCase();
+                if (uRio.contains("EAST") || uRio.contains("ER")) rioEmail = "callletter.er@rites.com";
+                else if (uRio.contains("WEST") || uRio.contains("WR")) rioEmail = "dfo.wrio@rites.com";
+                else if (uRio.contains("SOUTH") || uRio.contains("SR")) rioEmail = "dfo.srio@rites.com";
+                else if (uRio.contains("CENT") || uRio.contains("CR")) rioEmail = "dfo.crio@rites.com";
+                else if (uRio.contains("NORTH") || uRio.contains("NR")) rioEmail = "nrinspn.fin@rites.com";
+            }
+            dto.setRioEmail(rioEmail);
+
+            double base = 0.0;
+            boolean isNonChargeable = false;
+            if (sleeperCallCancellationDetailRepository != null) {
+                Optional<SleeperCallCancellationDetail> cancelOpt = sleeperCallCancellationDetailRepository.findByCallNumber(callNo);
+                if (cancelOpt.isPresent()) {
+                    SleeperCallCancellationDetail cd = cancelOpt.get();
+                    if (cd.getDocumentName() != null && !cd.getDocumentName().isBlank()) {
+                        dto.setDocumentName(cd.getDocumentName());
+                    }
+                    if ("NON_CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
+                        isNonChargeable = true;
+                        base = 0.0;
+                    } else {
+                        if (cd.getFinalCancellationCharges() != null) {
+                            base = cd.getFinalCancellationCharges().doubleValue();
+                        } else if (cd.getCalculatedCharges() != null) {
+                            base = cd.getCalculatedCharges().doubleValue();
+                        }
+                    }
+                }
+            }
+
+            if (tx.getRemarks() != null) {
+                String rem = tx.getRemarks().toUpperCase();
+                if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
+                    isNonChargeable = true;
+                    base = 0.0;
+                }
+            }
+
+            // Calls cancelled on non-chargeable basis (or with zero charges) should not go to Payment Details module
+            if (isNonChargeable || base <= 0.0) {
+                continue;
+            }
+
+            double gst = Math.round((base * 18.0) / 100.0);
+            dto.setBasePayableAmount(base);
+            dto.setGst(gst);
+            dto.setTotalPayableAmount(base + gst);
+            dto.setBankAccountDetails("SBI A/c: 39482910482, IFSC: SBIN0001234, Branch: RITES Central");
+            dto.setPaymentReason("Cancellation");
+            dto.setChargeType("Cancellation");
+            dto.setPaymentStatus("Payment Pending");
+
+            result.add(dto);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode) {
+        List<SleeperCancelledPaymentCallDto> list = getCancelledCallsForPayment(plantId, vendorCode);
+        for (SleeperCancelledPaymentCallDto item : list) {
+            boolean isChargeable = (item.getTotalPayableAmount() != null && item.getTotalPayableAmount() > 0);
+            if (isChargeable && !"Approved by RITES Finance".equalsIgnoreCase(item.getPaymentStatus()) 
+                    && !"PAID".equalsIgnoreCase(item.getPaymentStatus())
+                    && !"COMPLETED".equalsIgnoreCase(item.getPaymentStatus())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public SleeperCallCancellationDetail getCancellationDetails(String callNo) {
+        if (sleeperCallCancellationDetailRepository != null && callNo != null) {
+            return sleeperCallCancellationDetailRepository.findByCallNumber(callNo.trim()).orElse(null);
+        }
+        return null;
     }
 }

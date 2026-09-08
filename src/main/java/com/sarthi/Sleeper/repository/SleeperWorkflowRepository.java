@@ -569,4 +569,20 @@ AND t.workflowTransitionId = (
         WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
     """, nativeQuery = true)
     Long countAllSleeperIcIssued();
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        GROUP BY t2.requestId
+    )
+    AND (UPPER(t.status) = 'CANCELLED' OR UPPER(COALESCE(t.jobStatus, '')) = 'CANCELLED' OR UPPER(COALESCE(t.action, '')) = 'CANCEL')
+    AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', ''))
+    AND (:vendorCode IS NULL OR :vendorCode = '' OR t.vendorCode = :vendorCode OR REPLACE(COALESCE(t.vendorCode, ''), ':', '') = REPLACE(:vendorCode, ':', ''))
+    ORDER BY t.workflowTransitionId DESC
+    """)
+    List<SleeperWorkflowTransaction> findLatestCancelledTransactions(
+            @Param("plantId") String plantId,
+            @Param("vendorCode") String vendorCode);
 }

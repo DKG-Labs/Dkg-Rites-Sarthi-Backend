@@ -882,11 +882,8 @@ public class CallLetterServiceImpl implements CallLetterService {
                     dto.setRlyShortName(ph.getRlyShortName());
                     dto.setPoNo(ph.getPoNo());
                     dto.setPurchaserDetail(ph.getPurchaserDetail());
-                    if (ph.getFirmDetails() != null) {
-                        dto.setVendorName(ph.getFirmDetails());
-                        dto.setManufacturerName(ph.getFirmDetails());
-                    }
-                    dto.setCaseNo(ph.getCaseNo());
+                    String resolvedCaseNo = resolveSleeperCaseNo(ph.getCaseNo(), dto.getRio());
+                    dto.setCaseNo(resolvedCaseNo);
                     if (ph.getPoDate() != null) {
                         dto.setPoDate(ph.getPoDate().format(DATE_FMT));
                     }
@@ -1163,5 +1160,33 @@ public class CallLetterServiceImpl implements CallLetterService {
         }
 
         return dto;
+    }
+
+    private String resolveSleeperCaseNo(String rawCaseNo, String rio) {
+        if (rawCaseNo == null || rawCaseNo.trim().isEmpty()) {
+            return null;
+        }
+        String trimmedCaseNo = rawCaseNo.trim();
+        String[] parts = trimmedCaseNo.split(",");
+
+        if (rio != null && !rio.trim().isEmpty()) {
+            String cleanRio = rio.trim().toUpperCase();
+            String firstLetter = cleanRio.substring(0, 1);
+            for (String part : parts) {
+                String p = part.trim();
+                if (p.toUpperCase().startsWith(firstLetter)) {
+                    return p;
+                }
+            }
+            return null;
+        }
+
+        for (String part : parts) {
+            String p = part.trim();
+            if (!p.isEmpty()) {
+                return p;
+            }
+        }
+        return parts[0].trim();
     }
 }

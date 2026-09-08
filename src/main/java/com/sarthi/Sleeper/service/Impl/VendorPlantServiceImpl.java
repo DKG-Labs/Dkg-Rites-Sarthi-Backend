@@ -35,7 +35,7 @@ public class VendorPlantServiceImpl implements VendorPlantService {
         response.setCompanyName(list.get(0).getCompanyName());
 
         List<PlantDTO> plants = list.stream()
-                .map(p -> new PlantDTO(p.getPlantName(), p.getPlantId()))
+                .map(p -> new PlantDTO(p.getPlantName(), p.getPlantId(), p.getRio()))
                 .toList();
 
         response.setPlants(plants);
@@ -55,7 +55,7 @@ public class VendorPlantServiceImpl implements VendorPlantService {
 
         List<PlantDTO> plants = list.stream()
                 .filter(p -> userPlantIds.contains(p.getPlantId()))
-                .map(p -> new PlantDTO(p.getPlantName(), p.getPlantId()))
+                .map(p -> new PlantDTO(p.getPlantName(), p.getPlantId(), p.getRio()))
                 .toList();
 
         if (plants.isEmpty()) {

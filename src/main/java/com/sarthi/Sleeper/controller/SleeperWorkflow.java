@@ -142,4 +142,44 @@ public class SleeperWorkflow {
         }
     }
 
+    @GetMapping("/cancelledCallsForPayment")
+    public ResponseEntity<Object> getCancelledCallsForPayment(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String vendorCode) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(workflowService.getCancelledCallsForPayment(plantId, vendorCode)),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/checkPlantPaymentBlock")
+    public ResponseEntity<Object> checkPlantPaymentBlock(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String vendorCode) {
+        boolean isBlocked = workflowService.isPlantBlockedForCallRaising(plantId, vendorCode);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(java.util.Map.of(
+                        "blocked", isBlocked,
+                        "plantId", plantId != null ? plantId : "",
+                        "vendorCode", vendorCode != null ? vendorCode : ""
+                )),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/cancellationDetails/{callNo}")
+    public ResponseEntity<Object> getCancellationDetails(@PathVariable String callNo) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(workflowService.getCancellationDetails(callNo)),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/getCancellationDetails")
+    public ResponseEntity<Object> getCancellationDetailsByParam(@RequestParam String callNo) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(workflowService.getCancellationDetails(callNo)),
+                HttpStatus.OK
+        );
+    }
 }

@@ -28,6 +28,7 @@ public interface SleeperInspectionCallRepository extends JpaRepository<SleeperIn
 SELECT DISTINCT s.sleeperId
 FROM SleeperInspectionCallBatch b
 JOIN b.goodSleepers s
+WHERE b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<Long> findAllGoodSleeperIds();
 
@@ -35,6 +36,7 @@ JOIN b.goodSleepers s
 SELECT DISTINCT s.sleeperId
 FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
+WHERE b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<Long> findAllBadSleeperIds();
 
@@ -43,6 +45,7 @@ SELECT DISTINCT CONCAT(TRIM(b.batchNo), '_', TRIM(s.sleeperNo))
 FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperNo IS NOT NULL
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<String> findAllRaisedBadSleeperKeys();
 
@@ -50,6 +53,7 @@ WHERE s.sleeperNo IS NOT NULL
 SELECT DISTINCT TRIM(b.batchNo)
 FROM SleeperInspectionCallBatch b
 WHERE SIZE(b.badSleepers) > 0
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<String> findAllRaisedBadBatchNos();
 
@@ -904,15 +908,8 @@ ORDER BY um.employee_code
             SELECT COUNT(DISTINCT sfr_inst.id) + 1
             FROM sleeper_final_result sfr_inst
             JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no = sfr_inst.call_number
-            WHERE (
-                TRIM(sic_inst.po_no) = TRIM(sic.po_no)
-                OR sic_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                OR sfr_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-            )
-              AND (
-                  LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
-                  OR CAST(COALESCE(sic_inst.sr_no, sfr_inst.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
-              )
+            WHERE sic_inst.po_no = sic.po_no
+              AND LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
               AND sic_inst.id < sic.id
         ) AS offeredInstallmentNumber,
 
@@ -920,15 +917,8 @@ ORDER BY um.employee_code
             SELECT COUNT(DISTINCT sfr_inst.id) + 1
             FROM sleeper_final_result sfr_inst
             JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no = sfr_inst.call_number
-            WHERE (
-                TRIM(sic_inst.po_no) = TRIM(sic.po_no)
-                OR sic_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                OR sfr_inst.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-            )
-              AND (
-                  LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
-                  OR CAST(COALESCE(sic_inst.sr_no, sfr_inst.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
-              )
+            WHERE sic_inst.po_no = sic.po_no
+              AND LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
               AND COALESCE(sfr_inst.total_accepted, 0) > 0
               AND sic_inst.id < sic.id
         ) AS passedInstallmentNumber,
@@ -956,16 +946,9 @@ ORDER BY um.employee_code
                 SELECT SUM(sfr_prev.total_offered_quantity)
                 FROM sleeper_final_result sfr_prev
                 JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
-                WHERE (
-                    TRIM(sic_prev.po_no) = TRIM(sic.po_no)
-                    OR sic_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                    OR sfr_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                )
-                AND (
-                    LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
-                    OR CAST(COALESCE(sic_prev.sr_no, sfr_prev.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
-                )
-                AND sic_prev.id < sic.id
+                WHERE sic_prev.po_no = sic.po_no
+                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                  AND sic_prev.id < sic.id
             ),
             0
         ) AS SIGNED) AS cumulativeQtyOfferedPreviously,
@@ -975,21 +958,19 @@ ORDER BY um.employee_code
                 SELECT SUM(sfr_prev.total_accepted)
                 FROM sleeper_final_result sfr_prev
                 JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
-                WHERE (
-                    TRIM(sic_prev.po_no) = TRIM(sic.po_no)
-                    OR sic_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                    OR sfr_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                )
-                AND (
-                    LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
-                    OR CAST(COALESCE(sic_prev.sr_no, sfr_prev.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
-                )
-                AND sic_prev.id < sic.id
+                WHERE sic_prev.po_no = sic.po_no
+                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                  AND sic_prev.id < sic.id
             ),
             0
         ) AS SIGNED) AS quantityPreviouslyPassed,
 
-        CAST(COALESCE(sic.total_offered, (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), 0) AS SIGNED) AS qtyNowOffered,
+        CAST(COALESCE(
+            (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1),
+            (SELECT (COALESCE(sfr2.total_accepted, 0) + COALESCE(sfr2.total_rejected, 0)) FROM sleeper_final_result sfr2 WHERE sfr2.call_number = sic.call_no LIMIT 1),
+            sic.total_offered,
+            0
+        ) AS SIGNED) AS qtyNowOffered,
 
         CAST(COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), fcih.accepted_qty, 0) AS SIGNED) AS qtyNowPassed,
 
@@ -1003,16 +984,9 @@ ORDER BY um.employee_code
                     SELECT SUM(sfr_prev.total_accepted)
                     FROM sleeper_final_result sfr_prev
                     JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
-                    WHERE (
-                        TRIM(sic_prev.po_no) = TRIM(sic.po_no)
-                        OR sic_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                        OR sfr_prev.po_no LIKE CONCAT('%', TRIM(sic.po_no), '%')
-                    )
-                    AND (
-                        LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
-                        OR CAST(COALESCE(sic_prev.sr_no, sfr_prev.sr_no) AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
-                    )
-                    AND sic_prev.id < sic.id
+                    WHERE sic_prev.po_no = sic.po_no
+                      AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                      AND sic_prev.id < sic.id
                 ),
                 0
             )
@@ -1047,7 +1021,18 @@ ORDER BY um.employee_code
             )
             FROM ie_batch_summary ibs2
             WHERE ibs2.call_no = sic.call_no
-        ) AS quantityNowPassedBatchNos
+        ) AS quantityNowPassedBatchNos,
+
+        ph.case_no AS caseNo,
+
+        (
+            SELECT vpp.rio
+            FROM vendor_plant vpp
+            WHERE vpp.plant_id = sic.plant_id
+            LIMIT 1
+        ) AS rio,
+
+        sic.plant_id AS plantId
 
     FROM sleeper_inspection_call sic
 

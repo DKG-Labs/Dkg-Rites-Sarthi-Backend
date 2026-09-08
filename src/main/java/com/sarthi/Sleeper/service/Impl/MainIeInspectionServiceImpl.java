@@ -28,6 +28,10 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
 
     @Autowired
     private com.sarthi.Sleeper.repository.DemouldingDefectiveSleeperRepository demouldingDefectiveSleeperRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository sleeperFinalResultRepository;
+
     @Override
     public SleeperInspectionCallSummaryDTO getInspectionCallSummary(String callNo) {
 
@@ -77,6 +81,19 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         }
 
         dto.setTotalAccepted(accepted);
+
+        // If sleeper final result exists, prioritize its verified inspection totals
+        sleeperFinalResultRepository.findByCallNumber(callNo).ifPresent(sfr -> {
+            if (sfr.getTotalOfferedQuantity() != null) {
+                dto.setQtyOfferedNow(sfr.getTotalOfferedQuantity().intValue());
+            }
+            if (sfr.getTotalAccepted() != null) {
+                dto.setTotalAccepted(sfr.getTotalAccepted().intValue());
+            }
+            if (sfr.getTotalRejected() != null) {
+                dto.setTotalRejected(sfr.getTotalRejected().intValue());
+            }
+        });
 
         // Optional fields
         dto.setQuantityOnOrder(null);

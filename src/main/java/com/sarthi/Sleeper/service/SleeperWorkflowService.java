@@ -53,4 +53,10 @@ public interface SleeperWorkflowService {
             String plantId,
             Pageable pageable);
 
+    public List<com.sarthi.Sleeper.dto.SleeperCancelledPaymentCallDto> getCancelledCallsForPayment(String plantId, String vendorCode);
+
+    public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode);
+
+    public com.sarthi.Sleeper.entity.FinalInspection.SleeperCallCancellationDetail getCancellationDetails(String callNo);
+
 }
