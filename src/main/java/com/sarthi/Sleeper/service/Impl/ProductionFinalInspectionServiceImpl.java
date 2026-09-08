@@ -1059,8 +1059,22 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             ProductionDeclaration declaration =
                     productionDeclarationRepository.findBatchById(batchId);
 
-            String currentBatchNo = declaration != null ? declaration.getBatchNumber() : null;
-            boolean isBatchBadAlreadyRaised = currentBatchNo != null && raisedBadBatchNos.contains(currentBatchNo.trim());
+            if (declaration == null || declaration.getBatchNumber() == null) {
+                continue;
+            }
+
+            String currentBatchNo = declaration.getBatchNumber().trim();
+
+            // ── Mandatory Lab Test Prerequisites ─────────────────────────────
+            // A batch must pass both Water Cube Strength Test and Moment of Resistance (MOR) test
+            boolean passedWaterCube = waterCubeStrengthTestRepository.hasPassedWaterCube(currentBatchNo);
+            boolean passedMOR = momentOfResistanceTestRepository.hasPassedMomentOfResistance(currentBatchNo);
+
+            if (!passedWaterCube || !passedMOR) {
+                continue;
+            }
+
+            boolean isBatchBadAlreadyRaised = raisedBadBatchNos.contains(currentBatchNo);
 
             List<EtSleeperDetails> etSleepersList =
                     etSleeperDetailsRepository.findByEt_BatchNumber(declaration.getBatchNumber());
@@ -1093,10 +1107,27 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                     bad.setCallRaised(isRaised);
 
-                    sleeperResults.stream()
+                    Optional<InspectionTestResult> rejOpt = sleeperResults.stream()
                             .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
-                            .findFirst()
-                            .ifPresent(r -> bad.setReason(r.getRejectionReason()));
+                            .findFirst();
+
+                    if (rejOpt.isPresent()) {
+                        InspectionTestResult r = rejOpt.get();
+                        bad.setReason(r.getRejectionReason());
+                        Long modId = r.getModuleId();
+                        if (modId == null && r.getTestHeader() != null && r.getTestHeader().getModule() != null) {
+                            modId = r.getTestHeader().getModule().getId();
+                        }
+                        bad.setModuleId(modId);
+                        if (modId != null) {
+                            if (modId == 1L) bad.setModuleName("Visual");
+                            else if (modId == 2L) bad.setModuleName("Critical Dim");
+                            else if (modId == 3L) bad.setModuleName("Non-Critical Dim");
+                            else bad.setModuleName("Module " + modId);
+                        } else {
+                            bad.setModuleName("Inspection");
+                        }
+                    }
 
                     badSleepers.add(bad);
 
@@ -1143,6 +1174,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                                         BadSleeperDto bad = new BadSleeperDto();
                                         bad.setSleeperNo(sleeperNo);
                                         bad.setReason(!visReason.isEmpty() ? visReason : dimReason);
+                                        bad.setModuleId(4L);
+                                        bad.setModuleName("Demoulding");
 
                                         Optional<SleeperDto> goodMatch = goodSleepers.stream()
                                                 .filter(g -> sleeperNo.equalsIgnoreCase(g.getSleeperNo()))
@@ -1176,10 +1209,65 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
 
-            BatchInspectionResponseDto response =
-                    new BatchInspectionResponseDto();
+            // ── Uninspected Sleeper Recovery ─────────────────────────────────────────
+            // Cross-reference production_sleeper table to detect any sleepers that were
+            // produced (counted in totalCasted) but have NO inspection result record.
+            // These are added as eligible good sleepers so they are not invisible phantoms.
+            {
+                List<com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper> allProdSleepers =
+                        productionSleeperRepository.getSleepersByBatch(batchId);
 
-          //  ProductionDeclaration declaration = productionDeclarationRepository.findBatchById(batchId);
+                // Build sets of already-accounted-for sleeper IDs and nos
+                Set<Long> accountedIds = goodSleepers.stream()
+                        .map(SleeperDto::getSleeperId)
+                        .filter(id -> id != null && id != 0L)
+                        .collect(Collectors.toSet());
+                accountedIds.addAll(badSleepers.stream()
+                        .map(BadSleeperDto::getSleeperId)
+                        .filter(id -> id != null && id != 0L)
+                        .collect(Collectors.toSet()));
+
+                Set<String> accountedNos = goodSleepers.stream()
+                        .map(SleeperDto::getSleeperNo)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+                accountedNos.addAll(badSleepers.stream()
+                        .map(BadSleeperDto::getSleeperNo)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()));
+
+                for (com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper ps : allProdSleepers) {
+                    boolean alreadyAccountedById  = ps.getId() != null && accountedIds.contains(ps.getId());
+                    boolean alreadyAccountedByNo  = ps.getSleeperNo() != null && accountedNos.contains(ps.getSleeperNo());
+                    if (!alreadyAccountedById && !alreadyAccountedByNo) {
+                        // This sleeper was produced but never inspected — include as eligible good
+                        SleeperDto dto = new SleeperDto();
+                        dto.setSleeperId(ps.getId());
+                        dto.setSleeperNo(ps.getSleeperNo() != null ? ps.getSleeperNo() : "");
+                        dto.setCallRaised(raisedSleeperIds.contains(ps.getId()));
+                        goodSleepers.add(dto);
+                    }
+                }
+            }
+
+            // Ensure bad sleepers are strictly excluded from goodSleepers
+            Set<String> badSleeperNosSet = badSleepers.stream()
+                    .map(BadSleeperDto::getSleeperNo)
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .collect(Collectors.toSet());
+
+            Set<Long> badSleeperIdsSet = badSleepers.stream()
+                    .map(BadSleeperDto::getSleeperId)
+                    .filter(id -> id != null && id != 0L)
+                    .collect(Collectors.toSet());
+
+            goodSleepers.removeIf(g -> (g.getSleeperNo() != null && badSleeperNosSet.contains(g.getSleeperNo().trim()))
+                    || (g.getSleeperId() != null && g.getSleeperId() != 0L && badSleeperIdsSet.contains(g.getSleeperId())));
+            // ─────────────────────────────────────────────────────────────────────────
+
+            BatchInspectionResponseDto response = new BatchInspectionResponseDto();
+
 
 
 //            response.setBatchId(batchId);
