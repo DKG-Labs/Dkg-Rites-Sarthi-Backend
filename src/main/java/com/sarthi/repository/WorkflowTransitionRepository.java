@@ -637,13 +637,13 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                     ELSE 'Other'
                 END AS stageOfInspection,
 
-                CONCAT(
-                    COALESCE(ph.rly_short_name, ph.rly_cd, 'N/A'),
-                    '/',
-                    ic.po_no,
-                    '/',
-                    COALESCE(ic.po_serial_no, 'N/A')
-                ) AS poSrNo,
+                CASE 
+                    WHEN ph.rly_short_name IS NOT NULL AND ph.rly_short_name <> '' AND ph.rly_short_name <> 'N/A' AND ph.rly_short_name <> ic.po_no 
+                        THEN CONCAT(ph.rly_short_name, '/', ic.po_no, '/', COALESCE(ic.po_serial_no, 'N/A'))
+                    WHEN ph.rly_cd IS NOT NULL AND ph.rly_cd <> '' AND ph.rly_cd <> 'N/A' AND ph.rly_cd <> ic.po_no 
+                        THEN CONCAT(ph.rly_cd, '/', ic.po_no, '/', COALESCE(ic.po_serial_no, 'N/A'))
+                    ELSE CONCAT(ic.po_no, '/', COALESCE(ic.po_serial_no, 'N/A'))
+                END AS poSrNo,
 
                 DATE_FORMAT(
                     pi.delivery_date,
@@ -718,6 +718,25 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
 
                     ELSE wt.STATUS
                 END AS subStatus,
+
+                COALESCE(
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                        )
+                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                            SELECT SUM(pid.offered_qty)
+                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                        )
+                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                            SELECT fid.total_offered_qty
+                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                        )
+                    END,
+                    (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
+                    0
+                ) AS callQty,
 
                 ic.created_at
 
@@ -884,7 +903,26 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 ic.type_of_call AS stage,
                 DATE_FORMAT(wt.CREATEDDATE, '%Y-%m-%d') AS icIssuedDate,
                 ph.item_cat_descr AS itemCatDescr,
-                wt.CREATEDDATE AS rawCreatedDate
+                wt.CREATEDDATE AS rawCreatedDate,
+                DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+                COALESCE(
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                        )
+                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                            SELECT SUM(pid.offered_qty)
+                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                        )
+                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                            SELECT fid.total_offered_qty
+                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                        )
+                    END,
+                    (SELECT icd2.call_qty FROM inspection_call_details icd2 WHERE icd2.inspection_call_no = ic.ic_number ORDER BY icd2.id DESC LIMIT 1),
+                    0
+                ) AS callQty
             FROM workflow_transition wt
             INNER JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
             INNER JOIN po_header ph ON ic.po_no = ph.po_no
@@ -1133,7 +1171,25 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 '' AS stageOfInspection,
                 CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
                 DATE_FORMAT(ic.desired_inspection_date,'%d/%m/%Y') AS dpDate,
-                wt.status AS status
+                wt.status AS status,
+                COALESCE(
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                        )
+                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                            SELECT SUM(pid.offered_qty)
+                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                        )
+                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                            SELECT fid.total_offered_qty
+                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                        )
+                    END,
+                    (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
+                    0
+                ) AS callQty
             FROM inspection_calls ic
             JOIN (
                 SELECT t.*
@@ -1182,7 +1238,25 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 '' AS stageOfInspection,
                 CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
                 DATE_FORMAT(ic.desired_inspection_date,'%d/%m/%Y') AS dpDate,
-                wt.status AS status
+                wt.status AS status,
+                COALESCE(
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                        )
+                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                            SELECT SUM(pid.offered_qty)
+                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                        )
+                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                            SELECT fid.total_offered_qty
+                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                        )
+                    END,
+                    (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
+                    0
+                ) AS callQty
             FROM inspection_calls ic
             JOIN (
                 SELECT t.*
@@ -1230,7 +1304,25 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 '' AS stageOfInspection,
                 CONCAT(ic.po_no,'/',ic.po_serial_no) AS poSrNo,
                 DATE_FORMAT(ic.desired_inspection_date,'%d/%m/%Y') AS dpDate,
-                wt.status AS status
+                wt.status AS status,
+                COALESCE(
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                        )
+                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                            SELECT SUM(pid.offered_qty)
+                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                        )
+                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                            SELECT fid.total_offered_qty
+                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                        )
+                    END,
+                    (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
+                    0
+                ) AS callQty
             FROM inspection_calls ic
             JOIN (
                 SELECT t.*

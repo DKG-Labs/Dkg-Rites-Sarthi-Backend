@@ -5192,16 +5192,18 @@ public class reportsImpl implements reports {
 
                         for (Object[] row : rawList) {
 
+                                String icNum = row[0] != null ? row[0].toString() : "";
+                                String rowStage = row[3] != null ? row[3].toString() : "";
+                                Object rawQty = row.length > 8 && row[8] != null ? row[8] : null;
+
                                 dtoList.add(
                                                 InspectionCallDetailDto.builder()
-                                                                .inspectionCallNumber(
-                                                                                row[0] != null ? row[0].toString() : "")
+                                                                .inspectionCallNumber(icNum)
                                                                 .vendor(
                                                                                 row[1] != null ? row[1].toString() : "")
                                                                 .callSubmissionDateTime(
-                                                                                row[2] != null ? row[2].toString() : "")
-                                                                .stageOfInspection(
-                                                                                row[3] != null ? row[3].toString() : "")
+                                                                                formatSubmissionDateOnly(row[2]))
+                                                                .stageOfInspection(rowStage)
                                                                 .poSrNo(
                                                                                 row[4] != null ? row[4].toString() : "")
                                                                 .dpDate(
@@ -5210,6 +5212,7 @@ public class reportsImpl implements reports {
                                                                                 row[6] != null ? row[6].toString() : "")
                                                                 .subStatus(
                                                                                 row[7] != null ? row[7].toString() : "")
+                                                                .callQty(formatCallQtyWithUom(rawQty, icNum, rowStage))
                                                                 .build());
                         }
                 }
@@ -5245,14 +5248,24 @@ public class reportsImpl implements reports {
 
                 if (rawList != null) {
                         for (Object[] row : rawList) {
+                                String rowStatus = row[6] != null ? row[6].toString() : "";
+                                String callNo = row[0] != null ? row[0].toString() : "";
+                                String padStage = row[3] != null ? row[3].toString() : "";
+                                Object rawQty = row.length > 7 && row[7] != null ? row[7] : null;
+                                String subStatus = row.length > 8 && row[8] != null ? row[8].toString() : rowStatus;
+                                String railpadType = row.length > 9 && row[9] != null ? row[9].toString() : "";
                                 dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
-                                                .inspectionCallNumber(row[0] != null ? row[0].toString() : "")
+                                                .inspectionCallNumber(callNo)
                                                 .vendor(row[1] != null ? row[1].toString() : "")
-                                                .callSubmissionDateTime(row[2] != null ? row[2].toString() : "")
-                                                .stageOfInspection(row[3] != null ? row[3].toString() : "")
-                                                .poSrNo(row[4] != null ? row[4].toString() : "")
+                                                .callSubmissionDateTime(formatSubmissionDateOnly(row[2]))
+                                                .stageOfInspection(padStage)
+                                                .poSrNo(cleanPoSrNo(row[4] != null ? row[4].toString() : ""))
                                                 .dpDate(row[5] != null ? row[5].toString() : "")
-                                                .status(row[6] != null ? row[6].toString() : "")
+                                                .status(rowStatus)
+                                                .mainStatus(rowStatus)
+                                                .subStatus(subStatus)
+                                                .railPadType(railpadType)
+                                                .callQty(formatCallQtyWithUom(rawQty, callNo, padStage, railpadType))
                                                 .build());
                         }
                 }
@@ -5362,11 +5375,12 @@ public class reportsImpl implements reports {
                                 String callNo = tx.getRequestId();
                                 String vendorName = "N/A";
                                 String callSubmissionDate = tx.getCreatedDate() != null
-                                                ? tx.getCreatedDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
+                                                ? tx.getCreatedDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                                                 : "N/A";
                                 String poSrNo = "N/A";
                                 String dpDate = "N/A";
                                 String rlyShort = "N/A";
+                                Object sleeperCallQty = "-";
 
                                 if (tx.getPlantId() != null && !tx.getPlantId().isBlank()) {
                                         List<com.sarthi.Sleeper.entity.VendorPlant> vps = sleeperVendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
@@ -5379,8 +5393,13 @@ public class reportsImpl implements reports {
                                         Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> callOpt = sleeperInspectionCallRepository.findByCallNo(callNo);
                                         if (callOpt.isPresent()) {
                                                 com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall ic = callOpt.get();
+                                                if (ic.getTotalOffered() != null || ic.getTotalRejected() != null) {
+                                                        int offered = ic.getTotalOffered() != null ? ic.getTotalOffered() : 0;
+                                                        int rejected = ic.getTotalRejected() != null ? ic.getTotalRejected() : 0;
+                                                        sleeperCallQty = (offered + rejected) > 0 ? (offered + rejected) : (ic.getTotalOffered() != null ? ic.getTotalOffered() : "-");
+                                                }
                                                 if (ic.getCreatedAt() != null) {
-                                                        callSubmissionDate = ic.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
+                                                        callSubmissionDate = ic.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
                                                 }
                                                 if (ic.getPoNo() != null && !ic.getPoNo().isBlank()) {
                                                         var poHeaderOpt = poHeaderRepository.findByPoNo(ic.getPoNo().trim());
@@ -5393,7 +5412,11 @@ public class reportsImpl implements reports {
                                                                         vendorName = ph.getVendorDetails();
                                                                 }
                                                         }
-                                                        poSrNo = rlyShort + "/" + ic.getPoNo().trim() + "/" + (ic.getSrNo() != null ? ic.getSrNo().trim() : "N/A");
+                                                        if (!"N/A".equalsIgnoreCase(rlyShort) && !rlyShort.equals(ic.getPoNo().trim())) {
+                                                                poSrNo = rlyShort + "/" + ic.getPoNo().trim() + "/" + (ic.getSrNo() != null ? ic.getSrNo().trim() : "N/A");
+                                                        } else {
+                                                                poSrNo = ic.getPoNo().trim() + "/" + (ic.getSrNo() != null ? ic.getSrNo().trim() : "N/A");
+                                                        }
 
                                                         if (ic.getSrNo() != null) {
                                                                 var poItemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(ic.getPoNo().trim(), ic.getSrNo().trim());
@@ -5439,8 +5462,9 @@ public class reportsImpl implements reports {
                                 dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
                                                 .inspectionCallNumber(callNo != null ? callNo : "N/A")
                                                 .vendor(vendorName)
-                                                .callSubmissionDateTime(callSubmissionDate)
+                                                .callSubmissionDateTime(formatSubmissionDateOnly(callSubmissionDate))
                                                 .stageOfInspection("Final Stage")
+                                                .callQty(formatCallQtyWithUom(sleeperCallQty, callNo, "Final Stage"))
                                                 .poSrNo(poSrNo)
                                                 .dpDate(dpDate)
                                                 .status(computedStatus)
@@ -5466,11 +5490,15 @@ public class reportsImpl implements reports {
 
                         if (rawList != null) {
                                 for (Object[] row : rawList) {
+                                        String sCallNo = row[0] != null ? row[0].toString() : "";
+                                        String sStage = row[3] != null ? row[3].toString() : "Final Stage";
+                                        Object rawQty = row.length > 9 && row[9] != null ? row[9] : null;
                                         dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
-                                                        .inspectionCallNumber(row[0] != null ? row[0].toString() : "")
+                                                        .inspectionCallNumber(sCallNo)
                                                         .vendor(row[1] != null ? row[1].toString() : "")
-                                                        .callSubmissionDateTime(row[2] != null ? row[2].toString() : "")
-                                                        .stageOfInspection(row[3] != null ? row[3].toString() : "")
+                                                        .callSubmissionDateTime(formatSubmissionDateOnly(row[2]))
+                                                        .stageOfInspection(sStage)
+                                                        .callQty(formatCallQtyWithUom(rawQty, sCallNo, sStage))
                                                         .poSrNo(row[4] != null ? row[4].toString() : "")
                                                         .dpDate(row[5] != null ? row[5].toString() : "")
                                                         .status(row[6] != null ? row[6].toString() : "")
@@ -5691,35 +5719,7 @@ public class reportsImpl implements reports {
 
         @Override
         public RailPadFinalInspectionSummaryDto getRailPadFinalInspectionSummary() {
-                long acceptedQtyNos = 0L;
-                long acceptedQtySet = 0L;
-                long rejectedQtyNos = 0L;
-                long rejectedQtySet = 0L;
-
-                java.util.List<Object[]> results = railFinalInspectionLotResultsRepository
-                                .findAcceptedAndRejectedQtyByUom();
-                if (results != null) {
-                        for (Object[] row : results) {
-                                String uom = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
-                                long acc = row[1] != null ? ((Number) row[1]).longValue() : 0L;
-                                long rej = row[2] != null ? ((Number) row[2]).longValue() : 0L;
-
-                                if (uom.contains("SET")) {
-                                        acceptedQtySet += acc;
-                                        rejectedQtySet += rej;
-                                } else {
-                                        acceptedQtyNos += acc;
-                                        rejectedQtyNos += rej;
-                                }
-                        }
-                }
-
-                return RailPadFinalInspectionSummaryDto.builder()
-                                .acceptedQtyNos(acceptedQtyNos)
-                                .acceptedQtySet(acceptedQtySet)
-                                .rejectedQtyNos(rejectedQtyNos)
-                                .rejectedQtySet(rejectedQtySet)
-                                .build();
+                return getRailPadFinalInspectionSummary(null, null, null, null);
         }
 
         @Override
@@ -6207,6 +6207,13 @@ public class reportsImpl implements reports {
 
                 for (Object[] row : rawList) {
                         String itemCatDescr = row[8] != null ? row[8].toString() : "";
+                        String callSubmissionDateTime = row.length > 10 && row[10] != null ? formatSubmissionDateOnly(row[10]) : "-";
+                        Object rawQty = row.length > 11 && row[11] != null ? row[11] : null;
+                        String callNo = row[4] != null ? row[4].toString() : "";
+                        String stage = row[6] != null ? row[6].toString() : "";
+                        String railpadType = row.length > 12 && row[12] != null ? row[12].toString() : "";
+
+                        String callQty = formatCallQtyWithUom(rawQty, callNo, stage, railpadType);
 
                         com.sarthi.dto.reports.IcAnnexuresReportDto dto = com.sarthi.dto.reports.IcAnnexuresReportDto
                                         .builder()
@@ -6214,11 +6221,13 @@ public class reportsImpl implements reports {
                                         .railwayShortName(row[1] != null ? row[1].toString() : "")
                                         .poNumberOnly(row[2] != null ? row[2].toString() : "")
                                         .poSerialNumber(row[3] != null ? row[3].toString() : "")
-                                        .callNumber(row[4] != null ? row[4].toString() : "")
+                                        .callNumber(callNo)
                                         .icNumber(row[5] != null ? row[5].toString() : "")
-                                        .stage(row[6] != null ? row[6].toString() : "")
+                                        .stage(stage)
                                         .icIssuedDate(row[7] != null ? row[7].toString() : "")
                                         .itemCatDescr(itemCatDescr)
+                                        .callSubmissionDateTime(callSubmissionDateTime)
+                                        .callQty(callQty)
                                         .build();
 
                         if (isRailPad || isSleeper) {
@@ -7347,12 +7356,16 @@ public class reportsImpl implements reports {
         private InspectionCallDetailDto convertToInspectionCallDto(Object[] row) {
 
                 String status = row[6] != null ? row[6].toString() : "";
+                String callNumber = (String) row[0];
+                String stage = determineStage(callNumber);
+                Object rawQty = row.length > 7 && row[7] != null ? row[7] : null;
 
                 return InspectionCallDetailDto.builder()
-                                .inspectionCallNumber((String) row[0])
+                                .inspectionCallNumber(callNumber)
                                 .vendor((String) row[1])
-                                .callSubmissionDateTime((String) row[2])
-                                .stageOfInspection(determineStage((String) row[0]))
+                                .callSubmissionDateTime(formatSubmissionDateOnly(row[2]))
+                                .stageOfInspection(stage)
+                                .callQty(formatCallQtyWithUom(rawQty, callNumber, stage))
                                 .poSrNo((String) row[4])
                                 .dpDate((String) row[5])
                                 .status(status)
@@ -7472,5 +7485,64 @@ public class reportsImpl implements reports {
                         }
                 }
                 return regionName;
+        }
+
+        private String formatCallQtyWithUom(Object qty, String callNumber, String stage, String railpadType) {
+                if (qty == null) return "-";
+                String s = qty.toString().trim();
+                if (s.isEmpty() || "-".equals(s) || "0".equals(s)) return "-";
+                if (s.endsWith("MT") || s.endsWith("Nos") || s.endsWith("Nos.") || s.endsWith("Set")) return s;
+
+                try {
+                        double d = Double.parseDouble(s);
+                        if (d == (long) d) {
+                                s = String.valueOf((long) d);
+                        } else {
+                                s = String.valueOf(d);
+                        }
+                } catch (Exception ignored) {}
+
+                if (callNumber != null) {
+                        String upper = callNumber.toUpperCase();
+                        if (upper.startsWith("RPP")) {
+                                return s + " Nos";
+                        }
+                        if (upper.startsWith("RPF")) {
+                                if (railpadType != null && railpadType.toUpperCase().contains("NCRGRSP")) {
+                                        return s + " Set";
+                                }
+                                return s + " Nos";
+                        }
+                }
+
+                boolean isRm = (callNumber != null && (callNumber.startsWith("ER") || callNumber.contains("ER-") || callNumber.contains("ER/")))
+                                || (stage != null && stage.toLowerCase().contains("rm"));
+
+                return s + (isRm ? " MT" : " Nos");
+        }
+
+        private String formatCallQtyWithUom(Object qty, String callNumber, String stage) {
+                return formatCallQtyWithUom(qty, callNumber, stage, null);
+        }
+
+        private String cleanPoSrNo(String val) {
+                if (val == null || val.isBlank() || "-".equals(val)) return "-";
+                String[] parts = val.split("/");
+                java.util.LinkedHashSet<String> set = new java.util.LinkedHashSet<>();
+                for (String p : parts) {
+                        String trimmed = p.trim();
+                        if (!trimmed.isEmpty() && !"N/A".equalsIgnoreCase(trimmed) && !"null".equalsIgnoreCase(trimmed)) {
+                                set.add(trimmed);
+                        }
+                }
+                return set.isEmpty() ? "-" : String.join("/", set);
+        }
+
+        private String formatSubmissionDateOnly(Object obj) {
+                if (obj == null) return "-";
+                String s = obj.toString().trim();
+                if (s.isEmpty() || "-".equals(s) || "N/A".equalsIgnoreCase(s) || "null".equalsIgnoreCase(s)) return "-";
+                String firstPart = s.split(" ")[0].split("T")[0];
+                return firstPart.isEmpty() ? "-" : firstPart;
         }
 }

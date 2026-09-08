@@ -102,10 +102,9 @@ public class reportsController {
                         java.time.LocalDateTime eDate = (endDate == null || endDate.isEmpty()) ? null
                                         : java.time.LocalDate.parse(endDate).atTime(23, 59, 59);
 
-                        Long sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(
-                                        (vendorPlantCode != null && vendorPlantCode.trim().isEmpty()) ? null : vendorPlantCode,
-                                        (zonalRailway != null && zonalRailway.trim().isEmpty()) ? null : zonalRailway,
-                                        sDate, eDate);
+                        String vCode = (vendorPlantCode != null && (vendorPlantCode.trim().isEmpty() || "all".equalsIgnoreCase(vendorPlantCode.trim()))) ? null : vendorPlantCode.trim();
+                        String zRly = (zonalRailway != null && (zonalRailway.trim().isEmpty() || "all".equalsIgnoreCase(zonalRailway.trim()))) ? null : zonalRailway.trim();
+                        Long sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(vCode, zRly, sDate, eDate);
 
                         long finalIcIssued = sleeperIcIssued != null ? sleeperIcIssued : 0L;
                         IcIssuedCountDto dto = new IcIssuedCountDto();

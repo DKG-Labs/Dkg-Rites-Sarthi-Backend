@@ -19,4 +19,6 @@ public class IcAnnexuresReportDto {
     private String stage;
     private String icIssuedDate;
     private String itemCatDescr;
+    private String callSubmissionDateTime;
+    private Object callQty;
 }

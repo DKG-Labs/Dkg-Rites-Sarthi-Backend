@@ -382,7 +382,14 @@ AND t.workflowTransitionId = (
             DATE_FORMAT(COALESCE(sic.created_at, swt.created_date), '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
             'Final Stage' AS stageOfInspection,
             CASE 
-                WHEN sic.po_no IS NOT NULL THEN CONCAT(COALESCE(ph.rly_short_name, ph.rly_cd, 'N/A'), '/', sic.po_no, '/', COALESCE(sic.sr_no, 'N/A'))
+                WHEN sic.po_no IS NOT NULL THEN 
+                    CASE
+                        WHEN ph.rly_short_name IS NOT NULL AND ph.rly_short_name <> '' AND ph.rly_short_name <> 'N/A' AND ph.rly_short_name <> sic.po_no
+                            THEN CONCAT(ph.rly_short_name, '/', sic.po_no, '/', COALESCE(sic.sr_no, 'N/A'))
+                        WHEN ph.rly_cd IS NOT NULL AND ph.rly_cd <> '' AND ph.rly_cd <> 'N/A' AND ph.rly_cd <> sic.po_no
+                            THEN CONCAT(ph.rly_cd, '/', sic.po_no, '/', COALESCE(sic.sr_no, 'N/A'))
+                        ELSE CONCAT(sic.po_no, '/', COALESCE(sic.sr_no, 'N/A'))
+                    END
                 ELSE 'N/A'
             END AS poSrNo,
             DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
@@ -405,7 +412,8 @@ AND t.workflowTransitionId = (
                 WHEN swt.action = 'VERIFY' OR UPPER(COALESCE(swt.job_status, '')) = 'RIO_VERIFIED' THEN 'Assigned to IE'
                 WHEN swt.action IN ('CREATE', 'CREATED', 'CALL_CREATED') OR UPPER(COALESCE(swt.job_status, '')) = 'CREATED' THEN 'Call Created'
                 ELSE COALESCE(swt.action, swt.job_status, 'Under Inspection')
-            END AS subStatus
+            END AS subStatus,
+            (COALESCE(sic.total_offered, 0) + COALESCE(sic.total_rejected, 0)) AS callQty
         FROM sleeper_workflow_transaction swt
         INNER JOIN (
             SELECT request_id, MAX(workflow_transition_id) AS max_id
@@ -457,7 +465,9 @@ AND t.workflowTransitionId = (
                    AND UPPER(COALESCE(swt.action, '')) NOT IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'DSC_SIGN_IC', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD')
                )) OR
                ((:status = 'Completed' OR :status = 'IC Issued') AND (
-                   UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+                   UPPER(COALESCE(swt.job_status, '')) IN ('IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'COMPLETED')
+                   OR UPPER(COALESCE(swt.action, '')) IN ('IC_GENERATION', 'DSC_SIGN_IC', 'GENERATE_IC', 'FINISH', 'COMPLETED')
+                   OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED')
                ))
           )
         ORDER BY COALESCE(sic.created_at, swt.created_date) DESC, swt.workflow_transition_id DESC
@@ -481,7 +491,9 @@ AND t.workflowTransitionId = (
             'Final' AS stage,
             DATE_FORMAT(COALESCE(sicd.created_on, swt.created_date), '%Y-%m-%d') AS icIssuedDate,
             COALESCE(ph.item_cat_descr, 'PSC Mainline Sleeper') AS itemCatDescr,
-            COALESCE(sicd.created_on, swt.created_date) AS rawCreatedDate
+            COALESCE(sicd.created_on, swt.created_date) AS rawCreatedDate,
+            DATE_FORMAT(sic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+            (COALESCE(sic.total_offered, 0) + COALESCE(sic.total_rejected, 0)) AS callQty
         FROM sleeper_workflow_transaction swt
         INNER JOIN (
             SELECT request_id, MAX(workflow_transition_id) AS max_id
@@ -495,12 +507,18 @@ AND t.workflowTransitionId = (
         LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
             OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN sleeper_inspection_complete_details sicd ON sic.call_no COLLATE utf8mb4_unicode_ci = sicd.call_no COLLATE utf8mb4_unicode_ci
-        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
-          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+        WHERE swt.workflow_id = 2
+          AND (UPPER(COALESCE(swt.job_status, '')) IN ('IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.action, '')) IN ('IC_GENERATION', 'DSC_SIGN_IC', 'GENERATE_IC', 'FINISH', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED'))
+          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
                sic.plant_id = :vendorPlantCode OR
+               REPLACE(COALESCE(sic.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
+               swt.plant_id = :vendorPlantCode OR
+               REPLACE(COALESCE(swt.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
                vp.company_name = :vendorPlantCode OR
                vp.vendor_code = :vendorPlantCode)
-          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
           AND (:startDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) >= :startDate)
           AND (:endDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) <= :endDate)
         ORDER BY rawCreatedDate DESC
@@ -520,18 +538,24 @@ AND t.workflowTransitionId = (
             WHERE workflow_id = 2
             GROUP BY request_id
         ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
-        INNER JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN vendor_plant vp ON (vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
             OR vp.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(sic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci)
         LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
             OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN sleeper_inspection_complete_details sicd ON sic.call_no COLLATE utf8mb4_unicode_ci = sicd.call_no COLLATE utf8mb4_unicode_ci
-        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
-          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+        WHERE swt.workflow_id = 2
+          AND (UPPER(COALESCE(swt.job_status, '')) IN ('IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.action, '')) IN ('IC_GENERATION', 'DSC_SIGN_IC', 'GENERATE_IC', 'FINISH', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED'))
+          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
                sic.plant_id = :vendorPlantCode OR
+               REPLACE(COALESCE(sic.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
+               swt.plant_id = :vendorPlantCode OR
+               REPLACE(COALESCE(swt.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
                vp.company_name = :vendorPlantCode OR
                vp.vendor_code = :vendorPlantCode)
-          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
           AND (:startDate IS NULL OR :endDate IS NULL OR sic.created_at BETWEEN :startDate AND :endDate)
     """, nativeQuery = true)
     Long countSleeperIcIssuedFiltered(
@@ -549,9 +573,12 @@ AND t.workflowTransitionId = (
             WHERE workflow_id = 2
             GROUP BY request_id
         ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
-        INNER JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN sleeper_inspection_complete_details sicd ON sic.call_no COLLATE utf8mb4_unicode_ci = sicd.call_no COLLATE utf8mb4_unicode_ci
-        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+        WHERE swt.workflow_id = 2
+          AND (UPPER(COALESCE(swt.job_status, '')) IN ('IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.action, '')) IN ('IC_GENERATION', 'DSC_SIGN_IC', 'GENERATE_IC', 'FINISH', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED'))
           AND (sic.plant_id IN (:plantIds) OR REPLACE(COALESCE(sic.plant_id, ''), ':', '') IN (:plantIds)
                OR swt.plant_id IN (:plantIds) OR REPLACE(COALESCE(swt.plant_id, ''), ':', '') IN (:plantIds))
     """, nativeQuery = true)
@@ -566,7 +593,10 @@ AND t.workflowTransitionId = (
             WHERE workflow_id = 2
             GROUP BY request_id
         ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
-        WHERE UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
+        WHERE swt.workflow_id = 2
+          AND (UPPER(COALESCE(swt.job_status, '')) IN ('IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.action, '')) IN ('IC_GENERATION', 'DSC_SIGN_IC', 'GENERATE_IC', 'FINISH', 'COMPLETED', 'IC_ISSUE')
+               OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED'))
     """, nativeQuery = true)
     Long countAllSleeperIcIssued();
 
