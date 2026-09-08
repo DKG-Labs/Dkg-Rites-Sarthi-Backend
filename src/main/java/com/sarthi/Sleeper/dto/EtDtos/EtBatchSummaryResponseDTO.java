@@ -13,4 +13,7 @@ public class EtBatchSummaryResponseDTO {
     private Long etSleepers;
 
     private Double etPercentage;
+    private String plantId;
+    private String vendorCode;
+    private Long createdBy;
 }

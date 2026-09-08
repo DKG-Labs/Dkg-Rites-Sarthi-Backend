@@ -1,85 +1,106 @@
 package com.sarthi.Sleeper.entity.FinalInspection;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "SLEEPER_FINAL_IC_SAVE_CHANGES", indexes = {
-    @Index(name = "idx_sleeper_final_ic_save_changes_ic_no", columnList = "IC_NUMBER", unique = true)
+@Table(name = "sleeper_final_ic_save_changes", indexes = {
+    @Index(name = "idx_sleeper_final_ic_save_changes_ic_no", columnList = "ic_number", unique = true)
 })
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SleeperFinalIcSaveChanges {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "IC_NUMBER", unique = true, nullable = false)
+    @Column(name = "ic_number", unique = true, nullable = false)
     private String icNumber;
 
-    @Column(name = "CERTIFICATE_ID")
+    @Column(name = "certificate_id")
     private Long certificateId;
 
-    @Column(name = "BOOK_NO")
+    @Column(name = "book_no")
     private String bookNo;
 
-    @Column(name = "SET_NO")
+    @Column(name = "set_no")
     private String setNo;
 
-    @Column(name = "OFFERED_INSTALLMENT_NO")
+    @Column(name = "offered_installment_no")
     private String offeredInstallmentNo;
 
-    @Column(name = "PASSED_INSTALLMENT_NO")
+    @Column(name = "passed_installment_no")
     private String passedInstallmentNo;
 
-    @Column(name = "CONSIGNEE", columnDefinition = "TEXT")
+    @Column(name = "consignee", columnDefinition = "TEXT")
     private String consignee;
 
-    @Column(name = "CUMM_QTY_OFFERED_PREV")
+    @Column(name = "cumm_qty_offered_prev")
     private String cummQtyOfferedPrev;
 
-    @Column(name = "QTY_PREV_PASSED")
+    @Column(name = "qty_prev_passed")
     private String qtyPrevPassed;
 
-    @Column(name = "QTY_STILL_DUE")
+    @Column(name = "qty_still_due")
     private String qtyStillDue;
 
-    @Column(name = "MA_NUMBER_AND_DATE", columnDefinition = "TEXT")
+    @Column(name = "ma_number_and_date", columnDefinition = "TEXT")
     private String maNumberAndDate;
 
-    @Column(name = "PURCHASING_AUTHORITY", columnDefinition = "TEXT")
+    @Column(name = "purchasing_authority", columnDefinition = "TEXT")
     private String purchasingAuthority;
 
-    @Column(name = "DESCRIPTION", columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "MANUFACTURER", columnDefinition = "TEXT")
+    @Column(name = "manufacturer", columnDefinition = "TEXT")
     private String manufacturer;
 
-    @Column(name = "TR_REC_DATE")
+    @Column(name = "tr_rec_date")
     private String trRecDate;
 
-    @Column(name = "NO_OF_VISITS")
+    @Column(name = "no_of_visits")
     private String noOfVisits;
 
-    @Column(name = "DATES_OF_INSPECTION", columnDefinition = "TEXT")
+    @Column(name = "dates_of_inspection", columnDefinition = "TEXT")
     private String datesOfInspection;
 
-    @Column(name = "CREATED_BY")
+    @Column(name = "sealing_pattern", columnDefinition = "TEXT")
+    private String sealingPattern;
+
+    @Column(name = "reasons_for_rejection", columnDefinition = "TEXT")
+    private String reasonsForRejection;
+
+    @Column(name = "facsimile_text", columnDefinition = "TEXT")
+    private String facsimileText;
+
+    @Column(name = "inspecting_engineer", columnDefinition = "TEXT")
+    private String inspectingEngineer;
+
+    @Column(name = "status")
+    private String status;
+
+    @Column(name = "created_by")
     private String createdBy;
 
     @CreationTimestamp
-    @Column(name = "CREATED_AT", updatable = false)
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "UPDATED_BY")
+    @Column(name = "updated_by")
     private String updatedBy;
 
     @UpdateTimestamp
-    @Column(name = "UPDATED_AT")
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }

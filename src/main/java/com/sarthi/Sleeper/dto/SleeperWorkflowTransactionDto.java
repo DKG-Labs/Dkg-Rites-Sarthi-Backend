@@ -86,6 +86,7 @@ public class SleeperWorkflowTransactionDto {
     private String poSr;
     private String rlyShortName;
     private String rlyPoSrNo;
+    private String caseNo;
     private String vendorName;
     private String stageOfInspection;
     private String placeOfInspection;
@@ -94,5 +95,10 @@ public class SleeperWorkflowTransactionDto {
     private String extDpDate;
     private String ieName;
     private String productType;
+    private String sleeperType;
+    private Integer offeredQty;
+    private String uom;
+    private LocalDate scheduleDate;
+    private LocalDateTime callDate;
 
 }

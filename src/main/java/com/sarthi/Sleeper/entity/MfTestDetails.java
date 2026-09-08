@@ -20,7 +20,13 @@ public class MfTestDetails {
 
     private Double strength;
 
+    private Double loadKn;
+
     private Double finalStrength;
+
+    private Double rs1;
+
+    private Double rs2;
 
     private String result;
 
