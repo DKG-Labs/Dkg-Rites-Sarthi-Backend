@@ -85,6 +85,9 @@ public class CallLetterServiceImpl implements CallLetterService {
     private com.sarthi.Sleeper.repository.SleeperPoiIeMappingRepository sleeperPoiIeMappingRepository;
 
     @Autowired
+    private com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
+
+    @Autowired
     private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
 
     @Autowired
@@ -349,7 +352,10 @@ public class CallLetterServiceImpl implements CallLetterService {
                     dto.setItemDesc(pi.getItemDesc());
                     dto.setPoQty(pi.getQty());
                     dto.setUom(pi.getUom());
-                    dto.setConsigneeDetail(pi.getConsigneeDetail());
+                    String consignee = (pi.getImmsConsigneeName() != null && !pi.getImmsConsigneeName().isBlank())
+                            ? pi.getImmsConsigneeName().trim()
+                            : pi.getConsigneeDetail();
+                    dto.setConsigneeDetail(consignee);
                     dto.setBillPayOffDesc(pi.getBillPayOffDesc());
 
                     // Format delivery dates
@@ -647,9 +653,9 @@ public class CallLetterServiceImpl implements CallLetterService {
         }
 
         // Contact & Vendor info from creator / VendorMaster / VendorPlant
+        String vendorCode = null;
         if (sleeperCall.getCreatedBy() != null) {
             try {
-                String vendorCode = null;
                 Optional<UserMaster> userOpt = userMasterRepository.findById(sleeperCall.getCreatedBy().intValue());
                 if (userOpt.isPresent()) {
                     UserMaster u = userOpt.get();
@@ -659,7 +665,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     vendorCode = u.getUsername();
                 }
 
-                // Lookup VendorMaster by ID or VendorCode
+                // Lookup VendorMaster by ID or VendorCode (initial fallback)
                 Optional<com.sarthi.entity.VendorMaster> vmOpt = vendorMasterRepository.findById(sleeperCall.getCreatedBy());
                 if (vmOpt.isEmpty() && vendorCode != null && !vendorCode.isBlank()) {
                     vmOpt = vendorMasterRepository.findByVendorCode(vendorCode.trim());
@@ -676,27 +682,10 @@ public class CallLetterServiceImpl implements CallLetterService {
                     if (vm.getVendorName() != null && !vm.getVendorName().isBlank()) {
                         dto.setVendorName(vm.getVendorName().trim());
                         dto.setManufacturerName(vm.getVendorName().trim());
-                        // If contactPersonName is missing or is just the raw vendor code e.g. ":41647"
                         if (dto.getContactPersonName() == null || dto.getContactPersonName().isBlank()
                                 || dto.getContactPersonName().startsWith(":") || dto.getContactPersonName().equalsIgnoreCase(vendorCode)) {
                             dto.setContactPersonName(vm.getVendorName().trim());
                         }
-                    }
-                }
-
-                // Check VendorPlant for contact person / mobile fallback
-                List<com.sarthi.Sleeper.entity.VendorPlant> vpByVendor = vendorPlantRepository.findByVendorId(sleeperCall.getCreatedBy());
-                if (vpByVendor != null && !vpByVendor.isEmpty()) {
-                    com.sarthi.Sleeper.entity.VendorPlant vp = vpByVendor.get(0);
-                    if (vp.getContactPerson() != null && !vp.getContactPerson().isBlank()) {
-                        dto.setContactPersonName(vp.getContactPerson().trim());
-                    }
-                    if ((dto.getContactMobile() == null || dto.getContactMobile().isBlank()) && vp.getContactPersonNumber() != null && !vp.getContactPersonNumber().isBlank()) {
-                        dto.setContactMobile(vp.getContactPersonNumber().trim());
-                    }
-                    if ((dto.getVendorName() == null || dto.getVendorName().isBlank()) && vp.getCompanyName() != null && !vp.getCompanyName().isBlank()) {
-                        dto.setVendorName(vp.getCompanyName().trim());
-                        dto.setManufacturerName(vp.getCompanyName().trim());
                     }
                 }
             } catch (Exception e) {
@@ -704,7 +693,8 @@ public class CallLetterServiceImpl implements CallLetterService {
             }
         }
 
-        // Place of inspection from VendorPlant plantName
+        // Look up VendorPlant: vendor_plant.plant_name takes precedence for Vendor Name, Manufacturer Name, and Place of Inspection
+        com.sarthi.Sleeper.entity.VendorPlant resolvedVp = null;
         if (sleeperCall.getPlantId() != null && !sleeperCall.getPlantId().isBlank()) {
             String pId = sleeperCall.getPlantId().trim();
             try {
@@ -721,8 +711,8 @@ public class CallLetterServiceImpl implements CallLetterService {
                         }
                     }
                 }
-                if (vpList != null && !vpList.isEmpty() && vpList.get(0).getPlantName() != null && !vpList.get(0).getPlantName().isBlank()) {
-                    dto.setPlaceOfInspection(vpList.get(0).getPlantName().trim());
+                if (vpList != null && !vpList.isEmpty()) {
+                    resolvedVp = vpList.get(0);
                 } else {
                     Optional<com.sarthi.Sleeper.entity.VendorPlant> vpOpt = vendorPlantRepository.findByPlantId(pId);
                     if (vpOpt.isEmpty() && pId.contains("/")) {
@@ -731,28 +721,53 @@ public class CallLetterServiceImpl implements CallLetterService {
                             if (vpOpt.isPresent()) break;
                         }
                     }
-                    if (vpOpt.isPresent() && vpOpt.get().getPlantName() != null && !vpOpt.get().getPlantName().isBlank()) {
-                        dto.setPlaceOfInspection(vpOpt.get().getPlantName().trim());
-                    } else if (sleeperCall.getCreatedBy() != null) {
-                        List<com.sarthi.Sleeper.entity.VendorPlant> vpByVendor = vendorPlantRepository.findByVendorId(sleeperCall.getCreatedBy());
-                        if (vpByVendor != null && !vpByVendor.isEmpty() && vpByVendor.get(0).getPlantName() != null && !vpByVendor.get(0).getPlantName().isBlank()) {
-                            dto.setPlaceOfInspection(vpByVendor.get(0).getPlantName().trim());
-                        } else if (pId.contains("/")) {
-                            String[] parts = pId.split("/");
-                            dto.setPlaceOfInspection(parts[parts.length - 1].trim());
-                        } else {
-                            dto.setPlaceOfInspection(pId.replace(":", "").trim());
-                        }
-                    } else if (pId.contains("/")) {
-                        String[] parts = pId.split("/");
-                        dto.setPlaceOfInspection(parts[parts.length - 1].trim());
-                    } else {
-                        dto.setPlaceOfInspection(pId.replace(":", "").trim());
+                    if (vpOpt.isPresent()) {
+                        resolvedVp = vpOpt.get();
                     }
                 }
             } catch (Exception e) {
-                logger.error("Error looking up place of inspection for plantId: {}", pId, e);
-                dto.setPlaceOfInspection(pId.replace(":", "").trim());
+                logger.error("Error looking up vendor_plant for plantId: {}", pId, e);
+            }
+        }
+
+        if (resolvedVp == null && sleeperCall.getCreatedBy() != null) {
+            try {
+                List<com.sarthi.Sleeper.entity.VendorPlant> vpByVendor = vendorPlantRepository.findByVendorId(sleeperCall.getCreatedBy());
+                if (vpByVendor != null && !vpByVendor.isEmpty()) {
+                    resolvedVp = vpByVendor.get(0);
+                }
+            } catch (Exception ignore) {}
+        }
+
+        if (resolvedVp != null) {
+            String plantOrCompanyName = (resolvedVp.getPlantName() != null && !resolvedVp.getPlantName().isBlank())
+                    ? resolvedVp.getPlantName().trim()
+                    : (resolvedVp.getCompanyName() != null ? resolvedVp.getCompanyName().trim() : null);
+
+            if (plantOrCompanyName != null) {
+                dto.setPlaceOfInspection(plantOrCompanyName);
+                dto.setVendorName(plantOrCompanyName);
+                dto.setManufacturerName(plantOrCompanyName);
+                dto.setContactPersonName(plantOrCompanyName);
+            }
+
+            if (resolvedVp.getContactPerson() != null && !resolvedVp.getContactPerson().isBlank()
+                    && !resolvedVp.getContactPerson().startsWith(":") && !resolvedVp.getContactPerson().equalsIgnoreCase(vendorCode)) {
+                dto.setContactPersonName(resolvedVp.getContactPerson().trim());
+            }
+
+            if (resolvedVp.getContactPersonNumber() != null && !resolvedVp.getContactPersonNumber().isBlank()) {
+                dto.setContactMobile(resolvedVp.getContactPersonNumber().trim());
+            }
+        } else if (dto.getPlaceOfInspection() == null || dto.getPlaceOfInspection().isBlank()) {
+            if (sleeperCall.getPlantId() != null) {
+                String pId = sleeperCall.getPlantId().trim();
+                if (pId.contains("/")) {
+                    String[] parts = pId.split("/");
+                    dto.setPlaceOfInspection(parts[parts.length - 1].trim());
+                } else {
+                    dto.setPlaceOfInspection(pId.replace(":", "").trim());
+                }
             }
         }
 
@@ -815,55 +830,44 @@ public class CallLetterServiceImpl implements CallLetterService {
             logger.error("Error fetching RIO for sleeper call: {}", sleeperCall.getCallNo(), e);
         }
 
-        // IE Details from workflow or Sleeper POI IE Mapping
+        // IE Details from workflow (only populated if an IE is actually assigned)
         try {
-            List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository
-                    .findByRequestIdOrderByWorkflowTransitionIdDesc(sleeperCall.getCallNo());
-            if (transitions != null) {
-                for (com.sarthi.entity.WorkflowTransition transition : transitions) {
-                    Integer ieUserId = transition.getAssignedToUser() != null ? transition.getAssignedToUser() : transition.getProcessIeUserId();
-                    if (ieUserId != null) {
-                        Optional<UserMaster> ieUserOpt = userMasterRepository.findById(ieUserId);
-                        if (ieUserOpt.isPresent()) {
-                            UserMaster ieUser = ieUserOpt.get();
-                            dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
-                            dto.setIeMobile(ieUser.getMobileNumber());
+            Integer assignedIeId = null;
+
+            // 1. Check sleeper_workflow_transaction
+            List<com.sarthi.Sleeper.entity.SleeperWorkflowTransaction> sleeperTxs = sleeperWorkflowRepository
+                    .findByRequestIdOrderByCreatedDateAsc(sleeperCall.getCallNo());
+            if (sleeperTxs != null && !sleeperTxs.isEmpty()) {
+                for (int i = sleeperTxs.size() - 1; i >= 0; i--) {
+                    if (sleeperTxs.get(i).getAssignedToUser() != null) {
+                        assignedIeId = sleeperTxs.get(i).getAssignedToUser().intValue();
+                        break;
+                    }
+                }
+            }
+
+            // 2. Check general WORKFLOW_TRANSITION if not found
+            if (assignedIeId == null) {
+                List<com.sarthi.entity.WorkflowTransition> transitions = workflowTransitionRepository
+                        .findByRequestIdOrderByWorkflowTransitionIdDesc(sleeperCall.getCallNo());
+                if (transitions != null) {
+                    for (com.sarthi.entity.WorkflowTransition transition : transitions) {
+                        Integer ieUserId = transition.getAssignedToUser() != null ? transition.getAssignedToUser() : transition.getProcessIeUserId();
+                        if (ieUserId != null) {
+                            assignedIeId = ieUserId;
                             break;
                         }
                     }
                 }
             }
 
-            // Fallback: check sleeper_poi_ie_mapping by plantId
-            if ((dto.getIeName() == null || dto.getIeName().isBlank()) && sleeperCall.getPlantId() != null) {
-                String pId = sleeperCall.getPlantId().trim();
-                List<com.sarthi.Sleeper.entity.SleeperPoiIeMapping> ieMaps = sleeperPoiIeMappingRepository.findByPlantIdAndIeType(pId, "Main IE");
-                if (ieMaps == null || ieMaps.isEmpty()) {
-                    ieMaps = sleeperPoiIeMappingRepository.findByPlantIdAndIeType(pId, "MAIN_IE");
-                }
-                if (ieMaps == null || ieMaps.isEmpty()) {
-                    ieMaps = sleeperPoiIeMappingRepository.findByPlantId(pId);
-                }
-                if (ieMaps == null || ieMaps.isEmpty()) {
-                    String cleanPlant = pId.replace(":", "");
-                    ieMaps = sleeperPoiIeMappingRepository.findByPlantId(cleanPlant);
-                }
-                if ((ieMaps == null || ieMaps.isEmpty()) && pId.contains("/")) {
-                    for (String part : pId.split("/")) {
-                        ieMaps = sleeperPoiIeMappingRepository.findByPlantIdAndIeType(part.trim(), "Main IE");
-                        if (ieMaps == null || ieMaps.isEmpty()) {
-                            ieMaps = sleeperPoiIeMappingRepository.findByPlantId(part.trim());
-                        }
-                        if (ieMaps != null && !ieMaps.isEmpty()) break;
-                    }
-                }
-                if (ieMaps != null && !ieMaps.isEmpty() && ieMaps.get(0).getIeUserId() != null) {
-                    Optional<UserMaster> ieUserOpt = userMasterRepository.findById(ieMaps.get(0).getIeUserId());
-                    if (ieUserOpt.isPresent()) {
-                        UserMaster ieUser = ieUserOpt.get();
-                        dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
-                        dto.setIeMobile(ieUser.getMobileNumber());
-                    }
+            // 3. Populate IE info only if assigned
+            if (assignedIeId != null) {
+                Optional<UserMaster> ieUserOpt = userMasterRepository.findById(assignedIeId);
+                if (ieUserOpt.isPresent()) {
+                    UserMaster ieUser = ieUserOpt.get();
+                    dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
+                    dto.setIeMobile(ieUser.getMobileNumber());
                 }
             }
         } catch (Exception e) {
@@ -924,7 +928,10 @@ public class CallLetterServiceImpl implements CallLetterService {
                     dto.setItemDesc(pi.getItemDesc());
                     dto.setPoQty(pi.getQty());
                     dto.setUom(pi.getUom() != null ? pi.getUom() : "Nos.");
-                    dto.setConsigneeDetail(pi.getConsigneeDetail());
+                    String consignee = (pi.getImmsConsigneeName() != null && !pi.getImmsConsigneeName().isBlank())
+                            ? pi.getImmsConsigneeName().trim()
+                            : pi.getConsigneeDetail();
+                    dto.setConsigneeDetail(consignee);
                     dto.setBillPayOffDesc(pi.getBillPayOffDesc());
                     if (pi.getDeliveryDate() != null) {
                         dto.setDeliveryDate(pi.getDeliveryDate().format(DATE_FMT));
