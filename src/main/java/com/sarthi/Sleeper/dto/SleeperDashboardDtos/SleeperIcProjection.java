@@ -55,4 +55,7 @@ public interface SleeperIcProjection {
     String getDateOfInspection();
 
     String getQuantityNowPassedBatchNos();
+    String getCaseNo();
+    String getRio();
+    String getPlantId();
 }

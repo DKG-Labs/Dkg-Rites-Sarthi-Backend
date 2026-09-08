@@ -36,20 +36,22 @@ public class VendorController {
     @GetMapping({"/poData", "/po-data"})
     public ResponseEntity<Object> getPoData(
             @RequestParam String vendorCode, 
-            @RequestParam(required = false, defaultValue = "ERC") String vendorType) {
-         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode, vendorType);
+            @RequestParam(required = false, defaultValue = "ERC") String vendorType,
+            @RequestParam(required = false) String plantId) {
+         List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorCode, vendorType, plantId);
          return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
      }
 
     @GetMapping("/po-assigned")
     public ResponseEntity<Object> getPoAssigned(
             @RequestParam(required = false) String vendorId, 
-            @RequestParam(required = false, defaultValue = "ERC") String vendorType) {
+            @RequestParam(required = false, defaultValue = "ERC") String vendorType,
+            @RequestParam(required = false) String plantId) {
         // If vendorId is not provided, return empty list
         if (vendorId == null || vendorId.isEmpty()) {
             return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(List.of()), HttpStatus.OK);
         }
-        List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorId, vendorType);
+        List<VendorPoHeaderResponseDto> res = vService.getPoListByVendorCode(vendorId, vendorType, plantId);
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
 

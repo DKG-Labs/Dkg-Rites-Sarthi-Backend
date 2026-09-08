@@ -10,7 +10,7 @@ import java.util.List;
 public interface VendorPoService {
 
     public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode, String vendorType);
-   //public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode);
+    public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode, String vendorType, String plantId);
 
     public String getPdfPathByRawPoNo(String rawPoNo);
 
