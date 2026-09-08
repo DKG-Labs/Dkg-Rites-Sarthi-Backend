@@ -233,4 +233,70 @@ public class RailWorkFlowController {
             );
         }
     }
+
+    /**
+     * Proxies the IBS get-bill-details API call from the vendor frontend.
+     * Keeps the IBS Bearer token server-side (never exposed to browser).
+     * Request body: { callNo, caseNo, callDate (DD-MM-YYYY), ibsCallSno }
+     */
+    @PostMapping("/verify-ibs-payment")
+    public ResponseEntity<Object> verifyIbsPayment(@RequestBody java.util.Map<String, Object> req) {
+        try {
+            String caseNo = (String) req.get("caseNo");
+            String callDate = (String) req.get("callDate");
+            Object snoObj = req.get("ibsCallSno");
+            int ibsCallSno = 0;
+            if (snoObj instanceof Integer) {
+                ibsCallSno = (Integer) snoObj;
+            } else if (snoObj instanceof String && !((String) snoObj).isBlank()) {
+                try { ibsCallSno = Integer.parseInt(((String) snoObj).trim()); } catch (NumberFormatException ignored) {}
+            }
+
+            if (caseNo == null || caseNo.isBlank() || callDate == null || callDate.isBlank() || ibsCallSno == 0) {
+                return new ResponseEntity<>(
+                        java.util.Map.of("status", "error", "message", "caseNo, callDate, and ibsCallSno are required."),
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+
+            java.util.Map<String, Object> ibsResponse = workflowService.verifyIbsPayment(caseNo, callDate, ibsCallSno);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(ibsResponse), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "IBS verification failed: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    /**
+     * Marks a cancelled call's payment as "Approved by RITES Finance" after IBS confirms the bill.
+     * This unblocks call raising for the plant/vendor.
+     * Request body: { callNo }
+     */
+    @PostMapping("/mark-payment-approved")
+    public ResponseEntity<Object> markPaymentApproved(@RequestBody java.util.Map<String, Object> req) {
+        try {
+            String callNo = (String) req.get("callNo");
+            if (callNo == null || callNo.isBlank()) {
+                return new ResponseEntity<>(
+                        java.util.Map.of("status", "error", "message", "callNo is required."),
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+            workflowService.markPaymentApprovedByIbs(callNo.trim());
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(
+                            java.util.Map.of("message", "Payment approved successfully. Call raising is now unblocked.", "callNo", callNo.trim())
+                    ),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", "Failed to mark payment approved: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
 }
+
