@@ -70,6 +70,8 @@ public class DashboardServiceImpl implements DashboardService {
     @Autowired
     private SleeperWorkflowRepository sleeperWorkflowRepository;
     @Autowired
+    private com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository sleeperFinalResultRepository;
+    @Autowired
     private com.sarthi.repository.PoHeaderRepository poHeaderRepository;
     @Override
     public Long getRejectedSleepersCount() {
@@ -83,7 +85,18 @@ public class DashboardServiceImpl implements DashboardService {
     @org.springframework.scheduling.annotation.Scheduled(fixedRate = 300000)
     public void updateDashboardMetrics() {
         try {
-            Long rejected = inspectionTestResultRepository.getTotalRejectedCount();
+            Long rejected = 0L;
+            java.util.List<Object[]> finalSummary = sleeperFinalResultRepository.getAllSleeperFinalSummary();
+            if (finalSummary != null && !finalSummary.isEmpty() && finalSummary.get(0) != null) {
+                Object[] row = finalSummary.get(0);
+                long fRejNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                long fRejSet = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                rejected = fRejNos + fRejSet;
+            }
+            if (rejected == 0L) {
+                Long fallback = inspectionTestResultRepository.getTotalRejectedCount();
+                if (fallback != null && fallback > 0) rejected = fallback;
+            }
             Long productionCount = productionDeclarationRepository.getTotalProductionCount();
             Long demouldRejected = demouldingDefectiveSleeperRepository.countByWithReasons();
             Long totalRejected = (demouldRejected != null ? demouldRejected : 0L) + (rejected != null ? rejected : 0L);
@@ -1942,6 +1955,11 @@ public class DashboardServiceImpl implements DashboardService {
 
         long sleeperIcIssued = 0;
 
+        long finalAcceptedNos = 0L;
+        long finalAcceptedSet = 0L;
+        long finalRejectedNos = 0L;
+        long finalRejectedSet = 0L;
+
         if (filtered) {
             String v = hasVendor ? vendor.trim() : null;
             String z = hasZone ? zone.trim() : null;
@@ -1965,8 +1983,15 @@ public class DashboardServiceImpl implements DashboardService {
                 Long demouldRejected = demouldingDefectiveSleeperRepository.countByWithReasonsAndPlantIds(plantIds);
                 rejectedInProcess = demouldRejected != null ? demouldRejected : 0L;
 
-                Long finalRejected = inspectionTestResultRepository.getTotalRejectedCountByPlantIds(plantIds);
-                rejectedInFinal = finalRejected != null ? finalRejected : 0L;
+                List<Object[]> finalSummaryRows = sleeperFinalResultRepository.getSleeperFinalSummaryByPlantIds(plantIds);
+                if (finalSummaryRows != null && !finalSummaryRows.isEmpty() && finalSummaryRows.get(0) != null) {
+                    Object[] row = finalSummaryRows.get(0);
+                    finalAcceptedNos = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                    finalAcceptedSet = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                    finalRejectedNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                    finalRejectedSet = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                }
+                rejectedInFinal = finalRejectedNos + finalRejectedSet;
 
                 Long production = productionDeclarationRepository.getTotalProductionCountByPlantIds(plantIds);
                 totalProduction = production != null ? production : 0L;
@@ -2030,10 +2055,22 @@ public class DashboardServiceImpl implements DashboardService {
             }
             rejectedInProcess = demouldingDefectiveSleeperRepository.countByWithReasons() != null
                     ? demouldingDefectiveSleeperRepository.countByWithReasons() : 0L;
-            rejectedInFinal = totalRejectedCountCache;
-            rejectionPercentage = rejectionPercentageCache;
+
+            List<Object[]> finalSummaryRows = sleeperFinalResultRepository.getAllSleeperFinalSummary();
+            if (finalSummaryRows != null && !finalSummaryRows.isEmpty() && finalSummaryRows.get(0) != null) {
+                Object[] row = finalSummaryRows.get(0);
+                finalAcceptedNos = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                finalAcceptedSet = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                finalRejectedNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                finalRejectedSet = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+            }
+            rejectedInFinal = finalRejectedNos + finalRejectedSet;
+
             Long production = productionDeclarationRepository.getTotalProductionCount();
             totalProduction = production != null ? production : 0L;
+
+            long totalRejected = rejectedInProcess + rejectedInFinal;
+            rejectionPercentage = totalProduction > 0 ? (totalRejected * 100.0) / totalProduction : 0.0;
 
             Long icCount = sleeperWorkflowRepository.countAllSleeperIcIssued();
             sleeperIcIssued = icCount != null ? icCount : 0L;
@@ -2051,6 +2088,10 @@ public class DashboardServiceImpl implements DashboardService {
         result.put("underInspectionCalls", underInspection);
         result.put("totalProduction", totalProduction);
         result.put("sleeperIcIssued", sleeperIcIssued);
+        result.put("finalAcceptedNos", finalAcceptedNos);
+        result.put("finalAcceptedSet", finalAcceptedSet);
+        result.put("finalRejectedNos", finalRejectedNos);
+        result.put("finalRejectedSet", finalRejectedSet);
         return result;
     }
 

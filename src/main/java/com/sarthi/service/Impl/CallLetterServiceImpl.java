@@ -611,8 +611,9 @@ public class CallLetterServiceImpl implements CallLetterService {
     private CallLetterDetailsDto enrichFromSleeperCall(com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall sleeperCall, CallLetterDetailsDto dto) {
         dto.setRequestId(sleeperCall.getCallNo());
         dto.setTypeOfCall("Final Inspection");
-        dto.setProductType("Prestressed Concrete Sleepers (" + (sleeperCall.getSleeperType() != null ? sleeperCall.getSleeperType() : "") + ")");
-        dto.setCallQty(String.valueOf(sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0));
+        int offered = sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0;
+        int rejected = sleeperCall.getTotalRejected() != null ? sleeperCall.getTotalRejected() : 0;
+        dto.setCallQty(String.valueOf(offered + rejected));
         dto.setCallUnit("Nos.");
 
         // Calculate offered installment number as integer based on PO Number + Sr Number

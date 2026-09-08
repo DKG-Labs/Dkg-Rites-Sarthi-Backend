@@ -14,10 +14,12 @@ public class InspectionCallDetailDto {
     private String vendor;
     private String callSubmissionDateTime;
     private String stageOfInspection;
+    private Object callQty;
     private String poSrNo;
     private String dpDate;
     private String status;
 
     private String mainStatus;
     private String subStatus;
+    private String railPadType;
 }

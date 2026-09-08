@@ -349,7 +349,14 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     CASE
                         WHEN t.has_initiate = 1 THEN 'Under Inspection'
                         ELSE 'Pending'
-                    END AS status
+                    END AS status,
+                    CASE
+                        WHEN (t.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%') AND UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%' 
+                            THEN CONCAT(COALESCE(ic.no_of_sets, 0), ' Set')
+                        ELSE CONCAT(COALESCE(ic.total_qty, 0), ' Nos')
+                    END AS callQty,
+                    '' AS subStatus,
+                    ic.rail_pad_type AS railpadType
                 FROM (
                     SELECT
                         rwt1.request_id,
@@ -450,13 +457,57 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                         WHEN t.request_id LIKE 'RPF%' THEN 'Final Product'
                         ELSE 'Railpad'
                     END AS stageOfInspection,
-                    CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no) AS poSrNo,
+                    CASE
+                        WHEN ph.rly_short_name IS NOT NULL AND ph.rly_short_name <> '' AND ph.rly_short_name <> 'N/A'
+                            THEN CONCAT(
+                                ph.rly_short_name,
+                                '/',
+                                SUBSTRING_INDEX(ic.po_no, '/', 1),
+                                '/',
+                                CASE
+                                    WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1)
+                                    WHEN ic.po_sr IS NOT NULL AND ic.po_sr <> '' THEN ic.po_sr
+                                    WHEN pi.item_sr_no IS NOT NULL AND pi.item_sr_no <> '' THEN pi.item_sr_no
+                                    ELSE 'N/A'
+                                END
+                            )
+                        WHEN ph.rly_cd IS NOT NULL AND ph.rly_cd <> '' AND ph.rly_cd <> 'N/A'
+                            THEN CONCAT(
+                                ph.rly_cd,
+                                '/',
+                                SUBSTRING_INDEX(ic.po_no, '/', 1),
+                                '/',
+                                CASE
+                                    WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1)
+                                    WHEN ic.po_sr IS NOT NULL AND ic.po_sr <> '' THEN ic.po_sr
+                                    WHEN pi.item_sr_no IS NOT NULL AND pi.item_sr_no <> '' THEN pi.item_sr_no
+                                    ELSE 'N/A'
+                                END
+                            )
+                        ELSE CONCAT(
+                            SUBSTRING_INDEX(ic.po_no, '/', 1),
+                            '/',
+                            CASE
+                                WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1)
+                                WHEN ic.po_sr IS NOT NULL AND ic.po_sr <> '' THEN ic.po_sr
+                                WHEN pi.item_sr_no IS NOT NULL AND pi.item_sr_no <> '' THEN pi.item_sr_no
+                                ELSE 'N/A'
+                            END
+                        )
+                    END AS poSrNo,
                     DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
                     CASE
                         WHEN t.action IN ('PO_VERIFICATION', 'PAUSE', 'RESUME') THEN 'Under Inspection'
                         WHEN t.action IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION') THEN 'Completed'
                         ELSE 'Pending'
-                    END AS status
+                    END AS status,
+                    CASE
+                        WHEN (t.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%') AND UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%' 
+                            THEN CONCAT(COALESCE(ic.no_of_sets, 0), ' Set')
+                        ELSE CONCAT(COALESCE(ic.total_qty, 0), ' Nos')
+                    END AS callQty,
+                    t.action AS subStatus,
+                    ic.rail_pad_type AS railpadType
                 FROM (
                     SELECT
                         rwt1.request_id,
@@ -486,7 +537,14 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 INNER JOIN rail_inspection_call ic ON t.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
                 LEFT JOIN vendor_master vm ON vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
                 LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
-                LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', -1) COLLATE utf8mb4_unicode_ci
+                LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
+                    pi.item_sr_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) COLLATE utf8mb4_unicode_ci
+                    OR (
+                        (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) REGEXP '^[0-9]+$'
+                        AND pi.item_sr_no REGEXP '^[0-9]+$'
+                        AND CAST(pi.item_sr_no AS UNSIGNED) = CAST((CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) AS UNSIGNED)
+                    )
+                )
                 WHERE (:stage = 'ALL' OR
                        (:stage = 'Process' AND t.request_id LIKE 'RPP%') OR
                        (:stage = 'Final' AND t.request_id LIKE 'RPF%') OR
@@ -496,7 +554,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                        (:status = 'Under Inspection' AND t.action IN ('PO_VERIFICATION', 'PAUSE', 'RESUME')) OR
                        (:status = 'Pending' AND t.action IN ('CREATED', 'CREATE', 'VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL')) OR
                        (:status = 'IC Issued' AND t.action IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION')))
-                  AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+                  AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR ph.rly_short_name = :zonalRailway OR ph.rly_cd = :zonalRailway)
                   AND (:startDate IS NULL OR :endDate IS NULL OR ic.created_at BETWEEN :startDate AND :endDate)
                 ORDER BY ic.created_at DESC
             """, nativeQuery = true)
@@ -532,22 +590,38 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query(value = """
         SELECT 
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_nos,
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN flr.accepted_qty ELSE 0 END), 0) AS final_accepted_set,
             COALESCE(SUM(CASE 
                 WHEN (flr.railpad_type IS NULL OR UPPER(flr.railpad_type) NOT LIKE '%NCRGRSP%') 
+                     AND (ic.rail_pad_type IS NULL OR UPPER(ic.rail_pad_type) NOT LIKE '%NCRGRSP%')
+                     AND LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
+                THEN flr.accepted_qty 
+                ELSE 0 
+            END), 0) AS final_accepted_nos,
+            COALESCE(SUM(CASE 
+                WHEN UPPER(COALESCE(flr.railpad_type, '')) LIKE '%NCRGRSP%' 
+                     OR UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%'
+                     OR LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN
+                    CASE 
+                        WHEN flr.id = first_flr.first_lot_id THEN flr.accepted_qty 
+                        ELSE 0 
+                    END
+                ELSE 0 
+            END), 0) AS final_accepted_set,
+            COALESCE(SUM(CASE 
+                WHEN (flr.railpad_type IS NULL OR UPPER(flr.railpad_type) NOT LIKE '%NCRGRSP%') 
+                     AND (ic.rail_pad_type IS NULL OR UPPER(ic.rail_pad_type) NOT LIKE '%NCRGRSP%')
                      AND LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
                 THEN flr.rejected_qty 
                 ELSE 0 
             END), 0) AS final_rejected_nos,
             COALESCE(SUM(CASE 
-                WHEN UPPER(COALESCE(flr.railpad_type, '')) LIKE '%NCRGRSP%' THEN
+                WHEN UPPER(COALESCE(flr.railpad_type, '')) LIKE '%NCRGRSP%' 
+                     OR UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%'
+                     OR LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' THEN
                     CASE 
                         WHEN flr.id = first_flr.first_lot_id THEN flr.rejected_qty 
                         ELSE 0 
                     END
-                WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' 
-                THEN flr.rejected_qty 
                 ELSE 0 
             END), 0) AS final_rejected_set
         FROM rail_final_inspection_lot_results flr
@@ -566,8 +640,12 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
         LEFT JOIN rail_inspection_call ic ON flr.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ic.po_no, '/', 1)), ' ', -1) ELSE ic.po_no END) COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
-            pi.item_sr_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE ic.po_sr END) COLLATE utf8mb4_unicode_ci 
-            OR CAST(pi.item_sr_no AS UNSIGNED) = CAST((CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE ic.po_sr END) AS UNSIGNED)
+            pi.item_sr_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) COLLATE utf8mb4_unicode_ci 
+            OR (
+                (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) REGEXP '^[0-9]+$'
+                AND pi.item_sr_no REGEXP '^[0-9]+$'
+                AND CAST(pi.item_sr_no AS UNSIGNED) = CAST((CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) AS UNSIGNED)
+            )
         )
         WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
                flr.plant_id = :vendorPlantCode OR 
@@ -611,7 +689,14 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 END AS stage,
                 DATE_FORMAT(rwt.created_date, '%Y-%m-%d') AS icIssuedDate,
                 COALESCE(ph.item_cat_descr, 'Rail Pad') AS itemCatDescr,
-                rwt.created_date AS rawCreatedDate
+                rwt.created_date AS rawCreatedDate,
+                DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
+                CASE
+                    WHEN (rwt.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%') AND UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%' 
+                        THEN CONCAT(COALESCE(ic.no_of_sets, 0), ' Set')
+                    ELSE CONCAT(COALESCE(ic.total_qty, 0), ' Nos')
+                END AS callQty,
+                ic.rail_pad_type AS railpadType
             FROM rail_workflow_transaction rwt
             INNER JOIN (
                 SELECT request_id, MAX(workflow_transition_id) AS max_id

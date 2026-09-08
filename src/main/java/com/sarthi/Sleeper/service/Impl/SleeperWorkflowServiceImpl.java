@@ -365,8 +365,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             sleeperInspectionCallRepository.findByCallNo(tx.getRequestId()).ifPresent(call -> {
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
-                dto.setSleeperType(call.getSleeperType());
-                dto.setOfferedQty(call.getTotalOffered());
+                int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
+                int rej = call.getTotalRejected() != null ? call.getTotalRejected() : 0;
+                dto.setOfferedQty(off + rej);
                 dto.setUom("Nos.");
                 dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
                 dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt() : tx.getCreatedDate());
@@ -1653,8 +1654,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
             if (callEntity != null) {
                 dto.setPoNo(callEntity.getPoNo());
-                dto.setSrNo(callEntity.getSrNo());
-                dto.setOfferedQty(callEntity.getTotalOffered() != null ? Long.valueOf(callEntity.getTotalOffered()) : 0L);
+                long off = callEntity.getTotalOffered() != null ? callEntity.getTotalOffered().longValue() : 0L;
+                long rej = callEntity.getTotalRejected() != null ? callEntity.getTotalRejected().longValue() : 0L;
+                dto.setOfferedQty(off + rej);
                 dto.setCallDate(callEntity.getCreatedAt() != null ? callEntity.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : null);
                 dto.setSleeperType(callEntity.getSleeperType());
 
