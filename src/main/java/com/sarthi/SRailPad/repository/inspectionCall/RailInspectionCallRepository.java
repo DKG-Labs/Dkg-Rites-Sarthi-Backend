@@ -192,12 +192,13 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             LEFT JOIN rail_call_cancellation_details cd
                    ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_workflow_transaction wt
-                   ON wt.workflow_transition_id = (
-                       SELECT MAX(wt2.workflow_transition_id)
-                       FROM rail_workflow_transaction wt2
-                       WHERE wt2.request_id = ic.call_no
-                         AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
-                   )
+                    ON wt.workflow_transition_id = (
+                        SELECT MAX(wt2.workflow_transition_id)
+                        FROM rail_workflow_transaction wt2
+                        WHERE CONVERT(wt2.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                              CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                          AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
+                    )
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
