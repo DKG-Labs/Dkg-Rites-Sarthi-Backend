@@ -269,13 +269,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                     : null;
 
             if (rio == null || rio.isBlank()) {
-                String pincode = mapping != null ? mapping.getPinCode() : null;
+                String pincode = mapping.getPinCode();
                 String product = "Rail Pad";
                 String stage = "F";
 
-                Optional<IEFieldsMapping> ieMapOpt = (pincode != null && !pincode.isEmpty())
-                        ? ieFieldsMappingRepository.findByPlantPincodeAndProductAndStageMatch(pincode, product, stage)
-                        : Optional.empty();
+                Optional<IEFieldsMapping> ieMapOpt = ieFieldsMappingRepository
+                        .findByPlantPincodeAndProductAndStageMatch(pincode, product, stage);
                 if (ieMapOpt.isPresent() && ieMapOpt.get().getRio() != null) {
                     rio = ieMapOpt.get().getRio().trim();
                 }
@@ -2424,5 +2423,98 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             return railCallCancellationDetailRepository.findByCallNumber(callNo.trim()).orElse(null);
         }
         return null;
+    }
+
+    // ─── IBS Payment Verification Proxy ──────────────────────────────────────────
+
+    private static final String IBS_GET_BILL_DETAILS_URL =
+            "https://ritesinsp.com/IBS2MobileAPI/Sarthi/get-bill-details";
+
+    // IBS Bearer token — provided by RITES for server-side integration.
+    // Store in environment variable IBS_BEARER_TOKEN for production.
+    private String getIbsBearerToken() {
+        String envToken = System.getenv("IBS_BEARER_TOKEN");
+        if (envToken != null && !envToken.isBlank()) return envToken;
+        // Fallback: use same CRIS credentials structure; update when RITES provides dedicated token
+        return "Basic cmltZXMtc2FydGhpOnNhclRISUBAc3BlcmkyNg==";
+    }
+
+    @Override
+    public java.util.Map<String, Object> verifyIbsPayment(String caseNo, String callDate, int ibsCallSno) {
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(getIbsBearerToken());
+
+            java.util.Map<String, Object> requestBody = new java.util.HashMap<>();
+            requestBody.put("caseNo", caseNo);
+            requestBody.put("callRecvDt", callDate);
+            requestBody.put("callSno", ibsCallSno);
+
+            org.springframework.http.HttpEntity<java.util.Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map> response =
+                    restTemplate.postForEntity(IBS_GET_BILL_DETAILS_URL, entity, java.util.Map.class);
+
+            if (response.getBody() != null) {
+                return (java.util.Map<String, Object>) response.getBody();
+            }
+        } catch (Exception e) {
+            log.error("Error calling IBS get-bill-details API for caseNo={}, callDate={}, ibsCallSno={}: {}",
+                    caseNo, callDate, ibsCallSno, e.getMessage());
+            java.util.Map<String, Object> errorResp = new java.util.HashMap<>();
+            errorResp.put("resultFlag", 0);
+            errorResp.put("message", "Failed to reach IBS API: " + e.getMessage());
+            errorResp.put("bill_details", java.util.Collections.emptyList());
+            errorResp.put("payment_details", java.util.Collections.emptyList());
+            errorResp.put("bill_details_error", e.getMessage());
+            errorResp.put("payment_details_error", null);
+            return errorResp;
+        }
+        java.util.Map<String, Object> empty = new java.util.HashMap<>();
+        empty.put("resultFlag", 0);
+        empty.put("message", "No response from IBS API");
+        empty.put("bill_details", java.util.Collections.emptyList());
+        empty.put("payment_details", java.util.Collections.emptyList());
+        return empty;
+    }
+
+    @Override
+    public void markPaymentApprovedByIbs(String callNo) {
+        if (callNo == null || callNo.isBlank()) return;
+        String cleanCallNo = callNo.trim();
+
+        if (railVendorFinancialLiabilityRepository != null) {
+            java.util.Optional<com.sarthi.SRailPad.entity.RailVendorFinancialLiability> liabOpt =
+                    railVendorFinancialLiabilityRepository.findByCallNumber(cleanCallNo);
+
+            com.sarthi.SRailPad.entity.RailVendorFinancialLiability liability;
+            if (liabOpt.isPresent()) {
+                liability = liabOpt.get();
+            } else {
+                // Create a new record if one doesn't exist yet
+                liability = new com.sarthi.SRailPad.entity.RailVendorFinancialLiability();
+                liability.setCallNumber(cleanCallNo);
+                liability.setLiabilityType("CANCELLATION_CHARGES");
+
+                // Attempt to pull amount from cancellation details
+                if (railCallCancellationDetailRepository != null) {
+                    railCallCancellationDetailRepository.findByCallNumber(cleanCallNo).ifPresent(cd -> {
+                        if (cd.getFinalCancellationCharges() != null) {
+                            liability.setAmount(cd.getFinalCancellationCharges());
+                        } else if (cd.getCalculatedCharges() != null) {
+                            liability.setAmount(cd.getCalculatedCharges());
+                        }
+                    });
+                }
+            }
+            liability.setPaymentStatus("Approved by RITES Finance");
+            railVendorFinancialLiabilityRepository.save(liability);
+            log.info("Payment marked as 'Approved by RITES Finance' for call {} via IBS verification.", cleanCallNo);
+        }
     }
 }

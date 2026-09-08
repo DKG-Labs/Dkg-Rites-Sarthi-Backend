@@ -68,4 +68,20 @@ public interface RailWorkflowService {
     public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode);
 
     public com.sarthi.SRailPad.entity.RailCallCancellationDetail getCancellationDetails(String callNo);
+
+    /**
+     * Proxies a call to the IBS get-bill-details API and returns the raw JSON response as a Map.
+     * @param caseNo     IBS case number (e.g. N26060373)
+     * @param callDate   Call receive date formatted as DD-MM-YYYY
+     * @param ibsCallSno IBS call serial number
+     * @return Map representing the IBS API JSON response
+     */
+    public java.util.Map<String, Object> verifyIbsPayment(String caseNo, String callDate, int ibsCallSno);
+
+    /**
+     * Marks a cancelled call's payment status as "Approved by RITES Finance" in the
+     * RailVendorFinancialLiability table, which unblocks call raising for that plant.
+     * @param callNo The internal call number (e.g. RPF-082526001)
+     */
+    public void markPaymentApprovedByIbs(String callNo);
 }
