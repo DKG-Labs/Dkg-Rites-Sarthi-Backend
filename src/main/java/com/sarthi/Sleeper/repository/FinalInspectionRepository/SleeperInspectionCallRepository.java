@@ -1126,7 +1126,8 @@ ORDER BY um.employee_code
                     ON wt.workflow_transition_id = (
                         SELECT MAX(wt2.workflow_transition_id)
                         FROM sleeper_workflow_transaction wt2
-                        WHERE wt2.request_id = sic.call_no
+                        WHERE CONVERT(wt2.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                              CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
                           AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
                     )
             LEFT JOIN po_header ph
