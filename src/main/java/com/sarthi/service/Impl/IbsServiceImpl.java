@@ -73,6 +73,9 @@ public class IbsServiceImpl implements IbsService {
     private final com.sarthi.SRailPad.repository.inspectionCall.RailpadFinalIcEditRepository railpadFinalIcEditRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
 
+    private final com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcEditRepository sleeperFinalIcEditRepository;
+    private final com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
+
     private final IbsCallRegistrationRepository ibsCallRegistrationRepository;
 
     private final IbsBillDetailsRepository ibsBillDetailsRepository;
@@ -702,6 +705,18 @@ public class IbsServiceImpl implements IbsService {
                 )
         );
 
+        responseList.addAll(
+                mapResult(
+                        sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls()
+                )
+        );
+
+        responseList.addAll(
+                mapResult(
+                        sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls()
+                )
+        );
+
         return responseList;
     }
 
@@ -925,21 +940,41 @@ public class IbsServiceImpl implements IbsService {
         for (IbsCallRegistration registration : calls) {
 
             try {
-               InspectionCall ic = null;
-                Optional<InspectionCall> inspectionCall =
+                String poNo = null;
+                LocalDateTime createdAt = null;
 
-                               inspectionCallsRepository.findByIcNumber(
-                                        registration.getCallNumber()
-                                );
+                Optional<InspectionCall> ercCall =
+                        inspectionCallsRepository.findByIcNumber(
+                                registration.getCallNumber()
+                        );
 
-                if (inspectionCall.isPresent()) {
-                    ic = inspectionCall.get();
+                if (ercCall.isPresent()) {
+                    poNo = ercCall.get().getPoNo();
+                    createdAt = ercCall.get().getCreatedAt();
+                } else {
+                    var railCall = railInspectionCallRepository.findByCallNo(registration.getCallNumber());
+                    if (railCall.isPresent()) {
+                        poNo = railCall.get().getPoNo();
+                        createdAt = railCall.get().getCreatedAt();
+                    } else {
+                        var sleeperCall = sleeperInspectionCallRepository.findByCallNo(registration.getCallNumber());
+                        if (sleeperCall.isPresent()) {
+                            poNo = sleeperCall.get().getPoNo();
+                            createdAt = sleeperCall.get().getCreatedAt();
+                        }
+                    }
                 }
-                PoHeader poHeader = null;
-              Optional<PoHeader> po=  poHeaderRepository.findByPoNo(ic.getPoNo());
-if(po.isPresent()){
-    poHeader= po.get();
-}
+
+                if (poNo == null) {
+                    continue;
+                }
+
+                String cleanPoNo = poNo.contains("/") ? poNo.split("/")[0].trim() : poNo.trim();
+                PoHeader poHeader = poHeaderRepository.findByPoNo(cleanPoNo).orElse(null);
+                if (poHeader == null) {
+                    continue;
+                }
+
                 IbsBillingRequest request =
                         new IbsBillingRequest();
 
@@ -948,7 +983,7 @@ if(po.isPresent()){
                 );
 
                 request.setCallRecvDt(
-                        ic.getCreatedAt()
+                        (createdAt != null ? createdAt : LocalDateTime.now())
                                 .format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))
                 );
 
