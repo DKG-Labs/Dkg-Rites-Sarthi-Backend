@@ -44,4 +44,14 @@ FROM MomentOfResistanceTest m
 WHERE m.batchNumber = :batchNo
 """)
     boolean existsMomentOfResistance(@Param("batchNo") String batchNo);
+
+    @Query("""
+SELECT COUNT(m) > 0 
+FROM MomentOfResistanceTest m 
+WHERE (TRIM(m.batchNumber) = TRIM(:batchNo) 
+    OR TRIM(m.batchNumber) = TRIM(REPLACE(:batchNo, 'B-', '')) 
+    OR CONCAT('B-', TRIM(m.batchNumber)) = TRIM(:batchNo))
+AND (UPPER(TRIM(m.testResult)) LIKE 'PASS%' OR UPPER(TRIM(m.testResult)) = 'OK' OR UPPER(TRIM(m.testResult)) = 'COMPLETED')
+""")
+    boolean hasPassedMomentOfResistance(@Param("batchNo") String batchNo);
 }

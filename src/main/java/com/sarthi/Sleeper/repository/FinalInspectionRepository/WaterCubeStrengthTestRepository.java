@@ -22,6 +22,16 @@ WHERE w.batchNumber = :batchNo
 """)
     boolean existsWaterCube(String batchNo);
 
+    @Query("""
+SELECT COUNT(w) > 0 
+FROM WaterCubeStrengthTest w 
+WHERE (TRIM(w.batchNumber) = TRIM(:batchNo) 
+    OR TRIM(w.batchNumber) = TRIM(REPLACE(:batchNo, 'B-', '')) 
+    OR CONCAT('B-', TRIM(w.batchNumber)) = TRIM(:batchNo))
+AND UPPER(TRIM(w.finalTestResult)) LIKE 'PASS%'
+""")
+    boolean hasPassedWaterCube(@org.springframework.data.repository.query.Param("batchNo") String batchNo);
+
     @Query("SELECT DISTINCT w.batchNumber FROM WaterCubeStrengthTest w")
     List<String> findAllBatchNumbers();
 

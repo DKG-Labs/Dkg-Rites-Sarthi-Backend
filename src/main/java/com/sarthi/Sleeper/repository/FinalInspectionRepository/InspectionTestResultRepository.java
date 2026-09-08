@@ -95,7 +95,7 @@ AND h.module.id = :moduleId
           FROM InspectionTestResult r
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
-          AND LOWER(h.status) = 'completed'
+          AND r.active = true
           """)
   List<InspectionTestResult> findAllResultsByBatchId(@Param("batchId") Long batchId);
 
