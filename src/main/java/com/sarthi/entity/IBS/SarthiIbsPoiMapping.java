@@ -19,11 +19,14 @@ public class SarthiIbsPoiMapping {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "poi_code", nullable = false, unique = true, length = 20)
+    @Column(name = "poi_code", nullable = false, length = 100)
     private String poiCode;
 
-    @Column(name = "ibs_vendor_code", length = 20)
+    @Column(name = "ibs_vendor_code", length = 50)
     private String ibsVendorCode;
+
+    @Column(name = "product_type", length = 50)
+    private String productType;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
