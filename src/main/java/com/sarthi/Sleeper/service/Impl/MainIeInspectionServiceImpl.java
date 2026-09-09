@@ -126,9 +126,29 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             ProductionDeclaration declaration =
                     productionDeclarationRepository.findByBatchNumber(batchNo);
 
-            dto.setCastingDate(declaration.getCastingDate().toString());
-            Integer totalCasted = declaration.getTotalCastedSleepers();
-            dto.setTotalSleepersCasted(totalCasted);
+            if (declaration != null && declaration.getCastingDate() != null) {
+                dto.setCastingDate(declaration.getCastingDate().toString());
+            } else if (batch.getCastDate() != null) {
+                dto.setCastingDate(batch.getCastDate());
+            } else {
+                dto.setCastingDate("N/A");
+            }
+
+            int chamberSleeperCount = (declaration != null && declaration.getChambers() != null)
+                    ? (int) declaration.getChambers().stream()
+                        .flatMap(c -> c.getBenchGroups() != null ? c.getBenchGroups().stream() : java.util.stream.Stream.empty())
+                        .flatMap(bg -> bg.getSleepers() != null ? bg.getSleepers().stream() : java.util.stream.Stream.empty())
+                        .filter(s -> s.getSleeperNo() != null && !s.getSleeperNo().isBlank())
+                        .count()
+                    : 0;
+
+            Integer totalCasted = (declaration != null && declaration.getTotalCastedSleepers() != null)
+                    ? declaration.getTotalCastedSleepers()
+                    : (batch.getTotalCasted() != null ? batch.getTotalCasted() : 0);
+
+            if (chamberSleeperCount > totalCasted) {
+                totalCasted = chamberSleeperCount;
+            }
 
             List<String> accepted = (batch.getGoodSleepers() != null && !batch.getGoodSleepers().isEmpty())
                     ? batch.getGoodSleepers().stream()
@@ -210,26 +230,6 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                 }
             }
 
-            // Query Demoulding Rejections for this batch
-            if (demouldingDefectiveSleeperRepository != null) {
-                try {
-                    java.util.Set<String> demouldingRej = demouldingDefectiveSleeperRepository.findAllRejectedSleeperNosByBatchNo(batchNo);
-                    if (demouldingRej != null && !demouldingRej.isEmpty()) {
-                        for (String dr : demouldingRej) {
-                            if (dr != null && !dr.isBlank()) {
-                                String cleanDr = dr.trim();
-                                if (!rejected.contains(cleanDr)) {
-                                    rejected.add(cleanDr);
-                                    accepted.remove(cleanDr);
-                                }
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    System.err.println("Error loading demoulding rejections for batch " + batchNo + ": " + e.getMessage());
-                }
-            }
-
             dto.setAcceptedSleepers(accepted);
             dto.setRejectedSleepers(rejected);
 
@@ -242,7 +242,12 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             int offeredNow = passed + rejectedCount;
             dto.setOfferedNow(offeredNow);
 
-            int unoffered = (totalCasted != null ? totalCasted : offeredNow) - offeredNow;
+            if (totalCasted == null || totalCasted < offeredNow) {
+                totalCasted = offeredNow;
+            }
+            dto.setTotalSleepersCasted(totalCasted);
+
+            int unoffered = totalCasted - offeredNow;
             dto.setUnoffered(Math.max(0, unoffered));
 
             dto.setEtSleepers(null);
