@@ -874,7 +874,7 @@ ORDER BY um.employee_code
             (
                 SELECT sicd.certificate_no
                 FROM sleeper_inspection_complete_details sicd
-                WHERE sicd.call_no = sic.call_no
+                WHERE sicd.call_no COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
                 ORDER BY sicd.id DESC
                 LIMIT 1
             ),
@@ -882,23 +882,23 @@ ORDER BY um.employee_code
                 'C/',
                 sic.call_no,
                 '/',
-                COALESCE((SELECT um.SHORT_NAME FROM sleeper_workflow_transaction swt LEFT JOIN USER_MASTER um ON um.USERID = swt.assigned_to_user WHERE swt.request_id = sic.call_no ORDER BY swt.workflow_transition_id DESC LIMIT 1), 'NV')
+                COALESCE((SELECT um.SHORT_NAME FROM sleeper_workflow_transaction swt LEFT JOIN USER_MASTER um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = CAST(swt.assigned_to_user AS CHAR) COLLATE utf8mb4_unicode_ci WHERE swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci ORDER BY swt.workflow_transition_id DESC LIMIT 1), 'NV')
             )
         ) AS certificateNo,
 
         COALESCE(
-            (SELECT sfisc.book_no FROM sleeper_final_ic_save_changes sfisc WHERE sfisc.ic_number = sic.call_no LIMIT 1),
-            (SELECT sfie.book_no FROM sleeper_final_ic_edit sfie WHERE sfie.ic_number = sic.call_no LIMIT 1)
+            (SELECT sfisc.book_no FROM sleeper_final_ic_save_changes sfisc WHERE sfisc.ic_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+            (SELECT sfie.book_no FROM sleeper_final_ic_edit sfie WHERE sfie.ic_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
         ) AS bookNo,
 
         COALESCE(
-            (SELECT sfisc.set_no FROM sleeper_final_ic_save_changes sfisc WHERE sfisc.ic_number = sic.call_no LIMIT 1),
-            (SELECT sfie.set_no FROM sleeper_final_ic_edit sfie WHERE sfie.ic_number = sic.call_no LIMIT 1)
+            (SELECT sfisc.set_no FROM sleeper_final_ic_save_changes sfisc WHERE sfisc.ic_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+            (SELECT sfie.set_no FROM sleeper_final_ic_edit sfie WHERE sfie.ic_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
         ) AS setNo,
 
         COALESCE(
             DATE_FORMAT(
-                (SELECT sicd.created_on FROM sleeper_inspection_complete_details sicd WHERE sicd.call_no = sic.call_no ORDER BY sicd.id DESC LIMIT 1),
+                (SELECT sicd.created_on FROM sleeper_inspection_complete_details sicd WHERE sicd.call_no COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci ORDER BY sicd.id DESC LIMIT 1),
                 '%d.%m.%Y'
             ),
             DATE_FORMAT(CURRENT_DATE(), '%d.%m.%Y')
@@ -907,18 +907,18 @@ ORDER BY um.employee_code
         (
             SELECT COUNT(DISTINCT sfr_inst.id) + 1
             FROM sleeper_final_result sfr_inst
-            JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no = sfr_inst.call_number
-            WHERE sic_inst.po_no = sic.po_no
-              AND LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+            JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no COLLATE utf8mb4_unicode_ci = sfr_inst.call_number COLLATE utf8mb4_unicode_ci
+            WHERE sic_inst.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+              AND LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
               AND sic_inst.id < sic.id
         ) AS offeredInstallmentNumber,
 
         (
             SELECT COUNT(DISTINCT sfr_inst.id) + 1
             FROM sleeper_final_result sfr_inst
-            JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no = sfr_inst.call_number
-            WHERE sic_inst.po_no = sic.po_no
-              AND LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+            JOIN sleeper_inspection_call sic_inst ON sic_inst.call_no COLLATE utf8mb4_unicode_ci = sfr_inst.call_number COLLATE utf8mb4_unicode_ci
+            WHERE sic_inst.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+              AND LPAD(TRIM(COALESCE(sic_inst.sr_no, sfr_inst.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
               AND COALESCE(sfr_inst.total_accepted, 0) > 0
               AND sic_inst.id < sic.id
         ) AS passedInstallmentNumber,
@@ -945,9 +945,9 @@ ORDER BY um.employee_code
             (
                 SELECT SUM(sfr_prev.total_offered_quantity)
                 FROM sleeper_final_result sfr_prev
-                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
-                WHERE sic_prev.po_no = sic.po_no
-                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
                   AND sic_prev.id < sic.id
             ),
             0
@@ -957,24 +957,24 @@ ORDER BY um.employee_code
             (
                 SELECT SUM(sfr_prev.total_accepted)
                 FROM sleeper_final_result sfr_prev
-                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
-                WHERE sic_prev.po_no = sic.po_no
-                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
                   AND sic_prev.id < sic.id
             ),
             0
         ) AS SIGNED) AS quantityPreviouslyPassed,
 
         CAST(COALESCE(
-            (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1),
-            (SELECT (COALESCE(sfr2.total_accepted, 0) + COALESCE(sfr2.total_rejected, 0)) FROM sleeper_final_result sfr2 WHERE sfr2.call_number = sic.call_no LIMIT 1),
+            (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+            (SELECT (COALESCE(sfr2.total_accepted, 0) + COALESCE(sfr2.total_rejected, 0)) FROM sleeper_final_result sfr2 WHERE sfr2.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
             sic.total_offered,
             0
         ) AS SIGNED) AS qtyNowOffered,
 
-        CAST(COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), fcih.accepted_qty, 0) AS SIGNED) AS qtyNowPassed,
+        CAST(COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1), fcih.accepted_qty, 0) AS SIGNED) AS qtyNowPassed,
 
-        CAST(COALESCE((SELECT sfr.total_rejected FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), fcih.rejected_qty, 0) AS SIGNED) AS qtyNowRejected,
+        CAST(COALESCE((SELECT sfr.total_rejected FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1), fcih.rejected_qty, 0) AS SIGNED) AS qtyNowRejected,
 
         CAST(GREATEST(0, (
             COALESCE(pi.qty, 0)
@@ -983,15 +983,15 @@ ORDER BY um.employee_code
                 (
                     SELECT SUM(sfr_prev.total_accepted)
                     FROM sleeper_final_result sfr_prev
-                    JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no = sfr_prev.call_number
-                    WHERE sic_prev.po_no = sic.po_no
-                      AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')
+                    JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                    WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                      AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
                       AND sic_prev.id < sic.id
                 ),
                 0
             )
             -
-            COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number = sic.call_no LIMIT 1), fcih.accepted_qty, 0)
+            COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1), fcih.accepted_qty, 0)
         )) AS SIGNED) AS qtyStillDue,
 
         CONCAT(
@@ -1006,7 +1006,7 @@ ORDER BY um.employee_code
             (
                 SELECT DATE_FORMAT(sfr.date_of_inspection, '%d.%m.%Y')
                 FROM sleeper_final_result sfr
-                WHERE sfr.call_number = sic.call_no
+                WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
                 LIMIT 1
             ),
             DATE_FORMAT(fcih.call_date, '%d.%m.%Y'),
@@ -1020,7 +1020,7 @@ ORDER BY um.employee_code
                 SEPARATOR ', '
             )
             FROM ie_batch_summary ibs2
-            WHERE ibs2.call_no = sic.call_no
+            WHERE ibs2.call_no COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
         ) AS quantityNowPassedBatchNos,
 
         ph.case_no AS caseNo,
@@ -1028,7 +1028,7 @@ ORDER BY um.employee_code
         (
             SELECT vpp.rio
             FROM vendor_plant vpp
-            WHERE vpp.plant_id = sic.plant_id
+            WHERE vpp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
             LIMIT 1
         ) AS rio,
 
@@ -1037,21 +1037,21 @@ ORDER BY um.employee_code
     FROM sleeper_inspection_call sic
 
     LEFT JOIN po_header ph
-        ON ph.po_no = sic.po_no
+        ON ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
 
     LEFT JOIN po_item pi
         ON pi.po_header_id = ph.id
         AND (
-            pi.item_sr_no = sic.sr_no
-            OR pi.item_sr_no = SUBSTRING_INDEX(sic.sr_no, '/', -1)
+            pi.item_sr_no COLLATE utf8mb4_unicode_ci = sic.sr_no COLLATE utf8mb4_unicode_ci
+            OR pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
             OR CAST(pi.item_sr_no AS UNSIGNED) = CAST(SUBSTRING_INDEX(sic.sr_no, '/', -1) AS UNSIGNED)
-            OR LPAD(pi.item_sr_no, 3, '0') = LPAD(SUBSTRING_INDEX(sic.sr_no, '/', -1), 3, '0')
+            OR LPAD(pi.item_sr_no, 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(sic.sr_no, '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
         )
 
     LEFT JOIN final_call_inspection_header fcih
-        ON fcih.call_no = sic.call_no
+        ON fcih.call_no COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
 
-    WHERE sic.call_no = :callNo
+    WHERE sic.call_no COLLATE utf8mb4_unicode_ci = :callNo COLLATE utf8mb4_unicode_ci
     LIMIT 1
 
     """, nativeQuery = true)
