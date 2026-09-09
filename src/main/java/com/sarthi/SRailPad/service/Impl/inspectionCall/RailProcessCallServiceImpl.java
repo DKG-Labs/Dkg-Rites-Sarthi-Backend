@@ -129,24 +129,62 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
     @Override
     public ProcessAvailableBatchDto getAvailableBatchesForProcessIc(String poNo, String railPadType, String callNo) {
-        List<Object[]> results = verificationRepository.findAvailableInfosForProcessIc(poNo, railPadType, callNo != null ? callNo : "");
+        List<Object[]> results = verificationRepository.findAvailableInfosForProcessIc(poNo, railPadType);
+
+        List<Long> declarationBatchIds = new ArrayList<>();
+        for (Object[] row : results) {
+            com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo i = (com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo) row[0];
+            if (i.getId() != null) {
+                declarationBatchIds.add(i.getId());
+            }
+        }
+
+        // Query historical inspections across other calls to calculate cumulative consumption and rejection
+        java.util.Map<Long, Integer> acceptedInOtherCallsMap = new java.util.HashMap<>();
+        java.util.Map<Long, Integer> rejectedInOtherCallsMap = new java.util.HashMap<>();
+
+        if (!declarationBatchIds.isEmpty()) {
+            List<RailProcessInspectionBatch> pastBatches = processInspectionBatchRepository
+                    .findByDeclarationBatchIdInAndExcludeCallNo(declarationBatchIds, callNo != null ? callNo.trim() : "");
+            for (RailProcessInspectionBatch pb : pastBatches) {
+                Long dId = pb.getDeclarationBatchId();
+                if (dId != null) {
+                    int acc = pb.getQtyAccepted() != null ? pb.getQtyAccepted() : 0;
+                    int rej = pb.getQtyRejected() != null ? pb.getQtyRejected() : 0;
+                    acceptedInOtherCallsMap.put(dId, acceptedInOtherCallsMap.getOrDefault(dId, 0) + acc);
+                    rejectedInOtherCallsMap.put(dId, rejectedInOtherCallsMap.getOrDefault(dId, 0) + rej);
+                }
+            }
+        }
 
         ProcessAvailableBatchDto dto = new ProcessAvailableBatchDto();
-        dto.setTotalBatchesCount(results.size());
-        
         List<ProcessAvailableBatchDto.ProcessBatchDetailDto> batchDtos = new ArrayList<>();
+
         for (Object[] row : results) {
             com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo i = (com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo) row[0];
             RailIEProductionVerification v = (RailIEProductionVerification) row[1];
             com.sarthi.SRailPad.entity.plantDeclaration.RailProductionDeclaration d = (com.sarthi.SRailPad.entity.plantDeclaration.RailProductionDeclaration) row[2];
 
+            int produced = i.getQuantityProduced() != null ? i.getQuantityProduced() : 0;
+            int alreadyAccepted = acceptedInOtherCallsMap.getOrDefault(i.getId(), 0);
+            int available = produced - alreadyAccepted;
+
+            // If completely consumed in previous calls, do not show in available batches
+            if (available <= 0) {
+                continue;
+            }
+
             ProcessAvailableBatchDto.ProcessBatchDetailDto bd = new ProcessAvailableBatchDto.ProcessBatchDetailDto();
-            bd.setDeclarationBatchId(i.getId()); // Mapping declarationBatchId to RailIEProductionInfo ID
+            bd.setDeclarationBatchId(i.getId());
             bd.setBatchNo(i.getBatchNo());
-            bd.setQtyManufactured(i.getQuantityProduced());
+            bd.setQtyManufactured(produced);
+            bd.setAvailableQty(available);
+            bd.setAlreadyAcceptedQty(alreadyAccepted);
             bd.setProductionDate(v.getCastingDate() != null ? v.getCastingDate() : d.getProductionDate());
             bd.setDrawingNo(i.getDrawingNo());
-            
+
+            // Check original rejections from verification
+            int alreadyRejected = rejectedInOtherCallsMap.getOrDefault(i.getId(), 0);
             if (v.getRejections() != null) {
                 List<com.sarthi.SRailPad.entity.ieVerification.RailIEProductionRejection> batchRejections = v.getRejections().stream()
                         .filter(r -> r.getBatchNo() != null && r.getBatchNo().equals(i.getBatchNo()))
@@ -158,34 +196,51 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                         .collect(java.util.stream.Collectors.toList());
 
                 if (!batchRejections.isEmpty()) {
-                    int totalRejectedQty = batchRejections.stream()
+                    int originalRejectedQty = batchRejections.stream()
                             .mapToInt(r -> r.getRejectedQty() != null ? r.getRejectedQty() : 0)
                             .sum();
-                    String combinedReasons = batchRejections.stream()
-                            .map(r -> r.getReason())
-                            .filter(reason -> reason != null && !reason.isBlank())
-                            .distinct()
-                            .collect(java.util.stream.Collectors.joining(", "));
-                    bd.setVerificationRejectedQty(totalRejectedQty);
-                    bd.setVerificationRejectedReason(combinedReasons);
-                    
-                    List<ProcessAvailableBatchDto.RejectionDetailDto> rejectionDtos = batchRejections.stream().map(r -> {
-                        ProcessAvailableBatchDto.RejectionDetailDto rDto = new ProcessAvailableBatchDto.RejectionDetailDto();
-                        rDto.setDrawingNo(r.getDrawingNo());
-                        rDto.setReason(r.getReason());
-                        rDto.setRejectedQty(r.getRejectedQty());
-                        return rDto;
-                    }).collect(java.util.stream.Collectors.toList());
-                    bd.setRejections(rejectionDtos);
+
+                    // Rejections are consumed once in the first call where this batch is inspected
+                    int remainingRejection = Math.max(0, originalRejectedQty - alreadyRejected);
+                    if (remainingRejection > 0 && alreadyRejected == 0) {
+                        String combinedReasons = batchRejections.stream()
+                                .map(r -> r.getReason())
+                                .filter(reason -> reason != null && !reason.isBlank())
+                                .distinct()
+                                .collect(java.util.stream.Collectors.joining(", "));
+                        bd.setVerificationRejectedQty(remainingRejection);
+                        bd.setVerificationRejectedReason(combinedReasons);
+
+                        List<ProcessAvailableBatchDto.RejectionDetailDto> rejectionDtos = batchRejections.stream().map(r -> {
+                            ProcessAvailableBatchDto.RejectionDetailDto rDto = new ProcessAvailableBatchDto.RejectionDetailDto();
+                            rDto.setDrawingNo(r.getDrawingNo());
+                            rDto.setReason(r.getReason());
+                            rDto.setRejectedQty(r.getRejectedQty());
+                            return rDto;
+                        }).collect(java.util.stream.Collectors.toList());
+                        bd.setRejections(rejectionDtos);
+                    } else {
+                        bd.setVerificationRejectedQty(0);
+                        bd.setVerificationRejectedReason(null);
+                        bd.setRejections(java.util.Collections.emptyList());
+                    }
+                } else {
+                    bd.setVerificationRejectedQty(0);
+                    bd.setVerificationRejectedReason(null);
+                    bd.setRejections(java.util.Collections.emptyList());
                 }
+            } else {
+                bd.setVerificationRejectedQty(0);
+                bd.setVerificationRejectedReason(null);
+                bd.setRejections(java.util.Collections.emptyList());
             }
 
             batchDtos.add(bd);
         }
-        
+
+        dto.setTotalBatchesCount(batchDtos.size());
         dto.setBatches(batchDtos);
-        // Returning a List of ProcessAvailableBatchDto is better. I will adjust the return type in controller.
-        return dto; 
+        return dto;
     }
 
     @Override
@@ -215,7 +270,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         }
         result.setShift(saveDto.getShift());
         result.setInspectionDate(saveDto.getInspectionDate());
-        
+
         if (result.getBatches() != null) {
             result.getBatches().clear();
         } else {
@@ -228,7 +283,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 batch.setResult(result);
                 batch.setDeclarationBatchId(bDto.getDeclarationBatchId());
                 batch.setBatchNo(bDto.getBatchNo());
-                
+
                 String drawingNo = bDto.getDrawingNo();
                 String batchRejectionReason = bDto.getReasonForRejection();
 
@@ -259,12 +314,26 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                     drawingNo = call.getDrawingNo();
                 }
 
+                int mQty = bDto.getQtyManufactured() != null ? bDto.getQtyManufactured() : 0;
+                int availQty = bDto.getQtyAvailable() != null ? bDto.getQtyAvailable() : mQty;
+                int accQty = bDto.getQtyAccepted() != null ? bDto.getQtyAccepted() : 0;
+                int rejQty = bDto.getQtyRejected() != null ? bDto.getQtyRejected() : 0;
+
+                // Validation rules
+                if (accQty > availQty) {
+                    throw new IllegalArgumentException("Accepted quantity (" + accQty + ") cannot exceed available quantity (" + availQty + ") for batch " + bDto.getBatchNo());
+                }
+
+                int remQty = Math.max(0, availQty - accQty);
+
                 batch.setDrawingNo(drawingNo);
                 batch.setReasonForRejection(batchRejectionReason);
                 batch.setProductionDate(bDto.getProductionDate());
-                batch.setQtyManufactured(bDto.getQtyManufactured());
-                batch.setQtyRejected(bDto.getQtyRejected());
-                batch.setQtyAccepted(bDto.getQtyAccepted());
+                batch.setQtyManufactured(mQty);
+                batch.setQtyAvailable(availQty);
+                batch.setQtyRejected(rejQty);
+                batch.setQtyAccepted(accQty);
+                batch.setQtyRemaining(remQty);
                 result.getBatches().add(batch);
             }
         }
@@ -275,10 +344,10 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             // Update the main process call details
             RailProcessCallDetails details = processCallDetailsRepository.findByInspectionCall_CallNo(saveDto.getCallNo())
                 .orElseThrow(() -> new RuntimeException("Process Call Details not found"));
-            
+
             int acceptedTillNow = details.getQtyAcceptedTillNow() != null ? details.getQtyAcceptedTillNow() : 0;
-            details.setQtyAcceptedTillNow(acceptedTillNow + saveDto.getTotalAcceptedQty());
-            
+            details.setQtyAcceptedTillNow(acceptedTillNow + (saveDto.getTotalAcceptedQty() != null ? saveDto.getTotalAcceptedQty() : 0));
+
             int newDue = details.getQtyOnOrder() - details.getQtyAcceptedTillNow() - details.getQtyDesiredForFinal();
             details.setQtyDue(Math.max(0, newDue));
             processCallDetailsRepository.save(details);
@@ -321,7 +390,9 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 bd.setReasonForRejection(b.getReasonForRejection());
                 bd.setProductionDate(b.getProductionDate());
                 bd.setQtyManufactured(b.getQtyManufactured());
+                bd.setQtyAvailable(b.getQtyAvailable());
                 bd.setQtyRejected(b.getQtyRejected());
+                bd.setQtyRemaining(b.getQtyRemaining());
                 
                 int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
                 int rQty = b.getQtyRejected() != null ? b.getQtyRejected() : 0;
@@ -412,7 +483,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
             int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
             int rQty = b.getQtyRejected() != null ? b.getQtyRejected() : 0;
-            int netAccepted = Math.max(0, mQty - rQty);
+            int netAccepted = (b.getQtyAccepted() != null && b.getQtyAccepted() > 0) ? b.getQtyAccepted() : Math.max(0, mQty - rQty);
 
             b.setQtyAccepted(netAccepted);
             b.setPreviouslyOfferedQty(alreadyOffered);
