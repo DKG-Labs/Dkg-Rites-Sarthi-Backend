@@ -1025,11 +1025,31 @@ ORDER BY um.employee_code
 
         ph.case_no AS caseNo,
 
-        (
-            SELECT vpp.rio
-            FROM vendor_plant vpp
-            WHERE vpp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
-            LIMIT 1
+        COALESCE(
+            (
+                SELECT vpp.rio
+                FROM vendor_plant vpp
+                WHERE vpp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+                LIMIT 1
+            ),
+            (
+                SELECT ifm.rio
+                FROM sleeper_pincode_poi_mapping sppm
+                JOIN ie_fields_mapping ifm
+                    ON ifm.pin_code COLLATE utf8mb4_unicode_ci = sppm.pin_code COLLATE utf8mb4_unicode_ci
+                   AND ifm.product COLLATE utf8mb4_unicode_ci = 'Sleeper'
+                WHERE CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(sic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                LIMIT 1
+            ),
+            (
+                SELECT swt.rio
+                FROM sleeper_workflow_transaction swt
+                WHERE swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+                  AND swt.rio IS NOT NULL
+                ORDER BY swt.workflow_transition_id DESC
+                LIMIT 1
+            ),
+            ph.region_code
         ) AS rio,
 
         sic.plant_id AS plantId
