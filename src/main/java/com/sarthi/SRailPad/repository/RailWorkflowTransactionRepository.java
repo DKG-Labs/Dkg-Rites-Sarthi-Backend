@@ -18,11 +18,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
             AND t.nextRole = :roleName
@@ -31,11 +30,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
             AND t.nextRole = :roleName
@@ -47,11 +45,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
             AND t.nextRole = :roleName
@@ -62,11 +59,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
@@ -76,11 +72,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
@@ -93,11 +88,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
@@ -144,11 +138,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             """)
@@ -156,11 +149,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND (:workflowId IS NULL OR t.workflowId = :workflowId)
@@ -171,11 +163,10 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
@@ -184,13 +175,12 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
+            WHERE t.workflowTransitionId IN (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
-                AND t2.workflowId = 2
+                WHERE t2.workflowId = 2
                 AND (UPPER(t2.status) = 'COMPLETED' OR UPPER(t2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.action, '')) LIKE '%CANCEL%')
+                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND t.workflowId = 2

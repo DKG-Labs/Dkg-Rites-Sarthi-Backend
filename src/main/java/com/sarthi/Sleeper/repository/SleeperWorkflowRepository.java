@@ -227,11 +227,11 @@ AND t.status = 'Completed'
 
     @Query("""
         SELECT t FROM SleeperWorkflowTransaction t
-        WHERE t.workflowTransitionId = (
+        WHERE t.workflowTransitionId IN (
             SELECT MAX(t2.workflowTransitionId)
             FROM SleeperWorkflowTransaction t2
-            WHERE t2.requestId = t.requestId
-              AND t2.workflowId = 2
+            WHERE t2.workflowId = 2
+            GROUP BY t2.requestId
         )
         AND t.workflowId = 2
     """)
@@ -239,11 +239,11 @@ AND t.status = 'Completed'
 
     @Query("""
         SELECT t FROM SleeperWorkflowTransaction t
-        WHERE t.workflowTransitionId = (
+        WHERE t.workflowTransitionId IN (
             SELECT MAX(t2.workflowTransitionId)
             FROM SleeperWorkflowTransaction t2
-            WHERE t2.requestId = t.requestId
-              AND t2.workflowId = 2
+            WHERE t2.workflowId = 2
+            GROUP BY t2.requestId
         )
         AND t.workflowId = 2
         AND t.plantId = :plantId
