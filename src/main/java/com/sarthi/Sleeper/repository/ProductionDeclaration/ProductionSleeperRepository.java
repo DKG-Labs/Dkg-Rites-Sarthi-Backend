@@ -10,57 +10,89 @@ import java.util.List;
 
 @Repository
 public interface ProductionSleeperRepository extends JpaRepository<ProductionSleeper, Long> {
-    @Query("""
-SELECT s
-FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
-""")
-    List<ProductionSleeper> getSleepersByBatch(Long batchId);
+    @Query(value = """
+SELECT ps.*
+FROM production_sleeper ps
+WHERE ps.bench_group_id IN (
+    SELECT bg.id FROM production_bench_group bg
+    JOIN production_stress_chamber c ON c.id = bg.chamber_id
+    WHERE c.declaration_id = :batchId
+)
+UNION ALL
+SELECT ps.*
+FROM production_sleeper ps
+WHERE ps.gang_id IN (
+    SELECT g.id FROM production_longline_gang g
+    WHERE g.declaration_id = :batchId
+)
+""", nativeQuery = true)
+    List<ProductionSleeper> getSleepersByBatch(@Param("batchId") Long batchId);
 
-    @Query("""
-SELECT s
-FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId AND b.sleeperType = :sleeperType)
-   OR (g.declaration.id = :batchId AND g.sleeperType = :sleeperType)
-""")
-   List<ProductionSleeper> getSleepersByBatchAndType(Long batchId, String sleeperType);
+    @Query(value = """
+SELECT ps.*
+FROM production_sleeper ps
+WHERE ps.bench_group_id IN (
+    SELECT bg.id FROM production_bench_group bg
+    JOIN production_stress_chamber c ON c.id = bg.chamber_id
+    WHERE c.declaration_id = :batchId AND bg.sleeper_type = :sleeperType
+)
+UNION ALL
+SELECT ps.*
+FROM production_sleeper ps
+WHERE ps.gang_id IN (
+    SELECT g.id FROM production_longline_gang g
+    WHERE g.declaration_id = :batchId AND g.sleeper_type = :sleeperType
+)
+""", nativeQuery = true)
+   List<ProductionSleeper> getSleepersByBatchAndType(@Param("batchId") Long batchId, @Param("sleeperType") String sleeperType);
 
-    @Query("""
-SELECT COUNT(s.id)
-FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
-""")
-    Long countByBatchId(Long batchId);
+    @Query(value = """
+SELECT (
+    (SELECT COUNT(ps.id) FROM production_sleeper ps
+     WHERE ps.bench_group_id IN (
+         SELECT bg.id FROM production_bench_group bg
+         JOIN production_stress_chamber c ON c.id = bg.chamber_id
+         WHERE c.declaration_id = :batchId
+     ))
+    +
+    (SELECT COUNT(ps.id) FROM production_sleeper ps
+     WHERE ps.gang_id IN (
+         SELECT g.id FROM production_longline_gang g
+         WHERE g.declaration_id = :batchId
+     ))
+)
+""", nativeQuery = true)
+    Long countByBatchId(@Param("batchId") Long batchId);
 
-    @Query("""
-SELECT COUNT(s.id)
-FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId AND b.sleeperType = :sleeperType)
-   OR (g.declaration.id = :batchId AND g.sleeperType = :sleeperType)
-""")
-    Long countByBatchIdAndType(Long batchId, String sleeperType);
+    @Query(value = """
+SELECT (
+    (SELECT COUNT(ps.id) FROM production_sleeper ps
+     WHERE ps.bench_group_id IN (
+         SELECT bg.id FROM production_bench_group bg
+         JOIN production_stress_chamber c ON c.id = bg.chamber_id
+         WHERE c.declaration_id = :batchId AND bg.sleeper_type = :sleeperType
+     ))
+    +
+    (SELECT COUNT(ps.id) FROM production_sleeper ps
+     WHERE ps.gang_id IN (
+         SELECT g.id FROM production_longline_gang g
+         WHERE g.declaration_id = :batchId AND g.sleeper_type = :sleeperType
+     ))
+)
+""", nativeQuery = true)
+    Long countByBatchIdAndType(@Param("batchId") Long batchId, @Param("sleeperType") String sleeperType);
 
-@Query("""
-SELECT DISTINCT COALESCE(b.sleeperType, g.sleeperType)
-FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
-""")
-List<String> getSleeperTypeByBatch(Long batchId);
+    @Query(value = """
+SELECT DISTINCT bg.sleeper_type
+FROM production_bench_group bg
+JOIN production_stress_chamber c ON c.id = bg.chamber_id
+WHERE c.declaration_id = :batchId
+UNION
+SELECT DISTINCT g.sleeper_type
+FROM production_longline_gang g
+WHERE g.declaration_id = :batchId
+""", nativeQuery = true)
+    List<String> getSleeperTypeByBatch(@Param("batchId") Long batchId);
     @Query("SELECT s.sleeperNo FROM ProductionSleeper s " +
             "WHERE s.benchGroup.chamber.declaration.batchNumber = :batchNo " +
             "AND s.benchGroup.benchNo = :benchNo " +
