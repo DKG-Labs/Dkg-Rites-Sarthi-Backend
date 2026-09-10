@@ -32,10 +32,8 @@ public class ProcessInspectionSaveDto {
         private String reasonForRejection;
         private LocalDate productionDate;
         private Integer qtyManufactured;
-        private Integer qtyAvailable;
         private Integer qtyRejected;
         private Integer qtyAccepted;
-        private Integer qtyRemaining;
         private Integer previouslyOfferedQty;
     }
 }

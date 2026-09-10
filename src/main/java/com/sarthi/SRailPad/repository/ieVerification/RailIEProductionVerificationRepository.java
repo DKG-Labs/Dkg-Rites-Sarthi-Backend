@@ -17,10 +17,16 @@ public interface RailIEProductionVerificationRepository extends JpaRepository<Ra
            "JOIN v.productionInfos i " +
            "JOIN RailProductionDeclaration d ON v.requestId = d.id " +
            "WHERE (d.poNo = :poNo OR d.poNo LIKE CONCAT('%', :poNo, '%') OR :poNo LIKE CONCAT('%', d.poNo, '%')) " +
-           "AND i.productType = :railPadType")
+           "AND i.productType = :railPadType " +
+           "AND i.id NOT IN (" +
+           "  SELECT ib.declarationBatchId FROM RailProcessInspectionBatch ib " +
+           "  WHERE ib.declarationBatchId IS NOT NULL " +
+           "  AND ib.result.inspectionCall.callNo <> :currentCallNo" +
+           ")")
     java.util.List<Object[]> findAvailableInfosForProcessIc(
             @org.springframework.data.repository.query.Param("poNo") String poNo,
-            @org.springframework.data.repository.query.Param("railPadType") String railPadType);
+            @org.springframework.data.repository.query.Param("railPadType") String railPadType,
+            @org.springframework.data.repository.query.Param("currentCallNo") String currentCallNo);
 
     @Query(value = "SELECT COALESCE(SUM(rejected_qty), 0) FROM rail_ie_production_rejection", nativeQuery = true)
     long sumAllRejectedQty();
