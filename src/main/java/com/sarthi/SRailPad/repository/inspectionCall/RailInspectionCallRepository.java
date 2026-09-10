@@ -191,14 +191,18 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                     ON CONVERT(ricd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_call_cancellation_details cd
                    ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN rail_workflow_transaction wt
-                    ON wt.workflow_transition_id = (
-                        SELECT MAX(wt2.workflow_transition_id)
-                        FROM rail_workflow_transaction wt2
-                        WHERE CONVERT(wt2.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                              CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                          AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
-                    )
+            LEFT JOIN (
+                SELECT rwt2.request_id, rwt2.workflow_transition_id, rwt2.created_by, rwt2.created_date
+                FROM rail_workflow_transaction rwt2
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_cancel_id
+                    FROM rail_workflow_transaction
+                    WHERE UPPER(status) LIKE '%CANCEL%' OR UPPER(COALESCE(job_status, '')) LIKE '%CANCEL%'
+                    GROUP BY request_id
+                ) max_c
+                    ON rwt2.workflow_transition_id = max_c.max_cancel_id
+            ) wt
+                    ON CONVERT(wt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci

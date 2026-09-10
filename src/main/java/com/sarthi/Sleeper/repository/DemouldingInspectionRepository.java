@@ -60,55 +60,29 @@ WHERE d.batchNo = :batchNo
     boolean existsDemoulding(String batchNo);
 
     @Query(value = """
-SELECT COUNT(ps.id)
+SELECT COUNT(d.id)
 FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection di ON di.id = d.inspection_id
-JOIN production_declaration pd ON pd.batch_number COLLATE utf8mb4_unicode_ci = di.batch_no COLLATE utf8mb4_unicode_ci
-LEFT JOIN production_stress_chamber c ON c.declaration_id = pd.id
-LEFT JOIN production_bench_group bg ON bg.chamber_id = c.id
-LEFT JOIN production_longline_gang g ON g.declaration_id = pd.id
-JOIN production_sleeper ps ON (ps.bench_group_id = bg.id OR ps.gang_id = g.id) AND ps.sleeper_no COLLATE utf8mb4_unicode_ci = d.sleeper_no COLLATE utf8mb4_unicode_ci
 WHERE di.batch_no = :batchNo
-  AND ( (d.visual_reason IS NOT NULL AND d.visual_reason <> '') OR (d.dim_reason IS NOT NULL AND d.dim_reason <> '') )
+  AND ( (d.visual_reason IS NOT NULL AND TRIM(d.visual_reason) <> '') OR (d.dim_reason IS NOT NULL AND TRIM(d.dim_reason) <> '') )
 """, nativeQuery = true)
     Long countDemouldingRejected(@Param("batchNo") String batchNo);
 
     @Query(value = """
-SELECT di.batch_no, COUNT(ps.id)
+SELECT di.batch_no, COUNT(d.id)
 FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection di ON di.id = d.inspection_id
-JOIN production_declaration pd ON pd.batch_number COLLATE utf8mb4_unicode_ci = di.batch_no COLLATE utf8mb4_unicode_ci
-LEFT JOIN production_stress_chamber c ON c.declaration_id = pd.id
-LEFT JOIN production_bench_group bg ON bg.chamber_id = c.id
-LEFT JOIN production_longline_gang g ON g.declaration_id = pd.id
-JOIN production_sleeper ps ON (ps.bench_group_id = bg.id OR ps.gang_id = g.id) AND ps.sleeper_no COLLATE utf8mb4_unicode_ci = d.sleeper_no COLLATE utf8mb4_unicode_ci
 WHERE di.batch_no IN :batchNos
-  AND ( (d.visual_reason IS NOT NULL AND d.visual_reason <> '') OR (d.dim_reason IS NOT NULL AND d.dim_reason <> '') )
+  AND ( (d.visual_reason IS NOT NULL AND TRIM(d.visual_reason) <> '') OR (d.dim_reason IS NOT NULL AND TRIM(d.dim_reason) <> '') )
 GROUP BY di.batch_no
 """, nativeQuery = true)
     List<Object[]> countDemouldingRejectedByBatchNos(@Param("batchNos") List<String> batchNos);
 
-   /* @Query(value = """
+   @Query(value = """
     SELECT di.inspection_date AS inspectionDate,
            COUNT(dds.id) AS rejectedCount
     FROM demoulding_inspection di
-    LEFT JOIN demoulding_defective_sleepers dds 
-           ON di.id = dds.inspection_id
-    WHERE di.batch_no = :batchNo
-    GROUP BY di.inspection_date
-    LIMIT 1
-""", nativeQuery = true)
-    DemouldingProjection getDemouldingData(String batchNo);*/
-   @Query(value = """
-    SELECT di.inspection_date AS inspectionDate,
-           COUNT(ps.id) AS rejectedCount
-    FROM demoulding_inspection di
     JOIN demoulding_defective_sleepers dds ON di.id = dds.inspection_id
-    JOIN production_declaration pd ON pd.batch_number COLLATE utf8mb4_unicode_ci = di.batch_no COLLATE utf8mb4_unicode_ci
-    LEFT JOIN production_stress_chamber c ON c.declaration_id = pd.id
-    LEFT JOIN production_bench_group bg ON bg.chamber_id = c.id
-    LEFT JOIN production_longline_gang g ON g.declaration_id = pd.id
-    JOIN production_sleeper ps ON (ps.bench_group_id = bg.id OR ps.gang_id = g.id) AND ps.sleeper_no COLLATE utf8mb4_unicode_ci = dds.sleeper_no COLLATE utf8mb4_unicode_ci
     WHERE di.batch_no = :batchNo
       AND (
             TRIM(COALESCE(dds.visual_reason, '')) <> ''
