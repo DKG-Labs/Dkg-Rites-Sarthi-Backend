@@ -41,6 +41,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -665,57 +666,46 @@ public class IbsServiceImpl implements IbsService {
     @Transactional(readOnly = true)
     public List<IbsInspectionDto> getAllGeneratedIcCalls() {
 
-        List<IbsInspectionDto> responseList =
-                new ArrayList<>();
+        CompletableFuture<List<IbsInspectionDto>> f1 = CompletableFuture.supplyAsync(() ->
+                mapResult(rmHeatFinalResultRepository.getRmInspectionCalls()));
 
+        CompletableFuture<List<IbsInspectionDto>> f2 = CompletableFuture.supplyAsync(() ->
+                mapResult(processLineFinalResultRepository.getProcessInspectionCalls()));
 
-        responseList.addAll(
-                mapResult(
-                        rmHeatFinalResultRepository.getRmInspectionCalls()
-                )
-        );
+        CompletableFuture<List<IbsInspectionDto>> f3 = CompletableFuture.supplyAsync(() ->
+                mapResult(finalCumulativeResultsRepository.getFinalInspectionCalls()));
 
-        responseList.addAll(
-                mapResult(
-                        processLineFinalResultRepository.getProcessInspectionCalls()
-                )
-        );
+        CompletableFuture<List<IbsInspectionDto>> f4 = CompletableFuture.supplyAsync(() ->
+                mapResult(railpadProcessIcEditRepository.getRailpadProcessInspectionCalls()));
 
-        responseList.addAll(
-                mapResult(
-                        finalCumulativeResultsRepository.getFinalInspectionCalls()
-                )
-        );
+        CompletableFuture<List<IbsInspectionDto>> f5 = CompletableFuture.supplyAsync(() ->
+                mapResult(railpadFinalIcEditRepository.getRailpadFinalInspectionCalls()));
 
-        responseList.addAll(
-                mapResult(
-                        railpadProcessIcEditRepository.getRailpadProcessInspectionCalls()
-                )
-        );
+        CompletableFuture<List<IbsInspectionDto>> f6 = CompletableFuture.supplyAsync(() ->
+                mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls()));
 
-        responseList.addAll(
-                mapResult(
-                        railpadFinalIcEditRepository.getRailpadFinalInspectionCalls()
-                )
-        );
+        CompletableFuture<List<IbsInspectionDto>> f7 = CompletableFuture.supplyAsync(() ->
+                mapResult(sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls()));
 
-        responseList.addAll(
-                mapResult(
-                        railInspectionCallRepository.getRailpadCancelledInspectionCalls()
-                )
-        );
+        CompletableFuture<List<IbsInspectionDto>> f8 = CompletableFuture.supplyAsync(() ->
+                mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls()));
 
-        responseList.addAll(
-                mapResult(
-                        sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls()
-                )
-        );
+        CompletableFuture.allOf(f1, f2, f3, f4, f5, f6, f7, f8).join();
 
-        responseList.addAll(
-                mapResult(
-                        sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls()
-                )
-        );
+        List<IbsInspectionDto> responseList = new ArrayList<>();
+        try {
+            responseList.addAll(f1.get());
+            responseList.addAll(f2.get());
+            responseList.addAll(f3.get());
+            responseList.addAll(f4.get());
+            responseList.addAll(f5.get());
+            responseList.addAll(f6.get());
+            responseList.addAll(f7.get());
+            responseList.addAll(f8.get());
+        } catch (Exception e) {
+            log.error("Error fetching IBS inspection calls in parallel: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch IBS inspection calls: " + e.getMessage(), e);
+        }
 
         return responseList;
     }
@@ -726,6 +716,10 @@ public class IbsServiceImpl implements IbsService {
 
         List<IbsInspectionDto> list =
                 new ArrayList<>();
+
+        if (rows == null) {
+            return list;
+        }
 
         for (Object[] row : rows) {
 

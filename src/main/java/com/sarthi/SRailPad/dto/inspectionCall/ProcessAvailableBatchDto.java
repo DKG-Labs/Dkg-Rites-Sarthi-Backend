@@ -15,6 +15,8 @@ public class ProcessAvailableBatchDto {
         private Long declarationBatchId;
         private String batchNo;
         private Integer qtyManufactured;
+        private Integer availableQty;
+        private Integer alreadyAcceptedQty;
         private LocalDate productionDate;
         private String drawingNo;
         private Integer verificationRejectedQty;

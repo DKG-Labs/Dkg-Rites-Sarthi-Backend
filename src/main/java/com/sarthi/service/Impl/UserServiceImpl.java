@@ -138,7 +138,13 @@ public class UserServiceImpl implements UserService {
         userMaster.setCreatedBy(userDto.getCreatedBy());
         userMaster.setEmployeeId(userDto.getEmployeeId());
 
-        userMaster.setEmployeeCode(userDto.getEmployeeCode());
+        if (userDto.getUserId() != null) {
+            if (userDto.getEmployeeCode() != null && !userDto.getEmployeeCode().trim().isEmpty()) {
+                userMaster.setEmployeeCode(userDto.getEmployeeCode());
+            }
+        } else {
+            userMaster.setEmployeeCode(userDto.getEmployeeCode());
+        }
         userMaster.setRitesEmployeeCode(userDto.getRitesEmployeeCode());
         userMaster.setEmploymentType(userDto.getEmploymentType());
         userMaster.setFullName(userDto.getFullName());
@@ -249,37 +255,47 @@ public class UserServiceImpl implements UserService {
             }
             if (roleName.equalsIgnoreCase("ZONAL RAILWAY")) {
 
-                String roleCode = "ZR";
-                String zoneCode = userDto.getZonalRly(); // CR
+                boolean hasExistingCode = (userMaster.getEmployeeCode() != null && !userMaster.getEmployeeCode().trim().isEmpty());
+                boolean isUpdate = (userDto.getUserId() != null);
 
-                EmployeeCodeSequence seq =
-                        employeeCodeSequenceRepository
-                                .findByRoleCodeAndZoneCode(roleCode, zoneCode)
-                                .orElse(null);
+                // Only generate a new sequence-based employee code on new user creation
+                // or if the user doesn't already have an employee code assigned
+                if (!isUpdate || !hasExistingCode) {
+                    String roleCode = "ZR";
+                    String zoneCode = userDto.getZonalRly(); // CR
 
-                int nextNumber = 1;
+                    if (zoneCode != null && !zoneCode.trim().isEmpty()) {
+                        EmployeeCodeSequence seq =
+                                employeeCodeSequenceRepository
+                                        .findByRoleCodeAndZoneCode(roleCode, zoneCode)
+                                        .orElse(null);
 
-                if (seq == null) {
+                        int nextNumber = 1;
 
-                    seq = new EmployeeCodeSequence();
-                    seq.setRoleCode(roleCode);
-                    seq.setZoneCode(zoneCode);
-                    seq.setLastNumber(1);
+                        if (seq == null) {
 
-                } else {
+                            seq = new EmployeeCodeSequence();
+                            seq.setRoleCode(roleCode);
+                            seq.setZoneCode(zoneCode);
+                            seq.setLastNumber(1);
 
-                    nextNumber = seq.getLastNumber() + 1;
-                    seq.setLastNumber(nextNumber);
+                        } else {
+
+                            nextNumber = seq.getLastNumber() + 1;
+                            seq.setLastNumber(nextNumber);
+                        }
+
+                        employeeCodeSequenceRepository.save(seq);
+
+                        String employeeCode =
+                                roleCode +
+                                        zoneCode +
+                                        String.format("%02d", nextNumber);
+
+                        userMaster.setEmployeeCode(employeeCode);
+                        userMasterRepository.save(userMaster);
+                    }
                 }
-
-                employeeCodeSequenceRepository.save(seq);
-
-                String employeeCode =
-                        roleCode +
-                                zoneCode +
-                                String.format("%02d", nextNumber);
-
-                userMaster.setEmployeeCode(employeeCode);
             }
 
 //
