@@ -10,5 +10,6 @@ import java.util.Optional;
 
 @Repository
 public interface IEBatchSummaryRepository extends JpaRepository<IEBatchSummary, Long> {
-  Optional<IEBatchSummary> findByCallNo(String callNo);
+    List<IEBatchSummary> findByCallNo(String callNo);
+    Optional<IEBatchSummary> findByCallNoAndBatchNo(String callNo, String batchNo);
 }

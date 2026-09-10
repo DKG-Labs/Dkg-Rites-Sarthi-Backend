@@ -52,8 +52,17 @@ public class FinalCallServiceImpl implements FinalCallService {
     @Override
     public FinalCallResponseDto update( FinalCallRequestDto dto) {
 
-            IEBatchSummary entity = repository.findByCallNo(dto.getCallNo())
-                    .orElseThrow(() -> new RuntimeException("Data not found for callNo: " + dto.getCallNo()));
+            IEBatchSummary entity;
+            if (dto.getBatchNo() != null && !dto.getBatchNo().trim().isEmpty()) {
+                entity = repository.findByCallNoAndBatchNo(dto.getCallNo(), dto.getBatchNo().trim())
+                        .orElseThrow(() -> new RuntimeException("Data not found for callNo: " + dto.getCallNo() + " and batchNo: " + dto.getBatchNo()));
+            } else {
+                List<IEBatchSummary> list = repository.findByCallNo(dto.getCallNo());
+                if (list.isEmpty()) {
+                    throw new RuntimeException("Data not found for callNo: " + dto.getCallNo());
+                }
+                entity = list.get(0);
+            }
 
             //IEBatchSummary entity = repository.findById(id).orElseThrow(() -> new RuntimeException("Batch not found"));
 

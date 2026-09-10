@@ -35,7 +35,7 @@ public class ProductionLongLineGang {
 
     private java.time.LocalTime lbcTime;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="declaration_id")
     private ProductionDeclaration declaration;
 

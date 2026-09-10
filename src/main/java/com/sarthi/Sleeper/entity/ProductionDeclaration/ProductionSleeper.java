@@ -16,10 +16,10 @@ public class ProductionSleeper {
     @Column(name = "sleeper_type")
     private String sleeperType;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="bench_group_id")
     private ProductionBenchGroup benchGroup;
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "gang_id")
     private ProductionLongLineGang gang;
 }

@@ -27,7 +27,7 @@ public class ProductionBenchGroup {
 
     private Integer totalSleepers;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="chamber_id")
     private ProductionStressChamber chamber;
 
