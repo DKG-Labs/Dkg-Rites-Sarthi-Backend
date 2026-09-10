@@ -41,16 +41,9 @@ public class RailProcessInspectionBatch {
     @Column(name = "qty_manufactured")
     private Integer qtyManufactured;
 
-    @Column(name = "qty_available")
-    private Integer qtyAvailable;
-
     @Column(name = "qty_rejected")
     private Integer qtyRejected;
 
     @Column(name = "qty_accepted")
     private Integer qtyAccepted;
-
-    @Column(name = "qty_remaining")
-    private Integer qtyRemaining;
 }
-

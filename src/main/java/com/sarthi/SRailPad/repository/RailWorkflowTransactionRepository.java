@@ -18,10 +18,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
             AND t.nextRole = :roleName
@@ -30,10 +31,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
             AND t.nextRole = :roleName
@@ -45,10 +47,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
             AND t.nextRole = :roleName
@@ -59,10 +62,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
@@ -72,10 +76,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
@@ -88,10 +93,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
@@ -138,10 +144,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             """)
@@ -149,10 +156,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND (:workflowId IS NULL OR t.workflowId = :workflowId)
@@ -163,10 +171,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
+                WHERE t2.requestId = t.requestId
+                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
@@ -175,12 +184,13 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId IN (
+            WHERE t.workflowTransitionId = (
                 SELECT MAX(t2.workflowTransitionId)
                 FROM RailWorkflowTransaction t2
-                WHERE t2.workflowId = 2
+                WHERE t2.requestId = t.requestId
+                AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
+                AND t2.workflowId = 2
                 AND (UPPER(t2.status) = 'COMPLETED' OR UPPER(t2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.action, '')) LIKE '%CANCEL%')
-                GROUP BY t2.requestId, COALESCE(t2.moduleId, 0)
             )
             AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
             AND t.workflowId = 2
@@ -331,39 +341,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
     @Query(value = """
                 SELECT
                     ic.call_no AS inspectionCallNumber,
-                    COALESCE(
-                        NULLIF(CASE 
-                            WHEN vm.vendor_name IS NOT NULL AND vm.vendor_name != '' AND vm.vendor_name NOT REGEXP '^[0-9: /-]+$' 
-                            THEN vm.vendor_name 
-                            ELSE NULL 
-                        END, ''),
-                        NULLIF(CASE 
-                            WHEN ph.vendor_details IS NOT NULL AND ph.vendor_details != '' AND ph.vendor_details NOT REGEXP '^[0-9: /-]+$' 
-                            THEN TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)) 
-                            ELSE NULL 
-                        END, ''),
-                        NULLIF(CASE 
-                            WHEN ph.firm_details IS NOT NULL AND ph.firm_details != '' AND ph.firm_details NOT REGEXP '^[0-9: /-]+$' 
-                            THEN TRIM(ph.firm_details) 
-                            ELSE NULL 
-                        END, ''),
-                        (SELECT rvp.company_name FROM rail_vendor_plant rvp 
-                         WHERE CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                            OR CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                         LIMIT 1),
-                        (SELECT ppm.company_name FROM railpad_pincode_poi_mapping ppm 
-                         WHERE CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                            OR CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                         LIMIT 1),
-                        (SELECT vp.company_name FROM vendor_plant vp 
-                         WHERE CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                         LIMIT 1),
-                        NULLIF(TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)), ''),
-                        NULLIF(TRIM(ph.firm_details), ''),
-                        vm.vendor_name,
-                        ic.vendor_code
-                    ) AS vendor,
+                    COALESCE(vm.vendor_name, ic.vendor_code) AS vendor,
                     DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                     'Railpad' AS stageOfInspection,
                     CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no) AS poSrNo,
@@ -472,39 +450,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
     @Query(value = """
                 SELECT
                     ic.call_no AS inspectionCallNumber,
-                    COALESCE(
-                        NULLIF(CASE 
-                            WHEN vm.vendor_name IS NOT NULL AND vm.vendor_name != '' AND vm.vendor_name NOT REGEXP '^[0-9: /-]+$' 
-                            THEN vm.vendor_name 
-                            ELSE NULL 
-                        END, ''),
-                        NULLIF(CASE 
-                            WHEN ph.vendor_details IS NOT NULL AND ph.vendor_details != '' AND ph.vendor_details NOT REGEXP '^[0-9: /-]+$' 
-                            THEN TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)) 
-                            ELSE NULL 
-                        END, ''),
-                        NULLIF(CASE 
-                            WHEN ph.firm_details IS NOT NULL AND ph.firm_details != '' AND ph.firm_details NOT REGEXP '^[0-9: /-]+$' 
-                            THEN TRIM(ph.firm_details) 
-                            ELSE NULL 
-                        END, ''),
-                        (SELECT rvp.company_name FROM rail_vendor_plant rvp 
-                         WHERE CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                            OR CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                         LIMIT 1),
-                        (SELECT ppm.company_name FROM railpad_pincode_poi_mapping ppm 
-                         WHERE CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                            OR CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                         LIMIT 1),
-                        (SELECT vp.company_name FROM vendor_plant vp 
-                         WHERE CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
-                         LIMIT 1),
-                        NULLIF(TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)), ''),
-                        NULLIF(TRIM(ph.firm_details), ''),
-                        vm.vendor_name,
-                        ic.vendor_code
-                    ) AS vendor,
+                    COALESCE(vm.vendor_name, ic.vendor_code) AS vendor,
                     DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                     CASE
                         WHEN t.request_id LIKE 'RPP%' THEN 'Process'

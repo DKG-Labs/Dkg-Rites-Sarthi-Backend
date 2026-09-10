@@ -1142,18 +1142,14 @@ ORDER BY um.employee_code
                     ON CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sleeper_call_cancellation_details cd
                     ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT swt2.request_id, swt2.workflow_transition_id, swt2.created_by, swt2.created_date
-                FROM sleeper_workflow_transaction swt2
-                INNER JOIN (
-                    SELECT request_id, MAX(workflow_transition_id) AS max_cancel_id
-                    FROM sleeper_workflow_transaction
-                    WHERE UPPER(status) LIKE '%CANCEL%' OR UPPER(COALESCE(job_status, '')) LIKE '%CANCEL%'
-                    GROUP BY request_id
-                ) max_c
-                    ON swt2.workflow_transition_id = max_c.max_cancel_id
-            ) wt
-                    ON CONVERT(wt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sleeper_workflow_transaction wt
+                    ON wt.workflow_transition_id = (
+                        SELECT MAX(wt2.workflow_transition_id)
+                        FROM sleeper_workflow_transaction wt2
+                        WHERE CONVERT(wt2.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                              CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                          AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
+                    )
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci

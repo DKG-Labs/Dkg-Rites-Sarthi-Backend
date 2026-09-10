@@ -2,7 +2,6 @@ package com.sarthi.Sleeper.repository.FinalInspectionRepository;
 
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.WaterProjection;
 import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -12,10 +11,6 @@ import java.util.List;
 @Repository
 public interface WaterCubeStrengthTestRepository extends JpaRepository<WaterCubeStrengthTest, Long> {
 
-    @EntityGraph(attributePaths = {"details"})
-    List<WaterCubeStrengthTest> findAll();
-
-    @EntityGraph(attributePaths = {"details"})
     List<WaterCubeStrengthTest> findByCreatedBy(Long createdBy);
 
     List<WaterCubeStrengthTest> findByWaterCubeSampleDeclarationId(Long declarationId);
