@@ -1203,16 +1203,22 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     for (DemouldingDefectiveSleeper dds : di.getDefectiveSleepers()) {
                         String visReason = dds.getVisualReason() != null ? dds.getVisualReason().trim() : "";
                         String dimReason = dds.getDimReason() != null ? dds.getDimReason().trim() : "";
-                        if (!visReason.isEmpty() || !dimReason.isEmpty()) {
-                            String rawSleeperNo = dds.getSleeperNo();
-                            if (rawSleeperNo != null && !rawSleeperNo.isBlank()) {
-                                boolean alreadyInBad = badSleepers.stream().anyMatch(b ->
-                                        isSleeperMatch(b.getSleeperNo(), rawSleeperNo, currentBatchNo));
-                                if (!alreadyInBad) {
-                                    BadSleeperDto bad = new BadSleeperDto();
-                                    bad.setReason(!visReason.isEmpty() ? visReason : dimReason);
-                                    bad.setModuleId(4L);
-                                    bad.setModuleName("Demoulding");
+                        String resolvedNo = dds.getSleeperNo() != null ? dds.getSleeperNo().trim() : "";
+                        if (resolvedNo.isBlank()) {
+                            String bNo = dds.getBenchGangNo() != null ? dds.getBenchGangNo().trim() : "";
+                            String sNo = dds.getSequenceNo() != null ? dds.getSequenceNo().trim() : "";
+                            resolvedNo = bNo + sNo;
+                        }
+                        final String rawSleeperNo = resolvedNo;
+
+                        if (!rawSleeperNo.isBlank()) {
+                            boolean alreadyInBad = badSleepers.stream().anyMatch(b ->
+                                    isSleeperMatch(b.getSleeperNo(), rawSleeperNo, currentBatchNo));
+                            if (!alreadyInBad) {
+                                BadSleeperDto bad = new BadSleeperDto();
+                                bad.setReason(!visReason.isEmpty() ? visReason : (!dimReason.isEmpty() ? dimReason : "Demoulding Defect"));
+                                bad.setModuleId(4L);
+                                bad.setModuleName("Demoulding");
 
                                     // Match against production sleepers
                                     Optional<ProductionSleeper> prodMatch = allProdSleepers.stream()
@@ -1258,7 +1264,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         }
                     }
                 }
-            }
 
             // Uninspected Sleeper Recovery using in-memory list
             Set<Long> accountedBadIds = badSleepers.stream()
@@ -1392,13 +1397,12 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         if (s1.endsWith("/" + s2) || s1.endsWith("-" + s2) || s1.endsWith("_" + s2)) return true;
         if (s2.endsWith("/" + s1) || s2.endsWith("-" + s1) || s2.endsWith("_" + s1)) return true;
 
-        try {
-            String numStr1 = stripped1.replaceAll("[^0-9]", "");
-            String numStr2 = stripped2.replaceAll("[^0-9]", "");
-            if (!numStr1.isEmpty() && !numStr2.isEmpty() && Long.parseLong(numStr1) == Long.parseLong(numStr2)) {
-                return true;
-            }
-        } catch (Exception ignored) {}
+        // Numeric match only if BOTH are purely numeric (e.g. "01" and "1", never "1A" and "1Z")
+        if (stripped1.matches("\\d+") && stripped2.matches("\\d+")) {
+            try {
+                return Long.parseLong(stripped1) == Long.parseLong(stripped2);
+            } catch (Exception ignored) {}
+        }
 
         return false;
     }
