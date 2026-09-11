@@ -952,8 +952,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
     @Override
     public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatus() {
 
-       // List<ProductionDeclaration> entities = repository.findAll();
-        List<ProductionDeclaration> entities = repository.findAllExcludingMR();
+        List<ProductionDeclaration> entities = repository.findAll();
         // Existing status map
         Map<String, String> statusMap = sleeperWorkflowRepository
                 .findAllLatestStatuses(11L)
@@ -963,18 +962,17 @@ public List<ProductionDeclarationResponseDto> getAll() {
                         obj -> String.valueOf(obj[1])
                 ));
 
-        // Get water cube strength test map by normalized plantId and batch number
-        Map<String, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestMap = waterCubeStrengthTestRepository.findAll()
-                .stream()
-                .filter(t -> t.getBatchNumber() != null)
-                .collect(Collectors.toMap(
-                        t -> normalizeKey(t.getPlantId(), t.getBatchNumber()),
-                        test -> test,
-                        (existing, replacement) -> replacement
-                ));
+        // Map water cube strength tests by productionDeclarationId
+        Map<Long, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestByProdIdMap = new java.util.HashMap<>();
+
+        for (com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest t : waterCubeStrengthTestRepository.findAll()) {
+            if (t.getWaterCubeSampleDeclaration() != null && t.getWaterCubeSampleDeclaration().getProductionDeclarationId() != null) {
+                waterCubeTestByProdIdMap.put(t.getWaterCubeSampleDeclaration().getProductionDeclarationId(), t);
+            }
+        }
 
         return entities.stream()
-                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestMap))
+                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestByProdIdMap))
                 .toList();
     }
 
@@ -987,7 +985,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
     private ProductionDeclarationResponseDto mapToResponseWithWaterCube(
             ProductionDeclaration entity,
             Map<String, String> statusMap,
-            Map<String, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestMap) {
+            Map<Long, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestByProdIdMap) {
 
         ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
 
@@ -1033,8 +1031,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
         response.setSleeperType(sleeperDrawing);
         response.setDrawingNo(sleeperDrawing);
 
-        String lookupKey = normalizeKey(entity.getPlantId(), entity.getBatchNumber());
-        com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest wcTest = waterCubeTestMap.get(lookupKey);
+        com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest wcTest = waterCubeTestByProdIdMap.get(entity.getId());
         if (wcTest != null) {
             response.setWaterCubeTestStatus(true);
             response.setCondition2(Boolean.TRUE.equals(wcTest.getCondition2()));

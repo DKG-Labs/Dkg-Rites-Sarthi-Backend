@@ -13,17 +13,17 @@ import java.util.Optional;
 @Repository
 public interface WaterCubeStrengthTestRepository extends JpaRepository<WaterCubeStrengthTest, Long> {
 
-    @EntityGraph(attributePaths = {"details"})
+    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
     List<WaterCubeStrengthTest> findAll();
 
-    @EntityGraph(attributePaths = {"details"})
+    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
     List<WaterCubeStrengthTest> findByCreatedBy(Long createdBy);
 
-    @EntityGraph(attributePaths = {"details"})
+    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
     List<WaterCubeStrengthTest> findByWaterCubeSampleDeclarationId(Long declarationId);
 
     @Override
-    @EntityGraph(attributePaths = {"details"})
+    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
     Optional<WaterCubeStrengthTest> findById(Long id);
 
     @Query("""
