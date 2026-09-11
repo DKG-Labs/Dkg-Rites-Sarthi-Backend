@@ -43,6 +43,13 @@ AND UPPER(TRIM(w.finalTestResult)) LIKE 'PASS%'
 """)
     boolean hasPassedWaterCube(@org.springframework.data.repository.query.Param("batchNo") String batchNo);
 
+    @Query(value = """
+        SELECT DISTINCT TRIM(batch_number)
+        FROM water_cube_strength_test
+        WHERE UPPER(TRIM(final_test_result)) LIKE 'PASS%'
+    """, nativeQuery = true)
+    List<String> findAllPassedBatchNumbers();
+
     @Query("SELECT DISTINCT w.batchNumber FROM WaterCubeStrengthTest w")
     List<String> findAllBatchNumbers();
 

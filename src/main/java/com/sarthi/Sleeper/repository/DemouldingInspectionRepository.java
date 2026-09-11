@@ -18,6 +18,9 @@ public interface DemouldingInspectionRepository extends JpaRepository<Demoulding
 
     List<DemouldingInspection> findByBatchNoOrderByIdDesc(String batchNo);
 
+    @Query("SELECT DISTINCT d FROM DemouldingInspection d LEFT JOIN FETCH d.defectiveSleepers WHERE d.batchNo IN :batchNos ORDER BY d.id DESC")
+    List<DemouldingInspection> findByBatchNoInWithDefects(@Param("batchNos") java.util.Collection<String> batchNos);
+
     @Query("""
     SELECT d FROM DemouldingInspection d
     WHERE d.plantId = :plantId

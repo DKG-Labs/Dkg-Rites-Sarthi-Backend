@@ -878,28 +878,55 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 //            .map(this::mapToResponse)
 //            .toList();
 //}
-@Override
-public List<ProductionDeclarationResponseDto> getAll() {
+    private Map<Long, String> buildSleeperTypeMap() {
+        Map<Long, String> sleeperTypeMap = new HashMap<>();
+        List<Object[]> stressTypes = repository.findStressDeclarationSleeperTypes();
+        if (stressTypes != null) {
+            for (Object[] row : stressTypes) {
+                if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                    sleeperTypeMap.put(((Number) row[0]).longValue(), row[1].toString());
+                }
+            }
+        }
+        List<Object[]> longLineTypes = repository.findLongLineDeclarationSleeperTypes();
+        if (longLineTypes != null) {
+            for (Object[] row : longLineTypes) {
+                if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                    sleeperTypeMap.putIfAbsent(((Number) row[0]).longValue(), row[1].toString());
+                }
+            }
+        }
+        return sleeperTypeMap;
+    }
 
-    List<ProductionDeclaration> entities = repository.findAll();
+    @Override
+    public List<ProductionDeclarationResponseDto> getAll() {
 
+        List<ProductionDeclaration> entities = repository.findAll();
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-    Map<String, String> statusMap = sleeperWorkflowRepository
-            .findAllLatestStatuses(11L)
-            .stream()
-            .collect(Collectors.toMap(
-                    obj -> String.valueOf(obj[0]),
-                    obj -> String.valueOf(obj[1])
-            ));
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllLatestStatuses(11L)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
+                ));
 
-    return entities.stream()
-            .map(entity -> mapToResponse(entity, statusMap))
-            .toList();
-}
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
+
+        return entities.stream()
+                .map(entity -> mapToResponse(entity, statusMap, sleeperTypeMap))
+                .toList();
+    }
 
     private ProductionDeclarationResponseDto mapToResponse(
             ProductionDeclaration entity,
-            Map<String, String> statusMap) {
+            Map<String, String> statusMap,
+            Map<Long, String> sleeperTypeMap) {
 
         ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
 
@@ -923,25 +950,10 @@ public List<ProductionDeclarationResponseDto> getAll() {
         response.setUpdatedBy(entity.getUpdatedBy());
         response.setUpdatedDate(entity.getUpdatedDate());
 
-
         String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
         response.setStatus(status);
 
-        String sleeperDrawing = null;
-        if (entity.getChambers() != null && !entity.getChambers().isEmpty()) {
-            sleeperDrawing = entity.getChambers().stream()
-                    .filter(c -> c.getBenchGroups() != null)
-                    .flatMap(c -> c.getBenchGroups().stream())
-                    .map(ProductionBenchGroup::getSleeperType)
-                    .filter(st -> st != null && !st.isBlank())
-                    .findFirst().orElse(null);
-        }
-        if (sleeperDrawing == null && entity.getGangs() != null && !entity.getGangs().isEmpty()) {
-            sleeperDrawing = entity.getGangs().stream()
-                    .map(ProductionLongLineGang::getSleeperType)
-                    .filter(st -> st != null && !st.isBlank())
-                    .findFirst().orElse(null);
-        }
+        String sleeperDrawing = sleeperTypeMap != null ? sleeperTypeMap.get(entity.getId()) : null;
         response.setSleeperType(sleeperDrawing);
         response.setDrawingNo(sleeperDrawing);
 
@@ -953,13 +965,18 @@ public List<ProductionDeclarationResponseDto> getAll() {
     public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatus() {
 
         List<ProductionDeclaration> entities = repository.findAll();
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         // Existing status map
         Map<String, String> statusMap = sleeperWorkflowRepository
                 .findAllLatestStatuses(11L)
                 .stream()
                 .collect(Collectors.toMap(
                         obj -> String.valueOf(obj[0]),
-                        obj -> String.valueOf(obj[1])
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
                 ));
 
         // Map water cube strength tests by productionDeclarationId
@@ -971,8 +988,10 @@ public List<ProductionDeclarationResponseDto> getAll() {
             }
         }
 
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
+
         return entities.stream()
-                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestByProdIdMap))
+                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestByProdIdMap, sleeperTypeMap))
                 .toList();
     }
 
@@ -985,7 +1004,8 @@ public List<ProductionDeclarationResponseDto> getAll() {
     private ProductionDeclarationResponseDto mapToResponseWithWaterCube(
             ProductionDeclaration entity,
             Map<String, String> statusMap,
-            Map<Long, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestByProdIdMap) {
+            Map<Long, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestByProdIdMap,
+            Map<Long, String> sleeperTypeMap) {
 
         ProductionDeclarationResponseDto response = new ProductionDeclarationResponseDto();
 
@@ -1009,25 +1029,10 @@ public List<ProductionDeclarationResponseDto> getAll() {
         response.setUpdatedBy(entity.getUpdatedBy());
         response.setUpdatedDate(entity.getUpdatedDate());
 
-
         String status = statusMap.getOrDefault(String.valueOf(entity.getId()), "NOT_STARTED");
         response.setStatus(status);
 
-        String sleeperDrawing = null;
-        if (entity.getChambers() != null && !entity.getChambers().isEmpty()) {
-            sleeperDrawing = entity.getChambers().stream()
-                    .filter(c -> c.getBenchGroups() != null)
-                    .flatMap(c -> c.getBenchGroups().stream())
-                    .map(ProductionBenchGroup::getSleeperType)
-                    .filter(st -> st != null && !st.isBlank())
-                    .findFirst().orElse(null);
-        }
-        if (sleeperDrawing == null && entity.getGangs() != null && !entity.getGangs().isEmpty()) {
-            sleeperDrawing = entity.getGangs().stream()
-                    .map(ProductionLongLineGang::getSleeperType)
-                    .filter(st -> st != null && !st.isBlank())
-                    .findFirst().orElse(null);
-        }
+        String sleeperDrawing = sleeperTypeMap != null ? sleeperTypeMap.get(entity.getId()) : null;
         response.setSleeperType(sleeperDrawing);
         response.setDrawingNo(sleeperDrawing);
 
