@@ -4019,32 +4019,103 @@ public class reportsImpl implements reports {
 
                 List<Object[]> rawList = poItemRepository.fetchPoIssuedDetailsRaw(itemCatDescr, vCode, zCode, startDate,
                                 endDate);
-                List<PoIssuedDetailDto> list = new ArrayList<>();
-                if (rawList != null) {
-                        for (Object[] row : rawList) {
-                                String rly = row[0] != null ? row[0].toString() : "";
-                                String poNo = row[1] != null ? row[1].toString() : "";
-                                java.time.LocalDateTime poDate = null;
-                                if (row[2] != null) {
-                                        if (row[2] instanceof java.time.LocalDateTime) {
-                                                poDate = (java.time.LocalDateTime) row[2];
-                                        } else if (row[2] instanceof java.sql.Timestamp) {
-                                                poDate = ((java.sql.Timestamp) row[2]).toLocalDateTime();
+                if (rawList == null || rawList.isEmpty()) {
+                        return Collections.emptyList();
+                }
+
+                // 1. Collect all unique PO numbers
+                List<String> poNos = rawList.stream()
+                                .map(r -> r[1] != null ? r[1].toString() : null)
+                                .filter(Objects::nonNull)
+                                .distinct()
+                                .collect(Collectors.toList());
+
+                // 2. Batch fetch accepted quantities across Railpad, ERC, Sleeper, and General Call
+                Map<String, Long> acceptedQtyMap = new HashMap<>();
+
+                if (!poNos.isEmpty()) {
+                        String catLower = itemCatDescr != null ? itemCatDescr.toLowerCase() : "";
+                        boolean isRailpad = catLower.contains("rail") && catLower.contains("pad");
+                        boolean isSleeper = catLower.contains("sleeper");
+                        boolean isErc = catLower.contains("clip") || catLower.contains("erc") || catLower.contains("elastic");
+
+                        // Railpad accepted quantities
+                        if (isRailpad || (!isSleeper && !isErc)) {
+                                List<Object[]> railpadRes = poItemRepository.findRailpadAcceptedQtyByPoNos(poNos);
+                                if (railpadRes != null) {
+                                        for (Object[] row : railpadRes) {
+                                                if (row[0] != null && row[1] != null) {
+                                                        acceptedQtyMap.put(row[0].toString(), ((Number) row[1]).longValue());
+                                                }
                                         }
                                 }
-                                String vendorDetails = row[3] != null ? row[3].toString() : "";
-                                long poQty = row[4] != null ? ((Number) row[4]).longValue() : 0L;
-                                String uom = row[5] != null ? row[5].toString() : "";
-                                long acceptedQty = row[6] != null ? ((Number) row[6]).longValue() : 0L;
-                                long balanceQty = poQty - acceptedQty;
+                        }
 
-                                PoIssuedDetailDto dto = new PoIssuedDetailDto(
-                                                rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty);
-                                list.add(dto);
+                        // ERC accepted quantities
+                        if (isErc || (!isRailpad && !isSleeper)) {
+                                List<Object[]> ercRes = poItemRepository.findErcAcceptedQtyByPoNos(poNos);
+                                if (ercRes != null) {
+                                        for (Object[] row : ercRes) {
+                                                if (row[0] != null && row[1] != null) {
+                                                        String po = row[0].toString();
+                                                        long qty = ((Number) row[1]).longValue();
+                                                        acceptedQtyMap.put(po, acceptedQtyMap.getOrDefault(po, 0L) + qty);
+                                                }
+                                        }
+                                }
+                        }
+
+                        // Sleeper accepted quantities
+                        if (isSleeper || (!isRailpad && !isErc)) {
+                                List<Object[]> sleeperRes = poItemRepository.findSleeperAcceptedQtyByPoNos(poNos);
+                                if (sleeperRes != null) {
+                                        for (Object[] row : sleeperRes) {
+                                                if (row[0] != null && row[1] != null) {
+                                                        String po = row[0].toString();
+                                                        long qty = ((Number) row[1]).longValue();
+                                                        acceptedQtyMap.put(po, acceptedQtyMap.getOrDefault(po, 0L) + qty);
+                                                }
+                                        }
+                                }
+                                List<Object[]> genRes = poItemRepository.findGeneralAcceptedQtyByPoNos(poNos);
+                                if (genRes != null) {
+                                        for (Object[] row : genRes) {
+                                                if (row[0] != null && row[1] != null) {
+                                                        String po = row[0].toString();
+                                                        long qty = ((Number) row[1]).longValue();
+                                                        if (!acceptedQtyMap.containsKey(po) || acceptedQtyMap.get(po) == 0L) {
+                                                                acceptedQtyMap.put(po, qty);
+                                                        }
+                                                }
+                                        }
+                                }
                         }
                 }
-                return list;
 
+                // 3. Construct DTOs in O(N) using the in-memory map
+                List<PoIssuedDetailDto> list = new ArrayList<>();
+                for (Object[] row : rawList) {
+                        String rly = row[0] != null ? row[0].toString() : "";
+                        String poNo = row[1] != null ? row[1].toString() : "";
+                        java.time.LocalDateTime poDate = null;
+                        if (row[2] != null) {
+                                if (row[2] instanceof java.time.LocalDateTime) {
+                                        poDate = (java.time.LocalDateTime) row[2];
+                                } else if (row[2] instanceof java.sql.Timestamp) {
+                                        poDate = ((java.sql.Timestamp) row[2]).toLocalDateTime();
+                                }
+                        }
+                        String vendorDetails = row[3] != null ? row[3].toString() : "";
+                        long poQty = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                        String uom = row[5] != null ? row[5].toString() : "";
+                        long acceptedQty = acceptedQtyMap.getOrDefault(poNo, 0L);
+                        long balanceQty = Math.max(poQty - acceptedQty, 0L);
+
+                        PoIssuedDetailDto dto = new PoIssuedDetailDto(
+                                        rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty);
+                        list.add(dto);
+                }
+                return list;
         }
 
         @Override

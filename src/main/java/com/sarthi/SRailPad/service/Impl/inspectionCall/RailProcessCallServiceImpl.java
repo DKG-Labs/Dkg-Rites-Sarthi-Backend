@@ -167,7 +167,8 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
             int produced = i.getQuantityProduced() != null ? i.getQuantityProduced() : 0;
             int alreadyAccepted = acceptedInOtherCallsMap.getOrDefault(i.getId(), 0);
-            int available = produced - alreadyAccepted;
+            int alreadyRejected = rejectedInOtherCallsMap.getOrDefault(i.getId(), 0);
+            int available = Math.max(0, produced - alreadyAccepted - alreadyRejected);
 
             // If completely consumed in previous calls, do not show in available batches
             if (available <= 0) {
@@ -184,7 +185,6 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             bd.setDrawingNo(i.getDrawingNo());
 
             // Check original rejections from verification
-            int alreadyRejected = rejectedInOtherCallsMap.getOrDefault(i.getId(), 0);
             if (v.getRejections() != null) {
                 List<com.sarthi.SRailPad.entity.ieVerification.RailIEProductionRejection> batchRejections = v.getRejections().stream()
                         .filter(r -> r.getBatchNo() != null && r.getBatchNo().equals(i.getBatchNo()))
@@ -277,6 +277,10 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             result.setBatches(new ArrayList<>());
         }
 
+        int totalCalculatedAccepted = 0;
+        int totalCalculatedManufactured = 0;
+        int totalCalculatedRejected = 0;
+
         if (saveDto.getBatches() != null) {
             for (ProcessInspectionSaveDto.ProcessBatchSaveDto bDto : saveDto.getBatches()) {
                 RailProcessInspectionBatch batch = new RailProcessInspectionBatch();
@@ -316,15 +320,16 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
                 int mQty = bDto.getQtyManufactured() != null ? bDto.getQtyManufactured() : 0;
                 int availQty = bDto.getQtyAvailable() != null ? bDto.getQtyAvailable() : mQty;
-                int accQty = bDto.getQtyAccepted() != null ? bDto.getQtyAccepted() : 0;
                 int rejQty = bDto.getQtyRejected() != null ? bDto.getQtyRejected() : 0;
+                int maxAcc = Math.max(0, availQty - rejQty);
+                int accQty = bDto.getQtyAccepted() != null ? bDto.getQtyAccepted() : maxAcc;
 
                 // Validation rules
-                if (accQty > availQty) {
-                    throw new IllegalArgumentException("Accepted quantity (" + accQty + ") cannot exceed available quantity (" + availQty + ") for batch " + bDto.getBatchNo());
+                if (accQty > maxAcc) {
+                    accQty = maxAcc;
                 }
 
-                int remQty = Math.max(0, availQty - accQty);
+                int remQty = Math.max(0, availQty - accQty - rejQty);
 
                 batch.setDrawingNo(drawingNo);
                 batch.setReasonForRejection(batchRejectionReason);
@@ -335,8 +340,28 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 batch.setQtyAccepted(accQty);
                 batch.setQtyRemaining(remQty);
                 result.getBatches().add(batch);
+
+                totalCalculatedManufactured += mQty;
+                totalCalculatedRejected += rejQty;
+                totalCalculatedAccepted += accQty;
             }
         }
+
+        int totalMfg = saveDto.getTotalManufacturedQty() != null ? saveDto.getTotalManufacturedQty() : totalCalculatedManufactured;
+        int totalRej = saveDto.getTotalRejectedQty() != null ? saveDto.getTotalRejectedQty() : totalCalculatedRejected;
+        int maxTotalAcc = Math.max(0, totalMfg - totalRej);
+        int totalAcc = (saveDto.getTotalAcceptedQty() != null && saveDto.getTotalAcceptedQty() <= maxTotalAcc)
+                ? saveDto.getTotalAcceptedQty()
+                : (totalCalculatedAccepted <= maxTotalAcc ? totalCalculatedAccepted : maxTotalAcc);
+
+        if (totalRej > 0 && totalAcc > maxTotalAcc) {
+            totalAcc = maxTotalAcc;
+        }
+
+        result.setCallQty(saveDto.getCallQty());
+        result.setTotalManufacturedQty(totalMfg);
+        result.setTotalRejectedQty(totalRej);
+        result.setTotalAcceptedQty(totalAcc);
 
         processInspectionResultRepository.save(result);
 
@@ -346,7 +371,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 .orElseThrow(() -> new RuntimeException("Process Call Details not found"));
 
             int acceptedTillNow = details.getQtyAcceptedTillNow() != null ? details.getQtyAcceptedTillNow() : 0;
-            details.setQtyAcceptedTillNow(acceptedTillNow + (saveDto.getTotalAcceptedQty() != null ? saveDto.getTotalAcceptedQty() : 0));
+            details.setQtyAcceptedTillNow(acceptedTillNow + (result.getTotalAcceptedQty() != null ? result.getTotalAcceptedQty() : 0));
 
             int newDue = details.getQtyOnOrder() - details.getQtyAcceptedTillNow() - details.getQtyDesiredForFinal();
             details.setQtyDue(Math.max(0, newDue));
@@ -368,7 +393,16 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         dto.setCallQty(result.getCallQty());
         dto.setTotalManufacturedQty(result.getTotalManufacturedQty());
         dto.setTotalRejectedQty(result.getTotalRejectedQty());
-        dto.setTotalAcceptedQty(result.getTotalAcceptedQty());
+
+        int totalMfg = result.getTotalManufacturedQty() != null ? result.getTotalManufacturedQty() : 0;
+        int totalRej = result.getTotalRejectedQty() != null ? result.getTotalRejectedQty() : 0;
+        int maxTotalAcc = Math.max(0, totalMfg - totalRej);
+        int totalAcc = result.getTotalAcceptedQty() != null ? result.getTotalAcceptedQty() : maxTotalAcc;
+        if (totalRej > 0 && totalAcc > maxTotalAcc) {
+            totalAcc = maxTotalAcc;
+        }
+        dto.setTotalAcceptedQty(totalAcc);
+
         dto.setReasonForRejection(result.getReasonForRejection());
         dto.setLotRangeFrom(result.getLotRangeFrom());
         dto.setLotRangeTo(result.getLotRangeTo());
@@ -392,13 +426,17 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 bd.setQtyManufactured(b.getQtyManufactured());
                 bd.setQtyAvailable(b.getQtyAvailable());
                 bd.setQtyRejected(b.getQtyRejected());
-                bd.setQtyRemaining(b.getQtyRemaining());
                 
                 int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
                 int rQty = b.getQtyRejected() != null ? b.getQtyRejected() : 0;
                 int netAcc = Math.max(0, mQty - rQty);
-                int acc = (b.getQtyAccepted() != null && b.getQtyAccepted() > 0) ? b.getQtyAccepted() : netAcc;
+                int acc = b.getQtyAccepted() != null ? b.getQtyAccepted() : netAcc;
+                if (rQty > 0 && acc > netAcc) {
+                    acc = netAcc;
+                }
                 bd.setQtyAccepted(acc);
+                int remQty = Math.max(0, (b.getQtyAvailable() != null ? b.getQtyAvailable() : mQty) - acc - rQty);
+                bd.setQtyRemaining(remQty);
                 
                 if (bd.getDrawingNo() == null && b.getDeclarationBatchId() != null) {
                     try {
@@ -483,7 +521,11 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
             int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
             int rQty = b.getQtyRejected() != null ? b.getQtyRejected() : 0;
-            int netAccepted = (b.getQtyAccepted() != null && b.getQtyAccepted() > 0) ? b.getQtyAccepted() : Math.max(0, mQty - rQty);
+            int maxAcc = Math.max(0, mQty - rQty);
+            int netAccepted = b.getQtyAccepted() != null ? b.getQtyAccepted() : maxAcc;
+            if (rQty > 0 && netAccepted > maxAcc) {
+                netAccepted = maxAcc;
+            }
 
             b.setQtyAccepted(netAccepted);
             b.setPreviouslyOfferedQty(alreadyOffered);
