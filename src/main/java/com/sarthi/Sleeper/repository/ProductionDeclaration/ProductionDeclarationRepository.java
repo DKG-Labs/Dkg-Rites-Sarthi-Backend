@@ -40,6 +40,21 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     @Query(value = "SELECT * FROM production_declaration WHERE TRIM(batch_number) = :batchNo OR batch_number = :batchNo OR batch_number LIKE CONCAT('%', :batchNo, '%') ORDER BY id DESC LIMIT 1", nativeQuery = true)
     ProductionDeclaration findLatestByBatchNo(@Param("batchNo") String batchNo);
 
+    @Query(value = "SELECT * FROM production_declaration WHERE (TRIM(batch_number) = :batchNo OR batch_number = :batchNo) AND po_no = :poNo ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    ProductionDeclaration findLatestByBatchNoAndPoNo(@Param("batchNo") String batchNo, @Param("poNo") String poNo);
+
+    @Query(value = "SELECT * FROM production_declaration WHERE (TRIM(batch_number) = :batchNo OR batch_number = :batchNo) AND plant_id = :plantId ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    ProductionDeclaration findLatestByBatchNoAndPlantId(@Param("batchNo") String batchNo, @Param("plantId") String plantId);
+
+    @Query(value = "SELECT * FROM production_declaration WHERE batch_number IN (:batchNos) AND po_no = :poNo ORDER BY id DESC", nativeQuery = true)
+    List<ProductionDeclaration> findAllByBatchNumbersAndPoNo(@Param("batchNos") Collection<String> batchNos, @Param("poNo") String poNo);
+
+    @Query(value = "SELECT * FROM production_declaration WHERE batch_number IN (:batchNos) AND plant_id = :plantId ORDER BY id DESC", nativeQuery = true)
+    List<ProductionDeclaration> findAllByBatchNumbersAndPlantId(@Param("batchNos") Collection<String> batchNos, @Param("plantId") String plantId);
+
+    @Query(value = "SELECT * FROM production_declaration WHERE batch_number IN (:batchNos) ORDER BY id DESC", nativeQuery = true)
+    List<ProductionDeclaration> findAllByBatchNumbers(@Param("batchNos") Collection<String> batchNos);
+
     @Query(value = "SELECT * FROM production_declaration WHERE LOWER(TRIM(batch_number)) = LOWER(TRIM(:batchNo)) OR LOWER(TRIM(batch_number)) = LOWER(TRIM(:cleanBatch)) OR LOWER(batch_number) LIKE LOWER(CONCAT('%', :cleanBatch, '%')) OR LOWER(batch_number) LIKE LOWER(CONCAT('%', :batchNo, '%')) ORDER BY id DESC LIMIT 1", nativeQuery = true)
     ProductionDeclaration findLatestByBatchNoFlexible(@Param("batchNo") String batchNo, @Param("cleanBatch") String cleanBatch);
 
@@ -257,6 +272,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
                   WHERE w2.request_id = p.id
                     AND w2.module_id = 11
               )
+            ORDER BY p.id DESC
             LIMIT 1
             """, nativeQuery = true)
     ProductionDeclaration findByBatchNumber(@Param("batchNo") String batchNo);

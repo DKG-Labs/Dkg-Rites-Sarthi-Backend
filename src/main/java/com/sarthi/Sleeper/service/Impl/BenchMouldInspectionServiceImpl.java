@@ -152,13 +152,50 @@ public class BenchMouldInspectionServiceImpl
 
     @Override
     public List<BenchMouldInspectionResponseDto> getAll() {
+        List<BenchMouldInspection> list = repository.findAll();
+        if (list.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
 
-        return repository.findAll()
-                .stream()
-                .map(this::mapToResponse)
+        java.util.List<Integer> userIds = list.stream()
+                .map(BenchMouldInspection::getCreatedBy)
+                .filter(java.util.Objects::nonNull)
+                .map(s -> {
+                    try { return Integer.parseInt(s.trim()); } catch (Exception e) { return null; }
+                })
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        java.util.Map<Integer, String> userMap = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            userMasterRepository.findByUserIdIn(userIds).forEach(u -> {
+                userMap.put(u.getUserId(), u.getUsername());
+            });
+        }
+
+        return list.stream()
+                .map(entity -> mapToResponseWithUserMap(entity, userMap))
                 .toList();
     }
 
+    private BenchMouldInspectionResponseDto mapToResponseWithUserMap(
+            BenchMouldInspection entity,
+            java.util.Map<Integer, String> userMap) {
+        BenchMouldInspectionResponseDto dto = mapToResponseBasic(entity);
+        if (entity.getCreatedBy() != null) {
+            try {
+                int createdById = Integer.parseInt(entity.getCreatedBy().trim());
+                dto.setCreatedBy(createdById);
+                if (userMap != null && userMap.containsKey(createdById)) {
+                    dto.setUserName(userMap.get(createdById));
+                }
+            } catch (NumberFormatException e) {
+                // Ignore
+            }
+        }
+        return dto;
+    }
 
     @Override
     public void delete(Long id) {
@@ -174,8 +211,24 @@ public class BenchMouldInspectionServiceImpl
         repository.deleteById(entity.getId());
     }
 
-
     private BenchMouldInspectionResponseDto mapToResponse(
+            BenchMouldInspection entity) {
+        BenchMouldInspectionResponseDto dto = mapToResponseBasic(entity);
+        if (entity.getCreatedBy() != null) {
+            try {
+                int createdById = Integer.parseInt(entity.getCreatedBy().trim());
+                dto.setCreatedBy(createdById);
+                userMasterRepository.findByUserId(createdById).ifPresent(user -> {
+                    dto.setUserName(user.getUsername());
+                });
+            } catch (NumberFormatException e) {
+                // Log or handle if createdBy is not an integer
+            }
+        }
+        return dto;
+    }
+
+    private BenchMouldInspectionResponseDto mapToResponseBasic(
             BenchMouldInspection entity) {
 
         BenchMouldInspectionResponseDto dto =
@@ -211,17 +264,6 @@ public class BenchMouldInspectionServiceImpl
 
         dto.setCombinedRemarks(
                 entity.getCombinedRemarks());
-        if (entity.getCreatedBy() != null) {
-            try {
-                int createdById = Integer.parseInt(entity.getCreatedBy());
-                dto.setCreatedBy(createdById);
-                userMasterRepository.findByUserId(createdById).ifPresent(user -> {
-                    dto.setUserName(user.getUsername());
-                });
-            } catch (NumberFormatException e) {
-                // Log or handle if createdBy is not an integer
-            }
-        }
 
         return dto;
     }

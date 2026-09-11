@@ -312,11 +312,16 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         if (validSleepers > 0) {
             testedPercentage = (testedSleepers * 100.0) / validSleepers;
         }
+
+        if (testedSleepers + demouldRejected >= (totalSleepers != null ? totalSleepers : 0L) || testedPercentage >= 99.5) {
+            testedPercentage = 100.0;
+        }
+
         boolean completed = false;
 
         // MODULE 1 → VISUAL
         if (moduleId == 1) {
-            if (testedPercentage >= 99.99 || testedPercentage >= 100) {
+            if (testedPercentage >= 99.5 || testedPercentage >= 100) {
                 completed = true;
             }
         }
@@ -335,7 +340,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             }
         }
 
-        if (testedPercentage >= 99.99) {
+        if (testedPercentage >= 99.5) {
             completed = true;
         }
 
@@ -665,29 +670,19 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 percent = (testedCount * 100.0) / denominator;
             }
 
-            dto.setTestedPercentage(percent);
+            if (testedCount + demouldRejected >= dto.getNoOfSleepers() || percent >= 99.5) {
+                percent = 100.0;
+            }
 
-         /*   if (percent == 0)
-                dto.setTestingStatus("Pending");
-            else if (percent == 100)
-                dto.setTestingStatus("Completed");
-            else
-                dto.setTestingStatus("Under Inspection"); */
+            dto.setTestedPercentage(Math.min(percent, 100.0));
 
             boolean completed = false;
 
-// MODULE 1 → VISUAL
+            // MODULE 1 → VISUAL
             if (moduleId == 1) {
-
-//                if (testedCount.equals(denominator)) {
-//                    completed = true;
-//                }
-
-                if (percent >= 99.99) {
+                if (percent >= 99.5 || percent >= 100.0) {
                     completed = true;
                 }
-
-
             }
 
             // MODULE 2 → CRITICAL DIMENSION (10% sampling)
@@ -704,10 +699,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
 
-            if (percent >= 99.99) {
+            if (percent >= 99.5) {
                 completed = true;
             }
-
 
             if (percent == 0) {
                 dto.setTestingStatus("Pending");

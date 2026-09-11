@@ -253,6 +253,7 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
         java.util.Map<String, Object> map = new java.util.HashMap<>();
         map.put("id", test.getId());
         map.put("waterCubeSampleDeclarationId", test.getWaterCubeSampleDeclaration() != null ? test.getWaterCubeSampleDeclaration().getId() : null);
+        map.put("productionDeclarationId", test.getWaterCubeSampleDeclaration() != null ? test.getWaterCubeSampleDeclaration().getProductionDeclarationId() : null);
         map.put("batchNumber", test.getBatchNumber());
         map.put("concreteGrade", test.getConcreteGrade());
         map.put("castingDate", test.getCastingDate());

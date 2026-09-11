@@ -952,8 +952,7 @@ public List<ProductionDeclarationResponseDto> getAll() {
     @Override
     public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatus() {
 
-       // List<ProductionDeclaration> entities = repository.findAll();
-        List<ProductionDeclaration> entities = repository.findAllExcludingMR();
+        List<ProductionDeclaration> entities = repository.findAll();
         // Existing status map
         Map<String, String> statusMap = sleeperWorkflowRepository
                 .findAllLatestStatuses(11L)

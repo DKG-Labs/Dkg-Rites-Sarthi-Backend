@@ -14,7 +14,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -113,18 +118,44 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                 .findByCallNo(callNo)
                 .orElseThrow(() -> new RuntimeException("Call not found"));
 
+        List<SleeperInspectionCallBatch> batches = call.getBatchesSelected() != null ? call.getBatchesSelected() : Collections.emptyList();
+        Set<String> batchNos = batches.stream()
+                .map(SleeperInspectionCallBatch::getBatchNo)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+
+        // Single batch query to avoid N+1 queries
+        Map<String, ProductionDeclaration> declMap = new HashMap<>();
+        if (!batchNos.isEmpty()) {
+            List<ProductionDeclaration> declarations = Collections.emptyList();
+            if (call.getPoNo() != null && !call.getPoNo().trim().isEmpty()) {
+                declarations = productionDeclarationRepository.findAllByBatchNumbersAndPoNo(batchNos, call.getPoNo().trim());
+            }
+            if (declarations.isEmpty() && call.getPlantId() != null && !call.getPlantId().trim().isEmpty()) {
+                declarations = productionDeclarationRepository.findAllByBatchNumbersAndPlantId(batchNos, call.getPlantId().trim());
+            }
+            if (declarations.isEmpty()) {
+                declarations = productionDeclarationRepository.findAllByBatchNumbers(batchNos);
+            }
+            for (ProductionDeclaration pd : declarations) {
+                if (pd.getBatchNumber() != null) {
+                    declMap.putIfAbsent(pd.getBatchNumber().trim(), pd);
+                }
+            }
+        }
+
         List<SleeperInspectionBatchDetailDTO> response = new ArrayList<>();
 
-        for (SleeperInspectionCallBatch batch : call.getBatchesSelected()) {
+        for (SleeperInspectionCallBatch batch : batches) {
 
             SleeperInspectionBatchDetailDTO dto = new SleeperInspectionBatchDetailDTO();
 
             String batchNo = batch.getBatchNo();
             dto.setBatchNo(batchNo);
 
-
-            ProductionDeclaration declaration =
-                    productionDeclarationRepository.findByBatchNumber(batchNo);
+            ProductionDeclaration declaration = batchNo != null ? declMap.get(batchNo.trim()) : null;
 
             if (declaration != null && declaration.getCastingDate() != null) {
                 dto.setCastingDate(declaration.getCastingDate().toString());

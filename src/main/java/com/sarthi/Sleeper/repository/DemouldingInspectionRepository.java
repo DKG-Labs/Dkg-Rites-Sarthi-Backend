@@ -60,10 +60,12 @@ WHERE d.batchNo = :batchNo
     boolean existsDemoulding(String batchNo);
 
     @Query(value = """
-SELECT COUNT(DISTINCT d.id)
+SELECT COUNT(DISTINCT d.sleeper_no)
 FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection di ON di.id = d.inspection_id
 WHERE di.batch_no = :batchNo
+  AND d.sleeper_no IS NOT NULL
+  AND TRIM(d.sleeper_no) <> ''
   AND (
         TRIM(COALESCE(d.visual_reason, '')) <> ''
         OR
@@ -73,10 +75,12 @@ WHERE di.batch_no = :batchNo
     Long countDemouldingRejected(@Param("batchNo") String batchNo);
 
     @Query(value = """
-SELECT di.batch_no, COUNT(DISTINCT d.id)
+SELECT di.batch_no, COUNT(DISTINCT d.sleeper_no)
 FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection di ON di.id = d.inspection_id
 WHERE di.batch_no IN :batchNos
+  AND d.sleeper_no IS NOT NULL
+  AND TRIM(d.sleeper_no) <> ''
   AND (
         TRIM(COALESCE(d.visual_reason, '')) <> ''
         OR
