@@ -1203,6 +1203,12 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     for (DemouldingDefectiveSleeper dds : di.getDefectiveSleepers()) {
                         String visReason = dds.getVisualReason() != null ? dds.getVisualReason().trim() : "";
                         String dimReason = dds.getDimReason() != null ? dds.getDimReason().trim() : "";
+                        
+                        // Only count as defective if visual or dimensional defect reason exists
+                        if (visReason.isEmpty() && dimReason.isEmpty()) {
+                            continue;
+                        }
+
                         String resolvedNo = dds.getSleeperNo() != null ? dds.getSleeperNo().trim() : "";
                         if (resolvedNo.isBlank()) {
                             String bNo = dds.getBenchGangNo() != null ? dds.getBenchGangNo().trim() : "";
@@ -1212,55 +1218,63 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         final String rawSleeperNo = resolvedNo;
 
                         if (!rawSleeperNo.isBlank()) {
+                            // Match against production sleepers
+                            Optional<ProductionSleeper> prodMatch = allProdSleepers.stream()
+                                    .filter(p -> isSleeperMatch(p.getSleeperNo(), rawSleeperNo, currentBatchNo))
+                                    .findFirst();
+
+                            // Match against already-tested good sleepers
+                            Optional<SleeperDto> goodMatch = goodSleepers.stream()
+                                    .filter(g -> isSleeperMatch(g.getSleeperNo(), rawSleeperNo, currentBatchNo))
+                                    .findFirst();
+
+                            // If it does not match any real sleeper in this batch (e.g. only bench/gang number without sleeper letter), ignore it
+                            if (prodMatch.isEmpty() && goodMatch.isEmpty()) {
+                                continue;
+                            }
+
+                            String actualSleeperNo = prodMatch.isPresent() && prodMatch.get().getSleeperNo() != null
+                                    ? prodMatch.get().getSleeperNo()
+                                    : (goodMatch.isPresent() && goodMatch.get().getSleeperNo() != null
+                                            ? goodMatch.get().getSleeperNo()
+                                            : rawSleeperNo);
+
                             boolean alreadyInBad = badSleepers.stream().anyMatch(b ->
-                                    isSleeperMatch(b.getSleeperNo(), rawSleeperNo, currentBatchNo));
+                                    isSleeperMatch(b.getSleeperNo(), actualSleeperNo, currentBatchNo));
                             if (!alreadyInBad) {
                                 BadSleeperDto bad = new BadSleeperDto();
-                                bad.setReason(!visReason.isEmpty() ? visReason : (!dimReason.isEmpty() ? dimReason : "Demoulding Defect"));
+                                bad.setReason(!visReason.isEmpty() ? visReason : dimReason);
                                 bad.setModuleId(4L);
                                 bad.setModuleName("Demoulding");
 
-                                    // Match against production sleepers
-                                    Optional<ProductionSleeper> prodMatch = allProdSleepers.stream()
-                                            .filter(p -> isSleeperMatch(p.getSleeperNo(), rawSleeperNo, currentBatchNo))
-                                            .findFirst();
-
-                                    // Match against already-tested good sleepers
-                                    Optional<SleeperDto> goodMatch = goodSleepers.stream()
-                                            .filter(g -> isSleeperMatch(g.getSleeperNo(), rawSleeperNo, currentBatchNo))
-                                            .findFirst();
-
-                                    if (prodMatch.isPresent()) {
-                                        ProductionSleeper matchedPs = prodMatch.get();
-                                        bad.setSleeperId(matchedPs.getId());
-                                        bad.setSleeperNo(matchedPs.getSleeperNo() != null ? matchedPs.getSleeperNo() : rawSleeperNo);
-                                    } else if (goodMatch.isPresent()) {
-                                        bad.setSleeperId(goodMatch.get().getSleeperId());
-                                        bad.setSleeperNo(goodMatch.get().getSleeperNo() != null ? goodMatch.get().getSleeperNo() : rawSleeperNo);
-                                    } else {
-                                        bad.setSleeperId(0L);
-                                        bad.setSleeperNo(rawSleeperNo);
-                                    }
-
-                                    // Remove from goodSleepers if present
-                                    if (goodMatch.isPresent()) {
-                                        goodSleepers.remove(goodMatch.get());
-                                    } else {
-                                        goodSleepers.removeIf(g -> isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo)
-                                                || (bad.getSleeperId() != null && bad.getSleeperId() != 0L && Objects.equals(g.getSleeperId(), bad.getSleeperId())));
-                                    }
-
-                                    String badKey = (bad.getSleeperNo() != null)
-                                            ? (currentBatchNo + "_" + bad.getSleeperNo().trim()) : "";
-
-                                    boolean isRaised = (bad.getSleeperId() != null && bad.getSleeperId() != 0L && raisedSleeperIds.contains(bad.getSleeperId()))
-                                            || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey))
-                                            || isBatchBadAlreadyRaised;
-                                    bad.setCallRaised(isRaised);
-
-                                    badSleepers.add(bad);
+                                if (prodMatch.isPresent()) {
+                                    ProductionSleeper matchedPs = prodMatch.get();
+                                    bad.setSleeperId(matchedPs.getId());
+                                    bad.setSleeperNo(matchedPs.getSleeperNo() != null ? matchedPs.getSleeperNo() : rawSleeperNo);
+                                } else {
+                                    bad.setSleeperId(goodMatch.get().getSleeperId());
+                                    bad.setSleeperNo(goodMatch.get().getSleeperNo() != null ? goodMatch.get().getSleeperNo() : rawSleeperNo);
                                 }
+
+                                // Remove from goodSleepers if present
+                                if (goodMatch.isPresent()) {
+                                    goodSleepers.remove(goodMatch.get());
+                                } else {
+                                    goodSleepers.removeIf(g -> isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo)
+                                            || (bad.getSleeperId() != null && bad.getSleeperId() != 0L && Objects.equals(g.getSleeperId(), bad.getSleeperId())));
+                                }
+
+                                String badKey = (bad.getSleeperNo() != null)
+                                        ? (currentBatchNo + "_" + bad.getSleeperNo().trim()) : "";
+
+                                boolean isRaised = (bad.getSleeperId() != null && bad.getSleeperId() != 0L && raisedSleeperIds.contains(bad.getSleeperId()))
+                                        || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey))
+                                        || isBatchBadAlreadyRaised;
+                                bad.setCallRaised(isRaised);
+
+                                badSleepers.add(bad);
                             }
+                        }
                         }
                     }
                 }
