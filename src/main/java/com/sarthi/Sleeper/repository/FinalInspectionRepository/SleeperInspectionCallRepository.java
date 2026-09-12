@@ -28,7 +28,8 @@ public interface SleeperInspectionCallRepository extends JpaRepository<SleeperIn
 SELECT DISTINCT s.sleeperId
 FROM SleeperInspectionCallBatch b
 JOIN b.goodSleepers s
-WHERE b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<Long> findAllGoodSleeperIds();
 
@@ -36,7 +37,8 @@ WHERE b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 SELECT DISTINCT s.sleeperId
 FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
-WHERE b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<Long> findAllBadSleeperIds();
 
@@ -48,14 +50,6 @@ WHERE s.sleeperNo IS NOT NULL
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<String> findAllRaisedBadSleeperKeys();
-
-    @Query("""
-SELECT DISTINCT TRIM(b.batchNo)
-FROM SleeperInspectionCallBatch b
-WHERE SIZE(b.badSleepers) > 0
-  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
-""")
-    List<String> findAllRaisedBadBatchNos();
 
     @Query("""
     SELECT c 

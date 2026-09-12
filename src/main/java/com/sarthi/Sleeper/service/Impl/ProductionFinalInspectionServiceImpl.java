@@ -1055,7 +1055,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds());
 
         Set<String> raisedBadSleeperKeys = new HashSet<>(inspectionCallRepository.findAllRaisedBadSleeperKeys());
-        Set<String> raisedBadBatchNos = new HashSet<>(inspectionCallRepository.findAllRaisedBadBatchNos());
 
         // ── Bulk Upfront Fetch 3: Passed Lab Tests (Water Cube & MOR) ────────
         Set<String> passedWaterCubeBatchNos = new HashSet<>(waterCubeStrengthTestRepository.findAllPassedBatchNumbers());
@@ -1130,7 +1129,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             List<SleeperDto> goodSleepers = new ArrayList<>();
             List<BadSleeperDto> badSleepers = new ArrayList<>();
 
-            boolean isBatchBadAlreadyRaised = raisedBadBatchNos.contains(currentBatchNo);
             Set<Long> etSleeperIds = etSleeperIdsByBatchNo.getOrDefault(currentBatchNo, Collections.emptySet());
 
             for (Map.Entry<Long, List<InspectionTestResult>> entry : grouped.entrySet()) {
@@ -1149,9 +1147,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     String badKey = (first.getSleeperNo() != null)
                             ? (currentBatchNo + "_" + first.getSleeperNo().trim()) : "";
 
-                    boolean isRaised = raisedSleeperIds.contains(first.getSleeperId())
-                            || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey))
-                            || isBatchBadAlreadyRaised;
+                    boolean isRaised = (first.getSleeperId() != null && first.getSleeperId() > 0 && raisedSleeperIds.contains(first.getSleeperId()))
+                            || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey));
 
                     bad.setCallRaised(isRaised);
 
@@ -1183,7 +1180,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     SleeperDto dto = new SleeperDto();
                     dto.setSleeperId(first.getSleeperId());
                     dto.setSleeperNo(first.getSleeperNo());
-                    dto.setCallRaised(raisedSleeperIds.contains(first.getSleeperId()));
+                    dto.setCallRaised(first.getSleeperId() != null && first.getSleeperId() > 0 && raisedSleeperIds.contains(first.getSleeperId()));
 
                     if (etSleeperIds.contains(first.getSleeperId())) {
                         dto.setModuleId(5L);   // ET sleeper
@@ -1267,9 +1264,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                                 String badKey = (bad.getSleeperNo() != null)
                                         ? (currentBatchNo + "_" + bad.getSleeperNo().trim()) : "";
 
-                                boolean isRaised = (bad.getSleeperId() != null && bad.getSleeperId() != 0L && raisedSleeperIds.contains(bad.getSleeperId()))
-                                        || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey))
-                                        || isBatchBadAlreadyRaised;
+                                boolean isRaised = (bad.getSleeperId() != null && bad.getSleeperId() > 0 && raisedSleeperIds.contains(bad.getSleeperId()))
+                                        || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey));
                                 bad.setCallRaised(isRaised);
 
                                 badSleepers.add(bad);
@@ -1305,7 +1301,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     SleeperDto dto = new SleeperDto();
                     dto.setSleeperId(ps.getId());
                     dto.setSleeperNo(ps.getSleeperNo() != null ? ps.getSleeperNo() : "");
-                    dto.setCallRaised(ps.getId() != null && raisedSleeperIds.contains(ps.getId()));
+                    dto.setCallRaised(ps.getId() != null && ps.getId() > 0 && raisedSleeperIds.contains(ps.getId()));
                     if (etSleeperIds.contains(ps.getId())) {
                         dto.setModuleId(5L);
                     }
