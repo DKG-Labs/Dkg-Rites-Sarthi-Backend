@@ -812,23 +812,12 @@ public class UserServiceImpl implements UserService {
         // Generate OTP and send it to registered mobile number.
         // ============================================================
 
-        String transactionId = otpService.generateAndSendOtp(user);
-
-        String mobile = user.getMobileNumber();
-        boolean hasMobile = mobile != null && !mobile.trim().isEmpty();
-
-        String noticeMessage;
-        if (hasMobile && mobile.trim().length() >= 4) {
-            String cleanMobile = mobile.trim();
-            noticeMessage = "OTP sent to your registered mobile number ending with •••• " + cleanMobile.substring(cleanMobile.length() - 4) + ".";
-        } else {
-            noticeMessage = "Mobile number not found. Please enter default OTP •••• 123456.";
-        }
+        OtpService.OtpResult otpResult = otpService.generateAndSendOtp(user);
 
         return new MfaLoginResponseDto(
                 true,
-                transactionId,
-                noticeMessage
+                otpResult.getTransactionId(),
+                otpResult.getNoticeMessage()
         );
     }
 
@@ -947,22 +936,13 @@ public class UserServiceImpl implements UserService {
 
         // ============================================================
         // STEP 7: Verify OTP
-        // Users WITH saved mobile number -> MUST enter real OTP
-        // Users WITHOUT saved mobile number -> ALLOW 123456 fallback
+        // Strictly verify against the effective OTP in database.
+        // If SMS was delivered successfully, only the real SMS OTP is valid (123456 is rejected).
+        // If SMS failed or user has no mobile, loginOtp.getOtp() is set to 123456.
         // ============================================================
 
-        String userMobile = user.getMobileNumber();
-        boolean hasSavedMobile = userMobile != null && !userMobile.trim().isEmpty();
-
-        boolean otpCorrect;
-        if (hasSavedMobile) {
-            // Strict verification against generated SMS OTP
-            otpCorrect = request.getOtp() != null && request.getOtp().trim().equals(loginOtp.getOtp());
-        } else {
-            // Fallback for users with no mobile number saved
-            otpCorrect = "123456".equals(request.getOtp() != null ? request.getOtp().trim() : "")
-                    || (request.getOtp() != null && request.getOtp().trim().equals(loginOtp.getOtp()));
-        }
+        boolean otpCorrect = request.getOtp() != null
+                && request.getOtp().trim().equals(loginOtp.getOtp());
 
 
         // ============================================================
