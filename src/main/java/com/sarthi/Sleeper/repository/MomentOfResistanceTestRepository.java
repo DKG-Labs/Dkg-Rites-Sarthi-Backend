@@ -54,4 +54,13 @@ WHERE (TRIM(m.batchNumber) = TRIM(:batchNo)
 AND (UPPER(TRIM(m.testResult)) LIKE 'PASS%' OR UPPER(TRIM(m.testResult)) = 'OK' OR UPPER(TRIM(m.testResult)) = 'COMPLETED')
 """)
     boolean hasPassedMomentOfResistance(@Param("batchNo") String batchNo);
+
+    @Query(value = """
+        SELECT DISTINCT TRIM(batch_number)
+        FROM moment_of_resistance_test
+        WHERE UPPER(TRIM(test_result)) LIKE 'PASS%' 
+           OR UPPER(TRIM(test_result)) = 'OK' 
+           OR UPPER(TRIM(test_result)) = 'COMPLETED'
+    """, nativeQuery = true)
+    List<String> findAllPassedBatchNumbers();
 }

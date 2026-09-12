@@ -29,80 +29,80 @@ public class OtpService {
         this.smsService = smsService;
     }
 
-    public String generateAndSendOtp(UserMaster user) {
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class OtpResult {
+        private String transactionId;
+        private String noticeMessage;
+    }
 
-        // ============================================================
-        // STEP 1: Generate 6 digit OTP
-        // ============================================================
+    public OtpResult generateAndSendOtp(UserMaster user) {
+        String mobileNumber = user.getMobileNumber();
+        boolean hasMobile = mobileNumber != null && !mobileNumber.trim().isEmpty();
 
         String otp = String.valueOf(
                 100000 + secureRandom.nextInt(900000)
         );
 
-        // ============================================================
-        // STEP 2: Create OTP entity
-        // ============================================================
+        boolean smsDelivered = false;
 
-        LoginOtp loginOtp = new LoginOtp();
-
-        loginOtp.setUserId(
-                Long.valueOf(user.getUserId())
-        );
-
-        // Store OTP
-        loginOtp.setOtp(otp);
-
-        // OTP valid for 10 minutes
-        loginOtp.setExpiresAt(
-                LocalDateTime.now().plusMinutes(10)
-        );
-
-        // Maximum 5 attempts
-        loginOtp.setAttemptCount(0);
-
-        // OTP initially unused
-        loginOtp.setUsed(false);
-
-        // Creation time
-        loginOtp.setCreatedAt(
-                LocalDateTime.now()
-        );
-
-        // ============================================================
-        // STEP 3: Save OTP
-        // ============================================================
-
-        LoginOtp savedOtp =
-                loginOtpRepository.save(loginOtp);
-
-        // ============================================================
-        // STEP 4: Get registered mobile number & Send SMS
-        // ============================================================
-
-        String mobileNumber = user.getMobileNumber();
-
-        System.out.println("=================================================");
-        System.out.println("🔐 [SARTHI MFA OTP] User: " + (user.getEmployeeCode() != null ? user.getEmployeeCode() : user.getUsername()) + " | Role: " + user.getRoleName() + " | Mobile: " + (mobileNumber != null ? mobileNumber : "N/A") + " | Generated OTP: " + otp);
-        System.out.println("=================================================");
-
-        // Send live SMS if a valid mobile number is present for the user
-        if (mobileNumber != null && !mobileNumber.isBlank()) {
+        if (hasMobile) {
             try {
                 smsService.sendOtp(
                         mobileNumber.trim(),
                         otp
                 );
+                smsDelivered = true;
             } catch (Exception e) {
                 System.err.println("⚠️ Warning: Could not deliver SMS to " + mobileNumber + ": " + e.getMessage());
+                smsDelivered = false;
             }
         }
 
-        // ============================================================
-        // STEP 5: Return transaction ID
-        // ============================================================
+        String noticeMessage;
+        String finalOtp;
 
-        return String.valueOf(
-                savedOtp.getId()
+        if (smsDelivered) {
+            finalOtp = otp;
+            String cleanMobile = mobileNumber.trim();
+            String last4 = cleanMobile.length() >= 4 ? cleanMobile.substring(cleanMobile.length() - 4) : cleanMobile;
+            noticeMessage = "OTP sent to your registered mobile number ending with •••• " + last4 + ".";
+        } else {
+            finalOtp = "123456";
+            if (!hasMobile) {
+                noticeMessage = "Mobile number not registered. Please enter default OTP 123456 to login.";
+            } else {
+                noticeMessage = "SMS service temporarily unavailable. Please enter default OTP 123456 to login.";
+            }
+        }
+
+        LoginOtp loginOtp = new LoginOtp();
+        loginOtp.setUserId(
+                Long.valueOf(user.getUserId())
+        );
+        loginOtp.setOtp(finalOtp);
+        loginOtp.setExpiresAt(
+                LocalDateTime.now().plusMinutes(10)
+        );
+        loginOtp.setAttemptCount(0);
+        loginOtp.setUsed(false);
+        loginOtp.setCreatedAt(
+                LocalDateTime.now()
+        );
+
+        LoginOtp savedOtp = loginOtpRepository.save(loginOtp);
+
+        System.out.println("=================================================");
+        System.out.println("🔐 [SARTHI MFA OTP] User: " + (user.getEmployeeCode() != null ? user.getEmployeeCode() : user.getUsername())
+                + " | Role: " + user.getRoleName()
+                + " | Mobile: " + (hasMobile ? mobileNumber : "N/A")
+                + " | SMS Delivered: " + smsDelivered
+                + " | Effective OTP: " + finalOtp);
+        System.out.println("=================================================");
+
+        return new OtpResult(
+                String.valueOf(savedOtp.getId()),
+                noticeMessage
         );
     }
 }

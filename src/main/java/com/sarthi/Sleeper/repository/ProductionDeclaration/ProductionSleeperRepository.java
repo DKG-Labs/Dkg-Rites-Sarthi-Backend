@@ -21,6 +21,16 @@ WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
     List<ProductionSleeper> getSleepersByBatch(Long batchId);
 
     @Query("""
+SELECT s, COALESCE(c.declaration.id, g.declaration.id)
+FROM ProductionSleeper s
+LEFT JOIN s.benchGroup b
+LEFT JOIN b.chamber c
+LEFT JOIN s.gang g
+WHERE (c.declaration.id IN :batchIds OR g.declaration.id IN :batchIds)
+""")
+    List<Object[]> getSleepersWithBatchIdByBatchIds(@Param("batchIds") java.util.Collection<Long> batchIds);
+
+    @Query("""
 SELECT s
 FROM ProductionSleeper s
 LEFT JOIN s.benchGroup b

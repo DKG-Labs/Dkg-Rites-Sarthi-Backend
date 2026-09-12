@@ -99,6 +99,15 @@ AND h.module.id = :moduleId
           """)
   List<InspectionTestResult> findAllResultsByBatchId(@Param("batchId") Long batchId);
 
+  @Query("""
+          SELECT r
+          FROM InspectionTestResult r
+          JOIN r.testHeader h
+          WHERE h.batchId IN :batchIds
+          AND r.active = true
+          """)
+  List<InspectionTestResult> findAllResultsByBatchIds(@Param("batchIds") java.util.Collection<Long> batchIds);
+
 
   @Query("""
           SELECT COUNT(r) > 0
