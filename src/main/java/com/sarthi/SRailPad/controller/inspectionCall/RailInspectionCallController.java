@@ -6,6 +6,8 @@ import com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository;
 import com.sarthi.SRailPad.service.inspectionCall.RailInspectionCallService;
 import com.sarthi.SRailPad.service.RailWorkflowService;
 import com.sarthi.SRailPad.service.inspectionCall.RailPoSummaryService;
+import com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants;
+import com.sarthi.SRailPad.repository.RailVendorPlantsRepository;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/rail-inspection-call")
@@ -34,6 +37,7 @@ public class RailInspectionCallController {
     private final com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository;
     private final RailWorkflowTransactionRepository railWorkflowTransactionRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
+    private final RailVendorPlantsRepository railVendorPlantsRepository;
 
     @Autowired
     public RailInspectionCallController(RailInspectionCallService service,
@@ -41,13 +45,15 @@ public class RailInspectionCallController {
                                         RailPoSummaryService railPoSummaryService,
                                         com.sarthi.SRailPad.repository.inspectionCall.RailProcessCallDetailsRepository processCallDetailsRepository,
                                         RailWorkflowTransactionRepository railWorkflowTransactionRepository,
-                                        com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository) {
+                                        com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository,
+                                        RailVendorPlantsRepository railVendorPlantsRepository) {
         this.service = service;
         this.railWorkflowService = railWorkflowService;
         this.railPoSummaryService = railPoSummaryService;
         this.processCallDetailsRepository = processCallDetailsRepository;
         this.railWorkflowTransactionRepository = railWorkflowTransactionRepository;
         this.railInspectionCallRepository = railInspectionCallRepository;
+        this.railVendorPlantsRepository = railVendorPlantsRepository;
     }
 
     /**
@@ -118,10 +124,43 @@ public class RailInspectionCallController {
             }
         }
 
-        // Set rio from the workflow transaction (fetches earliest non-null rio value — set at CREATED stage)
-        String rioValue = railWorkflowTransactionRepository.findRioByRequestId(callNo);
-        if (rioValue != null && !rioValue.isBlank()) {
-            summary.setRio(rioValue);
+        // Direct lookup from rail_vendor_plant for Manufacturer Name (company_name), Place of Inspection (plant_name), and RIO
+        RailVendorPlants plant = null;
+        if (call.getPlantId() != null && !call.getPlantId().isBlank()) {
+            String pId = call.getPlantId().trim();
+            plant = railVendorPlantsRepository.findByPlantId(pId)
+                    .orElseGet(() -> railVendorPlantsRepository.findByPlantId(pId.startsWith(":") ? pId.substring(1) : ":" + pId)
+                    .orElse(null));
+        }
+        if (plant == null && call.getVendorCode() != null && !call.getVendorCode().isBlank()) {
+            String vCode = call.getVendorCode().trim();
+            List<RailVendorPlants> plants = railVendorPlantsRepository.findByVendorCode(vCode);
+            if (plants.isEmpty()) {
+                plants = railVendorPlantsRepository.findByVendorCode(vCode.startsWith(":") ? vCode.substring(1) : ":" + vCode);
+            }
+            if (!plants.isEmpty()) {
+                plant = plants.get(0);
+            }
+        }
+
+        if (plant != null) {
+            if (plant.getCompanyName() != null && !plant.getCompanyName().isBlank()) {
+                summary.setVendorName(plant.getCompanyName().trim());
+            }
+            if (plant.getPlantName() != null && !plant.getPlantName().isBlank()) {
+                summary.setPlaceOfInspection(plant.getPlantName().trim());
+            }
+            if (plant.getRio() != null && !plant.getRio().isBlank()) {
+                summary.setRio(plant.getRio().trim());
+            }
+        }
+
+        // If RIO is not yet set or needs workflow override, fallback to workflow transaction
+        if (summary.getRio() == null || summary.getRio().isBlank() || "N/A".equalsIgnoreCase(summary.getRio())) {
+            String rioValue = railWorkflowTransactionRepository.findRioByRequestId(callNo);
+            if (rioValue != null && !rioValue.isBlank()) {
+                summary.setRio(rioValue);
+            }
         }
 
         // Ensure placeOfInspection fallback to call plantId if null or empty

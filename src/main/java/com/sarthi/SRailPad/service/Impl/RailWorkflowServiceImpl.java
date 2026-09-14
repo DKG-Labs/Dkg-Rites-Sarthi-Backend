@@ -24,6 +24,9 @@ import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCompleteDetails;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
+import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule;
+import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionScheduleRepository;
+import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository;
 import com.sarthi.util.NotificationService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +76,8 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private RailCallCancellationDetailRepository railCallCancellationDetailRepository;
     private RailVendorFinancialLiabilityRepository railVendorFinancialLiabilityRepository;
     private com.sarthi.repository.IbsCallRegistrationRepository ibsCallRegistrationRepository;
-    private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
+    private RailInspectionBatchRepository railInspectionBatchRepository;
+    private RailInspectionScheduleRepository railInspectionScheduleRepository;
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
@@ -1085,38 +1089,65 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         dto.setNextRole(tx.getNextRole());
         dto.setShift(tx.getShift());
         dto.setVendorCode(tx.getVendorCode());
+        dto.setCreatedDate(tx.getCreatedDate());
+        dto.setUpdatedDate(tx.getUpdatedDate());
         
         String vendorNameCacheKey = "vendorName_" + (tx.getVendorCode() != null ? tx.getVendorCode() : "") + "_" + (tx.getPlantId() != null ? tx.getPlantId() : "");
         String vName = null;
         if (cache.containsKey(vendorNameCacheKey)) {
             vName = (String) cache.get(vendorNameCacheKey);
         } else {
-            // 1. Try VendorMaster by vendorCode
+            // 1. Try preloaded VendorMaster by vendorCode
             if (tx.getVendorCode() != null && !tx.getVendorCode().trim().isEmpty()) {
-                vName = vendorMasterRepository.findByVendorCode(tx.getVendorCode().trim())
-                    .map(com.sarthi.entity.VendorMaster::getVendorName)
-                    .orElse(null);
+                String vmKey = "vendorMaster_" + tx.getVendorCode().trim();
+                if (cache.containsKey(vmKey)) {
+                    com.sarthi.entity.VendorMaster vm = (com.sarthi.entity.VendorMaster) cache.get(vmKey);
+                    if (vm != null) vName = vm.getVendorName();
+                } else {
+                    vName = vendorMasterRepository.findByVendorCode(tx.getVendorCode().trim())
+                        .map(com.sarthi.entity.VendorMaster::getVendorName)
+                        .orElse(null);
+                }
             }
 
-            // 2. Try RailVendorPlants by vendorCode
-            if ((vName == null || vName.trim().isEmpty()) && tx.getVendorCode() != null && !tx.getVendorCode().trim().isEmpty()) {
-                vName = railVendorPlantsRepository.findByVendorCode(tx.getVendorCode().trim())
-                    .stream()
-                    .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
-                    .filter(c -> c != null && !c.trim().isEmpty())
-                    .findFirst()
-                    .orElse(null);
+            // 2. Try preloaded RailVendorPlants
+            if ((vName == null || vName.trim().isEmpty()) && cache.containsKey("all_vendor_plants")) {
+                List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> allPlants = 
+                    (List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants>) cache.get("all_vendor_plants");
+                if (allPlants != null) {
+                    if (tx.getVendorCode() != null && !tx.getVendorCode().trim().isEmpty()) {
+                        vName = allPlants.stream()
+                            .filter(p -> p.getVendorCode() != null && p.getVendorCode().equalsIgnoreCase(tx.getVendorCode().trim()))
+                            .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
+                            .filter(c -> c != null && !c.trim().isEmpty())
+                            .findFirst()
+                            .orElse(null);
+                    }
+                    if ((vName == null || vName.trim().isEmpty()) && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
+                        String cleanPId = tx.getPlantId().replace(":", "").trim();
+                        vName = allPlants.stream()
+                            .filter(p -> p.getPlantId() != null && p.getPlantId().replace(":", "").trim().equalsIgnoreCase(cleanPId))
+                            .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
+                            .filter(c -> c != null && !c.trim().isEmpty())
+                            .findFirst()
+                            .orElse(null);
+                    }
+                }
             }
 
-            // 3. Try RailVendorPlants by plantId
-            if ((vName == null || vName.trim().isEmpty()) && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
-                String pId = tx.getPlantId().trim();
-                vName = railVendorPlantsRepository.findByPlantId(pId)
-                    .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
-                    .orElse(null);
-                if (vName == null || vName.trim().isEmpty()) {
-                    String altPlantId = pId.startsWith(":") ? pId.substring(1) : ":" + pId;
-                    vName = railVendorPlantsRepository.findByPlantId(altPlantId)
+            // 3. Fallback to repository lookups only if cache not preloaded
+            if ((vName == null || vName.trim().isEmpty()) && !cache.containsKey("all_vendor_plants")) {
+                if (tx.getVendorCode() != null && !tx.getVendorCode().trim().isEmpty()) {
+                    vName = railVendorPlantsRepository.findByVendorCode(tx.getVendorCode().trim())
+                        .stream()
+                        .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
+                        .filter(c -> c != null && !c.trim().isEmpty())
+                        .findFirst()
+                        .orElse(null);
+                }
+                if ((vName == null || vName.trim().isEmpty()) && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
+                    String pId = tx.getPlantId().trim();
+                    vName = railVendorPlantsRepository.findByPlantId(pId)
                         .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getCompanyName)
                         .orElse(null);
                 }
@@ -1124,11 +1155,18 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
             // 4. Try RailInspectionCall by requestId / callNo
             if ((vName == null || vName.trim().isEmpty()) && tx.getRequestId() != null) {
-                try {
-                    vName = railInspectionCallRepository.findByCallNo(tx.getRequestId())
-                        .map(com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall::getVendorName)
-                        .orElse(null);
-                } catch (Exception ignored) {}
+                String callCacheKey = "call_" + tx.getRequestId();
+                if (cache.containsKey(callCacheKey)) {
+                    com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall c = 
+                        (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall) cache.get(callCacheKey);
+                    if (c != null) vName = c.getVendorName();
+                } else {
+                    try {
+                        vName = railInspectionCallRepository.findByCallNo(tx.getRequestId())
+                            .map(com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall::getVendorName)
+                            .orElse(null);
+                    } catch (Exception ignored) {}
+                }
             }
             cache.put(vendorNameCacheKey, vName);
         }
@@ -1162,6 +1200,39 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             if (railCall.getRailPadType() != null && !railCall.getRailPadType().trim().isEmpty()) {
                 dto.setRailPadType(railCall.getRailPadType());
             }
+            if (railCall.getCreatedAt() != null) {
+                dto.setCallDate(railCall.getCreatedAt());
+            }
+            if (railCall.getTotalQty() != null) {
+                dto.setOfferedQty(railCall.getTotalQty());
+                dto.setTotalQty(railCall.getTotalQty());
+            }
+            if (railCall.getNoOfSets() != null) {
+                dto.setNoOfSets(railCall.getNoOfSets());
+            }
+            if (railCall.getNoOfLots() != null) {
+                dto.setNoOfLots(railCall.getNoOfLots());
+            }
+        }
+
+        if (dto.getCallDate() == null && tx.getCreatedDate() != null) {
+            dto.setCallDate(tx.getCreatedDate());
+        }
+
+        // Fetch RailInspectionSchedule details
+        RailInspectionSchedule schedule = null;
+        if (tx.getRequestId() != null) {
+            String scheduleKey = "schedule_" + tx.getRequestId().trim();
+            if (cache.containsKey(scheduleKey)) {
+                schedule = (RailInspectionSchedule) cache.get(scheduleKey);
+            } else if (railInspectionScheduleRepository != null) {
+                schedule = railInspectionScheduleRepository.findByCallNo(tx.getRequestId().trim()).orElse(null);
+                cache.put(scheduleKey, schedule);
+            }
+        }
+        if (schedule != null && schedule.getScheduleDate() != null) {
+            dto.setScheduleDate(schedule.getScheduleDate());
+            dto.setScheduledDate(schedule.getScheduleDate());
         }
 
         // Determine Stage of Inspection (RPP = Process, RPF / RFF = Final)
@@ -1364,6 +1435,22 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
             if (cache.containsKey(mappingCacheKey)) {
                 mappings = (List<RailPoiIeMapping>) cache.get(mappingCacheKey);
+            } else if (cache.containsKey("all_poi_ie_mappings")) {
+                List<RailPoiIeMapping> allMappings = (List<RailPoiIeMapping>) cache.get("all_poi_ie_mappings");
+                final String finalIeType = ieType;
+                final String cleanPlant = plantId != null ? plantId.replace(":", "").trim() : null;
+                mappings = allMappings.stream()
+                        .filter(m -> {
+                            boolean plantMatch = (cleanPlant != null && !cleanPlant.isEmpty() && m.getPlantId() != null &&
+                                    m.getPlantId().replace(":", "").trim().equalsIgnoreCase(cleanPlant));
+                            boolean poiMatch = (poiCode != null && !poiCode.isEmpty() && poiCode.equalsIgnoreCase(m.getPoiCode()));
+                            boolean typeMatch = m.getIeType() != null &&
+                                    (m.getIeType().equalsIgnoreCase(finalIeType) ||
+                                     m.getIeType().replace(" ", "_").equalsIgnoreCase(finalIeType.replace(" ", "_")));
+                            return (plantMatch || poiMatch) && typeMatch;
+                        })
+                        .toList();
+                cache.put(mappingCacheKey, mappings);
             } else {
                 mappings = poiIeMappingRepository.findMappingsByPlantOrPoiAndIeType(plantId, poiCode, ieType);
                 cache.put(mappingCacheKey, mappings != null ? mappings : new ArrayList<>());
@@ -1386,6 +1473,16 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             Long vendorUserId = null;
             if (cache.containsKey(vendorUserCacheKey)) {
                 vendorUserId = (Long) cache.get(vendorUserCacheKey);
+            } else if (cache.containsKey("all_vendor_plants")) {
+                List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> allPlants = 
+                    (List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants>) cache.get("all_vendor_plants");
+                vendorUserId = allPlants.stream()
+                    .filter(p -> p.getVendorCode() != null && p.getVendorCode().equalsIgnoreCase(finalVendorId))
+                    .map(com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants::getVendorId)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+                cache.put(vendorUserCacheKey, vendorUserId);
             } else {
                 vendorUserId = railVendorPlantsRepository.findVendorUserIdByVendorCode(finalVendorId).orElse(null);
                 cache.put(vendorUserCacheKey, vendorUserId);
@@ -1743,6 +1840,32 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
 
+        // 1c. Preload inspection schedules (prevent N+1 queries)
+        if (!requestIds.isEmpty() && railInspectionScheduleRepository != null) {
+            try {
+                List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule> schedules =
+                        railInspectionScheduleRepository.findByCallNoIn(requestIds);
+                for (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule s : schedules) {
+                    if (s.getCallNo() != null) {
+                        String key = "schedule_" + s.getCallNo().trim();
+                        com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule existing =
+                                (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule) cache.get(key);
+                        if (existing == null || (s.getId() != null && existing.getId() != null && s.getId() > existing.getId())) {
+                            cache.put(key, s);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error preloading schedules: " + e.getMessage());
+            }
+        }
+        for (String reqId : requestIds) {
+            String scheduleKey = "schedule_" + reqId;
+            if (!cache.containsKey(scheduleKey)) {
+                cache.put(scheduleKey, null);
+            }
+        }
+
         // 2. Preload PO Headers
         List<String> poNos = new ArrayList<>();
         for (RailInspectionCall c : callMap.values()) {
@@ -1830,6 +1953,44 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             } catch (Exception e) {
                 System.err.println("Error preloading users: " + e.getMessage());
             }
+        }
+
+        // 6. Preload VendorMaster
+        List<String> vendorCodes = list.stream()
+                .map(RailWorkflowTransaction::getVendorCode)
+                .filter(v -> v != null && !v.trim().isEmpty())
+                .distinct()
+                .toList();
+        if (!vendorCodes.isEmpty()) {
+            try {
+                List<com.sarthi.entity.VendorMaster> vendors = vendorMasterRepository.findByVendorCodeIn(vendorCodes);
+                for (com.sarthi.entity.VendorMaster vm : vendors) {
+                    if (vm.getVendorCode() != null) {
+                        cache.put("vendorMaster_" + vm.getVendorCode().trim(), vm);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error preloading vendor masters: " + e.getMessage());
+            }
+        }
+
+        // 7. Preload IE Mappings & Plants
+        try {
+            List<RailPoiIeMapping> allMappings = poiIeMappingRepository.findAll();
+            if (allMappings != null) {
+                cache.put("all_poi_ie_mappings", allMappings);
+            }
+        } catch (Exception e) {
+            System.err.println("Error preloading IE mappings: " + e.getMessage());
+        }
+
+        try {
+            List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> allPlants = railVendorPlantsRepository.findAll();
+            if (allPlants != null) {
+                cache.put("all_vendor_plants", allPlants);
+            }
+        } catch (Exception e) {
+            System.err.println("Error preloading vendor plants: " + e.getMessage());
         }
     }
 
@@ -2517,4 +2678,4 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             log.info("Payment marked as 'Approved by RITES Finance' for call {} via IBS verification.", cleanCallNo);
         }
     }
-}
+}
