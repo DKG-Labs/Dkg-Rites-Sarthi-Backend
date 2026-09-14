@@ -45,7 +45,14 @@ public class RailWorkflowTransactionDto {
         private String dpDate;
         private String extDpDate;
         private String placeOfInspection;
+        private LocalDateTime callDate;
         private java.time.LocalDate desiredInspectionDate;
+        private Integer offeredQty;
+        private Integer totalQty;
+        private java.time.LocalDate scheduleDate;
+        private java.time.LocalDate scheduledDate;
+        private Integer noOfSets;
+        private Integer noOfLots;
         private String railPadType;
         private String productType;
         private String productStage;

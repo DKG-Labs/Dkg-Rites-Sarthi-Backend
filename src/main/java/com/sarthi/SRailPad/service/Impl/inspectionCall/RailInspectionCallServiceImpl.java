@@ -111,8 +111,10 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         }
 
         // Validate if plant is blocked due to pending cancellation charges
-        if (call.getPlantId() != null && railWorkflowService.isPlantBlockedForCallRaising(call.getPlantId(), call.getVendorCode())) {
-            throw new RuntimeException("Call raising is blocked for plant (" + call.getPlantId() + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module.");
+        if (call.getPlantId() != null
+                && railWorkflowService.isPlantBlockedForCallRaising(call.getPlantId(), call.getVendorCode())) {
+            throw new RuntimeException("Call raising is blocked for plant (" + call.getPlantId()
+                    + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module.");
         }
 
         // Validate and initiate workflow BEFORE persisting to database
@@ -426,10 +428,12 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
         // 3. Fetch latest status dynamically from workflow transactions
         if (call.getCallNo() != null) {
-            Optional<String> cancelTx = railWorkflowTransactionRepository.findLatestCancelledStatusByRequestId(call.getCallNo());
+            Optional<String> cancelTx = railWorkflowTransactionRepository
+                    .findLatestCancelledStatusByRequestId(call.getCallNo());
             if (cancelTx.isPresent() && !cancelTx.get().isBlank()) {
                 call.setStatus("CANCELLED");
-            } else if (railCallCancellationDetailRepository != null && railCallCancellationDetailRepository.findByCallNumber(call.getCallNo()).isPresent()) {
+            } else if (railCallCancellationDetailRepository != null
+                    && railCallCancellationDetailRepository.findByCallNumber(call.getCallNo()).isPresent()) {
                 call.setStatus("CANCELLED");
             } else {
                 String latestStatus = railWorkflowTransactionRepository
@@ -582,8 +586,13 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         Double qtyNowPassed = 0.0;
         Double qtyNowRejected = 0.0;
 
-        boolean isNCRGRSP = (call.getRailPadType() != null && (call.getRailPadType().toUpperCase().contains("NCR") || call.getRailPadType().toUpperCase().contains("NYLON CORD") || call.getRailPadType().toUpperCase().contains("9790")))
-                || (currentResults.stream().anyMatch(r -> r.getRailpadType() != null && (r.getRailpadType().toUpperCase().contains("NCR") || r.getRailpadType().toUpperCase().contains("NYLON CORD") || r.getRailpadType().toUpperCase().contains("9790"))))
+        boolean isNCRGRSP = (call.getRailPadType() != null && (call.getRailPadType().toUpperCase().contains("NCR")
+                || call.getRailPadType().toUpperCase().contains("NYLON CORD")
+                || call.getRailPadType().toUpperCase().contains("9790")))
+                || (currentResults.stream()
+                        .anyMatch(r -> r.getRailpadType() != null && (r.getRailpadType().toUpperCase().contains("NCR")
+                                || r.getRailpadType().toUpperCase().contains("NYLON CORD")
+                                || r.getRailpadType().toUpperCase().contains("9790"))))
                 || (poItem != null && poItem.getUom() != null && "SET".equalsIgnoreCase(poItem.getUom().trim()));
 
         if (isNCRGRSP) {
@@ -700,7 +709,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
         String passedWordsTemplate = String.format(
                 "QUANTITY NOW PASSED %s %s ONLY. INCLUDING ONE NOS CONSUMED IN MF TESTING. %s NOS. REJECTED DURING INSPECTION AS PER ANNEXURE-I TO IC ATTACHED.%s",
-                convertToWords(qtyNowPassed.longValue()), uom.toUpperCase(), convertToWords(qtyNowRejected.longValue()), caseNoBracket);
+                convertToWords(qtyNowPassed.longValue()), uom.toUpperCase(), convertToWords(qtyNowRejected.longValue()),
+                caseNoBracket);
 
         String rejectionReasonTemplate = qtyNowRejected > 0 ? "REJECTED DURING INSPECTION AS DETAILED IN ANNEXURE-I"
                 : "Not Applicable";
@@ -739,7 +749,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 certificateNo = rioFirstLetter + "/" + parts[1] + "/" + parts[2].toUpperCase();
             } else if (certificateNo.contains("/")) {
                 int lastSlash = certificateNo.lastIndexOf('/');
-                certificateNo = rioFirstLetter + "/" + certificateNo.substring(certificateNo.indexOf('/') + 1, lastSlash + 1) + certificateNo.substring(lastSlash + 1).toUpperCase();
+                certificateNo = rioFirstLetter + "/"
+                        + certificateNo.substring(certificateNo.indexOf('/') + 1, lastSlash + 1)
+                        + certificateNo.substring(lastSlash + 1).toUpperCase();
             }
         }
 
@@ -809,7 +821,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     @Override
     public List<RailInspectionCall> getProcessCalls(String railPadType, String drawingNo, String plantId, String poNo,
             String poSr) {
-        String cleanPoNo = (poNo != null && poNo.contains("/")) ? poNo.split("/")[0].trim() : (poNo != null ? poNo.trim() : null);
+        String cleanPoNo = (poNo != null && poNo.contains("/")) ? poNo.split("/")[0].trim()
+                : (poNo != null ? poNo.trim() : null);
 
         if (cleanPoNo != null && !cleanPoNo.isEmpty()) {
             List<RailInspectionCompleteDetails> completeDetails = railInspectionCompleteDetailsRepository
