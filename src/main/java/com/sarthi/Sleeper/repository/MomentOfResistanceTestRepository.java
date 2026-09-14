@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.repository;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.DateOnlyProjection;
 import com.sarthi.Sleeper.entity.MomentOfResistance;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,9 +11,20 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MomentOfResistanceTestRepository extends JpaRepository<MomentOfResistanceTest, Long> {
+
+    @Override
+    @EntityGraph(attributePaths = {"details"})
+    List<MomentOfResistanceTest> findAll();
+
+    @Override
+    @EntityGraph(attributePaths = {"details"})
+    Optional<MomentOfResistanceTest> findById(Long id);
+
+    @EntityGraph(attributePaths = {"details"})
     @Query("""
     SELECT m FROM MomentOfResistanceTest m
     WHERE m.plantId = :plantId
