@@ -1357,4 +1357,20 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
 
 
     List<WorkflowTransition> findTop2ByRequestIdOrderByWorkflowTransitionIdDesc(String normalizedRequestId);
+
+    @Query(value = """
+            SELECT t.*
+            FROM workflow_transition t
+            WHERE t.workflowtransitionid IN (
+                SELECT MAX(t2.workflowtransitionid)
+                FROM workflow_transition t2
+                WHERE (UPPER(t2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.job_status, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.action, '')) LIKE '%CANCEL%')
+                GROUP BY t2.requestid
+            )
+            AND (:vendorCode IS NULL OR :vendorCode = '' 
+                 OR REPLACE(t.requestid, ':', '') LIKE CONCAT(:vendorCode, '%')
+                 OR t.requestid IN (SELECT ic.ic_number FROM inspection_calls ic WHERE (:plantId IS NULL OR :plantId = '' OR ic.place_of_inspection = :plantId) AND (:vendorCode IS NULL OR :vendorCode = '' OR ic.vendor_id = :vendorCode)))
+            ORDER BY t.createddate DESC
+            """, nativeQuery = true)
+    List<WorkflowTransition> findLatestCancelledTransactions(@Param("plantId") String plantId, @Param("vendorCode") String vendorCode);
 }

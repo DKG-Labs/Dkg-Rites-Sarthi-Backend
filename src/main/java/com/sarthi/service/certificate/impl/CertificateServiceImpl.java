@@ -4,6 +4,7 @@ import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
 import java.io.ByteArrayOutputStream;
 import java.util.Base64;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import com.sarthi.dto.certificate.RawMaterialCertificateDto;
@@ -1864,7 +1865,7 @@ public class CertificateServiceImpl implements CertificateService {
                 return "";
             }
 
-            List<String> hologramStrings = new ArrayList<>();
+            Set<String> hologramStrings = new LinkedHashSet<>();
             for (FinalInspectionLotResults lot : lotResults) {
                 if (lot.getHologramDetails() != null && !lot.getHologramDetails().isEmpty()) {
                     List<Map<String, String>> details = objectMapper.readValue(
@@ -1877,13 +1878,13 @@ public class CertificateServiceImpl implements CertificateService {
                         if ("range".equalsIgnoreCase(type)) {
                             String from = entry.get("from");
                             String to = entry.get("to");
-                            if (from != null && to != null) {
-                                hologramStrings.add(from + " TO " + to);
+                            if (from != null && !from.trim().isEmpty() && to != null && !to.trim().isEmpty()) {
+                                hologramStrings.add(from.trim() + " TO " + to.trim());
                             }
                         } else if ("single".equalsIgnoreCase(type)) {
                             String value = entry.get("value");
-                            if (value != null) {
-                                hologramStrings.add(value);
+                            if (value != null && !value.trim().isEmpty()) {
+                                hologramStrings.add(value.trim());
                             }
                         }
                     }

@@ -62,4 +62,14 @@ public interface WorkflowService {
             String requestId,
             Integer deletedBy);
 
+    List<com.sarthi.dto.CancelledPaymentCallDto> getCancelledCallsForPayment(String plantId, String vendorCode);
+
+    boolean isPlantBlockedForCallRaising(String plantId, String vendorCode);
+
+    com.sarthi.entity.CallCancellationDetail getCancellationDetails(String callNo);
+
+    java.util.Map<String, Object> verifyIbsPayment(String caseNo, String callDate, int ibsCallSno);
+
+    void markPaymentApprovedByIbs(String callNo);
+
 }
