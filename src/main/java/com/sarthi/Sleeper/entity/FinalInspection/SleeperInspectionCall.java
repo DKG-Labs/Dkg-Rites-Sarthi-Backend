@@ -48,5 +48,6 @@ public class SleeperInspectionCall {
     private String plantId;
 
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<SleeperInspectionCallBatch> batchesSelected;
 }

@@ -31,9 +31,11 @@ public class SleeperInspectionCallBatch {
 
     @ElementCollection
     @CollectionTable(name = "sleeper_ic_good_sleepers", joinColumns = @JoinColumn(name = "batch_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<SleeperDetail> goodSleepers;
 
     @ElementCollection
     @CollectionTable(name = "sleeper_ic_bad_sleepers", joinColumns = @JoinColumn(name = "batch_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<SleeperDetail> badSleepers;
 }

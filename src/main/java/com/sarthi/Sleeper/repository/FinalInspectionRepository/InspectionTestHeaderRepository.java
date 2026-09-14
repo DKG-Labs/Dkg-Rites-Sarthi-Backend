@@ -35,19 +35,24 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
     @Query("""
              SELECT h.batchId
              FROM InspectionTestHeader h
-             WHERE h.status='Completed'
-             AND h.batchId IN (
-                 SELECT d.id
-                 FROM ProductionDeclaration d
-                 LEFT JOIN d.chambers c
-                 LEFT JOIN c.benchGroups b
-                 LEFT JOIN d.gangs g
-                 WHERE d.createdBy = :userId AND (b.sleeperType = :sleeperType OR g.sleeperType = :sleeperType)
+             WHERE h.status = 'Completed'
+             AND (
+                 h.batchId IN (
+                     SELECT c.declaration.id
+                     FROM ProductionBenchGroup b
+                     JOIN b.chamber c
+                     WHERE c.declaration.createdBy = :userId AND b.sleeperType = :sleeperType
+                 )
+                 OR h.batchId IN (
+                     SELECT g.declaration.id
+                     FROM ProductionLongLineGang g
+                     WHERE g.declaration.createdBy = :userId AND g.sleeperType = :sleeperType
+                 )
              )
              GROUP BY h.batchId
-             HAVING COUNT(DISTINCT h.module.id)=3
+             HAVING COUNT(DISTINCT h.module.id) = 3
             """)
-    List<Long> findCompletedBatchIdsBySleeperTypeAndUserId(String sleeperType, Long userId);
+    List<Long> findCompletedBatchIdsBySleeperTypeAndUserId(@Param("sleeperType") String sleeperType, @Param("userId") Long userId);
 
     @Query("""
              SELECT DISTINCT COALESCE(b.sleeperType, g.sleeperType)

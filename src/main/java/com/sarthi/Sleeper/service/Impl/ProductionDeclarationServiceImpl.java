@@ -1316,13 +1316,25 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
     @Override
     public List<ProductionDeclarationResponseDto> getByUser(Long userId) {
 
-        List<ProductionDeclarationResponseDto> list = new ArrayList<>();
-
-        for (ProductionDeclaration entity : repository.findByCreatedBy(userId)) {
-            list.add(getById(entity.getId()));
+        List<ProductionDeclaration> entities = repository.findByCreatedBy(userId);
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        return list;
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllLatestStatuses(11L)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
+                ));
+
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
+
+        return entities.stream()
+                .map(entity -> mapToResponse(entity, statusMap, sleeperTypeMap))
+                .toList();
     }
 
     @Override

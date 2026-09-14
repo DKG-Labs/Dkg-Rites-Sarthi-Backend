@@ -38,6 +38,8 @@ import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcSav
 
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperCallCancellationDetail;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperCallCancellationDetailRepository;
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperVendorFinancialLiability;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperVendorFinancialLiabilityRepository;
 import com.sarthi.Sleeper.dto.SleeperCancelledPaymentCallDto;
 import java.math.BigDecimal;
 import lombok.extern.slf4j.Slf4j;
@@ -104,6 +106,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private SleeperScheduleRepository sleeperScheduleRepository;
     @Autowired
     private SleeperCallCancellationDetailRepository sleeperCallCancellationDetailRepository;
+    @Autowired
+    private SleeperVendorFinancialLiabilityRepository sleeperVendorFinancialLiabilityRepository;
 
     public void validateUser(Integer userId) {
         if (!userMasterRepository.existsById(userId)) {
@@ -758,9 +762,23 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     cancellationDetail.setUpdatedBy(creatorId);
 
                     sleeperCallCancellationDetailRepository.save(cancellationDetail);
+
+                    if (sleeperVendorFinancialLiabilityRepository != null && !"NON_CHARGEABLE".equalsIgnoreCase(cancellationDetail.getCancellationBasis())) {
+                        SleeperVendorFinancialLiability liability = new SleeperVendorFinancialLiability();
+                        liability.setCallNumber(cancellationDetail.getCallNumber());
+                        liability.setVendorCode(cancellationDetail.getVendorCode());
+                        liability.setLiabilityType("CANCELLATION_CHARGES");
+                        BigDecimal chargeAmt = cancellationDetail.getFinalCancellationCharges() != null ?
+                                cancellationDetail.getFinalCancellationCharges() : BigDecimal.ZERO;
+                        // Add 18% GST
+                        BigDecimal totalWithGst = chargeAmt.multiply(BigDecimal.valueOf(1.18)).setScale(2, java.math.RoundingMode.HALF_UP);
+                        liability.setAmount(totalWithGst);
+                        liability.setPaymentStatus("PENDING");
+                        sleeperVendorFinancialLiabilityRepository.save(liability);
+                    }
                 }
             } catch (Exception ex) {
-                System.err.println("⚠️ Failed to persist SleeperCallCancellationDetail: " + ex.getMessage());
+                System.err.println("⚠️ Failed to persist SleeperCallCancellationDetail / SleeperVendorFinancialLiability: " + ex.getMessage());
             }
 
             tx.setCreatedBy(current.getCreatedBy());
@@ -1717,6 +1735,13 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 }
             }
 
+            if (base == 0.0 && !isNonChargeable && sleeperVendorFinancialLiabilityRepository != null) {
+                Optional<SleeperVendorFinancialLiability> liabOpt = sleeperVendorFinancialLiabilityRepository.findByCallNumber(callNo);
+                if (liabOpt.isPresent() && liabOpt.get().getAmount() != null) {
+                    base = liabOpt.get().getAmount().doubleValue() / 1.18;
+                }
+            }
+
             // Calls cancelled on non-chargeable basis (or with zero charges) should not go to Payment Details module
             if (isNonChargeable || base <= 0.0) {
                 continue;
@@ -1729,7 +1754,15 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             dto.setBankAccountDetails("SBI A/c: 39482910482, IFSC: SBIN0001234, Branch: RITES Central");
             dto.setPaymentReason("Cancellation");
             dto.setChargeType("Cancellation");
-            dto.setPaymentStatus("Payment Pending");
+
+            String paymentStatus = "Payment Pending";
+            if (sleeperVendorFinancialLiabilityRepository != null) {
+                Optional<SleeperVendorFinancialLiability> liabOpt = sleeperVendorFinancialLiabilityRepository.findByCallNumber(callNo);
+                if (liabOpt.isPresent() && liabOpt.get().getPaymentStatus() != null) {
+                    paymentStatus = liabOpt.get().getPaymentStatus();
+                }
+            }
+            dto.setPaymentStatus(paymentStatus);
 
             result.add(dto);
         }
@@ -1741,10 +1774,15 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         List<SleeperCancelledPaymentCallDto> list = getCancelledCallsForPayment(plantId, vendorCode);
         for (SleeperCancelledPaymentCallDto item : list) {
             boolean isChargeable = (item.getTotalPayableAmount() != null && item.getTotalPayableAmount() > 0);
-            if (isChargeable && !"Approved by RITES Finance".equalsIgnoreCase(item.getPaymentStatus()) 
-                    && !"PAID".equalsIgnoreCase(item.getPaymentStatus())
-                    && !"COMPLETED".equalsIgnoreCase(item.getPaymentStatus())) {
-                return true;
+            if (isChargeable) {
+                String status = item.getPaymentStatus();
+                if (status == null || (!"Approved by RITES Finance".equalsIgnoreCase(status) 
+                        && !"APPROVED".equalsIgnoreCase(status)
+                        && !"PAID".equalsIgnoreCase(status)
+                        && !"COMPLETED".equalsIgnoreCase(status)
+                        && !"PAYMENT COMPLETED".equalsIgnoreCase(status))) {
+                    return true;
+                }
             }
         }
         return false;
@@ -1756,5 +1794,94 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             return sleeperCallCancellationDetailRepository.findByCallNumber(callNo.trim()).orElse(null);
         }
         return null;
+    }
+
+    // ─── IBS Payment Verification Proxy ──────────────────────────────────────────
+
+    private static final String IBS_GET_BILL_DETAILS_URL =
+            "https://ritesinsp.com/IBS2MobileAPI/Sarthi/get-bill-details";
+
+    private String getIbsBearerToken() {
+        String envToken = System.getenv("IBS_BEARER_TOKEN");
+        if (envToken != null && !envToken.isBlank()) return envToken;
+        return "Basic cmltZXMtc2FydGhpOnNhclRISUBAc3BlcmkyNg==";
+    }
+
+    @Override
+    public java.util.Map<String, Object> verifyIbsPayment(String caseNo, String callDate, int ibsCallSno) {
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(getIbsBearerToken());
+
+            java.util.Map<String, Object> requestBody = new java.util.HashMap<>();
+            requestBody.put("caseNo", caseNo);
+            requestBody.put("callRecvDt", callDate);
+            requestBody.put("callSno", ibsCallSno);
+
+            org.springframework.http.HttpEntity<java.util.Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map> response =
+                    restTemplate.postForEntity(IBS_GET_BILL_DETAILS_URL, entity, java.util.Map.class);
+
+            if (response.getBody() != null) {
+                return (java.util.Map<String, Object>) response.getBody();
+            }
+        } catch (Exception e) {
+            log.error("Error calling IBS get-bill-details API for Sleeper caseNo={}, callDate={}, ibsCallSno={}: {}",
+                    caseNo, callDate, ibsCallSno, e.getMessage());
+            java.util.Map<String, Object> errorResp = new java.util.HashMap<>();
+            errorResp.put("resultFlag", 0);
+            errorResp.put("message", "Failed to reach IBS API: " + e.getMessage());
+            errorResp.put("bill_details", java.util.Collections.emptyList());
+            errorResp.put("payment_details", java.util.Collections.emptyList());
+            errorResp.put("bill_details_error", e.getMessage());
+            errorResp.put("payment_details_error", null);
+            return errorResp;
+        }
+        java.util.Map<String, Object> empty = new java.util.HashMap<>();
+        empty.put("resultFlag", 0);
+        empty.put("message", "No response from IBS API");
+        empty.put("bill_details", java.util.Collections.emptyList());
+        empty.put("payment_details", java.util.Collections.emptyList());
+        return empty;
+    }
+
+    @Override
+    public void markPaymentApprovedByIbs(String callNo) {
+        if (callNo == null || callNo.isBlank()) return;
+        String cleanCallNo = callNo.trim();
+
+        if (sleeperVendorFinancialLiabilityRepository != null) {
+            Optional<SleeperVendorFinancialLiability> liabOpt =
+                    sleeperVendorFinancialLiabilityRepository.findByCallNumber(cleanCallNo);
+
+            SleeperVendorFinancialLiability liability;
+            if (liabOpt.isPresent()) {
+                liability = liabOpt.get();
+            } else {
+                liability = new SleeperVendorFinancialLiability();
+                liability.setCallNumber(cleanCallNo);
+                if (sleeperCallCancellationDetailRepository != null) {
+                    sleeperCallCancellationDetailRepository.findByCallNumber(cleanCallNo)
+                            .ifPresent(cd -> {
+                                liability.setVendorCode(cd.getVendorCode());
+                                if (cd.getFinalCancellationCharges() != null) {
+                                    BigDecimal totalWithGst = cd.getFinalCancellationCharges()
+                                            .multiply(BigDecimal.valueOf(1.18))
+                                            .setScale(2, java.math.RoundingMode.HALF_UP);
+                                    liability.setAmount(totalWithGst);
+                                }
+                            });
+                }
+            }
+            liability.setPaymentStatus("Approved by RITES Finance");
+            liability.setLiabilityType("CANCELLATION_CHARGES");
+            sleeperVendorFinancialLiabilityRepository.save(liability);
+        }
     }
 }

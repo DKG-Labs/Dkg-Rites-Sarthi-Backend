@@ -17,6 +17,7 @@ public interface WaterCubeSampleRepository extends JpaRepository<WaterCubeSample
     @EntityGraph(attributePaths = {"details"})
     List<WaterCubeSampleDeclaration> findByCreatedBy(Long createdBy);
 
+    @EntityGraph(attributePaths = {"details"})
     @Query("SELECT w FROM WaterCubeSampleDeclaration w WHERE NOT EXISTS (" +
             "SELECT 1 FROM WaterCubeStrengthTest t " +
             "WHERE t.waterCubeSampleDeclaration.id = w.id)")

@@ -150,6 +150,10 @@ public class WorkflowServiceImpl implements WorkflowService {
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
     @Autowired(required = false)
     private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
+    @Autowired(required = false)
+    private IbsCallRegistrationRepository ibsCallRegistrationRepository;
+    @Autowired(required = false)
+    private InspectionCallDetailsRepository inspectionCallDetailsRepository;
     @Autowired
     private WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
     @Autowired
@@ -5127,9 +5131,6 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         return dto;
     }
 
-
-
-
     @Transactional
     public void deleteInspectionCompleteRequest(
             String requestId,
@@ -5163,154 +5164,166 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         }
 
         // ---------------------------------------------------------
-        // 2. Get latest workflow transition
+        // 2. Get all workflow transitions for this request ID
         // ---------------------------------------------------------
-        WorkflowTransition transition =
+        List<WorkflowTransition> allTransitions =
                 workflowTransitionRepository
-                        .findTopByRequestIdOrderByWorkflowTransitionIdDesc(
+                        .findByRequestIdOrderByWorkflowTransitionIdAsc(
                                 normalizedRequestId);
 
-        if (transition == null) {
+        if (allTransitions == null || allTransitions.isEmpty()) {
             throw new RuntimeException(
                     "No workflow transition found for request ID: "
                             + normalizedRequestId);
         }
 
         // ---------------------------------------------------------
-        // 3. Validate latest transition status
+        // 3. Define allowed completion & IC issued statuses to delete/rollback
         // ---------------------------------------------------------
-        if (!"INSPECTION_COMPLETE_CONFIRM"
-                .equalsIgnoreCase(transition.getStatus())) {
+        Set<String> postInspectionStatuses = Set.of(
+                "INSPECTION_COMPLETE_CONFIRM",
+                "GENERATE_IC",
+                "DSC_SIGN_IC",
+                "ISSUE_IC",
+                "IC_ISSUED",
+                "IC_GENERATION"
+        );
 
+        WorkflowTransition latestTransition = allTransitions.get(allTransitions.size() - 1);
+        String latestStatus = latestTransition.getStatus() != null ? latestTransition.getStatus().toUpperCase() : "";
+
+        if (!postInspectionStatuses.contains(latestStatus)) {
             throw new IllegalStateException(
                     "Request " + normalizedRequestId
                             + " cannot be deleted. Latest transition status is: "
-                            + transition.getStatus());
+                            + latestTransition.getStatus());
         }
 
         // ---------------------------------------------------------
-        // 4. Get inspection complete details
+        // 4. Get inspection complete details if present
         // ---------------------------------------------------------
-        InspectionCompleteDetails inspectionDetails =
+        Optional<InspectionCompleteDetails> inspectionDetailsOpt =
                 inspectionCompleteDetailsRepository
-                        .findByCallNo(normalizedRequestId)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Inspection complete details not found for request ID: "
-                                                + normalizedRequestId));
+                        .findByCallNo(normalizedRequestId);
+
+        String certificateNo = inspectionDetailsOpt.map(InspectionCompleteDetails::getCertificateNo).orElse(null);
+        String poNo = inspectionDetailsOpt.map(InspectionCompleteDetails::getPoNo).orElse(null);
+        LocalDateTime inspectionCreatedOn = inspectionDetailsOpt.map(InspectionCompleteDetails::getCreatedOn).orElse(null);
 
         // ---------------------------------------------------------
-        // 5. Create history BEFORE deleting anything
+        // 5. Collect all post-inspection transitions to delete (working backwards)
         // ---------------------------------------------------------
-        WorkflowDeleteHistory history =
-                new WorkflowDeleteHistory();
-
-        // Request information
-        history.setRequestId(normalizedRequestId);
-        history.setRequestType(requestType);
-
-        // ---------------------------------------------------------
-        // Workflow information
-        // ---------------------------------------------------------
-        history.setWorkflowTransitionId(
-                transition.getWorkflowTransitionId());
-
-        history.setWorkflowId(
-                transition.getWorkflowId());
-
-        history.setTransitionId(
-                transition.getTransitionId());
-
-        history.setCurrentRole(
-                transition.getCurrentRole());
-
-        history.setNextRole(
-                transition.getNextRole());
-
-        history.setCurrentRoleName(
-                transition.getCurrentRoleName());
-
-        history.setNextRoleName(
-                transition.getNextRoleName());
-
-        history.setStatus(
-                transition.getStatus());
-
-        history.setAction(
-                transition.getAction());
-
-        history.setRemarks(
-                transition.getRemarks());
-
-        history.setCreatedBy(
-                transition.getCreatedBy());
-
-        history.setModifiedBy(
-                transition.getModifiedBy());
-
-        history.setAssignedToUser(
-                transition.getAssignedToUser());
-
-        history.setJobStatus(
-                transition.getJobStatus());
-
-        history.setProcessIeUserId(
-                transition.getProcessIeUserId());
-
-        history.setWorkflowSequence(
-                transition.getWorkflowSequence());
-
-        history.setRio(
-                transition.getRio());
-
-        history.setSwiftCode(
-                transition.getSwiftCode());
-
-        history.setPrimarySwift(
-                transition.getPrimarySwift());
-
-        history.setTransitionCreatedDate(
-                transition.getCreatedDate());
-
-        // ---------------------------------------------------------
-        // Inspection complete details
-        // ---------------------------------------------------------
-        history.setPoNo(
-                inspectionDetails.getPoNo());
-
-        history.setCertificateNo(
-                inspectionDetails.getCertificateNo());
-
-        history.setInspectionCreatedOn(
-                inspectionDetails.getCreatedOn());
-
-        // ---------------------------------------------------------
-        // Deletion audit information
-        // ---------------------------------------------------------
-        history.setDeletedBy(deletedBy);
-        history.setDeletedOn(new Date());
-
-        // Save history FIRST
-        workflowDeleteHistoryRepository.save(history);
-
-        // ---------------------------------------------------------
-        // 6. EF -> Delete FINAL_IE_MAPPING
-        // ---------------------------------------------------------
-        if ("EF".equals(requestType) && transition.getWorkflowTransitionId() != null) {
-            finalIeMappingRepository
-                    .deleteByWorkflowTransitionId(transition.getWorkflowTransitionId());
+        List<WorkflowTransition> transitionsToDelete = new ArrayList<>();
+        for (int i = allTransitions.size() - 1; i >= 0; i--) {
+            WorkflowTransition t = allTransitions.get(i);
+            String st = t.getStatus() != null ? t.getStatus().toUpperCase() : "";
+            if (postInspectionStatuses.contains(st)) {
+                transitionsToDelete.add(t);
+            } else {
+                // Stop once we hit an active inspection / prior workflow state
+                break;
+            }
         }
 
         // ---------------------------------------------------------
-        // 7. Delete inspection complete details
+        // 6. Record history and delete each post-inspection transition
+        // ---------------------------------------------------------
+        Date now = new Date();
+        for (WorkflowTransition transition : transitionsToDelete) {
+            WorkflowDeleteHistory history = new WorkflowDeleteHistory();
+
+            // Request information
+            history.setRequestId(normalizedRequestId);
+            history.setRequestType(requestType);
+
+            // Workflow information
+            history.setWorkflowTransitionId(transition.getWorkflowTransitionId());
+            history.setWorkflowId(transition.getWorkflowId());
+            history.setTransitionId(transition.getTransitionId());
+            history.setCurrentRole(transition.getCurrentRole());
+            history.setNextRole(transition.getNextRole());
+            history.setCurrentRoleName(transition.getCurrentRoleName());
+            history.setNextRoleName(transition.getNextRoleName());
+            history.setStatus(transition.getStatus());
+            history.setAction(transition.getAction());
+            history.setRemarks(transition.getRemarks());
+            history.setCreatedBy(transition.getCreatedBy());
+            history.setModifiedBy(transition.getModifiedBy());
+            history.setAssignedToUser(transition.getAssignedToUser());
+            history.setJobStatus(transition.getJobStatus());
+            history.setProcessIeUserId(transition.getProcessIeUserId());
+            history.setWorkflowSequence(transition.getWorkflowSequence());
+            history.setRio(transition.getRio());
+            history.setSwiftCode(transition.getSwiftCode());
+            history.setPrimarySwift(transition.getPrimarySwift());
+            history.setTransitionCreatedDate(transition.getCreatedDate());
+
+            // Inspection complete details
+            history.setPoNo(poNo);
+            history.setCertificateNo(certificateNo);
+            history.setInspectionCreatedOn(inspectionCreatedOn);
+
+            // Deletion audit information
+            history.setDeletedBy(deletedBy);
+            history.setDeletedOn(now);
+
+            workflowDeleteHistoryRepository.save(history);
+
+            // EF / transition mapping cleanup
+            if (transition.getWorkflowTransitionId() != null) {
+                finalIeMappingRepository
+                        .deleteByWorkflowTransitionId(transition.getWorkflowTransitionId());
+            }
+
+            // Delete workflow transition
+            workflowTransitionRepository.delete(transition);
+        }
+
+        // ---------------------------------------------------------
+        // 7. Clean up IC edit records if they were generated
+        // ---------------------------------------------------------
+        if (certificateNo != null && !certificateNo.trim().isEmpty()) {
+            rmIcEditRepository.findByIcNumber(certificateNo).ifPresent(rmIc -> {
+                rmIc.setStatus("DELETED");
+                rmIc.setDeletedBy(deletedBy);
+                rmIcEditRepository.save(rmIc);
+            });
+
+            processIcEditRepository.findByIcNumber(certificateNo).ifPresent(processIc -> {
+                processIc.setStatus("DELETED");
+                processIc.setDeletedBy(deletedBy);
+                processIcEditRepository.save(processIc);
+            });
+
+            finalIcEditRepository.findByIcNumber(certificateNo).ifPresent(finalIc -> {
+                finalIc.setStatus("DELETED");
+                finalIc.setDeletedBy(deletedBy);
+                finalIcEditRepository.save(finalIc);
+            });
+        }
+
+        // Also check by normalizedRequestId if IC number matched request id
+        rmIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(rmIc -> {
+            rmIc.setStatus("DELETED");
+            rmIc.setDeletedBy(deletedBy);
+            rmIcEditRepository.save(rmIc);
+        });
+        processIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(processIc -> {
+            processIc.setStatus("DELETED");
+            processIc.setDeletedBy(deletedBy);
+            processIcEditRepository.save(processIc);
+        });
+        finalIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(finalIc -> {
+            finalIc.setStatus("DELETED");
+            finalIc.setDeletedBy(deletedBy);
+            finalIcEditRepository.save(finalIc);
+        });
+
+        // ---------------------------------------------------------
+        // 8. Delete inspection complete details
         // ---------------------------------------------------------
         inspectionCompleteDetailsRepository
                 .deleteByCallNo(normalizedRequestId);
-
-        // ---------------------------------------------------------
-        // 8. Delete latest workflow transition
-        // ---------------------------------------------------------
-        workflowTransitionRepository.delete(transition);
     }
 
 
@@ -5625,4 +5638,307 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 generateIcTransition);
     }
 
+    @Override
+    public List<com.sarthi.dto.CancelledPaymentCallDto> getCancelledCallsForPayment(String plantId, String vendorCode) {
+        String effectivePlantId = (plantId != null && !plantId.trim().isEmpty() && !"1".equals(plantId.trim())) 
+                ? plantId.replace(":", "").trim() : null;
+        String effectiveVendorCode = (vendorCode != null && !vendorCode.trim().isEmpty()) 
+                ? vendorCode.replace(":", "").trim() : null;
+
+        List<WorkflowTransition> txList = workflowTransitionRepository.findLatestCancelledTransactions(effectivePlantId, effectiveVendorCode);
+        List<com.sarthi.dto.CancelledPaymentCallDto> result = new java.util.ArrayList<>();
+
+        for (WorkflowTransition tx : txList) {
+            String callNo = tx.getRequestId();
+            if (callNo == null || callNo.isBlank()) continue;
+
+            InspectionCall callEntity = null;
+            if (inspectionCallRepository != null) {
+                java.util.Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
+                if (callOpt.isPresent()) {
+                    callEntity = callOpt.get();
+                }
+            }
+
+            String callPlantId = (callEntity != null && callEntity.getPlaceOfInspection() != null) ? callEntity.getPlaceOfInspection() : null;
+            String callVendorCode = (callEntity != null && callEntity.getVendorId() != null) ? callEntity.getVendorId() : null;
+
+            if (effectivePlantId != null && !effectivePlantId.isBlank()) {
+                String cleanCallPlant = (callPlantId != null) ? callPlantId.replace(":", "").trim() : "";
+                if (!cleanCallPlant.equalsIgnoreCase(effectivePlantId)) {
+                    continue;
+                }
+            }
+
+            com.sarthi.dto.CancelledPaymentCallDto dto = new com.sarthi.dto.CancelledPaymentCallDto();
+            dto.setWorkflowTransitionId(tx.getWorkflowTransitionId());
+            dto.setCallNo(callNo);
+            dto.setStatus("CANCELLED");
+            dto.setCancelRemarks(tx.getRemarks());
+            dto.setAction(tx.getAction());
+            dto.setPlantId(callPlantId);
+            dto.setVendorCode(callVendorCode != null ? callVendorCode : vendorCode);
+            dto.setCreatedDate(tx.getCreatedDate());
+
+            if (callEntity != null) {
+                dto.setPoNo(callEntity.getPoNo());
+                dto.setPoSr(callEntity.getPoSerialNo());
+                dto.setCallDate(callEntity.getDesiredInspectionDate() != null ? String.valueOf(callEntity.getDesiredInspectionDate()) : null);
+                dto.setErcType(callEntity.getErcType());
+
+                // Fetch PO Header for Case No
+                String rawPoNo = callEntity.getPoNo();
+                String barePoNo = rawPoNo;
+                if (barePoNo != null && barePoNo.contains("/")) {
+                    barePoNo = barePoNo.split("/")[0].trim();
+                }
+                if (barePoNo != null && poHeaderRepository != null) {
+                    java.util.Optional<PoHeader> headerOpt = poHeaderRepository.findByPoNo(barePoNo);
+                    if (headerOpt.isPresent() && headerOpt.get().getCaseNo() != null) {
+                        dto.setIbsCaseNo(headerOpt.get().getCaseNo());
+                    }
+                }
+            }
+
+            // Fetch call qty if available
+            if (inspectionCallDetailsRepository != null) {
+                try {
+                    java.util.Optional<InspectionCallDetails> icdOpt = inspectionCallDetailsRepository.findByInspectionCallNo(callNo);
+                    if (icdOpt.isPresent() && icdOpt.get().getCallQty() != null) {
+                        dto.setOfferedQty(icdOpt.get().getCallQty().longValue());
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Fetch IBS Call No (sr_no from ibs_call_registration table)
+            String ibsCallNo = "";
+            if (ibsCallRegistrationRepository != null) {
+                try {
+                    java.util.List<String> srNos = ibsCallRegistrationRepository.findSrNoByCallNumber(callNo);
+                    if (srNos != null && !srNos.isEmpty() && srNos.get(0) != null) {
+                        ibsCallNo = srNos.get(0).trim();
+                    }
+                } catch (Exception ex) {
+                    log.warn("Could not fetch sr_no for call {}: {}", callNo, ex.getMessage());
+                }
+            }
+            dto.setIbsCallNo(ibsCallNo);
+
+            String effectiveRio = tx.getRio();
+            if (effectiveRio == null || effectiveRio.isBlank()) {
+                effectiveRio = "Northern";
+            }
+            dto.setRio(effectiveRio);
+
+            String rioLower = effectiveRio.toLowerCase();
+            String rioEmail = "nrinspn.fin@rites.com";
+            if (rioLower.contains("east") || rioLower.contains("er") || rioLower.contains("kolkata")) {
+                rioEmail = "callletter.er@rites.com";
+            } else if (rioLower.contains("west") || rioLower.contains("wr") || rioLower.contains("mumbai")) {
+                rioEmail = "dfo.wrio@rites.com";
+            } else if (rioLower.contains("south") || rioLower.contains("sr") || rioLower.contains("chennai")) {
+                rioEmail = "dfo.srio@rites.com";
+            } else if (rioLower.contains("cent") || rioLower.contains("bhilai") || rioLower.contains("raipur") || rioLower.contains("cr") || rioLower.contains("crio")) {
+                rioEmail = "dfo.crio@rites.com";
+            }
+            dto.setRioEmail(rioEmail);
+
+            double base = 0.0;
+            boolean isNonChargeable = false;
+            if (callCancellationDetailRepository != null) {
+                java.util.Optional<CallCancellationDetail> cancelOpt = callCancellationDetailRepository.findByCallNumber(callNo);
+                if (cancelOpt.isPresent()) {
+                    CallCancellationDetail cd = cancelOpt.get();
+                    if (cd.getDocumentName() != null && !cd.getDocumentName().isBlank()) {
+                        dto.setDocumentName(cd.getDocumentName());
+                    }
+                    if ("NON_CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
+                        isNonChargeable = true;
+                        base = 0.0;
+                    } else {
+                        if (cd.getFinalCancellationCharges() != null) {
+                            base = cd.getFinalCancellationCharges().doubleValue();
+                        } else if (cd.getCalculatedCharges() != null) {
+                            base = cd.getCalculatedCharges().doubleValue();
+                        }
+                    }
+                }
+            }
+            if (base == 0.0 && !isNonChargeable && vendorFinancialLiabilityRepository != null) {
+                java.util.Optional<VendorFinancialLiability> liabOpt = vendorFinancialLiabilityRepository.findByCallNumber(callNo);
+                if (liabOpt.isPresent() && liabOpt.get().getAmount() != null) {
+                    base = liabOpt.get().getAmount().doubleValue();
+                }
+            }
+            if (tx.getRemarks() != null) {
+                String rem = tx.getRemarks().toUpperCase();
+                if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
+                    isNonChargeable = true;
+                    base = 0.0;
+                } else if (base == 0.0 && rem.contains("FINAL CANCELLATION CHARGES")) {
+                    try {
+                        String after = rem.substring(rem.indexOf("FINAL CANCELLATION CHARGES"));
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[0-9]+(?:,[0-9]+)*(?:\\.[0-9]+)?").matcher(after);
+                        if (m.find()) {
+                            base = Double.parseDouble(m.group().replace(",", ""));
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // Calls cancelled on non-chargeable basis (or with zero charges) should not go to Payment Details module
+            if (isNonChargeable || base <= 0.0) {
+                continue;
+            }
+
+            String liabilityPaymentStatus = "Payment Pending";
+            if (vendorFinancialLiabilityRepository != null) {
+                java.util.Optional<VendorFinancialLiability> liabOpt = vendorFinancialLiabilityRepository.findByCallNumber(callNo);
+                if (liabOpt.isPresent() && liabOpt.get().getPaymentStatus() != null) {
+                    String ps = liabOpt.get().getPaymentStatus().trim();
+                    if ("PAID".equalsIgnoreCase(ps) 
+                            || "COMPLETED".equalsIgnoreCase(ps) 
+                            || "PAYMENT COMPLETED".equalsIgnoreCase(ps) 
+                            || "APPROVED".equalsIgnoreCase(ps) 
+                            || "Approved by RITES Finance".equalsIgnoreCase(ps)) {
+                        liabilityPaymentStatus = "Approved by RITES Finance";
+                    } else if (!ps.isEmpty()) {
+                        liabilityPaymentStatus = ps;
+                    }
+                }
+            }
+
+            double gst = Math.round((base * 18.0) / 100.0);
+            dto.setBasePayableAmount(base);
+            dto.setGst(gst);
+            dto.setTotalPayableAmount(base + gst);
+            dto.setBankAccountDetails("SBI A/c: 39482910482, IFSC: SBIN0001234, Branch: RITES Central");
+            dto.setPaymentReason("Cancellation");
+            dto.setChargeType("Cancellation");
+            dto.setPaymentStatus(liabilityPaymentStatus);
+
+            result.add(dto);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode) {
+        List<com.sarthi.dto.CancelledPaymentCallDto> list = getCancelledCallsForPayment(plantId, vendorCode);
+        for (com.sarthi.dto.CancelledPaymentCallDto item : list) {
+            boolean isChargeable = (item.getTotalPayableAmount() != null && item.getTotalPayableAmount() > 0);
+            if (!isChargeable && item.getCancelRemarks() != null) {
+                String rem = item.getCancelRemarks().toUpperCase();
+                if (rem.contains("CHARGEABLE") && !rem.contains("NON_CHARGEABLE") && !rem.contains("NON-CHARGEABLE")) {
+                    isChargeable = true;
+                }
+            }
+            if (isChargeable) {
+                String status = item.getPaymentStatus();
+                if (status == null || (!"Approved by RITES Finance".equalsIgnoreCase(status) 
+                        && !"APPROVED".equalsIgnoreCase(status)
+                        && !"PAID".equalsIgnoreCase(status)
+                        && !"COMPLETED".equalsIgnoreCase(status)
+                        && !"PAYMENT COMPLETED".equalsIgnoreCase(status))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public CallCancellationDetail getCancellationDetails(String callNo) {
+        if (callNo == null || callNo.isBlank()) return null;
+        if (callCancellationDetailRepository != null) {
+            return callCancellationDetailRepository.findByCallNumber(callNo.trim()).orElse(null);
+        }
+        return null;
+    }
+
+    private static final String IBS_GET_BILL_DETAILS_URL =
+            "https://ritesinsp.com/IBS2MobileAPI/Sarthi/get-bill-details";
+
+    private String getIbsBearerToken() {
+        String envToken = System.getenv("IBS_BEARER_TOKEN");
+        if (envToken != null && !envToken.isBlank()) return envToken;
+        return "Basic cmltZXMtc2FydGhpOnNhclRISUBAc3BlcmkyNg==";
+    }
+
+    @Override
+    public java.util.Map<String, Object> verifyIbsPayment(String caseNo, String callDate, int ibsCallSno) {
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(getIbsBearerToken());
+
+            java.util.Map<String, Object> requestBody = new java.util.HashMap<>();
+            requestBody.put("caseNo", caseNo);
+            requestBody.put("callRecvDt", callDate);
+            requestBody.put("callSno", ibsCallSno);
+
+            org.springframework.http.HttpEntity<java.util.Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            org.springframework.http.ResponseEntity<java.util.Map> response =
+                    restTemplate.postForEntity(IBS_GET_BILL_DETAILS_URL, entity, java.util.Map.class);
+
+            if (response.getBody() != null) {
+                return (java.util.Map<String, Object>) response.getBody();
+            }
+        } catch (Exception e) {
+            log.error("Error calling IBS get-bill-details API for caseNo={}, callDate={}, ibsCallSno={}: {}",
+                    caseNo, callDate, ibsCallSno, e.getMessage());
+            java.util.Map<String, Object> errorResp = new java.util.HashMap<>();
+            errorResp.put("resultFlag", 0);
+            errorResp.put("message", "Failed to reach IBS API: " + e.getMessage());
+            errorResp.put("bill_details", java.util.Collections.emptyList());
+            errorResp.put("payment_details", java.util.Collections.emptyList());
+            errorResp.put("bill_details_error", e.getMessage());
+            errorResp.put("payment_details_error", null);
+            return errorResp;
+        }
+        java.util.Map<String, Object> empty = new java.util.HashMap<>();
+        empty.put("resultFlag", 0);
+        empty.put("message", "No response from IBS API");
+        empty.put("bill_details", java.util.Collections.emptyList());
+        empty.put("payment_details", java.util.Collections.emptyList());
+        return empty;
+    }
+
+    @Override
+    public void markPaymentApprovedByIbs(String callNo) {
+        if (callNo == null || callNo.isBlank()) return;
+        String cleanCallNo = callNo.trim();
+
+        if (vendorFinancialLiabilityRepository != null) {
+            java.util.Optional<VendorFinancialLiability> liabOpt =
+                    vendorFinancialLiabilityRepository.findByCallNumber(cleanCallNo);
+
+            VendorFinancialLiability liability;
+            if (liabOpt.isPresent()) {
+                liability = liabOpt.get();
+            } else {
+                liability = new VendorFinancialLiability();
+                liability.setCallNumber(cleanCallNo);
+                liability.setLiabilityType("CANCELLATION_CHARGES");
+
+                if (callCancellationDetailRepository != null) {
+                    callCancellationDetailRepository.findByCallNumber(cleanCallNo).ifPresent(cd -> {
+                        if (cd.getFinalCancellationCharges() != null) {
+                            liability.setAmount(cd.getFinalCancellationCharges());
+                        } else if (cd.getCalculatedCharges() != null) {
+                            liability.setAmount(cd.getCalculatedCharges());
+                        }
+                    });
+                }
+            }
+            liability.setPaymentStatus("Approved by RITES Finance");
+            vendorFinancialLiabilityRepository.save(liability);
+            log.info("Payment marked as 'Approved by RITES Finance' for call {} via IBS verification.", cleanCallNo);
+        }
+    }
 }

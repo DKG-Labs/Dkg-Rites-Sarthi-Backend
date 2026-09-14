@@ -1,5 +1,6 @@
 package com.sarthi.Sleeper.service.Impl;
 
+import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallDetailDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallSubmitDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallBatchDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallListDto;
@@ -7,16 +8,17 @@ import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
+import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.SleeperInspectionCallService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallService {
 
     private final SleeperInspectionCallRepository inspectionCallRepository;
+    private final SleeperWorkflowRepository sleeperWorkflowRepository;
 
     @Override
     @Transactional
@@ -112,5 +115,158 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setPlantId(call.getPlantId());
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public String withdrawInspectionCall(String callNo) {
+        if (callNo == null || callNo.isBlank()) {
+            throw new IllegalArgumentException("Call Number is required");
+        }
+        String trimmedCallNo = callNo.trim();
+        Optional<SleeperInspectionCall> callOpt = inspectionCallRepository.findByCallNoWithBatches(trimmedCallNo);
+        if (callOpt.isEmpty()) {
+            callOpt = inspectionCallRepository.findByCallNo(trimmedCallNo);
+        }
+
+        if (callOpt.isPresent()) {
+            SleeperInspectionCall call = callOpt.get();
+            inspectionCallRepository.delete(call);
+        }
+
+        // Delete workflow transaction records for this call
+        sleeperWorkflowRepository.deleteByRequestId(trimmedCallNo);
+
+        return trimmedCallNo;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SleeperInspectionCallDetailDto getInspectionCallDetails(String callNo) {
+        if (callNo == null || callNo.isBlank()) {
+            throw new IllegalArgumentException("Call Number is required");
+        }
+        String trimmedCallNo = callNo.trim();
+        SleeperInspectionCall call = inspectionCallRepository.findByCallNoWithBatches(trimmedCallNo)
+                .orElseGet(() -> inspectionCallRepository.findByCallNo(trimmedCallNo)
+                        .orElseThrow(() -> new RuntimeException("Inspection Call not found: " + trimmedCallNo)));
+
+        SleeperInspectionCallDetailDto dto = new SleeperInspectionCallDetailDto();
+        dto.setId(call.getId());
+        dto.setCallNo(call.getCallNo());
+        dto.setPoNo(call.getPoNo());
+        dto.setSrNo(call.getSrNo());
+        dto.setSleeperType(call.getSleeperType());
+        dto.setTotalOffered(call.getTotalOffered());
+        dto.setTotalRejected(call.getTotalRejected());
+        dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
+        dto.setStatus(call.getStatus());
+        dto.setCreatedBy(call.getCreatedBy());
+        dto.setPlantId(call.getPlantId());
+        dto.setCreatedAt(call.getCreatedAt());
+
+        List<SleeperInspectionCallBatchDto> batchDtos = new ArrayList<>();
+        if (call.getBatchesSelected() != null) {
+            for (SleeperInspectionCallBatch b : call.getBatchesSelected()) {
+                SleeperInspectionCallBatchDto bDto = new SleeperInspectionCallBatchDto();
+                bDto.setBatchNo(b.getBatchNo());
+
+                List<String> goodSleepers = new ArrayList<>();
+                List<Long> goodSleeperIds = new ArrayList<>();
+                if (b.getGoodSleepers() != null) {
+                    for (SleeperDetail sd : b.getGoodSleepers()) {
+                        if (sd != null) {
+                            if (sd.getSleeperNo() != null) goodSleepers.add(sd.getSleeperNo());
+                            if (sd.getSleeperId() != null) goodSleeperIds.add(sd.getSleeperId());
+                        }
+                    }
+                }
+                bDto.setGoodSleepers(goodSleepers);
+                bDto.setGoodSleeperIds(goodSleeperIds);
+
+                List<String> badSleepers = new ArrayList<>();
+                List<Long> badSleeperIds = new ArrayList<>();
+                if (b.getBadSleepers() != null) {
+                    for (SleeperDetail sd : b.getBadSleepers()) {
+                        if (sd != null) {
+                            if (sd.getSleeperNo() != null) badSleepers.add(sd.getSleeperNo());
+                            if (sd.getSleeperId() != null) badSleeperIds.add(sd.getSleeperId());
+                        }
+                    }
+                }
+                bDto.setBadSleepers(badSleepers);
+                bDto.setBadSleeperIds(badSleeperIds);
+
+                bDto.setTotalCasted(b.getTotalCasted());
+                bDto.setCastDate(b.getCastDate());
+                bDto.setPreviouslyOffered(b.getPreviouslyOffered());
+
+                batchDtos.add(bDto);
+            }
+        }
+        dto.setBatchesSelected(batchDtos);
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public String modifyInspectionCall(SleeperInspectionCallSubmitDto dto) {
+        if (dto.getCallNo() == null || dto.getCallNo().isBlank()) {
+            throw new IllegalArgumentException("Call Number is required for modification");
+        }
+        String trimmedCallNo = dto.getCallNo().trim();
+        SleeperInspectionCall call = inspectionCallRepository.findByCallNoWithBatches(trimmedCallNo)
+                .orElseGet(() -> inspectionCallRepository.findByCallNo(trimmedCallNo)
+                        .orElseThrow(() -> new RuntimeException("Inspection Call not found: " + trimmedCallNo)));
+
+        if (dto.getPoNo() != null) call.setPoNo(dto.getPoNo());
+        if (dto.getSrNo() != null) call.setSrNo(dto.getSrNo());
+        if (dto.getSleeperType() != null) call.setSleeperType(dto.getSleeperType());
+        if (dto.getTotalOffered() != null) call.setTotalOffered(dto.getTotalOffered());
+        if (dto.getTotalRejected() != null) call.setTotalRejected(dto.getTotalRejected());
+        if (dto.getPlantId() != null) call.setPlantId(dto.getPlantId());
+
+        // Clear existing batches and repopulate cleanly
+        if (call.getBatchesSelected() != null) {
+            call.getBatchesSelected().clear();
+        } else {
+            call.setBatchesSelected(new ArrayList<>());
+        }
+
+        if (dto.getBatchesSelected() != null) {
+            for (SleeperInspectionCallBatchDto batchDto : dto.getBatchesSelected()) {
+                SleeperInspectionCallBatch batchEntity = new SleeperInspectionCallBatch();
+                batchEntity.setInspectionCall(call);
+                batchEntity.setBatchNo(batchDto.getBatchNo());
+
+                List<SleeperDetail> goodDetails = new ArrayList<>();
+                if (batchDto.getGoodSleepers() != null && batchDto.getGoodSleeperIds() != null) {
+                    for (int i = 0; i < batchDto.getGoodSleepers().size(); i++) {
+                        String sno = batchDto.getGoodSleepers().get(i);
+                        Long sid = (i < batchDto.getGoodSleeperIds().size()) ? batchDto.getGoodSleeperIds().get(i) : null;
+                        goodDetails.add(new SleeperDetail(sno, sid));
+                    }
+                }
+                batchEntity.setGoodSleepers(goodDetails);
+
+                List<SleeperDetail> badDetails = new ArrayList<>();
+                if (batchDto.getBadSleepers() != null && batchDto.getBadSleeperIds() != null) {
+                    for (int i = 0; i < batchDto.getBadSleepers().size(); i++) {
+                        String sno = batchDto.getBadSleepers().get(i);
+                        Long sid = (i < batchDto.getBadSleeperIds().size()) ? batchDto.getBadSleeperIds().get(i) : null;
+                        badDetails.add(new SleeperDetail(sno, sid));
+                    }
+                }
+                batchEntity.setBadSleepers(badDetails);
+                batchEntity.setTotalCasted(batchDto.getTotalCasted());
+                batchEntity.setCastDate(batchDto.getCastDate());
+                batchEntity.setPreviouslyOffered(batchDto.getPreviouslyOffered());
+
+                call.getBatchesSelected().add(batchEntity);
+            }
+        }
+
+        inspectionCallRepository.save(call);
+        return call.getCallNo();
     }
 }

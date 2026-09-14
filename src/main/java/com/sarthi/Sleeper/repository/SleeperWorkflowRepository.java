@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -19,6 +20,10 @@ public interface SleeperWorkflowRepository
     List<SleeperWorkflowTransaction> findByAssignedToUserAndStatusIn(Long userId, List<String> status);
 
     List<SleeperWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
+
+    @Modifying
+    @Query("DELETE FROM SleeperWorkflowTransaction t WHERE t.requestId = :requestId")
+    void deleteByRequestId(@Param("requestId") String requestId);
 
    /* @Query("""
     SELECT t FROM SleeperWorkflowTransaction t

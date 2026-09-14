@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.repository;
 import com.sarthi.Sleeper.dto.SleeperDashboardDtos.DateOnlyProjection;
 import com.sarthi.Sleeper.entity.MomentOfResistance;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,9 +11,20 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MomentOfResistanceTestRepository extends JpaRepository<MomentOfResistanceTest, Long> {
+
+    @Override
+    @EntityGraph(attributePaths = {"details"})
+    List<MomentOfResistanceTest> findAll();
+
+    @Override
+    @EntityGraph(attributePaths = {"details"})
+    Optional<MomentOfResistanceTest> findById(Long id);
+
+    @EntityGraph(attributePaths = {"details"})
     @Query("""
     SELECT m FROM MomentOfResistanceTest m
     WHERE m.plantId = :plantId
@@ -63,4 +75,17 @@ AND (UPPER(TRIM(m.testResult)) LIKE 'PASS%' OR UPPER(TRIM(m.testResult)) = 'OK' 
            OR UPPER(TRIM(test_result)) = 'COMPLETED'
     """, nativeQuery = true)
     List<String> findAllPassedBatchNumbers();
+
+    @Query(value = """
+        SELECT DISTINCT TRIM(batch_number)
+        FROM moment_of_resistance_test
+        WHERE (batch_number IN (:batchNumbers) 
+           OR TRIM(batch_number) IN (:batchNumbers)
+           OR REPLACE(batch_number, 'B-', '') IN (:batchNumbers)
+           OR CONCAT('B-', batch_number) IN (:batchNumbers))
+          AND (UPPER(TRIM(test_result)) LIKE 'PASS%' 
+            OR UPPER(TRIM(test_result)) = 'OK' 
+            OR UPPER(TRIM(test_result)) = 'COMPLETED')
+    """, nativeQuery = true)
+    List<String> findPassedBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
 }

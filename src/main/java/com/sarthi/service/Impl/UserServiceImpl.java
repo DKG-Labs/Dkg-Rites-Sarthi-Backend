@@ -127,7 +127,35 @@ public class UserServiceImpl implements UserService {
             userMaster.setCreatedDate(LocalDateTime.now());
         }
 
-        userMaster.setUserName(userDto.getUserName());
+        boolean isVendorUser = userDto.getRoleNames() != null && userDto.getRoleNames().stream()
+                .anyMatch(r -> r.contains("Vendor") || r.equalsIgnoreCase("Vendor"));
+
+        if (isVendorUser) {
+            String vCode = userDto.getEmployeeCode() != null && !userDto.getEmployeeCode().trim().isEmpty()
+                    ? userDto.getEmployeeCode().trim()
+                    : (userDto.getUserName() != null ? userDto.getUserName().trim() : "");
+            if (!vCode.isEmpty()) {
+                String formattedVCode = vCode.startsWith(":") ? vCode : ":" + vCode;
+                userMaster.setUserName(formattedVCode);
+                userMaster.setEmployeeCode(formattedVCode);
+                userMaster.setShortName(formattedVCode);
+            } else {
+                userMaster.setUserName(userDto.getUserName());
+                userMaster.setEmployeeCode(userDto.getEmployeeCode());
+                userMaster.setShortName(userDto.getShortName());
+            }
+        } else {
+            userMaster.setUserName(userDto.getUserName());
+            if (userDto.getUserId() != null) {
+                if (userDto.getEmployeeCode() != null && !userDto.getEmployeeCode().trim().isEmpty()) {
+                    userMaster.setEmployeeCode(userDto.getEmployeeCode());
+                }
+            } else {
+                userMaster.setEmployeeCode(userDto.getEmployeeCode());
+            }
+            userMaster.setShortName(userDto.getShortName());
+        }
+
         userMaster.setMobileNumber(userDto.getMobileNumber());
         userMaster.setAlternateMobileNumber(userDto.getAlternateMobileNumber());
         userMaster.setNotificationPreferences(userDto.getNotificationPreferences());
@@ -138,17 +166,9 @@ public class UserServiceImpl implements UserService {
         userMaster.setCreatedBy(userDto.getCreatedBy());
         userMaster.setEmployeeId(userDto.getEmployeeId());
 
-        if (userDto.getUserId() != null) {
-            if (userDto.getEmployeeCode() != null && !userDto.getEmployeeCode().trim().isEmpty()) {
-                userMaster.setEmployeeCode(userDto.getEmployeeCode());
-            }
-        } else {
-            userMaster.setEmployeeCode(userDto.getEmployeeCode());
-        }
         userMaster.setRitesEmployeeCode(userDto.getRitesEmployeeCode());
         userMaster.setEmploymentType(userDto.getEmploymentType());
         userMaster.setFullName(userDto.getFullName());
-        userMaster.setShortName(userDto.getShortName());
         userMaster.setDesignation(userDto.getDesignation());
         userMaster.setDiscipline(userDto.getDiscipline());
         userMaster.setZonalRly(userDto.getZonalRly());
@@ -634,14 +654,20 @@ public class UserServiceImpl implements UserService {
 
         // ================= VENDOR LOGIN =================
         else if ("VENDOR".equalsIgnoreCase(loginType)) {
+            final String vendorCodeWithColon = loginId.startsWith(":") ? loginId : ":" + loginId;
+            final String vendorCodeWithoutColon = loginId.replaceAll("^:", "");
 
-            user = userMasterRepository
-                    .findFirstByUserName(loginId).orElseThrow(() -> new BusinessException(
+            user = userMasterRepository.findFirstByUserName(loginId)
+                    .orElseGet(() -> userMasterRepository.findFirstByUserName(vendorCodeWithColon)
+                    .orElseGet(() -> userMasterRepository.findFirstByUserName(vendorCodeWithoutColon)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeWithColon)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeWithoutColon)
+                    .orElseThrow(() -> new BusinessException(
                             new ErrorDetails(
                                     AppConstant.ERROR_CODE_INVALID,
                                     AppConstant.ERROR_TYPE_CODE_INVALID,
                                     AppConstant.ERROR_TYPE_INVALID,
-                                    "Invalid Vendor credentials.")));
+                                    "Invalid Vendor credentials.")))))));
         }
 
         // ================= INVALID TYPE =================
@@ -746,19 +772,20 @@ public class UserServiceImpl implements UserService {
 
         // ================= VENDOR LOGIN =================
         else if ("VENDOR".equalsIgnoreCase(loginType)) {
+            final String vendorCodeWithColon = loginId.startsWith(":") ? loginId : ":" + loginId;
+            final String vendorCodeWithoutColon = loginId.replaceAll("^:", "");
 
-            user = userMasterRepository
-                    .findFirstByUserName(loginId)
-                    .orElseThrow(() ->
-                            new BusinessException(
-                                    new ErrorDetails(
-                                            AppConstant.ERROR_CODE_INVALID,
-                                            AppConstant.ERROR_TYPE_CODE_INVALID,
-                                            AppConstant.ERROR_TYPE_INVALID,
-                                            "Invalid Vendor credentials."
-                                    )
-                            )
-                    );
+            user = userMasterRepository.findFirstByUserName(loginId)
+                    .orElseGet(() -> userMasterRepository.findFirstByUserName(vendorCodeWithColon)
+                    .orElseGet(() -> userMasterRepository.findFirstByUserName(vendorCodeWithoutColon)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeWithColon)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeWithoutColon)
+                    .orElseThrow(() -> new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_INVALID,
+                                    AppConstant.ERROR_TYPE_CODE_INVALID,
+                                    AppConstant.ERROR_TYPE_INVALID,
+                                    "Invalid Vendor credentials.")))))));
         }
 
         // ================= INVALID TYPE =================
@@ -1960,20 +1987,22 @@ public class UserServiceImpl implements UserService {
         if (dto.getUserId() != null) {
             userMaster = userMasterRepository.findById(dto.getUserId()).orElse(new UserMaster());
         } else {
-            userMaster = userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
+            userMaster = userMasterRepository.findFirstByUserName(vendorCodeFormatted)
+                    .orElseGet(() -> userMasterRepository.findFirstByUserName(cleanVendorCode)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanVendorCode)
                     .orElseGet(() -> {
                         if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
                             return userMasterRepository.findFirstByEmail(dto.getEmail().trim()).orElse(new UserMaster());
                         }
                         return new UserMaster();
-                    }));
+                    }))));
             if (userMaster.getUserId() == null) {
                 userMaster.setCreatedDate(LocalDateTime.now());
             }
         }
 
-        userMaster.setUserName(cleanCompanyName);
+        userMaster.setUserName(vendorCodeFormatted);
         userMaster.setFullName(cleanCompanyName);
         userMaster.setShortName(vendorCodeFormatted);
         userMaster.setEmployeeCode(vendorCodeFormatted);
@@ -1985,6 +2014,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setRoleName("Vendor");
         userMaster.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
         userMaster.setStatus("Inactive".equalsIgnoreCase(dto.getStatus()) ? AppConstant.USER_STATUS_INACTIVE : AppConstant.USER_STATUS);
+        userMaster = userMasterRepository.save(userMaster);
 
         // 2. Assign USER_ROLE_MASTER (roleId = 1 for Vendor) without deleting other existing roles
         RoleMaster vendorRole = roleMasterRepository.findByRoleName("Vendor")
@@ -2237,31 +2267,34 @@ public class UserServiceImpl implements UserService {
         if (dto.getUserId() != null) {
             userMaster = userMasterRepository.findById(dto.getUserId()).orElse(new UserMaster());
         } else {
-            userMaster = userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
+            userMaster = userMasterRepository.findFirstByUserName(vendorCodeFormatted)
+                    .orElseGet(() -> userMasterRepository.findFirstByUserName(cleanVendorCode)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanVendorCode)
                     .orElseGet(() -> {
                         if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
                             return userMasterRepository.findFirstByEmail(dto.getEmail().trim()).orElse(new UserMaster());
                         }
                         return new UserMaster();
-                    }));
+                    }))));
             if (userMaster.getUserId() == null) {
                 userMaster.setCreatedDate(LocalDateTime.now());
             }
         }
 
-        userMaster.setUserName(cleanCompanyName);
+        userMaster.setUserName(vendorCodeFormatted);
         userMaster.setFullName(cleanCompanyName);
         userMaster.setShortName(vendorCodeFormatted);
         userMaster.setEmployeeCode(vendorCodeFormatted);
         userMaster.setEmail(dto.getEmail());
         userMaster.setMobileNumber(null); // Mobile numbers are stored per-plant in vendor_plant
         if (dto.getPassword() != null && !dto.getPassword().trim().isEmpty()) {
-            userMaster.setPassword(dto.getPassword());
+            userMaster.setPassword(com.sarthi.util.PasswordEncryptionUtil.encrypt(dto.getPassword()));
         }
         userMaster.setRoleName("Sleeper Vendor");
         userMaster.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
         userMaster.setStatus("Inactive".equalsIgnoreCase(dto.getStatus()) ? AppConstant.USER_STATUS_INACTIVE : AppConstant.USER_STATUS);
+        userMaster = userMasterRepository.save(userMaster);
 
         // 2. Assign USER_ROLE_MASTER (roleId = 12 for Sleeper Vendor) without deleting other existing roles
         RoleMaster sleeperVendorRole = roleMasterRepository.findByRoleName("Sleeper Vendor")
@@ -2572,20 +2605,22 @@ public class UserServiceImpl implements UserService {
         if (dto.getUserId() != null) {
             userMaster = userMasterRepository.findById(dto.getUserId()).orElse(new UserMaster());
         } else {
-            userMaster = userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
+            userMaster = userMasterRepository.findFirstByUserName(vendorCodeFormatted)
+                    .orElseGet(() -> userMasterRepository.findFirstByUserName(cleanVendorCode)
+                    .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanVendorCode)
                     .orElseGet(() -> {
                         if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
                             return userMasterRepository.findFirstByEmail(dto.getEmail().trim()).orElse(new UserMaster());
                         }
                         return new UserMaster();
-                    }));
+                    }))));
             if (userMaster.getUserId() == null) {
                 userMaster.setCreatedDate(LocalDateTime.now());
             }
         }
 
-        userMaster.setUserName(cleanCompanyName);
+        userMaster.setUserName(vendorCodeFormatted);
         userMaster.setFullName(cleanCompanyName);
         userMaster.setShortName(vendorCodeFormatted);
         userMaster.setEmployeeCode(vendorCodeFormatted);
@@ -2597,6 +2632,7 @@ public class UserServiceImpl implements UserService {
         userMaster.setRoleName("Rail Vendor");
         userMaster.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : "Admin");
         userMaster.setStatus("Inactive".equalsIgnoreCase(dto.getStatus()) ? AppConstant.USER_STATUS_INACTIVE : AppConstant.USER_STATUS);
+        userMaster = userMasterRepository.save(userMaster);
 
         // 2. Assign USER_ROLE_MASTER (roleId = 17 for Rail Vendor) without deleting other existing roles
         RoleMaster railVendorRole = roleMasterRepository.findByRoleName("Rail Vendor")

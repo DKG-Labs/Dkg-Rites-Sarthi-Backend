@@ -59,4 +59,7 @@ public interface SleeperWorkflowService {
 
     public com.sarthi.Sleeper.entity.FinalInspection.SleeperCallCancellationDetail getCancellationDetails(String callNo);
 
+    public java.util.Map<String, Object> verifyIbsPayment(String caseNo, String callDate, int ibsCallSno);
+
+    public void markPaymentApprovedByIbs(String callNo);
 }
