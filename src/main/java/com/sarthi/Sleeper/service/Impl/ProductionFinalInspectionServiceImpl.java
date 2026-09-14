@@ -1013,6 +1013,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     @Override
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId) {
+        return getCompletedBatches(sleeperType, userId, null);
+    }
+
+    @Override
+    public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId, String excludeCallNo) {
 
         String parsedUserId = userId.replace(":", "");
         Optional<UserMaster> userOpt = userMasterRepository.findFirstByUserName(userId);
@@ -1051,14 +1056,22 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         // ── Bulk Upfront Fetch 2: Raised Sleeper & Batch IDs ─────────────────
         Set<Long> raisedSleeperIds = new HashSet<>();
-        raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds());
-        raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds());
+        Set<String> raisedBadSleeperKeys = new HashSet<>();
 
-        Set<String> raisedBadSleeperKeys = new HashSet<>(inspectionCallRepository.findAllRaisedBadSleeperKeys());
+        if (excludeCallNo != null && !excludeCallNo.isBlank()) {
+            String trimmedExclude = excludeCallNo.trim();
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIdsExcludingCall(trimmedExclude));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIdsExcludingCall(trimmedExclude));
+            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeysExcludingCall(trimmedExclude));
+        } else {
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds());
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds());
+            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys());
+        }
 
         // ── Bulk Upfront Fetch 3: Passed Lab Tests (Water Cube & MOR) ────────
-        Set<String> passedWaterCubeBatchNos = new HashSet<>(waterCubeStrengthTestRepository.findAllPassedBatchNumbers());
-        Set<String> passedMORBatchNos = new HashSet<>(momentOfResistanceTestRepository.findAllPassedBatchNumbers());
+        Set<String> passedWaterCubeBatchNos = new HashSet<>(waterCubeStrengthTestRepository.findPassedBatchNumbersIn(batchNumbers));
+        Set<String> passedMORBatchNos = new HashSet<>(momentOfResistanceTestRepository.findPassedBatchNumbersIn(batchNumbers));
 
         // ── Bulk Upfront Fetch 4: Inspection Test Results for all batches ────
         List<InspectionTestResult> allResults = resultRepository.findAllResultsByBatchIds(batchIds);

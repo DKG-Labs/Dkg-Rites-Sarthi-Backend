@@ -63,4 +63,17 @@ AND (UPPER(TRIM(m.testResult)) LIKE 'PASS%' OR UPPER(TRIM(m.testResult)) = 'OK' 
            OR UPPER(TRIM(test_result)) = 'COMPLETED'
     """, nativeQuery = true)
     List<String> findAllPassedBatchNumbers();
+
+    @Query(value = """
+        SELECT DISTINCT TRIM(batch_number)
+        FROM moment_of_resistance_test
+        WHERE (batch_number IN (:batchNumbers) 
+           OR TRIM(batch_number) IN (:batchNumbers)
+           OR REPLACE(batch_number, 'B-', '') IN (:batchNumbers)
+           OR CONCAT('B-', batch_number) IN (:batchNumbers))
+          AND (UPPER(TRIM(test_result)) LIKE 'PASS%' 
+            OR UPPER(TRIM(test_result)) = 'OK' 
+            OR UPPER(TRIM(test_result)) = 'COMPLETED')
+    """, nativeQuery = true)
+    List<String> findPassedBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
 }

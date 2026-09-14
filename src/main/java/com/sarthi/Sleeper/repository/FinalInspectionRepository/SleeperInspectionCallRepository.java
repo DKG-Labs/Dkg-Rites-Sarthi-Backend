@@ -18,11 +18,21 @@ import java.util.Optional;
 @Repository
 public interface SleeperInspectionCallRepository extends JpaRepository<SleeperInspectionCall, Long> {
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"batchesSelected"})
     List<SleeperInspectionCall> findByCreatedBy(Long createdBy);
 
     Optional<SleeperInspectionCall> findByCallNo(String callNo);
     boolean existsByCallNo(String callNo);
     List<SleeperInspectionCall> findByPoNoOrderByIdAsc(String poNo);
+
+    @Query("""
+SELECT DISTINCT c
+FROM SleeperInspectionCall c
+LEFT JOIN FETCH c.batchesSelected b
+WHERE c.callNo = :callNo
+""")
+    Optional<SleeperInspectionCall> findByCallNoWithBatches(@Param("callNo") String callNo);
 
     @Query("""
 SELECT DISTINCT s.sleeperId
@@ -36,11 +46,31 @@ WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
     @Query("""
 SELECT DISTINCT s.sleeperId
 FROM SleeperInspectionCallBatch b
+JOIN b.goodSleepers s
+WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:excludeCallNo IS NULL OR b.inspectionCall.callNo <> :excludeCallNo)
+""")
+    List<Long> findAllGoodSleeperIdsExcludingCall(@Param("excludeCallNo") String excludeCallNo);
+
+    @Query("""
+SELECT DISTINCT s.sleeperId
+FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<Long> findAllBadSleeperIds();
+
+    @Query("""
+SELECT DISTINCT s.sleeperId
+FROM SleeperInspectionCallBatch b
+JOIN b.badSleepers s
+WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:excludeCallNo IS NULL OR b.inspectionCall.callNo <> :excludeCallNo)
+""")
+    List<Long> findAllBadSleeperIdsExcludingCall(@Param("excludeCallNo") String excludeCallNo);
 
     @Query("""
 SELECT DISTINCT CONCAT(TRIM(b.batchNo), '_', TRIM(s.sleeperNo))
@@ -50,6 +80,16 @@ WHERE s.sleeperNo IS NOT NULL
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
 """)
     List<String> findAllRaisedBadSleeperKeys();
+
+    @Query("""
+SELECT DISTINCT CONCAT(TRIM(b.batchNo), '_', TRIM(s.sleeperNo))
+FROM SleeperInspectionCallBatch b
+JOIN b.badSleepers s
+WHERE s.sleeperNo IS NOT NULL
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:excludeCallNo IS NULL OR b.inspectionCall.callNo <> :excludeCallNo)
+""")
+    List<String> findAllRaisedBadSleeperKeysExcludingCall(@Param("excludeCallNo") String excludeCallNo);
 
     @Query("""
     SELECT c 

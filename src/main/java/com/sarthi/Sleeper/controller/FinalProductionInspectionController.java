@@ -137,9 +137,10 @@ public class FinalProductionInspectionController {
     @GetMapping("/completed-batches")
     public ResponseEntity<Object> getCompletedBatches(
             @RequestParam("sleeperType") String sleeperType,
-            @RequestParam("userId") String userId) {
+            @RequestParam("userId") String userId,
+            @RequestParam(value = "excludeCallNo", required = false) String excludeCallNo) {
 
-        List<BatchInspectionResponseDto>  result=  inspectionService.getCompletedBatches(sleeperType, userId);
+        List<BatchInspectionResponseDto> result = inspectionService.getCompletedBatches(sleeperType, userId, excludeCallNo);
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(result),
@@ -165,6 +166,34 @@ public class FinalProductionInspectionController {
                 HttpStatus.OK
         );
     }
+
+    @PostMapping("/withdraw-call")
+    public ResponseEntity<Object> withdrawInspectionCall(@RequestParam("callNo") String callNo) {
+        String withdrawnCallNo = sleeperInspectionCallService.withdrawInspectionCall(callNo);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(withdrawnCallNo),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/call-details")
+    public ResponseEntity<Object> getInspectionCallDetails(@RequestParam("callNo") String callNo) {
+        SleeperInspectionCallDetailDto details = sleeperInspectionCallService.getInspectionCallDetails(callNo);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(details),
+                HttpStatus.OK
+        );
+    }
+
+    @PutMapping("/modify-inspection-call")
+    public ResponseEntity<Object> modifyInspectionCall(@RequestBody SleeperInspectionCallSubmitDto submitDto) {
+        String callNo = sleeperInspectionCallService.modifyInspectionCall(submitDto);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(callNo),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping("/inspection-calls")
     public ResponseEntity<Object> getInspectionCalls(@RequestParam("userId") Long userId) {
         List<SleeperInspectionCallListDto> calls = sleeperInspectionCallService.getVendorInspectionCalls(userId);
