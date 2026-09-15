@@ -1019,19 +1019,43 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Override
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId, String excludeCallNo) {
 
-        String parsedUserId = userId.replace(":", "");
+        String parsedUserId = userId != null ? userId.replace(":", "").trim() : "";
+        String vendorCodeStr = userId != null ? userId.trim() : "";
+        Long vendorId = 0L;
+
         Optional<UserMaster> userOpt = userMasterRepository.findFirstByUserName(userId);
-        if (userOpt.isEmpty()) {
+        if (userOpt.isEmpty() && !parsedUserId.isEmpty()) {
             userOpt = userMasterRepository.findFirstByUserName(parsedUserId);
         }
 
-        Long vendorId = 0L;
         if (userOpt.isPresent()) {
             vendorId = userOpt.get().getUserId().longValue();
+        } else {
+            try {
+                vendorId = Long.parseLong(parsedUserId);
+            } catch (Exception ignored) {}
         }
 
-        List<Long> batchIds = headerRepository.findCompletedBatchIdsBySleeperTypeAndUserId(sleeperType, vendorId);
-        if (batchIds == null || batchIds.isEmpty()) {
+        List<Long> batchIds = new ArrayList<>(headerRepository.findCompletedBatchIdsBySleeperTypeAndVendor(
+                sleeperType, vendorId, vendorCodeStr, parsedUserId));
+
+        // In edit mode (excludeCallNo provided), ensure batches of this call are included!
+        List<String> callBatchNos = new ArrayList<>();
+        if (excludeCallNo != null && !excludeCallNo.isBlank()) {
+            callBatchNos = inspectionCallRepository.findBatchNosByCallNo(excludeCallNo.trim());
+            if (callBatchNos != null && !callBatchNos.isEmpty()) {
+                List<ProductionDeclaration> callDeclarations = productionDeclarationRepository.findAllByBatchNumbers(callBatchNos);
+                if (callDeclarations != null) {
+                    for (ProductionDeclaration d : callDeclarations) {
+                        if (d != null && d.getId() != null && !batchIds.contains(d.getId())) {
+                            batchIds.add(d.getId());
+                        }
+                    }
+                }
+            }
+        }
+
+        if (batchIds.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -1127,11 +1151,17 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             String currentBatchNo = declaration.getBatchNumber().trim();
 
+            boolean isCallBatch = false;
+            if (callBatchNos != null && !callBatchNos.isEmpty()) {
+                final String bNo = currentBatchNo;
+                isCallBatch = callBatchNos.stream().anyMatch(cb -> cb != null && cb.trim().equalsIgnoreCase(bNo));
+            }
+
             // Lab test verification using in-memory pre-fetched sets
             boolean passedWaterCube = isBatchLabPassed(currentBatchNo, passedWaterCubeBatchNos);
             boolean passedMOR = isBatchLabPassed(currentBatchNo, passedMORBatchNos);
 
-            if (!passedWaterCube || !passedMOR) {
+            if (!isCallBatch && (!passedWaterCube || !passedMOR)) {
                 continue;
             }
 
@@ -1300,6 +1330,20 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     .collect(Collectors.toSet());
 
             for (ProductionSleeper ps : allProdSleepers) {
+                // If this sleeper is associated with a benchGroup or gang that has a different sleeperType, skip it
+                String psType = null;
+                if (ps.getBenchGroup() != null && ps.getBenchGroup().getSleeperType() != null) {
+                    psType = ps.getBenchGroup().getSleeperType().trim();
+                } else if (ps.getGang() != null && ps.getGang().getSleeperType() != null) {
+                    psType = ps.getGang().getSleeperType().trim();
+                }
+
+                if (sleeperType != null && !sleeperType.isBlank() && psType != null && !psType.isBlank()) {
+                    if (!psType.equalsIgnoreCase(sleeperType.trim())) {
+                        continue;
+                    }
+                }
+
                 boolean isBad = (ps.getId() != null && accountedBadIds.contains(ps.getId()))
                         || badSleepers.stream().anyMatch(b -> isSleeperMatch(b.getSleeperNo(), ps.getSleeperNo(), currentBatchNo));
 
@@ -1432,19 +1476,28 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     @Override
     public List<String> getDistinctSleeperTypes(String userId) {
-        String parsedUserId = userId.replace(":", "");
+        String parsedUserId = userId != null ? userId.replace(":", "").trim() : "";
+        String vendorCodeStr = userId != null ? userId.trim() : "";
+        Long vendorId = 0L;
 
         Optional<UserMaster> userOpt = userMasterRepository.findFirstByUserName(userId);
-        if (userOpt.isEmpty()) {
+        if (userOpt.isEmpty() && !parsedUserId.isEmpty()) {
             userOpt = userMasterRepository.findFirstByUserName(parsedUserId);
         }
 
-        Long vendorId = 0L;
         if (userOpt.isPresent()) {
             vendorId = userOpt.get().getUserId().longValue();
+        } else {
+            try {
+                vendorId = Long.parseLong(parsedUserId);
+            } catch (Exception ignored) {}
         }
 
-        return headerRepository.findDistinctSleeperTypesByUserId(vendorId);
+        List<String> types = headerRepository.findDistinctSleeperTypesByVendor(vendorId, vendorCodeStr, parsedUserId);
+        if (types == null || types.isEmpty()) {
+            types = headerRepository.findDistinctSleeperTypesByUserId(vendorId);
+        }
+        return types != null ? types : Collections.emptyList();
     }
 
 
