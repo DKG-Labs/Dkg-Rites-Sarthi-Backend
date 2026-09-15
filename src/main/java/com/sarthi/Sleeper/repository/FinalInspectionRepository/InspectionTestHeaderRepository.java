@@ -35,18 +35,20 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
     @Query("""
              SELECT h.batchId
              FROM InspectionTestHeader h
-             WHERE h.status = 'Completed'
+             WHERE UPPER(h.status) = 'COMPLETED'
              AND (
                  h.batchId IN (
                      SELECT c.declaration.id
                      FROM ProductionBenchGroup b
                      JOIN b.chamber c
-                     WHERE c.declaration.createdBy = :userId AND b.sleeperType = :sleeperType
+                     WHERE (c.declaration.createdBy = :userId OR :userId = 0)
+                       AND (:sleeperType IS NULL OR :sleeperType = '' OR UPPER(TRIM(b.sleeperType)) = UPPER(TRIM(:sleeperType)))
                  )
                  OR h.batchId IN (
                      SELECT g.declaration.id
                      FROM ProductionLongLineGang g
-                     WHERE g.declaration.createdBy = :userId AND g.sleeperType = :sleeperType
+                     WHERE (g.declaration.createdBy = :userId OR :userId = 0)
+                       AND (:sleeperType IS NULL OR :sleeperType = '' OR UPPER(TRIM(g.sleeperType)) = UPPER(TRIM(:sleeperType)))
                  )
              )
              GROUP BY h.batchId
@@ -55,23 +57,73 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
     List<Long> findCompletedBatchIdsBySleeperTypeAndUserId(@Param("sleeperType") String sleeperType, @Param("userId") Long userId);
 
     @Query("""
+             SELECT h.batchId
+             FROM InspectionTestHeader h
+             WHERE UPPER(h.status) = 'COMPLETED'
+             AND (
+                 h.batchId IN (
+                     SELECT c.declaration.id
+                     FROM ProductionBenchGroup b
+                     JOIN b.chamber c
+                     WHERE (c.declaration.createdBy = :userId OR :userId = 0 OR c.declaration.vendorCode = :vendorCode OR c.declaration.vendorCode = :vendorCodeClean)
+                       AND (:sleeperType IS NULL OR :sleeperType = '' OR UPPER(TRIM(b.sleeperType)) = UPPER(TRIM(:sleeperType)))
+                 )
+                 OR h.batchId IN (
+                     SELECT g.declaration.id
+                     FROM ProductionLongLineGang g
+                     WHERE (g.declaration.createdBy = :userId OR :userId = 0 OR g.declaration.vendorCode = :vendorCode OR g.declaration.vendorCode = :vendorCodeClean)
+                       AND (:sleeperType IS NULL OR :sleeperType = '' OR UPPER(TRIM(g.sleeperType)) = UPPER(TRIM(:sleeperType)))
+                 )
+             )
+             GROUP BY h.batchId
+             HAVING COUNT(DISTINCT h.module.id) = 3
+            """)
+    List<Long> findCompletedBatchIdsBySleeperTypeAndVendor(
+            @Param("sleeperType") String sleeperType,
+            @Param("userId") Long userId,
+            @Param("vendorCode") String vendorCode,
+            @Param("vendorCodeClean") String vendorCodeClean);
+
+    @Query("""
              SELECT DISTINCT COALESCE(b.sleeperType, g.sleeperType)
              FROM ProductionDeclaration d
              LEFT JOIN d.chambers c
              LEFT JOIN c.benchGroups b
              LEFT JOIN d.gangs g
-             WHERE d.createdBy = :userId
+             WHERE (d.createdBy = :userId OR :userId = 0)
              AND (b.sleeperType IS NOT NULL OR g.sleeperType IS NOT NULL)
              AND (b.sleeperType <> '' OR g.sleeperType <> '')
              AND d.id IN (
                  SELECT h.batchId
                  FROM InspectionTestHeader h
-                 WHERE h.status = 'Completed'
+                 WHERE UPPER(h.status) = 'COMPLETED'
                  GROUP BY h.batchId
                  HAVING COUNT(DISTINCT h.module.id) = 3
              )
             """)
     List<String> findDistinctSleeperTypesByUserId(@Param("userId") Long userId);
+
+    @Query("""
+             SELECT DISTINCT COALESCE(b.sleeperType, g.sleeperType)
+             FROM ProductionDeclaration d
+             LEFT JOIN d.chambers c
+             LEFT JOIN c.benchGroups b
+             LEFT JOIN d.gangs g
+             WHERE (d.createdBy = :userId OR :userId = 0 OR d.vendorCode = :vendorCode OR d.vendorCode = :vendorCodeClean)
+             AND (b.sleeperType IS NOT NULL OR g.sleeperType IS NOT NULL)
+             AND (b.sleeperType <> '' OR g.sleeperType <> '')
+             AND d.id IN (
+                 SELECT h.batchId
+                 FROM InspectionTestHeader h
+                 WHERE UPPER(h.status) = 'COMPLETED'
+                 GROUP BY h.batchId
+                 HAVING COUNT(DISTINCT h.module.id) = 3
+             )
+            """)
+    List<String> findDistinctSleeperTypesByVendor(
+            @Param("userId") Long userId,
+            @Param("vendorCode") String vendorCode,
+            @Param("vendorCodeClean") String vendorCodeClean);
 
     @Query(value = """
                 SELECT

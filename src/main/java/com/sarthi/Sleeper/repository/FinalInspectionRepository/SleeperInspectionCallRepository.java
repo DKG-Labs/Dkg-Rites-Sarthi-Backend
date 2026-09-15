@@ -23,6 +23,7 @@ public interface SleeperInspectionCallRepository extends JpaRepository<SleeperIn
     List<SleeperInspectionCall> findByCreatedBy(Long createdBy);
 
     Optional<SleeperInspectionCall> findByCallNo(String callNo);
+    List<SleeperInspectionCall> findByCallNoIn(Collection<String> callNos);
     boolean existsByCallNo(String callNo);
     List<SleeperInspectionCall> findByPoNoOrderByIdAsc(String poNo);
 
@@ -49,7 +50,7 @@ FROM SleeperInspectionCallBatch b
 JOIN b.goodSleepers s
 WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
-  AND (:excludeCallNo IS NULL OR b.inspectionCall.callNo <> :excludeCallNo)
+  AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
 """)
     List<Long> findAllGoodSleeperIdsExcludingCall(@Param("excludeCallNo") String excludeCallNo);
 
@@ -68,7 +69,7 @@ FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
-  AND (:excludeCallNo IS NULL OR b.inspectionCall.callNo <> :excludeCallNo)
+  AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
 """)
     List<Long> findAllBadSleeperIdsExcludingCall(@Param("excludeCallNo") String excludeCallNo);
 
@@ -87,9 +88,16 @@ FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperNo IS NOT NULL
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
-  AND (:excludeCallNo IS NULL OR b.inspectionCall.callNo <> :excludeCallNo)
+  AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
 """)
     List<String> findAllRaisedBadSleeperKeysExcludingCall(@Param("excludeCallNo") String excludeCallNo);
+
+    @Query("""
+SELECT DISTINCT b.batchNo
+FROM SleeperInspectionCallBatch b
+WHERE UPPER(TRIM(b.inspectionCall.callNo)) = UPPER(TRIM(:callNo))
+""")
+    List<String> findBatchNosByCallNo(@Param("callNo") String callNo);
 
     @Query("""
     SELECT c 

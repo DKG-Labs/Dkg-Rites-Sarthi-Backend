@@ -27,6 +27,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
 
     private final SleeperInspectionCallRepository inspectionCallRepository;
     private final SleeperWorkflowRepository sleeperWorkflowRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional
@@ -226,7 +227,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         if (dto.getTotalRejected() != null) call.setTotalRejected(dto.getTotalRejected());
         if (dto.getPlantId() != null) call.setPlantId(dto.getPlantId());
 
-        // Clear existing batches and repopulate cleanly
+        // Clear existing batches and repopulate cleanly via JPA cascade and orphanRemoval
         if (call.getBatchesSelected() != null) {
             call.getBatchesSelected().clear();
         } else {

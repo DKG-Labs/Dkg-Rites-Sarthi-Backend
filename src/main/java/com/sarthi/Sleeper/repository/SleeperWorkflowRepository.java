@@ -21,6 +21,8 @@ public interface SleeperWorkflowRepository
 
     List<SleeperWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
 
+    SleeperWorkflowTransaction findFirstByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
+
     @Modifying
     @Query("DELETE FROM SleeperWorkflowTransaction t WHERE t.requestId = :requestId")
     void deleteByRequestId(@Param("requestId") String requestId);
@@ -604,6 +606,8 @@ AND t.workflowTransitionId = (
                OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED'))
     """, nativeQuery = true)
     Long countAllSleeperIcIssued();
+
+    List<SleeperWorkflowTransaction> findByRequestIdIn(java.util.Collection<String> requestIds);
 
     @Query("""
     SELECT t FROM SleeperWorkflowTransaction t

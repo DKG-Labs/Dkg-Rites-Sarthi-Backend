@@ -1618,26 +1618,164 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         String effectiveVendorCode = (vendorCode != null && !vendorCode.trim().isEmpty()) 
                 ? vendorCode.replace(":", "").trim() : null;
 
-        List<SleeperWorkflowTransaction> txList = repository.findLatestCancelledTransactions(effectivePlantId, effectiveVendorCode);
+        java.util.LinkedHashSet<String> allCallNos = new java.util.LinkedHashSet<>();
+
+        // 1. Batch preload cancellation details (Filtered by vendor if available)
+        java.util.Map<String, SleeperCallCancellationDetail> cancelMap = new java.util.HashMap<>();
+        if (sleeperCallCancellationDetailRepository != null) {
+            try {
+                List<SleeperCallCancellationDetail> cancels = (effectiveVendorCode != null && !effectiveVendorCode.isBlank())
+                        ? sleeperCallCancellationDetailRepository.findByVendorCode(effectiveVendorCode)
+                        : sleeperCallCancellationDetailRepository.findAll();
+                if (cancels != null) {
+                    cancels.forEach(cd -> {
+                        if (cd.getCallNumber() != null && !cd.getCallNumber().isBlank()) {
+                            String cn = cd.getCallNumber().trim();
+                            allCallNos.add(cn);
+                            cancelMap.put(cn, cd);
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error reading sleeper_call_cancellation_details: {}", ex.getMessage());
+            }
+        }
+
+        // 2. Batch preload sleeper vendor financial liabilities (Filtered by vendor if available)
+        java.util.Map<String, SleeperVendorFinancialLiability> liabilityMap = new java.util.HashMap<>();
+        if (sleeperVendorFinancialLiabilityRepository != null) {
+            try {
+                List<SleeperVendorFinancialLiability> liabs = (effectiveVendorCode != null && !effectiveVendorCode.isBlank())
+                        ? sleeperVendorFinancialLiabilityRepository.findByVendorCode(effectiveVendorCode)
+                        : sleeperVendorFinancialLiabilityRepository.findAll();
+                if (liabs != null) {
+                    liabs.forEach(l -> {
+                        if (l.getCallNumber() != null && !l.getCallNumber().isBlank()) {
+                            String cn = l.getCallNumber().trim();
+                            allCallNos.add(cn);
+                            liabilityMap.put(cn, l);
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error reading sleeper_vendor_financial_liability: {}", ex.getMessage());
+            }
+        }
+
+        // If no candidate calls exist, return empty immediately (instant response)
+        if (allCallNos.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<String> callNoList = new java.util.ArrayList<>(allCallNos);
+
+        // 3. Fast indexed batch fetch SleeperWorkflowTransactions for only candidate calls
+        java.util.Map<String, SleeperWorkflowTransaction> txMap = new java.util.HashMap<>();
+        if (repository != null && !callNoList.isEmpty()) {
+            try {
+                List<SleeperWorkflowTransaction> txList = repository.findByRequestIdIn(callNoList);
+                if (txList != null) {
+                    txList.forEach(t -> {
+                        if (t.getRequestId() != null && !t.getRequestId().isBlank()) {
+                            String reqId = t.getRequestId().trim();
+                            SleeperWorkflowTransaction existing = txMap.get(reqId);
+                            if (existing == null || (t.getWorkflowTransitionId() != null && (existing.getWorkflowTransitionId() == null || t.getWorkflowTransitionId() > existing.getWorkflowTransitionId()))) {
+                                txMap.put(reqId, t);
+                            }
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error reading cancelled sleeper workflow transactions: {}", ex.getMessage());
+            }
+        }
+
+        // 4. Batch fetch SleeperInspectionCalls in a single query (Eliminates N+1)
+        java.util.Map<String, SleeperInspectionCall> callMap = new java.util.HashMap<>();
+        if (sleeperInspectionCallRepository != null && !callNoList.isEmpty()) {
+            try {
+                List<SleeperInspectionCall> calls = sleeperInspectionCallRepository.findByCallNoIn(callNoList);
+                if (calls != null) {
+                    calls.forEach(c -> {
+                        if (c.getCallNo() != null) callMap.put(c.getCallNo().trim(), c);
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error batch fetching SleeperInspectionCalls: {}", ex.getMessage());
+            }
+        }
+
+        // 5. Batch fetch PoHeaders in a single query (Eliminates N+1)
+        java.util.Set<String> poNos = new java.util.HashSet<>();
+        callMap.values().forEach(c -> {
+            if (c.getPoNo() != null && !c.getPoNo().isBlank()) {
+                String barePoNo = c.getPoNo().contains("/") ? c.getPoNo().split("/")[0].trim() : c.getPoNo().trim();
+                if (!barePoNo.isBlank()) poNos.add(barePoNo);
+            }
+        });
+        java.util.Map<String, PoHeader> poHeaderMap = new java.util.HashMap<>();
+        if (poHeaderRepository != null && !poNos.isEmpty()) {
+            try {
+                List<PoHeader> headers = poHeaderRepository.findByPoNoIn(new java.util.ArrayList<>(poNos));
+                if (headers != null) {
+                    headers.forEach(h -> {
+                        if (h.getPoNo() != null) poHeaderMap.put(h.getPoNo().trim(), h);
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error batch fetching PoHeaders: {}", ex.getMessage());
+            }
+        }
+
+        // 6. Preload VendorPlants map (Eliminates N+1)
+        java.util.Map<String, com.sarthi.Sleeper.entity.VendorPlant> vendorPlantMap = new java.util.HashMap<>();
+        if (vendorPlantRepository != null) {
+            try {
+                vendorPlantRepository.findAll().forEach(vp -> {
+                    if (vp.getPlantId() != null) {
+                        vendorPlantMap.put(vp.getPlantId().trim(), vp);
+                        vendorPlantMap.put(vp.getPlantId().replace(":", "").trim(), vp);
+                    }
+                });
+            } catch (Exception ex) {
+                log.warn("Error preloading VendorPlants: {}", ex.getMessage());
+            }
+        }
+
         List<SleeperCancelledPaymentCallDto> result = new ArrayList<>();
 
-        for (SleeperWorkflowTransaction tx : txList) {
-            String callNo = tx.getRequestId();
-            if (callNo == null || callNo.isBlank()) continue;
+        for (String callNo : allCallNos) {
+            SleeperInspectionCall callEntity = callMap.get(callNo);
+            SleeperWorkflowTransaction latestTx = txMap.get(callNo);
+            SleeperCallCancellationDetail cancelDetail = cancelMap.get(callNo);
+            SleeperVendorFinancialLiability liability = liabilityMap.get(callNo);
 
-            String callPlantId = tx.getPlantId();
-            SleeperInspectionCall callEntity = null;
+            String callPlantId = null;
+            if (callEntity != null && callEntity.getPlantId() != null && !callEntity.getPlantId().isBlank()) {
+                callPlantId = callEntity.getPlantId();
+            } else if (latestTx != null && latestTx.getPlantId() != null) {
+                callPlantId = latestTx.getPlantId();
+            }
 
-            if (sleeperInspectionCallRepository != null) {
-                Optional<SleeperInspectionCall> callOpt = sleeperInspectionCallRepository.findByCallNo(callNo);
-                if (callOpt.isPresent()) {
-                    callEntity = callOpt.get();
-                    if (callEntity.getPlantId() != null && !callEntity.getPlantId().isBlank()) {
-                        callPlantId = callEntity.getPlantId();
-                    }
+            String callVendorCode = null;
+            if (cancelDetail != null && cancelDetail.getVendorCode() != null && !cancelDetail.getVendorCode().isBlank()) {
+                callVendorCode = cancelDetail.getVendorCode();
+            } else if (latestTx != null && latestTx.getVendorCode() != null) {
+                callVendorCode = latestTx.getVendorCode();
+            }
+
+            // Apply vendor filter if provided
+            if (effectiveVendorCode != null && !effectiveVendorCode.isBlank()) {
+                String cleanCallVendor = (callVendorCode != null) ? callVendorCode.replace(":", "").trim() : "";
+                String cleanReqVendor = effectiveVendorCode.replace(":", "").trim();
+                if (!cleanCallVendor.equalsIgnoreCase(cleanReqVendor) 
+                        && !cleanCallVendor.toLowerCase().contains(cleanReqVendor.toLowerCase())
+                        && !cleanReqVendor.toLowerCase().contains(cleanCallVendor.toLowerCase())) {
+                    continue;
                 }
             }
 
+            // Apply plant filter if provided
             if (effectivePlantId != null && !effectivePlantId.isBlank()) {
                 String cleanCallPlant = (callPlantId != null) ? callPlantId.replace(":", "").trim() : "";
                 if (!cleanCallPlant.equalsIgnoreCase(effectivePlantId)) {
@@ -1645,28 +1783,71 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 }
             }
 
+            double base = 0.0;
+            boolean isNonChargeable = false;
+            String cancelRemarks = (latestTx != null) ? latestTx.getRemarks() : null;
+            String action = (latestTx != null) ? latestTx.getAction() : "CANCEL";
+            Long txId = (latestTx != null) ? latestTx.getWorkflowTransitionId() : 0L;
+            java.time.LocalDateTime createdDate = (latestTx != null && latestTx.getCreatedDate() != null) ? latestTx.getCreatedDate() : java.time.LocalDateTime.now();
+            String documentName = null;
+
+            if (cancelDetail != null) {
+                if (cancelDetail.getDocumentName() != null && !cancelDetail.getDocumentName().isBlank()) {
+                    documentName = cancelDetail.getDocumentName();
+                }
+                if ("NON_CHARGEABLE".equalsIgnoreCase(cancelDetail.getCancellationBasis())) {
+                    isNonChargeable = true;
+                    base = 0.0;
+                } else {
+                    if (cancelDetail.getFinalCancellationCharges() != null) {
+                        base = cancelDetail.getFinalCancellationCharges().doubleValue();
+                    } else if (cancelDetail.getCalculatedCharges() != null) {
+                        base = cancelDetail.getCalculatedCharges().doubleValue();
+                    }
+                }
+                if (cancelRemarks == null && cancelDetail.getCancellationDescription() != null) {
+                    cancelRemarks = cancelDetail.getCancellationDescription();
+                }
+            }
+
+            if (cancelRemarks != null) {
+                String rem = cancelRemarks.toUpperCase();
+                if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
+                    isNonChargeable = true;
+                    base = 0.0;
+                }
+            }
+
+            if (base == 0.0 && !isNonChargeable && liability != null && liability.getAmount() != null) {
+                base = liability.getAmount().doubleValue() / 1.18;
+            }
+
+            // Skip non-chargeable calls or zero charges
+            if (isNonChargeable || base <= 0.0) {
+                continue;
+            }
+
             SleeperCancelledPaymentCallDto dto = new SleeperCancelledPaymentCallDto();
-            dto.setWorkflowTransitionId(tx.getWorkflowTransitionId());
+            dto.setWorkflowTransitionId(txId != null ? txId.intValue() : 0);
             dto.setCallNo(callNo);
             dto.setStatus("CANCELLED");
-            dto.setCancelRemarks(tx.getRemarks());
-            dto.setAction(tx.getAction());
+            dto.setCancelRemarks(cancelRemarks);
+            dto.setAction(action);
             dto.setPlantId(callPlantId);
-            dto.setVendorCode(tx.getVendorCode());
-            dto.setCreatedDate(tx.getCreatedDate());
+            dto.setVendorCode(callVendorCode != null ? callVendorCode : vendorCode);
+            dto.setCreatedDate(createdDate);
+            dto.setDocumentName(documentName);
 
-            String plantRio = tx.getRio();
-            if ((plantRio == null || plantRio.isBlank()) && callPlantId != null && vendorPlantRepository != null) {
-                try {
-                    String cleanPId = callPlantId.replace(":", "").trim();
-                    Optional<com.sarthi.Sleeper.entity.VendorPlant> vpOpt = vendorPlantRepository.findByPlantId(cleanPId);
-                    if (vpOpt.isEmpty()) {
-                        vpOpt = vendorPlantRepository.findByPlantId(callPlantId);
-                    }
-                    if (vpOpt.isPresent() && vpOpt.get().getRio() != null) {
-                        plantRio = vpOpt.get().getRio().trim();
-                    }
-                } catch (Exception ignored) {}
+            String plantRio = (latestTx != null) ? latestTx.getRio() : null;
+            if ((plantRio == null || plantRio.isBlank()) && callPlantId != null) {
+                String cleanPId = callPlantId.replace(":", "").trim();
+                com.sarthi.Sleeper.entity.VendorPlant vp = vendorPlantMap.get(cleanPId);
+                if (vp == null) {
+                    vp = vendorPlantMap.get(callPlantId);
+                }
+                if (vp != null && vp.getRio() != null) {
+                    plantRio = vp.getRio().trim();
+                }
             }
             dto.setRio(plantRio);
 
@@ -1678,17 +1859,17 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 dto.setCallDate(callEntity.getCreatedAt() != null ? callEntity.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : null);
                 dto.setSleeperType(callEntity.getSleeperType());
 
-                // Fetch Case No using plant RIO logic
+                // Fetch Case No using plant RIO logic from preloaded map
                 String rawPoNo = callEntity.getPoNo();
                 String barePoNo = rawPoNo;
                 if (barePoNo != null && barePoNo.contains("/")) {
                     barePoNo = barePoNo.split("/")[0].trim();
                 }
-                if (barePoNo != null && poHeaderRepository != null) {
-                    Optional<PoHeader> headerOpt = poHeaderRepository.findByPoNo(barePoNo);
-                    if (headerOpt.isPresent() && headerOpt.get().getCaseNo() != null) {
-                        String matchedCaseNo = resolveSleeperCaseNo(headerOpt.get().getCaseNo(), plantRio);
-                        dto.setIbsCaseNo(matchedCaseNo != null ? matchedCaseNo : headerOpt.get().getCaseNo());
+                if (barePoNo != null) {
+                    PoHeader header = poHeaderMap.get(barePoNo);
+                    if (header != null && header.getCaseNo() != null) {
+                        String matchedCaseNo = resolveSleeperCaseNo(header.getCaseNo(), plantRio);
+                        dto.setIbsCaseNo(matchedCaseNo != null ? matchedCaseNo : header.getCaseNo());
                     }
                 }
             }
@@ -1705,48 +1886,6 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
             dto.setRioEmail(rioEmail);
 
-            double base = 0.0;
-            boolean isNonChargeable = false;
-            if (sleeperCallCancellationDetailRepository != null) {
-                Optional<SleeperCallCancellationDetail> cancelOpt = sleeperCallCancellationDetailRepository.findByCallNumber(callNo);
-                if (cancelOpt.isPresent()) {
-                    SleeperCallCancellationDetail cd = cancelOpt.get();
-                    if (cd.getDocumentName() != null && !cd.getDocumentName().isBlank()) {
-                        dto.setDocumentName(cd.getDocumentName());
-                    }
-                    if ("NON_CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
-                        isNonChargeable = true;
-                        base = 0.0;
-                    } else {
-                        if (cd.getFinalCancellationCharges() != null) {
-                            base = cd.getFinalCancellationCharges().doubleValue();
-                        } else if (cd.getCalculatedCharges() != null) {
-                            base = cd.getCalculatedCharges().doubleValue();
-                        }
-                    }
-                }
-            }
-
-            if (tx.getRemarks() != null) {
-                String rem = tx.getRemarks().toUpperCase();
-                if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
-                    isNonChargeable = true;
-                    base = 0.0;
-                }
-            }
-
-            if (base == 0.0 && !isNonChargeable && sleeperVendorFinancialLiabilityRepository != null) {
-                Optional<SleeperVendorFinancialLiability> liabOpt = sleeperVendorFinancialLiabilityRepository.findByCallNumber(callNo);
-                if (liabOpt.isPresent() && liabOpt.get().getAmount() != null) {
-                    base = liabOpt.get().getAmount().doubleValue() / 1.18;
-                }
-            }
-
-            // Calls cancelled on non-chargeable basis (or with zero charges) should not go to Payment Details module
-            if (isNonChargeable || base <= 0.0) {
-                continue;
-            }
-
             double gst = Math.round((base * 18.0) / 100.0);
             dto.setBasePayableAmount(base);
             dto.setGst(gst);
@@ -1756,10 +1895,18 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             dto.setChargeType("Cancellation");
 
             String paymentStatus = "Payment Pending";
-            if (sleeperVendorFinancialLiabilityRepository != null) {
-                Optional<SleeperVendorFinancialLiability> liabOpt = sleeperVendorFinancialLiabilityRepository.findByCallNumber(callNo);
-                if (liabOpt.isPresent() && liabOpt.get().getPaymentStatus() != null) {
-                    paymentStatus = liabOpt.get().getPaymentStatus();
+            if (liability != null && liability.getPaymentStatus() != null) {
+                String ps = liability.getPaymentStatus().trim();
+                if ("PAID".equalsIgnoreCase(ps) 
+                        || "COMPLETED".equalsIgnoreCase(ps) 
+                        || "PAYMENT COMPLETED".equalsIgnoreCase(ps) 
+                        || "APPROVED".equalsIgnoreCase(ps) 
+                        || "Approved by RITES Finance".equalsIgnoreCase(ps)) {
+                    paymentStatus = "Approved by RITES Finance";
+                } else if ("PENDING".equalsIgnoreCase(ps) || "PAYMENT PENDING".equalsIgnoreCase(ps)) {
+                    paymentStatus = "Payment Pending";
+                } else if (!ps.isEmpty()) {
+                    paymentStatus = ps;
                 }
             }
             dto.setPaymentStatus(paymentStatus);
@@ -1852,6 +1999,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public void markPaymentApprovedByIbs(String callNo) {
         if (callNo == null || callNo.isBlank()) return;
         String cleanCallNo = callNo.trim();
@@ -1881,7 +2029,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
             liability.setPaymentStatus("Approved by RITES Finance");
             liability.setLiabilityType("CANCELLATION_CHARGES");
-            sleeperVendorFinancialLiabilityRepository.save(liability);
+            sleeperVendorFinancialLiabilityRepository.saveAndFlush(liability);
+            log.info("Payment marked as 'Approved by RITES Finance' for call {} via IBS verification in sleeper_vendor_financial_liability.", cleanCallNo);
         }
     }
 }

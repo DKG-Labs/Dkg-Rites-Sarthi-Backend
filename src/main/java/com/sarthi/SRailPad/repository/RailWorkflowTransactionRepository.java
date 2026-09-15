@@ -40,10 +40,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
             AND t.nextRole = :roleName
             AND (:workflowId IS NULL OR t.workflowId = :workflowId)
+            AND (:moduleId IS NULL OR t.moduleId = :moduleId)
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
             """)
     List<RailWorkflowTransaction> findLatestByRoleAndPlantIdAndWorkflowId(@Param("roleName") String roleName,
-            @Param("plantId") String plantId, @Param("workflowId") Long workflowId);
+            @Param("plantId") String plantId, @Param("workflowId") Long workflowId, @Param("moduleId") Long moduleId);
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
@@ -85,11 +86,12 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
             AND t.nextRole = :roleName
             AND (:workflowId IS NULL OR t.workflowId = :workflowId)
+            AND (:moduleId IS NULL OR t.moduleId = :moduleId)
             AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
             ORDER BY t.workflowTransitionId DESC
             """)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(
-            @Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId);
+            @Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId, @Param("moduleId") Long moduleId);
 
     @Query("""
             SELECT t FROM RailWorkflowTransaction t
@@ -142,59 +144,54 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             """, nativeQuery = true)
     List<Object[]> findInitialRiosByRequestIds(@Param("requestIds") List<String> requestIds);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
-            """)
-    List<RailWorkflowTransaction> findCompletedRequests();
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE (:workflowId IS NULL OR wt.workflow_id = :workflowId)
+                  AND (:moduleId IS NULL OR wt.module_id = :moduleId)
+                  AND (:plantId IS NULL OR :plantId = '' OR wt.plant_id = :plantId OR wt.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR wt.plant_id = REPLACE(:plantId, ':', '') OR LOWER(wt.plant_id) = LOWER(:plantId))
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE (UPPER(t.status) = 'COMPLETED' 
+                OR UPPER(t.status) LIKE '%CANCEL%' 
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CANCEL%' 
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
+    List<RailWorkflowTransaction> findCompletedRequestsByPlantIdAndWorkflowIdAndModuleId(
+            @Param("plantId") String plantId,
+            @Param("workflowId") Long workflowId,
+            @Param("moduleId") Long moduleId);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
-            AND (:workflowId IS NULL OR t.workflowId = :workflowId)
-            AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
-            """)
-    List<RailWorkflowTransaction> findCompletedRequestsByPlantIdAndWorkflowId(@Param("plantId") String plantId,
-            @Param("workflowId") Long workflowId);
+    default List<RailWorkflowTransaction> findCompletedRequests() {
+        return findCompletedRequestsByPlantIdAndWorkflowIdAndModuleId(null, null, null);
+    }
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
-            AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
-            """)
-    List<RailWorkflowTransaction> findCompletedRequestsByPlantId(@Param("plantId") String plantId);
+    default List<RailWorkflowTransaction> findCompletedRequestsByPlantIdAndWorkflowId(String plantId, Long workflowId) {
+        return findCompletedRequestsByPlantIdAndWorkflowIdAndModuleId(plantId, workflowId, null);
+    }
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND (t2.moduleId = t.moduleId OR (t2.moduleId IS NULL AND t.moduleId IS NULL))
-                AND t2.workflowId = 2
-                AND (UPPER(t2.status) = 'COMPLETED' OR UPPER(t2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t2.action, '')) LIKE '%CANCEL%')
-            )
-            AND (UPPER(t.status) = 'COMPLETED' OR UPPER(t.status) LIKE '%CANCEL%' OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
-            AND t.workflowId = 2
-            """)
+    default List<RailWorkflowTransaction> findCompletedRequestsByPlantId(String plantId) {
+        return findCompletedRequestsByPlantIdAndWorkflowIdAndModuleId(plantId, null, null);
+    }
+
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE wt.workflow_id = 2
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.workflow_id = 2
+              AND (UPPER(t.status) = 'COMPLETED' 
+                OR UPPER(t.status) LIKE '%CANCEL%' 
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CANCEL%' 
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
     List<RailWorkflowTransaction> findFinalCompletedRequests();
 
     @Query(value = """
@@ -733,6 +730,8 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     @Query(value = "SELECT rio FROM rail_workflow_transaction WHERE (request_id = :callNo OR request_id LIKE CONCAT('%', :callNo, '%')) AND rio IS NOT NULL AND rio != '' ORDER BY workflow_transition_id ASC LIMIT 1", nativeQuery = true)
     String findRioByCallNo(@Param("callNo") String callNo);
+
+    List<RailWorkflowTransaction> findByRequestIdIn(java.util.Collection<String> requestIds);
 
     @Query(value = """
             SELECT t.* FROM rail_workflow_transaction t

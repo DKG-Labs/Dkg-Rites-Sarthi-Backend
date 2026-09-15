@@ -18,7 +18,7 @@ import java.util.List;
 import com.sarthi.Sleeper.dto.SleeperRemapSubmitDto;
 
 @RestController
-@RequestMapping("/api/sleeper-workflow")
+@RequestMapping({"/sleeper-workflow", "/api/sleeper-workflow"})
 public class SleeperWorkflow {
 
     @Autowired
@@ -192,6 +192,7 @@ public class SleeperWorkflow {
         try {
             String caseNo = (String) req.get("caseNo");
             String callDate = (String) req.get("callDate");
+            String callNo = (String) req.get("callNo");
             Object snoObj = req.get("ibsCallSno");
             int ibsCallSno = 0;
             if (snoObj instanceof Integer) {
@@ -208,6 +209,20 @@ public class SleeperWorkflow {
             }
 
             java.util.Map<String, Object> ibsResponse = workflowService.verifyIbsPayment(caseNo, callDate, ibsCallSno);
+
+            if (ibsResponse != null && callNo != null && !callNo.isBlank()) {
+                Object rfObj = ibsResponse.get("resultFlag");
+                int resultFlag = 0;
+                if (rfObj instanceof Integer) {
+                    resultFlag = (Integer) rfObj;
+                } else if (rfObj instanceof String && !((String) rfObj).isBlank()) {
+                    try { resultFlag = Integer.parseInt(((String) rfObj).trim()); } catch (Exception ignored) {}
+                }
+                if (resultFlag == 1 || resultFlag == 2) {
+                    workflowService.markPaymentApprovedByIbs(callNo.trim());
+                }
+            }
+
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(ibsResponse), HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(

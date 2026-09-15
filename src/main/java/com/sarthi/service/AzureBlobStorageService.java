@@ -109,45 +109,71 @@ public class AzureBlobStorageService {
                 new ByteArrayInputStream(
                         bos.toByteArray()));
     }
+    private boolean isLocalOrInvalidAzure() {
+        if (connectionString == null || connectionString.trim().isEmpty()) return true;
+        String trimmed = connectionString.trim().replace("\"", "").replace("'", "");
+        return trimmed.equals("sdfghjk") || trimmed.length() < 25 || !trimmed.contains("DefaultEndpointsProtocol=");
+    }
+
+    private String saveToLocalUploads(String fileName, byte[] data) {
+        try {
+            java.io.File dir = new java.io.File("uploads/inspection_images");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            java.io.File file = new java.io.File(dir, fileName);
+            java.nio.file.Files.write(file.toPath(), data);
+            log.info("Saved inspection image to local storage: {}", file.getAbsolutePath());
+            return "/api/images/" + fileName;
+        } catch (Exception e) {
+            log.error("Failed to save local file {}: {}", fileName, e.getMessage(), e);
+            return "/api/images/" + fileName;
+        }
+    }
+
     public String uploadBase64File(String base64Data, String fileName, String targetContainerName) {
         try {
-            log.info("Uploading file to Azure Blob Storage container '{}': {}", targetContainerName, fileName);
+            log.info("Uploading file to storage container '{}': {}", targetContainerName, fileName);
             
             // Remove header if present (e.g., data:image/png;base64,)
             if (base64Data.contains(",")) {
                 base64Data = base64Data.split(",")[1];
             }
             
-           // byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
-            
             boolean isImage = fileName.toLowerCase().endsWith(".jpg") || 
                               fileName.toLowerCase().endsWith(".jpeg") || 
                               fileName.toLowerCase().endsWith(".png");
-            
-//            if (isImage) {
-//                decodedBytes = compressImage(decodedBytes);
-//            }
 
             byte[] decodedBytes = decodeBase64(base64Data);
 
             if (isImage) {
-                decodedBytes = compressToTargetSize(decodedBytes, 20); // target 20 KB
+                decodedBytes = compressToTargetSize(decodedBytes, 100); // target 100 KB
             } else if (fileName.toLowerCase().endsWith(".pdf")) {
                 decodedBytes = compressPdfBytes(decodedBytes);
             }
             
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(decodedBytes);
-            
-            BlobClient blobClient = getContainerClient(targetContainerName).getBlobClient(fileName);
-            blobClient.upload(inputStream, decodedBytes.length, true);
-            
-            String blobUrl = blobClient.getBlobUrl();
-            log.info("File uploaded successfully. URL: {}", blobUrl);
-            return blobUrl;
+            // If connection string is invalid or placeholder, save locally as fallback
+            if (isLocalOrInvalidAzure()) {
+                log.info("Azure connection string is not set or placeholder ('{}'), saving locally to uploads/inspection_images", connectionString);
+                return saveToLocalUploads(fileName, decodedBytes);
+            }
+
+            try {
+                ByteArrayInputStream inputStream = new ByteArrayInputStream(decodedBytes);
+                BlobClient blobClient = getContainerClient(targetContainerName).getBlobClient(fileName);
+                blobClient.upload(inputStream, decodedBytes.length, true);
+                
+                String blobUrl = blobClient.getBlobUrl();
+                log.info("File uploaded successfully to Azure. URL: {}", blobUrl);
+                return blobUrl;
+            } catch (Exception azureEx) {
+                log.warn("Azure upload failed ({}), falling back to local file storage for: {}", azureEx.getMessage(), fileName);
+                return saveToLocalUploads(fileName, decodedBytes);
+            }
             
         } catch (Exception e) {
-            log.error("Error uploading file to Azure: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to upload file to Azure storage", e);
+            log.error("Error uploading file: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to upload file to storage", e);
         }
     }
 
@@ -531,6 +557,18 @@ public class AzureBlobStorageService {
      * @return byte array of the file content
      */
     public byte[] downloadFileFromContainer(String fileName, String targetContainerName) {
+        // 1. Check local file fallback first
+        try {
+            java.io.File localFile = new java.io.File("uploads/inspection_images/" + fileName);
+            if (localFile.exists()) {
+                log.info("Serving image from local storage: {}", localFile.getAbsolutePath());
+                return java.nio.file.Files.readAllBytes(localFile.toPath());
+            }
+        } catch (Exception localEx) {
+            log.warn("Error reading from local uploads: {}", localEx.getMessage());
+        }
+
+        // 2. Otherwise download from Azure
         try {
             BlobContainerClient targetContainer = getContainerClient(targetContainerName);
             BlobClient blobClient = targetContainer.getBlobClient(fileName);
@@ -549,7 +587,7 @@ public class AzureBlobStorageService {
         } catch (Exception e) {
             log.error("Error downloading image {} from container {}: {}",
                     fileName, targetContainerName, e.getMessage(), e);
-            throw new RuntimeException("Failed to download image from Azure", e);
+            throw new RuntimeException("Failed to download image from storage", e);
         }
     }
 
