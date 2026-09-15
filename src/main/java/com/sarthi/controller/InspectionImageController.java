@@ -1,5 +1,7 @@
 package com.sarthi.controller;
 
+import com.sarthi.Sleeper.entity.FinalInspection.SleeperPhotoInspectionRecord;
+import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperPhotoInspectionRecordRepository;
 import com.sarthi.entity.InspectionImage;
 import com.sarthi.repository.InspectionImageRepository;
 import com.sarthi.service.AzureBlobStorageService;
@@ -33,6 +35,9 @@ public class InspectionImageController {
 
     @Autowired
     private InspectionImageRepository inspectionImageRepository;
+
+    @Autowired(required = false)
+    private SleeperPhotoInspectionRecordRepository sleeperPhotoInspectionRecordRepository;
 
     @Value("${azure.storage.images-container-name}")
     private String imagesContainerName;
@@ -84,23 +89,41 @@ public class InspectionImageController {
             @RequestParam(required = false) String typeOfCall) {
         log.info("GET /api/images/call/{} typeOfCall: {}", callNo, typeOfCall);
         try {
-            java.util.List<InspectionImage> images;
-            if (typeOfCall != null && !typeOfCall.trim().isEmpty()) {
-                images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
-            } else {
-                images = inspectionImageRepository.findByInspectionCallNo(callNo);
-            }
+            boolean isSleeper = typeOfCall != null && typeOfCall.toUpperCase().contains("SLEEPER") && sleeperPhotoInspectionRecordRepository != null;
 
             java.util.List<com.sarthi.dto.ImageCaptureDto> dtos = new java.util.ArrayList<>();
-            if (images != null) {
-                for (InspectionImage img : images) {
-                    com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
-                    dto.setBase64Data("/api/images/" + img.getImageName());
-                    dto.setPreview("/api/images/" + img.getImageName());
-                    dto.setLatitude(img.getLatitude());
-                    dto.setLongitude(img.getLongitude());
-                    dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
-                    dtos.add(dto);
+
+            if (isSleeper) {
+                java.util.List<SleeperPhotoInspectionRecord> sleeperImages = sleeperPhotoInspectionRecordRepository.findByInspectionCallNo(callNo);
+                if (sleeperImages != null) {
+                    for (SleeperPhotoInspectionRecord img : sleeperImages) {
+                        com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
+                        dto.setBase64Data("/api/images/" + img.getImageName());
+                        dto.setPreview("/api/images/" + img.getImageName());
+                        dto.setLatitude(img.getLatitude());
+                        dto.setLongitude(img.getLongitude());
+                        dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
+                        dtos.add(dto);
+                    }
+                }
+            } else {
+                java.util.List<InspectionImage> images;
+                if (typeOfCall != null && !typeOfCall.trim().isEmpty()) {
+                    images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+                } else {
+                    images = inspectionImageRepository.findByInspectionCallNo(callNo);
+                }
+
+                if (images != null) {
+                    for (InspectionImage img : images) {
+                        com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
+                        dto.setBase64Data("/api/images/" + img.getImageName());
+                        dto.setPreview("/api/images/" + img.getImageName());
+                        dto.setLatitude(img.getLatitude());
+                        dto.setLongitude(img.getLongitude());
+                        dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
+                        dtos.add(dto);
+                    }
                 }
             }
             return ResponseEntity.ok(dtos);
@@ -120,6 +143,7 @@ public class InspectionImageController {
         log.info("POST /api/images/call/{} type: {}", callNo, request.getTypeOfCall());
         try {
             String typeOfCall = request.getTypeOfCall() != null ? request.getTypeOfCall() : "RAILPAD";
+            boolean isSleeper = typeOfCall.toUpperCase().contains("SLEEPER") && sleeperPhotoInspectionRecordRepository != null;
             java.util.List<com.sarthi.dto.ImageCaptureDto> images = request.getCapturedImages() != null ? request.getCapturedImages() : java.util.Collections.emptyList();
 
             java.util.Set<String> existingImageNames = new java.util.HashSet<>();
@@ -136,33 +160,64 @@ public class InspectionImageController {
                 }
             }
 
-            // Delete removed images
-            java.util.List<InspectionImage> currentDbImages = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
-            for (InspectionImage dbImage : currentDbImages) {
-                if (!existingImageNames.contains(dbImage.getImageName())) {
-                    inspectionImageRepository.delete(dbImage);
-                    log.info("Deleted removed image: {}", dbImage.getImageName());
+            if (isSleeper) {
+                // Delete removed images in sleeper_photo_inspection_records
+                java.util.List<SleeperPhotoInspectionRecord> currentDbImages = sleeperPhotoInspectionRecordRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+                for (SleeperPhotoInspectionRecord dbImage : currentDbImages) {
+                    if (!existingImageNames.contains(dbImage.getImageName())) {
+                        sleeperPhotoInspectionRecordRepository.delete(dbImage);
+                        log.info("Deleted removed sleeper image: {}", dbImage.getImageName());
+                    }
                 }
-            }
 
-            // Upload and save new images
-            for (com.sarthi.dto.ImageCaptureDto imageDto : newImages) {
-                String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + java.util.UUID.randomUUID().toString() + ".jpg";
-                String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+                // Upload and save new images into sleeper_photo_inspection_records
+                for (com.sarthi.dto.ImageCaptureDto imageDto : newImages) {
+                    String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + java.util.UUID.randomUUID().toString() + ".jpg";
+                    String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
 
-                InspectionImage imageEntity = new InspectionImage();
-                imageEntity.setInspectionCallNo(callNo);
-                imageEntity.setTypeOfCall(typeOfCall);
-                imageEntity.setImageName(fileName);
-                imageEntity.setImageUrl(imageUrl);
-                imageEntity.setLatitude(imageDto.getLatitude());
-                imageEntity.setLongitude(imageDto.getLongitude());
-                imageEntity.setShift(request.getShift());
-                imageEntity.setDateOfInspection(request.getDateOfInspection());
-                imageEntity.setCreatedBy(request.getUserId());
-                imageEntity.setUpdatedBy(request.getUserId());
+                    SleeperPhotoInspectionRecord imageEntity = new SleeperPhotoInspectionRecord();
+                    imageEntity.setInspectionCallNo(callNo);
+                    imageEntity.setTypeOfCall(typeOfCall);
+                    imageEntity.setImageName(fileName);
+                    imageEntity.setImageUrl(imageUrl);
+                    imageEntity.setLatitude(imageDto.getLatitude());
+                    imageEntity.setLongitude(imageDto.getLongitude());
+                    imageEntity.setShift(request.getShift());
+                    imageEntity.setDateOfInspection(request.getDateOfInspection());
+                    imageEntity.setCreatedBy(request.getUserId());
+                    imageEntity.setUpdatedBy(request.getUserId());
 
-                inspectionImageRepository.save(imageEntity);
+                    sleeperPhotoInspectionRecordRepository.save(imageEntity);
+                }
+            } else {
+                // Delete removed images in inspection_images
+                java.util.List<InspectionImage> currentDbImages = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
+                for (InspectionImage dbImage : currentDbImages) {
+                    if (!existingImageNames.contains(dbImage.getImageName())) {
+                        inspectionImageRepository.delete(dbImage);
+                        log.info("Deleted removed image: {}", dbImage.getImageName());
+                    }
+                }
+
+                // Upload and save new images in inspection_images
+                for (com.sarthi.dto.ImageCaptureDto imageDto : newImages) {
+                    String fileName = callNo.replaceAll("[^a-zA-Z0-9]", "_") + "_" + java.util.UUID.randomUUID().toString() + ".jpg";
+                    String imageUrl = azureBlobStorageService.uploadBase64File(imageDto.getBase64Data(), fileName, imagesContainerName);
+
+                    InspectionImage imageEntity = new InspectionImage();
+                    imageEntity.setInspectionCallNo(callNo);
+                    imageEntity.setTypeOfCall(typeOfCall);
+                    imageEntity.setImageName(fileName);
+                    imageEntity.setImageUrl(imageUrl);
+                    imageEntity.setLatitude(imageDto.getLatitude());
+                    imageEntity.setLongitude(imageDto.getLongitude());
+                    imageEntity.setShift(request.getShift());
+                    imageEntity.setDateOfInspection(request.getDateOfInspection());
+                    imageEntity.setCreatedBy(request.getUserId());
+                    imageEntity.setUpdatedBy(request.getUserId());
+
+                    inspectionImageRepository.save(imageEntity);
+                }
             }
 
             java.util.Map<String, Object> resp = new java.util.HashMap<>();
