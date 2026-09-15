@@ -50,6 +50,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         call.setSleeperType(dto.getSleeperType());
         call.setTotalOffered(dto.getTotalOffered());
         call.setTotalRejected(dto.getTotalRejected());
+        call.setDesiredInspectionDate(dto.getDesiredInspectionDate() != null ? dto.getDesiredInspectionDate() : java.time.LocalDate.now());
         call.setCreatedBy(dto.getCreatedBy());
         call.setPlantId(dto.getPlantId());
         call.setCreatedAt(LocalDateTime.now());
@@ -107,6 +108,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setPoNo(call.getPoNo());
             dto.setSrNo(call.getSrNo());
             dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt().format(formatter) : "N/A");
+            dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
             dto.setSleeperType(call.getSleeperType());
             int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
             int rej = call.getTotalRejected() != null ? call.getTotalRejected() : 0;
@@ -114,6 +116,28 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
             dto.setStatus(call.getStatus());
             dto.setPlantId(call.getPlantId());
+
+            String uom = null;
+            try {
+                List<String> uomList = jdbcTemplate.query(
+                    "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? LIMIT 1",
+                    (rs, rowNum) -> rs.getString("uom"),
+                    call.getPoNo()
+                );
+                if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
+                    uom = uomList.get(0).trim();
+                }
+            } catch (Exception ignored) {}
+
+            if (uom == null || uom.isBlank()) {
+                String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
+                if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("8746") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
+                    uom = "Set";
+                } else {
+                    uom = "Nos.";
+                }
+            }
+            dto.setUom(uom);
             return dto;
         }).collect(Collectors.toList());
     }
@@ -165,6 +189,28 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         dto.setCreatedBy(call.getCreatedBy());
         dto.setPlantId(call.getPlantId());
         dto.setCreatedAt(call.getCreatedAt());
+
+        String detailUom = null;
+        try {
+            List<String> uomList = jdbcTemplate.query(
+                "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? LIMIT 1",
+                (rs, rowNum) -> rs.getString("uom"),
+                call.getPoNo()
+            );
+            if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
+                detailUom = uomList.get(0).trim();
+            }
+        } catch (Exception ignored) {}
+
+        if (detailUom == null || detailUom.isBlank()) {
+            String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
+            if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("8746") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
+                detailUom = "Set";
+            } else {
+                detailUom = "Nos.";
+            }
+        }
+        dto.setUom(detailUom);
 
         List<SleeperInspectionCallBatchDto> batchDtos = new ArrayList<>();
         if (call.getBatchesSelected() != null) {
@@ -225,6 +271,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         if (dto.getSleeperType() != null) call.setSleeperType(dto.getSleeperType());
         if (dto.getTotalOffered() != null) call.setTotalOffered(dto.getTotalOffered());
         if (dto.getTotalRejected() != null) call.setTotalRejected(dto.getTotalRejected());
+        if (dto.getDesiredInspectionDate() != null) call.setDesiredInspectionDate(dto.getDesiredInspectionDate());
         if (dto.getPlantId() != null) call.setPlantId(dto.getPlantId());
 
         // Clear existing batches and repopulate cleanly via JPA cascade and orphanRemoval
