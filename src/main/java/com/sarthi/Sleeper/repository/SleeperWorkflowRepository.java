@@ -214,6 +214,25 @@ ORDER BY t.workflowTransitionId DESC
         OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
     )
     AND t.workflowId = 2
+    AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
+    ORDER BY t.workflowTransitionId DESC
+""")
+    List<SleeperWorkflowTransaction> findFinalCompletedRequests(@Param("plantId") String plantId);
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.workflowId = 2
+        GROUP BY t2.requestId
+    )
+    AND (
+        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+    )
+    AND t.workflowId = 2
     ORDER BY t.workflowTransitionId DESC
 """)
     List<SleeperWorkflowTransaction> findFinalCompletedRequests();

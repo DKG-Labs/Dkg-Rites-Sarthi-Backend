@@ -287,6 +287,14 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     }
 
     private SleeperWorkflowTransactionDto mapToResponse(SleeperWorkflowTransaction tx) {
+        return mapToResponse(tx, new java.util.HashMap<>());
+    }
+
+    @SuppressWarnings("unchecked")
+    private SleeperWorkflowTransactionDto mapToResponse(SleeperWorkflowTransaction tx, java.util.Map<String, Object> cache) {
+        if (cache == null) {
+            cache = new java.util.HashMap<>();
+        }
 
         SleeperWorkflowTransactionDto dto = new SleeperWorkflowTransactionDto();
 
@@ -316,43 +324,42 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         dto.setUpdatedDate(tx.getUpdatedDate());
 
         dto.setRio(tx.getRio());
-        System.out.println(tx.getPoiCode());
-        // Fetch users who can access this POI
 
+        // Fetch users who can access this POI
         List<SleeperPoiIeMapping> mappings = null;
         String vendorId = null;
 
         List<Integer> userIds = new ArrayList<>();
-        if (tx.getWorkflowId().equals(2L)) {
-            // Only Main IE for workflow 2
-            // mappings = poiIeMappingRepository.findByPoiCodeAndIeType(tx.getPoiCode(),
-            // "Main IE");
-
-            mappings = poiIeMappingRepository
-                    .findByPoiCodeAndPlantIdAndIeType(
-                            tx.getPoiCode(),
-                            tx.getPlantId(),
-                            "Main IE");
+        String mappingCacheKey = "ieMap_" + (tx.getPoiCode() != null ? tx.getPoiCode() : "") + "_" + (tx.getPlantId() != null ? tx.getPlantId() : "") + "_" + tx.getWorkflowId();
+        if (cache.containsKey(mappingCacheKey)) {
+            mappings = (List<SleeperPoiIeMapping>) cache.get(mappingCacheKey);
         } else {
-            if ("Vendor".equalsIgnoreCase(tx.getNextRole())) {
-                vendorId = sleeperPincodePoIMappingRepository
-                        .findVendorCodeByPoiCode(tx.getPoiCode())
-                        .orElseThrow(() -> new RuntimeException("Vendor not found for POI "));
-            } else {
-                // Existing logic
-                // mappings = poiIeMappingRepository.findByPoiCode(tx.getPoiCode());
-
+            if (tx.getWorkflowId().equals(2L)) {
                 mappings = poiIeMappingRepository
-                        .findByPoiCodeAndPlantId(
+                        .findByPoiCodeAndPlantIdAndIeType(
                                 tx.getPoiCode(),
-                                tx.getPlantId());
+                                tx.getPlantId(),
+                                "Main IE");
+            } else {
+                if ("Vendor".equalsIgnoreCase(tx.getNextRole())) {
+                    vendorId = sleeperPincodePoIMappingRepository
+                            .findVendorCodeByPoiCode(tx.getPoiCode())
+                            .orElse(null);
+                } else {
+                    mappings = poiIeMappingRepository
+                            .findByPoiCodeAndPlantId(
+                                    tx.getPoiCode(),
+                                    tx.getPlantId());
+                }
             }
+            cache.put(mappingCacheKey, mappings);
         }
+
         if (mappings != null && !mappings.isEmpty()) {
             userIds = mappings.stream()
                     .map(SleeperPoiIeMapping::getIeUserId)
                     .toList();
-            
+
             // If the call is pending for Main IE, the assigned user is the mapped IE
             if ("Main IE".equalsIgnoreCase(tx.getNextRole()) && !userIds.isEmpty()) {
                 dto.setAssignedToUser(Long.valueOf(userIds.get(0)));
@@ -366,25 +373,51 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         // 1. Enrich PO & Inspection Call details for Sleeper Calls
         if (tx.getRequestId() != null) {
-            sleeperInspectionCallRepository.findByCallNo(tx.getRequestId()).ifPresent(call -> {
+            String callKey = "call_" + tx.getRequestId();
+            com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall call = null;
+            if (cache.containsKey(callKey)) {
+                call = (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall) cache.get(callKey);
+            } else {
+                call = sleeperInspectionCallRepository.findByCallNo(tx.getRequestId()).orElse(null);
+                cache.put(callKey, call);
+            }
+
+            if (call != null) {
+                if ((dto.getPlantId() == null || dto.getPlantId().trim().isEmpty()) && call.getPlantId() != null) {
+                    dto.setPlantId(call.getPlantId());
+                }
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
                 int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
                 int rej = call.getTotalRejected() != null ? call.getTotalRejected() : 0;
-                dto.setOfferedQty(off + rej);
+                int totalOffered = off + rej;
+                dto.setOfferedQty(totalOffered > 0 ? totalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
+                dto.setAcceptedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
+                dto.setIcNo("IC-" + tx.getRequestId());
+                dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
                 dto.setUom("Nos.");
                 dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
                 dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt() : tx.getCreatedDate());
                 dto.setStageOfInspection("Final");
                 dto.setProductType("Sleeper");
+                if (call.getSleeperType() != null && !call.getSleeperType().trim().isEmpty()) {
+                    dto.setSleeperType(call.getSleeperType().trim());
+                }
 
                 // PO Header lookup
                 String rlyShort = null;
                 String rawPoNo = call.getPoNo();
                 if (call.getPoNo() != null) {
-                    var poHeaderOpt = poHeaderRepository.findByPoNo(call.getPoNo());
-                    if (poHeaderOpt.isPresent()) {
-                        PoHeader poHeader = poHeaderOpt.get();
+                    String poKey = "poHeader_" + call.getPoNo();
+                    PoHeader poHeader = null;
+                    if (cache.containsKey(poKey)) {
+                        poHeader = (PoHeader) cache.get(poKey);
+                    } else {
+                        poHeader = poHeaderRepository.findByPoNo(call.getPoNo()).orElse(null);
+                        cache.put(poKey, poHeader);
+                    }
+
+                    if (poHeader != null) {
                         rlyShort = poHeader.getRlyShortName();
                         dto.setRlyShortName(rlyShort);
 
@@ -393,7 +426,15 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         if (plantRio == null || plantRio.trim().isEmpty()) {
                             String pId = tx.getPlantId() != null ? tx.getPlantId() : call.getPlantId();
                             if (pId != null && !pId.trim().isEmpty()) {
-                                List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(pId.trim());
+                                String vpKey = "vpList_" + pId.trim();
+                                List<com.sarthi.Sleeper.entity.VendorPlant> vpList = null;
+                                if (cache.containsKey(vpKey)) {
+                                    vpList = (List<com.sarthi.Sleeper.entity.VendorPlant>) cache.get(vpKey);
+                                } else {
+                                    vpList = vendorPlantRepository.findMatchingPlants(pId.trim());
+                                    cache.put(vpKey, vpList);
+                                }
+
                                 if (vpList != null && !vpList.isEmpty()) {
                                     for (com.sarthi.Sleeper.entity.VendorPlant vp : vpList) {
                                         if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
@@ -433,9 +474,16 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
                 // PO Item lookup for DP Date and Ext DP Date
                 if (call.getPoNo() != null && call.getSrNo() != null) {
-                    var poItemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(call.getPoNo(), call.getSrNo());
-                    if (poItemOpt.isPresent()) {
-                        PoItem item = poItemOpt.get();
+                    String itemKey = "poItem_" + call.getPoNo() + "_" + call.getSrNo();
+                    PoItem item = null;
+                    if (cache.containsKey(itemKey)) {
+                        item = (PoItem) cache.get(itemKey);
+                    } else {
+                        item = poItemRepository.findByPoHeader_PoNoAndItemSrNo(call.getPoNo(), call.getSrNo()).orElse(null);
+                        cache.put(itemKey, item);
+                    }
+
+                    if (item != null) {
                         if (item.getDeliveryDate() != null) {
                             dto.setDpDate(item.getDeliveryDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
                         }
@@ -444,22 +492,37 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         }
                     }
                 }
-            });
+            }
 
             // Schedule Date lookup
             try {
-                sleeperScheduleRepository.findByCallNo(tx.getRequestId()).ifPresent(sched -> {
+                String schedKey = "sched_" + tx.getRequestId();
+                com.sarthi.Sleeper.entity.FInalCall.SleeperSchedule sched = null;
+                if (cache.containsKey(schedKey)) {
+                    sched = (com.sarthi.Sleeper.entity.FInalCall.SleeperSchedule) cache.get(schedKey);
+                } else {
+                    sched = sleeperScheduleRepository.findByCallNo(tx.getRequestId()).orElse(null);
+                    cache.put(schedKey, sched);
+                }
+                if (sched != null) {
                     dto.setScheduleDate(sched.getScheduleDate());
-                });
+                }
             } catch (Exception e) {
                 log.warn("Error fetching sleeper schedule for call {}: {}", tx.getRequestId(), e.getMessage());
             }
         }
 
-
         // 2. Vendor Name & Place of Inspection from vendor_plant
         if (tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
-            List<com.sarthi.Sleeper.entity.VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(tx.getPlantId());
+            String vpKey = "vpList_" + tx.getPlantId().trim();
+            List<com.sarthi.Sleeper.entity.VendorPlant> vpList = null;
+            if (cache.containsKey(vpKey)) {
+                vpList = (List<com.sarthi.Sleeper.entity.VendorPlant>) cache.get(vpKey);
+            } else {
+                vpList = vendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
+                cache.put(vpKey, vpList);
+            }
+
             if (vpList != null && !vpList.isEmpty()) {
                 com.sarthi.Sleeper.entity.VendorPlant vp = vpList.get(0);
                 if (dto.getVendorName() == null && vp.getCompanyName() != null) {
@@ -476,33 +539,62 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         // 3. Assigned IE Name
         if (dto.getAssignedToUser() != null) {
-            userMasterRepository.findById(dto.getAssignedToUser().intValue()).ifPresent(user -> {
+            String userKey = "user_" + dto.getAssignedToUser();
+            UserMaster user = null;
+            if (cache.containsKey(userKey)) {
+                user = (UserMaster) cache.get(userKey);
+            } else {
+                user = userMasterRepository.findById(dto.getAssignedToUser().intValue()).orElse(null);
+                cache.put(userKey, user);
+            }
+
+            if (user != null) {
                 dto.setAssignedToUserName(user.getFullName());
                 dto.setIeName(user.getFullName());
                 dto.setAssignedToUserEmployeeCode(user.getEmployeeCode());
-            });
+            }
         } else {
             // If call is not yet assigned (e.g. at RIO Help Desk), fetch mapped Main IE for that plant
             List<SleeperPoiIeMapping> ieMaps = null;
             if (tx.getPoiCode() != null && tx.getPlantId() != null) {
-                ieMaps = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "Main IE");
-                if (ieMaps == null || ieMaps.isEmpty()) {
-                    ieMaps = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "MAIN_IE");
+                String ieKey1 = "ieMapMain_" + tx.getPoiCode() + "_" + tx.getPlantId();
+                if (cache.containsKey(ieKey1)) {
+                    ieMaps = (List<SleeperPoiIeMapping>) cache.get(ieKey1);
+                } else {
+                    ieMaps = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "Main IE");
+                    if (ieMaps == null || ieMaps.isEmpty()) {
+                        ieMaps = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "MAIN_IE");
+                    }
+                    cache.put(ieKey1, ieMaps);
                 }
             }
             if ((ieMaps == null || ieMaps.isEmpty()) && tx.getPlantId() != null) {
-                ieMaps = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "Main IE");
-                if (ieMaps == null || ieMaps.isEmpty()) {
-                    ieMaps = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "MAIN_IE");
+                String ieKey2 = "ieMapPlant_" + tx.getPlantId();
+                if (cache.containsKey(ieKey2)) {
+                    ieMaps = (List<SleeperPoiIeMapping>) cache.get(ieKey2);
+                } else {
+                    ieMaps = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "Main IE");
+                    if (ieMaps == null || ieMaps.isEmpty()) {
+                        ieMaps = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "MAIN_IE");
+                    }
+                    cache.put(ieKey2, ieMaps);
                 }
             }
             if (ieMaps != null && !ieMaps.isEmpty()) {
                 Integer mappedIeId = ieMaps.get(0).getIeUserId();
-                userMasterRepository.findById(mappedIeId).ifPresent(user -> {
+                String userKey = "user_" + mappedIeId;
+                UserMaster user = null;
+                if (cache.containsKey(userKey)) {
+                    user = (UserMaster) cache.get(userKey);
+                } else {
+                    user = userMasterRepository.findById(mappedIeId).orElse(null);
+                    cache.put(userKey, user);
+                }
+                if (user != null) {
                     dto.setAssignedToUserName(user.getFullName());
                     dto.setIeName(user.getFullName());
                     dto.setAssignedToUserEmployeeCode(user.getEmployeeCode());
-                });
+                }
             }
         }
 
@@ -1490,8 +1582,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         List<SleeperWorkflowTransaction> list = repository.findCompletedRequests();
 
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
         return list.stream()
-                .map(this::mapToResponse)
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
     }
 
@@ -1507,8 +1600,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             "RESCHEDULE_CALL"
         );
         List<SleeperWorkflowTransaction> list = repository.findPendingVerifiedCalls(pendingActions);
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
         return list.stream()
-                .map(this::mapToResponse)
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
     }
 
@@ -1525,12 +1619,51 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
     @Override
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions() {
+        return allFinalCompletedWorkflowTransitions(null);
+    }
 
+    @Override
+    public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId) {
+        String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
         List<SleeperWorkflowTransaction> list = repository.findFinalCompletedRequests();
 
-        return list.stream()
-                .map(this::mapToResponse)
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        List<SleeperWorkflowTransactionDto> dtos = list.stream()
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
+
+        if (cleanPlantId != null && !cleanPlantId.isEmpty()) {
+            dtos = dtos.stream()
+                    .filter(dto -> isPlantMatch(dto.getPlantId(), cleanPlantId))
+                    .toList();
+        }
+
+        return dtos;
+    }
+
+    private boolean isPlantMatch(String callPlantId, String targetPlantId) {
+        if (targetPlantId == null || targetPlantId.trim().isEmpty()) return true;
+        if (callPlantId == null || callPlantId.trim().isEmpty()) return false;
+
+        String cleanCall = callPlantId.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+        String cleanTarget = targetPlantId.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+        if (cleanCall.isEmpty() || cleanTarget.isEmpty()) return false;
+
+        if (cleanCall.equals(cleanTarget)) return true;
+
+        if (cleanCall.contains(cleanTarget) || cleanTarget.contains(cleanCall)) {
+            String[] callParts = callPlantId.split("[/:]");
+            String[] targetParts = targetPlantId.split("[/:]");
+            if (callParts.length > 1 && targetParts.length > 1) {
+                String callUnit = callParts[callParts.length - 1].replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                String targetUnit = targetParts[targetParts.length - 1].replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                if (!callUnit.isEmpty() && !targetUnit.isEmpty()) {
+                    return callUnit.equals(targetUnit) || callUnit.contains(targetUnit) || targetUnit.contains(callUnit);
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     @Override
