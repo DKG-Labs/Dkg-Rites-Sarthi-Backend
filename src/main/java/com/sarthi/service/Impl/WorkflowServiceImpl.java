@@ -5645,24 +5645,147 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         String effectiveVendorCode = (vendorCode != null && !vendorCode.trim().isEmpty()) 
                 ? vendorCode.replace(":", "").trim() : null;
 
-        List<WorkflowTransition> txList = workflowTransitionRepository.findLatestCancelledTransactions(effectivePlantId, effectiveVendorCode);
+        java.util.LinkedHashSet<String> allCallNos = new java.util.LinkedHashSet<>();
+
+        // 1. Preload cancellation details (Fast filtered by vendor if available)
+        java.util.Map<String, CallCancellationDetail> cancelMap = new java.util.HashMap<>();
+        if (callCancellationDetailRepository != null) {
+            try {
+                List<CallCancellationDetail> cancels = (effectiveVendorCode != null && !effectiveVendorCode.isBlank())
+                        ? callCancellationDetailRepository.findByVendorCode(effectiveVendorCode)
+                        : callCancellationDetailRepository.findAll();
+                if (cancels != null) {
+                    cancels.forEach(cd -> {
+                        if (cd.getCallNumber() != null && !cd.getCallNumber().isBlank()) {
+                            String cn = cd.getCallNumber().trim();
+                            allCallNos.add(cn);
+                            cancelMap.put(cn, cd);
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error reading call_cancellation_details: {}", ex.getMessage());
+            }
+        }
+
+        // 2. Preload vendor financial liabilities (Fast filtered by vendor if available)
+        java.util.Map<String, VendorFinancialLiability> liabilityMap = new java.util.HashMap<>();
+        if (vendorFinancialLiabilityRepository != null) {
+            try {
+                List<VendorFinancialLiability> liabs = (effectiveVendorCode != null && !effectiveVendorCode.isBlank())
+                        ? vendorFinancialLiabilityRepository.findByVendorCode(effectiveVendorCode)
+                        : vendorFinancialLiabilityRepository.findAll();
+                if (liabs != null) {
+                    liabs.forEach(l -> {
+                        if (l.getCallNumber() != null && !l.getCallNumber().isBlank()) {
+                            String cn = l.getCallNumber().trim();
+                            allCallNos.add(cn);
+                            liabilityMap.put(cn, l);
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error reading vendor_financial_liability: {}", ex.getMessage());
+            }
+        }
+
+        // If no candidate calls exist, return empty immediately (instant response)
+        if (allCallNos.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+
+        List<String> callNoList = new java.util.ArrayList<>(allCallNos);
+
+        // 3. Fast indexed batch fetch WorkflowTransitions for only these candidate calls
+        java.util.Map<String, WorkflowTransition> txMap = new java.util.HashMap<>();
+        if (workflowTransitionRepository != null && !callNoList.isEmpty()) {
+            try {
+                List<WorkflowTransition> txList = workflowTransitionRepository.findByRequestIdIn(callNoList);
+                if (txList != null) {
+                    txList.forEach(t -> {
+                        if (t.getRequestId() != null && !t.getRequestId().isBlank()) {
+                            String reqId = t.getRequestId().trim();
+                            WorkflowTransition existing = txMap.get(reqId);
+                            if (existing == null || (t.getWorkflowTransitionId() != null && (existing.getWorkflowTransitionId() == null || t.getWorkflowTransitionId() > existing.getWorkflowTransitionId()))) {
+                                txMap.put(reqId, t);
+                            }
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error reading workflow transitions: {}", ex.getMessage());
+            }
+        }
+
+        // 4. Batch fetch InspectionCalls in a single query (Eliminates N+1)
+        java.util.Map<String, InspectionCall> callMap = new java.util.HashMap<>();
+        if (inspectionCallRepository != null && !callNoList.isEmpty()) {
+            try {
+                List<InspectionCall> calls = inspectionCallRepository.findByIcNumberIn(callNoList);
+                if (calls != null) {
+                    calls.forEach(c -> {
+                        if (c.getIcNumber() != null) callMap.put(c.getIcNumber().trim(), c);
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error batch fetching InspectionCalls: {}", ex.getMessage());
+            }
+        }
+
+        // 5. Batch fetch PoHeaders in a single query (Eliminates N+1)
+        java.util.Set<String> poNos = new java.util.HashSet<>();
+        callMap.values().forEach(c -> {
+            if (c.getPoNo() != null && !c.getPoNo().isBlank()) {
+                String barePoNo = c.getPoNo();
+                if (barePoNo.contains("/")) {
+                    barePoNo = barePoNo.split("/")[0].trim();
+                }
+                poNos.add(barePoNo);
+            }
+        });
+        java.util.Map<String, PoHeader> poHeaderMap = new java.util.HashMap<>();
+        if (poHeaderRepository != null && !poNos.isEmpty()) {
+            try {
+                List<PoHeader> headers = poHeaderRepository.findByPoNoIn(new java.util.ArrayList<>(poNos));
+                if (headers != null) {
+                    headers.forEach(h -> {
+                        if (h.getPoNo() != null) poHeaderMap.put(h.getPoNo().trim(), h);
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Error batch fetching PoHeaders: {}", ex.getMessage());
+            }
+        }
+
         List<com.sarthi.dto.CancelledPaymentCallDto> result = new java.util.ArrayList<>();
 
-        for (WorkflowTransition tx : txList) {
-            String callNo = tx.getRequestId();
-            if (callNo == null || callNo.isBlank()) continue;
+        for (String callNo : allCallNos) {
+            InspectionCall callEntity = callMap.get(callNo);
+            WorkflowTransition latestTx = txMap.get(callNo);
+            CallCancellationDetail cancelDetail = cancelMap.get(callNo);
+            VendorFinancialLiability liability = liabilityMap.get(callNo);
 
-            InspectionCall callEntity = null;
-            if (inspectionCallRepository != null) {
-                java.util.Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(callNo);
-                if (callOpt.isPresent()) {
-                    callEntity = callOpt.get();
+            String callPlantId = (callEntity != null && callEntity.getPlaceOfInspection() != null) ? callEntity.getPlaceOfInspection() : null;
+
+            String callVendorCode = null;
+            if (cancelDetail != null && cancelDetail.getVendorCode() != null && !cancelDetail.getVendorCode().isBlank()) {
+                callVendorCode = cancelDetail.getVendorCode();
+            } else if (callEntity != null && callEntity.getVendorId() != null) {
+                callVendorCode = callEntity.getVendorId();
+            }
+
+            // Apply vendor filter if provided
+            if (effectiveVendorCode != null && !effectiveVendorCode.isBlank()) {
+                String cleanCallVendor = (callVendorCode != null) ? callVendorCode.replace(":", "").trim() : "";
+                String cleanReqVendor = effectiveVendorCode.replace(":", "").trim();
+                if (!cleanCallVendor.equalsIgnoreCase(cleanReqVendor) 
+                        && !cleanCallVendor.toLowerCase().contains(cleanReqVendor.toLowerCase())
+                        && !cleanReqVendor.toLowerCase().contains(cleanCallVendor.toLowerCase())) {
+                    continue;
                 }
             }
 
-            String callPlantId = (callEntity != null && callEntity.getPlaceOfInspection() != null) ? callEntity.getPlaceOfInspection() : null;
-            String callVendorCode = (callEntity != null && callEntity.getVendorId() != null) ? callEntity.getVendorId() : null;
-
+            // Apply plant filter if provided
             if (effectivePlantId != null && !effectivePlantId.isBlank()) {
                 String cleanCallPlant = (callPlantId != null) ? callPlantId.replace(":", "").trim() : "";
                 if (!cleanCallPlant.equalsIgnoreCase(effectivePlantId)) {
@@ -5670,15 +5793,68 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 }
             }
 
+            double base = 0.0;
+            boolean isNonChargeable = false;
+            String cancelRemarks = (latestTx != null) ? latestTx.getRemarks() : null;
+            String action = (latestTx != null) ? latestTx.getAction() : "CANCEL";
+            Integer txId = (latestTx != null && latestTx.getWorkflowTransitionId() != null) ? latestTx.getWorkflowTransitionId() : 0;
+            java.util.Date createdDate = (latestTx != null && latestTx.getCreatedDate() != null) ? latestTx.getCreatedDate() : new java.util.Date();
+            String documentName = null;
+
+            if (cancelDetail != null) {
+                if (cancelDetail.getDocumentName() != null && !cancelDetail.getDocumentName().isBlank()) {
+                    documentName = cancelDetail.getDocumentName();
+                }
+                if ("NON_CHARGEABLE".equalsIgnoreCase(cancelDetail.getCancellationBasis())) {
+                    isNonChargeable = true;
+                    base = 0.0;
+                } else {
+                    if (cancelDetail.getFinalCancellationCharges() != null) {
+                        base = cancelDetail.getFinalCancellationCharges().doubleValue();
+                    } else if (cancelDetail.getCalculatedCharges() != null) {
+                        base = cancelDetail.getCalculatedCharges().doubleValue();
+                    }
+                }
+                if (cancelRemarks == null && cancelDetail.getCancellationDescription() != null) {
+                    cancelRemarks = cancelDetail.getCancellationDescription();
+                }
+            }
+
+            if (base == 0.0 && !isNonChargeable && liability != null && liability.getAmount() != null) {
+                base = liability.getAmount().doubleValue();
+            }
+
+            if (cancelRemarks != null) {
+                String rem = cancelRemarks.toUpperCase();
+                if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
+                    isNonChargeable = true;
+                    base = 0.0;
+                } else if (base == 0.0 && rem.contains("FINAL CANCELLATION CHARGES")) {
+                    try {
+                        String after = rem.substring(rem.indexOf("FINAL CANCELLATION CHARGES"));
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[0-9]+(?:,[0-9]+)*(?:\\.[0-9]+)?").matcher(after);
+                        if (m.find()) {
+                            base = Double.parseDouble(m.group().replace(",", ""));
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // Skip non-chargeable calls or zero charges
+            if (isNonChargeable || base <= 0.0) {
+                continue;
+            }
+
             com.sarthi.dto.CancelledPaymentCallDto dto = new com.sarthi.dto.CancelledPaymentCallDto();
-            dto.setWorkflowTransitionId(tx.getWorkflowTransitionId());
+            dto.setWorkflowTransitionId(txId);
             dto.setCallNo(callNo);
             dto.setStatus("CANCELLED");
-            dto.setCancelRemarks(tx.getRemarks());
-            dto.setAction(tx.getAction());
+            dto.setCancelRemarks(cancelRemarks);
+            dto.setAction(action);
             dto.setPlantId(callPlantId);
             dto.setVendorCode(callVendorCode != null ? callVendorCode : vendorCode);
-            dto.setCreatedDate(tx.getCreatedDate());
+            dto.setCreatedDate(createdDate);
+            dto.setDocumentName(documentName);
 
             if (callEntity != null) {
                 dto.setPoNo(callEntity.getPoNo());
@@ -5686,16 +5862,16 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 dto.setCallDate(callEntity.getDesiredInspectionDate() != null ? String.valueOf(callEntity.getDesiredInspectionDate()) : null);
                 dto.setErcType(callEntity.getErcType());
 
-                // Fetch PO Header for Case No
+                // Fetch Case No from preloaded PoHeaders map
                 String rawPoNo = callEntity.getPoNo();
                 String barePoNo = rawPoNo;
                 if (barePoNo != null && barePoNo.contains("/")) {
                     barePoNo = barePoNo.split("/")[0].trim();
                 }
-                if (barePoNo != null && poHeaderRepository != null) {
-                    java.util.Optional<PoHeader> headerOpt = poHeaderRepository.findByPoNo(barePoNo);
-                    if (headerOpt.isPresent() && headerOpt.get().getCaseNo() != null) {
-                        dto.setIbsCaseNo(headerOpt.get().getCaseNo());
+                if (barePoNo != null) {
+                    PoHeader header = poHeaderMap.get(barePoNo);
+                    if (header != null && header.getCaseNo() != null) {
+                        dto.setIbsCaseNo(header.getCaseNo());
                     }
                 }
             }
@@ -5710,7 +5886,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 } catch (Exception ignored) {}
             }
 
-            // Fetch IBS Call No (sr_no from ibs_call_registration table)
+            // Fetch IBS Call No
             String ibsCallNo = "";
             if (ibsCallRegistrationRepository != null) {
                 try {
@@ -5724,7 +5900,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             }
             dto.setIbsCallNo(ibsCallNo);
 
-            String effectiveRio = tx.getRio();
+            String effectiveRio = (latestTx != null) ? latestTx.getRio() : null;
             if (effectiveRio == null || effectiveRio.isBlank()) {
                 effectiveRio = "Northern";
             }
@@ -5743,68 +5919,19 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             }
             dto.setRioEmail(rioEmail);
 
-            double base = 0.0;
-            boolean isNonChargeable = false;
-            if (callCancellationDetailRepository != null) {
-                java.util.Optional<CallCancellationDetail> cancelOpt = callCancellationDetailRepository.findByCallNumber(callNo);
-                if (cancelOpt.isPresent()) {
-                    CallCancellationDetail cd = cancelOpt.get();
-                    if (cd.getDocumentName() != null && !cd.getDocumentName().isBlank()) {
-                        dto.setDocumentName(cd.getDocumentName());
-                    }
-                    if ("NON_CHARGEABLE".equalsIgnoreCase(cd.getCancellationBasis())) {
-                        isNonChargeable = true;
-                        base = 0.0;
-                    } else {
-                        if (cd.getFinalCancellationCharges() != null) {
-                            base = cd.getFinalCancellationCharges().doubleValue();
-                        } else if (cd.getCalculatedCharges() != null) {
-                            base = cd.getCalculatedCharges().doubleValue();
-                        }
-                    }
-                }
-            }
-            if (base == 0.0 && !isNonChargeable && vendorFinancialLiabilityRepository != null) {
-                java.util.Optional<VendorFinancialLiability> liabOpt = vendorFinancialLiabilityRepository.findByCallNumber(callNo);
-                if (liabOpt.isPresent() && liabOpt.get().getAmount() != null) {
-                    base = liabOpt.get().getAmount().doubleValue();
-                }
-            }
-            if (tx.getRemarks() != null) {
-                String rem = tx.getRemarks().toUpperCase();
-                if (rem.contains("NON_CHARGEABLE") || rem.contains("NON-CHARGEABLE")) {
-                    isNonChargeable = true;
-                    base = 0.0;
-                } else if (base == 0.0 && rem.contains("FINAL CANCELLATION CHARGES")) {
-                    try {
-                        String after = rem.substring(rem.indexOf("FINAL CANCELLATION CHARGES"));
-                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[0-9]+(?:,[0-9]+)*(?:\\.[0-9]+)?").matcher(after);
-                        if (m.find()) {
-                            base = Double.parseDouble(m.group().replace(",", ""));
-                        }
-                    } catch (Exception ignored) {}
-                }
-            }
-
-            // Calls cancelled on non-chargeable basis (or with zero charges) should not go to Payment Details module
-            if (isNonChargeable || base <= 0.0) {
-                continue;
-            }
-
             String liabilityPaymentStatus = "Payment Pending";
-            if (vendorFinancialLiabilityRepository != null) {
-                java.util.Optional<VendorFinancialLiability> liabOpt = vendorFinancialLiabilityRepository.findByCallNumber(callNo);
-                if (liabOpt.isPresent() && liabOpt.get().getPaymentStatus() != null) {
-                    String ps = liabOpt.get().getPaymentStatus().trim();
-                    if ("PAID".equalsIgnoreCase(ps) 
-                            || "COMPLETED".equalsIgnoreCase(ps) 
-                            || "PAYMENT COMPLETED".equalsIgnoreCase(ps) 
-                            || "APPROVED".equalsIgnoreCase(ps) 
-                            || "Approved by RITES Finance".equalsIgnoreCase(ps)) {
-                        liabilityPaymentStatus = "Approved by RITES Finance";
-                    } else if (!ps.isEmpty()) {
-                        liabilityPaymentStatus = ps;
-                    }
+            if (liability != null && liability.getPaymentStatus() != null) {
+                String ps = liability.getPaymentStatus().trim();
+                if ("PAID".equalsIgnoreCase(ps) 
+                        || "COMPLETED".equalsIgnoreCase(ps) 
+                        || "PAYMENT COMPLETED".equalsIgnoreCase(ps) 
+                        || "APPROVED".equalsIgnoreCase(ps) 
+                        || "Approved by RITES Finance".equalsIgnoreCase(ps)) {
+                    liabilityPaymentStatus = "Approved by RITES Finance";
+                } else if ("PENDING".equalsIgnoreCase(ps) || "PAYMENT PENDING".equalsIgnoreCase(ps)) {
+                    liabilityPaymentStatus = "Payment Pending";
+                } else if (!ps.isEmpty()) {
+                    liabilityPaymentStatus = ps;
                 }
             }
 
@@ -5910,6 +6037,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public void markPaymentApprovedByIbs(String callNo) {
         if (callNo == null || callNo.isBlank()) return;
         String cleanCallNo = callNo.trim();
@@ -5937,7 +6065,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 }
             }
             liability.setPaymentStatus("Approved by RITES Finance");
-            vendorFinancialLiabilityRepository.save(liability);
+            vendorFinancialLiabilityRepository.saveAndFlush(liability);
             log.info("Payment marked as 'Approved by RITES Finance' for call {} via IBS verification.", cleanCallNo);
         }
     }

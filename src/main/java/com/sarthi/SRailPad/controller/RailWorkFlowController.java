@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import com.sarthi.SRailPad.dto.RailpadRemapSubmitDto;
 
 @RestController
-@RequestMapping("/api/railpad-workflow")
+@RequestMapping({"/railpad-workflow", "/api/railpad-workflow"})
 @AllArgsConstructor
 public class RailWorkFlowController {
 
@@ -31,9 +31,10 @@ public class RailWorkFlowController {
     public ResponseEntity<Object> allPendingWorkflowTransition(
             @RequestParam String roleName,
             @RequestParam(required = false) String plantId,
-            @RequestParam(required = false) Long workflowId)  {
+            @RequestParam(required = false) Long workflowId,
+            @RequestParam(required = false) Long moduleId)  {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName, plantId, workflowId)), HttpStatus.OK);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName, plantId, workflowId, moduleId)), HttpStatus.OK);
     }
 
     @GetMapping("/WorkflowTransitionHistory")
@@ -46,9 +47,10 @@ public class RailWorkFlowController {
     public ResponseEntity<Object> AllCompletedTransition(
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String plantId,
-            @RequestParam(required = false) Long workflowId)  {
+            @RequestParam(required = false) Long workflowId,
+            @RequestParam(required = false) Long moduleId) {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allCompletedWorkflowTransitions(userId, plantId, workflowId)), HttpStatus.OK);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allCompletedWorkflowTransitions(userId, plantId, workflowId, moduleId)), HttpStatus.OK);
     }
 
     @GetMapping("/allFInalCallCompletedCalls")
@@ -244,6 +246,7 @@ public class RailWorkFlowController {
         try {
             String caseNo = (String) req.get("caseNo");
             String callDate = (String) req.get("callDate");
+            String callNo = (String) req.get("callNo");
             Object snoObj = req.get("ibsCallSno");
             int ibsCallSno = 0;
             if (snoObj instanceof Integer) {
@@ -260,6 +263,21 @@ public class RailWorkFlowController {
             }
 
             java.util.Map<String, Object> ibsResponse = workflowService.verifyIbsPayment(caseNo, callDate, ibsCallSno);
+
+            // If IBS verified (resultFlag 1 = Both bill & payment, 2 = Bill confirmed / payment cleared) and callNo is provided, update liability
+            if (ibsResponse != null && callNo != null && !callNo.isBlank()) {
+                Object rfObj = ibsResponse.get("resultFlag");
+                int resultFlag = 0;
+                if (rfObj instanceof Integer) {
+                    resultFlag = (Integer) rfObj;
+                } else if (rfObj instanceof String && !((String) rfObj).isBlank()) {
+                    try { resultFlag = Integer.parseInt(((String) rfObj).trim()); } catch (Exception ignored) {}
+                }
+                if (resultFlag == 1 || resultFlag == 2) {
+                    workflowService.markPaymentApprovedByIbs(callNo.trim());
+                }
+            }
+
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(ibsResponse), HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(

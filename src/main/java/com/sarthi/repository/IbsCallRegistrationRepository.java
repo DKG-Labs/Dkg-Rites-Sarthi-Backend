@@ -43,4 +43,14 @@ public interface IbsCallRegistrationRepository
         ORDER BY i.version DESC, i.id DESC
     """)
     List<String> findSrNoByCallNumber(@Param("callNumber") String callNumber);
+
+    @Query("""
+        SELECT i.callNumber, i.srNo 
+        FROM IbsCallRegistration i 
+        WHERE i.callNumber IN :callNumbers 
+          AND i.srNo IS NOT NULL 
+          AND TRIM(i.srNo) <> ''
+        ORDER BY i.version DESC, i.id DESC
+    """)
+    List<Object[]> findSrNosByCallNumbers(@Param("callNumbers") java.util.Collection<String> callNumbers);
 }

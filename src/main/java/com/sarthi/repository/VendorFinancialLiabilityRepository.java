@@ -9,6 +9,7 @@ import java.util.Optional;
 
 @Repository
 public interface VendorFinancialLiabilityRepository extends JpaRepository<VendorFinancialLiability, Long> {
+    List<VendorFinancialLiability> findByVendorCode(String vendorCode);
     List<VendorFinancialLiability> findByVendorCodeAndPaymentStatus(String vendorCode, String paymentStatus);
     Optional<VendorFinancialLiability> findByCallNumber(String callNumber);
     boolean existsByVendorCodeAndPaymentStatus(String vendorCode, String paymentStatus);

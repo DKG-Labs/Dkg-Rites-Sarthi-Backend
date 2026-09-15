@@ -23,6 +23,7 @@ public interface SleeperInspectionCallRepository extends JpaRepository<SleeperIn
     List<SleeperInspectionCall> findByCreatedBy(Long createdBy);
 
     Optional<SleeperInspectionCall> findByCallNo(String callNo);
+    List<SleeperInspectionCall> findByCallNoIn(Collection<String> callNos);
     boolean existsByCallNo(String callNo);
     List<SleeperInspectionCall> findByPoNoOrderByIdAsc(String poNo);
 

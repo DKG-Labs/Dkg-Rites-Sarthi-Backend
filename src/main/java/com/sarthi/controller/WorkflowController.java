@@ -143,7 +143,7 @@ public class WorkflowController {
             );
         }
 
-    @GetMapping("/cancelledCallsForPayment")
+    @GetMapping({"/cancelledCallsForPayment", "/api/cancelledCallsForPayment"})
     public ResponseEntity<Object> getCancelledCallsForPayment(
             @RequestParam(required = false) String plantId,
             @RequestParam(required = false) String vendorCode) {
@@ -153,7 +153,7 @@ public class WorkflowController {
         );
     }
 
-    @GetMapping("/checkPlantPaymentBlock")
+    @GetMapping({"/checkPlantPaymentBlock", "/api/checkPlantPaymentBlock"})
     public ResponseEntity<Object> checkPlantPaymentBlock(
             @RequestParam(required = false) String plantId,
             @RequestParam(required = false) String vendorCode) {
@@ -168,7 +168,7 @@ public class WorkflowController {
         );
     }
 
-    @GetMapping("/cancellationDetails/{callNo}")
+    @GetMapping({"/cancellationDetails/{callNo}", "/api/cancellationDetails/{callNo}"})
     public ResponseEntity<Object> getCancellationDetails(@PathVariable String callNo) {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(workflowService.getCancellationDetails(callNo)),
@@ -176,7 +176,7 @@ public class WorkflowController {
         );
     }
 
-    @GetMapping("/getCancellationDetails")
+    @GetMapping({"/getCancellationDetails", "/api/getCancellationDetails"})
     public ResponseEntity<Object> getCancellationDetailsByParam(@RequestParam String callNo) {
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(workflowService.getCancellationDetails(callNo)),
@@ -188,11 +188,12 @@ public class WorkflowController {
      * Proxies the IBS get-bill-details API call from the ERC vendor frontend.
      * Request body: { callNo, caseNo, callDate (DD-MM-YYYY), ibsCallSno }
      */
-    @PostMapping("/verify-ibs-payment")
+    @PostMapping({"/verify-ibs-payment", "/api/verify-ibs-payment"})
     public ResponseEntity<Object> verifyIbsPayment(@RequestBody java.util.Map<String, Object> req) {
         try {
             String caseNo = (String) req.get("caseNo");
             String callDate = (String) req.get("callDate");
+            String callNo = (String) req.get("callNo");
             Object snoObj = req.get("ibsCallSno");
             int ibsCallSno = 0;
             if (snoObj instanceof Integer) {
@@ -209,6 +210,20 @@ public class WorkflowController {
             }
 
             java.util.Map<String, Object> ibsResponse = workflowService.verifyIbsPayment(caseNo, callDate, ibsCallSno);
+
+            if (ibsResponse != null && callNo != null && !callNo.isBlank()) {
+                Object rfObj = ibsResponse.get("resultFlag");
+                int resultFlag = 0;
+                if (rfObj instanceof Integer) {
+                    resultFlag = (Integer) rfObj;
+                } else if (rfObj instanceof String && !((String) rfObj).isBlank()) {
+                    try { resultFlag = Integer.parseInt(((String) rfObj).trim()); } catch (Exception ignored) {}
+                }
+                if (resultFlag == 1 || resultFlag == 2) {
+                    workflowService.markPaymentApprovedByIbs(callNo.trim());
+                }
+            }
+
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(ibsResponse), HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(
@@ -222,7 +237,7 @@ public class WorkflowController {
      * Marks a cancelled call's payment as "Approved by RITES Finance" after IBS confirms the bill.
      * Request body: { callNo }
      */
-    @PostMapping("/mark-payment-approved")
+    @PostMapping({"/mark-payment-approved", "/api/mark-payment-approved"})
     public ResponseEntity<Object> markPaymentApproved(@RequestBody java.util.Map<String, Object> req) {
         try {
             String callNo = (String) req.get("callNo");

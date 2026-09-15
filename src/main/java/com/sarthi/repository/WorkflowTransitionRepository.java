@@ -70,6 +70,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
 
     WorkflowTransition findTopByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
 
+    WorkflowTransition findFirstByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
+
     WorkflowTransition findFirstByRequestIdAndRioIsNotNullOrderByWorkflowTransitionIdDesc(String requestId);
 
     List<WorkflowTransition> findByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
@@ -1357,6 +1359,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
 
 
     List<WorkflowTransition> findTop2ByRequestIdOrderByWorkflowTransitionIdDesc(String normalizedRequestId);
+
+    List<WorkflowTransition> findByRequestIdIn(java.util.Collection<String> requestIds);
 
     @Query(value = """
             SELECT t.*
