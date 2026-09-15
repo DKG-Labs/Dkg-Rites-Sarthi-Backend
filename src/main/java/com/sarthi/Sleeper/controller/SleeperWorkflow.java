@@ -86,9 +86,10 @@ public class SleeperWorkflow {
     }
 
     @GetMapping("/allFInalCallCompletedCalls")
-    public ResponseEntity<Object> AllFinalCallCompletedTransition()  {
+    public ResponseEntity<Object> AllFinalCallCompletedTransition(
+            @RequestParam(required = false) String plantId)  {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions()), HttpStatus.OK);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions(plantId)), HttpStatus.OK);
     }
 
     @GetMapping("/allCompletedWorkflowTransitionModuleWise")
