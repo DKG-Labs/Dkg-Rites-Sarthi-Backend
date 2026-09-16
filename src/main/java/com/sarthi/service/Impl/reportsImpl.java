@@ -5316,11 +5316,15 @@ public class reportsImpl implements reports {
                                                 startDate, endDate);
 
                 List<com.sarthi.dto.reports.InspectionCallDetailDto> dtoList = new java.util.ArrayList<>();
+                java.util.Set<String> seenCallNumbers = new java.util.HashSet<>();
 
                 if (rawList != null) {
                         for (Object[] row : rawList) {
-                                String rowStatus = row[6] != null ? row[6].toString() : "";
                                 String callNo = row[0] != null ? row[0].toString() : "";
+                                if (callNo.isEmpty() || !seenCallNumbers.add(callNo)) {
+                                        continue;
+                                }
+                                String rowStatus = row[6] != null ? row[6].toString() : "";
                                 String padStage = row[3] != null ? row[3].toString() : "";
                                 Object rawQty = row.length > 7 && row[7] != null ? row[7] : null;
                                 String subStatus = row.length > 8 && row[8] != null ? row[8].toString() : rowStatus;

@@ -336,9 +336,26 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
     );
 
     @Query(value = """
-                SELECT
+                SELECT DISTINCT
                     ic.call_no AS inspectionCallNumber,
-                    COALESCE(vm.vendor_name, ic.vendor_code) AS vendor,
+                    COALESCE(
+                        vm.vendor_name,
+                        vm_ph.vendor_name,
+                        rvp_p.company_name,
+                        rvp_v.company_name,
+                        CASE 
+                            WHEN SUBSTRING_INDEX(ph.vendor_details, '~', 1) IS NOT NULL AND TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)) != '' AND SUBSTRING_INDEX(ph.vendor_details, '~', 1) NOT REGEXP '^[0-9]+$'
+                            THEN TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1))
+                            ELSE NULL 
+                        END,
+                        CASE 
+                            WHEN ph.firm_details IS NOT NULL AND TRIM(ph.firm_details) != '' AND ph.firm_details NOT REGEXP '^[0-9]+$'
+                            THEN TRIM(ph.firm_details)
+                            ELSE NULL 
+                        END,
+                        ic.vendor_code,
+                        ''
+                    ) AS vendor,
                     DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                     'Railpad' AS stageOfInspection,
                     CONCAT(COALESCE(ph.rly_cd, 'N/A'), ' / ', ic.po_no) AS poSrNo,
@@ -353,7 +370,8 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                         ELSE CONCAT(COALESCE(ic.total_qty, 0), ' Nos')
                     END AS callQty,
                     '' AS subStatus,
-                    ic.rail_pad_type AS railpadType
+                    ic.rail_pad_type AS railpadType,
+                    ic.created_at AS rawCreatedAt
                 FROM (
                     SELECT
                         rwt1.request_id,
@@ -380,15 +398,64 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                             AND (UPPER(rwt4.status) = 'COMPLETED' OR UPPER(rwt4.job_status) = 'COMPLETED')
                       )
                 ) t
-                INNER JOIN rail_inspection_call ic ON t.request_id = ic.call_no
-                LEFT JOIN vendor_master vm ON vm.vendor_code = ic.vendor_code
-                LEFT JOIN po_header ph ON ph.po_no = SUBSTRING_INDEX(ic.po_no, '/', 1)
-                LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND pi.item_sr_no = SUBSTRING_INDEX(ic.po_no, '/', -1)
+                INNER JOIN rail_inspection_call ic ON t.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
+                LEFT JOIN (
+                    SELECT vendor_code, MAX(vendor_name) AS vendor_name
+                    FROM vendor_master
+                    WHERE vendor_name IS NOT NULL AND TRIM(vendor_name) != '' AND vendor_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY vendor_code
+                ) vm ON (
+                    vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                    OR vm.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                    OR CONCAT(':', vm.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT vendor_code, MAX(vendor_name) AS vendor_name
+                    FROM vendor_master
+                    WHERE vendor_name IS NOT NULL AND TRIM(vendor_name) != '' AND vendor_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY vendor_code
+                ) vm_ph ON (
+                    ph.vendor_code IS NOT NULL
+                    AND vm_ph.vendor_code COLLATE utf8mb4_unicode_ci = ph.vendor_code COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT vendor_code, MAX(company_name) AS company_name
+                    FROM rail_vendor_plant
+                    WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY vendor_code
+                ) rvp_v ON (
+                    rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                    OR rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                    OR CONCAT(':', rvp_v.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT plant_id, MAX(company_name) AS company_name
+                    FROM rail_vendor_plant
+                    WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY plant_id
+                ) rvp_p ON (
+                    rvp_p.plant_id COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+                    OR rvp_p.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(ic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci
+                    OR CONCAT(':', rvp_p.plant_id) COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT po_header_id, item_sr_no, MAX(delivery_date) AS delivery_date
+                    FROM po_item
+                    GROUP BY po_header_id, item_sr_no
+                ) pi ON pi.po_header_id = ph.id AND (
+                    pi.item_sr_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) COLLATE utf8mb4_unicode_ci
+                    OR (
+                        (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) REGEXP '^[0-9]+$'
+                        AND pi.item_sr_no REGEXP '^[0-9]+$'
+                        AND CAST(pi.item_sr_no AS UNSIGNED) = CAST((CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) AS UNSIGNED)
+                    )
+                )
                 WHERE
                     (:status = 'ALL' OR
                      (:status = 'Under Inspection' AND t.has_initiate = 1) OR
                      (:status = 'Pending' AND t.has_initiate = 0))
-                ORDER BY ic.created_at DESC
+                ORDER BY rawCreatedAt DESC
             """, nativeQuery = true)
     List<Object[]> getRailPadInspectionCallStatusDetailsRaw(@Param("status") String status);
 
@@ -445,9 +512,26 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             @Param("endDate") java.time.LocalDateTime endDate);
 
     @Query(value = """
-                SELECT
+                SELECT DISTINCT
                     ic.call_no AS inspectionCallNumber,
-                    COALESCE(vm.vendor_name, ic.vendor_code) AS vendor,
+                    COALESCE(
+                        vm.vendor_name,
+                        vm_ph.vendor_name,
+                        rvp_p.company_name,
+                        rvp_v.company_name,
+                        CASE 
+                            WHEN SUBSTRING_INDEX(ph.vendor_details, '~', 1) IS NOT NULL AND TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)) != '' AND SUBSTRING_INDEX(ph.vendor_details, '~', 1) NOT REGEXP '^[0-9]+$'
+                            THEN TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1))
+                            ELSE NULL 
+                        END,
+                        CASE 
+                            WHEN ph.firm_details IS NOT NULL AND TRIM(ph.firm_details) != '' AND ph.firm_details NOT REGEXP '^[0-9]+$'
+                            THEN TRIM(ph.firm_details)
+                            ELSE NULL 
+                        END,
+                        ic.vendor_code,
+                        ''
+                    ) AS vendor,
                     DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                     CASE
                         WHEN t.request_id LIKE 'RPP%' THEN 'Process'
@@ -504,7 +588,8 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                         ELSE CONCAT(COALESCE(ic.total_qty, 0), ' Nos')
                     END AS callQty,
                     t.action AS subStatus,
-                    ic.rail_pad_type AS railpadType
+                    ic.rail_pad_type AS railpadType,
+                    ic.created_at AS rawCreatedAt
                 FROM (
                     SELECT
                         rwt1.request_id,
@@ -532,9 +617,51 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     )
                 ) t
                 INNER JOIN rail_inspection_call ic ON t.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
-                LEFT JOIN vendor_master vm ON vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
                 LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
-                LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
+                LEFT JOIN (
+                    SELECT vendor_code, MAX(vendor_name) AS vendor_name
+                    FROM vendor_master
+                    WHERE vendor_name IS NOT NULL AND TRIM(vendor_name) != '' AND vendor_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY vendor_code
+                ) vm ON (
+                    vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                    OR vm.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                    OR CONCAT(':', vm.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT vendor_code, MAX(vendor_name) AS vendor_name
+                    FROM vendor_master
+                    WHERE vendor_name IS NOT NULL AND TRIM(vendor_name) != '' AND vendor_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY vendor_code
+                ) vm_ph ON (
+                    ph.vendor_code IS NOT NULL
+                    AND vm_ph.vendor_code COLLATE utf8mb4_unicode_ci = ph.vendor_code COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT vendor_code, MAX(company_name) AS company_name
+                    FROM rail_vendor_plant
+                    WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY vendor_code
+                ) rvp_v ON (
+                    rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                    OR rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                    OR CONCAT(':', rvp_v.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT plant_id, MAX(company_name) AS company_name
+                    FROM rail_vendor_plant
+                    WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                    GROUP BY plant_id
+                ) rvp_p ON (
+                    rvp_p.plant_id COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+                    OR rvp_p.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(ic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci
+                    OR CONCAT(':', rvp_p.plant_id) COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+                )
+                LEFT JOIN (
+                    SELECT po_header_id, item_sr_no, MAX(delivery_date) AS delivery_date
+                    FROM po_item
+                    GROUP BY po_header_id, item_sr_no
+                ) pi ON pi.po_header_id = ph.id AND (
                     pi.item_sr_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) COLLATE utf8mb4_unicode_ci
                     OR (
                         (CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) REGEXP '^[0-9]+$'
@@ -553,7 +680,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                        (:status = 'IC Issued' AND t.action IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'IC_GENERATION')))
                   AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR ph.rly_short_name = :zonalRailway OR ph.rly_cd = :zonalRailway)
                   AND (:startDate IS NULL OR :endDate IS NULL OR ic.created_at BETWEEN :startDate AND :endDate)
-                ORDER BY ic.created_at DESC
+                ORDER BY rawCreatedAt DESC
             """, nativeQuery = true)
     List<Object[]> getRailPadInspectionCallStatusDetailsFiltered(
             @Param("stage") String stage,
@@ -664,12 +791,22 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             SELECT DISTINCT
                 COALESCE(
                     CASE 
-                        WHEN vm.vendor_name IS NOT NULL AND vm.vendor_name != '' AND vm.vendor_name NOT REGEXP '^[0-9]+$' 
-                        THEN vm.vendor_name 
+                        WHEN vm.vendor_name IS NOT NULL AND TRIM(vm.vendor_name) != '' AND vm.vendor_name NOT REGEXP '^[0-9]+$' 
+                        THEN TRIM(vm.vendor_name) 
                         ELSE NULL 
                     END,
-                    NULLIF(SUBSTRING_INDEX(ph.vendor_details, '~', 1), ''),
-                    NULLIF(ph.firm_details, ''),
+                    rvp_p.company_name,
+                    rvp_v.company_name,
+                    CASE 
+                        WHEN SUBSTRING_INDEX(ph.vendor_details, '~', 1) IS NOT NULL AND TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)) != '' AND SUBSTRING_INDEX(ph.vendor_details, '~', 1) NOT REGEXP '^[0-9]+$'
+                        THEN TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1))
+                        ELSE NULL 
+                    END,
+                    CASE 
+                        WHEN ph.firm_details IS NOT NULL AND TRIM(ph.firm_details) != '' AND ph.firm_details NOT REGEXP '^[0-9]+$'
+                        THEN TRIM(ph.firm_details)
+                        ELSE NULL 
+                    END,
                     ic.vendor_code,
                     ''
                 ) AS vendorName,
@@ -704,7 +841,32 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
             INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN vendor_master vm ON ic.vendor_code COLLATE utf8mb4_unicode_ci = vm.vendor_code COLLATE utf8mb4_unicode_ci
+            LEFT JOIN vendor_master vm ON (
+                vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                OR vm.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                OR CONCAT(':', vm.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                OR vm.vendor_code COLLATE utf8mb4_unicode_ci = ph.vendor_code COLLATE utf8mb4_unicode_ci
+            )
+            LEFT JOIN (
+                SELECT vendor_code, MAX(company_name) AS company_name
+                FROM rail_vendor_plant
+                WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                GROUP BY vendor_code
+            ) rvp_v ON (
+                rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                OR rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                OR CONCAT(':', rvp_v.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+            )
+            LEFT JOIN (
+                SELECT plant_id, MAX(company_name) AS company_name
+                FROM rail_vendor_plant
+                WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                GROUP BY plant_id
+            ) rvp_p ON (
+                rvp_p.plant_id COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+                OR rvp_p.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(ic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci
+                OR CONCAT(':', rvp_p.plant_id) COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+            )
             LEFT JOIN rail_inspection_complete_details ricd ON ic.call_no COLLATE utf8mb4_unicode_ci = ricd.call_no COLLATE utf8mb4_unicode_ci
             WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
                    rwt.plant_id = :vendorPlantCode OR
