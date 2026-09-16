@@ -102,7 +102,8 @@ AND h.module.id = :moduleId
   @Query("""
           SELECT r
           FROM InspectionTestResult r
-          JOIN r.testHeader h
+          JOIN FETCH r.testHeader h
+          LEFT JOIN FETCH h.module
           WHERE h.batchId IN :batchIds
           AND r.active = true
           """)

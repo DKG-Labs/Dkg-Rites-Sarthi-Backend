@@ -41,8 +41,10 @@ FROM SleeperInspectionCallBatch b
 JOIN b.goodSleepers s
 WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:sleeperType IS NULL OR UPPER(TRIM(b.inspectionCall.sleeperType)) = UPPER(TRIM(:sleeperType)))
+  AND (:vendorId IS NULL OR b.inspectionCall.createdBy = :vendorId)
 """)
-    List<Long> findAllGoodSleeperIds();
+    List<Long> findAllGoodSleeperIds(@Param("sleeperType") String sleeperType, @Param("vendorId") Long vendorId);
 
     @Query("""
 SELECT DISTINCT s.sleeperId
@@ -50,9 +52,11 @@ FROM SleeperInspectionCallBatch b
 JOIN b.goodSleepers s
 WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:sleeperType IS NULL OR UPPER(TRIM(b.inspectionCall.sleeperType)) = UPPER(TRIM(:sleeperType)))
+  AND (:vendorId IS NULL OR b.inspectionCall.createdBy = :vendorId)
   AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
 """)
-    List<Long> findAllGoodSleeperIdsExcludingCall(@Param("excludeCallNo") String excludeCallNo);
+    List<Long> findAllGoodSleeperIdsExcludingCall(@Param("sleeperType") String sleeperType, @Param("vendorId") Long vendorId, @Param("excludeCallNo") String excludeCallNo);
 
     @Query("""
 SELECT DISTINCT s.sleeperId
@@ -60,8 +64,10 @@ FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:sleeperType IS NULL OR UPPER(TRIM(b.inspectionCall.sleeperType)) = UPPER(TRIM(:sleeperType)))
+  AND (:vendorId IS NULL OR b.inspectionCall.createdBy = :vendorId)
 """)
-    List<Long> findAllBadSleeperIds();
+    List<Long> findAllBadSleeperIds(@Param("sleeperType") String sleeperType, @Param("vendorId") Long vendorId);
 
     @Query("""
 SELECT DISTINCT s.sleeperId
@@ -69,9 +75,11 @@ FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:sleeperType IS NULL OR UPPER(TRIM(b.inspectionCall.sleeperType)) = UPPER(TRIM(:sleeperType)))
+  AND (:vendorId IS NULL OR b.inspectionCall.createdBy = :vendorId)
   AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
 """)
-    List<Long> findAllBadSleeperIdsExcludingCall(@Param("excludeCallNo") String excludeCallNo);
+    List<Long> findAllBadSleeperIdsExcludingCall(@Param("sleeperType") String sleeperType, @Param("vendorId") Long vendorId, @Param("excludeCallNo") String excludeCallNo);
 
     @Query("""
 SELECT DISTINCT CONCAT(TRIM(b.batchNo), '_', TRIM(s.sleeperNo))
@@ -79,8 +87,10 @@ FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperNo IS NOT NULL
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:sleeperType IS NULL OR UPPER(TRIM(b.inspectionCall.sleeperType)) = UPPER(TRIM(:sleeperType)))
+  AND (:vendorId IS NULL OR b.inspectionCall.createdBy = :vendorId)
 """)
-    List<String> findAllRaisedBadSleeperKeys();
+    List<String> findAllRaisedBadSleeperKeys(@Param("sleeperType") String sleeperType, @Param("vendorId") Long vendorId);
 
     @Query("""
 SELECT DISTINCT CONCAT(TRIM(b.batchNo), '_', TRIM(s.sleeperNo))
@@ -88,9 +98,11 @@ FROM SleeperInspectionCallBatch b
 JOIN b.badSleepers s
 WHERE s.sleeperNo IS NOT NULL
   AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:sleeperType IS NULL OR UPPER(TRIM(b.inspectionCall.sleeperType)) = UPPER(TRIM(:sleeperType)))
+  AND (:vendorId IS NULL OR b.inspectionCall.createdBy = :vendorId)
   AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
 """)
-    List<String> findAllRaisedBadSleeperKeysExcludingCall(@Param("excludeCallNo") String excludeCallNo);
+    List<String> findAllRaisedBadSleeperKeysExcludingCall(@Param("sleeperType") String sleeperType, @Param("vendorId") Long vendorId, @Param("excludeCallNo") String excludeCallNo);
 
     @Query("""
 SELECT DISTINCT b.batchNo
