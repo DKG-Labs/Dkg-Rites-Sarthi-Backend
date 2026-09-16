@@ -47,6 +47,7 @@ public interface SleeperWorkflowService {
     void submitSleeperRemap(SleeperRemapSubmitDto dto);
 
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
+    public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId);
 
     public Page<SleeperWorkflowTransactionDto> allCompletedWorkflowTransitions(
             Integer moduleId,

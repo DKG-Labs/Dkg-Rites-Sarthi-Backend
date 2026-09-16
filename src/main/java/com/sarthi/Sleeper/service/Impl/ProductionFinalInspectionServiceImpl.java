@@ -1082,15 +1082,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         Set<Long> raisedSleeperIds = new HashSet<>();
         Set<String> raisedBadSleeperKeys = new HashSet<>();
 
+        String targetSleeperType = (sleeperType != null && !sleeperType.isBlank()) ? sleeperType.trim() : null;
+        Long targetVendorId = (vendorId != null && vendorId > 0) ? vendorId : null;
+
         if (excludeCallNo != null && !excludeCallNo.isBlank()) {
             String trimmedExclude = excludeCallNo.trim();
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIdsExcludingCall(trimmedExclude));
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIdsExcludingCall(trimmedExclude));
-            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeysExcludingCall(trimmedExclude));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIdsExcludingCall(targetSleeperType, targetVendorId, trimmedExclude));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIdsExcludingCall(targetSleeperType, targetVendorId, trimmedExclude));
+            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeysExcludingCall(targetSleeperType, targetVendorId, trimmedExclude));
         } else {
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds());
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds());
-            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys());
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds(targetSleeperType, targetVendorId));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds(targetSleeperType, targetVendorId));
+            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys(targetSleeperType, targetVendorId));
         }
 
         // ── Bulk Upfront Fetch 3: Passed Lab Tests (Water Cube & MOR) ────────
@@ -1117,7 +1120,14 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 : Collections.emptyMap();
 
         // ── Bulk Upfront Fetch 6: Demoulding Inspections with Defects ────────
-        List<DemouldingInspection> allDemouldings = demouldingInspectionRepository.findByBatchNoInWithDefects(batchNumbers);
+        String plantIdParam = declarations.stream()
+                .map(ProductionDeclaration::getPlantId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+
+        List<DemouldingInspection> allDemouldings = demouldingInspectionRepository.findByBatchNoInWithDefects(
+                batchNumbers, targetSleeperType, vendorCodeStr, parsedUserId, plantIdParam);
         Map<String, List<DemouldingInspection>> demouldingsByBatchNo = (allDemouldings != null)
                 ? allDemouldings.stream()
                 .filter(d -> d.getBatchNo() != null)
@@ -1239,6 +1249,31 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             // Process Demoulding Defective Sleepers from pre-fetched map
             List<DemouldingInspection> demouldings = demouldingsByBatchNo.getOrDefault(currentBatchNo, Collections.emptyList());
             for (DemouldingInspection di : demouldings) {
+                // Sleeper type match check
+                if (targetSleeperType != null && di.getSleeperType() != null && !di.getSleeperType().isBlank()) {
+                    if (!di.getSleeperType().trim().equalsIgnoreCase(targetSleeperType)) {
+                        continue;
+                    }
+                }
+
+                // Vendor / Plant match check
+                String declPlant = declaration.getPlantId() != null ? declaration.getPlantId().trim() : "";
+                String declVendor = declaration.getVendorCode() != null ? declaration.getVendorCode().trim() : "";
+                String diPlant = di.getPlantId() != null ? di.getPlantId().trim() : "";
+                String diVendor = di.getVendorCode() != null ? di.getVendorCode().trim() : "";
+
+                boolean vendorMatch = declVendor.isEmpty() || diVendor.isEmpty()
+                        || declVendor.equalsIgnoreCase(diVendor)
+                        || (!parsedUserId.isEmpty() && diVendor.contains(parsedUserId));
+
+                boolean plantMatch = declPlant.isEmpty() || diPlant.isEmpty()
+                        || declPlant.equalsIgnoreCase(diPlant)
+                        || (!parsedUserId.isEmpty() && diPlant.contains(parsedUserId));
+
+                if (!vendorMatch && !plantMatch) {
+                    continue;
+                }
+
                 if (di.getDefectiveSleepers() != null) {
                     for (DemouldingDefectiveSleeper dds : di.getDefectiveSleepers()) {
                         String visReason = dds.getVisualReason() != null ? dds.getVisualReason().trim() : "";

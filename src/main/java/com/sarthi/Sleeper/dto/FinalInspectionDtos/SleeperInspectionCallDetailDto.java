@@ -19,5 +19,6 @@ public class SleeperInspectionCallDetailDto {
     private Long createdBy;
     private String plantId;
     private LocalDateTime createdAt;
+    private String uom;
     private List<SleeperInspectionCallBatchDto> batchesSelected;
 }

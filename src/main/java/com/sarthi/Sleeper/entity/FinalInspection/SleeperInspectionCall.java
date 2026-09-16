@@ -34,6 +34,7 @@ public class SleeperInspectionCall {
     @Column(name = "total_rejected", nullable = false)
     private Integer totalRejected;
 
+    @Column(name = "desired_inspection_date")
     private LocalDate desiredInspectionDate;
     @Column(name = "status")
     private String status = "Pending for verification";
