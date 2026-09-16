@@ -138,9 +138,10 @@ public class FinalProductionInspectionController {
     public ResponseEntity<Object> getCompletedBatches(
             @RequestParam("sleeperType") String sleeperType,
             @RequestParam("userId") String userId,
-            @RequestParam(value = "excludeCallNo", required = false) String excludeCallNo) {
+            @RequestParam(value = "excludeCallNo", required = false) String excludeCallNo,
+            @RequestParam(value = "plantId", required = false) String plantId) {
 
-        List<BatchInspectionResponseDto> result = inspectionService.getCompletedBatches(sleeperType, userId, excludeCallNo);
+        List<BatchInspectionResponseDto> result = inspectionService.getCompletedBatches(sleeperType, userId, excludeCallNo, plantId);
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(result),

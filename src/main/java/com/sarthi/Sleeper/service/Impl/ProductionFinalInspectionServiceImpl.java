@@ -1018,6 +1018,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     @Override
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId, String excludeCallNo) {
+        return getCompletedBatches(sleeperType, userId, excludeCallNo, null);
+    }
+
+    @Override
+    public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId, String excludeCallNo, String plantId) {
 
         String parsedUserId = userId != null ? userId.replace(":", "").trim() : "";
         String vendorCodeStr = userId != null ? userId.trim() : "";
@@ -1062,6 +1067,21 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         // ── Bulk Upfront Fetch 1: Declarations ───────────────────────────────
         List<ProductionDeclaration> declarations = productionDeclarationRepository.findByIdIn(batchIds);
         if (declarations == null || declarations.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Filter by plantId if specified
+        if (plantId != null && !plantId.isBlank()) {
+            String cleanTargetPlant = plantId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+            declarations = declarations.stream().filter(d -> {
+                if (d.getPlantId() == null || d.getPlantId().isBlank()) return true;
+                String dPid = d.getPlantId().replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+                return dPid.equals(cleanTargetPlant) || dPid.contains(cleanTargetPlant) || cleanTargetPlant.contains(dPid);
+            }).collect(Collectors.toList());
+            batchIds = declarations.stream().map(ProductionDeclaration::getId).collect(Collectors.toList());
+        }
+
+        if (declarations.isEmpty() || batchIds.isEmpty()) {
             return Collections.emptyList();
         }
 
