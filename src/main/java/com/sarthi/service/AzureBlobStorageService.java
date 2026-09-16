@@ -178,10 +178,47 @@ public class AzureBlobStorageService {
     }
 
     /**
+     * Checks if a PDF is digitally signed (eSign / DSC / PKCS#7 / PAdES).
+     * Modifying a digitally signed PDF invalidates its cryptographic signature.
+     */
+    public boolean isPdfDigitallySigned(byte[] pdfBytes) {
+        if (pdfBytes == null || pdfBytes.length == 0) return false;
+        try {
+            com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(pdfBytes);
+            com.lowagie.text.pdf.AcroFields fields = reader.getAcroFields();
+            if (fields != null && fields.getSignatureNames() != null && !fields.getSignatureNames().isEmpty()) {
+                reader.close();
+                return true;
+            }
+            reader.close();
+        } catch (Exception ignored) {}
+
+        try {
+            String pdfHeaderSample = new String(pdfBytes, 0, Math.min(pdfBytes.length, 32768), java.nio.charset.StandardCharsets.ISO_8859_1);
+            String pdfTrailerSample = new String(pdfBytes, Math.max(0, pdfBytes.length - 32768), Math.min(pdfBytes.length, 32768), java.nio.charset.StandardCharsets.ISO_8859_1);
+            if (pdfHeaderSample.contains("/ByteRange") || pdfTrailerSample.contains("/ByteRange") ||
+                pdfHeaderSample.contains("/adbe.pkcs7") || pdfTrailerSample.contains("/adbe.pkcs7") ||
+                pdfHeaderSample.contains("/ETSI.CAdES") || pdfTrailerSample.contains("/ETSI.CAdES")) {
+                return true;
+            }
+        } catch (Exception ignored) {}
+
+        return false;
+    }
+
+    /**
      * Compresses PDF bytes using OpenPDF FullCompression and maximum deflate level (9).
+     * Preserves digitally signed / e-signed PDFs as modifying them invalidates cryptographic signatures.
      */
     public byte[] compressPdfBytes(byte[] pdfBytes) {
         if (pdfBytes == null || pdfBytes.length == 0) return pdfBytes;
+
+        // Never compress/modify digitally signed PDFs post-signing
+        if (isPdfDigitallySigned(pdfBytes)) {
+            log.info("PDF is digitally signed. Preserving exact signed bytes to keep signature valid.");
+            return pdfBytes;
+        }
+
         try {
             com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(pdfBytes);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
