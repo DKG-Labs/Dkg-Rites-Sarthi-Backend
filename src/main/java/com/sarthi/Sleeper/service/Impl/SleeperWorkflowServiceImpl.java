@@ -393,8 +393,29 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 int totalOffered = off + rej;
                 dto.setOfferedQty(totalOffered > 0 ? totalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
                 dto.setAcceptedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
-                dto.setIcNo("IC-" + tx.getRequestId());
-                dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
+                
+                // Lookup certificate details from SLEEPER_INSPECTION_COMPLETE_DETAILS
+                String certKey = "cert_" + tx.getRequestId();
+                SleeperInspectionCompleteDetails certDetails = null;
+                if (cache.containsKey(certKey)) {
+                    certDetails = (SleeperInspectionCompleteDetails) cache.get(certKey);
+                } else if (sleeperInspectionCompleteDetailsRepository != null) {
+                    certDetails = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId()).orElse(null);
+                    cache.put(certKey, certDetails);
+                }
+
+                if (certDetails != null && certDetails.getCertificateNo() != null && !certDetails.getCertificateNo().trim().isEmpty()) {
+                    dto.setIcNo(certDetails.getCertificateNo().trim());
+                    if (certDetails.getCreatedOn() != null) {
+                        dto.setIcDate(certDetails.getCreatedOn().toLocalDate());
+                    } else {
+                        dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
+                    }
+                } else {
+                    dto.setIcNo("IC-" + tx.getRequestId());
+                    dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
+                }
+
                 dto.setUom("Nos.");
                 dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
                 dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt() : tx.getCreatedDate());
