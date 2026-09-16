@@ -162,7 +162,8 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                     (CASE WHEN vfl_c.liability_type = 'CANCELLATION_CHARGES' THEN COALESCE(vfl_c.amount, 0) ELSE 0 END),
                     0
                 )                                                       AS cancellationCharges,
-                0.0                                                     AS rejectionCharges
+                0.0                                                     AS rejectionCharges,
+                COALESCE(NULLIF(TRIM(rvp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
             FROM rail_inspection_call ic
             LEFT JOIN (
                 SELECT rwt1.request_id, rwt1.assigned_to_user, rwt1.rio
@@ -176,6 +177,18 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                     ON rwt1.workflow_transition_id = latest_wt.max_wt_id
             ) wt_assigned
                     ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN rail_vendor_plant rvp
+                   ON CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rvp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(ic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rvp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rvp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                    ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
@@ -190,7 +203,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             ) ricd
                     ON CONVERT(ricd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_call_cancellation_details cd
-                   ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_workflow_transaction wt
                     ON wt.workflow_transition_id = (
                         SELECT MAX(wt2.workflow_transition_id)
@@ -259,6 +272,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 ic.call_no,
                 ricd.certificate_no,
                 wt_assigned.rio,
+                rvp.rio,
                 cd.cancellation_basis,
                 cd.final_cancellation_charges,
                 cd.calculated_charges,

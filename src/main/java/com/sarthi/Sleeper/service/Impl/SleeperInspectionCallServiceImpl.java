@@ -111,8 +111,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
             dto.setSleeperType(call.getSleeperType());
             int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
-            int rej = call.getTotalRejected() != null ? call.getTotalRejected() : 0;
-            dto.setQtyOffered(off + rej);
+            dto.setQtyOffered(off);
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
             dto.setStatus(call.getStatus());
             dto.setPlantId(call.getPlantId());

@@ -1167,7 +1167,8 @@ ORDER BY um.employee_code
                     )
                 )                                                       AS callNumber,
                 COALESCE(cd.final_cancellation_charges, 0.0)            AS cancelCharges,
-                0.0                                                     AS rejectCharges
+                0.0                                                     AS rejectCharges,
+                COALESCE(NULLIF(TRIM(vp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
             FROM sleeper_inspection_call sic
             LEFT JOIN (
                 SELECT swt1.request_id, swt1.assigned_to_user, swt1.rio
@@ -1181,6 +1182,18 @@ ORDER BY um.employee_code
                     ON swt1.workflow_transition_id = latest_wt.max_wt_id
             ) wt_assigned
                     ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN vendor_plant vp
+                   ON CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                    ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
@@ -1264,6 +1277,7 @@ ORDER BY um.employee_code
                 sic.call_no,
                 sicd.certificate_no,
                 wt_assigned.rio,
+                vp.rio,
                 sic.total_offered,
                 cd.final_cancellation_charges
             """, nativeQuery = true)

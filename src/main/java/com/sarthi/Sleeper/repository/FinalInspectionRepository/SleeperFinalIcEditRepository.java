@@ -46,7 +46,10 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                         '/',
                         UPPER(COALESCE(NULLIF(um_assigned.short_name, ''), NULLIF(um.short_name, ''), 'IE'))
                     )
-                )                                                       AS callNumber
+                )                                                       AS callNumber,
+                0.0                                                     AS cancelCharges,
+                0.0                                                     AS rejectCharges,
+                COALESCE(NULLIF(TRIM(vp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
             FROM sleeper_final_ic_edit f
             INNER JOIN sleeper_inspection_call sic
                     ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -66,6 +69,18 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                     ON swt1.workflow_transition_id = latest_wt.max_wt_id
             ) wt_assigned
                     ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN vendor_plant vp
+                   ON CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
@@ -144,6 +159,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 f.ic_number,
                 sicd.certificate_no,
                 wt_assigned.rio,
+                vp.rio,
                 sic.total_offered,
                 sfr.total_offered_quantity,
                 sfr.total_accepted,

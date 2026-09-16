@@ -76,6 +76,8 @@ public class IbsServiceImpl implements IbsService {
 
     private final com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcEditRepository sleeperFinalIcEditRepository;
     private final com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
+    private final com.sarthi.Sleeper.repository.VendorPlantRepository vendorPlantRepository;
+    private final com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
 
     private final IbsCallRegistrationRepository ibsCallRegistrationRepository;
 
@@ -667,28 +669,28 @@ public class IbsServiceImpl implements IbsService {
     public List<IbsInspectionDto> getAllGeneratedIcCalls() {
 
         CompletableFuture<List<IbsInspectionDto>> f1 = CompletableFuture.supplyAsync(() ->
-                mapResult(rmHeatFinalResultRepository.getRmInspectionCalls()));
+                mapResult(rmHeatFinalResultRepository.getRmInspectionCalls(), "ERC"));
 
         CompletableFuture<List<IbsInspectionDto>> f2 = CompletableFuture.supplyAsync(() ->
-                mapResult(processLineFinalResultRepository.getProcessInspectionCalls()));
+                mapResult(processLineFinalResultRepository.getProcessInspectionCalls(), "ERC"));
 
         CompletableFuture<List<IbsInspectionDto>> f3 = CompletableFuture.supplyAsync(() ->
-                mapResult(finalCumulativeResultsRepository.getFinalInspectionCalls()));
+                mapResult(finalCumulativeResultsRepository.getFinalInspectionCalls(), "ERC"));
 
         CompletableFuture<List<IbsInspectionDto>> f4 = CompletableFuture.supplyAsync(() ->
-                mapResult(railpadProcessIcEditRepository.getRailpadProcessInspectionCalls()));
+                mapResult(railpadProcessIcEditRepository.getRailpadProcessInspectionCalls(), "RAILPAD"));
 
         CompletableFuture<List<IbsInspectionDto>> f5 = CompletableFuture.supplyAsync(() ->
-                mapResult(railpadFinalIcEditRepository.getRailpadFinalInspectionCalls()));
+                mapResult(railpadFinalIcEditRepository.getRailpadFinalInspectionCalls(), "RAILPAD"));
 
         CompletableFuture<List<IbsInspectionDto>> f6 = CompletableFuture.supplyAsync(() ->
-                mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls()));
+                mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls(), "RAILPAD"));
 
         CompletableFuture<List<IbsInspectionDto>> f7 = CompletableFuture.supplyAsync(() ->
-                mapResult(sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls()));
+                mapResult(sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls(), "SLEEPER"));
 
         CompletableFuture<List<IbsInspectionDto>> f8 = CompletableFuture.supplyAsync(() ->
-                mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls()));
+                mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls(), "SLEEPER"));
 
         CompletableFuture.allOf(f1, f2, f3, f4, f5, f6, f7, f8).join();
 
@@ -711,7 +713,8 @@ public class IbsServiceImpl implements IbsService {
     }
 
     private List<IbsInspectionDto> mapResult(
-            List<Object[]> rows
+            List<Object[]> rows,
+            String productType
     ) {
 
         List<IbsInspectionDto> list =
@@ -726,9 +729,7 @@ public class IbsServiceImpl implements IbsService {
             IbsInspectionDto dto =
                     new IbsInspectionDto();
 
-            dto.setCaseNumber(
-                    (String) row[0]
-            );
+            String rawCaseNo = (String) row[0];
 
             if (row[1] instanceof java.sql.Date) {
                 dto.setCallDate(((java.sql.Date) row[1]).toLocalDate());
@@ -822,10 +823,114 @@ public class IbsServiceImpl implements IbsService {
                 dto.setIsBlocked(0);
             }
 
+            String rio = null;
+            if (row.length > 18 && row[18] != null) {
+                rio = row[18].toString().trim();
+            }
+
+            if ("ERC".equalsIgnoreCase(productType)) {
+                dto.setCaseNumber(rawCaseNo);
+            } else if ("SLEEPER".equalsIgnoreCase(productType)) {
+                if ((rio == null || rio.isEmpty()) && dto.getPlaceOfInspection() != null) {
+                    rio = lookupSleeperRio(dto.getPlaceOfInspection());
+                }
+                dto.setCaseNumber(resolveCaseNumberByRio(rawCaseNo, rio));
+            } else if ("RAILPAD".equalsIgnoreCase(productType)) {
+                if ((rio == null || rio.isEmpty()) && dto.getPlaceOfInspection() != null) {
+                    rio = lookupRailpadRio(dto.getPlaceOfInspection());
+                }
+                dto.setCaseNumber(resolveCaseNumberByRio(rawCaseNo, rio));
+            } else {
+                dto.setCaseNumber(rawCaseNo);
+            }
+
             list.add(dto);
         }
 
         return list;
+    }
+
+    private String resolveCaseNumberByRio(String rawCaseNo, String rio) {
+        if (rawCaseNo == null || rawCaseNo.trim().isEmpty()) {
+            return "";
+        }
+        String trimmed = rawCaseNo.trim();
+        if (!trimmed.contains(",") && !trimmed.contains("/") && !trimmed.contains(";")) {
+            return trimmed;
+        }
+
+        String[] parts = trimmed.split("[,/;]+");
+        if (rio != null && !rio.trim().isEmpty()) {
+            String cleanRio = rio.trim().toUpperCase();
+            String firstLetter = cleanRio.substring(0, 1);
+            for (String part : parts) {
+                String p = part.trim();
+                if (p.toUpperCase().startsWith(firstLetter)) {
+                    return p;
+                }
+            }
+        }
+
+        for (String part : parts) {
+            String p = part.trim();
+            if (!p.isEmpty()) {
+                return p;
+            }
+        }
+        return trimmed;
+    }
+
+    private final Map<String, String> sleeperRioCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, String> railpadRioCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private String lookupSleeperRio(String plantId) {
+        if (plantId == null || plantId.trim().isEmpty()) return null;
+        String key = plantId.trim();
+        String cached = sleeperRioCache.computeIfAbsent(key, k -> {
+            try {
+                List<com.sarthi.Sleeper.entity.VendorPlant> matchingPlants = vendorPlantRepository.findMatchingPlants(k);
+                if (matchingPlants != null && !matchingPlants.isEmpty()) {
+                    for (com.sarthi.Sleeper.entity.VendorPlant vp : matchingPlants) {
+                        if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                            return vp.getRio().trim();
+                        }
+                    }
+                }
+                String cleanPlant = k.replaceAll("^[:\\s]+", "").trim();
+                var vpOpt = vendorPlantRepository.findByPlantId(k);
+                if (vpOpt.isEmpty() && !cleanPlant.isEmpty()) {
+                    vpOpt = vendorPlantRepository.findByPlantId(cleanPlant);
+                }
+                if (vpOpt.isPresent() && vpOpt.get().getRio() != null && !vpOpt.get().getRio().trim().isEmpty()) {
+                    return vpOpt.get().getRio().trim();
+                }
+            } catch (Exception e) {
+                log.warn("Could not lookup Sleeper RIO for plantId: {}", k, e);
+            }
+            return "";
+        });
+        return cached.isEmpty() ? null : cached;
+    }
+
+    private String lookupRailpadRio(String plantId) {
+        if (plantId == null || plantId.trim().isEmpty()) return null;
+        String key = plantId.trim();
+        String cached = railpadRioCache.computeIfAbsent(key, k -> {
+            try {
+                String cleanPlant = k.replaceAll("^[:\\s]+", "").trim();
+                var rvpOpt = railVendorPlantsRepository.findByPlantId(k);
+                if (rvpOpt.isEmpty() && !cleanPlant.isEmpty()) {
+                    rvpOpt = railVendorPlantsRepository.findByPlantId(cleanPlant);
+                }
+                if (rvpOpt.isPresent() && rvpOpt.get().getRio() != null && !rvpOpt.get().getRio().trim().isEmpty()) {
+                    return rvpOpt.get().getRio().trim();
+                }
+            } catch (Exception e) {
+                log.warn("Could not lookup Railpad RIO for plantId: {}", k, e);
+            }
+            return "";
+        });
+        return cached.isEmpty() ? null : cached;
     }
 
 
