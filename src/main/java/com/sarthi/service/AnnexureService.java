@@ -884,6 +884,25 @@ public class AnnexureService {
                 .build();
     }
 
+    private int calculateDimensionSampleSize(int lotSize) {
+        if (lotSize <= 0) return 0;
+        if (lotSize <= 8) return 2;
+        if (lotSize <= 15) return 3;
+        if (lotSize <= 25) return 5;
+        if (lotSize <= 50) return 8;
+        if (lotSize <= 90) return 13;
+        if (lotSize <= 150) return 20;
+        if (lotSize <= 280) return 20;
+        if (lotSize <= 500) return 32;
+        if (lotSize <= 1200) return 50;
+        if (lotSize <= 3200) return 80;
+        if (lotSize <= 10000) return 125;
+        if (lotSize <= 35000) return 200;
+        if (lotSize <= 150000) return 315;
+        if (lotSize <= 500000) return 500;
+        return 500;
+    }
+
     private FinalDimensionalAnnexurePageDTO createDimensionalPage(FinalDimensionalInspectionFlat test, int samplingNo, Long finalDetailId, Integer sampleSize, int cumulativeDefectives) {
         // Fetch lot details for quantity
         String qty = "0";
@@ -892,6 +911,15 @@ public class AnnexureService {
             if (lotOpt.isPresent()) {
                 qty = lotOpt.get().getOfferedQty() != null ? lotOpt.get().getOfferedQty().toString() : "0";
             }
+        }
+
+        int lotQty = 0;
+        try {
+            lotQty = Integer.parseInt(qty);
+        } catch (Exception ignored) {}
+
+        if (sampleSize == null || sampleSize <= 0) {
+            sampleSize = calculateDimensionSampleSize(lotQty);
         }
 
         // Map values based on sampling round
@@ -937,7 +965,7 @@ public class AnnexureService {
                 .sNo(1)
                 .heatNo(test.getHeatNo())
                 .lotNo(test.getLotNo())
-                .colourCode("-")
+                .colourCode("N/A")
                 .qty(qty)
                 .sampleSize(sampleSize)
                 .mainBoxGo(mainBoxGo)
@@ -956,7 +984,7 @@ public class AnnexureService {
                 .lotNo(test.getLotNo())
                 .samplingNo(samplingNo)
                 .sampleSize(sampleSize)
-                .colourCode("-")
+                .colourCode("N/A")
                 .quantity(qty)
                 .status(pageStatus)
                 .rows(rows)
