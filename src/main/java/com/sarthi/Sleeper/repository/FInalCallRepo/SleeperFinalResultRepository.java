@@ -177,4 +177,21 @@ public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinal
         )
     """, nativeQuery = true)
     java.util.List<Object[]> getAllSleeperFinalSummary();
+
+    @Query(value = """
+        SELECT 
+            DATE_FORMAT(IFNULL(sfr.date_of_inspection, sfr.created_at), '%b-%y') AS Month_Year,
+            YEAR(IFNULL(sfr.date_of_inspection, sfr.created_at)) AS Y,
+            MONTH(IFNULL(sfr.date_of_inspection, sfr.created_at)) AS M,
+            SUM(COALESCE(sfr.total_rejected, 0)) AS Total_Rejected,
+            SUM(COALESCE(sfr.total_accepted, 0)) AS Total_Accepted,
+            SUM(COALESCE(sfr.total_offered_quantity, 0)) AS Total_Offered
+        FROM sleeper_final_result sfr
+        WHERE IFNULL(sfr.date_of_inspection, sfr.created_at) BETWEEN :startDate AND :endDate
+        GROUP BY Y, M, Month_Year
+        ORDER BY Y ASC, M ASC
+    """, nativeQuery = true)
+    java.util.List<Object[]> findMonthlyFinalRejections(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate);
 }

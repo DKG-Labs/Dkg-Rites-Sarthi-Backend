@@ -15,6 +15,14 @@ public class StageRejectionDto {
     private Double finalValue;
     private Double percentage;
 
+    private Double rmValue;
+    private Double overallValue;
+    private Long produced;
+    private Long processRejected;
+    private Long finalRejected;
+    private Long rmRejected;
+    private Double avgProduction;
+
     // Convenience 3-arg constructor so existing callers are unchanged
     public StageRejectionDto(String name, double value, String color) {
         this.name = name;

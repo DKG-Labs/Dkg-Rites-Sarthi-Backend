@@ -1826,12 +1826,10 @@ public class DashboardServiceImpl implements DashboardService {
         for (SleeperWorkflowTransaction tx : latestTransactions) {
             String jobStatus = tx.getJobStatus();
             String action = tx.getAction();
-            
             String statusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
             String actionUpper = action != null ? action.trim().toUpperCase() : "";
             
-            if ("COMPLETED".equals(statusUpper) || "IC_ISSUE".equals(statusUpper) || "GENERATED".equals(statusUpper) || "DSC_SIGN_IC".equals(statusUpper) || "IC_SIGNED".equals(statusUpper)
-                    || "FINISH".equals(actionUpper) || "COMPLETED".equals(actionUpper) || "IC_ISSUE".equals(actionUpper) || "IC_GENERATION".equals(actionUpper) || "DSC_SIGN_IC".equals(actionUpper)) {
+            if ("IC_GENERATION".equals(statusUpper) || statusUpper.contains("CANCEL") || actionUpper.contains("CANCEL")) {
                 continue;
             }
             
@@ -2028,8 +2026,7 @@ public class DashboardServiceImpl implements DashboardService {
                     String statusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
                     String actionUpper = action != null ? action.trim().toUpperCase() : "";
                     
-                    if ("COMPLETED".equals(statusUpper) || "IC_ISSUE".equals(statusUpper) || "GENERATED".equals(statusUpper) || "DSC_SIGN_IC".equals(statusUpper) || "IC_SIGNED".equals(statusUpper)
-                            || "FINISH".equals(actionUpper) || "COMPLETED".equals(actionUpper) || "IC_ISSUE".equals(actionUpper) || "IC_GENERATION".equals(actionUpper) || "DSC_SIGN_IC".equals(actionUpper)) {
+                    if ("IC_GENERATION".equals(statusUpper) || statusUpper.contains("CANCEL") || actionUpper.contains("CANCEL")) {
                         continue;
                     }
                     

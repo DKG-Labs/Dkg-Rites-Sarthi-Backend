@@ -540,4 +540,21 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
         GROUP BY f.inspection_call_no
         """, nativeQuery = true)
     List<Object[]> sumAcceptedQtyByIcNumbers(@Param("icNumbers") List<String> icNumbers);
+
+    @Query(value = """
+        SELECT
+            DATE_FORMAT(IFNULL(f.date_of_inspection, f.created_at), '%b-%y') AS Month_Year,
+            SUM(COALESCE(f.qty_now_rejected, 0)) AS Total_Rejected,
+            SUM(COALESCE(f.qty_now_offered, 0)) AS Total_Offered
+        FROM final_cumulative_results f
+        WHERE IFNULL(f.date_of_inspection, f.created_at) BETWEEN :startDate AND :endDate
+        GROUP BY
+            YEAR(IFNULL(f.date_of_inspection, f.created_at)),
+            MONTH(IFNULL(f.date_of_inspection, f.created_at)),
+            Month_Year
+        ORDER BY MIN(IFNULL(f.date_of_inspection, f.created_at)) ASC
+        """, nativeQuery = true)
+    List<Object[]> findMonthlyFinalRejectionTrend(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate);
 }

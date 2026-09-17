@@ -62,80 +62,89 @@ public class reportsController {
                         @RequestParam(required = false) String startDate,
                         @RequestParam(required = false) String endDate,
                         @RequestParam(required = false) String product) {
-
-                if (product != null && (product.equalsIgnoreCase("RailPad") || product.equalsIgnoreCase("Rail Pad"))) {
-                        java.time.LocalDateTime sDate = (startDate == null || startDate.isEmpty()) ? null
-                                        : java.time.LocalDate.parse(startDate).atStartOfDay();
-                        java.time.LocalDateTime eDate = (endDate == null || endDate.isEmpty()) ? null
-                                        : java.time.LocalDate.parse(endDate).atTime(23, 59, 59);
-
-                        List<Object[]> raw = railWorkflowTransactionRepository.getRailPadStagewiseCallCountsRaw(
-                                        vendorPlantCode == null ? "" : vendorPlantCode,
-                                        zonalRailway == null ? "" : zonalRailway,
-                                        sDate, eDate);
-
-                        long processIcIssued = 0;
-                        long finalIcIssued = 0;
-                        if (raw != null) {
-                                for (Object[] row : raw) {
-                                        String stage = row[0] != null ? row[0].toString() : "";
-                                        long icIssued = row[4] != null ? ((Number) row[4]).longValue() : 0L;
-                                        if ("Process".equalsIgnoreCase(stage)) {
-                                                processIcIssued += icIssued;
-                                        } else {
-                                                finalIcIssued += icIssued;
-                                        }
-                                }
+                try {
+                        java.time.LocalDateTime sDate = null;
+                        java.time.LocalDateTime eDate = null;
+                        if (startDate != null && !startDate.trim().isEmpty() && !"null".equalsIgnoreCase(startDate.trim()) && !"undefined".equalsIgnoreCase(startDate.trim())) {
+                                try {
+                                        sDate = java.time.LocalDate.parse(startDate.trim().substring(0, Math.min(10, startDate.trim().length()))).atStartOfDay();
+                                } catch (Exception ignored) {}
+                        }
+                        if (endDate != null && !endDate.trim().isEmpty() && !"null".equalsIgnoreCase(endDate.trim()) && !"undefined".equalsIgnoreCase(endDate.trim())) {
+                                try {
+                                        eDate = java.time.LocalDate.parse(endDate.trim().substring(0, Math.min(10, endDate.trim().length()))).atTime(23, 59, 59);
+                                } catch (Exception ignored) {}
                         }
 
+                        if (product != null && (product.equalsIgnoreCase("RailPad") || product.equalsIgnoreCase("Rail Pad"))) {
+                                List<Object[]> raw = railWorkflowTransactionRepository.getRailPadStagewiseCallCountsRaw(
+                                                (vendorPlantCode == null || "null".equalsIgnoreCase(vendorPlantCode) || "all".equalsIgnoreCase(vendorPlantCode)) ? "" : vendorPlantCode.trim(),
+                                                (zonalRailway == null || "null".equalsIgnoreCase(zonalRailway) || "all".equalsIgnoreCase(zonalRailway)) ? "" : zonalRailway.trim(),
+                                                sDate, eDate);
+
+                                long processIcIssued = 0;
+                                long finalIcIssued = 0;
+                                if (raw != null) {
+                                        for (Object[] row : raw) {
+                                                String stage = row[0] != null ? row[0].toString() : "";
+                                                long icIssued = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                                                if ("Process".equalsIgnoreCase(stage)) {
+                                                        processIcIssued += icIssued;
+                                                } else {
+                                                        finalIcIssued += icIssued;
+                                                }
+                                        }
+                                }
+
+                                IcIssuedCountDto dto = new IcIssuedCountDto();
+                                dto.setRmCount(0);
+                                dto.setProcessCount(processIcIssued);
+                                dto.setFinalCount(finalIcIssued);
+                                dto.setTotal(processIcIssued + finalIcIssued);
+                                return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
+                        }
+
+                        if (product != null && (product.equalsIgnoreCase("Sleeper") || product.equalsIgnoreCase("PSC Mainline Sleeper"))) {
+                                String vCode = (vendorPlantCode != null && (vendorPlantCode.trim().isEmpty() || "null".equalsIgnoreCase(vendorPlantCode.trim()) || "all".equalsIgnoreCase(vendorPlantCode.trim()))) ? null : vendorPlantCode.trim();
+                                String zRly = (zonalRailway != null && (zonalRailway.trim().isEmpty() || "null".equalsIgnoreCase(zonalRailway.trim()) || "all".equalsIgnoreCase(zonalRailway.trim()))) ? null : zonalRailway.trim();
+                                Long sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(vCode, zRly, sDate, eDate);
+
+                                long finalIcIssued = sleeperIcIssued != null ? sleeperIcIssued : 0L;
+                                IcIssuedCountDto dto = new IcIssuedCountDto();
+                                dto.setRmCount(0);
+                                dto.setProcessCount(0);
+                                dto.setFinalCount(finalIcIssued);
+                                dto.setTotal(finalIcIssued);
+                                return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
+                        }
+
+                        String sDateStr = (startDate != null && !startDate.trim().isEmpty() && !"null".equalsIgnoreCase(startDate.trim()) && !"undefined".equalsIgnoreCase(startDate.trim())) ? startDate.trim() : null;
+                        String eDateStr = (endDate != null && !endDate.trim().isEmpty() && !"null".equalsIgnoreCase(endDate.trim()) && !"undefined".equalsIgnoreCase(endDate.trim())) ? endDate.trim() + " 23:59:59" : null;
+                        String vCode = (vendorPlantCode != null && !vendorPlantCode.trim().isEmpty() && !"null".equalsIgnoreCase(vendorPlantCode.trim()) && !"all".equalsIgnoreCase(vendorPlantCode.trim())) ? vendorPlantCode.trim() : null;
+                        String zRly = (zonalRailway != null && !zonalRailway.trim().isEmpty() && !"null".equalsIgnoreCase(zonalRailway.trim()) && !"all".equalsIgnoreCase(zonalRailway.trim())) ? zonalRailway.trim() : null;
+
+                        Map<String, Object> result = workflowTransitionRepository.getIcIssuedCounts(vCode, zRly, sDateStr, eDateStr);
+
                         IcIssuedCountDto dto = new IcIssuedCountDto();
-                        dto.setRmCount(0);
-                        dto.setProcessCount(processIcIssued);
-                        dto.setFinalCount(finalIcIssued);
-                        dto.setTotal(processIcIssued + finalIcIssued);
+                        if (result != null) {
+                                long rmCount = result.get("rmCount") != null ? ((Number) result.get("rmCount")).longValue() : 0;
+                                long processCount = result.get("processCount") != null
+                                                ? ((Number) result.get("processCount")).longValue()
+                                                : 0;
+                                long finalCount = result.get("finalCount") != null
+                                                ? ((Number) result.get("finalCount")).longValue()
+                                                : 0;
+                                dto.setRmCount(rmCount);
+                                dto.setProcessCount(processCount);
+                                dto.setFinalCount(finalCount);
+                                dto.setTotal(rmCount + processCount + finalCount);
+                        }
                         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
+                } catch (Exception e) {
+                        return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
+                                        new ErrorDetails(500, 500, "ERROR", e.getMessage())),
+                                        HttpStatus.INTERNAL_SERVER_ERROR);
                 }
-
-                if (product != null && (product.equalsIgnoreCase("Sleeper") || product.equalsIgnoreCase("PSC Mainline Sleeper"))) {
-                        java.time.LocalDateTime sDate = (startDate == null || startDate.isEmpty()) ? null
-                                        : java.time.LocalDate.parse(startDate).atStartOfDay();
-                        java.time.LocalDateTime eDate = (endDate == null || endDate.isEmpty()) ? null
-                                        : java.time.LocalDate.parse(endDate).atTime(23, 59, 59);
-
-                        String vCode = (vendorPlantCode != null && (vendorPlantCode.trim().isEmpty() || "all".equalsIgnoreCase(vendorPlantCode.trim()))) ? null : vendorPlantCode.trim();
-                        String zRly = (zonalRailway != null && (zonalRailway.trim().isEmpty() || "all".equalsIgnoreCase(zonalRailway.trim()))) ? null : zonalRailway.trim();
-                        Long sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(vCode, zRly, sDate, eDate);
-
-                        long finalIcIssued = sleeperIcIssued != null ? sleeperIcIssued : 0L;
-                        IcIssuedCountDto dto = new IcIssuedCountDto();
-                        dto.setRmCount(0);
-                        dto.setProcessCount(0);
-                        dto.setFinalCount(finalIcIssued);
-                        dto.setTotal(finalIcIssued);
-                        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
-                }
-
-                Map<String, Object> result = workflowTransitionRepository.getIcIssuedCounts(
-                                (vendorPlantCode != null && vendorPlantCode.trim().isEmpty()) ? null : vendorPlantCode,
-                                (zonalRailway != null && zonalRailway.trim().isEmpty()) ? null : zonalRailway,
-                                (startDate != null && startDate.trim().isEmpty()) ? null : startDate,
-                                (endDate != null && !endDate.trim().isEmpty()) ? endDate + " 23:59:59" : null);
-
-                IcIssuedCountDto dto = new IcIssuedCountDto();
-                if (result != null) {
-                        long rmCount = result.get("rmCount") != null ? ((Number) result.get("rmCount")).longValue() : 0;
-                        long processCount = result.get("processCount") != null
-                                        ? ((Number) result.get("processCount")).longValue()
-                                        : 0;
-                        long finalCount = result.get("finalCount") != null
-                                        ? ((Number) result.get("finalCount")).longValue()
-                                        : 0;
-                        dto.setRmCount(rmCount);
-                        dto.setProcessCount(processCount);
-                        dto.setFinalCount(finalCount);
-                        dto.setTotal(rmCount + processCount + finalCount);
-                }
-                return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
         }
 
         @GetMapping("/1stLevelReportPoData")
@@ -435,6 +444,16 @@ public class reportsController {
 
         @GetMapping("/monthlyRejectionTrend")
         public ResponseEntity<Object> getMonthlyRejectionTrend(@RequestParam(required = false) String startDate,
+                        @RequestParam(required = false) String endDate,
+                        @RequestParam(required = false) String product) {
+                return new ResponseEntity<Object>(
+                                ResponseBuilder.getSuccessResponse(
+                                                reportService.getMonthlyRejectionTrend(startDate, endDate, product)),
+                                HttpStatus.OK);
+        }
+
+        @GetMapping("/productionRejectionTrend")
+        public ResponseEntity<Object> getProductionRejectionTrend(@RequestParam(required = false) String startDate,
                         @RequestParam(required = false) String endDate,
                         @RequestParam(required = false) String product) {
                 return new ResponseEntity<Object>(

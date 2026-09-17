@@ -92,6 +92,11 @@ public class FinalCertificateDto {
     private String itemNo;
     
     /**
+     * Unit of Measure from PO Item (e.g. "MT", "Nos.")
+     */
+    private String uom;
+    
+    /**
      * Description: Product description from inspection call
      */
     private String description;

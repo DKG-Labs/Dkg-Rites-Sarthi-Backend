@@ -589,7 +589,9 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     END AS callQty,
                     t.action AS subStatus,
                     ic.rail_pad_type AS railpadType,
-                    ic.created_at AS rawCreatedAt
+                    ic.created_at AS rawCreatedAt,
+                    COALESCE(um_ie.FULL_NAME, um_ie.USERNAME, 'Not Assigned') AS ieName,
+                    COALESCE(um_ie.MOBILENUMBER, '') AS ieContactNo
                 FROM (
                     SELECT
                         rwt1.request_id,
@@ -617,6 +619,21 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     )
                 ) t
                 INNER JOIN rail_inspection_call ic ON t.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                LEFT JOIN (
+                    SELECT 
+                        rwt_sub.request_id,
+                        rwt_sub.assigned_to_user AS ie_user_id
+                    FROM rail_workflow_transaction rwt_sub
+                    INNER JOIN (
+                        SELECT 
+                            request_id,
+                            MAX(workflow_transition_id) AS max_rwt_id
+                        FROM rail_workflow_transaction
+                        WHERE assigned_to_user IS NOT NULL
+                        GROUP BY request_id
+                    ) rwt_max ON rwt_sub.workflow_transition_id = rwt_max.max_rwt_id
+                ) rwt_assigned ON rwt_assigned.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+                LEFT JOIN USER_MASTER um_ie ON um_ie.USERID = rwt_assigned.ie_user_id
                 LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
                 LEFT JOIN (
                     SELECT vendor_code, MAX(vendor_name) AS vendor_name

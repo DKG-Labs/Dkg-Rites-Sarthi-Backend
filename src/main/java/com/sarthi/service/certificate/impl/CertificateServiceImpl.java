@@ -631,6 +631,60 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
+     * Build Item UOM from PO Item list matching PO Sr No
+     */
+    private String buildItemUom(InspectionCall inspectionCall, List<PoItem> poItems) {
+        if (inspectionCall == null || poItems == null || poItems.isEmpty()) {
+            return "";
+        }
+        try {
+            String poSerialNo = inspectionCall.getPoSerialNo();
+            if (poSerialNo == null || poSerialNo.isBlank()) {
+                return poItems.get(0).getUom() != null ? poItems.get(0).getUom() : "";
+            }
+
+            String itemSrNo = poSerialNo.trim();
+            if (itemSrNo.contains("/")) {
+                String[] parts = itemSrNo.split("/");
+                itemSrNo = parts[parts.length - 1].trim();
+            }
+
+            final String targetSrNo = itemSrNo;
+
+            // 1. Exact match search
+            for (PoItem item : poItems) {
+                if (item.getItemSrNo() != null && item.getItemSrNo().trim().equalsIgnoreCase(targetSrNo)) {
+                    return item.getUom() != null ? item.getUom() : "";
+                }
+            }
+
+            // 2. Numeric match fallback (e.g. "028" vs "28" or "001" vs "1")
+            try {
+                int targetInt = Integer.parseInt(targetSrNo);
+                for (PoItem item : poItems) {
+                    if (item.getItemSrNo() != null) {
+                        try {
+                            int itemInt = Integer.parseInt(item.getItemSrNo().trim());
+                            if (targetInt == itemInt) {
+                                return item.getUom() != null ? item.getUom() : "";
+                            }
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                }
+            } catch (NumberFormatException ignored) {
+            }
+
+            // 3. Fallback: If no match found, use first item's UOM
+            return poItems.get(0).getUom() != null ? poItems.get(0).getUom() : "";
+
+        } catch (Exception e) {
+            logger.warn("Error resolving item UOM for IC: {}", inspectionCall.getIcNumber(), e);
+            return poItems.get(0).getUom() != null ? poItems.get(0).getUom() : "";
+        }
+    }
+
+    /**
      * Build Result based on Heat Final Results
      */
     private String buildResult(List<RmHeatFinalResult> heatResults) {
@@ -1098,6 +1152,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .description(buildItemDescription(inspectionCall, poItems))
                 .ercType(inspectionCall.getErcType())
+                .uom(buildItemUom(inspectionCall, poItems))
                 .drgNo(getDrgNoForErc(inspectionCall))
                 .specNo("IRS T-31-2025")
                 .qapNo("Clause No. of QAP")
@@ -1673,6 +1728,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .consigneeRailway(buildConsigneeRailway(inspectionCall, poItems))
                 .purchasingAuthority(buildPurchasingAuthority(poHeader, mainPoInfo))
                 .itemNo(poItems.isEmpty() ? "" : poItems.get(0).getItemSrNo())
+                .uom(buildItemUom(inspectionCall, poItems))
                 .description(buildItemDescription(inspectionCall, poItems))
                 .totalLots(
                         finalDetails != null && finalDetails.getTotalLots() != null ? finalDetails.getTotalLots() : 0)

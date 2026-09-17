@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Set;
 
 @Repository
@@ -82,4 +83,21 @@ WHERE di.plant_id IN :plantIds
 
     @Query(value = "SELECT COUNT(id) FROM demoulding_defective_sleepers", nativeQuery = true)
     Long countBy();
+
+    @Query(value = """
+        SELECT 
+            DATE_FORMAT(IFNULL(di.inspection_date, di.created_date), '%b-%y') AS Month_Year,
+            YEAR(IFNULL(di.inspection_date, di.created_date)) AS Y,
+            MONTH(IFNULL(di.inspection_date, di.created_date)) AS M,
+            COUNT(d.id) AS Total_Rejected
+        FROM demoulding_defective_sleepers d
+        JOIN demoulding_inspection di ON di.id = d.inspection_id
+        WHERE IFNULL(di.inspection_date, di.created_date) BETWEEN :startDate AND :endDate
+          AND ((d.visual_reason IS NOT NULL AND d.visual_reason <> '') OR (d.dim_reason IS NOT NULL AND d.dim_reason <> ''))
+        GROUP BY Y, M, Month_Year
+        ORDER BY Y ASC, M ASC
+    """, nativeQuery = true)
+    List<Object[]> findMonthlyDemouldingRejections(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate);
 }
