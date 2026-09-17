@@ -717,4 +717,21 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
         GROUP BY r.inspection_call_no
         """, nativeQuery = true)
     List<Object[]> sumAcceptedQtyByIcNumbers(@Param("icNumbers") List<String> icNumbers);
+
+    @Query(value = """
+        SELECT
+            DATE_FORMAT(IFNULL(r.date_of_inspection, r.created_at), '%b-%y') AS Month_Year,
+            SUM(COALESCE(r.weight_rejected_mt, 0)) AS Total_Rejected,
+            SUM(COALESCE(r.weight_offered_mt, 0)) AS Total_Offered
+        FROM rm_heat_final_result r
+        WHERE IFNULL(r.date_of_inspection, r.created_at) BETWEEN :startDate AND :endDate
+        GROUP BY
+            YEAR(IFNULL(r.date_of_inspection, r.created_at)),
+            MONTH(IFNULL(r.date_of_inspection, r.created_at)),
+            Month_Year
+        ORDER BY MIN(IFNULL(r.date_of_inspection, r.created_at)) ASC
+        """, nativeQuery = true)
+    List<Object[]> findMonthlyRmRejectionTrend(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate);
 }

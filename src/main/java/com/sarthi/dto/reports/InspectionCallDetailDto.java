@@ -22,4 +22,8 @@ public class InspectionCallDetailDto {
     private String mainStatus;
     private String subStatus;
     private String railPadType;
+
+    private String ieName;
+    private String ieContactNo;
+    private String ieNameAndNumber;
 }

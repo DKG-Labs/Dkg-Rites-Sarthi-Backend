@@ -197,6 +197,12 @@ public class reportsImpl implements reports {
         private com.sarthi.Sleeper.repository.VendorPlantRepository sleeperVendorPlantRepository;
         @Autowired
         private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
+        @Autowired
+        private com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository productionDeclarationRepository;
+        @Autowired
+        private com.sarthi.Sleeper.repository.DemouldingDefectiveSleeperRepository demouldingDefectiveSleeperRepository;
+        @Autowired
+        private com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository sleeperFinalResultRepository;
 
         /*
          * 
@@ -3839,45 +3845,30 @@ public class reportsImpl implements reports {
         @Override
 
         public List<StageRejectionDto> getMonthlyRejectionTrend(String startDate, String endDate, String product) {
-
                 List<StageRejectionDto> trend = new ArrayList<>();
-
                 try {
-
-                        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
-
                         java.time.LocalDateTime lStart = null;
-
                         java.time.LocalDateTime lEnd = null;
 
                         if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
-
                                 lStart = java.time.LocalDate.parse(startDate).atStartOfDay();
-
                                 lEnd = java.time.LocalDate.parse(endDate).atTime(23, 59, 59);
-
                         } else {
-
                                 lEnd = java.time.LocalDateTime.now();
-
                                 lStart = lEnd.minusMonths(6).with(java.time.LocalTime.MIN);
-
                         }
 
                         if (product != null && (product.equalsIgnoreCase("Rail Pad")
                                         || product.equalsIgnoreCase("Rail Pads"))) {
-
                                 List<Object[]> results = railIEProductionVerificationRepository
                                                 .findMonthlyRejectionTrend(lStart, lEnd);
-
                                 List<Object[]> finalRejections = railFinalInspectionLotResultsRepository
                                                 .findMonthlyFinalRejections(lStart, lEnd);
 
                                 Map<String, Long> finalRejMap = new HashMap<>();
                                 if (finalRejections != null) {
                                         for (Object[] row : finalRejections) {
-                                                String my = row[0] != null ? row[0].toString().trim().toUpperCase()
-                                                                : "";
+                                                String my = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
                                                 long val = row[3] != null ? ((Number) row[3]).longValue() : 0L;
                                                 finalRejMap.put(my, val);
                                         }
@@ -3886,55 +3877,151 @@ public class reportsImpl implements reports {
                                 if (results != null) {
                                         for (Object[] row : results) {
                                                 String label = row[0] != null ? row[0].toString() : "Unknown";
-                                                double percentage = row[3] != null ? ((Number) row[3]).doubleValue()
-                                                                : 0.0;
-                                                long totalProduced = row[2] != null ? ((Number) row[2]).longValue()
-                                                                : 0L;
+                                                long processRejQty = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                                                long totalProduced = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                                                double processPercentage = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
 
                                                 String key = label.trim().toUpperCase();
                                                 long finalRejQty = finalRejMap.getOrDefault(key, 0L);
 
                                                 double finalPct = 0.0;
                                                 if (totalProduced > 0) {
-                                                        finalPct = (double) finalRejQty * 100.0
-                                                                        / (double) totalProduced;
+                                                        finalPct = (double) finalRejQty * 100.0 / (double) totalProduced;
                                                         finalPct = Math.round(finalPct * 100.0) / 100.0;
                                                 }
 
-                                                StageRejectionDto dto = new StageRejectionDto(label, percentage,
-                                                                "#10b981");
+                                                double overallPct = Math.round((processPercentage + finalPct) * 100.0) / 100.0;
+                                                double avgProd = totalProduced > 0 ? Math.round((totalProduced / 30.0) * 100.0) / 100.0 : 0.0;
+
+                                                StageRejectionDto dto = new StageRejectionDto(label, processPercentage, "#10b981");
                                                 dto.setFinalValue(finalPct);
+                                                dto.setOverallValue(overallPct);
+                                                dto.setProduced(totalProduced);
+                                                dto.setProcessRejected(processRejQty);
+                                                dto.setFinalRejected(finalRejQty);
+                                                dto.setAvgProduction(avgProd);
+                                                trend.add(dto);
+                                        }
+                                }
+
+                        } else if (product != null && (product.equalsIgnoreCase("Sleeper")
+                                        || product.equalsIgnoreCase("Sleepers"))) {
+                                List<Object[]> prodResults = productionDeclarationRepository.findMonthlyProductionTrend(lStart, lEnd);
+                                List<Object[]> demouldResults = demouldingDefectiveSleeperRepository.findMonthlyDemouldingRejections(lStart, lEnd);
+                                List<Object[]> finalResults = sleeperFinalResultRepository.findMonthlyFinalRejections(lStart, lEnd);
+
+                                Map<String, Long> demouldMap = new HashMap<>();
+                                if (demouldResults != null) {
+                                        for (Object[] row : demouldResults) {
+                                                String my = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
+                                                long rej = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                                                demouldMap.put(my, rej);
+                                        }
+                                }
+
+                                Map<String, Long> finalRejMap = new HashMap<>();
+                                Map<String, Long> finalOfferedMap = new HashMap<>();
+                                if (finalResults != null) {
+                                        for (Object[] row : finalResults) {
+                                                String my = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
+                                                long rej = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                                                long offered = row[5] != null ? ((Number) row[5]).longValue() : 0L;
+                                                finalRejMap.put(my, rej);
+                                                finalOfferedMap.put(my, offered);
+                                        }
+                                }
+
+                                if (prodResults != null) {
+                                        for (Object[] row : prodResults) {
+                                                String label = row[0] != null ? row[0].toString() : "Unknown";
+                                                long totalProduced = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                                                String key = label.trim().toUpperCase();
+
+                                                long processRej = demouldMap.getOrDefault(key, 0L);
+                                                long finalRej = finalRejMap.getOrDefault(key, 0L);
+                                                long finalOffered = finalOfferedMap.getOrDefault(key, 0L);
+
+                                                double procPct = totalProduced > 0 ? Math.round(((double) processRej * 100.0 / totalProduced) * 100.0) / 100.0 : 0.0;
+                                                double finalPct = (finalOffered > 0) ? Math.round(((double) finalRej * 100.0 / finalOffered) * 100.0) / 100.0 
+                                                        : (totalProduced > 0 ? Math.round(((double) finalRej * 100.0 / totalProduced) * 100.0) / 100.0 : 0.0);
+                                                double overallPct = totalProduced > 0 ? Math.round(((double) (processRej + finalRej) * 100.0 / totalProduced) * 100.0) / 100.0 : 0.0;
+                                                double avgProd = totalProduced > 0 ? Math.round((totalProduced / 30.0) * 100.0) / 100.0 : 0.0;
+
+                                                StageRejectionDto dto = new StageRejectionDto(label, procPct, "#10b981");
+                                                dto.setFinalValue(finalPct);
+                                                dto.setOverallValue(overallPct);
+                                                dto.setProduced(totalProduced);
+                                                dto.setProcessRejected(processRej);
+                                                dto.setFinalRejected(finalRej);
+                                                dto.setAvgProduction(avgProd);
                                                 trend.add(dto);
                                         }
                                 }
 
                         } else {
+                                // Default: ERC
+                                List<Object[]> results = processLineFinalResultRepository.findMonthlyRejectionTrend(lStart, lEnd);
+                                List<Object[]> finalResults = finalCumulativeResultsRepository.findMonthlyFinalRejectionTrend(lStart, lEnd);
+                                List<Object[]> rmResults = rmHeatFinalResultRepository.findMonthlyRmRejectionTrend(lStart, lEnd);
 
-                                List<Object[]> results = processLineFinalResultRepository
-
-                                                .findMonthlyRejectionTrend(lStart, lEnd);
-
-                                if (results != null) {
-
-                                        for (Object[] row : results) {
-
-                                                String label = row[0] != null ? row[0].toString() : "Unknown";
-
-                                                double percentage = row[3] != null ? ((Number) row[3]).doubleValue()
-                                                                : 0.0;
-
-                                                trend.add(new StageRejectionDto(label, percentage, "#8b5cf6"));
-
+                                Map<String, long[]> finalMap = new HashMap<>(); // [rej, offered]
+                                if (finalResults != null) {
+                                        for (Object[] row : finalResults) {
+                                                String my = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
+                                                long rej = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                                                long offered = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                                                finalMap.put(my, new long[]{rej, offered});
                                         }
-
                                 }
 
+                                Map<String, double[]> rmMap = new HashMap<>(); // [rej, offered]
+                                if (rmResults != null) {
+                                        for (Object[] row : rmResults) {
+                                                String my = row[0] != null ? row[0].toString().trim().toUpperCase() : "";
+                                                double rej = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
+                                                double offered = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+                                                rmMap.put(my, new double[]{rej, offered});
+                                        }
+                                }
+
+                                if (results != null) {
+                                        for (Object[] row : results) {
+                                                String label = row[0] != null ? row[0].toString() : "Unknown";
+                                                long processRej = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                                                long totalProduced = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                                                double procPct = row[3] != null ? ((Number) row[3]).doubleValue() : 0.0;
+                                                double avgProd = totalProduced > 0 ? Math.round((totalProduced / 30.0) * 100.0) / 100.0 : 0.0;
+
+                                                String key = label.trim().toUpperCase();
+                                                long[] finData = finalMap.getOrDefault(key, new long[]{0L, 0L});
+                                                long finRej = finData[0];
+                                                long finOffered = finData[1];
+                                                double finPct = (finOffered > 0) ? Math.round(((double) finRej * 100.0 / finOffered) * 100.0) / 100.0
+                                                                : (totalProduced > 0 ? Math.round(((double) finRej * 100.0 / totalProduced) * 100.0) / 100.0 : 0.0);
+
+                                                double[] rmData = rmMap.getOrDefault(key, new double[]{0.0, 0.0});
+                                                double rmRej = rmData[0];
+                                                double rmOffered = rmData[1];
+                                                double rmPct = (rmOffered > 0) ? Math.round((rmRej * 100.0 / rmOffered) * 100.0) / 100.0 : 0.0;
+
+                                                double overallPct = Math.round((procPct + finPct) * 100.0) / 100.0;
+
+                                                StageRejectionDto dto = new StageRejectionDto(label, procPct, "#8b5cf6");
+                                                dto.setFinalValue(finPct);
+                                                dto.setRmValue(rmPct);
+                                                dto.setOverallValue(overallPct);
+                                                dto.setProduced(totalProduced);
+                                                dto.setProcessRejected(processRej);
+                                                dto.setFinalRejected(finRej);
+                                                dto.setRmRejected((long) Math.round(rmRej));
+                                                dto.setAvgProduction(avgProd);
+                                                trend.add(dto);
+                                        }
+                                }
                         }
 
                 } catch (Exception e) {
-
                         e.printStackTrace();
-
                 }
 
                 return trend;
@@ -5266,6 +5353,11 @@ public class reportsImpl implements reports {
                                 String icNum = row[0] != null ? row[0].toString() : "";
                                 String rowStage = row[3] != null ? row[3].toString() : "";
                                 Object rawQty = row.length > 8 && row[8] != null ? row[8] : null;
+                                String ieName = row.length > 10 && row[10] != null ? row[10].toString() : "Not Assigned";
+                                String ieContactNo = row.length > 11 && row[11] != null ? row[11].toString() : "";
+                                String ieNameAndNumber = (ieName != null && !ieName.isEmpty() && !"Not Assigned".equalsIgnoreCase(ieName))
+                                                ? (ieContactNo != null && !ieContactNo.isEmpty() ? ieName + " (" + ieContactNo + ")" : ieName)
+                                                : "Not Assigned";
 
                                 dtoList.add(
                                                 InspectionCallDetailDto.builder()
@@ -5284,6 +5376,9 @@ public class reportsImpl implements reports {
                                                                 .subStatus(
                                                                                 row[7] != null ? row[7].toString() : "")
                                                                 .callQty(formatCallQtyWithUom(rawQty, icNum, rowStage))
+                                                                .ieName(ieName)
+                                                                .ieContactNo(ieContactNo)
+                                                                .ieNameAndNumber(ieNameAndNumber)
                                                                 .build());
                         }
                 }
@@ -5329,6 +5424,12 @@ public class reportsImpl implements reports {
                                 Object rawQty = row.length > 7 && row[7] != null ? row[7] : null;
                                 String subStatus = row.length > 8 && row[8] != null ? row[8].toString() : rowStatus;
                                 String railpadType = row.length > 9 && row[9] != null ? row[9].toString() : "";
+                                String ieName = row.length > 11 && row[11] != null ? row[11].toString() : "Not Assigned";
+                                String ieContactNo = row.length > 12 && row[12] != null ? row[12].toString() : "";
+                                String ieNameAndNumber = (ieName != null && !ieName.isEmpty() && !"Not Assigned".equalsIgnoreCase(ieName))
+                                                ? (ieContactNo != null && !ieContactNo.isEmpty() ? ieName + " (" + ieContactNo + ")" : ieName)
+                                                : "Not Assigned";
+
                                 dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
                                                 .inspectionCallNumber(callNo)
                                                 .vendor(row[1] != null ? row[1].toString() : "")
@@ -5341,6 +5442,9 @@ public class reportsImpl implements reports {
                                                 .subStatus(subStatus)
                                                 .railPadType(railpadType)
                                                 .callQty(formatCallQtyWithUom(rawQty, callNo, padStage, railpadType))
+                                                .ieName(ieName)
+                                                .ieContactNo(ieContactNo)
+                                                .ieNameAndNumber(ieNameAndNumber)
                                                 .build());
                         }
                 }
@@ -5352,235 +5456,46 @@ public class reportsImpl implements reports {
                         String stage, String status, String vendorPlantCode, String zonalRailway, String startDateStr,
                         String endDateStr) {
 
-                String v = (vendorPlantCode != null && !vendorPlantCode.isBlank() && !"all".equalsIgnoreCase(vendorPlantCode))
-                                ? vendorPlantCode.trim() : null;
-                String z = (zonalRailway != null && !zonalRailway.isBlank() && !"all".equalsIgnoreCase(zonalRailway))
-                                ? zonalRailway.trim() : null;
+                java.time.LocalDateTime startDate = (startDateStr == null || startDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(startDateStr).atStartOfDay();
+                java.time.LocalDateTime endDate = (endDateStr == null || endDateStr.isEmpty()) ? null
+                                : java.time.LocalDate.parse(endDateStr).atTime(23, 59, 59);
 
-                List<SleeperWorkflowTransaction> transactions;
+                List<Object[]> rawList = sleeperWorkflowRepository
+                                .getSleeperInspectionCallStatusDetailsFiltered(
+                                                stage == null ? "ALL" : stage,
+                                                status == null ? "ALL" : status,
+                                                vendorPlantCode == null ? "" : vendorPlantCode,
+                                                zonalRailway == null ? "" : zonalRailway,
+                                                startDate, endDate);
 
-                if (v != null || z != null) {
-                        List<String> foundPlantIds = sleeperVendorPlantRepository.findPlantIdsByCompanyAndZone(v, z);
-                        if ((foundPlantIds == null || foundPlantIds.isEmpty()) && v != null) {
-                                foundPlantIds = sleeperVendorPlantRepository.findPlantIdsByVendorCode(v);
-                        }
-                        if (foundPlantIds != null && !foundPlantIds.isEmpty()) {
-                                java.util.Set<String> plantIdsSet = new java.util.HashSet<>(foundPlantIds);
-                                for (String pid : foundPlantIds) {
-                                        if (pid != null && !pid.isBlank()) {
-                                                String clean = pid.replace(":", "").trim();
-                                                plantIdsSet.add(clean);
-                                                plantIdsSet.add(":" + clean);
-                                        }
-                                }
-                                transactions = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2ByPlantIds(new java.util.ArrayList<>(plantIdsSet));
-                        } else {
-                                transactions = java.util.Collections.emptyList();
-                        }
-                } else {
-                        transactions = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2();
-                }
-
-                String statusFilter = (status != null && !status.isBlank()) ? status.trim() : "ALL";
                 List<com.sarthi.dto.reports.InspectionCallDetailDto> dtoList = new java.util.ArrayList<>();
-
-                if (transactions != null && !transactions.isEmpty()) {
-                        for (SleeperWorkflowTransaction tx : transactions) {
-                                String jobStatus = tx.getJobStatus() != null ? tx.getJobStatus().trim() : "";
-                                String action = tx.getAction() != null ? tx.getAction().trim() : "";
-                                String jobStatusUpper = jobStatus.toUpperCase();
-                                String actionUpper = action.toUpperCase();
-
-                                boolean isCompleted = "COMPLETED".equals(jobStatusUpper) || "IC_ISSUE".equals(jobStatusUpper)
-                                                || "GENERATED".equals(jobStatusUpper) || "IC_GENERATION".equals(jobStatusUpper)
-                                                || "DSC_SIGN_IC".equals(jobStatusUpper) || "IC_SIGNED".equals(jobStatusUpper)
-                                                || "FINISH".equals(actionUpper) || "COMPLETED".equals(actionUpper)
-                                                || "IC_ISSUE".equals(actionUpper) || "IC_GENERATION".equals(actionUpper)
-                                                || "DSC_SIGN_IC".equals(actionUpper);
-
-                                boolean isUnderInspection = "INITIATED".equals(jobStatusUpper) || "PO_VERIFICATION".equals(jobStatusUpper)
-                                                || "PAUSED".equals(jobStatusUpper) || "WITHHELD".equals(jobStatusUpper)
-                                                || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper)
-                                                || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper);
-
-                                String computedStatus;
-                                String computedMainStatus;
-                                String computedSubStatus;
-
-                                if (isCompleted) {
-                                        computedStatus = "Completed";
-                                        computedMainStatus = "Completed";
-                                } else if (isUnderInspection) {
-                                        computedStatus = "Under Inspection";
-                                        computedMainStatus = "Under Inspection";
-                                } else {
-                                        computedStatus = "Pending";
-                                        computedMainStatus = "Pending";
-                                }
-
-                                if ("PO_VERIFICATION".equalsIgnoreCase(action) || "PO_VERIFICATION".equalsIgnoreCase(jobStatus)) {
-                                        computedSubStatus = "PO Verification";
-                                } else if ("PAUSE".equalsIgnoreCase(action) || "PAUSED".equalsIgnoreCase(jobStatus)) {
-                                        computedSubStatus = "Paused";
-                                } else if ("INITIATE_CALL".equalsIgnoreCase(action) || "INITIATED".equalsIgnoreCase(jobStatus)) {
-                                        computedSubStatus = "Initiated";
-                                } else if ("WITHHELD".equalsIgnoreCase(action) || "WITHHELD".equalsIgnoreCase(jobStatus)) {
-                                        computedSubStatus = "Withheld";
-                                } else if ("MAIN_IE_SCHEDULE_CALL".equalsIgnoreCase(action) || "SCHEDULED".equalsIgnoreCase(jobStatus)) {
-                                        computedSubStatus = "Scheduled";
-                                } else if ("VERIFY".equalsIgnoreCase(action) || "RIO_VERIFIED".equalsIgnoreCase(jobStatus)) {
-                                        computedSubStatus = "Assigned to IE";
-                                } else if ("CREATE".equalsIgnoreCase(action) || "CREATED".equalsIgnoreCase(action) || "CALL_CREATED".equalsIgnoreCase(action) || "CREATED".equalsIgnoreCase(jobStatus)) {
-                                        computedSubStatus = "Call Created";
-                                } else {
-                                        computedSubStatus = !action.isEmpty() ? action : (!jobStatus.isEmpty() ? jobStatus : computedMainStatus);
-                                }
-
-                                // Filter by status
-                                if ("Open".equalsIgnoreCase(statusFilter)) {
-                                        if (isCompleted) continue;
-                                } else if ("Under Inspection".equalsIgnoreCase(statusFilter)) {
-                                        if (!isUnderInspection || isCompleted) continue;
-                                } else if ("Pending".equalsIgnoreCase(statusFilter)) {
-                                        if (isUnderInspection || isCompleted) continue;
-                                } else if ("Completed".equalsIgnoreCase(statusFilter) || "IC Issued".equalsIgnoreCase(statusFilter)) {
-                                        if (!"IC_GENERATION".equalsIgnoreCase(jobStatusUpper)) continue;
-                                }
-
-                                String callNo = tx.getRequestId();
-                                String vendorName = "N/A";
-                                String callSubmissionDate = tx.getCreatedDate() != null
-                                                ? tx.getCreatedDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                                                : "N/A";
-                                String poSrNo = "N/A";
-                                String dpDate = "N/A";
-                                String rlyShort = "N/A";
-                                Object sleeperCallQty = "-";
-
-                                if (tx.getPlantId() != null && !tx.getPlantId().isBlank()) {
-                                        List<com.sarthi.Sleeper.entity.VendorPlant> vps = sleeperVendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
-                                        if (vps != null && !vps.isEmpty() && vps.get(0).getCompanyName() != null) {
-                                                vendorName = vps.get(0).getCompanyName();
-                                        }
-                                }
-
-                                if (callNo != null && !callNo.isBlank()) {
-                                        Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> callOpt = sleeperInspectionCallRepository.findByCallNo(callNo);
-                                        if (callOpt.isPresent()) {
-                                                com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall ic = callOpt.get();
-                                                if (ic.getTotalOffered() != null || ic.getTotalRejected() != null) {
-                                                        int offered = ic.getTotalOffered() != null ? ic.getTotalOffered() : 0;
-                                                        int rejected = ic.getTotalRejected() != null ? ic.getTotalRejected() : 0;
-                                                        sleeperCallQty = (offered + rejected) > 0 ? (offered + rejected) : (ic.getTotalOffered() != null ? ic.getTotalOffered() : "-");
-                                                }
-                                                if (ic.getCreatedAt() != null) {
-                                                        callSubmissionDate = ic.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-                                                }
-                                                if (ic.getPoNo() != null && !ic.getPoNo().isBlank()) {
-                                                        var poHeaderOpt = poHeaderRepository.findByPoNo(ic.getPoNo().trim());
-                                                        if (poHeaderOpt.isPresent()) {
-                                                                PoHeader ph = poHeaderOpt.get();
-                                                                if (ph.getRlyShortName() != null && !ph.getRlyShortName().isBlank()) {
-                                                                        rlyShort = ph.getRlyShortName().trim();
-                                                                }
-                                                                if ("N/A".equals(vendorName) && ph.getVendorDetails() != null) {
-                                                                        vendorName = ph.getVendorDetails();
-                                                                }
-                                                        }
-                                                        if (!"N/A".equalsIgnoreCase(rlyShort) && !rlyShort.equals(ic.getPoNo().trim())) {
-                                                                poSrNo = rlyShort + "/" + ic.getPoNo().trim() + "/" + (ic.getSrNo() != null ? ic.getSrNo().trim() : "N/A");
-                                                        } else {
-                                                                poSrNo = ic.getPoNo().trim() + "/" + (ic.getSrNo() != null ? ic.getSrNo().trim() : "N/A");
-                                                        }
-
-                                                        if (ic.getSrNo() != null) {
-                                                                var poItemOpt = poItemRepository.findByPoHeader_PoNoAndItemSrNo(ic.getPoNo().trim(), ic.getSrNo().trim());
-                                                                if (poItemOpt.isPresent() && poItemOpt.get().getDeliveryDate() != null) {
-                                                                        dpDate = poItemOpt.get().getDeliveryDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-                                                                }
-                                                        }
-                                                }
-                                        }
-                                }
-
-                                if (z != null && !"all".equalsIgnoreCase(z)) {
-                                        boolean matchesZone = false;
-                                        if (rlyShort != null && !"N/A".equalsIgnoreCase(rlyShort)) {
-                                                matchesZone = rlyShort.equalsIgnoreCase(z);
-                                        } else if (tx.getPlantId() != null && !tx.getPlantId().isBlank()) {
-                                                List<com.sarthi.Sleeper.entity.VendorPlant> vps = sleeperVendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
-                                                if (vps != null && !vps.isEmpty() && vps.get(0).getZonalRailway() != null && vps.get(0).getZonalRailway().equalsIgnoreCase(z)) {
-                                                        matchesZone = true;
-                                                }
-                                        }
-                                        if (!matchesZone) continue;
-                                }
-
-                                if (v != null && !"all".equalsIgnoreCase(v)) {
-                                        boolean matchesVendor = false;
-                                        if (vendorName != null && !"N/A".equalsIgnoreCase(vendorName) && (vendorName.equalsIgnoreCase(v) || vendorName.toLowerCase().contains(v.toLowerCase()))) {
-                                                matchesVendor = true;
-                                        } else if (tx.getPlantId() != null && !tx.getPlantId().isBlank()) {
-                                                List<com.sarthi.Sleeper.entity.VendorPlant> vps = sleeperVendorPlantRepository.findMatchingPlants(tx.getPlantId().trim());
-                                                if (vps != null && !vps.isEmpty()) {
-                                                        var vp = vps.get(0);
-                                                        if ((vp.getCompanyName() != null && (vp.getCompanyName().equalsIgnoreCase(v) || vp.getCompanyName().toLowerCase().contains(v.toLowerCase())))
-                                                                        || (vp.getVendorCode() != null && vp.getVendorCode().equalsIgnoreCase(v))
-                                                                        || (vp.getPlantId() != null && vp.getPlantId().equalsIgnoreCase(v))) {
-                                                                matchesVendor = true;
-                                                        }
-                                                }
-                                        }
-                                        if (!matchesVendor) continue;
-                                }
+                if (rawList != null) {
+                        for (Object[] row : rawList) {
+                                String sCallNo = row[0] != null ? row[0].toString() : "";
+                                String sStage = row[3] != null ? row[3].toString() : "Final Stage";
+                                Object rawQty = row.length > 9 && row[9] != null ? row[9] : null;
+                                String sIeName = row.length > 10 && row[10] != null ? row[10].toString() : "Not Assigned";
+                                String sIeContactNo = row.length > 11 && row[11] != null ? row[11].toString() : "";
+                                String sIeNameAndNumber = (sIeName != null && !sIeName.isEmpty() && !"Not Assigned".equalsIgnoreCase(sIeName))
+                                                ? (sIeContactNo != null && !sIeContactNo.isEmpty() ? sIeName + " (" + sIeContactNo + ")" : sIeName)
+                                                : "Not Assigned";
 
                                 dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
-                                                .inspectionCallNumber(callNo != null ? callNo : "N/A")
-                                                .vendor(vendorName)
-                                                .callSubmissionDateTime(formatSubmissionDateOnly(callSubmissionDate))
-                                                .stageOfInspection("Final Stage")
-                                                .callQty(formatCallQtyWithUom(sleeperCallQty, callNo, "Final Stage"))
-                                                .poSrNo(poSrNo)
-                                                .dpDate(dpDate)
-                                                .status(computedStatus)
-                                                .mainStatus(computedMainStatus)
-                                                .subStatus(computedSubStatus)
+                                                .inspectionCallNumber(sCallNo)
+                                                .vendor(row[1] != null ? row[1].toString() : "")
+                                                .callSubmissionDateTime(formatSubmissionDateOnly(row[2]))
+                                                .stageOfInspection(sStage)
+                                                .callQty(formatCallQtyWithUom(rawQty, sCallNo, sStage))
+                                                .poSrNo(cleanPoSrNo(row[4] != null ? row[4].toString() : ""))
+                                                .dpDate(row[5] != null ? row[5].toString() : "")
+                                                .status(row[6] != null ? row[6].toString() : "")
+                                                .mainStatus(row[7] != null ? row[7].toString() : "")
+                                                .subStatus(row[8] != null ? row[8].toString() : "")
+                                                .ieName(sIeName)
+                                                .ieContactNo(sIeContactNo)
+                                                .ieNameAndNumber(sIeNameAndNumber)
                                                 .build());
-                        }
-                }
-
-                if (dtoList.isEmpty()) {
-                        java.time.LocalDateTime startDate = (startDateStr == null || startDateStr.isEmpty()) ? null
-                                        : java.time.LocalDate.parse(startDateStr).atStartOfDay();
-                        java.time.LocalDateTime endDate = (endDateStr == null || endDateStr.isEmpty()) ? null
-                                        : java.time.LocalDate.parse(endDateStr).atTime(23, 59, 59);
-
-                        List<Object[]> rawList = sleeperWorkflowRepository
-                                        .getSleeperInspectionCallStatusDetailsFiltered(
-                                                        stage == null ? "ALL" : stage,
-                                                        status == null ? "ALL" : status,
-                                                        vendorPlantCode == null ? "" : vendorPlantCode,
-                                                        zonalRailway == null ? "" : zonalRailway,
-                                                        startDate, endDate);
-
-                        if (rawList != null) {
-                                for (Object[] row : rawList) {
-                                        String sCallNo = row[0] != null ? row[0].toString() : "";
-                                        String sStage = row[3] != null ? row[3].toString() : "Final Stage";
-                                        Object rawQty = row.length > 9 && row[9] != null ? row[9] : null;
-                                        dtoList.add(com.sarthi.dto.reports.InspectionCallDetailDto.builder()
-                                                        .inspectionCallNumber(sCallNo)
-                                                        .vendor(row[1] != null ? row[1].toString() : "")
-                                                        .callSubmissionDateTime(formatSubmissionDateOnly(row[2]))
-                                                        .stageOfInspection(sStage)
-                                                        .callQty(formatCallQtyWithUom(rawQty, sCallNo, sStage))
-                                                        .poSrNo(row[4] != null ? row[4].toString() : "")
-                                                        .dpDate(row[5] != null ? row[5].toString() : "")
-                                                        .status(row[6] != null ? row[6].toString() : "")
-                                                        .mainStatus(row[7] != null ? row[7].toString() : "")
-                                                        .subStatus(row[8] != null ? row[8].toString() : "")
-                                                        .build());
-                                }
                         }
                 }
 
@@ -7434,6 +7349,11 @@ public class reportsImpl implements reports {
                 String callNumber = (String) row[0];
                 String stage = determineStage(callNumber);
                 Object rawQty = row.length > 7 && row[7] != null ? row[7] : null;
+                String ieName = row.length > 8 && row[8] != null ? row[8].toString() : "Not Assigned";
+                String ieContactNo = row.length > 9 && row[9] != null ? row[9].toString() : "";
+                String ieNameAndNumber = (ieName != null && !ieName.isEmpty() && !"Not Assigned".equalsIgnoreCase(ieName))
+                                ? (ieContactNo != null && !ieContactNo.isEmpty() ? ieName + " (" + ieContactNo + ")" : ieName)
+                                : "Not Assigned";
 
                 return InspectionCallDetailDto.builder()
                                 .inspectionCallNumber(callNumber)
@@ -7446,6 +7366,9 @@ public class reportsImpl implements reports {
                                 .status(status)
                                 .mainStatus(getMainStatus(status))
                                 .subStatus(getSubStatus(status))
+                                .ieName(ieName)
+                                .ieContactNo(ieContactNo)
+                                .ieNameAndNumber(ieNameAndNumber)
                                 .build();
         }
 

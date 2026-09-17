@@ -133,6 +133,11 @@ public class ProcessMaterialCertificateDto {
      * Type of ERC: comes from `InspectionCall.ercType` field
      */
     private String ercType;
+
+    /**
+     * Unit of Measure from PO Item (e.g., "MT", "Nos.")
+     */
+    private String uom;
     /* ==================== Lot Details ==================== */
     
     /**

@@ -353,7 +353,19 @@ public class CertificateStorageController {
         opt = certificateStorageRepository.findByCallNumber(underVer);
         if (opt.isPresent()) return opt;
 
-        // 4. Split tokens if delimiter exists (e.g. 0831260002)
+        // 4. Split on '/' or '_' to extract sub-tokens like SF-07090001 from E/SF-07090001/RAMM
+        String[] slashTokens = clean.split("[/_]");
+        for (String token : slashTokens) {
+            String trimmedToken = token.trim();
+            if (trimmedToken.length() >= 4) {
+                opt = certificateStorageRepository.findByIcNumber(trimmedToken);
+                if (opt.isPresent()) return opt;
+                opt = certificateStorageRepository.findByCallNumber(trimmedToken);
+                if (opt.isPresent()) return opt;
+            }
+        }
+
+        // 5. Split tokens if delimiter exists (e.g. 0831260002)
         String[] tokens = clean.split("[/\\-_]");
         for (String token : tokens) {
             String trimmedToken = token.trim();

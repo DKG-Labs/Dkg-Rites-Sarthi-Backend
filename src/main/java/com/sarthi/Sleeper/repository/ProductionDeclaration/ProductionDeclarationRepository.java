@@ -2033,4 +2033,19 @@ ORDER BY ph.po_date DESC
             @Param("plantId") String plantId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT 
+            DATE_FORMAT(IFNULL(pd.casting_date, pd.created_date), '%b-%y') AS Month_Year,
+            YEAR(IFNULL(pd.casting_date, pd.created_date)) AS Y,
+            MONTH(IFNULL(pd.casting_date, pd.created_date)) AS M,
+            SUM(COALESCE(pd.total_casted_sleepers, 0)) AS Total_Produced
+        FROM production_declaration pd
+        WHERE IFNULL(pd.casting_date, pd.created_date) BETWEEN :startDate AND :endDate
+        GROUP BY Y, M, Month_Year
+        ORDER BY Y ASC, M ASC
+    """, nativeQuery = true)
+    List<Object[]> findMonthlyProductionTrend(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

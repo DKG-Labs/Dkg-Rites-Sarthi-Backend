@@ -16,6 +16,9 @@ public interface CertificateStorageRepository extends JpaRepository<CertificateS
        SELECT c
        FROM CertificateStorage c
        WHERE c.icNumber LIKE %:callNumber%
+          OR :callNumber LIKE CONCAT('%', c.icNumber, '%')
+          OR c.fileName LIKE %:callNumber%
+          OR :callNumber LIKE CONCAT('%', c.fileName, '%')
        """)
     Optional<CertificateStorage> findByCallNumber(
             @Param("callNumber") String callNumber

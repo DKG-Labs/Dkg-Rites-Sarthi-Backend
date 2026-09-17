@@ -740,7 +740,10 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                     0
                 ) AS callQty,
 
-                ic.created_at
+                ic.created_at,
+
+                COALESCE(um_ie.FULL_NAME, um_ie.USERNAME, um_poi.FULL_NAME, um_poi.USERNAME, 'Not Assigned') AS ieName,
+                COALESCE(um_ie.MOBILENUMBER, um_poi.MOBILENUMBER, '') AS ieContactNo
 
             FROM inspection_calls ic
 
@@ -756,6 +759,45 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             INNER JOIN workflow_transition wt
                 ON wt.WORKFLOWTRANSITIONID =
                    latest.latest_transition_id
+
+            LEFT JOIN (
+                SELECT 
+                    wt_sub.REQUESTID,
+                    COALESCE(wt_sub.assigned_to_user, wt_sub.process_ie_user_id) AS ie_user_id
+                FROM workflow_transition wt_sub
+                INNER JOIN (
+                    SELECT 
+                        REQUESTID,
+                        MAX(WORKFLOWTRANSITIONID) AS max_wt_id
+                    FROM workflow_transition
+                    WHERE assigned_to_user IS NOT NULL OR process_ie_user_id IS NOT NULL
+                    GROUP BY REQUESTID
+                ) wt_max ON wt_sub.WORKFLOWTRANSITIONID = wt_max.max_wt_id
+            ) wt_assigned ON wt_assigned.REQUESTID = ic.ic_number
+            LEFT JOIN USER_MASTER um_ie ON um_ie.USERID = wt_assigned.ie_user_id
+            LEFT JOIN (
+                SELECT 
+                    cleaned_poi_code,
+                    MAX(user_id) AS ie_user_id
+                FROM (
+                    SELECT 
+                        CONVERT(REPLACE(ppim.poi_code, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        um_sub.USERID AS user_id
+                    FROM poi_process_ie_mapping ppim
+                    JOIN USER_MASTER um_sub 
+                        ON CONVERT(um_sub.EMPLOYEE_CODE USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ppim.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        CONVERT(REPLACE(ipm.POI_CODE, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        ipm.IE_USER_ID AS user_id
+                    FROM ie_poi_mapping ipm
+                ) poi_ies
+                WHERE cleaned_poi_code IS NOT NULL AND cleaned_poi_code <> ''
+                GROUP BY cleaned_poi_code
+            ) poi_ie_map ON poi_ie_map.cleaned_poi_code = CONVERT(REPLACE(ic.place_of_inspection, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN USER_MASTER um_poi ON um_poi.USERID = poi_ie_map.ie_user_id
 
             LEFT JOIN po_header ph
                 ON ph.po_no = ic.po_no
@@ -1191,7 +1233,9 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                     END,
                     (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
                     0
-                ) AS callQty
+                ) AS callQty,
+                COALESCE(um_ie.FULL_NAME, um_ie.USERNAME, um_poi.FULL_NAME, um_poi.USERNAME, 'Not Assigned') AS ieName,
+                COALESCE(um_ie.MOBILENUMBER, um_poi.MOBILENUMBER, '') AS ieContactNo
             FROM inspection_calls ic
             JOIN (
                 SELECT t.*
@@ -1205,6 +1249,44 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 ON t.workflowtransitionid = x.latest_id
             ) wt
               ON wt.requestid = ic.ic_number
+            LEFT JOIN (
+                SELECT 
+                    wt_sub.REQUESTID,
+                    COALESCE(wt_sub.assigned_to_user, wt_sub.process_ie_user_id) AS ie_user_id
+                FROM workflow_transition wt_sub
+                INNER JOIN (
+                    SELECT 
+                        REQUESTID,
+                        MAX(WORKFLOWTRANSITIONID) AS max_wt_id
+                    FROM workflow_transition
+                    WHERE assigned_to_user IS NOT NULL OR process_ie_user_id IS NOT NULL
+                    GROUP BY REQUESTID
+                ) wt_max ON wt_sub.WORKFLOWTRANSITIONID = wt_max.max_wt_id
+            ) wt_assigned ON wt_assigned.REQUESTID = ic.ic_number
+            LEFT JOIN USER_MASTER um_ie ON um_ie.USERID = wt_assigned.ie_user_id
+            LEFT JOIN (
+                SELECT 
+                    cleaned_poi_code,
+                    MAX(user_id) AS ie_user_id
+                FROM (
+                    SELECT 
+                        CONVERT(REPLACE(ppim.poi_code, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        um_sub.USERID AS user_id
+                    FROM poi_process_ie_mapping ppim
+                    JOIN USER_MASTER um_sub 
+                        ON CONVERT(um_sub.EMPLOYEE_CODE USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ppim.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        CONVERT(REPLACE(ipm.POI_CODE, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        ipm.IE_USER_ID AS user_id
+                    FROM ie_poi_mapping ipm
+                ) poi_ies
+                WHERE cleaned_poi_code IS NOT NULL AND cleaned_poi_code <> ''
+                GROUP BY cleaned_poi_code
+            ) poi_ie_map ON poi_ie_map.cleaned_poi_code = CONVERT(REPLACE(ic.place_of_inspection, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN USER_MASTER um_poi ON um_poi.USERID = poi_ie_map.ie_user_id
             JOIN po_header ph ON ic.po_no = ph.po_no
             LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
             WHERE wt.status NOT IN (
@@ -1258,7 +1340,9 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                     END,
                     (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
                     0
-                ) AS callQty
+                ) AS callQty,
+                COALESCE(um_ie.FULL_NAME, um_ie.USERNAME, um_poi.FULL_NAME, um_poi.USERNAME, 'Not Assigned') AS ieName,
+                COALESCE(um_ie.MOBILENUMBER, um_poi.MOBILENUMBER, '') AS ieContactNo
             FROM inspection_calls ic
             JOIN (
                 SELECT t.*
@@ -1272,6 +1356,44 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 ON t.workflowtransitionid = x.latest_id
             ) wt
               ON wt.requestid = ic.ic_number
+            LEFT JOIN (
+                SELECT 
+                    wt_sub.REQUESTID,
+                    COALESCE(wt_sub.assigned_to_user, wt_sub.process_ie_user_id) AS ie_user_id
+                FROM workflow_transition wt_sub
+                INNER JOIN (
+                    SELECT 
+                        REQUESTID,
+                        MAX(WORKFLOWTRANSITIONID) AS max_wt_id
+                    FROM workflow_transition
+                    WHERE assigned_to_user IS NOT NULL OR process_ie_user_id IS NOT NULL
+                    GROUP BY REQUESTID
+                ) wt_max ON wt_sub.WORKFLOWTRANSITIONID = wt_max.max_wt_id
+            ) wt_assigned ON wt_assigned.REQUESTID = ic.ic_number
+            LEFT JOIN USER_MASTER um_ie ON um_ie.USERID = wt_assigned.ie_user_id
+            LEFT JOIN (
+                SELECT 
+                    cleaned_poi_code,
+                    MAX(user_id) AS ie_user_id
+                FROM (
+                    SELECT 
+                        CONVERT(REPLACE(ppim.poi_code, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        um_sub.USERID AS user_id
+                    FROM poi_process_ie_mapping ppim
+                    JOIN USER_MASTER um_sub 
+                        ON CONVERT(um_sub.EMPLOYEE_CODE USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ppim.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        CONVERT(REPLACE(ipm.POI_CODE, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        ipm.IE_USER_ID AS user_id
+                    FROM ie_poi_mapping ipm
+                ) poi_ies
+                WHERE cleaned_poi_code IS NOT NULL AND cleaned_poi_code <> ''
+                GROUP BY cleaned_poi_code
+            ) poi_ie_map ON poi_ie_map.cleaned_poi_code = CONVERT(REPLACE(ic.place_of_inspection, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN USER_MASTER um_poi ON um_poi.USERID = poi_ie_map.ie_user_id
             JOIN po_header ph ON ic.po_no = ph.po_no
             LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
             WHERE UPPER(wt.status) IN (
@@ -1324,7 +1446,9 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                     END,
                     (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
                     0
-                ) AS callQty
+                ) AS callQty,
+                COALESCE(um_ie.FULL_NAME, um_ie.USERNAME, um_poi.FULL_NAME, um_poi.USERNAME, 'Not Assigned') AS ieName,
+                COALESCE(um_ie.MOBILENUMBER, um_poi.MOBILENUMBER, '') AS ieContactNo
             FROM inspection_calls ic
             JOIN (
                 SELECT t.*
@@ -1338,6 +1462,44 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 ON t.workflowtransitionid = x.latest_id
             ) wt
               ON wt.requestid = ic.ic_number
+            LEFT JOIN (
+                SELECT 
+                    wt_sub.REQUESTID,
+                    COALESCE(wt_sub.assigned_to_user, wt_sub.process_ie_user_id) AS ie_user_id
+                FROM workflow_transition wt_sub
+                INNER JOIN (
+                    SELECT 
+                        REQUESTID,
+                        MAX(WORKFLOWTRANSITIONID) AS max_wt_id
+                    FROM workflow_transition
+                    WHERE assigned_to_user IS NOT NULL OR process_ie_user_id IS NOT NULL
+                    GROUP BY REQUESTID
+                ) wt_max ON wt_sub.WORKFLOWTRANSITIONID = wt_max.max_wt_id
+            ) wt_assigned ON wt_assigned.REQUESTID = ic.ic_number
+            LEFT JOIN USER_MASTER um_ie ON um_ie.USERID = wt_assigned.ie_user_id
+            LEFT JOIN (
+                SELECT 
+                    cleaned_poi_code,
+                    MAX(user_id) AS ie_user_id
+                FROM (
+                    SELECT 
+                        CONVERT(REPLACE(ppim.poi_code, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        um_sub.USERID AS user_id
+                    FROM poi_process_ie_mapping ppim
+                    JOIN USER_MASTER um_sub 
+                        ON CONVERT(um_sub.EMPLOYEE_CODE USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ppim.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        CONVERT(REPLACE(ipm.POI_CODE, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS cleaned_poi_code,
+                        ipm.IE_USER_ID AS user_id
+                    FROM ie_poi_mapping ipm
+                ) poi_ies
+                WHERE cleaned_poi_code IS NOT NULL AND cleaned_poi_code <> ''
+                GROUP BY cleaned_poi_code
+            ) poi_ie_map ON poi_ie_map.cleaned_poi_code = CONVERT(REPLACE(ic.place_of_inspection, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN USER_MASTER um_poi ON um_poi.USERID = poi_ie_map.ie_user_id
             JOIN po_header ph ON ic.po_no = ph.po_no
             WHERE UPPER(wt.status) IN (
                 'CREATED',
