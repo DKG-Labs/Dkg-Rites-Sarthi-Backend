@@ -147,21 +147,24 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private PoItemRepository poItemRepository;
     @Autowired(required = false)
+    private IbsCallRegistrationRepository ibsCallRegistrationRepository;
+    @Autowired(required = false)
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
+
     @Autowired(required = false)
     private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
-    @Autowired(required = false)
-    private IbsCallRegistrationRepository ibsCallRegistrationRepository;
     @Autowired(required = false)
     private InspectionCallDetailsRepository inspectionCallDetailsRepository;
     @Autowired
     private WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
     @Autowired
-    private RmIcEditRepository  rmIcEditRepository;
+    private RmIcEditRepository rmIcEditRepository;
     @Autowired
-    private ProcessIcEditRepository  processIcEditRepository;
+    private ProcessIcEditRepository processIcEditRepository;
     @Autowired
     private FinalIcEditRepository finalIcEditRepository;
+    @Autowired(required = false)
+    private com.sarthi.repository.certificate.CertificateStorageRepository certificateStorageRepository;
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
 
@@ -1017,8 +1020,35 @@ public class WorkflowServiceImpl implements WorkflowService {
                 }
             }
 
+            if (req.getAction().equalsIgnoreCase("SEND_CALL_TO_IBS")
+                    || req.getAction().equalsIgnoreCase("Send call to ibs")) {
+
+                next.setStatus("SEND_CALL_TO_IBS");
+                next.setAction("SEND_CALL_TO_IBS");
+                next.setJobStatus("CLOSED");
+                next.setNextRole(null);
+                next.setNextRoleName(null);
+                if (req.getRemarks() != null && !req.getRemarks().isEmpty()) {
+                    next.setRemarks(req.getRemarks());
+                } else {
+                    next.setRemarks("Call sent to IBS");
+                }
+
+                try {
+                    Optional<InspectionCall> icOpt = inspectionCallRepository.findByIcNumber(req.getRequestId());
+                    if (icOpt.isPresent()) {
+                        InspectionCall icCall = icOpt.get();
+                        icCall.setStatus("SEND_CALL_TO_IBS");
+                        inspectionCallRepository.save(icCall);
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to update InspectionCall status to SEND_CALL_TO_IBS: ", ex);
+                }
+            }
+
             if (req.getAction().equalsIgnoreCase("VERIFY_MATERIAL_AVAILABILITY")
                     && "NO".equalsIgnoreCase(req.getMaterialAvailable())) {
+
 
                 next.setStatus("CANCELLED");
                 next.setJobStatus("CANCELLED");
@@ -1775,7 +1805,26 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
                 + ", nextRole=" + previous.getNextRoleId()
                 + ", uiAction=" + req.getAction());
 
+        if (req.getAction() != null && (req.getAction().equalsIgnoreCase("SEND_CALL_TO_IBS") || req.getAction().equalsIgnoreCase("Send call to ibs"))) {
+            return transitionMasterRepository.findByWorkflowId(current.getWorkflowId())
+                    .stream()
+                    .filter(t -> (t.getCurrentAction() != null && (t.getCurrentAction().equalsIgnoreCase("SEND_CALL_TO_IBS") || t.getCurrentAction().equalsIgnoreCase("Send call to ibs")))
+                            || (t.getTransitionName() != null && t.getTransitionName().equalsIgnoreCase("SEND_CALL_TO_IBS")))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        TransitionMaster fallback = new TransitionMaster();
+                        fallback.setTransitionName("SEND_CALL_TO_IBS");
+                        fallback.setWorkflowId(current.getWorkflowId());
+                        fallback.setCurrentRoleId(3);
+                        fallback.setNextRoleId(null);
+                        fallback.setCurrentAction("SEND_CALL_TO_IBS");
+                        fallback.setNextAction("CLOSED");
+                        return fallback;
+                    });
+        }
+
         if (Objects.equals(previous.getCurrentRoleId(), previous.getNextRoleId())) {
+
 
 
             // We only use CURRENT_ACTION = UI action, for the SAME role.
@@ -4138,8 +4187,169 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         }).toList();
     }
 
+    @Override
+    public List<IcWorkflowTransitionDto> getClosedInspectionByModifiedUser(Integer modifiedBy) {
+        List<WorkflowTransition> entities = workflowTransitionRepository
+                .findClosedByUserRule(Long.valueOf(modifiedBy));
+
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> requestIds = entities.stream()
+                .map(WorkflowTransition::getRequestId)
+                .distinct()
+                .toList();
+
+        // 1. Batch fetch lite ICs
+        Map<String, InspectionDataDto> icMap = inspectionCallRepository.findLiteByIcNumberIn(requestIds).stream()
+                .collect(Collectors.toMap(InspectionDataDto::icNumber, Function.identity(), (a, b) -> a));
+
+        List<String> missingRequestIds = requestIds.stream().filter(id -> !icMap.containsKey(id)).toList();
+        Map<String, InspectionCall> fallbackIcMap = missingRequestIds.isEmpty() ? Collections.emptyMap() :
+                inspectionCallRepository.findByIcNumberIn(missingRequestIds).stream()
+                        .collect(Collectors.toMap(InspectionCall::getIcNumber, Function.identity(), (a, b) -> a));
+
+        // 2. Batch fetch POs
+        List<String> poNos = icMap.values().stream()
+                .map(InspectionDataDto::poNo)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, PoHeader> poMap = poHeaderRepository.findByPoNoIn(poNos).stream()
+                .collect(Collectors.toMap(PoHeader::getPoNo, Function.identity(), (a, b) -> a));
+
+        // 3. Batch fetch Vendors
+        List<String> vendorCodes = icMap.values().stream()
+                .map(InspectionDataDto::vendorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, VendorMaster> vendorMap = vendorMasterRepository.findByVendorCodeIn(vendorCodes).stream()
+                .collect(Collectors.toMap(VendorMaster::getVendorCode, Function.identity(), (a, b) -> a));
+
+        // 4. Batch fetch POIs & IE mappings
+        List<String> poiCodes = icMap.values().stream()
+                .map(InspectionDataDto::placeOfInspection)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, PincodePoIMapping> poiMap = pincodePoIMappingRepository.findByPoiCodeIn(poiCodes).stream()
+                .collect(Collectors.toMap(PincodePoIMapping::getPoiCode, Function.identity(), (a, b) -> a));
+
+        List<String> pinCodes = poiMap.values().stream()
+                .map(PincodePoIMapping::getPinCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<IEFieldsMapping> allIeMappings = ieFieldsMappingRepository.findByPinCodeInAndProduct(pinCodes, "ERC");
+        Map<String, List<IEFieldsMapping>> ieGroupedByPin = allIeMappings.stream()
+                .collect(Collectors.groupingBy(IEFieldsMapping::getPinCode));
+
+        // 5. Batch fetch IBS Registration status (Zero N+1)
+        Map<String, String> ibsStatusMap = new HashMap<>();
+        Map<String, String> ibsReasonMap = new HashMap<>();
+        if (ibsCallRegistrationRepository != null && !requestIds.isEmpty()) {
+            try {
+                List<Object[]> ibsRows = ibsCallRegistrationRepository.findLatestStatusByCallNumbers(requestIds);
+                if (ibsRows != null) {
+                    for (Object[] row : ibsRows) {
+                        if (row != null && row.length >= 2 && row[0] != null) {
+                            String cn = String.valueOf(row[0]).trim();
+                            String st = row[1] != null ? String.valueOf(row[1]).trim() : "PENDING";
+                            String re = (row.length >= 3 && row[2] != null) ? String.valueOf(row[2]).trim() : "";
+                            ibsStatusMap.put(cn, st);
+                            ibsReasonMap.put(cn, re);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Error batch fetching IBS status for closed calls: " + ex.getMessage());
+            }
+        }
+
+        return entities.stream().map(wt -> {
+            IcWorkflowTransitionDto dto = new IcWorkflowTransitionDto();
+            dto.setWorkflowTransitionId(wt.getWorkflowTransitionId());
+            dto.setWorkflowId(wt.getWorkflowId());
+            dto.setTransitionId(wt.getTransitionId());
+            dto.setRequestId(wt.getRequestId());
+            dto.setCurrentRole(wt.getCurrentRole());
+            dto.setNextRole(wt.getNextRole());
+            dto.setCurrentRoleName(wt.getCurrentRoleName());
+            dto.setNextRoleName(wt.getNextRoleName());
+            dto.setStatus(wt.getStatus());
+            dto.setAction(wt.getAction());
+            dto.setRemarks(wt.getRemarks());
+            dto.setCreatedBy(wt.getCreatedBy());
+            dto.setModifiedBy(wt.getModifiedBy());
+            dto.setAssignedToUser(wt.getAssignedToUser());
+            dto.setJobStatus(wt.getJobStatus());
+            dto.setProcessIeUserId(wt.getProcessIeUserId());
+            dto.setCreatedDate(wt.getCreatedDate());
+            dto.setWorkflowSequence(wt.getWorkflowSequence());
+            dto.setRio(wt.getRio());
+
+            dto.setIbsStatus(ibsStatusMap.getOrDefault(wt.getRequestId(), "PENDING"));
+            dto.setIbsReason(ibsReasonMap.getOrDefault(wt.getRequestId(), "Awaiting intake / record creation in IBS"));
+
+            InspectionDataDto ic = icMap.get(wt.getRequestId());
+            if (ic != null) {
+                PoHeader ph = poMap.get(ic.poNo());
+                String poNo = ic.poNo() != null ? ic.poNo() : "";
+                String srNo = ic.poSerialNo() != null ? ic.poSerialNo() : "";
+
+                if (!poNo.isEmpty() && srNo.startsWith(poNo + "/")) {
+                    srNo = srNo.substring(poNo.length() + 1);
+                }
+
+                String formattedPo = (ph != null ? ph.getRlyShortName() : "") + " / " +
+                                     poNo + " / " + srNo;
+                dto.setPoNo(formattedPo);
+                dto.setIbsCaseNo(ph != null ? ph.getCaseNo() : "");
+
+                VendorMaster vm = vendorMap.get(ic.vendorId());
+                dto.setVendorName(vm != null ? vm.getVendorName() : ic.vendorId());
+
+                dto.setProductType("ERC-" + ic.typeOfCall());
+                dto.setStage(ic.typeOfCall());
+
+                PincodePoIMapping poi = poiMap.get(ic.placeOfInspection());
+                if (poi != null) {
+                    final String pin = poi.getPinCode();
+                    final String stageCode = ic.typeOfCall().equalsIgnoreCase("Raw Material") ? "R" :
+                                       ic.typeOfCall().equalsIgnoreCase("Process") ? "P" : "F";
+
+                    List<IEFieldsMapping> pinMappings = ieGroupedByPin.get(pin);
+                    if (pinMappings != null) {
+                        Optional<IEFieldsMapping> mapping = pinMappings.stream()
+                                .filter(m -> m.getStage().equals(stageCode) || m.getStage().contains(stageCode))
+                                .findFirst();
+                        mapping.ifPresent(m -> dto.setRio(m.getRio()));
+                    }
+                }
+            } else {
+                InspectionCall fallbackIc = fallbackIcMap.get(wt.getRequestId());
+                if (fallbackIc != null) {
+                    dto.setPoNo(fallbackIc.getPoNo());
+                    dto.setVendorName(fallbackIc.getCompanyName() != null ? fallbackIc.getCompanyName() : fallbackIc.getVendorId());
+                    String type = fallbackIc.getTypeOfCall();
+                    dto.setProductType(type != null ? (type.startsWith("ERC-") ? type : "ERC-" + type) : "ERC-Raw Material");
+                    dto.setStage(type);
+                }
+            }
+
+            return dto;
+        }).toList();
+    }
+
     @Transactional
     public String withdrawCall(TransitionActionReqDto dto) {
+
 
         // =========================
         // 1. VALIDATION
@@ -5332,21 +5542,15 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             String requestId,
             Integer deletedBy) {
 
-        // ---------------------------------------------------------
         // 1. Validate request ID
-        // ---------------------------------------------------------
         if (requestId == null || requestId.trim().isEmpty()) {
             throw new IllegalArgumentException("Request ID is required");
         }
 
-        final String normalizedRequestId =
-                requestId.trim().toUpperCase();
+        final String normalizedRequestId = requestId.trim().toUpperCase();
 
-        // ---------------------------------------------------------
         // 2. Validate request type
-        // ---------------------------------------------------------
         String requestType;
-
         if (normalizedRequestId.startsWith("ER")) {
             requestType = "ER";
         } else if (normalizedRequestId.startsWith("EF")) {
@@ -5354,288 +5558,142 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         } else if (normalizedRequestId.startsWith("EP")) {
             requestType = "EP";
         } else {
-            throw new IllegalArgumentException(
-                    "Unsupported request ID: " + normalizedRequestId);
+            throw new IllegalArgumentException("Unsupported request ID: " + normalizedRequestId);
         }
 
-        // ---------------------------------------------------------
-        // 3. Get latest two workflow transitions
-        // ---------------------------------------------------------
-        List<WorkflowTransition> transitions =
-                workflowTransitionRepository
-                        .findTop2ByRequestIdOrderByWorkflowTransitionIdDesc(
-                                normalizedRequestId);
+        // 3. Get latest workflow transition
+        WorkflowTransition dscSignTransition = workflowTransitionRepository
+                .findTopByRequestIdOrderByWorkflowTransitionIdDesc(normalizedRequestId);
 
-        if (transitions.size() < 2) {
-            throw new IllegalStateException(
-                    "Required workflow transitions not found for request ID: "
-                            + normalizedRequestId);
+        if (dscSignTransition == null) {
+            throw new IllegalStateException("Workflow transition not found for request ID: " + normalizedRequestId);
         }
 
-        // Latest transition
-        WorkflowTransition dscSignTransition = transitions.get(0);
-
-        // Previous transition
-        WorkflowTransition generateIcTransition = transitions.get(1);
-
-        // ---------------------------------------------------------
         // 4. Validate latest transition
-        // ---------------------------------------------------------
-        if (!"DSC_SIGN_IC".equalsIgnoreCase(
-                dscSignTransition.getStatus())) {
+        String status = dscSignTransition.getStatus() != null ? dscSignTransition.getStatus().toUpperCase() : "";
+        String action = dscSignTransition.getAction() != null ? dscSignTransition.getAction().toUpperCase() : "";
+        boolean isSigned = status.contains("DSC_SIGN_IC") || status.contains("COMPLETED") || action.contains("DSC_SIGN_IC") || action.contains("SIGN");
 
+        if (!isSigned) {
             throw new IllegalStateException(
-                    "Request " + normalizedRequestId
-                            + " cannot be deleted. Latest transition status is: "
-                            + dscSignTransition.getStatus());
+                    "Request " + normalizedRequestId + " cannot be moved back to IC issuance. Latest status is: " + dscSignTransition.getStatus());
         }
 
-        // ---------------------------------------------------------
-        // 5. Validate previous transition
-        // ---------------------------------------------------------
-        if (!"GENERATE_IC".equalsIgnoreCase(
-                generateIcTransition.getStatus())) {
+        // 5. Save DSC_SIGN_IC history
+        if (workflowDeleteHistoryRepository != null) {
+            WorkflowDeleteHistory dscHistory = new WorkflowDeleteHistory();
+            dscHistory.setRequestId(dscSignTransition.getRequestId());
+            dscHistory.setWorkflowTransitionId(dscSignTransition.getWorkflowTransitionId());
+            dscHistory.setWorkflowId(dscSignTransition.getWorkflowId());
+            dscHistory.setTransitionId(dscSignTransition.getTransitionId());
+            dscHistory.setCurrentRole(dscSignTransition.getCurrentRole());
+            dscHistory.setNextRole(dscSignTransition.getNextRole());
+            dscHistory.setCurrentRoleName(dscSignTransition.getCurrentRoleName());
+            dscHistory.setNextRoleName(dscSignTransition.getNextRoleName());
+            dscHistory.setStatus(dscSignTransition.getStatus());
+            dscHistory.setAction(dscSignTransition.getAction());
+            dscHistory.setRemarks(dscSignTransition.getRemarks());
+            dscHistory.setCreatedBy(dscSignTransition.getCreatedBy());
+            dscHistory.setModifiedBy(dscSignTransition.getModifiedBy());
+            dscHistory.setAssignedToUser(dscSignTransition.getAssignedToUser());
+            dscHistory.setJobStatus(dscSignTransition.getJobStatus());
+            dscHistory.setProcessIeUserId(dscSignTransition.getProcessIeUserId());
+            dscHistory.setWorkflowSequence(dscSignTransition.getWorkflowSequence());
+            dscHistory.setRio(dscSignTransition.getRio());
+            dscHistory.setSwiftCode(dscSignTransition.getSwiftCode());
+            dscHistory.setPrimarySwift(dscSignTransition.getPrimarySwift());
+            dscHistory.setTransitionCreatedDate(dscSignTransition.getCreatedDate());
+            dscHistory.setDeletedBy(deletedBy);
+            dscHistory.setDeletedOn(new Date());
 
-            throw new IllegalStateException(
-                    "Request " + normalizedRequestId
-                            + " cannot be deleted. Previous transition status is: "
-                            + generateIcTransition.getStatus());
+            workflowDeleteHistoryRepository.save(dscHistory);
         }
 
-        // ---------------------------------------------------------
-        // 6. Save DSC_SIGN_IC history
-        // ---------------------------------------------------------
-        WorkflowDeleteHistory dscHistory =
-                new WorkflowDeleteHistory();
-
-        dscHistory.setRequestId(
-                dscSignTransition.getRequestId());
-
-        dscHistory.setWorkflowTransitionId(
-                dscSignTransition.getWorkflowTransitionId());
-
-        dscHistory.setWorkflowId(
-                dscSignTransition.getWorkflowId());
-
-        dscHistory.setTransitionId(
-                dscSignTransition.getTransitionId());
-
-        dscHistory.setCurrentRole(
-                dscSignTransition.getCurrentRole());
-
-        dscHistory.setNextRole(
-                dscSignTransition.getNextRole());
-
-        dscHistory.setCurrentRoleName(
-                dscSignTransition.getCurrentRoleName());
-
-        dscHistory.setNextRoleName(
-                dscSignTransition.getNextRoleName());
-
-        dscHistory.setStatus(
-                dscSignTransition.getStatus());
-
-        dscHistory.setAction(
-                dscSignTransition.getAction());
-
-        dscHistory.setRemarks(
-                dscSignTransition.getRemarks());
-
-        dscHistory.setCreatedBy(
-                dscSignTransition.getCreatedBy());
-
-        dscHistory.setModifiedBy(
-                dscSignTransition.getModifiedBy());
-
-        dscHistory.setAssignedToUser(
-                dscSignTransition.getAssignedToUser());
-
-        dscHistory.setJobStatus(
-                dscSignTransition.getJobStatus());
-
-        dscHistory.setProcessIeUserId(
-                dscSignTransition.getProcessIeUserId());
-
-        dscHistory.setWorkflowSequence(
-                dscSignTransition.getWorkflowSequence());
-
-        dscHistory.setRio(
-                dscSignTransition.getRio());
-
-        dscHistory.setSwiftCode(
-                dscSignTransition.getSwiftCode());
-
-        dscHistory.setPrimarySwift(
-                dscSignTransition.getPrimarySwift());
-
-        dscHistory.setTransitionCreatedDate(
-                dscSignTransition.getCreatedDate());
-
-        dscHistory.setDeletedBy(deletedBy);
-        dscHistory.setDeletedOn(new Date());
-
-        workflowDeleteHistoryRepository.save(dscHistory);
-
-        // ---------------------------------------------------------
-        // 7. Save GENERATE_IC history
-        // ---------------------------------------------------------
-        WorkflowDeleteHistory generateHistory =
-                new WorkflowDeleteHistory();
-
-        generateHistory.setRequestId(
-                generateIcTransition.getRequestId());
-
-        generateHistory.setWorkflowTransitionId(
-                generateIcTransition.getWorkflowTransitionId());
-
-        generateHistory.setWorkflowId(
-                generateIcTransition.getWorkflowId());
-
-        generateHistory.setTransitionId(
-                generateIcTransition.getTransitionId());
-
-        generateHistory.setCurrentRole(
-                generateIcTransition.getCurrentRole());
-
-        generateHistory.setNextRole(
-                generateIcTransition.getNextRole());
-
-        generateHistory.setCurrentRoleName(
-                generateIcTransition.getCurrentRoleName());
-
-        generateHistory.setNextRoleName(
-                generateIcTransition.getNextRoleName());
-
-        generateHistory.setStatus(
-                generateIcTransition.getStatus());
-
-        generateHistory.setAction(
-                generateIcTransition.getAction());
-
-        generateHistory.setRemarks(
-                generateIcTransition.getRemarks());
-
-        generateHistory.setCreatedBy(
-                generateIcTransition.getCreatedBy());
-
-        generateHistory.setModifiedBy(
-                generateIcTransition.getModifiedBy());
-
-        generateHistory.setAssignedToUser(
-                generateIcTransition.getAssignedToUser());
-
-        generateHistory.setJobStatus(
-                generateIcTransition.getJobStatus());
-
-        generateHistory.setProcessIeUserId(
-                generateIcTransition.getProcessIeUserId());
-
-        generateHistory.setWorkflowSequence(
-                generateIcTransition.getWorkflowSequence());
-
-        generateHistory.setRio(
-                generateIcTransition.getRio());
-
-        generateHistory.setSwiftCode(
-                generateIcTransition.getSwiftCode());
-
-        generateHistory.setPrimarySwift(
-                generateIcTransition.getPrimarySwift());
-
-        generateHistory.setTransitionCreatedDate(
-                generateIcTransition.getCreatedDate());
-
-        generateHistory.setDeletedBy(deletedBy);
-        generateHistory.setDeletedOn(new Date());
-
-        workflowDeleteHistoryRepository.save(generateHistory);
-
-        // ---------------------------------------------------------
-        // 8. ER specific processing
-        // ---------------------------------------------------------
-        if ("ER".equals(requestType)) {
-
-            // -----------------------------------------------------
-            // Get inspection complete details using CALL_NO
-            // -----------------------------------------------------
-            InspectionCompleteDetails inspectionDetails =
-                    inspectionCompleteDetailsRepository
-                            .findByCallNo(normalizedRequestId)
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "Inspection complete details not found for request ID: "
-                                                    + normalizedRequestId));
-
-            // CERTIFICATE_NO is the IC number
-            String icNumber =
-                    inspectionDetails.getCertificateNo();
-
-            if (icNumber == null || icNumber.trim().isEmpty()) {
-                throw new IllegalStateException(
-                        "Certificate number not found for request ID: "
-                                + normalizedRequestId);
+        // 6. Retrieve IC Number
+        String icNumber = null;
+        if (inspectionCompleteDetailsRepository != null) {
+            try {
+                InspectionCompleteDetails inspectionDetails = inspectionCompleteDetailsRepository
+                        .findByCallNo(normalizedRequestId)
+                        .orElse(null);
+                if (inspectionDetails != null && inspectionDetails.getCertificateNo() != null && !inspectionDetails.getCertificateNo().isBlank()) {
+                    icNumber = inspectionDetails.getCertificateNo().trim();
+                }
+            } catch (Exception ex) {
+                log.warn("Could not retrieve inspection complete details for {}: {}", normalizedRequestId, ex.getMessage());
             }
-
-            // -----------------------------------------------------
-            // RM_IC
-            // -----------------------------------------------------
-            RmIcEdit rmIc =
-                    rmIcEditRepository
-                            .findByIcNumber(icNumber)
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "RM_IC record not found for IC number: "
-                                                    + icNumber));
-
-            rmIc.setStatus("DELETED");
-            rmIc.setDeletedBy(deletedBy);
-
-            rmIcEditRepository.save(rmIc);
-
-            // -----------------------------------------------------
-            // PROCESS_IC
-            // -----------------------------------------------------
-            ProcessIcEdit processIc =
-                    processIcEditRepository
-                            .findByIcNumber(icNumber)
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "PROCESS_IC record not found for IC number: "
-                                                    + icNumber));
-
-            processIc.setStatus("DELETED");
-            processIc.setDeletedBy(deletedBy);
-
-            processIcEditRepository.save(processIc);
-
-            // -----------------------------------------------------
-            // FINAL_IC
-            // -----------------------------------------------------
-            FinalIcEdit finalIc =
-                    finalIcEditRepository
-                            .findByIcNumber(icNumber)
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "FINAL_IC record not found for IC number: "
-                                                    + icNumber));
-
-            finalIc.setStatus("DELETED");
-            finalIc.setDeletedBy(deletedBy);
-
-            finalIcEditRepository.save(finalIc);
+        }
+        if (icNumber == null || icNumber.isBlank()) {
+            icNumber = normalizedRequestId;
         }
 
-        // ---------------------------------------------------------
-        // 9. Delete DSC_SIGN_IC transition
-        // ---------------------------------------------------------
-        workflowTransitionRepository.delete(
-                dscSignTransition);
+        // 7. Delete in specific tables based on type
+        if ("ER".equals(requestType)) {
+            // ER: rm_ic_edit, certificate_storage
+            if (rmIcEditRepository != null) {
+                try {
+                    rmIcEditRepository.findByIcNumber(icNumber).ifPresent(rmIcEditRepository::delete);
+                    rmIcEditRepository.findFirstByIcNumber(icNumber).ifPresent(rmIcEditRepository::delete);
+                    rmIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(rmIcEditRepository::delete);
+                } catch (Exception ex) {
+                    log.warn("Error deleting RM_IC for request {}: {}", normalizedRequestId, ex.getMessage());
+                }
+            }
+            if (certificateStorageRepository != null) {
+                try {
+                    certificateStorageRepository.findByIcNumber(icNumber).ifPresent(certificateStorageRepository::delete);
+                    certificateStorageRepository.findByCallNumber(normalizedRequestId).ifPresent(certificateStorageRepository::delete);
+                } catch (Exception ex) {
+                    log.warn("Error deleting CertificateStorage for request {}: {}", normalizedRequestId, ex.getMessage());
+                }
+            }
+        } else if ("EP".equals(requestType)) {
+            // EP: process_ic_edit, certificate_storage
+            if (processIcEditRepository != null) {
+                try {
+                    processIcEditRepository.findByIcNumber(icNumber).ifPresent(processIcEditRepository::delete);
+                    processIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(processIcEditRepository::delete);
+                } catch (Exception ex) {
+                    log.warn("Error deleting PROCESS_IC for request {}: {}", normalizedRequestId, ex.getMessage());
+                }
+            }
+            if (certificateStorageRepository != null) {
+                try {
+                    certificateStorageRepository.findByIcNumber(icNumber).ifPresent(certificateStorageRepository::delete);
+                    certificateStorageRepository.findByCallNumber(normalizedRequestId).ifPresent(certificateStorageRepository::delete);
+                } catch (Exception ex) {
+                    log.warn("Error deleting CertificateStorage for request {}: {}", normalizedRequestId, ex.getMessage());
+                }
+            }
+        } else if ("EF".equals(requestType)) {
+            // EF: final_ie_mapping, final_ic_edit, certificate_storage
+            if (finalIeMappingRepository != null && dscSignTransition.getWorkflowTransitionId() != null) {
+                try {
+                    finalIeMappingRepository.deleteByWorkflowTransitionId(dscSignTransition.getWorkflowTransitionId());
+                } catch (Exception ex) {
+                    log.warn("Error deleting final_ie_mapping for transition {}: {}", dscSignTransition.getWorkflowTransitionId(), ex.getMessage());
+                }
+            }
+            if (finalIcEditRepository != null) {
+                try {
+                    finalIcEditRepository.findByIcNumber(icNumber).ifPresent(finalIcEditRepository::delete);
+                    finalIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(finalIcEditRepository::delete);
+                } catch (Exception ex) {
+                    log.warn("Error deleting FINAL_IC for request {}: {}", normalizedRequestId, ex.getMessage());
+                }
+            }
+            if (certificateStorageRepository != null) {
+                try {
+                    certificateStorageRepository.findByIcNumber(icNumber).ifPresent(certificateStorageRepository::delete);
+                    certificateStorageRepository.findByCallNumber(normalizedRequestId).ifPresent(certificateStorageRepository::delete);
+                } catch (Exception ex) {
+                    log.warn("Error deleting CertificateStorage for request {}: {}", normalizedRequestId, ex.getMessage());
+                }
+            }
+        }
 
-        // ---------------------------------------------------------
-        // 10. Delete GENERATE_IC transition
-        // ---------------------------------------------------------
-        workflowTransitionRepository.delete(
-                generateIcTransition);
+        // 8. Delete ONLY the DSC_SIGN_IC workflow transition
+        workflowTransitionRepository.delete(dscSignTransition);
     }
 
     @Override

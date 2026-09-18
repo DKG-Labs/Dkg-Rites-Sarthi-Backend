@@ -53,4 +53,17 @@ public interface IbsCallRegistrationRepository
         ORDER BY i.version DESC, i.id DESC
     """)
     List<Object[]> findSrNosByCallNumbers(@Param("callNumbers") java.util.Collection<String> callNumbers);
+
+    @Query("""
+        SELECT i.callNumber, i.status, i.reason, i.srNo 
+        FROM IbsCallRegistration i 
+        WHERE i.id IN (
+            SELECT MAX(i2.id) 
+            FROM IbsCallRegistration i2 
+            WHERE i2.callNumber IN :callNumbers 
+            GROUP BY i2.callNumber
+        )
+    """)
+    List<Object[]> findLatestStatusByCallNumbers(@Param("callNumbers") java.util.Collection<String> callNumbers);
 }
+

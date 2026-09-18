@@ -47,6 +47,8 @@ public interface WorkflowService {
 
     public List<IcWorkflowTransitionDto> getSignedInspectionByModifiedUser(Integer modifiedBy);
 
+    public List<IcWorkflowTransitionDto> getClosedInspectionByModifiedUser(Integer modifiedBy);
+
     public String withdrawCall(TransitionActionReqDto dto);
 
     public List<WorkflowTransitionDto> getPendingWorkflowByPoi(

@@ -45,9 +45,18 @@ public class IcWorkflowTransitionDto {
     private String stage;
     private String inspectionDate;
     private String ibsCaseNo;
+    private String ibsStatus;
+    private String ibsReason;
+
+    public String getIbsStatus() { return ibsStatus; }
+    public void setIbsStatus(String ibsStatus) { this.ibsStatus = ibsStatus; }
+
+    public String getIbsReason() { return ibsReason; }
+    public void setIbsReason(String ibsReason) { this.ibsReason = ibsReason; }
 
     public List<Integer> processIes;
 
 
     public List<Integer> finalIes;
 }
+
