@@ -209,6 +209,8 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 GROUP BY wt2.requestId
             )
             AND (wt.status IN ('DSC_SIGN_IC', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED') OR wt.status LIKE '%CANCEL%')
+            AND UPPER(COALESCE(wt.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+            AND UPPER(COALESCE(wt.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
               AND (
                    (wt.requestId LIKE 'EP%' AND
                        (um.userId = :userId
@@ -223,6 +225,41 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             """)
     List<WorkflowTransition> findSignedByUserRule(
             @Param("userId") Long userId);
+
+    @Query("""
+            SELECT DISTINCT wt
+            FROM WorkflowTransition wt
+            LEFT JOIN ProcessIeUsers pm
+                   ON wt.processIeUserId = pm.processUserId
+            LEFT JOIN com.sarthi.entity.rawmaterial.InspectionCall ic
+                   ON wt.requestId = ic.icNumber
+            LEFT JOIN com.sarthi.entity.PoiProcessIeMapping pim
+                   ON pim.poiCode = ic.placeOfInspection
+            LEFT JOIN com.sarthi.entity.UserMaster um
+                   ON um.employeeCode = pim.employeeCode
+            WHERE wt.workflowTransitionId IN (
+                SELECT MAX(wt2.workflowTransitionId)
+                FROM WorkflowTransition wt2
+                GROUP BY wt2.requestId
+            )
+            AND (UPPER(COALESCE(wt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED') 
+                 OR UPPER(COALESCE(wt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS'))
+              AND (
+                   (wt.requestId LIKE 'EP%' AND
+                       (um.userId = :userId
+                        OR pm.ieUserId = :userId
+                        OR wt.processIeUserId = :userId)
+                   )
+                   OR
+                   (wt.requestId NOT LIKE 'EP%'
+                        AND (wt.modifiedBy = :userId OR wt.createdBy = :userId OR wt.assignedToUser = :userId)
+                   )
+              )
+            ORDER BY wt.workflowTransitionId DESC
+            """)
+    List<WorkflowTransition> findClosedByUserRule(
+            @Param("userId") Long userId);
+
 
     @Query("""
                 SELECT

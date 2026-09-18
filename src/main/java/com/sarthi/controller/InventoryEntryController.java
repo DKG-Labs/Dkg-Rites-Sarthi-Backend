@@ -110,13 +110,13 @@ public class InventoryEntryController {
                 requestDto.getVendorCode(), requestDto.getTcNumber());
 
         try {
-            // Check TC uniqueness again before processing
-            if (inventoryEntryService.existsByTcNumber(requestDto.getTcNumber(), requestDto.getVendorCode())) {
+            // Check Supplier + TC uniqueness across all vendors before processing
+            if (inventoryEntryService.existsByTcNumberAndSupplierName(requestDto.getTcNumber(), requestDto.getSupplierName())) {
                 ErrorDetails errorDetails = new ErrorDetails(
                         AppConstant.ERROR_CODE_INVALID,
                         AppConstant.ERROR_TYPE_CODE_VALIDATION,
                         AppConstant.ERROR_TYPE_VALIDATION,
-                        "This TC Number already exists in your inventory.");
+                        "Combination of Supplier ('" + requestDto.getSupplierName() + "') and TC Number ('" + requestDto.getTcNumber() + "') already exists in the system.");
                 return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.BAD_REQUEST);
             }
 
@@ -307,17 +307,25 @@ public class InventoryEntryController {
     }
 
     /**
-     * Check if a TC number already exists for a vendor
+     * Check if a TC number already exists for a supplier (across all vendors)
      * GET /api/vendor/inventory/check-tc-uniqueness
      */
     @GetMapping("/check-tc-uniqueness")
     public ResponseEntity<Object> checkTcUniqueness(
             @RequestParam String tcNumber,
-            @RequestParam String vendorCode) {
-        logger.info("Received request to check TC uniqueness: {} for vendor: {}", tcNumber, vendorCode);
+            @RequestParam(required = false) String supplierName,
+            @RequestParam(required = false) String vendorCode,
+            @RequestParam(required = false) Long excludeId) {
+        logger.info("Received request to check TC uniqueness: {} for supplier: {}, vendor: {}, excludeId: {}",
+                tcNumber, supplierName, vendorCode, excludeId);
 
         try {
-            boolean exists = inventoryEntryService.existsByTcNumber(tcNumber, vendorCode);
+            boolean exists = false;
+            if (supplierName != null && !supplierName.trim().isEmpty()) {
+                exists = inventoryEntryService.existsByTcNumberAndSupplierName(tcNumber, supplierName, excludeId);
+            } else if (vendorCode != null && !vendorCode.trim().isEmpty()) {
+                exists = inventoryEntryService.existsByTcNumber(tcNumber, vendorCode);
+            }
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(exists), HttpStatus.OK);
 
         } catch (Exception e) {

@@ -78,6 +78,12 @@ public class WorkflowController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getSignedInspectionByModifiedUser(modifiedBy)), HttpStatus.OK);
     }
 
+    @GetMapping("/callCloseddata")
+    public ResponseEntity<Object> getCallClosedData(@RequestParam Integer modifiedBy) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getClosedInspectionByModifiedUser(modifiedBy)), HttpStatus.OK);
+    }
+
+
 
     @PostMapping("/api/workflow/withdraw")
     public ResponseEntity<Object> withdrawCall(@RequestBody TransitionActionReqDto dto) {

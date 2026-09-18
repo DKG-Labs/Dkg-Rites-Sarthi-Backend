@@ -132,11 +132,32 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         List<Object[]> results = verificationRepository.findAvailableInfosForProcessIc(poNo, railPadType);
 
         List<Long> declarationBatchIds = new ArrayList<>();
+        java.util.Set<Long> vIds = new java.util.HashSet<>();
         for (Object[] row : results) {
             com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo i = (com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo) row[0];
+            RailIEProductionVerification v = (RailIEProductionVerification) row[1];
             if (i.getId() != null) {
                 declarationBatchIds.add(i.getId());
             }
+            if (v != null && v.getId() != null) {
+                vIds.add(v.getId());
+            }
+        }
+
+        // Batch-fetch all verification rejections in 1 bulk query upfront (prevents N+1 lazy loading)
+        Map<Long, List<RailIEProductionRejection>> rejectionsByVIdMap = new java.util.HashMap<>();
+        if (!vIds.isEmpty()) {
+            try {
+                List<RailIEProductionRejection> allRejections = entityManager
+                        .createQuery("SELECT r FROM RailIEProductionRejection r LEFT JOIN FETCH r.productionInfo WHERE r.verification.id IN :vIds", RailIEProductionRejection.class)
+                        .setParameter("vIds", vIds)
+                        .getResultList();
+                for (RailIEProductionRejection r : allRejections) {
+                    if (r.getVerification() != null && r.getVerification().getId() != null) {
+                        rejectionsByVIdMap.computeIfAbsent(r.getVerification().getId(), k -> new ArrayList<>()).add(r);
+                    }
+                }
+            } catch (Exception ignored) {}
         }
 
         // Query historical inspections across other calls to calculate cumulative consumption and rejection
@@ -185,10 +206,19 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             bd.setDrawingNo(i.getDrawingNo());
 
             // Check original rejections from verification
-            if (v.getRejections() != null) {
-                List<com.sarthi.SRailPad.entity.ieVerification.RailIEProductionRejection> batchRejections = v.getRejections().stream()
-                        .filter(r -> r.getBatchNo() != null && r.getBatchNo().equals(i.getBatchNo()))
+            List<RailIEProductionRejection> vRejections = (v != null && v.getId() != null)
+                    ? rejectionsByVIdMap.getOrDefault(v.getId(), java.util.Collections.emptyList())
+                    : java.util.Collections.emptyList();
+
+            if (!vRejections.isEmpty()) {
+                List<com.sarthi.SRailPad.entity.ieVerification.RailIEProductionRejection> batchRejections = vRejections.stream()
                         .filter(r -> {
+                            if (r.getProductionInfo() != null && r.getProductionInfo().getId() != null) {
+                                return r.getProductionInfo().getId().equals(i.getId());
+                            }
+                            if (r.getBatchNo() == null || !r.getBatchNo().equals(i.getBatchNo())) {
+                                return false;
+                            }
                             if (i.getDrawingNo() == null || i.getDrawingNo().isBlank()) return true;
                             if (r.getDrawingNo() == null || r.getDrawingNo().isBlank()) return true;
                             return i.getDrawingNo().equals(r.getDrawingNo());
@@ -281,6 +311,28 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         int totalCalculatedManufactured = 0;
         int totalCalculatedRejected = 0;
 
+        // Batch-fetch all RailIEProductionInfo entries upfront in 1 bulk query (prevents N+1 queries in save loop)
+        List<Long> decBatchIds = (saveDto.getBatches() != null)
+                ? saveDto.getBatches().stream()
+                        .map(ProcessInspectionSaveDto.ProcessBatchSaveDto::getDeclarationBatchId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .collect(Collectors.toList())
+                : java.util.Collections.emptyList();
+
+        Map<Long, RailIEProductionInfo> batchInfoMap = new java.util.HashMap<>();
+        if (!decBatchIds.isEmpty()) {
+            try {
+                List<RailIEProductionInfo> infos = entityManager
+                        .createQuery("SELECT i FROM RailIEProductionInfo i LEFT JOIN FETCH i.verification v LEFT JOIN FETCH v.rejections WHERE i.id IN :ids", RailIEProductionInfo.class)
+                        .setParameter("ids", decBatchIds)
+                        .getResultList();
+                for (RailIEProductionInfo info : infos) {
+                    batchInfoMap.put(info.getId(), info);
+                }
+            } catch (Exception ignored) {}
+        }
+
         if (saveDto.getBatches() != null) {
             for (ProcessInspectionSaveDto.ProcessBatchSaveDto bDto : saveDto.getBatches()) {
                 RailProcessInspectionBatch batch = new RailProcessInspectionBatch();
@@ -292,26 +344,29 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 String batchRejectionReason = bDto.getReasonForRejection();
 
                 if (bDto.getDeclarationBatchId() != null) {
-                    try {
-                        RailIEProductionInfo info = entityManager.find(RailIEProductionInfo.class, bDto.getDeclarationBatchId());
-                        if (info != null) {
-                            if (drawingNo == null || drawingNo.isBlank()) {
-                                drawingNo = info.getDrawingNo();
-                            }
-                            if ((batchRejectionReason == null || batchRejectionReason.isBlank()) && bDto.getQtyRejected() != null && bDto.getQtyRejected() > 0) {
-                                if (info.getVerification() != null && info.getVerification().getRejections() != null) {
-                                    String rejs = info.getVerification().getRejections().stream()
-                                            .filter(r -> r.getBatchNo() != null && r.getBatchNo().equals(info.getBatchNo()))
-                                            .map(r -> (r.getReason() != null ? r.getReason() : "Rejected") + (r.getRejectedQty() != null ? " (" + r.getRejectedQty() + " Nos)" : ""))
-                                            .distinct()
-                                            .collect(java.util.stream.Collectors.joining(", "));
-                                    if (!rejs.isBlank()) {
-                                        batchRejectionReason = rejs;
-                                    }
+                    RailIEProductionInfo info = batchInfoMap.get(bDto.getDeclarationBatchId());
+                    if (info != null) {
+                        if (drawingNo == null || drawingNo.isBlank()) {
+                            drawingNo = info.getDrawingNo();
+                        }
+                        if ((batchRejectionReason == null || batchRejectionReason.isBlank()) && bDto.getQtyRejected() != null && bDto.getQtyRejected() > 0) {
+                            if (info.getVerification() != null && info.getVerification().getRejections() != null) {
+                                String rejs = info.getVerification().getRejections().stream()
+                                        .filter(r -> {
+                                            if (r.getProductionInfo() != null && r.getProductionInfo().getId() != null) {
+                                                return r.getProductionInfo().getId().equals(info.getId());
+                                            }
+                                            return r.getBatchNo() != null && r.getBatchNo().equals(info.getBatchNo());
+                                        })
+                                        .map(r -> (r.getReason() != null ? r.getReason() : "Rejected") + (r.getRejectedQty() != null ? " (" + r.getRejectedQty() + " Nos)" : ""))
+                                        .distinct()
+                                        .collect(java.util.stream.Collectors.joining(", "));
+                                if (!rejs.isBlank()) {
+                                    batchRejectionReason = rejs;
                                 }
                             }
                         }
-                    } catch (Exception ignored) {}
+                    }
                 }
 
                 if ((drawingNo == null || drawingNo.isBlank()) && call.getDrawingNo() != null) {
@@ -414,6 +469,31 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         dto.setShift(result.getShift());
         dto.setInspectionDate(result.getInspectionDate());
         
+        // Batch-fetch any missing drawing numbers upfront in 1 bulk query (prevents N+1 queries)
+        List<Long> missingDrawingBatchIds = new ArrayList<>();
+        if (result.getBatches() != null) {
+            for (RailProcessInspectionBatch b : result.getBatches()) {
+                if (b.getDrawingNo() == null && b.getDeclarationBatchId() != null) {
+                    missingDrawingBatchIds.add(b.getDeclarationBatchId());
+                }
+            }
+        }
+
+        Map<Long, String> drawingNoByBatchIdMap = new java.util.HashMap<>();
+        if (!missingDrawingBatchIds.isEmpty()) {
+            try {
+                List<Object[]> rows = entityManager
+                        .createQuery("SELECT i.id, i.drawingNo FROM RailIEProductionInfo i WHERE i.id IN :ids", Object[].class)
+                        .setParameter("ids", missingDrawingBatchIds)
+                        .getResultList();
+                for (Object[] r : rows) {
+                    if (r[0] != null && r[1] != null) {
+                        drawingNoByBatchIdMap.put((Long) r[0], (String) r[1]);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
         List<ProcessInspectionSaveDto.ProcessBatchSaveDto> batchDtos = new ArrayList<>();
         if (result.getBatches() != null) {
             for (RailProcessInspectionBatch b : result.getBatches()) {
@@ -439,14 +519,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 bd.setQtyRemaining(remQty);
                 
                 if (bd.getDrawingNo() == null && b.getDeclarationBatchId() != null) {
-                    try {
-                        String drawingNo = (String) entityManager.createNativeQuery("SELECT drawing_no FROM rail_ie_production_info WHERE id = :id")
-                            .setParameter("id", b.getDeclarationBatchId())
-                            .getSingleResult();
-                        bd.setDrawingNo(drawingNo);
-                    } catch (Exception e) {
-                        // ignore
-                    }
+                    bd.setDrawingNo(drawingNoByBatchIdMap.get(b.getDeclarationBatchId()));
                 }
                 
                 batchDtos.add(bd);
