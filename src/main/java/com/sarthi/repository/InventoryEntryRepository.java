@@ -85,6 +85,32 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
     boolean existsByTcNumberAndVendorCode(String tcNumber, String vendorCode);
 
     /**
+     * Check if an entry exists with the given TC number and supplier name across all vendors
+     * (case-insensitive and whitespace-trimmed)
+     *
+     * @param tcNumber     The TC number
+     * @param supplierName The supplier name
+     * @param excludeId    Optional ID to exclude (for update scenarios)
+     * @return true if exists, false otherwise
+     */
+    @Query("""
+       SELECT COUNT(e) > 0
+       FROM InventoryEntry e
+       WHERE LOWER(TRIM(e.tcNumber)) = LOWER(TRIM(:tcNumber))
+         AND LOWER(TRIM(e.supplierName)) = LOWER(TRIM(:supplierName))
+         AND (:excludeId IS NULL OR e.id <> :excludeId)
+       """)
+    boolean existsByTcNumberAndSupplierName(
+            @Param("tcNumber") String tcNumber,
+            @Param("supplierName") String supplierName,
+            @Param("excludeId") Long excludeId
+    );
+
+    default boolean existsByTcNumberAndSupplierName(String tcNumber, String supplierName) {
+        return existsByTcNumberAndSupplierName(tcNumber, supplierName, null);
+    }
+
+    /**
      * Find all inventory entries for a vendor with FRESH_PO status (available
      * inventory)
      *

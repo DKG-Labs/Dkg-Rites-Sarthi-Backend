@@ -105,6 +105,25 @@ public interface InventoryEntryService {
     boolean existsByTcNumber(String tcNumber, String vendorCode);
 
     /**
+     * Check if a TC number and Supplier Name combination already exists in the system across all vendors
+     * 
+     * @param tcNumber     The TC number to check
+     * @param supplierName The supplier name
+     * @return true if exists, false otherwise
+     */
+    boolean existsByTcNumberAndSupplierName(String tcNumber, String supplierName);
+
+    /**
+     * Check if a TC number and Supplier Name combination exists excluding a specific entry ID (for edits)
+     * 
+     * @param tcNumber     The TC number to check
+     * @param supplierName The supplier name
+     * @param excludeId    ID to exclude
+     * @return true if exists, false otherwise
+     */
+    boolean existsByTcNumberAndSupplierName(String tcNumber, String supplierName, Long excludeId);
+
+    /**
      * Get consumption history for an inventory entry
      */
     List<com.sarthi.dto.InventoryHistoryDto> getInventoryHistory(Long id);

@@ -52,6 +52,15 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
             // Validate required fields
             validateInventoryRequest(requestDto);
 
+            // Validate Supplier + TC Number combination uniqueness across all vendors
+            if (existsByTcNumberAndSupplierName(requestDto.getTcNumber(), requestDto.getSupplierName())) {
+                throw new BusinessException(
+                        new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
+                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Combination of Supplier ('" + requestDto.getSupplierName() + "') and TC Number ('" + requestDto.getTcNumber() + "') already exists in the system."));
+            }
+
             // Create entity from DTO
             InventoryEntry entry = new InventoryEntry();
             mapRequestToEntity(requestDto, entry);
@@ -101,6 +110,15 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     public List<InventoryEntryResponseDto> createMultipleInventoryEntries(InventoryBulkEntryRequestDto bulkRequestDto,
             String tcFilePath) {
         logger.info("Creating multiple inventory entries (bulk) for vendor: {}", bulkRequestDto.getVendorCode());
+
+        // Validate Supplier + TC Number combination uniqueness across all vendors
+        if (existsByTcNumberAndSupplierName(bulkRequestDto.getTcNumber(), bulkRequestDto.getSupplierName())) {
+            throw new BusinessException(
+                    new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Combination of Supplier ('" + bulkRequestDto.getSupplierName() + "') and TC Number ('" + bulkRequestDto.getTcNumber() + "') already exists in the system."));
+        }
 
         String finalTcFilePath = tcFilePath;
         String tcFileBase64 = bulkRequestDto.getTcFileBase64();
@@ -291,6 +309,15 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
 
         // Validate request
         validateInventoryRequest(requestDto);
+
+        // Validate Supplier + TC Number combination uniqueness excluding current entry ID
+        if (existsByTcNumberAndSupplierName(requestDto.getTcNumber(), requestDto.getSupplierName(), id)) {
+            throw new BusinessException(
+                    new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Combination of Supplier ('" + requestDto.getSupplierName() + "') and TC Number ('" + requestDto.getTcNumber() + "') already exists in the system."));
+        }
 
         // Find existing entry
         InventoryEntry existingEntry = inventoryEntryRepository.findById(id)
@@ -561,6 +588,22 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     public boolean existsByTcNumber(String tcNumber, String vendorCode) {
         logger.info("Checking if TC number {} exists for vendor: {}", tcNumber, vendorCode);
         return inventoryEntryRepository.existsByTcNumberAndVendorCode(tcNumber, vendorCode);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByTcNumberAndSupplierName(String tcNumber, String supplierName) {
+        return existsByTcNumberAndSupplierName(tcNumber, supplierName, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByTcNumberAndSupplierName(String tcNumber, String supplierName, Long excludeId) {
+        if (tcNumber == null || tcNumber.trim().isEmpty() || supplierName == null || supplierName.trim().isEmpty()) {
+            return false;
+        }
+        logger.info("Checking if TC number '{}' exists for supplier '{}' (excludeId={}) across all vendors", tcNumber, supplierName, excludeId);
+        return inventoryEntryRepository.existsByTcNumberAndSupplierName(tcNumber.trim(), supplierName.trim(), excludeId);
     }
 
     @Override
