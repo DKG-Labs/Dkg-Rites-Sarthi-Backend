@@ -63,6 +63,11 @@ public interface RailWorkflowService {
     public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions(Long userId, String plantId, Long workflowId, Long moduleId);
 
     public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
+    public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId);
+
+    public List<RailWorkflowTransactionDto> allFinalClosedWorkflowTransitions();
+    public List<RailWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId);
+    public List<RailWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId, Long userId);
     
     public List<String> getMappedCompanyNames(Long userId);
 
@@ -89,4 +94,8 @@ public interface RailWorkflowService {
      * @param callNo The internal call number (e.g. RPF-082526001)
      */
     public void markPaymentApprovedByIbs(String callNo);
+
+    public void revertToInspection(String requestId, Integer deletedBy);
+
+    public void revertToIcIssuance(String requestId, Integer deletedBy);
 }

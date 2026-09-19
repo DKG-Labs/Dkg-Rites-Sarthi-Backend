@@ -10,6 +10,13 @@ import java.util.Optional;
 
 @Repository
 public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinalIcEdit, Long> {
+    @Query(value = """
+            SELECT * FROM sleeper_final_ic_edit
+            WHERE ic_number = :icNumber
+               OR ic_number LIKE CONCAT('%', :icNumber, '%')
+               OR :icNumber LIKE CONCAT('%', ic_number, '%')
+            ORDER BY id DESC LIMIT 1
+            """, nativeQuery = true)
     Optional<SleeperFinalIcEdit> findByIcNumber(String icNumber);
 
     @Query(value = """

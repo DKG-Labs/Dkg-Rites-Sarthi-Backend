@@ -85,6 +85,7 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
                 res.setRlyPoNo(saved.getRlyPoNo());
                 res.setPoDate(saved.getPoDate());
                 res.setPoQty(saved.getPoQty());
+                res.setUom(poItem != null && poItem.getUom() != null ? poItem.getUom() : "Nos");
                 res.setVendorName(saved.getVendorName());
                 res.setMaNo(saved.getMaNo());
                 res.setMaDate(saved.getMaDate() != null ? saved.getMaDate().toString() : "N/A");
@@ -110,6 +111,7 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
                 res.setRlyPoNo(call.getPoNo() + " / " + call.getSrNo());
             }
             res.setPoQty(poItem != null ? poItem.getQty() : null);
+            res.setUom(poItem != null && poItem.getUom() != null ? poItem.getUom() : "Nos");
             res.setMaNo("N/A"); // not available in entity
             res.setMaDate("N/A");
             res.setBillPayingOfficer(bpo != null && !bpo.isBlank() ? bpo : "-");

@@ -996,44 +996,49 @@ ORDER BY um.employee_code
         CAST(COALESCE(pi.qty, 0) AS SIGNED) AS quantityOnOrder,
 
         CAST(COALESCE(
-            (
-                SELECT SUM(sfr_prev.total_offered_quantity)
-                FROM sleeper_final_result sfr_prev
-                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
-                WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
-                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
-                  AND sic_prev.id < sic.id
+            IF(
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                (
+                    SELECT SUM(COALESCE(sfr_prev.offered_sets_quantity, 0))
+                    FROM sleeper_final_result sfr_prev
+                    JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                    WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                      AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
+                      AND sic_prev.id < sic.id
+                ),
+                (
+                    SELECT SUM(sfr_prev.total_offered_quantity)
+                    FROM sleeper_final_result sfr_prev
+                    JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                    WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                      AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
+                      AND sic_prev.id < sic.id
+                )
             ),
             0
         ) AS SIGNED) AS cumulativeQtyOfferedPreviously,
 
         CAST(COALESCE(
-            (
-                SELECT SUM(sfr_prev.total_accepted)
-                FROM sleeper_final_result sfr_prev
-                JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
-                WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
-                  AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
-                  AND sic_prev.id < sic.id
-            ),
-            0
-        ) AS SIGNED) AS quantityPreviouslyPassed,
-
-        CAST(COALESCE(
-            (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
-            (SELECT (COALESCE(sfr2.total_accepted, 0) + COALESCE(sfr2.total_rejected, 0)) FROM sleeper_final_result sfr2 WHERE sfr2.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
-            sic.total_offered,
-            0
-        ) AS SIGNED) AS qtyNowOffered,
-
-        CAST(COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1), fcih.accepted_qty, 0) AS SIGNED) AS qtyNowPassed,
-
-        CAST(COALESCE((SELECT sfr.total_rejected FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1), fcih.rejected_qty, 0) AS SIGNED) AS qtyNowRejected,
-
-        CAST(GREATEST(0, (
-            COALESCE(pi.qty, 0)
-            -
-            COALESCE(
+            IF(
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                (
+                    SELECT SUM(COALESCE(sfr_prev.accepted_sets_quantity, 0))
+                    FROM sleeper_final_result sfr_prev
+                    JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                    WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                      AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
+                      AND sic_prev.id < sic.id
+                ),
                 (
                     SELECT SUM(sfr_prev.total_accepted)
                     FROM sleeper_final_result sfr_prev
@@ -1041,12 +1046,114 @@ ORDER BY um.employee_code
                     WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
                       AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
                       AND sic_prev.id < sic.id
+                )
+            ),
+            0
+        ) AS SIGNED) AS quantityPreviouslyPassed,
+
+        CAST(COALESCE(
+            IF(
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                (SELECT sfr.offered_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+                (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
+            ),
+            (SELECT (COALESCE(sfr2.total_accepted, 0) + COALESCE(sfr2.total_rejected, 0)) FROM sleeper_final_result sfr2 WHERE sfr2.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+            sic.total_offered,
+            0
+        ) AS SIGNED) AS qtyNowOffered,
+
+        CAST(COALESCE(
+            IF(
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                (SELECT sfr.accepted_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+                (SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
+            ),
+            fcih.accepted_qty,
+            0
+        ) AS SIGNED) AS qtyNowPassed,
+
+        CAST(COALESCE(
+            IF(
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                (SELECT sfr.rejected_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+                (SELECT sfr.total_rejected FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
+            ),
+            fcih.rejected_qty,
+            0
+        ) AS SIGNED) AS qtyNowRejected,
+
+        CAST(GREATEST(0, (
+            COALESCE(pi.qty, 0)
+            -
+            COALESCE(
+                IF(
+                    (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                    (
+                        SELECT SUM(COALESCE(sfr_prev.accepted_sets_quantity, 0))
+                        FROM sleeper_final_result sfr_prev
+                        JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                        WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                          AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
+                          AND sic_prev.id < sic.id
+                    ),
+                    (
+                        SELECT SUM(sfr_prev.total_accepted)
+                        FROM sleeper_final_result sfr_prev
+                        JOIN sleeper_inspection_call sic_prev ON sic_prev.call_no COLLATE utf8mb4_unicode_ci = sfr_prev.call_number COLLATE utf8mb4_unicode_ci
+                        WHERE sic_prev.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                          AND LPAD(TRIM(COALESCE(sic_prev.sr_no, sfr_prev.sr_no)), 3, '0') COLLATE utf8mb4_unicode_ci = LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0') COLLATE utf8mb4_unicode_ci
+                          AND sic_prev.id < sic.id
+                    )
                 ),
                 0
             )
             -
-            COALESCE((SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1), fcih.accepted_qty, 0)
+            COALESCE(
+                IF(
+                    (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                    (SELECT sfr.accepted_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
+                    (SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
+                ),
+                fcih.accepted_qty,
+                0
+            )
         )) AS SIGNED) AS qtyStillDue,
+
+        IF(
+            (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
+             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
+             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
+             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
+             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+            'SETS.',
+            'NOS.'
+        ) AS unit,
 
         CONCAT(
             DATE_FORMAT(COALESCE(sic.created_at, CURRENT_DATE()), '%d.%m.%Y'),

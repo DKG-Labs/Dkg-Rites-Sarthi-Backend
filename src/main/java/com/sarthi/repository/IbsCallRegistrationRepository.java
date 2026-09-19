@@ -13,6 +13,7 @@ import java.util.Set;
 public interface IbsCallRegistrationRepository
         extends JpaRepository<IbsCallRegistration, Long> {
     boolean existsByCallNumberAndStatus(String callNumber, String status);
+    List<IbsCallRegistration> findByCallNumber(String callNumber);
 
     @Query("""
        SELECT i.callNumber

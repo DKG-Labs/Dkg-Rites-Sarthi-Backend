@@ -99,6 +99,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Autowired
     private SleeperFinalIcSaveChangesRepository sleeperFinalIcSaveChangesRepository;
     @Autowired
+    private com.sarthi.repository.certificate.CertificateStorageRepository certificateStorageRepository;
+    @Autowired
     private PoHeaderRepository poHeaderRepository;
     @Autowired
     private PoItemRepository poItemRepository;
@@ -108,6 +110,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private SleeperCallCancellationDetailRepository sleeperCallCancellationDetailRepository;
     @Autowired
     private SleeperVendorFinancialLiabilityRepository sleeperVendorFinancialLiabilityRepository;
+    @Autowired
+    private com.sarthi.repository.IbsCallRegistrationRepository ibsCallRegistrationRepository;
 
     public void validateUser(Integer userId) {
         if (!userMasterRepository.existsById(userId)) {
@@ -915,6 +919,36 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             tx.setStatus(AppConstant.COMPLETED_TYPE);
             tx.setJobStatus("IC_GENERATION");
             
+        } else if (req.getAction().equalsIgnoreCase("SEND_CALL_TO_IBS")
+                || req.getAction().equalsIgnoreCase("SEND CALL TO IBS")
+                || req.getAction().equalsIgnoreCase("CLOSED")) {
+
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            tx.setNextRole(null);
+            tx.setStatus("SEND_CALL_TO_IBS");
+            tx.setJobStatus("CLOSED");
+            tx.setAction("SEND_CALL_TO_IBS");
+
+            try {
+                if (sleeperInspectionCallRepository != null) {
+                    Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> icOpt = sleeperInspectionCallRepository.findByCallNo(req.getRequestId());
+                    if (icOpt.isPresent()) {
+                        com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall ic = icOpt.get();
+                        ic.setStatus("SEND_CALL_TO_IBS");
+                        sleeperInspectionCallRepository.save(ic);
+                    }
+                }
+            } catch (Exception ex) {
+                log.error("Failed to update SleeperInspectionCall status to SEND_CALL_TO_IBS: ", ex);
+            }
+
+            tx.setCreatedBy(current.getCreatedBy());
+            tx.setModifiedBy(req.getActionBy());
+            tx.setCreatedDate(LocalDateTime.now());
+            tx.setUpdatedDate(LocalDateTime.now());
+
+            SleeperWorkflowTransaction saved = repository.save(tx);
+            return mapToResponse(saved);
         } else if (current.getWorkflowId().equals(2L)) {
 
             List<SleeperTransitionMaster> transitions =
@@ -1640,17 +1674,94 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
     @Override
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions() {
-        return allFinalCompletedWorkflowTransitions(null);
+        return allFinalCompletedWorkflowTransitions(null, null);
     }
 
     @Override
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId) {
+        return allFinalCompletedWorkflowTransitions(plantId, null);
+    }
+
+    @Override
+    public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId, Long assignedTo) {
         String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
-        List<SleeperWorkflowTransaction> list = repository.findFinalCompletedRequests();
+        List<SleeperWorkflowTransaction> list = repository.findFinalCompletedRequests(cleanPlantId, assignedTo);
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
         List<SleeperWorkflowTransactionDto> dtos = list.stream()
                 .map(tx -> this.mapToResponse(tx, cache))
+                .toList();
+
+        if (cleanPlantId != null && !cleanPlantId.isEmpty()) {
+            dtos = dtos.stream()
+                    .filter(dto -> isPlantMatch(dto.getPlantId(), cleanPlantId))
+                    .toList();
+        }
+
+        return dtos;
+    }
+
+    @Override
+    public List<SleeperWorkflowTransactionDto> allFinalClosedWorkflowTransitions() {
+        return allFinalClosedWorkflowTransitions(null, null);
+    }
+
+    @Override
+    public List<SleeperWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId) {
+        return allFinalClosedWorkflowTransitions(plantId, null);
+    }
+
+    @Override
+    public List<SleeperWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId, Long userId) {
+        String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
+        List<SleeperWorkflowTransaction> list = (cleanPlantId != null && !cleanPlantId.isEmpty())
+                ? repository.findFinalClosedRequests(cleanPlantId)
+                : repository.findFinalClosedRequests();
+
+        if (list.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        List<String> requestIds = list.stream()
+                .map(SleeperWorkflowTransaction::getRequestId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        // Batch fetch IBS status
+        java.util.Map<String, String> ibsStatusMap = new java.util.HashMap<>();
+        java.util.Map<String, String> ibsReasonMap = new java.util.HashMap<>();
+        if (ibsCallRegistrationRepository != null && !requestIds.isEmpty()) {
+            try {
+                List<Object[]> ibsRows = ibsCallRegistrationRepository.findLatestStatusByCallNumbers(requestIds);
+                if (ibsRows != null) {
+                    for (Object[] row : ibsRows) {
+                        if (row != null && row.length >= 2 && row[0] != null) {
+                            String cn = String.valueOf(row[0]).trim();
+                            String st = row[1] != null ? String.valueOf(row[1]).trim() : "PENDING";
+                            String re = (row.length >= 3 && row[2] != null) ? String.valueOf(row[2]).trim() : "";
+                            ibsStatusMap.put(cn, st);
+                            ibsReasonMap.put(cn, re);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Error batch fetching IBS status for sleeper closed calls: " + ex.getMessage());
+            }
+        }
+
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        List<SleeperWorkflowTransactionDto> dtos = list.stream()
+                .map(tx -> {
+                    SleeperWorkflowTransactionDto dto = this.mapToResponse(tx, cache);
+                    String reqId = tx.getRequestId();
+                    dto.setIbsStatus(ibsStatusMap.getOrDefault(reqId, "PENDING"));
+                    dto.setIbsReason(ibsReasonMap.getOrDefault(reqId, "Awaiting intake / record creation in IBS"));
+                    if (dto.getStatus() == null || dto.getStatus().isEmpty() || "SEND_CALL_TO_IBS".equalsIgnoreCase(dto.getStatus())) {
+                        dto.setStatus("Closed - Sent to IBS");
+                    }
+                    return dto;
+                })
                 .toList();
 
         if (cleanPlantId != null && !cleanPlantId.isEmpty()) {
@@ -2185,6 +2296,122 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             liability.setLiabilityType("CANCELLATION_CHARGES");
             sleeperVendorFinancialLiabilityRepository.saveAndFlush(liability);
             log.info("Payment marked as 'Approved by RITES Finance' for call {} via IBS verification in sleeper_vendor_financial_liability.", cleanCallNo);
+        }
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void revertToInspection(String requestId, Integer deletedBy) {
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Request ID is required");
+        }
+        String normalizedRequestId = requestId.trim();
+
+        // 1. Delete workflow transitions with action/status related to IC_ISSUE, COMPLETED, FINISH
+        List<SleeperWorkflowTransaction> transitions = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(normalizedRequestId);
+        if (transitions != null && !transitions.isEmpty()) {
+            for (SleeperWorkflowTransaction tx : transitions) {
+                String action = (tx.getAction() != null) ? tx.getAction().toUpperCase() : "";
+                String jobStatus = (tx.getJobStatus() != null) ? tx.getJobStatus().toUpperCase() : "";
+                String status = (tx.getStatus() != null) ? tx.getStatus().toUpperCase() : "";
+
+                if (action.contains("IC_ISSUE") || action.contains("FINISH") || action.contains("COMPLETED")
+                        || jobStatus.contains("IC_ISSUE") || jobStatus.contains("COMPLETED") || jobStatus.contains("FINISH")
+                        || status.contains("IC_ISSUE") || status.contains("COMPLETED") || status.contains("FINISH")) {
+                    repository.delete(tx);
+                }
+            }
+        }
+
+        // 2. Delete from sleeper_final_ic_save_changes
+        try {
+            if (sleeperFinalIcSaveChangesRepository != null) {
+                List<SleeperFinalIcSaveChanges> saves = sleeperFinalIcSaveChangesRepository.findAllByIcNumberFlexible(normalizedRequestId);
+                if (saves != null && !saves.isEmpty()) {
+                    sleeperFinalIcSaveChangesRepository.deleteAll(saves);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting sleeper_final_ic_save_changes for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 3. Delete from sleeper_inspection_complete_details if present
+        try {
+            if (sleeperInspectionCompleteDetailsRepository != null) {
+                sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(normalizedRequestId)
+                        .ifPresent(sleeperInspectionCompleteDetailsRepository::delete);
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting sleeper_inspection_complete_details for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 4. Update SleeperInspectionCall status back to "Pending for verification"
+        try {
+            if (sleeperInspectionCallRepository != null) {
+                sleeperInspectionCallRepository.findByCallNo(normalizedRequestId).ifPresent(ic -> {
+                    ic.setStatus("Pending for verification");
+                    sleeperInspectionCallRepository.save(ic);
+                });
+            }
+        } catch (Exception ex) {
+            log.warn("Error updating sleeper_inspection_call status for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void revertToIcIssuance(String requestId, Integer deletedBy) {
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Request ID is required");
+        }
+        String normalizedRequestId = requestId.trim();
+
+        // 1. Delete completion / e-signed transaction from sleeper_workflow_transaction
+        List<SleeperWorkflowTransaction> transitions = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(normalizedRequestId);
+        if (transitions != null && !transitions.isEmpty()) {
+            SleeperWorkflowTransaction latest = transitions.get(0);
+            String action = (latest.getAction() != null) ? latest.getAction().toUpperCase() : "";
+            String jobStatus = (latest.getJobStatus() != null) ? latest.getJobStatus().toUpperCase() : "";
+            String status = (latest.getStatus() != null) ? latest.getStatus().toUpperCase() : "";
+
+            if (action.contains("IC_GENERATION") || action.contains("GENERATE_IC") || action.contains("DSC_SIGN") || action.contains("SIGN")
+                    || jobStatus.contains("IC_GENERATION") || jobStatus.contains("COMPLETED") || status.contains("COMPLETED")) {
+                repository.delete(latest);
+            }
+        }
+
+        // 2. Retrieve certificate No if exists
+        String certNo = null;
+        try {
+            if (sleeperInspectionCompleteDetailsRepository != null) {
+                certNo = sleeperInspectionCompleteDetailsRepository.findCertificateNoByCallNo(normalizedRequestId);
+            }
+        } catch (Exception ex) {
+            log.warn("Could not find certNo for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 3. Delete from sleeper_final_ic_edit
+        try {
+            if (sleeperFinalIcEditRepository != null) {
+                sleeperFinalIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(sleeperFinalIcEditRepository::delete);
+                if (certNo != null && !certNo.isBlank()) {
+                    sleeperFinalIcEditRepository.findByIcNumber(certNo.trim()).ifPresent(sleeperFinalIcEditRepository::delete);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting sleeper_final_ic_edit for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 4. Delete from certificate_storage
+        try {
+            if (certificateStorageRepository != null) {
+                certificateStorageRepository.findByCallNumber(normalizedRequestId).ifPresent(certificateStorageRepository::delete);
+                if (certNo != null && !certNo.isBlank()) {
+                    certificateStorageRepository.findByIcNumber(certNo.trim()).ifPresent(certificateStorageRepository::delete);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting certificate_storage for {}: {}", normalizedRequestId, ex.getMessage());
         }
     }
 }

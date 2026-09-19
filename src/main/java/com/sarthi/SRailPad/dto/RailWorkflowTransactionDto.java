@@ -74,5 +74,6 @@ public class RailWorkflowTransactionDto {
 
         private LocalDateTime updatedDate;
 
-
+        private String ibsStatus;
+        private String ibsReason;
 }

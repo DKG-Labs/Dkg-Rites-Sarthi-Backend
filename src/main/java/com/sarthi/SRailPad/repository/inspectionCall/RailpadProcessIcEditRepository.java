@@ -10,6 +10,13 @@ import java.util.Optional;
 
 @Repository
 public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadProcessIcEdit, Long> {
+    @Query(value = """
+            SELECT * FROM railpad_process_ic_edit
+            WHERE ic_number = :icNumber
+               OR ic_number LIKE CONCAT('%', :icNumber, '%')
+               OR :icNumber LIKE CONCAT('%', ic_number, '%')
+            ORDER BY id DESC LIMIT 1
+            """, nativeQuery = true)
     Optional<RailpadProcessIcEdit> findByIcNumber(String icNumber);
 
     @Query(value = """

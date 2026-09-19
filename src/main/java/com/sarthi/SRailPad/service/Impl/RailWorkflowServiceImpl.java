@@ -79,6 +79,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private RailInspectionBatchRepository railInspectionBatchRepository;
     private RailInspectionScheduleRepository railInspectionScheduleRepository;
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private com.sarthi.SRailPad.repository.inspectionCall.RailpadProcessIcSaveChangesRepository railpadProcessIcSaveChangesRepository;
+    private com.sarthi.SRailPad.repository.inspectionCall.RailpadFinalIcSaveChangesRepository railpadFinalIcSaveChangesRepository;
+    private com.sarthi.SRailPad.repository.inspectionCall.RailpadProcessIcEditRepository railpadProcessIcEditRepository;
+    private com.sarthi.SRailPad.repository.inspectionCall.RailpadFinalIcEditRepository railpadFinalIcEditRepository;
+    private com.sarthi.repository.certificate.CertificateStorageRepository certificateStorageRepository;
 
     @Override
     @Transactional
@@ -473,13 +478,29 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             && !req.getAction().equalsIgnoreCase("IC_ISSUE") 
             && !req.getAction().equalsIgnoreCase("IC_GENERATION")
             && !req.getAction().equalsIgnoreCase("DSC_SIGN_IC")
-            && !req.getAction().equalsIgnoreCase("GENERATE_IC")) {
+            && !req.getAction().equalsIgnoreCase("GENERATE_IC")
+            && !req.getAction().equalsIgnoreCase("SEND_CALL_TO_IBS")
+            && !req.getAction().equalsIgnoreCase("SEND CALL TO IBS")
+            && !req.getAction().equalsIgnoreCase("SENT_TO_IBS")
+            && !req.getAction().equalsIgnoreCase("CLOSE_CALL")
+            && !req.getAction().equalsIgnoreCase("CLOSED")) {
             throw new BusinessException(
                     new ErrorDetails(
                             AppConstant.ERROR_CODE_RESOURCE,
                             AppConstant.ERROR_TYPE_CODE_VALIDATION,
                             AppConstant.ERROR_TYPE_VALIDATION,
                             "This inspection has already been finished."
+                    )
+            );
+        }
+
+        if ("SEND_CALL_TO_IBS".equalsIgnoreCase(current.getStatus()) || "CLOSED".equalsIgnoreCase(current.getJobStatus()) || "CLOSED".equalsIgnoreCase(current.getStatus())) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "This inspection call has already been closed and sent to IBS."
                     )
             );
         }
@@ -765,6 +786,57 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
             RailWorkflowTransaction saved = railWorkflowTransactionRepository.save(tx);
             return mapToResponse(saved);
+        } else if (req.getAction().equalsIgnoreCase("SEND_CALL_TO_IBS")
+                || req.getAction().equalsIgnoreCase("SEND CALL TO IBS")
+                || req.getAction().equalsIgnoreCase("SENT_TO_IBS")
+                || req.getAction().equalsIgnoreCase("CLOSE_CALL")
+                || req.getAction().equalsIgnoreCase("CLOSED")) {
+            
+            tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : (current.getCurrentRole() != null ? current.getCurrentRole() : "Main IE"));
+            tx.setNextRole(null);
+            tx.setStatus("SEND_CALL_TO_IBS");
+            tx.setJobStatus("CLOSED");
+            tx.setAction("SEND_CALL_TO_IBS");
+            
+            // Sync with IBS registration if ibsCallRegistrationRepository exists
+            try {
+                if (ibsCallRegistrationRepository != null) {
+                    String reqId = req.getRequestId();
+                    var ibsList = ibsCallRegistrationRepository.findByCallNumber(reqId);
+                    if (ibsList != null && !ibsList.isEmpty()) {
+                        var ibsEntry = ibsList.get(0);
+                        ibsEntry.setStatus("SUCCESS");
+                        ibsEntry.setReason(req.getRemarks() != null ? req.getRemarks() : "Call sent to IBS by IE");
+                        ibsEntry.setAcknowledgedAt(LocalDateTime.now());
+                        ibsCallRegistrationRepository.save(ibsEntry);
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Could not update IBS registration for Railpad call {}: {}", req.getRequestId(), ex.getMessage());
+            }
+
+            // Sync with RailInspectionCall entity status
+            try {
+                if (railInspectionCallRepository != null) {
+                    var icOpt = railInspectionCallRepository.findByCallNo(req.getRequestId());
+                    if (icOpt.isPresent()) {
+                        var ic = icOpt.get();
+                        ic.setStatus("SEND_CALL_TO_IBS");
+                        railInspectionCallRepository.save(ic);
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to update RailInspectionCall status to SEND_CALL_TO_IBS: {}", ex.getMessage());
+            }
+
+            tx.setCreatedBy(current.getCreatedBy());
+            tx.setModifiedBy(req.getActionBy());
+            tx.setCreatedDate(LocalDateTime.now());
+            tx.setUpdatedDate(LocalDateTime.now());
+
+            RailWorkflowTransaction saved = railWorkflowTransactionRepository.save(tx);
+            return mapToResponse(saved);
+
         } else if (req.getAction().equalsIgnoreCase("IC_ISSUE") 
                 || req.getAction().equalsIgnoreCase("IC_GENERATION")
                 || req.getAction().equalsIgnoreCase("GENERATE_IC")
@@ -1735,21 +1807,117 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     }
 
 
+    private boolean isPlantMatch(String p1, String p2) {
+        if (p1 == null || p2 == null) return false;
+        String c1 = p1.replaceAll("^[:\\s]+", "").trim().toLowerCase();
+        String c2 = p2.replaceAll("^[:\\s]+", "").trim().toLowerCase();
+        if (c1.equals(c2)) return true;
+        if (c1.contains(c2) || c2.contains(c1)) return true;
+        return false;
+    }
+
     @Override
     public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions() {
+        return allFinalCompletedWorkflowTransitions(null);
+    }
 
-        List<RailWorkflowTransaction> list =
-                railWorkflowTransactionRepository
-                        .findFinalCompletedRequests();
+    @Override
+    public List<RailWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId) {
+        String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
+        List<RailWorkflowTransaction> list = railWorkflowTransactionRepository.findFinalCompletedRequests();
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
         if (list != null && !list.isEmpty()) {
             preloadCache(list, cache);
         }
-        return list.stream()
+
+        List<RailWorkflowTransactionDto> dtos = list.stream()
                 .map(tx -> this.mapToResponse(tx, cache))
+                .filter(dto -> {
+                    String action = (dto.getAction() != null ? dto.getAction() : "").toUpperCase();
+                    String status = (dto.getStatus() != null ? dto.getStatus() : "").toUpperCase();
+                    String jobStatus = (dto.getJobStatus() != null ? dto.getJobStatus() : "").toUpperCase();
+                    boolean isClosed = action.contains("SEND_CALL_TO_IBS") || action.contains("SENT_TO_IBS") || action.contains("CLOSED")
+                            || status.contains("SEND_CALL_TO_IBS") || status.contains("SENT_TO_IBS") || status.contains("CLOSED")
+                            || jobStatus.contains("SEND_CALL_TO_IBS") || jobStatus.contains("SENT_TO_IBS") || jobStatus.contains("CLOSED");
+                    return !isClosed;
+                })
+                .toList();
+
+        if (cleanPlantId != null && !cleanPlantId.isEmpty()) {
+            dtos = dtos.stream()
+                    .filter(dto -> isPlantMatch(dto.getPlantId(), cleanPlantId))
+                    .toList();
+        }
+
+        return dtos;
+    }
+
+    @Override
+    public List<RailWorkflowTransactionDto> allFinalClosedWorkflowTransitions() {
+        return allFinalClosedWorkflowTransitions(null, null);
+    }
+
+    @Override
+    public List<RailWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId) {
+        return allFinalClosedWorkflowTransitions(plantId, null);
+    }
+
+    @Override
+    public List<RailWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId, Long userId) {
+        String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
+        List<RailWorkflowTransaction> list = (cleanPlantId != null && !cleanPlantId.isEmpty())
+                ? railWorkflowTransactionRepository.findFinalClosedRequests(cleanPlantId)
+                : railWorkflowTransactionRepository.findFinalClosedRequests();
+
+        if (list == null || list.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        List<String> requestIds = list.stream()
+                .map(RailWorkflowTransaction::getRequestId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        // Batch fetch IBS status
+        java.util.Map<String, String> ibsStatusMap = new java.util.HashMap<>();
+        java.util.Map<String, String> ibsReasonMap = new java.util.HashMap<>();
+        if (ibsCallRegistrationRepository != null && !requestIds.isEmpty()) {
+            try {
+                List<Object[]> ibsRows = ibsCallRegistrationRepository.findLatestStatusByCallNumbers(requestIds);
+                if (ibsRows != null) {
+                    for (Object[] row : ibsRows) {
+                        if (row != null && row.length >= 2 && row[0] != null) {
+                            String cn = String.valueOf(row[0]).trim();
+                            String st = row[1] != null ? String.valueOf(row[1]).trim() : "PENDING";
+                            String re = (row.length >= 3 && row[2] != null) ? String.valueOf(row[2]).trim() : "";
+                            ibsStatusMap.put(cn, st);
+                            ibsReasonMap.put(cn, re);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Could not batch-fetch IBS status for Railpad calls: {}", ex.getMessage());
+            }
+        }
+
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        preloadCache(list, cache);
+
+        return list.stream()
+                .map(tx -> {
+                    RailWorkflowTransactionDto dto = this.mapToResponse(tx, cache);
+                    String reqId = tx.getRequestId() != null ? tx.getRequestId().trim() : "";
+                    String ibsSt = ibsStatusMap.getOrDefault(reqId, "PENDING");
+                    String ibsRe = ibsReasonMap.getOrDefault(reqId, "");
+                    dto.setIbsStatus(ibsSt);
+                    dto.setIbsReason(ibsRe);
+                    return dto;
+                })
                 .toList();
     }
+
 
     @Override
     public List<String> getMappedCompanyNames(Long userId) {
@@ -2876,6 +3044,143 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             liability.setUpdatedDate(java.time.LocalDateTime.now());
             railVendorFinancialLiabilityRepository.saveAndFlush(liability);
             log.info("Payment marked as 'Approved by RITES Finance' for call {} via IBS verification in rail_vendor_financial_liability.", cleanCallNo);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void revertToInspection(String requestId, Integer deletedBy) {
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Request ID is required");
+        }
+        String normalizedRequestId = requestId.trim();
+
+        // 1. Delete transitions with statuses/actions related to IC_ISSUE, COMPLETED, FINISH
+        List<RailWorkflowTransaction> transitions = railWorkflowTransactionRepository.findByRequestIdOrderByWorkflowTransitionIdDesc(normalizedRequestId);
+        if (transitions != null && !transitions.isEmpty()) {
+            for (RailWorkflowTransaction tx : transitions) {
+                String action = (tx.getAction() != null) ? tx.getAction().toUpperCase() : "";
+                String jobStatus = (tx.getJobStatus() != null) ? tx.getJobStatus().toUpperCase() : "";
+                String status = (tx.getStatus() != null) ? tx.getStatus().toUpperCase() : "";
+
+                if (action.contains("IC_ISSUE") || action.contains("FINISH") || action.contains("COMPLETED")
+                        || jobStatus.contains("IC_ISSUE") || jobStatus.contains("COMPLETED") || jobStatus.contains("FINISH")
+                        || status.contains("IC_ISSUE") || status.contains("COMPLETED") || status.contains("FINISH")) {
+                    railWorkflowTransactionRepository.delete(tx);
+                }
+            }
+        }
+
+        // 2. Delete from railpad_process_save_ic_changes and railpad_final_save_ic_changes
+        try {
+            if (railpadProcessIcSaveChangesRepository != null) {
+                railpadProcessIcSaveChangesRepository.findByIcNumber(normalizedRequestId)
+                        .ifPresent(railpadProcessIcSaveChangesRepository::delete);
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting railpad_process_save_ic_changes for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        try {
+            if (railpadFinalIcSaveChangesRepository != null) {
+                railpadFinalIcSaveChangesRepository.findByIcNumber(normalizedRequestId)
+                        .ifPresent(railpadFinalIcSaveChangesRepository::delete);
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting railpad_final_save_ic_changes for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 3. Delete from rail_inspection_complete_details if present
+        try {
+            if (railInspectionCompleteDetailsRepository != null) {
+                railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(normalizedRequestId)
+                        .ifPresent(railInspectionCompleteDetailsRepository::delete);
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting rail_inspection_complete_details for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 4. Update RailInspectionCall status if needed
+        try {
+            if (railInspectionCallRepository != null) {
+                railInspectionCallRepository.findByCallNo(normalizedRequestId).ifPresent(ic -> {
+                    ic.setStatus("Pending for verification");
+                    railInspectionCallRepository.save(ic);
+                });
+            }
+        } catch (Exception ex) {
+            log.warn("Error updating rail_inspection_call status for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void revertToIcIssuance(String requestId, Integer deletedBy) {
+        if (requestId == null || requestId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Request ID is required");
+        }
+        String normalizedRequestId = requestId.trim();
+
+        // 1. Delete completion / e-signed transaction from rail_workflow_transaction
+        List<RailWorkflowTransaction> transitions = railWorkflowTransactionRepository.findByRequestIdOrderByWorkflowTransitionIdDesc(normalizedRequestId);
+        if (transitions != null && !transitions.isEmpty()) {
+            RailWorkflowTransaction latest = transitions.get(0);
+            String action = (latest.getAction() != null) ? latest.getAction().toUpperCase() : "";
+            String jobStatus = (latest.getJobStatus() != null) ? latest.getJobStatus().toUpperCase() : "";
+            String status = (latest.getStatus() != null) ? latest.getStatus().toUpperCase() : "";
+
+            if (action.contains("IC_GENERATION") || action.contains("GENERATE_IC") || action.contains("DSC_SIGN") || action.contains("SIGN")
+                    || jobStatus.contains("IC_GENERATION") || jobStatus.contains("COMPLETED") || status.contains("COMPLETED")) {
+                railWorkflowTransactionRepository.delete(latest);
+            }
+        }
+
+        // 2. Retrieve certificate No if exists
+        String certNo = null;
+        try {
+            if (railInspectionCompleteDetailsRepository != null) {
+                Optional<RailInspectionCompleteDetails> detOpt = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(normalizedRequestId);
+                if (detOpt.isPresent() && detOpt.get().getCertificateNo() != null) {
+                    certNo = detOpt.get().getCertificateNo().trim();
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Could not find certNo for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 3. Delete from railpad_process_ic_edit and railpad_final_ic_edit
+        try {
+            if (railpadProcessIcEditRepository != null) {
+                railpadProcessIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(railpadProcessIcEditRepository::delete);
+                if (certNo != null && !certNo.isBlank()) {
+                    railpadProcessIcEditRepository.findByIcNumber(certNo).ifPresent(railpadProcessIcEditRepository::delete);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting railpad_process_ic_edit for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        try {
+            if (railpadFinalIcEditRepository != null) {
+                railpadFinalIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(railpadFinalIcEditRepository::delete);
+                if (certNo != null && !certNo.isBlank()) {
+                    railpadFinalIcEditRepository.findByIcNumber(certNo).ifPresent(railpadFinalIcEditRepository::delete);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting railpad_final_ic_edit for {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 4. Delete from certificate_storage
+        try {
+            if (certificateStorageRepository != null) {
+                certificateStorageRepository.findByCallNumber(normalizedRequestId).ifPresent(certificateStorageRepository::delete);
+                if (certNo != null && !certNo.isBlank()) {
+                    certificateStorageRepository.findByIcNumber(certNo).ifPresent(certificateStorageRepository::delete);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error deleting certificate_storage for {}: {}", normalizedRequestId, ex.getMessage());
         }
     }
 }

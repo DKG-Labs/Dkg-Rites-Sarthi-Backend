@@ -48,6 +48,11 @@ public interface SleeperWorkflowService {
 
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId);
+    public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId, Long assignedTo);
+
+    public List<SleeperWorkflowTransactionDto> allFinalClosedWorkflowTransitions();
+    public List<SleeperWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId);
+    public List<SleeperWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId, Long userId);
 
     public Page<SleeperWorkflowTransactionDto> allCompletedWorkflowTransitions(
             Integer moduleId,
@@ -63,4 +68,8 @@ public interface SleeperWorkflowService {
     public java.util.Map<String, Object> verifyIbsPayment(String caseNo, String callDate, int ibsCallSno);
 
     public void markPaymentApprovedByIbs(String callNo);
+
+    public void revertToInspection(String requestId, Integer deletedBy);
+
+    public void revertToIcIssuance(String requestId, Integer deletedBy);
 }

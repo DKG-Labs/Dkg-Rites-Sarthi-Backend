@@ -21,6 +21,8 @@ public interface SleeperWorkflowRepository
 
     List<SleeperWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
 
+    List<SleeperWorkflowTransaction> findByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
+
     SleeperWorkflowTransaction findFirstByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
 
     @Modifying
@@ -215,6 +217,30 @@ ORDER BY t.workflowTransitionId DESC
         OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
         OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
     )
+    AND UPPER(COALESCE(t.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+    AND UPPER(COALESCE(t.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
+    AND t.workflowId = 2
+    AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
+    AND (:assignedTo IS NULL OR t.assignedToUser = :assignedTo OR t.createdBy = :assignedTo OR t.modifiedBy = :assignedTo)
+    ORDER BY t.workflowTransitionId DESC
+""")
+    List<SleeperWorkflowTransaction> findFinalCompletedRequests(@Param("plantId") String plantId, @Param("assignedTo") Long assignedTo);
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.workflowId = 2
+        GROUP BY t2.requestId
+    )
+    AND (
+        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+    )
+    AND UPPER(COALESCE(t.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+    AND UPPER(COALESCE(t.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
     AND t.workflowId = 2
     AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
     ORDER BY t.workflowTransitionId DESC
@@ -234,10 +260,49 @@ ORDER BY t.workflowTransitionId DESC
         OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
         OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
     )
+    AND UPPER(COALESCE(t.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+    AND UPPER(COALESCE(t.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
     AND t.workflowId = 2
     ORDER BY t.workflowTransitionId DESC
 """)
     List<SleeperWorkflowTransaction> findFinalCompletedRequests();
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.workflowId = 2
+        GROUP BY t2.requestId
+    )
+    AND (
+        UPPER(COALESCE(t.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+        OR UPPER(COALESCE(t.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+    )
+    AND t.workflowId = 2
+    AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
+    ORDER BY t.workflowTransitionId DESC
+""")
+    List<SleeperWorkflowTransaction> findFinalClosedRequests(@Param("plantId") String plantId);
+
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.workflowId = 2
+        GROUP BY t2.requestId
+    )
+    AND (
+        UPPER(COALESCE(t.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+        OR UPPER(COALESCE(t.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+    )
+    AND t.workflowId = 2
+    ORDER BY t.workflowTransitionId DESC
+""")
+    List<SleeperWorkflowTransaction> findFinalClosedRequests();
 
     @Query("""
 SELECT t.requestId FROM SleeperWorkflowTransaction t

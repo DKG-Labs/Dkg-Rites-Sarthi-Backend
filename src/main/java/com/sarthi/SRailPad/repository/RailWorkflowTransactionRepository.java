@@ -12,6 +12,8 @@ import java.util.List;
 @Repository
 public interface RailWorkflowTransactionRepository extends JpaRepository<RailWorkflowTransaction, Integer> {
 
+    List<RailWorkflowTransaction> findByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
+
     @org.springframework.data.jpa.repository.Modifying
     @Query("DELETE FROM RailWorkflowTransaction t WHERE t.requestId = :requestId AND t.moduleId = :moduleId")
     void deleteByRequestIdAndModuleId(@Param("requestId") String requestId, @Param("moduleId") Long moduleId);
@@ -193,6 +195,52 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ORDER BY t.workflow_transition_id DESC
             """, nativeQuery = true)
     List<RailWorkflowTransaction> findFinalCompletedRequests();
+
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE wt.workflow_id = 2
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.workflow_id = 2
+              AND (UPPER(t.status) LIKE '%SENT_TO_IBS%'
+                OR UPPER(t.status) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(t.status) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CLOSED%')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
+    List<RailWorkflowTransaction> findFinalClosedRequests();
+
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE wt.workflow_id = 2
+                  AND (wt.plant_id = :plantId OR wt.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR wt.plant_id = REPLACE(:plantId, ':', '') OR LOWER(wt.plant_id) = LOWER(:plantId))
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.workflow_id = 2
+              AND (t.plant_id = :plantId OR t.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plant_id = REPLACE(:plantId, ':', '') OR LOWER(t.plant_id) = LOWER(:plantId))
+              AND (UPPER(t.status) LIKE '%SENT_TO_IBS%'
+                OR UPPER(t.status) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(t.status) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CLOSED%')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
+    List<RailWorkflowTransaction> findFinalClosedRequests(@Param("plantId") String plantId);
 
     @Query(value = """
                 SELECT status

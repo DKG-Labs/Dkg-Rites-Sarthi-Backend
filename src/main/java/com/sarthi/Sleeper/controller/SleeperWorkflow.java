@@ -87,9 +87,20 @@ public class SleeperWorkflow {
 
     @GetMapping("/allFInalCallCompletedCalls")
     public ResponseEntity<Object> AllFinalCallCompletedTransition(
-            @RequestParam(required = false) String plantId)  {
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) Long assignedTo,
+            @RequestParam(required = false) Long assignedToUser,
+            @RequestParam(required = false) Long userId)  {
+        Long effectiveUserId = assignedTo != null ? assignedTo : (assignedToUser != null ? assignedToUser : userId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions(plantId, effectiveUserId)), HttpStatus.OK);
+    }
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalCompletedWorkflowTransitions(plantId)), HttpStatus.OK);
+    @GetMapping({"/allClosedCalls", "/closed-calls", "/allFinalClosedCalls"})
+    public ResponseEntity<Object> allClosedCalls(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) Long userId)  {
+
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allFinalClosedWorkflowTransitions(plantId, userId)), HttpStatus.OK);
     }
 
     @GetMapping("/allCompletedWorkflowTransitionModuleWise")
@@ -260,5 +271,27 @@ public class SleeperWorkflow {
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
+    }
+
+    @DeleteMapping("/back-to-inspection/{requestId}")
+    public ResponseEntity<Object> revertToInspection(
+            @PathVariable String requestId,
+            @RequestParam(required = false) Integer deletedBy) {
+        workflowService.revertToInspection(requestId, deletedBy);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse("Call " + requestId + " reverted to Inspection stage successfully."),
+                HttpStatus.OK
+        );
+    }
+
+    @DeleteMapping("/back-to-ic-issuance/{requestId}")
+    public ResponseEntity<Object> revertToIcIssuance(
+            @PathVariable String requestId,
+            @RequestParam(required = false) Integer deletedBy) {
+        workflowService.revertToIcIssuance(requestId, deletedBy);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse("Call " + requestId + " reverted to IC Issuance stage successfully."),
+                HttpStatus.OK
+        );
     }
 }
