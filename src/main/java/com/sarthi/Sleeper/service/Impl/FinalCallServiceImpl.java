@@ -596,6 +596,9 @@ public class FinalCallServiceImpl implements FinalCallService {
         result.setTotalOfferedQuantity(dto.getTotalOfferedQuantity());
         result.setTotalAccepted(dto.getTotalAccepted());
         result.setTotalRejected(dto.getTotalRejected());
+        result.setOfferedSetsQuantity(dto.getOfferedSetsQuantity());
+        result.setAcceptedSetsQuantity(dto.getAcceptedSetsQuantity());
+        result.setRejectedSetsQuantity(dto.getRejectedSetsQuantity());
         result.setPlantId(dto.getPlantId());
         result.setUpdatedBy(dto.getUpdatedBy());
         result.setUpdatedAt(java.time.LocalDateTime.now());

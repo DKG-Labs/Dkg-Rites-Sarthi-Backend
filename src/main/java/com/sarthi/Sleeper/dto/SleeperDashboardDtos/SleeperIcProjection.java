@@ -58,4 +58,6 @@ public interface SleeperIcProjection {
     String getCaseNo();
     String getRio();
     String getPlantId();
+    String getUnit();
+    String getUom();
 }

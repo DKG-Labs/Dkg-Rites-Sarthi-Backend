@@ -52,6 +52,15 @@ public class SleeperFinalResult {
     @Column(name = "total_rejected")
     private BigDecimal totalRejected;
 
+    @Column(name = "offered_sets_quantity")
+    private BigDecimal offeredSetsQuantity;
+
+    @Column(name = "accepted_sets_quantity")
+    private BigDecimal acceptedSetsQuantity;
+
+    @Column(name = "rejected_sets_quantity")
+    private BigDecimal rejectedSetsQuantity;
+
     @Column(name = "plant_id")
     private String plantId;
 

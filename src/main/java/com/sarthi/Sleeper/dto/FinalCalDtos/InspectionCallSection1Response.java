@@ -9,6 +9,7 @@ public class InspectionCallSection1Response {
     private String rlyPoNo;
     private LocalDateTime poDate;
     private Integer poQty;
+    private String uom;
     private String vendorName;
     private String maNo;
     private String maDate;

@@ -23,6 +23,9 @@ public class SleeperFinalResultRequestDto {
     private BigDecimal totalOfferedQuantity;
     private BigDecimal totalAccepted;
     private BigDecimal totalRejected;
+    private BigDecimal offeredSetsQuantity;
+    private BigDecimal acceptedSetsQuantity;
+    private BigDecimal rejectedSetsQuantity;
     private String plantId;
     private String createdBy;
     private String updatedBy;

@@ -13,6 +13,7 @@ import java.util.Optional;
 @Repository
 public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinalResult, Long> {
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"batchResults"})
     Optional<SleeperFinalResult> findByCallNumber(String callNumber);
 
     @Query("""

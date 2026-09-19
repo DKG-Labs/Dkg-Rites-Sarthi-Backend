@@ -104,4 +104,8 @@ public class SleeperWorkflowTransactionDto {
     private LocalDate scheduleDate;
     private LocalDateTime callDate;
 
+    // IBS Integration details
+    private String ibsStatus;
+    private String ibsReason;
+    private String ibsCaseNo;
 }
