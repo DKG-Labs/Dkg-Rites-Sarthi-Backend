@@ -286,6 +286,19 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         }
     }
 
+    private boolean isTurnoutOrT45(String sleeperType, String sleeperCategory) {
+        String combined = ((sleeperType != null ? sleeperType : "") + " " + (sleeperCategory != null ? sleeperCategory : "")).toLowerCase();
+        return combined.contains("turnout") ||
+                combined.contains("pnc") ||
+                combined.contains("point") ||
+                combined.contains("crossing") ||
+                combined.contains("t-45") ||
+                combined.contains("t45") ||
+                combined.contains("irs-t-45") ||
+                combined.contains("1 in 12") ||
+                combined.contains("1 in 8.5");
+    }
+
     private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId, String sleeperT) {
 
         Long totalSleepers = 0L;
@@ -317,25 +330,57 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             testedPercentage = 100.0;
         }
 
+        // Determine if sleeper is Turnout (IRS-T-45: 20% Critical, 5% Non-Critical) vs Line Sleeper (IRS-T-39: 10% Critical, 1% Non-Critical)
+        String sType = sleeperT;
+        String sCategory = null;
+        if (sType == null || sType.isBlank()) {
+            List<String> sTypes = productionSleeperRepository.getSleeperTypeByBatch(batchId);
+            if (sTypes != null && !sTypes.isEmpty()) {
+                sType = sTypes.get(0);
+            }
+        }
+        final String finalSType = sType;
+        ProductionDeclaration decl = productionDeclarationRepository.findBatchById(batchId);
+        if (decl != null) {
+            if ("STRESS".equalsIgnoreCase(decl.getPlantType()) && decl.getChambers() != null) {
+                sCategory = decl.getChambers().stream()
+                        .filter(c -> c.getBenchGroups() != null)
+                        .flatMap(c -> c.getBenchGroups().stream())
+                        .filter(b -> finalSType != null && finalSType.equalsIgnoreCase(b.getSleeperType()))
+                        .map(b -> b.getSleeperCategory())
+                        .findFirst()
+                        .orElse(null);
+            } else if (decl.getGangs() != null) {
+                sCategory = decl.getGangs().stream()
+                        .filter(g -> finalSType != null && finalSType.equalsIgnoreCase(g.getSleeperType()))
+                        .map(g -> g.getSleeperCategory())
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+        boolean isTurnout = isTurnoutOrT45(sType, sCategory);
+
         boolean completed = false;
 
-        // MODULE 1 → VISUAL
+        // MODULE 1 → VISUAL (100%)
         if (moduleId == 1) {
             if (testedPercentage >= 99.5 || testedPercentage >= 100) {
                 completed = true;
             }
         }
 
-        // MODULE 2 → CRITICAL DIMENSION (10% sampling)
+        // MODULE 2 → CRITICAL DIMENSION (10% standard T-39, 20% for Turnout T-45)
         if (moduleId == 2) {
-            if (testedPercentage >= 10) {
+            double requiredPercent = isTurnout ? 20.0 : 10.0;
+            if (testedPercentage >= requiredPercent) {
                 completed = true;
             }
         }
 
-        // MODULE 3 → NON CRITICAL (1% sampling)
+        // MODULE 3 → NON CRITICAL (1% standard T-39, 5% for Turnout T-45)
         if (moduleId == 3) {
-            if (testedPercentage >= 1) {
+            double requiredPercent = isTurnout ? 5.0 : 1.0;
+            if (testedPercentage >= requiredPercent) {
                 completed = true;
             }
         }
@@ -674,25 +719,29 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             dto.setTestedPercentage(Math.min(percent, 100.0));
 
+            boolean isTurnout = isTurnoutOrT45(dto.getSleeperType(), dto.getSleeperCategory());
+
             boolean completed = false;
 
-            // MODULE 1 → VISUAL
+            // MODULE 1 → VISUAL (100%)
             if (moduleId == 1) {
                 if (percent >= 99.5 || percent >= 100.0) {
                     completed = true;
                 }
             }
 
-            // MODULE 2 → CRITICAL DIMENSION (10% sampling)
+            // MODULE 2 → CRITICAL DIMENSION (10% standard T-39, 20% for Turnout T-45)
             if (moduleId == 2) {
-                if (percent >= 10) {
+                double requiredPercent = isTurnout ? 20.0 : 10.0;
+                if (percent >= requiredPercent) {
                     completed = true;
                 }
             }
 
-            // MODULE 3 → NON CRITICAL (1% sampling)
+            // MODULE 3 → NON CRITICAL (1% standard T-39, 5% for Turnout T-45)
             if (moduleId == 3) {
-                if (percent >= 1) {
+                double requiredPercent = isTurnout ? 5.0 : 1.0;
+                if (percent >= requiredPercent) {
                     completed = true;
                 }
             }
