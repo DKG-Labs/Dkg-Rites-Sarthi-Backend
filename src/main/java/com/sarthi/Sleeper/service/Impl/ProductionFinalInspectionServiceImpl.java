@@ -344,20 +344,17 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             completed = true;
         }
 
-        if(completed){
-            updateModuleStatus(batchId, moduleId);
-        }
+        updateModuleStatus(batchId, moduleId, completed);
     }
 
-
-    private void updateModuleStatus(Long batchId, Long moduleId){
+    private void updateModuleStatus(Long batchId, Long moduleId, boolean completed){
 
         InspectionTestHeader header =
                 headerRepository
                         .findTopByBatchIdAndModuleIdOrderByIdDesc(batchId, moduleId);
 
         if (header != null) {
-            header.setStatus("Completed");
+            header.setStatus(completed ? "Completed" : "In Progress");
             headerRepository.save(header);
         }
     }
@@ -379,20 +376,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         if (header == null) {
             throw new RuntimeException("No existing inspection found for update");
         }
-
-        // get ALL active results (any module, any status)
-        List<InspectionTestResult> allResults =
-                resultRepository.findByTestHeader_BatchIdAndActiveTrue(
-                        dto.getBatchId()
-                );
-
-        //  map sleeperId → moduleId
-        Map<Long, Long> sleeperModuleMap = allResults.stream()
-                .collect(Collectors.toMap(
-                        InspectionTestResult::getSleeperId,
-                        InspectionTestResult::getModuleId,
-                        (a, b) -> b
-                ));
 
         //  Existing records for current module
         List<InspectionTestResult> existing =
@@ -424,20 +407,21 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         .stream()
                         .collect(Collectors.toMap(InspectionParameter::getId, p -> p));
 
+        //  Reason map
+        Map<Long, InspectionReasonMaster> reasonMap =
+                reasonRepository.findAll()
+                        .stream()
+                        .collect(Collectors.toMap(InspectionReasonMaster::getId, r -> r));
+
         List<InspectionParameterResult> parameterResults = new ArrayList<>();
         List<InspectionTestResult> newResultsToSave = new ArrayList<>();
 
-        //  INSERT new records
+        //  INSERT new records for non-pending sleepers
         for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
 
-            //  BLOCK if sleeper already exists in OTHER module
-            Long existingModuleId = sleeperModuleMap.get(sleeperDto.getSleeperId());
-
-            if (existingModuleId != null && !existingModuleId.equals(dto.getModuleId())) {
-                throw new RuntimeException(
-                        "Sleeper " + sleeperDto.getSleeperNo() +
-                                " is already inspected in another module"
-                );
+            // If sleeper is reset to PENDING (deselected), deactivating previous record is sufficient
+            if ("PENDING".equalsIgnoreCase(sleeperDto.getResult())) {
+                continue;
             }
 
             //  Create new record
@@ -460,6 +444,19 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                     InspectionParameter parameter =
                             parameterMap.get(paramDto.getParameterId());
+                    if (parameter == null) continue;
+
+                    Long reasonId = null;
+                    if (paramDto.getSubReasonId() != null) {
+                        reasonId = paramDto.getSubReasonId();
+                    } else if (paramDto.getMainReasonId() != null) {
+                        reasonId = paramDto.getMainReasonId();
+                    }
+
+                    InspectionReasonMaster reason = null;
+                    if (reasonId != null) {
+                        reason = reasonMap.get(reasonId);
+                    }
 
                     InspectionParameterResult paramResult =
                             new InspectionParameterResult();
@@ -467,6 +464,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     paramResult.setTestResult(result);
                     paramResult.setParameter(parameter);
                     paramResult.setParameterResult(paramDto.getResult());
+                    paramResult.setReasonMaster(reason);
 
                     parameterResults.add(paramResult);
                 }
@@ -509,7 +507,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         bulkInsertParameterResults(parameterResults);
 
-        //  Completion logic unchanged
+        //  Completion logic
         checkAndUpdateModuleCompletion(dto.getBatchId(), dto.getModuleId(), dto.getSleeperType());
     }
 
