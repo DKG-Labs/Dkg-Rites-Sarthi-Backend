@@ -71,6 +71,14 @@ public class EpoxyTreatedSleeperController {
         );
     }
 
+    @GetMapping("/debug")
+    public ResponseEntity<Object> getDebug() {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(service.getAll(null, null, null)),
+                HttpStatus.OK
+        );
+    }
+
 
 
     @DeleteMapping("/{id}")

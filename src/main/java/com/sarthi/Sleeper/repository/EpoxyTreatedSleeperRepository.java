@@ -12,29 +12,39 @@ import java.util.List;
 @Repository
 public interface EpoxyTreatedSleeperRepository extends JpaRepository<EpoxyTreatedSleeper, Long> {
 
-    @Query("""
-SELECT 
-    et.batchNumber,
+    // Fix: COLLATE must only be applied on column side, not on ? params.
+    // Use CONVERT(:param USING utf8mb4) COLLATE utf8mb4_unicode_ci for parameter values.
+    @Query(value = """
+SELECT
+    et.batch_number,
     et.location,
-    pd.castingDate,
-    pd.totalCastedSleepers,
+    pd.casting_date,
+    pd.total_casted_sleepers,
     COUNT(esd.id),
-    COALESCE(et.plantId, pd.plantId),
-    COALESCE(et.vendorCode, pd.vendorCode),
-    et.createdBy
-FROM EpoxyTreatedSleeper et
-JOIN ProductionDeclaration pd 
-    ON pd.batchNumber = et.batchNumber 
-    AND pd.productionUnit = et.location   
-JOIN EtSleeperDetails esd 
-    ON esd.et.id = et.id
-WHERE (:plantId IS NULL OR :plantId = '' OR et.plantId = :plantId OR pd.plantId = :plantId OR et.plantId LIKE CONCAT('%', :plantId, '%') OR pd.plantId LIKE CONCAT('%', :plantId, '%'))
-  AND (:vendorCode IS NULL OR :vendorCode = '' OR et.vendorCode = :vendorCode OR pd.vendorCode = :vendorCode OR et.vendorCode LIKE CONCAT('%', :vendorCode, '%') OR pd.vendorCode LIKE CONCAT('%', :vendorCode, '%'))
-  AND (:createdBy IS NULL OR et.createdBy = :createdBy)
-GROUP BY et.batchNumber, et.location, pd.castingDate, pd.totalCastedSleepers, et.plantId, pd.plantId, et.vendorCode, pd.vendorCode, et.createdBy
-""")
+    COALESCE(et.plant_id, pd.plant_id),
+    COALESCE(et.vendor_code, pd.vendor_code),
+    et.created_by
+FROM et_epoxy_treated_sleeper et
+JOIN production_declaration pd
+    ON pd.batch_number COLLATE utf8mb4_unicode_ci = et.batch_number COLLATE utf8mb4_unicode_ci
+    AND pd.production_unit COLLATE utf8mb4_unicode_ci = et.location COLLATE utf8mb4_unicode_ci
+JOIN et_sleeper_details esd
+    ON esd.et_id = et.id
+WHERE (:plantId IS NULL OR :plantId = ''
+    OR et.plant_id COLLATE utf8mb4_unicode_ci = CONVERT(:plantId USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    OR pd.plant_id COLLATE utf8mb4_unicode_ci = CONVERT(:plantId USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    OR et.plant_id COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:plantId USING utf8mb4), '%') COLLATE utf8mb4_unicode_ci
+    OR pd.plant_id COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:plantId USING utf8mb4), '%') COLLATE utf8mb4_unicode_ci)
+  AND (:vendorCode IS NULL OR :vendorCode = ''
+    OR et.vendor_code COLLATE utf8mb4_unicode_ci = CONVERT(:vendorCode USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    OR pd.vendor_code COLLATE utf8mb4_unicode_ci = CONVERT(:vendorCode USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    OR et.vendor_code COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorCode USING utf8mb4), '%') COLLATE utf8mb4_unicode_ci
+    OR pd.vendor_code COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorCode USING utf8mb4), '%') COLLATE utf8mb4_unicode_ci)
+  AND (:createdBy IS NULL OR et.created_by = :createdBy)
+GROUP BY et.batch_number, et.location, pd.casting_date, pd.total_casted_sleepers, et.plant_id, pd.plant_id, et.vendor_code, pd.vendor_code, et.created_by
+""", nativeQuery = true)
     List<Object[]> getBatchWiseEtSummary(
-        @Param("plantId") String plantId, 
+        @Param("plantId") String plantId,
         @Param("vendorCode") String vendorCode,
         @Param("createdBy") Long createdBy
     );
@@ -47,7 +57,7 @@ WHERE (:plantId IS NULL OR :plantId = '' OR et.plantId = :plantId OR et.plantId 
 ORDER BY et.id DESC
 """)
     List<EpoxyTreatedSleeper> findAllByPlantAndVendor(
-        @Param("plantId") String plantId, 
+        @Param("plantId") String plantId,
         @Param("vendorCode") String vendorCode,
         @Param("createdBy") Long createdBy
     );

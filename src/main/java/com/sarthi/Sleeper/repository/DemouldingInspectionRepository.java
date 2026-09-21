@@ -82,30 +82,20 @@ WHERE d.batchNo = :batchNo
 SELECT COUNT(DISTINCT d.sleeper_no)
 FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection di ON di.id = d.inspection_id
-WHERE di.batch_no = :batchNo
+WHERE REPLACE(UPPER(di.batch_no), ' ', '') = REPLACE(UPPER(:batchNo), ' ', '')
   AND d.sleeper_no IS NOT NULL
   AND TRIM(d.sleeper_no) <> ''
-  AND (
-        TRIM(COALESCE(d.visual_reason, '')) <> ''
-        OR
-        TRIM(COALESCE(d.dim_reason, '')) <> ''
-      )
 """, nativeQuery = true)
     Long countDemouldingRejected(@Param("batchNo") String batchNo);
 
     @Query(value = """
-SELECT di.batch_no, COUNT(DISTINCT d.sleeper_no)
+SELECT TRIM(di.batch_no), COUNT(DISTINCT d.sleeper_no)
 FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection di ON di.id = d.inspection_id
-WHERE di.batch_no IN :batchNos
+WHERE TRIM(di.batch_no) IN :batchNos
   AND d.sleeper_no IS NOT NULL
   AND TRIM(d.sleeper_no) <> ''
-  AND (
-        TRIM(COALESCE(d.visual_reason, '')) <> ''
-        OR
-        TRIM(COALESCE(d.dim_reason, '')) <> ''
-      )
-GROUP BY di.batch_no
+GROUP BY TRIM(di.batch_no)
 """, nativeQuery = true)
     List<Object[]> countDemouldingRejectedByBatchNos(@Param("batchNos") List<String> batchNos);
 

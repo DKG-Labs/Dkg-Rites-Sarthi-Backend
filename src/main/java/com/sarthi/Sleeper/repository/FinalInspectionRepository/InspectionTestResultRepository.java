@@ -49,29 +49,26 @@ AND h.module.id = :moduleId
 
     @Query("""
        SELECT COUNT(DISTINCT r.sleeperId)
-
        FROM InspectionTestResult r
        JOIN r.testHeader h
-
        WHERE h.batchId = :batchId
-       AND h.module.id = :moduleId
-       AND h.sleeperType = :sleeperType
-       AND r.active = true
+       AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
+       AND (r.active = true OR r.active IS NULL)
        AND r.result <> 'PENDING'
        """)
     Long countTestedSleepers(
-            Long batchId,
-            Long moduleId,
-            String sleeperType
+            @Param("batchId") Long batchId,
+            @Param("moduleId") Long moduleId
     );
+
 
     @Query("""
        SELECT h.batchId, COUNT(DISTINCT r.sleeperId)
        FROM InspectionTestResult r
        JOIN r.testHeader h
        WHERE h.batchId IN :batchIds
-       AND h.module.id = :moduleId
-       AND r.active = true
+       AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
+       AND (r.active = true OR r.active IS NULL)
        AND r.result <> 'PENDING'
        GROUP BY h.batchId
        """)
@@ -95,7 +92,7 @@ AND h.module.id = :moduleId
           FROM InspectionTestResult r
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
-          AND r.active = true
+          AND (r.active = true OR r.active IS NULL)
           """)
   List<InspectionTestResult> findAllResultsByBatchId(@Param("batchId") Long batchId);
 
@@ -105,7 +102,7 @@ AND h.module.id = :moduleId
           JOIN FETCH r.testHeader h
           LEFT JOIN FETCH h.module
           WHERE h.batchId IN :batchIds
-          AND r.active = true
+          AND (r.active = true OR r.active IS NULL)
           """)
   List<InspectionTestResult> findAllResultsByBatchIds(@Param("batchIds") java.util.Collection<Long> batchIds);
 
@@ -114,20 +111,47 @@ AND h.module.id = :moduleId
           SELECT COUNT(r) > 0
           FROM InspectionTestResult r
           WHERE r.testHeader.batchId = :batchId
-          AND r.testHeader.module.id = :moduleId
+          AND (r.moduleId = :moduleId OR r.testHeader.module.id = :moduleId)
           AND r.sleeperId = :sleeperId
           """)
   boolean existsByBatchIdAndModuleIdAndSleeperId(
-          Long batchId, Long moduleId, Long sleeperId);
+          @Param("batchId") Long batchId,
+          @Param("moduleId") Long moduleId,
+          @Param("sleeperId") Long sleeperId);
 
   List<InspectionTestResult> findByTestHeader_BatchIdAndModuleId(Long batchId, Long moduleId);
 
-  List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdAndActiveTrue(Long batchId, Long moduleId);
- List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdInAndActiveTrue(
-         Long batchId, List<Long> moduleIds);
+  @Query("""
+          SELECT r FROM InspectionTestResult r
+          JOIN r.testHeader h
+          WHERE h.batchId = :batchId
+          AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
+          AND (r.active = true OR r.active IS NULL)
+          """)
+  List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdAndActiveTrue(
+          @Param("batchId") Long batchId,
+          @Param("moduleId") Long moduleId);
+
+  @Query("""
+          SELECT r FROM InspectionTestResult r
+          JOIN r.testHeader h
+          WHERE h.batchId = :batchId
+          AND (r.moduleId IN :moduleIds OR h.module.id IN :moduleIds)
+          AND (r.active = true OR r.active IS NULL)
+          """)
+  List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdInAndActiveTrue(
+          @Param("batchId") Long batchId,
+          @Param("moduleIds") List<Long> moduleIds);
+
   List<InspectionTestResult> findByTestHeader_BatchIdAndResultAndActiveTrue(Long batchId, String rejected);
 
-  List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(Long batchId);
+  @Query("""
+          SELECT r FROM InspectionTestResult r
+          JOIN r.testHeader h
+          WHERE h.batchId = :batchId
+          AND (r.active = true OR r.active IS NULL)
+          """)
+  List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(@Param("batchId") Long batchId);
 
   // List<InspectionTestResult> findByBatchIdAndModuleIdAndSleeperIdAndActiveTrue(Long batchId, Long moduleId, Long sleeperId);
 
