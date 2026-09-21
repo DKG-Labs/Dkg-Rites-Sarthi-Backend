@@ -21,7 +21,19 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
             """)
     InspectionTestHeader findByBatchIdAndModuleId(Long batchId, Long moduleId);
 
-    InspectionTestHeader findTopByBatchIdAndModuleIdOrderByIdDesc(Long batchId, Long moduleId);
+    @Query("""
+            SELECT h
+            FROM InspectionTestHeader h
+            WHERE h.batchId = :batchId
+            AND h.module.id = :moduleId
+            ORDER BY h.id DESC
+            """)
+    List<InspectionTestHeader> findHeadersByBatchIdAndModuleIdOrderByIdDesc(@Param("batchId") Long batchId, @Param("moduleId") Long moduleId);
+
+    default InspectionTestHeader findTopByBatchIdAndModuleIdOrderByIdDesc(Long batchId, Long moduleId) {
+        List<InspectionTestHeader> list = findHeadersByBatchIdAndModuleIdOrderByIdDesc(batchId, moduleId);
+        return (list != null && !list.isEmpty()) ? list.get(0) : null;
+    }
 
     @Query("""
              SELECT h.batchId

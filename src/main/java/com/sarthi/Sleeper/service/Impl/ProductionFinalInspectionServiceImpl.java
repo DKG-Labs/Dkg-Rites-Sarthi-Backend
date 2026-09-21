@@ -309,7 +309,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             totalSleepers = productionSleeperRepository.countByBatchId(batchId);
         }
 
-        Long testedSleepers = resultRepository.countTestedSleepers(batchId, moduleId, sleeperT);
+        Long testedSleepers = resultRepository.countTestedSleepers(batchId, moduleId);
         if (testedSleepers == null) testedSleepers = 0L;
 
         String batchNo = productionDeclarationRepository.getBatchNoById(batchId);
@@ -677,6 +677,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 
         List<String> batchNumbers = workflowsCompletedList.stream()
                 .map(BatchTestingListResponseDto::getBatchNumber)
+                .filter(Objects::nonNull)
+                .map(String::trim)
                 .distinct()
                 .collect(Collectors.toList());
 
@@ -694,7 +696,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             List<String> chunk = batchNumbers.subList(i, Math.min(i + 1000, batchNumbers.size()));
             List<Object[]> results = demouldingInspectionRepository.countDemouldingRejectedByBatchNos(chunk);
             for (Object[] row : results) {
-                demouldRejectedCounts.put((String) row[0], ((Number) row[1]).longValue());
+                if (row[0] != null) {
+                    demouldRejectedCounts.put(((String) row[0]).trim(), ((Number) row[1]).longValue());
+                }
             }
         }
 
@@ -703,7 +707,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         for (BatchTestingListResponseDto dto : workflowsCompletedList) {
 
             Long testedCount = testedCounts.getOrDefault(dto.getBatchId(), 0L);
-            Long demouldRejected = demouldRejectedCounts.getOrDefault(dto.getBatchNumber(), 0L);
+            String bNo = dto.getBatchNumber() != null ? dto.getBatchNumber().trim() : "";
+            Long demouldRejected = demouldRejectedCounts.getOrDefault(bNo, demouldRejectedCounts.getOrDefault(dto.getBatchNumber(), 0L));
 
             double denominator = dto.getNoOfSleepers() - demouldRejected;
 

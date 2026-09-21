@@ -183,13 +183,24 @@ public class EpoxyTreatedSleeperServiceImpl implements EpoxyTreatedSleeperServic
 
             String batch = (String) obj[0];
             String location = (String) obj[1];
-            LocalDate date = (LocalDate) obj[2];
+            
+            Object dateObj = obj[2];
+            LocalDate date = null;
+            if (dateObj instanceof java.sql.Date) {
+                date = ((java.sql.Date) dateObj).toLocalDate();
+            } else if (dateObj instanceof java.sql.Timestamp) {
+                date = ((java.sql.Timestamp) dateObj).toLocalDateTime().toLocalDate();
+            } else if (dateObj instanceof LocalDate) {
+                date = (LocalDate) dateObj;
+            } else if (dateObj != null) {
+                date = LocalDate.parse(dateObj.toString());
+            }
 
             Long total = obj[3] != null ? ((Number) obj[3]).longValue() : 0L;
             Long etCount = obj[4] != null ? ((Number) obj[4]).longValue() : 0L;
             String pId = obj.length > 5 ? (String) obj[5] : null;
             String vCode = obj.length > 6 ? (String) obj[6] : null;
-            Long cBy = obj.length > 7 ? (Long) obj[7] : null;
+            Long cBy = (obj.length > 7 && obj[7] != null) ? ((Number) obj[7]).longValue() : null;
 
             double percentage = 0.0;
             if (total > 0) {
