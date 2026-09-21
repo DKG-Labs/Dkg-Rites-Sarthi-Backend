@@ -36,19 +36,17 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     Long getTotalProductionCountByPlantIds(@Param("plantIds") java.util.Collection<String> plantIds);
 
     @Query("""
-SELECT c.declaration.id, MIN(b.sleeperType)
+SELECT c.declaration.id, b.sleeperType
 FROM ProductionBenchGroup b
 JOIN b.chamber c
 WHERE b.sleeperType IS NOT NULL AND b.sleeperType <> ''
-GROUP BY c.declaration.id
 """)
     List<Object[]> findStressDeclarationSleeperTypes();
 
     @Query("""
-SELECT g.declaration.id, MIN(g.sleeperType)
+SELECT g.declaration.id, g.sleeperType
 FROM ProductionLongLineGang g
 WHERE g.sleeperType IS NOT NULL AND g.sleeperType <> ''
-GROUP BY g.declaration.id
 """)
     List<Object[]> findLongLineDeclarationSleeperTypes();
 

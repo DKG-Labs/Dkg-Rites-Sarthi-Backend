@@ -884,7 +884,14 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         if (stressTypes != null) {
             for (Object[] row : stressTypes) {
                 if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
-                    sleeperTypeMap.put(((Number) row[0]).longValue(), row[1].toString());
+                    Long id = ((Number) row[0]).longValue();
+                    String type = row[1].toString().trim();
+                    if (!type.isEmpty()) {
+                        boolean isGrade = type.matches("^(?i)M\\s*-?\\s*\\d+.*");
+                        if (!sleeperTypeMap.containsKey(id) || (!isGrade && sleeperTypeMap.get(id).matches("^(?i)M\\s*-?\\s*\\d+.*"))) {
+                            sleeperTypeMap.put(id, type);
+                        }
+                    }
                 }
             }
         }
@@ -892,7 +899,14 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         if (longLineTypes != null) {
             for (Object[] row : longLineTypes) {
                 if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
-                    sleeperTypeMap.putIfAbsent(((Number) row[0]).longValue(), row[1].toString());
+                    Long id = ((Number) row[0]).longValue();
+                    String type = row[1].toString().trim();
+                    if (!type.isEmpty()) {
+                        boolean isGrade = type.matches("^(?i)M\\s*-?\\s*\\d+.*");
+                        if (!sleeperTypeMap.containsKey(id) || (!isGrade && sleeperTypeMap.get(id).matches("^(?i)M\\s*-?\\s*\\d+.*"))) {
+                            sleeperTypeMap.put(id, type);
+                        }
+                    }
                 }
             }
         }
