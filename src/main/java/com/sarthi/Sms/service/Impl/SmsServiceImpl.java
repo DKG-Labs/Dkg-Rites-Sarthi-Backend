@@ -505,7 +505,7 @@ public class SmsServiceImpl implements SmsService {
                 dhs2e.setHeatProcurementStage(hds2e.getHeatStage());
             }
 
-            String newHeatStage = getNewHeatStage(req);
+            String newHeatStage = getNewHeatStage(req, AppConstant.SMS_2);
 
             hds2e.setHeatStage(newHeatStage);
             hds2e.setTurnDownTemp(req.getTurnDownTemp());
@@ -580,7 +580,7 @@ public class SmsServiceImpl implements SmsService {
                 dhs3e.setHeatProcurementStage(hds3e.getHeatStage());
             }
 
-            String newHeatStage = getNewHeatStage(req);
+            String newHeatStage = getNewHeatStage(req, AppConstant.SMS_3);
 
             hds3e.setHeatStage(newHeatStage);
             hds3e.setTurnDownTemp(req.getTurnDownTemp());
@@ -715,32 +715,74 @@ public class SmsServiceImpl implements SmsService {
         // dhrr.save(dhre);
     }
 
-    private String getNewHeatStage(UpdateHeatReqDto req) {
-        String newHeatStage = null;
-        if (req.getWeightOfPrimeBlooms() != null &&
-                req.getWeightOfCoBlooms() != null &&
-                req.getWeightOfRejectedBlooms() != null &&
-                req.getTotalCastWt() != null) {
-            return SmsHeatStageEnum.BLOOM.getDescription();
-        } else if (req.getNitrogen() != null &&
-                req.getSentToLadle() != null) {
-            return SmsHeatStageEnum.CHEMICAL.getDescription();
-        } else if (req.getCastingTemp() != null &&
-                req.getCastingTemp2() != null &&
-                req.getCasterNo() != null &&
-                req.getSequenceNo() != null)
-                // req.getIsHydrogenBw80And100() != null &&
-                // req.getIsProbeDipped())
-                {
-            return SmsHeatStageEnum.CASTING.getDescription();
-        } else if (req.getDegassingDuration() != null &&
-                req.getDegassingVacuum() != null) {
-            return SmsHeatStageEnum.DEGASSING.getDescription();
-        } else if (req.getTurnDownTemp() != null) {
+    private boolean isStage2Complete(UpdateHeatReqDto req) {
+        return req.getDegassingDuration() != null && req.getDegassingVacuum() != null;
+    }
+
+    private boolean isStage3Complete(UpdateHeatReqDto req) {
+        return req.getCastingTemp() != null &&
+               req.getCastingTemp2() != null &&
+               req.getCasterNo() != null && !req.getCasterNo().trim().isEmpty() &&
+               req.getSequenceNo() != null && !req.getSequenceNo().trim().isEmpty() &&
+               req.getHydris() != null;
+    }
+
+    private boolean isStage4Complete(UpdateHeatReqDto req) {
+        // Oxygen is optional; nitrogen and sentToLadle are mandatory
+        return req.getNitrogen() != null &&
+               req.getSentToLadle() != null && !req.getSentToLadle().trim().isEmpty();
+    }
+
+    private boolean isStage5Complete(UpdateHeatReqDto req) {
+        return req.getWeightOfPrimeBlooms() != null &&
+               req.getWeightOfCoBlooms() != null &&
+               req.getWeightOfRejectedBlooms() != null &&
+               req.getTotalCastWt() != null;
+    }
+
+    private String getNewHeatStage(UpdateHeatReqDto req, String smsType) {
+        if (Boolean.TRUE.equals(req.getIsDiverted())) {
+            return "Diverted";
+        }
+
+        boolean s2 = isStage2Complete(req);
+        boolean s3 = isStage3Complete(req);
+        boolean s4 = isStage4Complete(req);
+
+        // Stage 1 (Converter) is optional and does not control progression
+        if (!s2) {
+            // If Stage 2 is not completed, status remains Degassing (or Converter if empty/stage 1 only)
+            if (req.getDegassingDuration() != null || req.getDegassingVacuum() != null ||
+                req.getCastingTemp() != null || req.getNitrogen() != null || req.getWeightOfPrimeBlooms() != null) {
+                return SmsHeatStageEnum.DEGASSING.getDescription();
+            }
+            if (req.getTurnDownTemp() != null) {
+                return SmsHeatStageEnum.CONVERTER.getDescription();
+            }
             return SmsHeatStageEnum.CONVERTER.getDescription();
         }
 
-        return newHeatStage;
+        // Stage 2 is complete. Check Stage 3:
+        if (!s3) {
+            return SmsHeatStageEnum.CASTING.getDescription();
+        }
+
+        // Stages 2 and 3 are complete. Check Stage 4:
+        if (!s4) {
+            return SmsHeatStageEnum.CHEMICAL.getDescription();
+        }
+
+        // Stages 2, 3 and 4 are complete.
+        if (smsType != null && smsType.equalsIgnoreCase(AppConstant.SMS_3)) {
+            boolean s5 = isStage5Complete(req);
+            if (!s5) {
+                return SmsHeatStageEnum.BLOOM.getDescription();
+            }
+            return SmsHeatStageEnum.COMPLETE.getDescription();
+        } else {
+            // For SMS 2, completion of Stages 2, 3 and 4 is sufficient
+            return SmsHeatStageEnum.COMPLETE.getDescription();
+        }
     }
 
     @Override
@@ -1211,12 +1253,40 @@ public class SmsServiceImpl implements SmsService {
     @Transactional
     @Override
     public void deleteHeatDtl(DeleteHeatReqDto req) {
-
-        if(req.getSms().equalsIgnoreCase(AppConstant.SMS_2)){
-            hds2r.deleteById(req.getHeatNo());
+        if (req == null || req.getHeatNo() == null || req.getHeatNo().trim().isEmpty()) {
+            throw new SmsInvalidArgumentException(new SmsErrorDetails(
+                    AppConstant.ERROR_CODE_MISSING_FIELDS,
+                    AppConstant.ERROR_TYPE_CODE_MISSING_FIELDS,
+                    AppConstant.ERROR_TYPE_MISSING_FIELDS,
+                    "Heat number is required for deletion."));
         }
-        else if(req.getSms().equalsIgnoreCase(AppConstant.SMS_3)){
+
+        String sms = req.getSms();
+        if (sms == null || sms.trim().isEmpty()) {
+            if (req.getDutyId() != null) {
+                Optional<SmsDutyEntity> sdeOpt = sdr.findByDutyId(req.getDutyId());
+                if (sdeOpt.isPresent()) {
+                    sms = sdeOpt.get().getSms();
+                }
+            }
+        }
+
+        if (AppConstant.SMS_2.equalsIgnoreCase(sms)) {
+            dhs2r.deleteByHeatNo(req.getHeatNo());
+            hds2r.deleteById(req.getHeatNo());
+        } else if (AppConstant.SMS_3.equalsIgnoreCase(sms)) {
+            dhs3r.deleteByHeatNo(req.getHeatNo());
             hds3r.deleteById(req.getHeatNo());
+        } else {
+            // Fallback: check existence or delete from both safely
+            if (hds2r.existsById(req.getHeatNo())) {
+                dhs2r.deleteByHeatNo(req.getHeatNo());
+                hds2r.deleteById(req.getHeatNo());
+            }
+            if (hds3r.existsById(req.getHeatNo())) {
+                dhs3r.deleteByHeatNo(req.getHeatNo());
+                hds3r.deleteById(req.getHeatNo());
+            }
         }
     }
 

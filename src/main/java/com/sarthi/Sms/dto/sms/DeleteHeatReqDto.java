@@ -6,4 +6,5 @@ import lombok.Data;
 public class DeleteHeatReqDto {
     private String heatNo;
     private String sms;
+    private String dutyId;
 }
