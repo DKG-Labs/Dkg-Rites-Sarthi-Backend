@@ -45,11 +45,26 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
     @Value("${azure.storage.correctionslip-container-name:ic-correctionslip}")
     private String correctionSlipContainerName;
 
+    private volatile BlobContainerClient containerClient;
+
     private BlobContainerClient getContainerClient() {
-        BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
-                .connectionString(connectionString)
-                .buildClient();
-        return blobServiceClient.createBlobContainerIfNotExists(correctionSlipContainerName);
+        if (containerClient == null) {
+            synchronized (this) {
+                if (containerClient == null) {
+                    BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                            .connectionString(connectionString)
+                            .buildClient();
+                    BlobContainerClient client = blobServiceClient.getBlobContainerClient(correctionSlipContainerName);
+                    try {
+                        client.createIfNotExists();
+                    } catch (Exception e) {
+                        log.debug("Container already exists or verified: {}", e.getMessage());
+                    }
+                    containerClient = client;
+                }
+            }
+        }
+        return containerClient;
     }
 
     private boolean isLocalOrInvalidAzure() {
