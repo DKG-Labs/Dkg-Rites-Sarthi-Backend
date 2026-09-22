@@ -76,10 +76,7 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         }
 
         String normalizedModule = (moduleType != null ? moduleType.trim().toUpperCase() : "SLEEPER");
-        String folderName = normalizedModule.toLowerCase(); // 'erc', 'sleeper', 'railpad'
-        if (folderName.contains("rail")) folderName = "railpad";
-        else if (folderName.contains("erc")) folderName = "erc";
-        else folderName = "sleeper";
+        String folderPrefix = com.sarthi.util.BlobFolderResolver.resolveFolder(callNo, normalizedModule);
 
         long originalSize = file.getSize();
 
@@ -121,7 +118,7 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         long compressedSize = finalBytes.length;
         String sanitizedCallNo = callNo.trim().replaceAll("[^a-zA-Z0-9_-]", "_");
         String sanitizedFileName = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
-        String blobPath = String.format("%s/%s/%d_%s", folderName, sanitizedCallNo, System.currentTimeMillis(), sanitizedFileName);
+        String blobPath = String.format("%s/%s/%d_%s", folderPrefix, sanitizedCallNo, System.currentTimeMillis(), sanitizedFileName);
 
         String blobUrl;
         if (isLocalOrInvalidAzure()) {
