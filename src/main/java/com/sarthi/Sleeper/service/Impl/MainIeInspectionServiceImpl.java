@@ -293,7 +293,7 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         List<String> list = new ArrayList<>();
         // Approach
         if (sleeperType != null && sleeperType.contains("RT-9841")) {
-            list.addAll(List.of("90S", "90-4A", "90-3A", "90-2AS"));
+            list.addAll(List.of("60S", "60-4A", "60-3A", "60-2AS", "60-1AS"));
         } else if (sleeperType != null && (sleeperType.contains("RT-4218") || sleeperType.contains("RT-4865") || sleeperType.contains("RT-6068") || sleeperType.contains("RT-5691"))) {
             list.addAll(List.of("60S", "1AS", "2AS", "3A", "4A"));
         } else {
@@ -302,7 +302,7 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         }
         
         // Turnout body
-        int maxBody = sleeperType != null && sleeperType.contains("RT-4865") ? 54 : (sleeperType != null && sleeperType.contains("RT-6068") ? 22 : (sleeperType != null && sleeperType.contains("RT-5691") ? 101 : 83));
+        int maxBody = sleeperType != null && (sleeperType.contains("RT-4865") || sleeperType.contains("RT-9841")) ? 54 : (sleeperType != null && sleeperType.contains("RT-6068") ? 22 : (sleeperType != null && sleeperType.contains("RT-5691") ? 101 : 83));
         for (int i = 1; i <= maxBody; i++) {
             list.add(String.valueOf(i));
         }
