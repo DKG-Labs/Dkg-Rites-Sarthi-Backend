@@ -17,4 +17,6 @@ public interface CorrectionSlipStorageService {
     ResponseEntity<Resource> viewPdf(String callNo);
 
     ResponseEntity<Resource> downloadPdf(String callNo);
+
+    void deleteCorrectionSlip(String callNo);
 }

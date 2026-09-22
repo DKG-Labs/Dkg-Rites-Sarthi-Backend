@@ -29,6 +29,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -278,5 +279,41 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + filename + "\"")
                 .body(resource);
+    }
+
+    @Override
+    @Transactional
+    public void deleteCorrectionSlip(String callNo) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            return;
+        }
+        String clean = callNo.trim();
+        List<CorrectionSlipDocument> docs = documentRepository.findByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
+        for (CorrectionSlipDocument doc : docs) {
+            // Delete blob from Azure
+            if (!isLocalOrInvalidAzure() && doc.getBlobFileName() != null) {
+                try {
+                    BlobContainerClient client = getContainerClient();
+                    BlobClient blobClient = client.getBlobClient(doc.getBlobFileName());
+                    if (blobClient.exists()) {
+                        blobClient.delete();
+                        log.info("Deleted correction slip blob '{}' from Azure container '{}'",
+                                doc.getBlobFileName(), correctionSlipContainerName);
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not delete blob '{}' from Azure: {}", doc.getBlobFileName(), e.getMessage());
+                }
+            }
+            // Delete local file if present
+            if (doc.getBlobFileName() != null) {
+                File localFile = new File("uploads/correction_slips", doc.getBlobFileName());
+                if (localFile.exists()) {
+                    localFile.delete();
+                }
+            }
+            doc.setStatus("DELETED");
+            documentRepository.save(doc);
+        }
+        log.info("Deleted {} correction slip document record(s) for callNo: {}", docs.size(), clean);
     }
 }
