@@ -112,7 +112,17 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         rmDetails.setItemDescription(rmRequest.getItemDescription());
         rmDetails.setItemQuantity(rmRequest.getItemQuantity());
         rmDetails.setConsigneeZonalRailway(rmRequest.getConsigneeZonalRailway());
-        rmDetails.setHeatNumbers(rmRequest.getHeatNumbers());
+        if (rmRequest.getHeatQuantities() != null && !rmRequest.getHeatQuantities().isEmpty()) {
+            String distinctHeats = rmRequest.getHeatQuantities().stream()
+                    .map(RmHeatQuantityRequestDto::getHeatNumber)
+                    .filter(h -> h != null && !h.trim().isEmpty())
+                    .map(String::trim)
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(","));
+            rmDetails.setHeatNumbers(distinctHeats.isEmpty() ? rmRequest.getHeatNumbers() : distinctHeats);
+        } else {
+            rmDetails.setHeatNumbers(rmRequest.getHeatNumbers());
+        }
         rmDetails.setTcNumber(rmRequest.getTcNumber());
 
         if (rmRequest.getTcDate() != null) {
@@ -321,84 +331,43 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         // =====================================================
         if (rmDto.getHeatQuantities() != null) {
             List<RmHeatQuantity> existingHeats = heatQuantityRepository.findByRmDetailId(Math.toIntExact(rmDetails.getId()));
+            String subPoNo = rmDto.getSubPoNumber() != null && !rmDto.getSubPoNumber().trim().isEmpty()
+                    ? rmDto.getSubPoNumber()
+                    : rmDetails.getSubPoNumber();
+            java.util.Set<RmHeatQuantity> matchedExisting = new java.util.HashSet<>();
+            List<RmHeatQuantity> updatedHeatList = new ArrayList<>();
 
-            // 1. Delete heats no longer present in the request (matched by heatNumber)
-            for (RmHeatQuantity existing : existingHeats) {
-                boolean stillExists = rmDto.getHeatQuantities().stream()
-                        .anyMatch(dto -> dto.getHeatNumber() != null && dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()));
-                if (!stillExists) {
-                    // Reinstate quantity to inventory since this heat is removed from the call
-                    BigDecimal oldQty = existing.getOfferedQty();
-                    if (oldQty != null && oldQty.compareTo(BigDecimal.ZERO) > 0 && existing.getHeatNumber() != null && existing.getTcNumber() != null) {
-                        try {
-                            logger.info("Reinstating inventory for deleted heat: {}, TC: {}, Qty: {}", existing.getHeatNumber(), existing.getTcNumber(), oldQty);
-                            inventoryEntryService.updateOfferedQuantity(existing.getHeatNumber(), existing.getTcNumber(), oldQty.negate());
-                        } catch (Exception e) {
-                            logger.error("Failed to reinstate inventory for deleted heat: " + existing.getHeatNumber() + ", TC: " + existing.getTcNumber(), e);
-                        }
-                    }
-                    heatQuantityRepository.delete(existing);
-                }
-            }
-
-            // 2. Update existing heats or insert new ones
+            // 1. Update existing heats or insert new ones (matching by BOTH heatNumber and tcNumber)
             for (RmHeatQuantityRequestDto dto : rmDto.getHeatQuantities()) {
                 if (dto.getHeatNumber() == null || dto.getHeatNumber().trim().isEmpty()) {
                     continue;
                 }
 
+                String heatNo = dto.getHeatNumber().trim();
+                String tcNo = dto.getTcNumber() != null ? dto.getTcNumber().trim() : "";
+
                 RmHeatQuantity heat = existingHeats.stream()
-                        .filter(existing -> dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()))
+                        .filter(existing -> !matchedExisting.contains(existing)
+                                && heatNo.equalsIgnoreCase(existing.getHeatNumber())
+                                && (tcNo.isEmpty() && (existing.getTcNumber() == null || existing.getTcNumber().trim().isEmpty())
+                                || !tcNo.isEmpty() && tcNo.equalsIgnoreCase(existing.getTcNumber())))
                         .findFirst()
                         .orElse(null);
 
                 if (heat != null) {
-                    // Inventory Adjustment: Compare old and new values
-                    String oldTc = heat.getTcNumber();
-                    BigDecimal oldQty = heat.getOfferedQty() != null ? heat.getOfferedQty() : BigDecimal.ZERO;
-                    String newTc = dto.getTcNumber();
-                    BigDecimal newQty = toBigDecimal(dto.getOfferedQty()) != null ? toBigDecimal(dto.getOfferedQty()) : BigDecimal.ZERO;
+                    matchedExisting.add(heat);
 
-                    if (oldTc != null && newTc != null) {
-                        if (oldTc.equalsIgnoreCase(newTc)) {
-                            // Sub-case 1: TC number is the same, quantity might have changed
-                            BigDecimal difference = newQty.subtract(oldQty);
-                            if (difference.compareTo(BigDecimal.ZERO) != 0) {
-                                try {
-                                    logger.info("Adjusting inventory for heat: {}, TC: {}, difference: {}", heat.getHeatNumber(), newTc, difference);
-                                    inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), newTc, difference);
-                                } catch (Exception e) {
-                                    logger.error("Failed to adjust inventory for heat: " + heat.getHeatNumber() + ", TC: " + newTc, e);
-                                }
-                            }
-                        } else {
-                            // Sub-case 2: TC number changed
-                            // Reinstate old quantity to old TC
-                            if (oldQty.compareTo(BigDecimal.ZERO) > 0) {
-                                try {
-                                    logger.info("Reinstating old TC inventory: Heat: {}, TC: {}, Qty: {}", heat.getHeatNumber(), oldTc, oldQty);
-                                    inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), oldTc, oldQty.negate());
-                                } catch (Exception e) {
-                                    logger.error("Failed to reinstate old TC inventory for heat: " + heat.getHeatNumber() + ", TC: " + oldTc, e);
-                                }
-                            }
-                            // Deduct new quantity from new TC
-                            if (newQty.compareTo(BigDecimal.ZERO) > 0) {
-                                try {
-                                    logger.info("Deducting new TC inventory: Heat: {}, TC: {}, Qty: {}", heat.getHeatNumber(), newTc, newQty);
-                                    inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), newTc, newQty);
-                                } catch (Exception e) {
-                                    logger.error("Failed to deduct new TC inventory for heat: " + heat.getHeatNumber() + ", TC: " + newTc, e);
-                                }
-                            }
-                        }
-                    } else if (newTc != null && newQty.compareTo(BigDecimal.ZERO) > 0) {
-                        // If oldTc was null, just deduct the new quantity from the new TC
+                    // Inventory Adjustment: Compare old and new values for the same TC
+                    BigDecimal oldQty = heat.getOfferedQty() != null ? heat.getOfferedQty() : BigDecimal.ZERO;
+                    BigDecimal newQty = toBigDecimal(dto.getOfferedQty()) != null ? toBigDecimal(dto.getOfferedQty()) : BigDecimal.ZERO;
+                    BigDecimal difference = newQty.subtract(oldQty);
+
+                    if (difference.compareTo(BigDecimal.ZERO) != 0 && !tcNo.isEmpty()) {
                         try {
-                            logger.info("Deducting inventory for heat: {}, TC: {}, Qty: {}", heat.getHeatNumber(), newTc, newQty);
-                            inventoryEntryService.updateOfferedQuantity(heat.getHeatNumber(), newTc, newQty);
+                            logger.info("Adjusting inventory for heat: {}, TC: {}, Sub PO: {}, difference: {}", heatNo, tcNo, subPoNo, difference);
+                            inventoryEntryService.updateOfferedQuantity(heatNo, tcNo, subPoNo, difference);
                         } catch (Exception e) {
-                            logger.error("Failed to deduct inventory for heat: " + heat.getHeatNumber() + ", TC: " + newTc, e);
+                            logger.error("Failed to adjust inventory for heat: " + heatNo + ", TC: " + tcNo, e);
                         }
                     }
 
@@ -417,16 +386,17 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     heat.setQtyRejected(toBigDecimal(dto.getQtyRejected()));
                     heat.setRejectionReason(dto.getRejectionReason());
                     heat.setUpdatedAt(LocalDateTime.now());
-                    heatQuantityRepository.save(heat);
+                    RmHeatQuantity saved = heatQuantityRepository.save(heat);
+                    updatedHeatList.add(saved);
                 } else {
-                    // Heat is brand new: deduct new quantity from new TC
+                    // Heat + TC combination is new: deduct new quantity from inventory
                     BigDecimal newQty = toBigDecimal(dto.getOfferedQty()) != null ? toBigDecimal(dto.getOfferedQty()) : BigDecimal.ZERO;
-                    if (dto.getTcNumber() != null && newQty.compareTo(BigDecimal.ZERO) > 0) {
+                    if (!tcNo.isEmpty() && newQty.compareTo(BigDecimal.ZERO) > 0) {
                         try {
-                            logger.info("Deducting inventory for new heat: {}, TC: {}, Qty: {}", dto.getHeatNumber(), dto.getTcNumber(), newQty);
-                            inventoryEntryService.updateOfferedQuantity(dto.getHeatNumber(), dto.getTcNumber(), newQty);
+                            logger.info("Deducting inventory for new heat: {}, TC: {}, Sub PO: {}, Qty: {}", heatNo, tcNo, subPoNo, newQty);
+                            inventoryEntryService.updateOfferedQuantity(heatNo, tcNo, subPoNo, newQty);
                         } catch (Exception e) {
-                            logger.error("Failed to deduct inventory for new heat: " + dto.getHeatNumber() + ", TC: " + dto.getTcNumber(), e);
+                            logger.error("Failed to deduct inventory for new heat: " + heatNo + ", TC: " + tcNo, e);
                         }
                     }
 
@@ -447,8 +417,38 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     newHeat.setRejectionReason(dto.getRejectionReason());
                     newHeat.setCreatedAt(LocalDateTime.now());
                     newHeat.setUpdatedAt(LocalDateTime.now());
-                    heatQuantityRepository.save(newHeat);
+                    RmHeatQuantity saved = heatQuantityRepository.save(newHeat);
+                    updatedHeatList.add(saved);
                 }
+            }
+
+            // 2. Delete existing heats no longer present in request
+            for (RmHeatQuantity existing : existingHeats) {
+                if (!matchedExisting.contains(existing)) {
+                    // Reinstate quantity to inventory
+                    BigDecimal oldQty = existing.getOfferedQty();
+                    if (oldQty != null && oldQty.compareTo(BigDecimal.ZERO) > 0 && existing.getHeatNumber() != null && existing.getTcNumber() != null) {
+                        try {
+                            logger.info("Reinstating inventory for deleted heat: {}, TC: {}, Sub PO: {}, Qty: {}", existing.getHeatNumber(), existing.getTcNumber(), subPoNo, oldQty);
+                            inventoryEntryService.updateOfferedQuantity(existing.getHeatNumber(), existing.getTcNumber(), subPoNo, oldQty.negate());
+                        } catch (Exception e) {
+                            logger.error("Failed to reinstate inventory for deleted heat: " + existing.getHeatNumber() + ", TC: " + existing.getTcNumber(), e);
+                        }
+                    }
+                    heatQuantityRepository.delete(existing);
+                }
+            }
+
+            rmDetails.setHeatQuantities(updatedHeatList);
+
+            String distinctHeats = updatedHeatList.stream()
+                    .map(RmHeatQuantity::getHeatNumber)
+                    .filter(h -> h != null && !h.trim().isEmpty())
+                    .map(String::trim)
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(","));
+            if (!distinctHeats.isEmpty()) {
+                rmDetails.setHeatNumbers(distinctHeats);
             }
         }
 
@@ -457,28 +457,22 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         // =====================================================
         if (rmDto.getChemicalAnalysis() != null) {
             List<RmChemicalAnalysis> existingChems = rmChemicalAnalysisRepository.findByRmInspectionDetailsId(Math.toIntExact(rmDetails.getId()));
+            java.util.Set<RmChemicalAnalysis> matchedChems = new java.util.HashSet<>();
+            List<RmChemicalAnalysis> updatedChemList = new ArrayList<>();
 
-            // 1. Delete chemical analyses no longer present in the request (matched by heatNumber)
-            for (RmChemicalAnalysis existing : existingChems) {
-                boolean stillExists = rmDto.getChemicalAnalysis().stream()
-                        .anyMatch(dto -> dto.getHeatNumber() != null && dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()));
-                if (!stillExists) {
-                    rmChemicalAnalysisRepository.delete(existing);
-                }
-            }
-
-            // 2. Update existing or insert new ones
             for (RmChemicalAnalysisRequestDto dto : rmDto.getChemicalAnalysis()) {
                 if (dto.getHeatNumber() == null || dto.getHeatNumber().trim().isEmpty()) {
                     continue;
                 }
 
+                String heatNo = dto.getHeatNumber().trim();
                 RmChemicalAnalysis chem = existingChems.stream()
-                        .filter(existing -> dto.getHeatNumber().equalsIgnoreCase(existing.getHeatNumber()))
+                        .filter(existing -> !matchedChems.contains(existing) && heatNo.equalsIgnoreCase(existing.getHeatNumber()))
                         .findFirst()
                         .orElse(null);
 
                 if (chem != null) {
+                    matchedChems.add(chem);
                     // Update existing
                     chem.setCarbon(toBigDecimal(dto.getCarbon()));
                     chem.setManganese(toBigDecimal(dto.getManganese()));
@@ -487,7 +481,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     chem.setPhosphorus(toBigDecimal(dto.getPhosphorus()));
                     chem.setChromium(toBigDecimal(dto.getChromium()));
                     chem.setUpdatedAt(LocalDateTime.now());
-                    rmChemicalAnalysisRepository.save(chem);
+                    RmChemicalAnalysis saved = rmChemicalAnalysisRepository.save(chem);
+                    updatedChemList.add(saved);
                 } else {
                     // Insert new
                     RmChemicalAnalysis newChem = new RmChemicalAnalysis();
@@ -501,9 +496,19 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     newChem.setChromium(toBigDecimal(dto.getChromium()));
                     newChem.setCreatedAt(LocalDateTime.now());
                     newChem.setUpdatedAt(LocalDateTime.now());
-                    rmChemicalAnalysisRepository.save(newChem);
+                    RmChemicalAnalysis saved = rmChemicalAnalysisRepository.save(newChem);
+                    updatedChemList.add(saved);
                 }
             }
+
+            // Delete chemical analyses no longer present in the request
+            for (RmChemicalAnalysis existing : existingChems) {
+                if (!matchedChems.contains(existing)) {
+                    rmChemicalAnalysisRepository.delete(existing);
+                }
+            }
+
+            rmDetails.setChemicalAnalysisList(updatedChemList);
         }
 
         // =====================================================

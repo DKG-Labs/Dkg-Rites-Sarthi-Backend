@@ -144,7 +144,15 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         Map<Long, Long> rmHeatCountMap = Collections.emptyMap();
         if (!rmDetailIds.isEmpty()) {
             rmHeatCountMap = rmHeatQuantityRepository.findByRmInspectionDetailsIdIn(rmDetailIds)
-                    .stream().collect(Collectors.groupingBy(hq -> hq.getRmInspectionDetails().getId(), Collectors.counting()));
+                    .stream()
+                    .filter(hq -> hq.getHeatNumber() != null && !hq.getHeatNumber().trim().isEmpty())
+                    .collect(Collectors.groupingBy(
+                            hq -> hq.getRmInspectionDetails().getId(),
+                            Collectors.mapping(
+                                    hq -> hq.getHeatNumber().trim(),
+                                    Collectors.collectingAndThen(Collectors.toSet(), set -> (long) set.size())
+                            )
+                    ));
         }
 
         // Final Lot Details
