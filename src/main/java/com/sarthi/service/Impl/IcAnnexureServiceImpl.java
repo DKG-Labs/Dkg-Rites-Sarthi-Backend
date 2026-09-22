@@ -39,7 +39,7 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
     @Value("${azure.storage.connection-string}")
     private String connectionString;
 
-    @Value("${azure.storage.annexures-container-name:uat-sarthi-annexures}")
+    @Value("${azure.storage.annexures-container-name:sarthi-uploads}")
     private String annexuresContainerName;
 
     private static final long MAX_SIZE_ERC_BYTES = 20 * 1024 * 1024L;      // 20 MB
