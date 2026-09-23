@@ -8,6 +8,8 @@ import com.sarthi.Sleeper.entity.DemouldingDefectiveSleeper;
 import com.sarthi.Sleeper.entity.EtSleeperDetails;
 import com.sarthi.Sleeper.entity.FinalInspection.*;
 import com.sarthi.Sleeper.entity.InspectionReasonMaster;
+import com.sarthi.Sleeper.entity.MomentOfResistance;
+import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper;
 import com.sarthi.Sleeper.repository.*;
@@ -76,6 +78,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
     @Autowired
     private MomentOfResistanceTestRepository momentOfResistanceTestRepository;
+    @Autowired
+    private MomentOfResistanceRepository momentOfResistanceRepository;
 
     @Autowired
     private EtSleeperDetailsRepository etSleeperDetailsRepository;
@@ -1259,6 +1263,21 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             }
         }
 
+        // ── Bulk Upfront Fetch 8: MOR Tests and Declarations ─────────────────
+        List<MomentOfResistanceTest> allMorTests = momentOfResistanceTestRepository.findByBatchNumbersIn(batchNumbers);
+        Map<String, List<MomentOfResistanceTest>> morTestsByBatchNo = (allMorTests != null)
+                ? allMorTests.stream()
+                .filter(m -> m.getBatchNumber() != null)
+                .collect(Collectors.groupingBy(m -> m.getBatchNumber().trim()))
+                : Collections.emptyMap();
+
+        List<MomentOfResistance> allMorDeclarations = momentOfResistanceRepository.findByBatchNumbersIn(batchNumbers);
+        Map<String, List<MomentOfResistance>> morDeclarationsByBatchNo = (allMorDeclarations != null)
+                ? allMorDeclarations.stream()
+                .filter(m -> m.getBatchNumber() != null)
+                .collect(Collectors.groupingBy(m -> m.getBatchNumber().trim()))
+                : Collections.emptyMap();
+
         List<BatchInspectionResponseDto> responseList = new ArrayList<>();
 
         // ── In-Memory Processing Loop (ZERO DB QUERIES INSIDE) ───────────────
@@ -1459,9 +1478,132 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                                 badSleepers.add(bad);
                             }
                         }
-                        }
                     }
                 }
+            }
+
+            // Process MOR Tested / Rejected Sleepers
+            List<MomentOfResistanceTest> batchMorTests = morTestsByBatchNo.getOrDefault(currentBatchNo, Collections.emptyList());
+            for (MomentOfResistanceTest mor : batchMorTests) {
+                if (mor.getSleeperNo() == null || mor.getSleeperNo().isBlank()) {
+                    continue;
+                }
+                String testRes = mor.getTestResult() != null ? mor.getTestResult().trim() : "";
+                boolean isPass = testRes.equalsIgnoreCase("Pass") || testRes.equalsIgnoreCase("OK") || testRes.equalsIgnoreCase("Completed");
+                if (!isPass) {
+                    String rawSleeperNo = mor.getSleeperNo().trim();
+                    Optional<ProductionSleeper> prodMatch = allProdSleepers.stream()
+                            .filter(p -> isSleeperMatch(p.getSleeperNo(), rawSleeperNo, currentBatchNo))
+                            .findFirst();
+                    Optional<SleeperDto> goodMatch = goodSleepers.stream()
+                            .filter(g -> isSleeperMatch(g.getSleeperNo(), rawSleeperNo, currentBatchNo))
+                            .findFirst();
+
+                    String actualSleeperNo = prodMatch.isPresent() && prodMatch.get().getSleeperNo() != null
+                            ? prodMatch.get().getSleeperNo()
+                            : (goodMatch.isPresent() && goodMatch.get().getSleeperNo() != null
+                                    ? goodMatch.get().getSleeperNo()
+                                    : rawSleeperNo);
+
+                    boolean alreadyInBad = badSleepers.stream().anyMatch(b ->
+                            isSleeperMatch(b.getSleeperNo(), actualSleeperNo, currentBatchNo));
+
+                    if (!alreadyInBad) {
+                        BadSleeperDto bad = new BadSleeperDto();
+                        bad.setReason("MOR Test - " + (testRes.isEmpty() ? "Failed" : testRes));
+                        bad.setModuleId(6L);
+                        bad.setModuleName("MOR Lab Test");
+
+                        if (prodMatch.isPresent()) {
+                            ProductionSleeper matchedPs = prodMatch.get();
+                            bad.setSleeperId(matchedPs.getId());
+                            bad.setSleeperNo(matchedPs.getSleeperNo() != null ? matchedPs.getSleeperNo() : rawSleeperNo);
+                        } else if (goodMatch.isPresent()) {
+                            bad.setSleeperId(goodMatch.get().getSleeperId());
+                            bad.setSleeperNo(goodMatch.get().getSleeperNo() != null ? goodMatch.get().getSleeperNo() : rawSleeperNo);
+                        } else {
+                            bad.setSleeperNo(rawSleeperNo);
+                        }
+
+                        if (goodMatch.isPresent()) {
+                            goodSleepers.remove(goodMatch.get());
+                        } else {
+                            goodSleepers.removeIf(g -> isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo)
+                                    || (bad.getSleeperId() != null && bad.getSleeperId() != 0L && Objects.equals(g.getSleeperId(), bad.getSleeperId())));
+                        }
+
+                        String badKey = (bad.getSleeperNo() != null)
+                                ? (currentBatchNo + "_" + bad.getSleeperNo().trim()) : "";
+
+                        boolean isRaised = (bad.getSleeperId() != null && bad.getSleeperId() > 0 && raisedSleeperIds.contains(bad.getSleeperId()))
+                                || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey));
+                        bad.setCallRaised(isRaised);
+
+                        badSleepers.add(bad);
+                    }
+                }
+            }
+
+            List<MomentOfResistance> batchMorDeclarations = morDeclarationsByBatchNo.getOrDefault(currentBatchNo, Collections.emptyList());
+            for (MomentOfResistance mor : batchMorDeclarations) {
+                if (mor.getSleeperNo() == null || mor.getSleeperNo().isBlank()) {
+                    continue;
+                }
+                String testRes = mor.getTestResult() != null ? mor.getTestResult().trim() : "";
+                boolean isRejected = testRes.equalsIgnoreCase("Retest") || testRes.equalsIgnoreCase("Fail") || testRes.equalsIgnoreCase("Rejected");
+                if (isRejected) {
+                    String rawSleeperNo = mor.getSleeperNo().trim();
+                    Optional<ProductionSleeper> prodMatch = allProdSleepers.stream()
+                            .filter(p -> isSleeperMatch(p.getSleeperNo(), rawSleeperNo, currentBatchNo))
+                            .findFirst();
+                    Optional<SleeperDto> goodMatch = goodSleepers.stream()
+                            .filter(g -> isSleeperMatch(g.getSleeperNo(), rawSleeperNo, currentBatchNo))
+                            .findFirst();
+
+                    String actualSleeperNo = prodMatch.isPresent() && prodMatch.get().getSleeperNo() != null
+                            ? prodMatch.get().getSleeperNo()
+                            : (goodMatch.isPresent() && goodMatch.get().getSleeperNo() != null
+                                    ? goodMatch.get().getSleeperNo()
+                                    : rawSleeperNo);
+
+                    boolean alreadyInBad = badSleepers.stream().anyMatch(b ->
+                            isSleeperMatch(b.getSleeperNo(), actualSleeperNo, currentBatchNo));
+
+                    if (!alreadyInBad) {
+                        BadSleeperDto bad = new BadSleeperDto();
+                        bad.setReason("MOR Test - " + (testRes.isEmpty() ? "Failed" : testRes));
+                        bad.setModuleId(6L);
+                        bad.setModuleName("MOR Lab Test");
+
+                        if (prodMatch.isPresent()) {
+                            ProductionSleeper matchedPs = prodMatch.get();
+                            bad.setSleeperId(matchedPs.getId());
+                            bad.setSleeperNo(matchedPs.getSleeperNo() != null ? matchedPs.getSleeperNo() : rawSleeperNo);
+                        } else if (goodMatch.isPresent()) {
+                            bad.setSleeperId(goodMatch.get().getSleeperId());
+                            bad.setSleeperNo(goodMatch.get().getSleeperNo() != null ? goodMatch.get().getSleeperNo() : rawSleeperNo);
+                        } else {
+                            bad.setSleeperNo(rawSleeperNo);
+                        }
+
+                        if (goodMatch.isPresent()) {
+                            goodSleepers.remove(goodMatch.get());
+                        } else {
+                            goodSleepers.removeIf(g -> isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo)
+                                    || (bad.getSleeperId() != null && bad.getSleeperId() != 0L && Objects.equals(g.getSleeperId(), bad.getSleeperId())));
+                        }
+
+                        String badKey = (bad.getSleeperNo() != null)
+                                ? (currentBatchNo + "_" + bad.getSleeperNo().trim()) : "";
+
+                        boolean isRaised = (bad.getSleeperId() != null && bad.getSleeperId() > 0 && raisedSleeperIds.contains(bad.getSleeperId()))
+                                || (!badKey.isEmpty() && raisedBadSleeperKeys.contains(badKey));
+                        bad.setCallRaised(isRaised);
+
+                        badSleepers.add(bad);
+                    }
+                }
+            }
 
             // Uninspected Sleeper Recovery using in-memory list
             Set<Long> accountedBadIds = badSleepers.stream()
