@@ -36,6 +36,19 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
     }
 
     @Query("""
+            SELECT h.batchId, MAX(h.testDate)
+            FROM InspectionTestHeader h
+            LEFT JOIN h.module m
+            WHERE h.batchId IN :batchIds
+            AND (m.id = :moduleId OR :moduleId IS NULL)
+            GROUP BY h.batchId
+            """)
+    List<Object[]> findLatestTestDatesByBatchIdsAndModuleId(
+            @Param("batchIds") List<Long> batchIds,
+            @Param("moduleId") Long moduleId
+    );
+
+    @Query("""
              SELECT h.batchId
              FROM InspectionTestHeader h
              WHERE h.status='Completed'
