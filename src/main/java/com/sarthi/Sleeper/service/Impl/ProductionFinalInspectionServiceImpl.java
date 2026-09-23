@@ -696,12 +696,32 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 .distinct()
                 .collect(Collectors.toList());
 
-        Map<Long, Long> testedCounts = new java.util.HashMap<>();
+        Map<Long, Set<String>> testedSleepersByBatch = new java.util.HashMap<>();
         for (int i = 0; i < batchIds.size(); i += 1000) {
             List<Long> chunk = batchIds.subList(i, Math.min(i + 1000, batchIds.size()));
-            List<Object[]> results = resultRepository.countTestedSleepersByBatchIds(chunk, moduleId);
-            for (Object[] row : results) {
-                testedCounts.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+            List<Object[]> rows = resultRepository.findTestedSleepersNative(chunk);
+            for (Object[] r : rows) {
+                if (r == null || r[0] == null) continue;
+                Long bId = ((Number) r[0]).longValue();
+                String key = r[1] != null ? r[1].toString().trim() : "";
+                if (key.isEmpty()) continue;
+                String res = r[2] != null ? r[2].toString().trim() : "";
+                Long modId = r[3] != null ? ((Number) r[3]).longValue() : null;
+
+                if (modId == null || moduleId == null || modId.equals(moduleId)) {
+                    testedSleepersByBatch.computeIfAbsent(bId, k -> new java.util.HashSet<>()).add(key);
+                }
+            }
+        }
+
+        Map<Long, LocalDate> latestTestingDates = new java.util.HashMap<>();
+        for (int i = 0; i < batchIds.size(); i += 1000) {
+            List<Long> chunk = batchIds.subList(i, Math.min(i + 1000, batchIds.size()));
+            List<Object[]> dateResults = headerRepository.findLatestTestDatesByBatchIdsAndModuleId(chunk, moduleId);
+            for (Object[] row : dateResults) {
+                if (row[0] != null && row[1] != null) {
+                    latestTestingDates.put(((Number) row[0]).longValue(), (LocalDate) row[1]);
+                }
             }
         }
 
@@ -720,20 +740,30 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         for (BatchTestingListResponseDto dto : workflowsCompletedList) {
 
-            Long testedCount = testedCounts.getOrDefault(dto.getBatchId(), 0L);
+            Set<String> testedSet = testedSleepersByBatch.getOrDefault(dto.getBatchId(), java.util.Collections.emptySet());
+            Long testedCount = (long) testedSet.size();
             String bNo = dto.getBatchNumber() != null ? dto.getBatchNumber().trim() : "";
             Long demouldRejected = demouldRejectedCounts.getOrDefault(bNo, demouldRejectedCounts.getOrDefault(dto.getBatchNumber(), 0L));
 
-            double denominator = dto.getNoOfSleepers() - demouldRejected;
-
-            double percent = 0;
-
-            if (denominator > 0) {
-                percent = (testedCount * 100.0) / denominator;
+            if (latestTestingDates.containsKey(dto.getBatchId())) {
+                dto.setTestingDate(latestTestingDates.get(dto.getBatchId()));
             }
 
-            // NOTE: Do NOT override percent to 100.0 based on raw count comparison.
-            // This was causing false "Completed" status when pending sleepers existed.
+            double totalSleepers = dto.getNoOfSleepers() != null ? dto.getNoOfSleepers() : 0.0;
+            double denominator = totalSleepers - demouldRejected;
+            if (denominator <= 0) {
+                denominator = totalSleepers;
+            }
+
+            double percent = 0.0;
+
+            if (testedCount > 0 && denominator > 0) {
+                if (testedCount >= denominator || (testedCount + demouldRejected) >= totalSleepers) {
+                    percent = 100.0;
+                } else {
+                    percent = (testedCount * 100.0) / denominator;
+                }
+            }
 
             dto.setTestedPercentage(Math.min(percent, 100.0));
 
