@@ -40,6 +40,7 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setSleeperType(dto.getSleeperType());
         entity.setCastingDate(dto.getCastingDate());
+        entity.setDateOfTesting(dto.getDateOfTesting());
         entity.setBenchNumber(dto.getBenchNumber());
         entity.setSleeperNo(dto.getSleeperNo());
 
@@ -114,6 +115,7 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setSleeperType(dto.getSleeperType());
         entity.setCastingDate(dto.getCastingDate());
+        entity.setDateOfTesting(dto.getDateOfTesting());
         entity.setBenchNumber(dto.getBenchNumber());
         entity.setSleeperNo(dto.getSleeperNo());
 
@@ -187,6 +189,7 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         dto.setBatchNumber(entity.getBatchNumber());
         dto.setSleeperType(entity.getSleeperType());
         dto.setCastingDate(entity.getCastingDate());
+        dto.setDateOfTesting(entity.getDateOfTesting());
         dto.setBenchNumber(entity.getBenchNumber());
         dto.setSleeperNo(entity.getSleeperNo());
 
