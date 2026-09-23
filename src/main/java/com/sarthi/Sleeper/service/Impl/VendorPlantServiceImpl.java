@@ -22,9 +22,29 @@ public class VendorPlantServiceImpl implements VendorPlantService {
     @Autowired
     private RailwayMasterRepository railwayMasterRepository;
 
-    public VendorResponseDTO getPlantsByVendorCode(String vendorCode) {
-
+    private List<VendorPlant> findVendorPlantsByCode(String vendorCode) {
+        if (vendorCode == null || vendorCode.trim().isEmpty()) {
+            return List.of();
+        }
         List<VendorPlant> list = vendorPlantRepository.findByVendorCode(vendorCode);
+        if (list.isEmpty() && !vendorCode.startsWith(":")) {
+            list = vendorPlantRepository.findByVendorCode(":" + vendorCode);
+        }
+        if (list.isEmpty() && vendorCode.startsWith(":")) {
+            list = vendorPlantRepository.findByVendorCode(vendorCode.substring(1));
+        }
+        if (list.isEmpty()) {
+            try {
+                String numericCode = vendorCode.replaceAll("^:+", "").trim();
+                Long vId = Long.parseLong(numericCode);
+                list = vendorPlantRepository.findByVendorId(vId);
+            } catch (Exception ignored) {}
+        }
+        return list;
+    }
+
+    public VendorResponseDTO getPlantsByVendorCode(String vendorCode) {
+        List<VendorPlant> list = findVendorPlantsByCode(vendorCode);
 
         if (list.isEmpty()) {
             throw new RuntimeException("No plants found for vendor: " + vendorCode);
@@ -44,8 +64,7 @@ public class VendorPlantServiceImpl implements VendorPlantService {
     }
 
     public VendorResponseDTO getPlantsByVendorCodeAndUser(String vendorCode, Integer userId) {
-
-        List<VendorPlant> list = vendorPlantRepository.findByVendorCode(vendorCode);
+        List<VendorPlant> list = findVendorPlantsByCode(vendorCode);
 
         if (list.isEmpty()) {
             throw new RuntimeException("No plants found for vendor: " + vendorCode);
@@ -71,11 +90,8 @@ public class VendorPlantServiceImpl implements VendorPlantService {
         return response;
     }
 
-
     public List<RlyProjection> getUniqueRlyList() {
         return railwayMasterRepository.getUniqueRlyList();
     }
-
-
 
 }
