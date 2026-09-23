@@ -48,13 +48,19 @@ AND h.module.id = :moduleId
   Long countTestedSleepers(Long batchId, Long moduleId);*/
 
     @Query("""
-       SELECT COUNT(DISTINCT r.sleeperId)
+       SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(r.sleeperNo), ''), CAST(r.sleeperId AS string)))
        FROM InspectionTestResult r
        JOIN r.testHeader h
        WHERE h.batchId = :batchId
        AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
-       AND (r.active = true OR r.active IS NULL)
+       AND r.active = true
        AND r.result <> 'PENDING'
+       AND h.id = (
+           SELECT MAX(h2.id)
+           FROM InspectionTestHeader h2
+           WHERE h2.batchId = :batchId
+           AND h2.module.id = :moduleId
+       )
        """)
     Long countTestedSleepers(
             @Param("batchId") Long batchId,
@@ -63,13 +69,20 @@ AND h.module.id = :moduleId
 
 
     @Query("""
-       SELECT h.batchId, COUNT(DISTINCT r.sleeperId)
+       SELECT h.batchId, COUNT(DISTINCT COALESCE(NULLIF(TRIM(r.sleeperNo), ''), CAST(r.sleeperId AS string)))
        FROM InspectionTestResult r
        JOIN r.testHeader h
        WHERE h.batchId IN :batchIds
        AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
-       AND (r.active = true OR r.active IS NULL)
+       AND r.active = true
        AND r.result <> 'PENDING'
+       AND h.id IN (
+           SELECT MAX(h2.id)
+           FROM InspectionTestHeader h2
+           WHERE h2.batchId IN :batchIds
+           AND h2.module.id = :moduleId
+           GROUP BY h2.batchId
+       )
        GROUP BY h.batchId
        """)
     List<Object[]> countTestedSleepersByBatchIds(
@@ -92,7 +105,7 @@ AND h.module.id = :moduleId
           FROM InspectionTestResult r
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findAllResultsByBatchId(@Param("batchId") Long batchId);
 
@@ -102,7 +115,7 @@ AND h.module.id = :moduleId
           JOIN FETCH r.testHeader h
           LEFT JOIN FETCH h.module
           WHERE h.batchId IN :batchIds
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findAllResultsByBatchIds(@Param("batchIds") java.util.Collection<Long> batchIds);
 
@@ -126,7 +139,7 @@ AND h.module.id = :moduleId
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
           AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdAndActiveTrue(
           @Param("batchId") Long batchId,
@@ -137,7 +150,7 @@ AND h.module.id = :moduleId
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
           AND (r.moduleId IN :moduleIds OR h.module.id IN :moduleIds)
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdInAndActiveTrue(
           @Param("batchId") Long batchId,
@@ -149,7 +162,7 @@ AND h.module.id = :moduleId
           SELECT r FROM InspectionTestResult r
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(@Param("batchId") Long batchId);
 

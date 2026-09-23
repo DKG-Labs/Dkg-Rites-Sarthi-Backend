@@ -172,26 +172,25 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             // Pre-fetch existing active records for the batch/module (Eliminate N+1 query)
             List<InspectionTestResult> allExistingActive = resultRepository
                     .findByTestHeader_BatchIdAndModuleIdAndActiveTrue(dto.getBatchId(), dto.getModuleId());
-            Map<Long, List<InspectionTestResult>> existingBySleeper = allExistingActive.stream()
-                    .collect(Collectors.groupingBy(InspectionTestResult::getSleeperId));
+            List<InspectionTestResult> oldResultsToDeactivate = new ArrayList<>();
+            for (InspectionTestResult old : allExistingActive) {
+                old.setActive(false);
+                old.setUpdatedBy(dto.getCreatedBy());
+                old.setUpdatedDate(LocalDateTime.now());
+                oldResultsToDeactivate.add(old);
+            }
 
             // Collections for bulk save
-            List<InspectionTestResult> oldResultsToDeactivate = new ArrayList<>();
             List<InspectionTestResult> newResultsToSave = new ArrayList<>();
             List<InspectionParameterResult> newParameterResults = new ArrayList<>();
 
             // Process sleepers sequentially in memory
             for (SleeperInspectionDto sleeperDto : dto.getSleepers()) {
-                // STEP 1 & 2: Get and deactivate old records
-                List<InspectionTestResult> existing = existingBySleeper.getOrDefault(sleeperDto.getSleeperId(), Collections.emptyList());
-                for (InspectionTestResult old : existing) {
-                    old.setActive(false);
-                    old.setUpdatedBy(dto.getCreatedBy());
-                    old.setUpdatedDate(LocalDateTime.now());
-                    oldResultsToDeactivate.add(old);
+                if ("PENDING".equalsIgnoreCase(sleeperDto.getResult())) {
+                    continue;
                 }
 
-                // STEP 3: Create new record
+                // Create new record
                 InspectionTestResult result = new InspectionTestResult();
                 result.setTestHeader(header);
                 result.setSleeperId(sleeperDto.getSleeperId());
@@ -234,13 +233,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
 
-            // STEP 4: Bulk save all processed data sequentially
-            if (!oldResultsToDeactivate.isEmpty()) {
-                String ids = oldResultsToDeactivate.stream()
-                        .map(r -> String.valueOf(r.getId()))
-                        .collect(Collectors.joining(","));
-                String updateSql = "UPDATE inspection_test_result SET active = false, updated_by = ?, updated_date = ? WHERE id IN (" + ids + ")";
-                jdbcTemplate.update(updateSql, dto.getCreatedBy(), LocalDateTime.now());
+            // STEP 4: Bulk deactivate all prior active records for batch and module
+            try {
+                String deactSql = "UPDATE inspection_test_result r JOIN inspection_test_header h ON r.test_header_id = h.id SET r.active = false, r.updated_by = ?, r.updated_date = ? WHERE h.batch_id = ? AND (r.module_id = ? OR h.module_id = ?)";
+                jdbcTemplate.update(deactSql, dto.getCreatedBy(), LocalDateTime.now(), dto.getBatchId(), dto.getModuleId(), dto.getModuleId());
+            } catch (Exception ex) {
+                if (!oldResultsToDeactivate.isEmpty()) {
+                    String ids = oldResultsToDeactivate.stream()
+                            .map(r -> String.valueOf(r.getId()))
+                            .collect(Collectors.joining(","));
+                    String updateSql = "UPDATE inspection_test_result SET active = false, updated_by = ?, updated_date = ? WHERE id IN (" + ids + ")";
+                    jdbcTemplate.update(updateSql, dto.getCreatedBy(), LocalDateTime.now());
+                }
             }
 
             if (!newResultsToSave.isEmpty()) {
@@ -326,9 +330,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             testedPercentage = (testedSleepers * 100.0) / validSleepers;
         }
 
-        if (testedSleepers + demouldRejected >= (totalSleepers != null ? totalSleepers : 0L) || testedPercentage >= 99.5) {
-            testedPercentage = 100.0;
-        }
+        // NOTE: Do NOT override testedPercentage to 100.0 based on raw count comparison.
+        // The countTestedSleepers query already excludes PENDING records (active=true, result != 'PENDING').
+        // Forcing 100% when testedSleepers+demouldRejected>=totalSleepers is incorrect when
+        // there are still pending (uninspected) sleepers in the form — it caused false "Completed" status.
 
         // Determine if sleeper is Turnout (IRS-T-45: 20% Critical, 5% Non-Critical) vs Line Sleeper (IRS-T-39: 10% Critical, 1% Non-Critical)
         String sType = sleeperT;
@@ -362,9 +367,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         boolean completed = false;
 
-        // MODULE 1 → VISUAL (100%)
+        // MODULE 1 → VISUAL (100% Mandatory)
+        // Only mark completed when testedPercentage >= 100 (i.e., all valid sleepers have been inspected)
         if (moduleId == 1) {
-            if (testedPercentage >= 99.5 || testedPercentage >= 100) {
+            if (testedPercentage >= 100.0) {
                 completed = true;
             }
         }
@@ -383,10 +389,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             if (testedPercentage >= requiredPercent) {
                 completed = true;
             }
-        }
-
-        if (testedPercentage >= 99.5) {
-            completed = true;
         }
 
         updateModuleStatus(batchId, moduleId, completed);
@@ -428,14 +430,22 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         dto.getBatchId(), dto.getModuleId()
                 );
 
-        //  Incoming sleeperIds
+        //  Incoming sleeperIds & sleeperNos
         Set<Long> incomingIds = dto.getSleepers().stream()
                 .map(SleeperInspectionDto::getSleeperId)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        //  Deactivate only updating sleepers (NOT all)
+        Set<String> incomingNos = dto.getSleepers().stream()
+                .map(SleeperInspectionDto::getSleeperNo)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .collect(Collectors.toSet());
+
+        //  Deactivate only updating sleepers (by sleeperId OR sleeperNo)
         List<InspectionTestResult> toDeactivate = existing.stream()
-                .filter(r -> incomingIds.contains(r.getSleeperId()))
+                .filter(r -> (r.getSleeperId() != null && incomingIds.contains(r.getSleeperId())) ||
+                             (r.getSleeperNo() != null && incomingNos.contains(r.getSleeperNo().trim())))
                 .toList();
 
         if (!toDeactivate.isEmpty()) {
@@ -718,9 +728,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 percent = (testedCount * 100.0) / denominator;
             }
 
-            if (testedCount + demouldRejected >= dto.getNoOfSleepers() || percent >= 99.5) {
-                percent = 100.0;
-            }
+            // NOTE: Do NOT override percent to 100.0 based on raw count comparison.
+            // This was causing false "Completed" status when pending sleepers existed.
 
             dto.setTestedPercentage(Math.min(percent, 100.0));
 
@@ -728,9 +737,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             boolean completed = false;
 
-            // MODULE 1 → VISUAL (100%)
+            // MODULE 1 → VISUAL (100% Mandatory)
             if (moduleId == 1) {
-                if (percent >= 99.5 || percent >= 100.0) {
+                if (percent >= 100.0) {
                     completed = true;
                 }
             }
@@ -749,10 +758,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 if (percent >= requiredPercent) {
                     completed = true;
                 }
-            }
-
-            if (percent >= 99.5) {
-                completed = true;
             }
 
             if (percent == 0) {
@@ -933,15 +938,24 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         List<InspectionTestResult> results =
                 resultRepository.findByTestHeader_BatchIdAndActiveTrue(batchId);
 
-        // Existing map (NO CHANGE)
+        // Existing map (by sleeperId and sleeperNo)
         Map<Long, String> resultMap = results.stream()
+                .filter(r -> r.getSleeperId() != null)
                 .collect(Collectors.toMap(
                         InspectionTestResult::getSleeperId,
                         InspectionTestResult::getResult,
                         (a, b) -> b
                 ));
 
-        // Existing module map (NO CHANGE)
+        Map<String, String> resultMapByNo = results.stream()
+                .filter(r -> r.getSleeperNo() != null && !r.getSleeperNo().isBlank())
+                .collect(Collectors.toMap(
+                        r -> r.getSleeperNo().trim(),
+                        InspectionTestResult::getResult,
+                        (a, b) -> b
+                ));
+
+        // Existing module map
         Map<Long, Long> moduleMap = results.stream()
                 .filter(r -> r.getSleeperId() != null && r.getModuleId() != null)
                 .collect(Collectors.toMap(
@@ -950,7 +964,15 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         (a, b) -> b
                 ));
 
-        //  rejected map (store moduleId)
+        Map<String, Long> moduleMapByNo = results.stream()
+                .filter(r -> r.getSleeperNo() != null && !r.getSleeperNo().isBlank() && r.getModuleId() != null)
+                .collect(Collectors.toMap(
+                        r -> r.getSleeperNo().trim(),
+                        InspectionTestResult::getModuleId,
+                        (a, b) -> b
+                ));
+
+        // Rejected map (by sleeperId and sleeperNo)
         Map<Long, Long> rejectedMap = results.stream()
                 .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
                 .filter(r -> r.getSleeperId() != null && r.getModuleId() != null)
@@ -960,17 +982,31 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         (a, b) -> b
                 ));
 
-        //   fetch only selected module results
-        //   List<InspectionTestResult> moduleResults =resultRepository.findByTestHeader_BatchIdAndModuleId(batchId, moduleId);
+        Map<String, Long> rejectedMapByNo = results.stream()
+                .filter(r -> "REJECTED".equalsIgnoreCase(r.getResult()))
+                .filter(r -> r.getSleeperNo() != null && !r.getSleeperNo().isBlank() && r.getModuleId() != null)
+                .collect(Collectors.toMap(
+                        r -> r.getSleeperNo().trim(),
+                        InspectionTestResult::getModuleId,
+                        (a, b) -> b
+                ));
 
         // ONLY ACTIVE RECORDS FOR MODULE
         List<InspectionTestResult> moduleResults =
                 resultRepository.findByTestHeader_BatchIdAndModuleIdAndActiveTrue(batchId, moduleId);
 
-
         Map<Long, InspectionTestResult> moduleResultMap = moduleResults.stream()
+                .filter(r -> r.getSleeperId() != null)
                 .collect(Collectors.toMap(
                         InspectionTestResult::getSleeperId,
+                        r -> r,
+                        (a, b) -> b
+                ));
+
+        Map<String, InspectionTestResult> moduleResultMapByNo = moduleResults.stream()
+                .filter(r -> r.getSleeperNo() != null && !r.getSleeperNo().isBlank())
+                .collect(Collectors.toMap(
+                        r -> r.getSleeperNo().trim(),
                         r -> r,
                         (a, b) -> b
                 ));
@@ -980,17 +1016,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 demouldingDefectiveSleeperRepository
                         .findRejectedSleeperNos(declaration.getBatchNumber());
 
-        //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
-       /* String sleeperType;
-
-        if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
-
-            sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
-
-        } else {
-
-            sleeperType = productionSleeperRepository.getLongLineSleeperType(batchId);
-        }*/
         BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
 
         dto.setBatchId(declaration.getId());
@@ -1025,24 +1050,37 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     sd.setSleeperId(s.getId());
                     sd.setSleeperNo(s.getSleeperNo());
 
+                    String sNo = s.getSleeperNo() != null ? s.getSleeperNo().trim() : "";
+
                     //  DEMOULDING rejection
-                    if (rejectedSet.contains(s.getSleeperNo())) {
+                    if (rejectedSet.contains(s.getSleeperNo()) || (!sNo.isEmpty() && rejectedSet.contains(sNo))) {
 
                         sd.setStatus("REJECTED");
                         sd.setModuleId(4L);
 
                     }
                     // REJECTED in ANY inspection module
-                    else if (rejectedMap.containsKey(s.getId())) {
+                    else if ((s.getId() != null && rejectedMap.containsKey(s.getId())) ||
+                             (!sNo.isEmpty() && rejectedMapByNo.containsKey(sNo))) {
 
                         sd.setStatus("REJECTED");
-                        sd.setModuleId(rejectedMap.get(s.getId()));
+                        Long modId = s.getId() != null ? rejectedMap.get(s.getId()) : null;
+                        if (modId == null && !sNo.isEmpty()) {
+                            modId = rejectedMapByNo.get(sNo);
+                        }
+                        sd.setModuleId(modId);
 
                     }
                     // Selected module result
                     else {
 
-                        InspectionTestResult result = moduleResultMap.get(s.getId());
+                        InspectionTestResult result = null;
+                        if (s.getId() != null) {
+                            result = moduleResultMap.get(s.getId());
+                        }
+                        if (result == null && !sNo.isEmpty()) {
+                            result = moduleResultMapByNo.get(sNo);
+                        }
 
                         if (result != null) {
                             sd.setStatus(result.getResult());

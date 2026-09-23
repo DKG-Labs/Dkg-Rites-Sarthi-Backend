@@ -1,6 +1,7 @@
 package com.sarthi.service.Impl;
 
 import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.BlobClientBuilder;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
@@ -46,11 +47,26 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
     private static final long MAX_SIZE_RAILPAD_BYTES = 20 * 1024 * 1024L;  // 20 MB
     private static final long MAX_SIZE_SLEEPER_BYTES = 50 * 1024 * 1024L;  // 50 MB
 
+    private volatile BlobContainerClient containerClient;
+
     private BlobContainerClient getContainerClient() {
-        BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
-                .connectionString(connectionString)
-                .buildClient();
-        return blobServiceClient.createBlobContainerIfNotExists(annexuresContainerName);
+        if (containerClient == null) {
+            synchronized (this) {
+                if (containerClient == null) {
+                    BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                            .connectionString(connectionString)
+                            .buildClient();
+                    BlobContainerClient client = blobServiceClient.getBlobContainerClient(annexuresContainerName);
+                    try {
+                        client.createIfNotExists();
+                    } catch (Exception e) {
+                        log.debug("Container already exists or verified: {}", e.getMessage());
+                    }
+                    containerClient = client;
+                }
+            }
+        }
+        return containerClient;
     }
 
     private boolean isLocalOrInvalidAzure() {
@@ -76,10 +92,7 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         }
 
         String normalizedModule = (moduleType != null ? moduleType.trim().toUpperCase() : "SLEEPER");
-        String folderName = normalizedModule.toLowerCase(); // 'erc', 'sleeper', 'railpad'
-        if (folderName.contains("rail")) folderName = "railpad";
-        else if (folderName.contains("erc")) folderName = "erc";
-        else folderName = "sleeper";
+        String folderPrefix = com.sarthi.util.BlobFolderResolver.resolveFolder(callNo, normalizedModule);
 
         long originalSize = file.getSize();
 
@@ -112,16 +125,16 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
             throw new RuntimeException("Failed to read file content", e);
         }
 
-        // 1. Optimize PDF structures (streams, tables, dictionaries)
-        byte[] optimizedPdf = pdfCompressionService.compressPdf(fileBytes);
-
-        // 2. Perform deep Deflate compression for maximum storage efficiency on text & tables
-        byte[] finalBytes = FileCompressionUtil.compress(optimizedPdf);
+        // Fast PDF optimization
+        byte[] finalBytes = pdfCompressionService.compressPdf(fileBytes);
+        if (finalBytes == null || finalBytes.length == 0) {
+            finalBytes = fileBytes;
+        }
 
         long compressedSize = finalBytes.length;
         String sanitizedCallNo = callNo.trim().replaceAll("[^a-zA-Z0-9_-]", "_");
         String sanitizedFileName = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
-        String blobPath = String.format("%s/%s/%d_%s", folderName, sanitizedCallNo, System.currentTimeMillis(), sanitizedFileName);
+        String blobPath = String.format("%s/%s/%d_%s", folderPrefix, sanitizedCallNo, System.currentTimeMillis(), sanitizedFileName);
 
         String blobUrl;
         if (isLocalOrInvalidAzure()) {
@@ -129,8 +142,8 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
             blobUrl = saveToLocal(blobPath, finalBytes);
         } else {
             try {
-                BlobContainerClient containerClient = getContainerClient();
-                BlobClient blobClient = containerClient.getBlobClient(blobPath);
+                BlobContainerClient client = getContainerClient();
+                BlobClient blobClient = client.getBlobClient(blobPath);
                 blobClient.upload(new ByteArrayInputStream(finalBytes), finalBytes.length, true);
                 blobUrl = blobClient.getBlobUrl();
                 log.info("Uploaded annexure to Azure Blob: {}", blobUrl);
@@ -233,10 +246,22 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         // 2. Fallback to Azure Blob Storage if not found locally and Azure is configured
         if (data == null && !isLocalOrInvalidAzure() && doc.getBlobFileName() != null) {
             try {
-                BlobContainerClient containerClient = getContainerClient();
-                BlobClient blobClient = containerClient.getBlobClient(doc.getBlobFileName());
+                BlobContainerClient client = getContainerClient();
+                BlobClient blobClient = client.getBlobClient(doc.getBlobFileName());
                 if (blobClient.exists()) {
                     data = blobClient.downloadContent().toBytes();
+                } else if (doc.getBlobUrl() != null && doc.getBlobUrl().startsWith("http")) {
+                    try {
+                        BlobClient directClient = new BlobClientBuilder()
+                                .endpoint(doc.getBlobUrl())
+                                .connectionString(connectionString)
+                                .buildClient();
+                        if (directClient.exists()) {
+                            data = directClient.downloadContent().toBytes();
+                        }
+                    } catch (Exception ex) {
+                        log.warn("Could not direct-download from blobUrl {}: {}", doc.getBlobUrl(), ex.getMessage());
+                    }
                 }
             } catch (Exception e) {
                 log.warn("Could not download from Azure: {}", e.getMessage());
