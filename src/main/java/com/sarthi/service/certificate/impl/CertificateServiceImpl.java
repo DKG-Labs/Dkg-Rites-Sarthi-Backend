@@ -1289,8 +1289,6 @@ public class CertificateServiceImpl implements CertificateService {
                 ProcessMaterialCertificateDto.LotDetailDto existingLot = aggregatedLots.get(heatLot);
                 existingLot.setTotalProcessed(existingLot.getTotalProcessed()
                         + (result.getTotalManufactured() != null ? result.getTotalManufactured() : 0));
-                existingLot.setAcceptedQty(existingLot.getAcceptedQty()
-                        + (result.getTotalAccepted() != null ? result.getTotalAccepted() : 0));
                 existingLot.setRejectedQty(existingLot.getRejectedQty()
                         + (result.getTotalRejected() != null ? result.getTotalRejected() : 0));
             } else {
@@ -1298,11 +1296,17 @@ public class CertificateServiceImpl implements CertificateService {
                 ProcessMaterialCertificateDto.LotDetailDto newLot = ProcessMaterialCertificateDto.LotDetailDto.builder()
                         .heatNo(heatLot)
                         .totalProcessed(result.getTotalManufactured() != null ? result.getTotalManufactured() : 0)
-                        .acceptedQty(result.getTotalAccepted() != null ? result.getTotalAccepted() : 0)
                         .rejectedQty(result.getTotalRejected() != null ? result.getTotalRejected() : 0)
                         .build();
                 aggregatedLots.put(heatLot, newLot);
             }
+        }
+
+        // Calculate accepted quantity as totalProcessed - rejectedQty for each lot
+        for (ProcessMaterialCertificateDto.LotDetailDto lot : aggregatedLots.values()) {
+            int totalProcessed = lot.getTotalProcessed() != null ? lot.getTotalProcessed() : 0;
+            int totalRejected = lot.getRejectedQty() != null ? lot.getRejectedQty() : 0;
+            lot.setAcceptedQty(Math.max(0, totalProcessed - totalRejected));
         }
 
         return new ArrayList<>(aggregatedLots.values());
