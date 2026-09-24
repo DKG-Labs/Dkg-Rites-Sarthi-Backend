@@ -7543,4 +7543,124 @@ public class reportsImpl implements reports {
                 String firstPart = s.split(" ")[0].split("T")[0];
                 return firstPart.isEmpty() ? "-" : firstPart;
         }
+
+        @Override
+        public List<ProcessInspectionQualityTableDto> getProcessInspectionQualityTable(LocalDate startDate, LocalDate endDate) {
+                LocalDateTime startDateTime = (startDate != null) ? startDate.atStartOfDay() : null;
+                LocalDateTime endDateTime = (endDate != null) ? endDate.atTime(23, 59, 59) : null;
+
+                List<Object[]> rows = processLineFinalResultRepository.fetchProcessInspectionQualityTable(startDateTime, endDateTime);
+                List<ProcessInspectionQualityTableDto> list = new ArrayList<>();
+
+                if (rows != null) {
+                        for (Object[] row : rows) {
+                                if (row == null || row[0] == null) continue;
+                                String manufacturer = row[0].toString().trim();
+                                if (manufacturer.isEmpty() || "null".equalsIgnoreCase(manufacturer)) continue;
+
+                                long totalInspected = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                                long totalRejected = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                                long shearingRejected = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                                long turningRejected = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                                long mpiRejected = row[5] != null ? ((Number) row[5]).longValue() : 0L;
+                                long forgingRejected = row[6] != null ? ((Number) row[6]).longValue() : 0L;
+                                long quenchingRejected = row[7] != null ? ((Number) row[7]).longValue() : 0L;
+                                long temperingRejected = row[8] != null ? ((Number) row[8]).longValue() : 0L;
+
+                                long shearingMfg = row[9] != null ? ((Number) row[9]).longValue() : 0L;
+                                long turningMfg = row[10] != null ? ((Number) row[10]).longValue() : 0L;
+                                long mpiMfg = row[11] != null ? ((Number) row[11]).longValue() : 0L;
+                                long forgingMfg = row[12] != null ? ((Number) row[12]).longValue() : 0L;
+                                long quenchingMfg = row[13] != null ? ((Number) row[13]).longValue() : 0L;
+                                long temperingMfg = row[14] != null ? ((Number) row[14]).longValue() : 0L;
+                                long totalAccepted = row[15] != null ? ((Number) row[15]).longValue() : 0L;
+
+                                double rejectionPercent = totalInspected > 0 ? Math.round((totalRejected * 100.0 / totalInspected) * 100.0) / 100.0 : 0.0;
+                                double shearingRejPct = shearingMfg > 0 ? Math.round((shearingRejected * 100.0 / shearingMfg) * 100.0) / 100.0 : 0.0;
+                                double turningRejPct = turningMfg > 0 ? Math.round((turningRejected * 100.0 / turningMfg) * 100.0) / 100.0 : 0.0;
+                                double mpiRejPct = mpiMfg > 0 ? Math.round((mpiRejected * 100.0 / mpiMfg) * 100.0) / 100.0 : 0.0;
+                                double forgingRejPct = forgingMfg > 0 ? Math.round((forgingRejected * 100.0 / forgingMfg) * 100.0) / 100.0 : 0.0;
+                                double quenchingRejPct = quenchingMfg > 0 ? Math.round((quenchingRejected * 100.0 / quenchingMfg) * 100.0) / 100.0 : 0.0;
+                                double temperingRejPct = temperingMfg > 0 ? Math.round((temperingRejected * 100.0 / temperingMfg) * 100.0) / 100.0 : 0.0;
+
+                                list.add(ProcessInspectionQualityTableDto.builder()
+                                                .manufacturerName(manufacturer)
+                                                .totalInspected(totalInspected)
+                                                .totalAccepted(totalAccepted)
+                                                .totalRejected(totalRejected)
+                                                .rejectionPercent(rejectionPercent)
+                                                .shearingRejectionPercent(shearingRejPct)
+                                                .turningRejectionPercent(turningRejPct)
+                                                .mpiRejectionPercent(mpiRejPct)
+                                                .forgingRejectionPercent(forgingRejPct)
+                                                .quenchingRejectionPercent(quenchingRejPct)
+                                                .temperingRejectionPercent(temperingRejPct)
+                                                .build());
+                        }
+                }
+                return list;
+        }
+
+        @Override
+        public List<ManufacturerPoDetailsDto> getManufacturerPoDetails(String companyName) {
+                if (companyName == null || companyName.trim().isEmpty()) {
+                        return Collections.emptyList();
+                }
+                List<Object[]> rows = inspectionCallRepository.getManufacturerPoDetails(companyName.trim());
+                List<ManufacturerPoDetailsDto> list = new ArrayList<>();
+                if (rows != null) {
+                        for (Object[] row : rows) {
+                                if (row == null || row[0] == null) continue;
+                                String poNumber = row[0].toString();
+                                String poDate = row[1] != null ? row[1].toString() : "-";
+                                long poQuantity = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                                long totalFinalInspected = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                                int openCalls = row[4] != null ? ((Number) row[4]).intValue() : 0;
+                                long balanceQuantity = Math.max(0L, poQuantity - totalFinalInspected);
+
+                                list.add(ManufacturerPoDetailsDto.builder()
+                                                .poNumber(poNumber)
+                                                .poDate(poDate)
+                                                .poQuantity(poQuantity)
+                                                .totalFinalInspected(totalFinalInspected)
+                                                .openInspectionCalls(openCalls)
+                                                .poBalanceQuantity(balanceQuantity)
+                                                .build());
+                        }
+                }
+                return list;
+        }
+
+        @Override
+        public List<PoOpenCallDetailsDto> getPoOpenCalls(String poNo) {
+                if (poNo == null || poNo.trim().isEmpty()) {
+                        return Collections.emptyList();
+                }
+                List<Object[]> rows = inspectionCallRepository.getPoOpenCalls(poNo.trim());
+                List<PoOpenCallDetailsDto> list = new ArrayList<>();
+                if (rows != null) {
+                        for (Object[] row : rows) {
+                                if (row == null || row[0] == null) continue;
+                                String callNo = row[0].toString();
+                                String callDate = row[1] != null ? row[1].toString() : "-";
+                                String desiredDate = row[2] != null ? row[2].toString() : "-";
+                                long offeredQty = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                                String stage = row[4] != null ? row[4].toString() : "-";
+                                String status = row[5] != null ? row[5].toString() : "-";
+                                String placeOfInspection = row[6] != null ? row[6].toString() : "-";
+
+                                list.add(PoOpenCallDetailsDto.builder()
+                                                .callNo(callNo)
+                                                .callDate(callDate)
+                                                .desiredDate(desiredDate)
+                                                .offeredQty(offeredQty)
+                                                .stage(stage)
+                                                .status(status)
+                                                .placeOfInspection(placeOfInspection)
+                                                .build());
+                        }
+                }
+                return list;
+        }
 }
+

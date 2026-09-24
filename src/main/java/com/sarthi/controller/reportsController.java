@@ -735,4 +735,43 @@ public class reportsController {
                                 HttpStatus.OK);
         }
 
+        @GetMapping("/processInspectionQualityTable")
+        public ResponseEntity<Object> getProcessInspectionQualityTable(
+                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+                try {
+                        List<ProcessInspectionQualityTableDto> list = reportService.getProcessInspectionQualityTable(startDate, endDate);
+                        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+                } catch (Exception e) {
+                        return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
+                                        new ErrorDetails(500, 500, "ERROR", e.getMessage())),
+                                        HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+        }
+
+        @GetMapping("/manufacturerPoDetails")
+        public ResponseEntity<Object> getManufacturerPoDetails(@RequestParam String companyName) {
+                try {
+                        List<ManufacturerPoDetailsDto> list = reportService.getManufacturerPoDetails(companyName);
+                        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+                } catch (Exception e) {
+                        return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
+                                        new ErrorDetails(500, 500, "ERROR", e.getMessage())),
+                                        HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+        }
+
+        @GetMapping("/poOpenCalls")
+        public ResponseEntity<Object> getPoOpenCalls(@RequestParam String poNo) {
+                try {
+                        List<PoOpenCallDetailsDto> list = reportService.getPoOpenCalls(poNo);
+                        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+                } catch (Exception e) {
+                        return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
+                                        new ErrorDetails(500, 500, "ERROR", e.getMessage())),
+                                        HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+        }
+
 }
+

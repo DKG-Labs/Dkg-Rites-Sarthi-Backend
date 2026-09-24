@@ -196,4 +196,10 @@ public interface reports {
                         String startDate, String endDate);
 
         public String getRegionByCallNo(String callNo);
+
+        public List<ProcessInspectionQualityTableDto> getProcessInspectionQualityTable(LocalDate startDate, LocalDate endDate);
+
+        public List<ManufacturerPoDetailsDto> getManufacturerPoDetails(String companyName);
+
+        public List<PoOpenCallDetailsDto> getPoOpenCalls(String poNo);
 }
