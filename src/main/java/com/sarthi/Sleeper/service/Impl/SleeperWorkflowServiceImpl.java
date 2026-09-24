@@ -112,6 +112,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private SleeperVendorFinancialLiabilityRepository sleeperVendorFinancialLiabilityRepository;
     @Autowired
     private com.sarthi.repository.IbsCallRegistrationRepository ibsCallRegistrationRepository;
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     public void validateUser(Integer userId) {
         if (!userMasterRepository.existsById(userId)) {
@@ -393,9 +395,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
                 int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
-                int rej = call.getTotalRejected() != null ? call.getTotalRejected() : 0;
-                int totalOffered = off + rej;
-                dto.setOfferedQty(totalOffered > 0 ? totalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
+                dto.setOfferedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
                 dto.setAcceptedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
                 
                 // Lookup certificate details from SLEEPER_INSPECTION_COMPLETE_DETAILS
@@ -420,7 +420,29 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
                 }
 
-                dto.setUom("Nos.");
+                String uom = null;
+                try {
+                    if (call.getPoNo() != null) {
+                        List<String> uomList = jdbcTemplate.query(
+                            "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? AND (pi.item_sr_no = ? OR pi.po_sr_no = ?) LIMIT 1",
+                            (rs, rowNum) -> rs.getString("uom"),
+                            call.getPoNo(), call.getSrNo(), call.getSrNo()
+                        );
+                        if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
+                            uom = uomList.get(0).trim();
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                if (uom == null || uom.isBlank()) {
+                    String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
+                    if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
+                        uom = "Set";
+                    } else {
+                        uom = "Nos.";
+                    }
+                }
+                dto.setUom(uom);
                 dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
                 dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt() : tx.getCreatedDate());
                 dto.setStageOfInspection("Final");

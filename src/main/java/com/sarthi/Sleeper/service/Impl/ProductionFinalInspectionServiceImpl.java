@@ -237,18 +237,29 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
 
-            // STEP 4: Bulk deactivate all prior active records for batch and module
-            try {
-                String deactSql = "UPDATE inspection_test_result r JOIN inspection_test_header h ON r.test_header_id = h.id SET r.active = false, r.updated_by = ?, r.updated_date = ? WHERE h.batch_id = ? AND (r.module_id = ? OR h.module_id = ?)";
-                jdbcTemplate.update(deactSql, dto.getCreatedBy(), LocalDateTime.now(), dto.getBatchId(), dto.getModuleId(), dto.getModuleId());
-            } catch (Exception ex) {
-                if (!oldResultsToDeactivate.isEmpty()) {
-                    String ids = oldResultsToDeactivate.stream()
-                            .map(r -> String.valueOf(r.getId()))
-                            .collect(Collectors.joining(","));
-                    String updateSql = "UPDATE inspection_test_result SET active = false, updated_by = ?, updated_date = ? WHERE id IN (" + ids + ")";
-                    jdbcTemplate.update(updateSql, dto.getCreatedBy(), LocalDateTime.now());
-                }
+            // STEP 4: Deactivate only incoming sleepers being updated so prior inspected sleepers remain active
+            Set<Long> incomingIds = dto.getSleepers().stream()
+                    .map(SleeperInspectionDto::getSleeperId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+            Set<String> incomingNos = dto.getSleepers().stream()
+                    .map(SleeperInspectionDto::getSleeperNo)
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .collect(Collectors.toSet());
+
+            List<InspectionTestResult> toDeactivate = allExistingActive.stream()
+                    .filter(r -> (r.getSleeperId() != null && incomingIds.contains(r.getSleeperId())) ||
+                                 (r.getSleeperNo() != null && incomingNos.contains(r.getSleeperNo().trim())))
+                    .toList();
+
+            if (!toDeactivate.isEmpty()) {
+                String ids = toDeactivate.stream()
+                        .map(r -> String.valueOf(r.getId()))
+                        .collect(Collectors.joining(","));
+                String updateSql = "UPDATE inspection_test_result SET active = false, updated_by = ?, updated_date = ? WHERE id IN (" + ids + ")";
+                jdbcTemplate.update(updateSql, dto.getCreatedBy(), LocalDateTime.now());
             }
 
             if (!newResultsToSave.isEmpty()) {
@@ -310,34 +321,45 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     private void checkAndUpdateModuleCompletion(Long batchId, Long moduleId, String sleeperT) {
 
         Long totalSleepers = 0L;
-        if (sleeperT != null && !sleeperT.isBlank()) {
-            totalSleepers = productionSleeperRepository.countByBatchIdAndType(batchId, sleeperT);
-        }
-        if (totalSleepers == null || totalSleepers == 0L) {
-            totalSleepers = productionSleeperRepository.countByBatchId(batchId);
+        ProductionDeclaration decl = productionDeclarationRepository.findBatchById(batchId);
+        Long countInDb = productionSleeperRepository.countByBatchId(batchId);
+        if (countInDb != null && countInDb > 0) {
+            totalSleepers = countInDb;
+        } else if (decl != null && decl.getTotalCastedSleepers() != null && decl.getTotalCastedSleepers() > 0) {
+            totalSleepers = decl.getTotalCastedSleepers().longValue();
+        } else {
+            if (sleeperT != null && !sleeperT.isBlank()) {
+                totalSleepers = productionSleeperRepository.countByBatchIdAndType(batchId, sleeperT);
+            }
+            if (totalSleepers == null || totalSleepers == 0L) {
+                totalSleepers = countInDb != null ? countInDb : 0L;
+            }
         }
 
         Long testedSleepers = resultRepository.countTestedSleepers(batchId, moduleId);
         if (testedSleepers == null) testedSleepers = 0L;
 
-        String batchNo = productionDeclarationRepository.getBatchNoById(batchId);
+        String batchNo = decl != null ? decl.getBatchNumber() : productionDeclarationRepository.getBatchNoById(batchId);
 
         Long demouldRejected =
                 demouldingInspectionRepository.countDemouldingRejected(batchNo);
         if (demouldRejected == null) demouldRejected = 0L;
 
-        double validSleepers = (totalSleepers != null ? totalSleepers : 0L) - demouldRejected;
+        double total = (totalSleepers != null ? totalSleepers : 0L);
+        double validSleepers = total - demouldRejected;
+        if (validSleepers <= 0) {
+            validSleepers = total;
+        }
 
         double testedPercentage = 0;
 
-        if (validSleepers > 0) {
-            testedPercentage = (testedSleepers * 100.0) / validSleepers;
+        if (validSleepers > 0 && testedSleepers > 0) {
+            if (testedSleepers >= validSleepers || (testedSleepers + demouldRejected) >= total) {
+                testedPercentage = 100.0;
+            } else {
+                testedPercentage = (testedSleepers * 100.0) / validSleepers;
+            }
         }
-
-        // NOTE: Do NOT override testedPercentage to 100.0 based on raw count comparison.
-        // The countTestedSleepers query already excludes PENDING records (active=true, result != 'PENDING').
-        // Forcing 100% when testedSleepers+demouldRejected>=totalSleepers is incorrect when
-        // there are still pending (uninspected) sleepers in the form — it caused false "Completed" status.
 
         // Determine if sleeper is Turnout (IRS-T-45: 20% Critical, 5% Non-Critical) vs Line Sleeper (IRS-T-39: 10% Critical, 1% Non-Critical)
         String sType = sleeperT;
@@ -349,7 +371,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             }
         }
         final String finalSType = sType;
-        ProductionDeclaration decl = productionDeclarationRepository.findBatchById(batchId);
         if (decl != null) {
             if ("STRESS".equalsIgnoreCase(decl.getPlantType()) && decl.getChambers() != null) {
                 sCategory = decl.getChambers().stream()
@@ -399,14 +420,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     }
 
     private void updateModuleStatus(Long batchId, Long moduleId, boolean completed){
+        String status = completed ? "Completed" : "In Progress";
+        try {
+            jdbcTemplate.update("UPDATE inspection_test_header SET status = ? WHERE batch_id = ? AND module_id = ?", status, batchId, moduleId);
+        } catch (Exception ex) {
+            InspectionTestHeader header =
+                    headerRepository
+                            .findTopByBatchIdAndModuleIdOrderByIdDesc(batchId, moduleId);
 
-        InspectionTestHeader header =
-                headerRepository
-                        .findTopByBatchIdAndModuleIdOrderByIdDesc(batchId, moduleId);
-
-        if (header != null) {
-            header.setStatus(completed ? "Completed" : "In Progress");
-            headerRepository.save(header);
+            if (header != null) {
+                header.setStatus(status);
+                headerRepository.save(header);
+            }
         }
     }
 
@@ -715,12 +740,28 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         }
 
         Map<Long, LocalDate> latestTestingDates = new java.util.HashMap<>();
+        Map<Long, String> latestHeaderStatuses = new java.util.HashMap<>();
+        Map<Long, Long> actualDbSleeperCounts = new java.util.HashMap<>();
+
         for (int i = 0; i < batchIds.size(); i += 1000) {
             List<Long> chunk = batchIds.subList(i, Math.min(i + 1000, batchIds.size()));
-            List<Object[]> dateResults = headerRepository.findLatestTestDatesByBatchIdsAndModuleId(chunk, moduleId);
+            List<Object[]> dateResults = headerRepository.findLatestTestDatesAndStatusesByBatchIdsAndModuleId(chunk, moduleId);
             for (Object[] row : dateResults) {
-                if (row[0] != null && row[1] != null) {
-                    latestTestingDates.put(((Number) row[0]).longValue(), (LocalDate) row[1]);
+                if (row[0] != null) {
+                    Long bId = ((Number) row[0]).longValue();
+                    if (row[1] != null) {
+                        latestTestingDates.put(bId, (LocalDate) row[1]);
+                    }
+                    if (row.length > 2 && row[2] != null) {
+                        latestHeaderStatuses.put(bId, row[2].toString().trim());
+                    }
+                }
+            }
+
+            List<Object[]> sleeperCountResults = productionSleeperRepository.countSleepersByBatchIds(chunk);
+            for (Object[] row : sleeperCountResults) {
+                if (row != null && row[0] != null && row[1] != null) {
+                    actualDbSleeperCounts.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
                 }
             }
         }
@@ -749,6 +790,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 dto.setTestingDate(latestTestingDates.get(dto.getBatchId()));
             }
 
+            Long dbCount = actualDbSleeperCounts.get(dto.getBatchId());
+            if (dbCount != null && dbCount > 0) {
+                dto.setNoOfSleepers(dbCount);
+            }
+
             double totalSleepers = dto.getNoOfSleepers() != null ? dto.getNoOfSleepers() : 0.0;
             double denominator = totalSleepers - demouldRejected;
             if (denominator <= 0) {
@@ -765,11 +811,16 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
 
+            boolean isHeaderCompleted = "Completed".equalsIgnoreCase(latestHeaderStatuses.get(dto.getBatchId()));
+            if (isHeaderCompleted) {
+                percent = 100.0;
+            }
+
             dto.setTestedPercentage(Math.min(percent, 100.0));
 
             boolean isTurnout = isTurnoutOrT45(dto.getSleeperType(), dto.getSleeperCategory());
 
-            boolean completed = false;
+            boolean completed = isHeaderCompleted;
 
             // MODULE 1 → VISUAL (100% Mandatory)
             if (moduleId == 1) {
@@ -794,10 +845,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
 
-            if (percent == 0) {
+            if (percent == 0 && !completed) {
                 dto.setTestingStatus("Pending");
             } else if (completed) {
                 dto.setTestingStatus("Completed");
+                dto.setTestedPercentage(100.0);
             } else {
                 dto.setTestingStatus("Under Inspection");
             }
@@ -955,14 +1007,23 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             sleepers = productionSleeperRepository.getSleepersFromGang(batchId);
         }*/
         if ("STRESS".equalsIgnoreCase(declaration.getPlantType())) {
-
             sleepers = productionSleeperRepository
                     .getSleepersByBatchAndType(batchId, sleeperType);
-
+            if (sleepers == null || sleepers.isEmpty() || (declaration.getTotalCastedSleepers() != null && sleepers.size() < declaration.getTotalCastedSleepers())) {
+                List<ProductionSleeper> allBatchSleepers = productionSleeperRepository.getSleepersByBatch(batchId);
+                if (allBatchSleepers != null && (sleepers == null || allBatchSleepers.size() > sleepers.size())) {
+                    sleepers = allBatchSleepers;
+                }
+            }
         } else {
-
             sleepers = productionSleeperRepository
                     .getSleepersFromGangAndType(batchId, sleeperType);
+            if (sleepers == null || sleepers.isEmpty() || (declaration.getTotalCastedSleepers() != null && sleepers.size() < declaration.getTotalCastedSleepers())) {
+                List<ProductionSleeper> allGangSleepers = productionSleeperRepository.getSleepersFromGang(batchId);
+                if (allGangSleepers != null && (sleepers == null || allGangSleepers.size() > sleepers.size())) {
+                    sleepers = allGangSleepers;
+                }
+            }
         }
 
         // Fetch ALL inspection results
@@ -1086,7 +1147,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                     String sNo = s.getSleeperNo() != null ? s.getSleeperNo().trim() : "";
 
-                    //  DEMOULDING rejection
+                    // DEMOULDING rejection
                     if (rejectedSet.contains(s.getSleeperNo()) || (!sNo.isEmpty() && rejectedSet.contains(sNo))) {
 
                         sd.setStatus("REJECTED");
@@ -1094,15 +1155,16 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                     }
                     // REJECTED in ANY inspection module
-                    else if ((s.getId() != null && rejectedMap.containsKey(s.getId())) ||
-                             (!sNo.isEmpty() && rejectedMapByNo.containsKey(sNo))) {
+                    else if (s.getId() != null && rejectedMap.containsKey(s.getId())) {
 
                         sd.setStatus("REJECTED");
-                        Long modId = s.getId() != null ? rejectedMap.get(s.getId()) : null;
-                        if (modId == null && !sNo.isEmpty()) {
-                            modId = rejectedMapByNo.get(sNo);
-                        }
-                        sd.setModuleId(modId);
+                        sd.setModuleId(rejectedMap.get(s.getId()));
+
+                    }
+                    else if (s.getId() == null && !sNo.isEmpty() && rejectedMapByNo.containsKey(sNo)) {
+
+                        sd.setStatus("REJECTED");
+                        sd.setModuleId(rejectedMapByNo.get(sNo));
 
                     }
                     // Selected module result
@@ -1111,8 +1173,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         InspectionTestResult result = null;
                         if (s.getId() != null) {
                             result = moduleResultMap.get(s.getId());
-                        }
-                        if (result == null && !sNo.isEmpty()) {
+                        } else if (!sNo.isEmpty()) {
                             result = moduleResultMapByNo.get(sNo);
                         }
 

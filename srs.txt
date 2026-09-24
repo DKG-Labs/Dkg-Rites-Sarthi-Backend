@@ -1,0 +1,188 @@
+<USER_REQUEST>
+Software Requirements Specification (SRS) 
+
+Module: Periodic Testing à Card will be next to Dynamic & Durability Test / NCRGRSP Test 
+
+Page will be divided in to 3 portions: 
+
+Thermogravimetric Analysis (TGA) 
+
+Inclined Repeated Load Test 
+
+Abrasion Test 
+
+For each of the three periodic tests, the UI will display a tracking header before the input grid:  
+
+Date of Last Test: Manual Calendar Date entry. 
+
+Quantity Produced Since Last Test: Manual Integer entry. 
+
+Testing Threshold: Read-only (Auto-filled by the system based on the fetched Product Type and the specific test, as per the table below) 
+
+ 
+
+Periodic Test Logic Engine: 
+
+If the manually entered Quantity Produced Since Last Test is ≥ the Testing Threshold, the test becomes Mandatory and the input grid is unlocked. 
+
+If the quantity is < the threshold, the test is Not Mandatory, and the IE can bypass/skip the grid. 
+
+Testing Threshold 
+
+Thermogravimetric Analysis (TGA) – 30000 
+
+Inclined Repeated Load Test – 100000 
+
+Abrasion Test – 100000 
+
+ 
+
+Periodic Test Input Fields (As per Screenshots) 
+
+When a test becomes mandatory, the IE must fill in the data grids. The fields below are mapped exactly to the provided report screenshots to ensure the final generated PDF matches the standardized format. 
+
+ Thermogravimetric Analysis (TGA) for Rubber Content 
+
+Validation Rule: % Polymer Content must be > 50.0%. 
+
+Grid Columns to be filled:  
+
+Lot No. (Integer / Text) 
+
+Sample No. (Text) 
+
+Sample Wt. (In mg) (Float) 
+
+Temperature Range (°C) (Integer - e.g., 800) 
+
+% (Polymer Content) (Float) 
+
+ 
+
+Inclined Repeated Load Test (Durability Test) 
+
+Validation Rules: Reduction in thickness ≤ 1.0mm (for 10mm pads) or ≤ 0.6mm (for 6/6.2mm pads). Change in LD% must be within 10%. 
+
+Grid Columns to be filled:  
+
+Lot No. (Integer / Text) 
+
+Thickness (mm) - Initial (Float) 
+
+Thickness (mm) - After Durability Test (Float) 
+
+Reduction In Thickness (mm) (Auto-calculated: Initial - After) 
+
+Load Compression (mm) - Before Durability Test (Float) 
+
+Load Compression (mm) - After Durability Test (Float) 
+
+Change In Value of LD% (Auto-calculated/Float) 
+
+ 
+
+Abrasion Test 
+
+Validation Rule: Relative loss of volume/Mass must strictly be between 180 - 220 mg. 
+
+Grid Columns to be filled:  
+
+Lot No. (Integer / Text) 
+
+Sample No. (Integer) 
+
+Initial Mass of Test Pc (g) (Float) 
+
+Final Mass of Test Pc (g) (Float) 
+
+Loss of Mass (Auto-calculated: Initial Mass - Final Mass) 
+
+Relative loss of volume/Mass (Float) 
+
+ 
+
+ 
+
+Module: Final Inspection -  
+
+ 
+
+Resilience by Vertical Rebound Test 
+
+Placement: Physical & Ageing Properties 
+
+Sampling: 3 samples tested per lot. 
+
+Validation Rule: The average percentage resilience must be ≥ 30%. 
+
+Logic & Calculation: The first 3 impacts are for conditioning the sample and are not part of the final calculation. The percentage resilience is calculated as the average of the 4th, 5th, and 6th impacts. 
+
+Grid Columns to be filled : The UI will dynamically generate 3 rows (one for each sample) for the selected lot. 
+
+Sample No. (Read-only: 1, 2, 3) 
+
+1st Impact (Integer input) 
+
+2nd Impact (Integer input) 
+
+3rd Impact (Integer input) 
+
+4th Impact (Integer input) 
+
+5th Impact (Integer input) 
+
+6th Impact (Integer input) 
+
+% Resilience / Average Value (Auto-calculated Float: [4th Impact + 5th Impact + 6th Impact] / 3) 
+
+Result / Remarks (Auto-calculated: If % Resilience ≥ 30, display "Pass", else "Fail") 
+
+ 
+
+Ozone Test 
+
+Placement: Electrical & Chemical 
+
+Sampling: 1 sample tested per lot.  
+
+Validation Rule: The observation after 96 hours of exposure at 30% strain must strictly be "No cracks". 
+
+Logic & Input Fields: Because the specimen dimensions and stretch limits are standardized in the specification (a 10mm wide strip with a 40mm initial length stretched by 30% to 52mm), the system can pre-fill the dimensional data to save the IE time. 
+
+Grid Columns to be filled: 
+
+The UI will generate 1 row for the selected lot. 
+
+10mm Wide Strip Initial Length (Bench Mark) (Read-only string: "40mm") 
+
+After 30% Stretched Length (Read-only string: "52mm") 
+
+Observation (Dropdown: Options = No Crack / Cracks) 
+
+Remarks / Status (Auto-calculated: If Observation = "No Crack", display "Pass", else "Fail") 
+
+ 
+
+ 
+
+ 
+
+ 
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-07-29T14:16:17+05:30.
+
+The user's current state is as follows:
+Active Document: d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Frontend\Railpad-IE\src\components\FinalInspection\FinalInspectionDashboard.jsx (LANGUAGE_JAVASCRIPT)
+Cursor is on line: 1
+Other open documents:
+- d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Frontend\Railpad-IE\src\components\FinalInspection\FinalInspectionDashboard.jsx (LANGUAGE_JAVASCRIPT)
+- d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Backend\src\main\java\com\sarthi\SRailPad\service\Impl\RailWorkflowServiceImpl.java (LANGUAGE_JAVA)
+- d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Frontend\Railpad-IE\src\components\ShiftDutyForm.jsx (LANGUAGE_JAVASCRIPT)
+- d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Backend\src\main\resources\application.properties (LANGUAGE_UNSPECIFIED)
+- d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Frontend\src\pages\FinalProductDashboard.jsx (LANGUAGE_JAVASCRIPT)
+Running terminal commands:
+- npm start  (in d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Frontend, running for 2h15m24s)
+- npm run dev (in d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Frontend\Railpad-IE, running for 2h14m29s)
+- mvn spring-boot:run (in d:\DKG MAIN\Ujjawal-sleeper\Dkg-Rites-Sarthi-Backend, running for 1h42m3s)
+</ADDITIONAL_METADATA>

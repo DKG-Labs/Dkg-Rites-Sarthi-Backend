@@ -52,6 +52,17 @@ WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
     Long countByBatchId(Long batchId);
 
     @Query("""
+    SELECT COALESCE(c.declaration.id, g.declaration.id), COUNT(s.id)
+    FROM ProductionSleeper s
+    LEFT JOIN s.benchGroup b
+    LEFT JOIN b.chamber c
+    LEFT JOIN s.gang g
+    WHERE (c.declaration.id IN :batchIds OR g.declaration.id IN :batchIds)
+    GROUP BY COALESCE(c.declaration.id, g.declaration.id)
+    """)
+    List<Object[]> countSleepersByBatchIds(@Param("batchIds") List<Long> batchIds);
+
+    @Query("""
 SELECT COUNT(s.id)
 FROM ProductionSleeper s
 LEFT JOIN s.benchGroup b

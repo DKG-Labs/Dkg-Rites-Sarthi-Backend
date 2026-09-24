@@ -48,7 +48,7 @@ AND h.module.id = :moduleId
   Long countTestedSleepers(Long batchId, Long moduleId);*/
 
     @Query(value = """
-       SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(r.sleeper_no), ''), CAST(r.sleeper_id AS CHAR)))
+       SELECT COUNT(DISTINCT COALESCE(CAST(r.sleeper_id AS CHAR), NULLIF(TRIM(r.sleeper_no), '')))
        FROM inspection_test_result r
        JOIN inspection_test_header h ON r.test_header_id = h.id
        WHERE h.batch_id = :batchId
@@ -63,7 +63,7 @@ AND h.module.id = :moduleId
 
 
     @Query(value = """
-       SELECT h.batch_id, COUNT(DISTINCT COALESCE(NULLIF(TRIM(r.sleeper_no), ''), CAST(r.sleeper_id AS CHAR)))
+       SELECT h.batch_id, COUNT(DISTINCT COALESCE(CAST(r.sleeper_id AS CHAR), NULLIF(TRIM(r.sleeper_no), '')))
        FROM inspection_test_result r
        JOIN inspection_test_header h ON r.test_header_id = h.id
        WHERE h.batch_id IN :batchIds
@@ -79,7 +79,7 @@ AND h.module.id = :moduleId
 
     @Query(value = """
        SELECT h.batch_id,
-              COALESCE(NULLIF(TRIM(r.sleeper_no), ''), CAST(r.sleeper_id AS CHAR), CAST(r.id AS CHAR)) AS sleeper_key,
+              COALESCE(CAST(r.sleeper_id AS CHAR), NULLIF(TRIM(r.sleeper_no), ''), CAST(r.id AS CHAR)) AS sleeper_key,
               r.result,
               COALESCE(r.module_id, h.module_id) AS mod_id
        FROM inspection_test_result r

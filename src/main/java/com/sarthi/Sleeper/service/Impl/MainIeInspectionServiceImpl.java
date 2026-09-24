@@ -89,8 +89,10 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
 
         // If sleeper final result exists, prioritize its verified inspection totals
         sleeperFinalResultRepository.findByCallNumber(callNo).ifPresent(sfr -> {
-            if (sfr.getTotalOfferedQuantity() != null) {
-                dto.setQtyOfferedNow(sfr.getTotalOfferedQuantity().intValue());
+            if (dto.getQtyOfferedNow() == null || dto.getQtyOfferedNow() == 0) {
+                if (sfr.getTotalOfferedQuantity() != null) {
+                    dto.setQtyOfferedNow(sfr.getTotalOfferedQuantity().intValue());
+                }
             }
             if (sfr.getTotalAccepted() != null) {
                 dto.setTotalAccepted(sfr.getTotalAccepted().intValue());
