@@ -801,30 +801,35 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 denominator = totalSleepers;
             }
 
-            double percent = 0.0;
+            boolean isTurnout = isTurnoutOrT45(dto.getSleeperType(), dto.getSleeperCategory());
+            boolean isHeaderCompleted = "Completed".equalsIgnoreCase(latestHeaderStatuses.get(dto.getBatchId()));
+
+            double actualPercent = 0.0;
 
             if (testedCount > 0 && denominator > 0) {
                 if (testedCount >= denominator || (testedCount + demouldRejected) >= totalSleepers) {
-                    percent = 100.0;
+                    actualPercent = 100.0;
                 } else {
-                    percent = (testedCount * 100.0) / denominator;
+                    actualPercent = (testedCount * 100.0) / denominator;
+                }
+            } else if (isHeaderCompleted) {
+                // If header is marked completed but no individual row records exist
+                if (moduleId == 1) {
+                    actualPercent = 100.0;
+                } else if (moduleId == 2) {
+                    actualPercent = isTurnout ? 20.0 : 10.0;
+                } else if (moduleId == 3) {
+                    actualPercent = isTurnout ? 5.0 : 1.0;
+                } else {
+                    actualPercent = 100.0;
                 }
             }
-
-            boolean isHeaderCompleted = "Completed".equalsIgnoreCase(latestHeaderStatuses.get(dto.getBatchId()));
-            if (isHeaderCompleted) {
-                percent = 100.0;
-            }
-
-            dto.setTestedPercentage(Math.min(percent, 100.0));
-
-            boolean isTurnout = isTurnoutOrT45(dto.getSleeperType(), dto.getSleeperCategory());
 
             boolean completed = isHeaderCompleted;
 
             // MODULE 1 → VISUAL (100% Mandatory)
             if (moduleId == 1) {
-                if (percent >= 100.0) {
+                if (actualPercent >= 100.0) {
                     completed = true;
                 }
             }
@@ -832,7 +837,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             // MODULE 2 → CRITICAL DIMENSION (10% standard T-39, 20% for Turnout T-45)
             if (moduleId == 2) {
                 double requiredPercent = isTurnout ? 20.0 : 10.0;
-                if (percent >= requiredPercent) {
+                if (actualPercent >= requiredPercent) {
                     completed = true;
                 }
             }
@@ -840,19 +845,20 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             // MODULE 3 → NON CRITICAL (1% standard T-39, 5% for Turnout T-45)
             if (moduleId == 3) {
                 double requiredPercent = isTurnout ? 5.0 : 1.0;
-                if (percent >= requiredPercent) {
+                if (actualPercent >= requiredPercent) {
                     completed = true;
                 }
             }
 
-            if (percent == 0 && !completed) {
+            if (actualPercent == 0 && !completed) {
                 dto.setTestingStatus("Pending");
             } else if (completed) {
                 dto.setTestingStatus("Completed");
-                dto.setTestedPercentage(100.0);
             } else {
                 dto.setTestingStatus("Under Inspection");
             }
+
+            dto.setTestedPercentage(Math.round(Math.min(actualPercent, 100.0) * 100.0) / 100.0);
 
             filteredList.add(dto);
         }
@@ -1813,9 +1819,14 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     private boolean isBatchLabPassed(String batchNo, Set<String> passedBatchNos) {
         if (batchNo == null || passedBatchNos == null) return false;
         String b = batchNo.trim();
-        if (passedBatchNos.contains(b)) return true;
-        if (b.startsWith("B-") && passedBatchNos.contains(b.substring(2).trim())) return true;
-        if (!b.startsWith("B-") && passedBatchNos.contains("B-" + b)) return true;
+        for (String passed : passedBatchNos) {
+            if (passed == null) continue;
+            String p = passed.trim();
+            if (p.equalsIgnoreCase(b)) return true;
+            String cleanP = p.replaceAll("(?i)^[wb\\-_\\s]+", "").trim();
+            String cleanB = b.replaceAll("(?i)^[wb\\-_\\s]+", "").trim();
+            if (!cleanP.isEmpty() && cleanP.equalsIgnoreCase(cleanB)) return true;
+        }
         return false;
     }
 

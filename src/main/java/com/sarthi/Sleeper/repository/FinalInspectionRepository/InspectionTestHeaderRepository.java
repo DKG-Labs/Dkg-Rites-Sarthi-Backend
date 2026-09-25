@@ -104,14 +104,26 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
                      SELECT c.declaration.id
                      FROM ProductionBenchGroup b
                      JOIN b.chamber c
-                     WHERE (c.declaration.createdBy = :userId OR :userId = 0 OR c.declaration.vendorCode = :vendorCode OR c.declaration.vendorCode = :vendorCodeClean)
-                       AND (:sleeperType IS NULL OR :sleeperType = '' OR UPPER(TRIM(b.sleeperType)) = UPPER(TRIM(:sleeperType)))
+                     WHERE (c.declaration.createdBy = :userId OR :userId = 0 
+                            OR c.declaration.vendorCode = :vendorCode 
+                            OR c.declaration.vendorCode = :vendorCodeClean
+                            OR c.declaration.vendorCode = CONCAT(':', :vendorCodeClean)
+                            OR REPLACE(c.declaration.vendorCode, ':', '') = :vendorCodeClean)
+                       AND (:sleeperType IS NULL OR :sleeperType = '' 
+                            OR UPPER(TRIM(b.sleeperType)) = UPPER(TRIM(:sleeperType))
+                            OR UPPER(TRIM(REPLACE(b.sleeperType, ' ', ''))) = UPPER(TRIM(REPLACE(:sleeperType, ' ', ''))))
                  )
                  OR h.batchId IN (
                      SELECT g.declaration.id
                      FROM ProductionLongLineGang g
-                     WHERE (g.declaration.createdBy = :userId OR :userId = 0 OR g.declaration.vendorCode = :vendorCode OR g.declaration.vendorCode = :vendorCodeClean)
-                       AND (:sleeperType IS NULL OR :sleeperType = '' OR UPPER(TRIM(g.sleeperType)) = UPPER(TRIM(:sleeperType)))
+                     WHERE (g.declaration.createdBy = :userId OR :userId = 0 
+                            OR g.declaration.vendorCode = :vendorCode 
+                            OR g.declaration.vendorCode = :vendorCodeClean
+                            OR g.declaration.vendorCode = CONCAT(':', :vendorCodeClean)
+                            OR REPLACE(g.declaration.vendorCode, ':', '') = :vendorCodeClean)
+                       AND (:sleeperType IS NULL OR :sleeperType = '' 
+                            OR UPPER(TRIM(g.sleeperType)) = UPPER(TRIM(:sleeperType))
+                            OR UPPER(TRIM(REPLACE(g.sleeperType, ' ', ''))) = UPPER(TRIM(REPLACE(:sleeperType, ' ', ''))))
                  )
              )
              GROUP BY h.batchId
@@ -148,7 +160,11 @@ public interface InspectionTestHeaderRepository extends JpaRepository<Inspection
              LEFT JOIN d.chambers c
              LEFT JOIN c.benchGroups b
              LEFT JOIN d.gangs g
-             WHERE (d.createdBy = :userId OR :userId = 0 OR d.vendorCode = :vendorCode OR d.vendorCode = :vendorCodeClean)
+             WHERE (d.createdBy = :userId OR :userId = 0 
+                    OR d.vendorCode = :vendorCode 
+                    OR d.vendorCode = :vendorCodeClean
+                    OR d.vendorCode = CONCAT(':', :vendorCodeClean)
+                    OR REPLACE(d.vendorCode, ':', '') = :vendorCodeClean)
              AND (b.sleeperType IS NOT NULL OR g.sleeperType IS NOT NULL)
              AND (b.sleeperType <> '' OR g.sleeperType <> '')
              AND d.id IN (
