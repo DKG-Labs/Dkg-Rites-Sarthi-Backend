@@ -86,9 +86,19 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
             rejection.setReason(dto.getReason());
             rejection.setVerification(verification);
             
-            // Link to matching info entry if possible
+            // Link to matching info entry if possible (must match productType, batchNo, and drawingNo)
             infos.stream()
-                .filter(i -> i.getProductType().equals(dto.getProductType()) && i.getBatchNo().equals(dto.getBatchNo()))
+                .filter(i -> {
+                    if (i.getProductType() != null && dto.getProductType() != null && !i.getProductType().equals(dto.getProductType())) return false;
+                    if (i.getBatchNo() != null && dto.getBatchNo() != null && !i.getBatchNo().trim().equals(dto.getBatchNo().trim())) return false;
+                    if (dto.getDrawingNo() != null && !dto.getDrawingNo().isBlank() &&
+                        i.getDrawingNo() != null && !i.getDrawingNo().isBlank()) {
+                        String normI = i.getDrawingNo().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
+                        String normD = dto.getDrawingNo().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
+                        return normI.equals(normD);
+                    }
+                    return true;
+                })
                 .findFirst()
                 .ifPresent(rejection::setProductionInfo);
                 
