@@ -234,4 +234,9 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
     Optional<PoItem> findByPoHeaderAndItemSrNo(
             PoHeader poHeader,
             String itemSrNo);
+
+    @Query(value = "SELECT qty FROM po_item WHERE po_header_id = :headerId AND (item_sr_no = :itemSrNo OR item_sr_no = LPAD(:itemSrNo, 3, '0')) LIMIT 1", nativeQuery = true)
+    java.math.BigDecimal findRawQtyByPoHeaderIdAndItemSrNo(
+            @Param("headerId") Long headerId,
+            @Param("itemSrNo") String itemSrNo);
 }

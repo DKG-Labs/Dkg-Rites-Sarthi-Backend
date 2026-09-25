@@ -116,37 +116,37 @@ public class FinalCertificateDto {
     /**
      * Quantity on Order: Total quantity from PO for this item serial number
      */
-    private Integer qtyOnOrder;
+    private Double qtyOnOrder;
 
     /**
      * Quantity Offered Previously: Sum of totalOfferedQty from previous EF- calls
      */
-    private Integer qtyOfferedPreviously;
+    private Double qtyOfferedPreviously;
 
     /**
      * Quantity Passed Previously: Sum of totalAcceptedQty from previous EF- calls
      */
-    private Integer qtyPassedPreviously;
+    private Double qtyPassedPreviously;
 
     /**
      * Quantity Now Offered: Current call's offered quantity
      */
-    private Integer qtyNowOffered;
+    private Double qtyNowOffered;
 
     /**
      * Quantity Now Passed: Current call's accepted quantity
      */
-    private Integer qtyNowPassed;
+    private Double qtyNowPassed;
 
     /**
      * Quantity Now Rejected: Current call's rejected quantity
      */
-    private Integer qtyNowRejected;
+    private Double qtyNowRejected;
 
     /**
      * Quantity Still Due: qtyOnOrder - cumulative passed quantity
      */
-    private Integer qtyStillDue;
+    private Double qtyStillDue;
 
     /**
      * Remarks: Certificate remarks
