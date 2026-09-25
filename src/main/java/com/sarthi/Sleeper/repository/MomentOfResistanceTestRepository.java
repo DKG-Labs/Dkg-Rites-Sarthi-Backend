@@ -82,7 +82,11 @@ AND (UPPER(TRIM(m.testResult)) LIKE 'PASS%' OR UPPER(TRIM(m.testResult)) = 'OK' 
         WHERE (batch_number IN (:batchNumbers) 
            OR TRIM(batch_number) IN (:batchNumbers)
            OR REPLACE(batch_number, 'B-', '') IN (:batchNumbers)
-           OR CONCAT('B-', batch_number) IN (:batchNumbers))
+           OR CONCAT('B-', batch_number) IN (:batchNumbers)
+           OR REPLACE(batch_number, 'W-', '') IN (:batchNumbers)
+           OR CONCAT('W-', batch_number) IN (:batchNumbers)
+           OR REPLACE(batch_number, 'w-', '') IN (:batchNumbers)
+           OR CONCAT('w-', batch_number) IN (:batchNumbers))
           AND (UPPER(TRIM(test_result)) LIKE 'PASS%' 
             OR UPPER(TRIM(test_result)) = 'OK' 
             OR UPPER(TRIM(test_result)) = 'COMPLETED')
