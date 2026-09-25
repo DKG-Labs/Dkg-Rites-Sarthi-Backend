@@ -213,15 +213,25 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             if (!vRejections.isEmpty()) {
                 List<com.sarthi.SRailPad.entity.ieVerification.RailIEProductionRejection> batchRejections = vRejections.stream()
                         .filter(r -> {
-                            if (r.getProductionInfo() != null && r.getProductionInfo().getId() != null) {
-                                return r.getProductionInfo().getId().equals(i.getId());
+                            // 1. Batch matching
+                            boolean batchMatches = false;
+                            if (r.getBatchNo() != null && i.getBatchNo() != null && r.getBatchNo().trim().equals(i.getBatchNo().trim())) {
+                                batchMatches = true;
+                            } else if (r.getProductionInfo() != null && r.getProductionInfo().getId() != null && r.getProductionInfo().getId().equals(i.getId())) {
+                                batchMatches = true;
                             }
-                            if (r.getBatchNo() == null || !r.getBatchNo().equals(i.getBatchNo())) {
+                            if (!batchMatches) {
                                 return false;
                             }
-                            if (i.getDrawingNo() == null || i.getDrawingNo().isBlank()) return true;
-                            if (r.getDrawingNo() == null || r.getDrawingNo().isBlank()) return true;
-                            return i.getDrawingNo().equals(r.getDrawingNo());
+
+                            // 2. Drawing matching (crucial for multi-drawing NCRGRSP batches)
+                            if (i.getDrawingNo() != null && !i.getDrawingNo().isBlank() &&
+                                r.getDrawingNo() != null && !r.getDrawingNo().isBlank()) {
+                                String normI = i.getDrawingNo().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
+                                String normR = r.getDrawingNo().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
+                                return normI.equals(normR);
+                            }
+                            return true;
                         })
                         .collect(java.util.stream.Collectors.toList());
 
@@ -353,10 +363,21 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                             if (info.getVerification() != null && info.getVerification().getRejections() != null) {
                                 String rejs = info.getVerification().getRejections().stream()
                                         .filter(r -> {
-                                            if (r.getProductionInfo() != null && r.getProductionInfo().getId() != null) {
-                                                return r.getProductionInfo().getId().equals(info.getId());
+                                            boolean batchMatches = false;
+                                            if (r.getBatchNo() != null && info.getBatchNo() != null && r.getBatchNo().trim().equals(info.getBatchNo().trim())) {
+                                                batchMatches = true;
+                                            } else if (r.getProductionInfo() != null && r.getProductionInfo().getId() != null && r.getProductionInfo().getId().equals(info.getId())) {
+                                                batchMatches = true;
                                             }
-                                            return r.getBatchNo() != null && r.getBatchNo().equals(info.getBatchNo());
+                                            if (!batchMatches) return false;
+
+                                            if (info.getDrawingNo() != null && !info.getDrawingNo().isBlank() &&
+                                                r.getDrawingNo() != null && !r.getDrawingNo().isBlank()) {
+                                                String normI = info.getDrawingNo().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
+                                                String normR = r.getDrawingNo().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
+                                                return normI.equals(normR);
+                                            }
+                                            return true;
                                         })
                                         .map(r -> (r.getReason() != null ? r.getReason() : "Rejected") + (r.getRejectedQty() != null ? " (" + r.getRejectedQty() + " Nos)" : ""))
                                         .distinct()
