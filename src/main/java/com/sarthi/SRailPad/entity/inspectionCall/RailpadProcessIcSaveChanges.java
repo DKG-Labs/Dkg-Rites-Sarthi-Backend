@@ -40,6 +40,15 @@ public class RailpadProcessIcSaveChanges {
     @Column(name = "contractor", columnDefinition = "TEXT")
     private String contractor;
 
+    @Transient
+    private String manufacturer;
+
+    @Transient
+    private String consigneeManufacturer;
+
+    @Transient
+    private String placeOfInspection;
+
     @Column(name = "contract_ref", columnDefinition = "TEXT")
     private String contractRef;
 

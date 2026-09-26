@@ -21,6 +21,8 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
     @Query("SELECT SUM(c.totalQty) FROM RailInspectionCall c WHERE c.poNo = :poNo")
     Integer findTotalQtyByPoNo(String poNo);
 
+    boolean existsByCallNo(String callNo);
+
     long countByPoNo(String poNo);
 
     List<RailInspectionCall> findAllByVendorCode(String vendorCode);
