@@ -2556,7 +2556,72 @@ WHERE ic.created_at BETWEEN :startDate AND :endDate
             @Param("endDate") LocalDate endDate,
             Pageable pageable);
 
+    @Query(value = """
+            SELECT 
+                ic.po_no AS poNumber,
+                DATE_FORMAT(MAX(ph.po_date), '%d-%m-%Y') AS poDate,
+                COALESCE((
+                    SELECT SUM(COALESCE(pi.qty, 0))
+                    FROM po_item pi
+                    WHERE pi.po_header_id = (SELECT id FROM po_header WHERE po_no = ic.po_no LIMIT 1)
+                ), 0) AS poQuantity,
+                COALESCE((
+                    SELECT SUM(COALESCE(fid.total_accepted_qty, 0))
+                    FROM final_inspection_details fid
+                    JOIN inspection_calls ic_f ON fid.ic_id = ic_f.id
+                    WHERE ic_f.po_no = ic.po_no
+                ), 0) AS totalFinalInspected,
+                COUNT(DISTINCT CASE WHEN ic.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED', 'IC_ISSUED') THEN ic.id END) AS openInspectionCalls
+            FROM inspection_calls ic
+            LEFT JOIN po_header ph ON ph.po_no = ic.po_no
+            WHERE (ic.company_name = :companyName OR ic.company_name LIKE CONCAT('%', :companyName, '%'))
+              AND ic.po_no IS NOT NULL AND TRIM(ic.po_no) != ''
+            GROUP BY ic.po_no
+            ORDER BY MAX(ic.created_at) DESC
+            """, nativeQuery = true)
+    List<Object[]> getManufacturerPoDetails(@Param("companyName") String companyName);
+
+    @Query(value = """
+            SELECT 
+                ic.ic_number AS callNo,
+                DATE_FORMAT(ic.created_at, '%d-%m-%Y') AS callDate,
+                DATE_FORMAT(ic.desired_inspection_date, '%d-%m-%Y') AS desiredDate,
+                COALESCE(
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                        )
+                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                            SELECT SUM(pid.offered_qty)
+                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                        )
+                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                            SELECT fid.total_offered_qty
+                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                        )
+                    END,
+                    (SELECT icd.call_qty FROM inspection_call_details icd WHERE icd.inspection_call_no = ic.ic_number ORDER BY icd.id DESC LIMIT 1),
+                    0
+                ) AS offeredQty,
+                COALESCE(ic.type_of_call, 
+                    CASE 
+                        WHEN ic.ic_number LIKE '%ER%' THEN 'Raw Material'
+                        WHEN ic.ic_number LIKE '%EP%' THEN 'Process Inspection'
+                        WHEN ic.ic_number LIKE '%EF%' THEN 'Final Inspection'
+                        ELSE '-'
+                    END
+                ) AS stage,
+                ic.status AS status,
+                ic.place_of_inspection AS placeOfInspection
+            FROM inspection_calls ic
+            WHERE ic.po_no = :poNo 
+              AND ic.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED', 'IC_ISSUED')
+            ORDER BY ic.created_at DESC
+            """, nativeQuery = true)
+    List<Object[]> getPoOpenCalls(@Param("poNo") String poNo);
 
 }
+
 
 

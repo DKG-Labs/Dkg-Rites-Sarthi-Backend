@@ -47,54 +47,48 @@ AND h.module.id = :moduleId
           """)
   Long countTestedSleepers(Long batchId, Long moduleId);*/
 
-    @Query("""
-       SELECT COUNT(DISTINCT r.sleeperId)
-       FROM InspectionTestResult r
-       JOIN r.testHeader h
-       WHERE h.batchId = :batchId
-       AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
-       AND (r.active = true OR r.active IS NULL)
-       AND r.result <> 'PENDING'
-       """)
+    @Query(value = """
+       SELECT COUNT(DISTINCT COALESCE(CAST(r.sleeper_id AS CHAR), NULLIF(TRIM(r.sleeper_no), '')))
+       FROM inspection_test_result r
+       JOIN inspection_test_header h ON r.test_header_id = h.id
+       WHERE h.batch_id = :batchId
+       AND (r.module_id = :moduleId OR h.module_id = :moduleId OR :moduleId IS NULL)
+       AND (r.active = 1 OR r.active IS TRUE OR r.active IS NULL)
+       AND UPPER(TRIM(COALESCE(r.result, ''))) NOT IN ('PENDING', '')
+       """, nativeQuery = true)
     Long countTestedSleepers(
             @Param("batchId") Long batchId,
             @Param("moduleId") Long moduleId
     );
 
 
-    @Query("""
-       SELECT h.batchId, COUNT(DISTINCT r.sleeperId)
-       FROM InspectionTestResult r
-       JOIN r.testHeader h
-       WHERE h.batchId IN :batchIds
-       AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
-       AND (r.active = true OR r.active IS NULL)
-       AND r.result <> 'PENDING'
-       GROUP BY h.batchId
-       """)
+    @Query(value = """
+       SELECT h.batch_id, COUNT(DISTINCT COALESCE(CAST(r.sleeper_id AS CHAR), NULLIF(TRIM(r.sleeper_no), '')))
+       FROM inspection_test_result r
+       JOIN inspection_test_header h ON r.test_header_id = h.id
+       WHERE h.batch_id IN :batchIds
+       AND (r.module_id = :moduleId OR h.module_id = :moduleId OR :moduleId IS NULL)
+       AND (r.active = 1 OR r.active IS TRUE OR r.active IS NULL)
+       AND UPPER(TRIM(COALESCE(r.result, ''))) NOT IN ('PENDING', '')
+       GROUP BY h.batch_id
+       """, nativeQuery = true)
     List<Object[]> countTestedSleepersByBatchIds(
             @Param("batchIds") List<Long> batchIds,
             @Param("moduleId") Long moduleId
     );
 
-  @Query("""
-          SELECT r
-          FROM InspectionTestResult r
-          JOIN r.testHeader h
-          WHERE h.batchId = :batchId
-          AND h.module.id = 3
-          AND h.status='Completed'
-          """)
-  List<InspectionTestResult> findFinalModuleResults(Long batchId);
-
-  @Query("""
-          SELECT r
-          FROM InspectionTestResult r
-          JOIN r.testHeader h
-          WHERE h.batchId = :batchId
-          AND (r.active = true OR r.active IS NULL)
-          """)
-  List<InspectionTestResult> findAllResultsByBatchId(@Param("batchId") Long batchId);
+    @Query(value = """
+       SELECT h.batch_id,
+              COALESCE(CAST(r.sleeper_id AS CHAR), NULLIF(TRIM(r.sleeper_no), ''), CAST(r.id AS CHAR)) AS sleeper_key,
+              r.result,
+              COALESCE(r.module_id, h.module_id) AS mod_id
+       FROM inspection_test_result r
+       JOIN inspection_test_header h ON r.test_header_id = h.id
+       WHERE h.batch_id IN :batchIds
+         AND (r.active = 1 OR r.active IS TRUE OR r.active IS NULL)
+         AND UPPER(TRIM(COALESCE(r.result, ''))) NOT IN ('PENDING', '')
+       """, nativeQuery = true)
+    List<Object[]> findTestedSleepersNative(@Param("batchIds") java.util.Collection<Long> batchIds);
 
   @Query("""
           SELECT r
@@ -126,7 +120,7 @@ AND h.module.id = :moduleId
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
           AND (r.moduleId = :moduleId OR h.module.id = :moduleId)
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdAndActiveTrue(
           @Param("batchId") Long batchId,
@@ -137,7 +131,7 @@ AND h.module.id = :moduleId
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
           AND (r.moduleId IN :moduleIds OR h.module.id IN :moduleIds)
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findByTestHeader_BatchIdAndModuleIdInAndActiveTrue(
           @Param("batchId") Long batchId,
@@ -149,7 +143,7 @@ AND h.module.id = :moduleId
           SELECT r FROM InspectionTestResult r
           JOIN r.testHeader h
           WHERE h.batchId = :batchId
-          AND (r.active = true OR r.active IS NULL)
+          AND r.active = true
           """)
   List<InspectionTestResult> findByTestHeader_BatchIdAndActiveTrue(@Param("batchId") Long batchId);
 

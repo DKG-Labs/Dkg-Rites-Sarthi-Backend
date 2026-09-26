@@ -749,6 +749,34 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             @Param("endDate") java.time.LocalDateTime endDate,
             Pageable pageable);
 
+    @Query(value = """
+                SELECT
+                    ic.company_name AS manufacture,
+                    SUM(COALESCE(p.shearing_manufactured, 0)) AS totalInspected,
+                    SUM(COALESCE(p.total_rejected, 0)) AS totalRejected,
+                    SUM(COALESCE(p.shearing_rejected, 0)) AS shearingRejected,
+                    SUM(COALESCE(p.turning_rejected, 0)) AS turningRejected,
+                    SUM(COALESCE(p.mpi_rejected, 0)) AS mpiRejected,
+                    SUM(COALESCE(p.forging_rejected, 0)) AS forgingRejected,
+                    SUM(COALESCE(p.quenching_rejected, 0)) AS quenchingRejected,
+                    SUM(COALESCE(p.tempering_rejected, 0)) AS temperingRejected,
+                    SUM(COALESCE(p.shearing_manufactured, 0)) AS shearingManufactured,
+                    SUM(COALESCE(p.turning_manufactured, 0)) AS turningManufactured,
+                    SUM(COALESCE(p.mpi_manufactured, 0)) AS mpiManufactured,
+                    SUM(COALESCE(p.forging_manufactured, 0)) AS forgingManufactured,
+                    SUM(COALESCE(p.quenching_manufactured, 0)) AS quenchingManufactured,
+                    SUM(COALESCE(p.tempering_manufactured, 0)) AS temperingManufactured,
+                    SUM(COALESCE(p.tempering_accepted, 0)) AS totalAccepted
+                FROM process_line_final_result p
+                JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
+                WHERE (:startDate IS NULL OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN p.date_of_inspection ELSE p.created_at END) >= :startDate)
+                  AND (:endDate IS NULL OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN p.date_of_inspection ELSE p.created_at END) <= :endDate)
+                GROUP BY ic.company_name
+            """, nativeQuery = true)
+    List<Object[]> fetchProcessInspectionQualityTable(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate);
+
     List<ProcessLineFinalResult> findByDateOfInspectionBetween(LocalDate startDate, LocalDate endDate);
 
     @Query("""

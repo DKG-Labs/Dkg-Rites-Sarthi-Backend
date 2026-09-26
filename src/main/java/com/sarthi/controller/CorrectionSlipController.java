@@ -157,6 +157,37 @@ public class CorrectionSlipController {
         return correctionSlipStorageService.downloadPdf(callNo);
     }
 
+    /**
+     * DELETE /api/correction-slip?callNo=...
+     * Deletes the correction slip for a call (both DB entries and stored documents).
+     */
+    @DeleteMapping
+    public ResponseEntity<?> deleteCorrectionSlip(@RequestParam String callNo) {
+        log.info("REST DELETE /api/correction-slip for callNo: {}", callNo);
+        try {
+            if (callNo == null || callNo.trim().isEmpty()) {
+                return badRequest("Call number is required.");
+            }
+            String clean = callNo.trim();
+            correctionSlipService.deleteByCallNo(clean);
+            correctionSlipStorageService.deleteCorrectionSlip(clean);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Correction slip deleted successfully", "callNo", clean));
+        } catch (IllegalArgumentException e) {
+            return badRequest(e.getMessage());
+        } catch (Exception e) {
+            log.error("Error deleting correction slip for callNo {}: ", callNo, e);
+            return serverError("Failed to delete correction slip: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{*callNo}")
+    public ResponseEntity<?> deleteCorrectionSlipByPath(@PathVariable String callNo) {
+        if (callNo != null && callNo.startsWith("/")) {
+            callNo = callNo.substring(1);
+        }
+        return deleteCorrectionSlip(callNo);
+    }
+
     // ─── helpers ──────────────────────────────────────────────────────────────
 
     private ResponseEntity<Map<String, String>> badRequest(String message) {

@@ -5236,10 +5236,8 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                         com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall sic = sicOpt.get();
                         if (rawPoNo == null || rawPoNo.isBlank()) rawPoNo = sic.getPoNo();
                         if (itemSrNo == null || itemSrNo.isBlank()) itemSrNo = sic.getSrNo();
-                        if (sic.getTotalOffered() != null || sic.getTotalRejected() != null) {
-                            int off = sic.getTotalOffered() != null ? sic.getTotalOffered() : 0;
-                            int rej = sic.getTotalRejected() != null ? sic.getTotalRejected() : 0;
-                            offeredQty = (double) (off + rej);
+                        if (sic.getTotalOffered() != null) {
+                            offeredQty = (double) sic.getTotalOffered();
                         }
                     }
                 } catch (Exception ignored) {}

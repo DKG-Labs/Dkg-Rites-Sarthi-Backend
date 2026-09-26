@@ -112,6 +112,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private SleeperVendorFinancialLiabilityRepository sleeperVendorFinancialLiabilityRepository;
     @Autowired
     private com.sarthi.repository.IbsCallRegistrationRepository ibsCallRegistrationRepository;
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     public void validateUser(Integer userId) {
         if (!userMasterRepository.existsById(userId)) {
@@ -393,9 +395,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
                 int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
-                int rej = call.getTotalRejected() != null ? call.getTotalRejected() : 0;
-                int totalOffered = off + rej;
-                dto.setOfferedQty(totalOffered > 0 ? totalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
+                dto.setOfferedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
                 dto.setAcceptedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
                 
                 // Lookup certificate details from SLEEPER_INSPECTION_COMPLETE_DETAILS
@@ -420,7 +420,29 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
                 }
 
-                dto.setUom("Nos.");
+                String uom = null;
+                try {
+                    if (call.getPoNo() != null) {
+                        List<String> uomList = jdbcTemplate.query(
+                            "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? AND (pi.item_sr_no = ? OR pi.po_sr_no = ?) LIMIT 1",
+                            (rs, rowNum) -> rs.getString("uom"),
+                            call.getPoNo(), call.getSrNo(), call.getSrNo()
+                        );
+                        if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
+                            uom = uomList.get(0).trim();
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                if (uom == null || uom.isBlank()) {
+                    String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
+                    if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
+                        uom = "Set";
+                    } else {
+                        uom = "Nos.";
+                    }
+                }
+                dto.setUom(uom);
                 dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
                 dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt() : tx.getCreatedDate());
                 dto.setStageOfInspection("Final");
@@ -728,7 +750,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         if (current.getWorkflowId() == 1 && "IE".equalsIgnoreCase(current.getNextRole())) {
             // validateUserForPoi(current.getPoiCode(), req.getActionBy());
-            validateUserForPoi(current.getPoiCode(), current.getPlantId(), req.getActionBy());
+            validateUserForPoi(current.getPoiCode(), current.getPlantId(), req.getActionBy(), current.getAssignedToUser());
         } else if (current.getWorkflowId() == 2
                 && "RIO Help Desk".equalsIgnoreCase(current.getNextRole())) {
 
@@ -767,7 +789,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
              * "Main IE");
              */
 
-            boolean exists = poiIeMappingRepository
+            boolean exists = (current.getAssignedToUser() != null && current.getAssignedToUser().equals(req.getActionBy()))
+                    || poiIeMappingRepository
                     .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
                             current.getPoiCode(),
                             current.getPlantId(),
@@ -775,9 +798,21 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                             "Main IE");
 
             if (!exists) {
-                exists = poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserId(current.getPoiCode(), current.getPlantId(), Math.toIntExact(req.getActionBy()))
-                        || poiIeMappingRepository.findByPlantId(current.getPlantId()).stream().anyMatch(m -> m.getIeUserId().equals(Math.toIntExact(req.getActionBy())))
-                        || (current.getAssignedToUser() != null && current.getAssignedToUser().equals(req.getActionBy()));
+                int userId = Math.toIntExact(req.getActionBy());
+                String cleanPlant = current.getPlantId() != null ? current.getPlantId().replaceAll("^[:\\s]+", "").trim() : "";
+                exists = poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserId(current.getPoiCode(), current.getPlantId(), userId)
+                        || (!cleanPlant.isEmpty() && (poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserId(current.getPoiCode(), cleanPlant, userId) || poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserId(current.getPoiCode(), ":" + cleanPlant, userId)))
+                        || (current.getPlantId() != null && poiIeMappingRepository.findByPlantId(current.getPlantId()).stream().anyMatch(m -> m.getIeUserId() != null && m.getIeUserId().equals(userId)))
+                        || (!cleanPlant.isEmpty() && poiIeMappingRepository.findByPlantId(cleanPlant).stream().anyMatch(m -> m.getIeUserId() != null && m.getIeUserId().equals(userId)))
+                        || (!cleanPlant.isEmpty() && poiIeMappingRepository.findByPlantId(":" + cleanPlant).stream().anyMatch(m -> m.getIeUserId() != null && m.getIeUserId().equals(userId)));
+            }
+
+            if (!exists) {
+                int userId = Math.toIntExact(req.getActionBy());
+                List<SleeperPoiIeMapping> userMappings = poiIeMappingRepository.findByIeUserId(userId);
+                if (userMappings != null && !userMappings.isEmpty()) {
+                    exists = userMappings.stream().anyMatch(m -> isPlantMatch(m.getPlantId(), current.getPlantId()));
+                }
             }
 
             if (!exists) {
@@ -1341,12 +1376,77 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
      */
 
     private void validateUserForPoi(String poiCode, String plantId, Long actionBy) {
+        validateUserForPoi(poiCode, plantId, actionBy, null);
+    }
 
+    private void validateUserForPoi(String poiCode, String plantId, Long actionBy, Long assignedToUser) {
+        if (actionBy == null) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "User is not mapped to this POI + Plant"));
+        }
+
+        if (assignedToUser != null && assignedToUser.equals(actionBy)) {
+            return;
+        }
+
+        int userId = Math.toIntExact(actionBy);
+
+        // 1. Direct query
         boolean exists = poiIeMappingRepository
                 .existsByPoiCodeAndPlantIdAndIeUserId(
                         poiCode,
                         plantId,
-                        Math.toIntExact(actionBy));
+                        userId);
+
+        // 2. Check normalized plant variants if plantId is provided
+        if (!exists && plantId != null && !plantId.trim().isEmpty()) {
+            String cleanPlant = plantId.replaceAll("^[:\\s]+", "").trim();
+            exists = poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserId(poiCode, cleanPlant, userId)
+                    || poiIeMappingRepository.existsByPoiCodeAndPlantIdAndIeUserId(poiCode, ":" + cleanPlant, userId);
+        }
+
+        // 3. Check all mappings for this IE user
+        if (!exists) {
+            List<SleeperPoiIeMapping> userMappings = poiIeMappingRepository.findByIeUserId(userId);
+            if (userMappings != null && !userMappings.isEmpty()) {
+                exists = userMappings.stream().anyMatch(m -> {
+                    boolean plantMatches = isPlantMatch(m.getPlantId(), plantId);
+                    boolean poiMatches = (poiCode == null || poiCode.trim().isEmpty() || m.getPoiCode() == null)
+                            || poiCode.trim().equalsIgnoreCase(m.getPoiCode().trim());
+                    return (plantMatches && poiMatches) || plantMatches || (poiMatches && (plantId == null || plantId.trim().isEmpty()));
+                });
+            }
+        }
+
+        // 4. Check mappings by plantId
+        if (!exists && plantId != null && !plantId.trim().isEmpty()) {
+            List<SleeperPoiIeMapping> plantMappings = poiIeMappingRepository.findByPlantId(plantId);
+            if (plantMappings != null && !plantMappings.isEmpty()) {
+                exists = plantMappings.stream().anyMatch(m -> m.getIeUserId() != null && m.getIeUserId().equals(userId));
+            }
+            if (!exists) {
+                String cleanPlant = plantId.replaceAll("^[:\\s]+", "").trim();
+                List<SleeperPoiIeMapping> cleanPlantMappings = poiIeMappingRepository.findByPlantId(cleanPlant);
+                if (cleanPlantMappings != null && !cleanPlantMappings.isEmpty()) {
+                    exists = cleanPlantMappings.stream().anyMatch(m -> m.getIeUserId() != null && m.getIeUserId().equals(userId));
+                }
+                if (!exists) {
+                    List<SleeperPoiIeMapping> colonPlantMappings = poiIeMappingRepository.findByPlantId(":" + cleanPlant);
+                    if (colonPlantMappings != null && !colonPlantMappings.isEmpty()) {
+                        exists = colonPlantMappings.stream().anyMatch(m -> m.getIeUserId() != null && m.getIeUserId().equals(userId));
+                    }
+                }
+            }
+        }
+
+        // 5. Check mapping by poiCode alone
+        if (!exists && poiCode != null && !poiCode.trim().isEmpty()) {
+            exists = poiIeMappingRepository.existsByPoiCodeAndIeUserId(poiCode, userId);
+        }
 
         if (!exists) {
             throw new BusinessException(

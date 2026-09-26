@@ -70,6 +70,18 @@ public class CorrectionSlipService {
         return saved.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    // ─── Delete ──────────────────────────────────────────────────────────────
+
+    @Transactional
+    public void deleteByCallNo(String callNo) {
+        if (!StringUtils.hasText(callNo)) {
+            throw new IllegalArgumentException("Call number must not be blank.");
+        }
+        String clean = callNo.trim();
+        correctionSlipRepository.deleteAllByCallNo(clean);
+        log.info("🗑️ Deleted correction slip rows for call: {}", clean);
+    }
+
     // ─── Validation ──────────────────────────────────────────────────────────
 
     private void validateRequest(CorrectionSlipRequestDTO request) {

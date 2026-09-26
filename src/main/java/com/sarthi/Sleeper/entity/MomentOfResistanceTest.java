@@ -25,6 +25,9 @@ public class MomentOfResistanceTest {
         @Column(name = "casting_date")
         private String castingDate;
 
+        @Column(name = "date_of_testing")
+        private String dateOfTesting;
+
         @Column(name = "bench_number")
         private String benchNumber;
 

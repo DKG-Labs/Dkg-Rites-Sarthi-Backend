@@ -1289,8 +1289,6 @@ public class CertificateServiceImpl implements CertificateService {
                 ProcessMaterialCertificateDto.LotDetailDto existingLot = aggregatedLots.get(heatLot);
                 existingLot.setTotalProcessed(existingLot.getTotalProcessed()
                         + (result.getTotalManufactured() != null ? result.getTotalManufactured() : 0));
-                existingLot.setAcceptedQty(existingLot.getAcceptedQty()
-                        + (result.getTotalAccepted() != null ? result.getTotalAccepted() : 0));
                 existingLot.setRejectedQty(existingLot.getRejectedQty()
                         + (result.getTotalRejected() != null ? result.getTotalRejected() : 0));
             } else {
@@ -1298,11 +1296,17 @@ public class CertificateServiceImpl implements CertificateService {
                 ProcessMaterialCertificateDto.LotDetailDto newLot = ProcessMaterialCertificateDto.LotDetailDto.builder()
                         .heatNo(heatLot)
                         .totalProcessed(result.getTotalManufactured() != null ? result.getTotalManufactured() : 0)
-                        .acceptedQty(result.getTotalAccepted() != null ? result.getTotalAccepted() : 0)
                         .rejectedQty(result.getTotalRejected() != null ? result.getTotalRejected() : 0)
                         .build();
                 aggregatedLots.put(heatLot, newLot);
             }
+        }
+
+        // Calculate accepted quantity as totalProcessed - rejectedQty for each lot
+        for (ProcessMaterialCertificateDto.LotDetailDto lot : aggregatedLots.values()) {
+            int totalProcessed = lot.getTotalProcessed() != null ? lot.getTotalProcessed() : 0;
+            int totalRejected = lot.getRejectedQty() != null ? lot.getRejectedQty() : 0;
+            lot.setAcceptedQty(Math.max(0, totalProcessed - totalRejected));
         }
 
         return new ArrayList<>(aggregatedLots.values());
@@ -1613,20 +1617,28 @@ public class CertificateServiceImpl implements CertificateService {
             cleanSerial = null;
         }
 
-        Integer qtyOnOrder = 0;
-        if (cleanSerial != null && !poItems.isEmpty()) {
-            qtyOnOrder = poItems.stream()
-                    .filter(item -> cleanSerial.equals(item.getItemSrNo()))
-                    .map(item -> item.getQty() != null ? item.getQty().intValue() : 0)
-                    .findFirst()
-                    .orElse(0);
+        Double qtyOnOrder = 0.0;
+        if (cleanSerial != null) {
+            if (poHeader != null && poHeader.getId() != null) {
+                java.math.BigDecimal rawQty = poItemRepository.findRawQtyByPoHeaderIdAndItemSrNo(poHeader.getId(), cleanSerial);
+                if (rawQty != null) {
+                    qtyOnOrder = rawQty.doubleValue();
+                }
+            }
+            if (qtyOnOrder == 0.0 && !poItems.isEmpty()) {
+                qtyOnOrder = poItems.stream()
+                        .filter(item -> cleanSerial.equals(item.getItemSrNo()))
+                        .map(item -> item.getQty() != null ? item.getQty().doubleValue() : 0.0)
+                        .findFirst()
+                        .orElse(0.0);
+            }
         }
 
         Long currentId = finalDetails != null ? finalDetails.getId() : 0L;
         String poSerialNo = inspectionCall.getPoSerialNo();
 
-        long offeredPrev = 0L;
-        long passedPrev = 0L;
+        double offeredPrev = 0.0;
+        double passedPrev = 0.0;
 
         // Fetch from final_cumulative_results if available
         long cumStart = System.currentTimeMillis();
@@ -1635,28 +1647,28 @@ public class CertificateServiceImpl implements CertificateService {
         long cumEnd = System.currentTimeMillis();
         logger.info("Fetched cumulative results for {} in {} ms", inspectionCall.getIcNumber(), (cumEnd - cumStart));
 
-        int qtyNowOffered = finalDetails != null && finalDetails.getTotalOfferedQty() != null
-                ? finalDetails.getTotalOfferedQty()
-                : 0;
-        int qtyNowPassed = finalDetails != null && finalDetails.getTotalAcceptedQty() != null
-                ? finalDetails.getTotalAcceptedQty()
-                : 0;
-        int qtyNowRejected = finalDetails != null && finalDetails.getTotalRejectedQty() != null
-                ? finalDetails.getTotalRejectedQty()
-                : 0;
+        double qtyNowOffered = finalDetails != null && finalDetails.getTotalOfferedQty() != null
+                ? finalDetails.getTotalOfferedQty().doubleValue()
+                : 0.0;
+        double qtyNowPassed = finalDetails != null && finalDetails.getTotalAcceptedQty() != null
+                ? finalDetails.getTotalAcceptedQty().doubleValue()
+                : 0.0;
+        double qtyNowRejected = finalDetails != null && finalDetails.getTotalRejectedQty() != null
+                ? finalDetails.getTotalRejectedQty().doubleValue()
+                : 0.0;
 
         if (cumulativeResults != null) {
             offeredPrev = cumulativeResults.getCummQtyOfferedPreviously() != null
-                    ? cumulativeResults.getCummQtyOfferedPreviously()
-                    : 0L;
+                    ? cumulativeResults.getCummQtyOfferedPreviously().doubleValue()
+                    : 0.0;
             passedPrev = cumulativeResults.getCummQtyPassedPreviously() != null
-                    ? cumulativeResults.getCummQtyPassedPreviously()
-                    : 0L;
-            qtyNowOffered = cumulativeResults.getQtyNowOffered() != null ? cumulativeResults.getQtyNowOffered()
+                    ? cumulativeResults.getCummQtyPassedPreviously().doubleValue()
+                    : 0.0;
+            qtyNowOffered = cumulativeResults.getQtyNowOffered() != null ? cumulativeResults.getQtyNowOffered().doubleValue()
                     : qtyNowOffered;
-            qtyNowPassed = cumulativeResults.getQtyNowPassed() != null ? cumulativeResults.getQtyNowPassed()
+            qtyNowPassed = cumulativeResults.getQtyNowPassed() != null ? cumulativeResults.getQtyNowPassed().doubleValue()
                     : qtyNowPassed;
-            qtyNowRejected = cumulativeResults.getQtyNowRejected() != null ? cumulativeResults.getQtyNowRejected()
+            qtyNowRejected = cumulativeResults.getQtyNowRejected() != null ? cumulativeResults.getQtyNowRejected().doubleValue()
                     : qtyNowRejected;
         } else if (poSerialNo != null && currentId > 0) {
             long qStart = System.currentTimeMillis();
@@ -1664,15 +1676,15 @@ public class CertificateServiceImpl implements CertificateService {
                     currentId);
             Long passedPrevLong = finalInspectionDetailsRepository.sumAcceptedQtyByPoSerialNoAndIdLessThan(poSerialNo,
                     currentId);
-            offeredPrev = offeredPrevLong != null ? offeredPrevLong : 0L;
-            passedPrev = passedPrevLong != null ? passedPrevLong : 0L;
+            offeredPrev = offeredPrevLong != null ? offeredPrevLong.doubleValue() : 0.0;
+            passedPrev = passedPrevLong != null ? passedPrevLong.doubleValue() : 0.0;
             long qEnd = System.currentTimeMillis();
             logger.info("Summed previous quantities for {} in {} ms", poSerialNo, (qEnd - qStart));
         }
 
         Integer totalErcUsed = finalInspectionLotResultsRepository.sumErcUsedForTestingByInspectionCallNo(inspectionCall.getIcNumber());
         int ercUsed = totalErcUsed != null ? totalErcUsed : 0;
-        int qtyStillDue = Math.max(0, qtyOnOrder - (int) passedPrev - qtyNowPassed);
+        double qtyStillDue = Math.max(0.0, qtyOnOrder - passedPrev - qtyNowPassed);
 
         long start = System.currentTimeMillis();
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
@@ -1710,7 +1722,7 @@ public class CertificateServiceImpl implements CertificateService {
         String sealingPattern = buildFinalSealingPattern(inspectionCall.getIcNumber());
         String remarks = buildFinalRemarks(finalDetails);
         Integer lotResultsRejectedSum = finalInspectionLotResultsRepository.sumTotalRejectedQtyByInspectionCallNo(inspectionCall.getIcNumber());
-        int totalRejCount = (lotResultsRejectedSum != null && lotResultsRejectedSum > 0) ? lotResultsRejectedSum : qtyNowRejected;
+        int totalRejCount = (lotResultsRejectedSum != null && lotResultsRejectedSum > 0) ? lotResultsRejectedSum : (int) qtyNowRejected;
         String reasonsForRejection = buildFinalReasonsForRejection(totalRejCount);
 
         FinalCertificateDto dto = FinalCertificateDto.builder()
@@ -1733,8 +1745,8 @@ public class CertificateServiceImpl implements CertificateService {
                 .totalLots(
                         finalDetails != null && finalDetails.getTotalLots() != null ? finalDetails.getTotalLots() : 0)
                 .qtyOnOrder(qtyOnOrder)
-                .qtyOfferedPreviously((int) offeredPrev)
-                .qtyPassedPreviously((int) passedPrev)
+                .qtyOfferedPreviously(offeredPrev)
+                .qtyPassedPreviously(passedPrev)
                 .qtyNowOffered(qtyNowOffered)
                 .qtyNowPassed(qtyNowPassed)
                 .qtyNowRejected(qtyNowRejected)
@@ -1782,19 +1794,19 @@ public class CertificateServiceImpl implements CertificateService {
             }
             if (saveChanges.getCummQtyOfferedPrev() != null) {
                 try {
-                    dto.setQtyOfferedPreviously(Integer.parseInt(saveChanges.getCummQtyOfferedPrev()));
+                    dto.setQtyOfferedPreviously(Double.parseDouble(saveChanges.getCummQtyOfferedPrev()));
                 } catch (NumberFormatException ignored) {
                 }
             }
             if (saveChanges.getQtyPrevPassed() != null) {
                 try {
-                    dto.setQtyPassedPreviously(Integer.parseInt(saveChanges.getQtyPrevPassed()));
+                    dto.setQtyPassedPreviously(Double.parseDouble(saveChanges.getQtyPrevPassed()));
                 } catch (NumberFormatException ignored) {
                 }
             }
             if (saveChanges.getQtyStillDue() != null) {
                 try {
-                    dto.setQtyStillDue(Integer.parseInt(saveChanges.getQtyStillDue()));
+                    dto.setQtyStillDue(Double.parseDouble(saveChanges.getQtyStillDue()));
                 } catch (NumberFormatException ignored) {
                 }
             }
@@ -1835,19 +1847,19 @@ public class CertificateServiceImpl implements CertificateService {
                 }
                 if (finalIcEdit.getCummQtyOfferedPrev() != null) {
                     try {
-                        dto.setQtyOfferedPreviously(Integer.parseInt(finalIcEdit.getCummQtyOfferedPrev()));
+                        dto.setQtyOfferedPreviously(Double.parseDouble(finalIcEdit.getCummQtyOfferedPrev()));
                     } catch (NumberFormatException ignored) {
                     }
                 }
                 if (finalIcEdit.getQtyPrevPassed() != null) {
                     try {
-                        dto.setQtyPassedPreviously(Integer.parseInt(finalIcEdit.getQtyPrevPassed()));
+                        dto.setQtyPassedPreviously(Double.parseDouble(finalIcEdit.getQtyPrevPassed()));
                     } catch (NumberFormatException ignored) {
                     }
                 }
                 if (finalIcEdit.getQtyStillDue() != null) {
                     try {
-                        dto.setQtyStillDue(Integer.parseInt(finalIcEdit.getQtyStillDue()));
+                        dto.setQtyStillDue(Double.parseDouble(finalIcEdit.getQtyStillDue()));
                     } catch (NumberFormatException ignored) {
                     }
                 }

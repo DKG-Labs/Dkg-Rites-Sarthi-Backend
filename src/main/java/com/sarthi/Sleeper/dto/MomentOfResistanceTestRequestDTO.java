@@ -11,6 +11,7 @@ public class MomentOfResistanceTestRequestDTO {
     private String batchNumber;
     private String sleeperType;
     private String castingDate;
+    private String dateOfTesting;
     private String benchNumber;
     private String sleeperNo;
 
