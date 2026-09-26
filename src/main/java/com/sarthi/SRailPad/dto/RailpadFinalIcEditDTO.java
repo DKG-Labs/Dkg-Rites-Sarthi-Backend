@@ -38,6 +38,8 @@ public class RailpadFinalIcEditDTO {
     private String inspectingEngineer;
     private String certificateDate;
     private String contractor;
+    private String manufacturer;
+    private String consigneeManufacturer;
     private String placeOfInspection;
     private String noOfVisits;
     private String dateOfCall;

@@ -14,6 +14,8 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
 
     List<RailWorkflowTransaction> findByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
 
+    boolean existsByRequestId(String requestId);
+
     @org.springframework.data.jpa.repository.Modifying
     @Query("DELETE FROM RailWorkflowTransaction t WHERE t.requestId = :requestId AND t.moduleId = :moduleId")
     void deleteByRequestIdAndModuleId(@Param("requestId") String requestId, @Param("moduleId") Long moduleId);

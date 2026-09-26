@@ -38,6 +38,9 @@ public class RailpadProcessIcSaveChangesServiceImpl implements RailpadProcessIcS
         entity.setOfferedInstNo(dto.getOfferedInstNo());
         entity.setPassedInstNo(dto.getPassedInstNo());
         entity.setContractor(dto.getContractor());
+        entity.setManufacturer(dto.getManufacturer());
+        entity.setConsigneeManufacturer(dto.getConsigneeManufacturer());
+        entity.setPlaceOfInspection(dto.getPlaceOfInspection());
         entity.setContractRef(dto.getContractRef());
         entity.setBillPayingOfficer(dto.getBillPayingOfficer());
         entity.setConsignee(dto.getConsignee());
@@ -74,6 +77,9 @@ public class RailpadProcessIcSaveChangesServiceImpl implements RailpadProcessIcS
                 .offeredInstNo(entity.getOfferedInstNo())
                 .passedInstNo(entity.getPassedInstNo())
                 .contractor(entity.getContractor())
+                .manufacturer(entity.getManufacturer())
+                .consigneeManufacturer(entity.getConsigneeManufacturer())
+                .placeOfInspection(entity.getPlaceOfInspection())
                 .contractRef(entity.getContractRef())
                 .billPayingOfficer(entity.getBillPayingOfficer())
                 .consignee(entity.getConsignee())

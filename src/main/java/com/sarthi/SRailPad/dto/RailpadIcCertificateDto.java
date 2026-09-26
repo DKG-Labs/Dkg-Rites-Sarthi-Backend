@@ -19,6 +19,8 @@ public class RailpadIcCertificateDto {
     private String offeredInsttNo; // blank
     private String passedInsttNo; // blank
     private String contractorName; // Name of vendor with complete address
+    private String manufacturer; // From railpad_pincode_poi_mapping
+    private String consigneeManufacturer; // From railpad_pincode_poi_mapping
     private String placeOfInspection; // Name of vendor with complete address
     private String contractReferences; // PO No + Date from po_header
     private List<String> latest4Amendments; // from po_ma_header
@@ -44,4 +46,7 @@ public class RailpadIcCertificateDto {
     private String reasonOfRejection; // editable
     private String caseNo; // from po_item or po_header
     private String region;
+    private String qapNo;
+    private String drgNo;
+    private String specNo;
 }

@@ -44,6 +44,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnFinalCallRepository railWithdrawnFinalCallRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
     private final com.sarthi.SRailPad.repository.RailCallCancellationDetailRepository railCallCancellationDetailRepository;
+    private final com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
+    private final com.sarthi.SRailPad.repository.plantDeclaration.RailApprovedQAPRepository railApprovedQAPRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     private jakarta.persistence.EntityManager entityManager;
@@ -98,6 +100,10 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         }
 
         String generatedCallNo = String.format("%s%s%03d", prefix, datePart, seq);
+        while (repository.existsByCallNo(generatedCallNo) || railWorkflowTransactionRepository.existsByRequestId(generatedCallNo)) {
+            seq++;
+            generatedCallNo = String.format("%s%s%03d", prefix, datePart, seq);
+        }
         call.setCallNo(generatedCallNo);
 
         if (call.getCreatedBy() == null) {
@@ -108,6 +114,17 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         }
         if (call.getPlantId() != null) {
             call.setPlantId(call.getPlantId().replaceAll("^:", ""));
+        }
+
+        // Clean up poNo and poSr
+        if (call.getPoNo() != null && call.getPoNo().contains("/")) {
+            String[] parts = call.getPoNo().split("/");
+            if (parts.length >= 2) {
+                call.setPoNo(parts[0].trim());
+                if (call.getPoSr() == null || call.getPoSr().isBlank()) {
+                    call.setPoSr(parts[1].trim());
+                }
+            }
         }
 
         // Validate if plant is blocked due to pending cancellation charges
@@ -150,6 +167,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 if (lot.getBatches() != null) {
                     for (RailInspectionBatch batch : lot.getBatches()) {
                         batch.setLot(lot);
+                        if (batch.getDrawingNo() == null || batch.getDrawingNo().isBlank()) {
+                            batch.setDrawingNo(call.getDrawingNo());
+                        }
                         if (batch.getQtyToUse() != null && batch.getQuantity() == null) {
                             batch.setQuantity(batch.getQtyToUse());
                         } else if (batch.getQuantity() != null && batch.getQtyToUse() == null) {
@@ -696,6 +716,83 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
+        // Fetch manufacturer and factory/plant address from railpad_pincode_poi_mapping
+        com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping poiMapping = null;
+        String rawPlantId = call.getPlantId();
+        String plantPrefix = (rawPlantId != null && rawPlantId.contains("/"))
+                ? rawPlantId.split("/")[0].replace(":", "").trim()
+                : (rawPlantId != null ? rawPlantId.replace(":", "").trim() : "");
+        String cleanVendorCode = call.getVendorCode() != null
+                ? call.getVendorCode().replace(":", "").trim()
+                : "";
+
+        if (!plantPrefix.isEmpty()) {
+            poiMapping = railPadPincodePoIMappingRepository.findByVendorCode(plantPrefix)
+                    .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(":" + plantPrefix)
+                    .orElseGet(() -> {
+                        List<com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping> list = railPadPincodePoIMappingRepository.findByPoiCode(plantPrefix);
+                        return (list != null && !list.isEmpty()) ? list.get(0) : null;
+                    }));
+        }
+        if (poiMapping == null && !cleanVendorCode.isEmpty()) {
+            poiMapping = railPadPincodePoIMappingRepository.findByVendorCode(cleanVendorCode)
+                    .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(":" + cleanVendorCode)
+                    .orElse(null));
+        }
+
+        String manufacturerAddress = "";
+        if (poiMapping != null) {
+            StringBuilder sb = new StringBuilder();
+            if (poiMapping.getCompanyName() != null && !poiMapping.getCompanyName().isBlank()) {
+                sb.append(poiMapping.getCompanyName().trim());
+            }
+            String addr = (poiMapping.getAddress() != null) ? poiMapping.getAddress().trim() : "";
+            if (!addr.isBlank()) {
+                if (sb.length() > 0) sb.append(",\n");
+                sb.append(addr);
+            }
+            String district = (poiMapping.getDistrict() != null) ? poiMapping.getDistrict().trim() : "";
+            if (!district.isBlank() && !addr.toUpperCase().contains(district.toUpperCase())) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(district);
+            }
+            String state = (poiMapping.getState() != null) ? poiMapping.getState().trim() : "";
+            if (!state.isBlank() && !sb.toString().toUpperCase().contains(state.toUpperCase())) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(state);
+            }
+            if (!sb.toString().toUpperCase().contains("INDIA")) {
+                sb.append(", India");
+            }
+            String pinCode = (poiMapping.getPinCode() != null) ? poiMapping.getPinCode().trim() : "";
+            if (!pinCode.isBlank() && !sb.toString().contains(pinCode)) {
+                sb.append(" – ").append(pinCode);
+            }
+            
+            // Clean up any accidental repeated adjacent comma-separated tokens (e.g., MEDAK, MEDAK)
+            String rawStr = sb.toString();
+            String[] lines = rawStr.split("\n");
+            StringBuilder cleanedSb = new StringBuilder();
+            for (String line : lines) {
+                String[] tokens = line.split(",");
+                List<String> lineTokens = new ArrayList<>();
+                for (String t : tokens) {
+                    String trimmed = t.trim();
+                    if (!trimmed.isEmpty()) {
+                        if (lineTokens.isEmpty() || !lineTokens.get(lineTokens.size() - 1).equalsIgnoreCase(trimmed)) {
+                            lineTokens.add(trimmed);
+                        }
+                    }
+                }
+                if (cleanedSb.length() > 0) cleanedSb.append(",\n");
+                cleanedSb.append(String.join(", ", lineTokens));
+            }
+            manufacturerAddress = cleanedSb.toString();
+        }
+        if (manufacturerAddress.isBlank()) {
+            manufacturerAddress = vendorFull;
+        }
+
         String poDateStr = poHeader != null && poHeader.getPoDate() != null
                 ? poHeader.getPoDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                 : "";
@@ -778,7 +875,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setOfferedInsttNo("");
         dto.setPassedInsttNo("");
         dto.setContractorName(vendorFull);
-        dto.setPlaceOfInspection(vendorFull);
+        dto.setManufacturer(manufacturerAddress);
+        dto.setConsigneeManufacturer(manufacturerAddress);
+        dto.setPlaceOfInspection(manufacturerAddress);
         dto.setContractReferences("PO NO. " + poNo + (poDateStr.isEmpty() ? "" : " dated " + poDateStr));
         dto.setLatest4Amendments(latest4Amendments);
         dto.setBillPayingOfficer(
@@ -787,6 +886,13 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String purchaserDetail = poHeader != null && poHeader.getPurchaserDetail() != null
                 ? poHeader.getPurchaserDetail()
                 : "";
+        if (purchaserDetail.contains("~")) {
+            purchaserDetail = purchaserDetail.replaceAll("~\\d+~", "/")
+                    .replace("~", "/")
+                    .replaceAll("/+", "/")
+                    .replaceAll("\\s+", " ")
+                    .trim();
+        }
         dto.setPurchasingAuthority(purchaserDetail);
         dto.setItemNo(itemSr);
         dto.setDescriptionOfStores(formattedDesc);
@@ -808,6 +914,53 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setTrRecDt("");
         dto.setReasonOfRejection(rejectionReasonTemplate);
         dto.setCaseNo(caseNo);
+
+        // Fetch Approved QAP from rail_approved_qap
+        String qapFormatted = "";
+        try {
+            String vName = poHeader != null ? extractVendorName(poHeader.getVendorDetails()) : "";
+            List<com.sarthi.SRailPad.entity.plantDeclaration.ApprovedQAP> qapList = railApprovedQAPRepository
+                    .findApprovedQapByAnyMatch(cleanVendorCode, rawPlantId, vName);
+
+            if (qapList == null || qapList.isEmpty()) {
+                qapList = railApprovedQAPRepository.findAll();
+            }
+
+            if (qapList != null && !qapList.isEmpty()) {
+                com.sarthi.SRailPad.entity.plantDeclaration.ApprovedQAP qap = qapList.get(0);
+                String qNo = qap.getQapNo() != null ? qap.getQapNo().trim() : "";
+                if (!qNo.isEmpty() && !qNo.toUpperCase().contains("REV")) {
+                    qNo = qNo + ", REV-01";
+                }
+                LocalDate effLocalDate = qap.getEffectiveDate();
+                if (effLocalDate == null) {
+                    effLocalDate = qap.getApprovalDate();
+                }
+                if (effLocalDate == null) {
+                    effLocalDate = qap.getValidityDate();
+                }
+                if (effLocalDate == null && qap.getCreatedDate() != null) {
+                    effLocalDate = qap.getCreatedDate().toLocalDate();
+                }
+
+                String effDate = (effLocalDate != null)
+                        ? effLocalDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+                        : "";
+
+                if (!qNo.toUpperCase().contains("EFFECTIVE DATE")) {
+                    if (!effDate.isEmpty()) {
+                        qapFormatted = qNo + ", Effective Date: " + effDate;
+                    } else {
+                        qapFormatted = qNo;
+                    }
+                } else {
+                    qapFormatted = qNo;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        dto.setQapNo(qapFormatted);
+        dto.setDrgNo(call.getDrawingNo() != null ? call.getDrawingNo() : "");
 
         return dto;
     }

@@ -571,9 +571,10 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
         java.util.Map<String, Integer> offeredMap = new java.util.HashMap<>();
         if (!batchNos.isEmpty()) {
+            String processIc = callNo != null ? callNo.trim() : "";
             List<Object[]> summaryList = (excludeCallNo != null && !excludeCallNo.trim().isEmpty())
-                    ? railInspectionBatchRepository.findOfferedSummaryByBatchNosExcludingCall(batchNos, excludeCallNo.trim())
-                    : railInspectionBatchRepository.findOfferedSummaryByBatchNos(batchNos);
+                    ? railInspectionBatchRepository.findOfferedSummaryByBatchNosExcludingCall(batchNos, processIc, excludeCallNo.trim())
+                    : railInspectionBatchRepository.findOfferedSummaryByBatchNos(batchNos, processIc);
             for (Object[] row : summaryList) {
                 String bNo = row[0] != null ? row[0].toString().trim() : null;
                 String dNo = row[1] != null ? row[1].toString().trim() : "";
@@ -623,6 +624,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
 
             b.setQtyAccepted(netAccepted);
             b.setPreviouslyOfferedQty(alreadyOffered);
+            b.setQtyRemaining(Math.max(0, netAccepted - alreadyOffered));
             availableBatches.add(b);
         }
         dto.setBatches(availableBatches);

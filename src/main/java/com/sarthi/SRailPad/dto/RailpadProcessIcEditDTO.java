@@ -18,6 +18,9 @@ public class RailpadProcessIcEditDTO {
     private String offeredInstNo;
     private String passedInstNo;
     private String contractor;
+    private String manufacturer;
+    private String consigneeManufacturer;
+    private String placeOfInspection;
     private String contractRef;
     private String billPayingOfficer;
     private String consignee;
