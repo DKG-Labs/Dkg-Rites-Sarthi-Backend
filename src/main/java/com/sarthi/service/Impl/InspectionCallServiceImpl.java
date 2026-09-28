@@ -334,7 +334,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
             String subPoNo = rmDto.getSubPoNumber() != null && !rmDto.getSubPoNumber().trim().isEmpty()
                     ? rmDto.getSubPoNumber()
                     : rmDetails.getSubPoNumber();
-            java.util.Set<RmHeatQuantity> matchedExisting = new java.util.HashSet<>();
+            java.util.Set<Long> matchedExistingIds = new java.util.HashSet<>();
             List<RmHeatQuantity> updatedHeatList = new ArrayList<>();
 
             // 1. Update existing heats or insert new ones (matching by BOTH heatNumber and tcNumber)
@@ -347,7 +347,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                 String tcNo = dto.getTcNumber() != null ? dto.getTcNumber().trim() : "";
 
                 RmHeatQuantity heat = existingHeats.stream()
-                        .filter(existing -> !matchedExisting.contains(existing)
+                        .filter(existing -> existing.getId() != null
+                                && !matchedExistingIds.contains(existing.getId())
                                 && heatNo.equalsIgnoreCase(existing.getHeatNumber())
                                 && (tcNo.isEmpty() && (existing.getTcNumber() == null || existing.getTcNumber().trim().isEmpty())
                                 || !tcNo.isEmpty() && tcNo.equalsIgnoreCase(existing.getTcNumber())))
@@ -355,7 +356,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                         .orElse(null);
 
                 if (heat != null) {
-                    matchedExisting.add(heat);
+                    matchedExistingIds.add(heat.getId());
 
                     // Inventory Adjustment: Compare old and new values for the same TC
                     BigDecimal oldQty = heat.getOfferedQty() != null ? heat.getOfferedQty() : BigDecimal.ZERO;
@@ -424,7 +425,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
 
             // 2. Delete existing heats no longer present in request
             for (RmHeatQuantity existing : existingHeats) {
-                if (!matchedExisting.contains(existing)) {
+                if (existing.getId() != null && !matchedExistingIds.contains(existing.getId())) {
                     // Reinstate quantity to inventory
                     BigDecimal oldQty = existing.getOfferedQty();
                     if (oldQty != null && oldQty.compareTo(BigDecimal.ZERO) > 0 && existing.getHeatNumber() != null && existing.getTcNumber() != null) {
@@ -457,7 +458,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         // =====================================================
         if (rmDto.getChemicalAnalysis() != null) {
             List<RmChemicalAnalysis> existingChems = rmChemicalAnalysisRepository.findByRmInspectionDetailsId(Math.toIntExact(rmDetails.getId()));
-            java.util.Set<RmChemicalAnalysis> matchedChems = new java.util.HashSet<>();
+            java.util.Set<Long> matchedChemIds = new java.util.HashSet<>();
             List<RmChemicalAnalysis> updatedChemList = new ArrayList<>();
 
             for (RmChemicalAnalysisRequestDto dto : rmDto.getChemicalAnalysis()) {
@@ -467,12 +468,14 @@ public class InspectionCallServiceImpl implements InspectionCallService {
 
                 String heatNo = dto.getHeatNumber().trim();
                 RmChemicalAnalysis chem = existingChems.stream()
-                        .filter(existing -> !matchedChems.contains(existing) && heatNo.equalsIgnoreCase(existing.getHeatNumber()))
+                        .filter(existing -> existing.getId() != null
+                                && !matchedChemIds.contains(existing.getId())
+                                && heatNo.equalsIgnoreCase(existing.getHeatNumber()))
                         .findFirst()
                         .orElse(null);
 
                 if (chem != null) {
-                    matchedChems.add(chem);
+                    matchedChemIds.add(chem.getId());
                     // Update existing
                     chem.setCarbon(toBigDecimal(dto.getCarbon()));
                     chem.setManganese(toBigDecimal(dto.getManganese()));
@@ -503,7 +506,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
 
             // Delete chemical analyses no longer present in the request
             for (RmChemicalAnalysis existing : existingChems) {
-                if (!matchedChems.contains(existing)) {
+                if (existing.getId() != null && !matchedChemIds.contains(existing.getId())) {
                     rmChemicalAnalysisRepository.delete(existing);
                 }
             }

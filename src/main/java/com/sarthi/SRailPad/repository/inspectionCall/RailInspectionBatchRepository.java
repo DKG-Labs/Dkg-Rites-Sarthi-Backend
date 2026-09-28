@@ -36,8 +36,14 @@ public interface RailInspectionBatchRepository extends JpaRepository<RailInspect
            "FROM RailInspectionBatch b " +
            "JOIN b.lot l " +
            "JOIN l.inspectionCall c " +
-           "WHERE b.batchNo IN :batchNos " +
-           "AND (:processIcNo IS NULL OR :processIcNo = '' OR UPPER(c.processIcNo) LIKE CONCAT('%', UPPER(:processIcNo), '%')) " +
+           "WHERE ( " +
+           "   (:batchNos IS NOT NULL AND (b.batchNo IN :batchNos OR UPPER(TRIM(b.batchNo)) IN :batchNos)) " +
+           "   OR (:processIcNo IS NOT NULL AND :processIcNo != '' AND (" +
+           "       UPPER(c.processIcNo) LIKE CONCAT('%', UPPER(:processIcNo), '%') " +
+           "       OR UPPER(REPLACE(COALESCE(c.processIcNo, ''), '-', '')) LIKE CONCAT('%', UPPER(REPLACE(:processIcNo, '-', '')), '%')" +
+           "   )) " +
+           ") " +
+           "AND (:processIcNo IS NULL OR :processIcNo = '' OR UPPER(c.processIcNo) LIKE CONCAT('%', UPPER(:processIcNo), '%') OR UPPER(REPLACE(COALESCE(c.processIcNo, ''), '-', '')) LIKE CONCAT('%', UPPER(REPLACE(:processIcNo, '-', '')), '%')) " +
            "AND (UPPER(COALESCE(c.status, '')) NOT IN ('WITHDRAW', 'WITHDRAWN', 'CANCEL', 'CANCELLED')) " +
            "AND (:excludeCallNo IS NULL OR :excludeCallNo = '' OR c.callNo != :excludeCallNo) " +
            "GROUP BY b.batchNo, b.drawingNo")
@@ -50,8 +56,14 @@ public interface RailInspectionBatchRepository extends JpaRepository<RailInspect
            "FROM RailInspectionBatch b " +
            "JOIN b.lot l " +
            "JOIN l.inspectionCall c " +
-           "WHERE b.batchNo IN :batchNos " +
-           "AND (:processIcNo IS NULL OR :processIcNo = '' OR UPPER(c.processIcNo) LIKE CONCAT('%', UPPER(:processIcNo), '%')) " +
+           "WHERE ( " +
+           "   (:batchNos IS NOT NULL AND (b.batchNo IN :batchNos OR UPPER(TRIM(b.batchNo)) IN :batchNos)) " +
+           "   OR (:processIcNo IS NOT NULL AND :processIcNo != '' AND (" +
+           "       UPPER(c.processIcNo) LIKE CONCAT('%', UPPER(:processIcNo), '%') " +
+           "       OR UPPER(REPLACE(COALESCE(c.processIcNo, ''), '-', '')) LIKE CONCAT('%', UPPER(REPLACE(:processIcNo, '-', '')), '%')" +
+           "   )) " +
+           ") " +
+           "AND (:processIcNo IS NULL OR :processIcNo = '' OR UPPER(c.processIcNo) LIKE CONCAT('%', UPPER(:processIcNo), '%') OR UPPER(REPLACE(COALESCE(c.processIcNo, ''), '-', '')) LIKE CONCAT('%', UPPER(REPLACE(:processIcNo, '-', '')), '%')) " +
            "AND (UPPER(COALESCE(c.status, '')) NOT IN ('WITHDRAW', 'WITHDRAWN', 'CANCEL', 'CANCELLED')) " +
            "GROUP BY b.batchNo, b.drawingNo")
     java.util.List<Object[]> findOfferedSummaryByBatchNos(

@@ -49,6 +49,9 @@ public class FinalIcEdit {
     @Column(name = "MA_NUMBER_AND_DATE", columnDefinition = "TEXT")
     private String maNumberAndDate;
 
+    @Column(name = "BILL_PAYING_OFFICER", columnDefinition = "TEXT")
+    private String billPayingOfficer;
+
     @Column(name = "PURCHASING_AUTHORITY", columnDefinition = "TEXT")
     private String purchasingAuthority;
 

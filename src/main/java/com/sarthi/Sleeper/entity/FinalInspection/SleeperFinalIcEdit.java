@@ -57,6 +57,9 @@ public class SleeperFinalIcEdit {
     @Column(name = "ma_number_and_date", columnDefinition = "TEXT")
     private String maNumberAndDate;
 
+    @Column(name = "bill_paying_officer", columnDefinition = "TEXT")
+    private String billPayingOfficer;
+
     @Column(name = "purchasing_authority", columnDefinition = "TEXT")
     private String purchasingAuthority;
 

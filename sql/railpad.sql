@@ -252,8 +252,8 @@ CREATE TABLE IF NOT EXISTS rail_inspection_lot (
 CREATE TABLE IF NOT EXISTS rail_inspection_batch (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     lot_id BIGINT,
-    batch_no VARCHAR(50),
-    drawing_no VARCHAR(100),
+    batch_no VARCHAR(500),
+    drawing_no VARCHAR(255),
     available_qty INT,
     quantity INT,
     qty_to_use INT,

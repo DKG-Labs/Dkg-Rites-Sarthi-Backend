@@ -569,7 +569,8 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 .distinct()
                 .collect(java.util.stream.Collectors.toList());
 
-        java.util.Map<String, Integer> offeredMap = new java.util.HashMap<>();
+        // Build total offered quantity per batch/drawing key
+        java.util.Map<String, Integer> remainingOfferedMap = new java.util.HashMap<>();
         if (!batchNos.isEmpty()) {
             String processIc = callNo != null ? callNo.trim() : "";
             List<Object[]> summaryList = (excludeCallNo != null && !excludeCallNo.trim().isEmpty())
@@ -581,17 +582,28 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 Long qtyLong = row[2] != null ? ((Number) row[2]).longValue() : 0L;
                 int sumQty = qtyLong.intValue();
 
-                if (bNo != null) {
+                if (bNo != null && !bNo.isEmpty()) {
                     String cleanExactD = dNo.trim().toUpperCase();
                     String normD = normalizeDrawingNo(dNo);
+                    String normB = normalizeBatchKey(bNo);
 
-                    if (!cleanExactD.isEmpty()) {
-                        String exactKey = bNo + "|" + cleanExactD;
-                        offeredMap.put(exactKey, offeredMap.getOrDefault(exactKey, 0) + sumQty);
+                    // 1. Batch-only fallback mappings
+                    remainingOfferedMap.put(bNo, remainingOfferedMap.getOrDefault(bNo, 0) + sumQty);
+                    if (!bNo.equalsIgnoreCase(bNo.toUpperCase())) {
+                        remainingOfferedMap.put(bNo.toUpperCase(), remainingOfferedMap.getOrDefault(bNo.toUpperCase(), 0) + sumQty);
                     }
+                    if (!normB.isEmpty() && !normB.equals(bNo)) {
+                        remainingOfferedMap.put(normB, remainingOfferedMap.getOrDefault(normB, 0) + sumQty);
+                    }
+
+                    // 2. Exact Drawing mappings
+                    if (!cleanExactD.isEmpty()) {
+                        remainingOfferedMap.put(bNo + "|" + cleanExactD, remainingOfferedMap.getOrDefault(bNo + "|" + cleanExactD, 0) + sumQty);
+                    }
+
+                    // 3. Normalized Drawing mappings
                     if (!normD.isEmpty()) {
-                        String normKey = bNo + "|" + normD;
-                        offeredMap.put(normKey, offeredMap.getOrDefault(normKey, 0) + sumQty);
+                        remainingOfferedMap.put(bNo + "|" + normD, remainingOfferedMap.getOrDefault(bNo + "|" + normD, 0) + sumQty);
                     }
                 }
             }
@@ -601,18 +613,6 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         for (ProcessInspectionSaveDto.ProcessBatchSaveDto b : dto.getBatches()) {
             String bNo = b.getBatchNo() != null ? b.getBatchNo().trim() : "";
             String dNo = b.getDrawingNo() != null ? b.getDrawingNo().trim() : "";
-            int alreadyOffered = 0;
-
-            String cleanExactD = dNo.trim().toUpperCase();
-            String normD = normalizeDrawingNo(dNo);
-
-            if (!normD.isEmpty() && offeredMap.containsKey(bNo + "|" + normD)) {
-                alreadyOffered = offeredMap.get(bNo + "|" + normD);
-            } else if (!cleanExactD.isEmpty() && offeredMap.containsKey(bNo + "|" + cleanExactD)) {
-                alreadyOffered = offeredMap.get(bNo + "|" + cleanExactD);
-            } else {
-                alreadyOffered = 0;
-            }
 
             int mQty = b.getQtyManufactured() != null ? b.getQtyManufactured() : 0;
             int rQty = b.getQtyRejected() != null ? b.getQtyRejected() : 0;
@@ -622,13 +622,49 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 netAccepted = maxAcc;
             }
 
+            String cleanExactD = dNo.trim().toUpperCase();
+            String normD = normalizeDrawingNo(dNo);
+            String normB = normalizeBatchKey(bNo);
+
+            // Determine matching key for available offered pool
+            String matchedKey = null;
+            if (!normD.isEmpty() && remainingOfferedMap.containsKey(bNo + "|" + normD)) {
+                matchedKey = bNo + "|" + normD;
+            } else if (!cleanExactD.isEmpty() && remainingOfferedMap.containsKey(bNo + "|" + cleanExactD)) {
+                matchedKey = bNo + "|" + cleanExactD;
+            } else if (remainingOfferedMap.containsKey(bNo)) {
+                matchedKey = bNo;
+            } else if (remainingOfferedMap.containsKey(bNo.toUpperCase())) {
+                matchedKey = bNo.toUpperCase();
+            } else if (!normB.isEmpty() && remainingOfferedMap.containsKey(normB)) {
+                matchedKey = normB;
+            }
+
+            int alreadyOfferedForThisBatch = 0;
+            if (matchedKey != null && remainingOfferedMap.containsKey(matchedKey)) {
+                int poolAvail = remainingOfferedMap.get(matchedKey);
+                alreadyOfferedForThisBatch = Math.min(netAccepted, poolAvail);
+                remainingOfferedMap.put(matchedKey, Math.max(0, poolAvail - alreadyOfferedForThisBatch));
+
+                // Also keep batch-only fallback in sync if a drawing key was consumed
+                if (matchedKey.contains("|") && remainingOfferedMap.containsKey(bNo)) {
+                    int bOnlyAvail = remainingOfferedMap.get(bNo);
+                    remainingOfferedMap.put(bNo, Math.max(0, bOnlyAvail - alreadyOfferedForThisBatch));
+                }
+            }
+
             b.setQtyAccepted(netAccepted);
-            b.setPreviouslyOfferedQty(alreadyOffered);
-            b.setQtyRemaining(Math.max(0, netAccepted - alreadyOffered));
+            b.setPreviouslyOfferedQty(alreadyOfferedForThisBatch);
+            b.setQtyRemaining(Math.max(0, netAccepted - alreadyOfferedForThisBatch));
             availableBatches.add(b);
         }
         dto.setBatches(availableBatches);
         return dto;
+    }
+
+    private String normalizeBatchKey(String bNo) {
+        if (bNo == null) return "";
+        return bNo.trim().toUpperCase().replaceAll("\\s+", "");
     }
 
     private String normalizeDrawingNo(String dNo) {

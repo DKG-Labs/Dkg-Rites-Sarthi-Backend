@@ -397,13 +397,13 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = {Exception.class})
+    @Transactional
     public InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, BigDecimal offeredQty) {
         return updateOfferedQuantity(heatNumber, tcNumber, null, offeredQty);
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = {Exception.class})
+    @Transactional
     public InventoryEntryResponseDto updateOfferedQuantity(String heatNumber, String tcNumber, String subPoNumber, BigDecimal offeredQty) {
         logger.info("Updating offered quantity for heat: {}, TC: {}, Sub PO: {}, offered: {}", heatNumber, tcNumber, subPoNumber, offeredQty);
 
@@ -427,23 +427,31 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
                 .findFirst()
                 .orElse(entries.get(entries.size() - 1));
 
-        // Validate that offered quantity doesn't exceed TC Qty Remaining
-        BigDecimal tcQtyRemaining = entry.getQtyLeftForInspection() != null ? entry.getQtyLeftForInspection()
-                : BigDecimal.ZERO;
-        if (offeredQty.compareTo(tcQtyRemaining) > 0) {
-            logger.warn("⚠️ Offered quantity {} exceeds TC Qty Remaining {} for heat: {}, TC: {}. Adjusting offered deduction to remaining quantity.",
-                    offeredQty, tcQtyRemaining, heatNumber, tcNumber);
-            offeredQty = tcQtyRemaining;
+        // Validate that offered quantity deduction doesn't exceed TC Qty Remaining
+        if (offeredQty.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal tcQtyRemaining = entry.getQtyLeftForInspection() != null ? entry.getQtyLeftForInspection()
+                    : BigDecimal.ZERO;
+            if (offeredQty.compareTo(tcQtyRemaining) > 0) {
+                logger.warn("⚠️ Offered quantity {} exceeds TC Qty Remaining {} for heat: {}, TC: {}. Adjusting offered deduction to remaining quantity.",
+                        offeredQty, tcQtyRemaining, heatNumber, tcNumber);
+                offeredQty = tcQtyRemaining;
+            }
         }
 
         // Update offered quantity (add to existing)
         BigDecimal currentOffered = entry.getOfferedQuantity() != null ? entry.getOfferedQuantity() : BigDecimal.ZERO;
         BigDecimal newOfferedQty = currentOffered.add(offeredQty);
+        if (newOfferedQty.compareTo(BigDecimal.ZERO) < 0) {
+            newOfferedQty = BigDecimal.ZERO;
+        }
         entry.setOfferedQuantity(newOfferedQty);
 
         // Recalculate qty_left_for_inspection
         BigDecimal tcQty = entry.getTcQuantity() != null ? entry.getTcQuantity() : BigDecimal.ZERO;
         BigDecimal qtyLeft = tcQty.subtract(newOfferedQty);
+        if (qtyLeft.compareTo(BigDecimal.ZERO) < 0) {
+            qtyLeft = BigDecimal.ZERO;
+        }
         entry.setQtyLeftForInspection(qtyLeft);
 
         // Update status based on remaining quantity

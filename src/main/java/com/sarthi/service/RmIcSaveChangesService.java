@@ -38,6 +38,7 @@ public class RmIcSaveChangesService {
         entity.setContractorPo(dto.getContractorPo());
         entity.setConsigneeRailway(dto.getConsigneeRailway());
         entity.setConsigneeManufacturer(dto.getConsigneeManufacturer());
+        entity.setBillPayingOfficer(dto.getBillPayingOfficer());
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
         entity.setSpecNo(dto.getSpecNo());
@@ -68,6 +69,7 @@ public class RmIcSaveChangesService {
                 .contractorPo(entity.getContractorPo())
                 .consigneeRailway(entity.getConsigneeRailway())
                 .consigneeManufacturer(entity.getConsigneeManufacturer())
+                .billPayingOfficer(entity.getBillPayingOfficer())
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
                 .specNo(entity.getSpecNo())

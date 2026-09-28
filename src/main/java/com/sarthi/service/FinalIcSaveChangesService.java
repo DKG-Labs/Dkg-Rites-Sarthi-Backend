@@ -38,6 +38,7 @@ public class FinalIcSaveChangesService {
         entity.setQtyPrevPassed(dto.getQtyPrevPassed());
         entity.setQtyStillDue(dto.getQtyStillDue());
         entity.setMaNumberAndDate(dto.getMaNumberAndDate());
+        entity.setBillPayingOfficer(dto.getBillPayingOfficer());
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
         entity.setManufacturer(dto.getManufacturer());
@@ -68,6 +69,7 @@ public class FinalIcSaveChangesService {
                 .qtyPrevPassed(entity.getQtyPrevPassed())
                 .qtyStillDue(entity.getQtyStillDue())
                 .maNumberAndDate(entity.getMaNumberAndDate())
+                .billPayingOfficer(entity.getBillPayingOfficer())
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
                 .manufacturer(entity.getManufacturer())

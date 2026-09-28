@@ -52,6 +52,9 @@ public class RmIcSaveChanges {
     @Column(name = "consignee_manufacturer", columnDefinition = "TEXT")
     private String consigneeManufacturer;
 
+    @Column(name = "bill_paying_officer", columnDefinition = "TEXT")
+    private String billPayingOfficer;
+
     @Column(name = "purchasing_authority", columnDefinition = "TEXT")
     private String purchasingAuthority;
 
