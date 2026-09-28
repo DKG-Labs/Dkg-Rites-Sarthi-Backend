@@ -21,10 +21,10 @@ public class RailInspectionBatch {
     @ToString.Exclude
     private RailInspectionLot lot;
 
-    @Column(name = "batch_no")
+    @Column(name = "batch_no", length = 500)
     private String batchNo;
 
-    @Column(name = "drawing_no")
+    @Column(name = "drawing_no", length = 255)
     private String drawingNo;
 
     @Column(name = "available_qty")

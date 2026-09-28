@@ -22,6 +22,7 @@ public class RmIcSaveChangesDTO {
     private String contractorPo;
     private String consigneeRailway;
     private String consigneeManufacturer;
+    private String billPayingOfficer;
     private String purchasingAuthority;
     private String description;
     private String specNo;

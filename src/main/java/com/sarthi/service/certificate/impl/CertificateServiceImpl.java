@@ -291,6 +291,9 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getConsigneeManufacturer() != null && !saveChanges.getConsigneeManufacturer().isBlank()) {
                 dto.setConsigneeManufacturer(saveChanges.getConsigneeManufacturer());
             }
+            if (saveChanges.getBillPayingOfficer() != null && !saveChanges.getBillPayingOfficer().isBlank()) {
+                dto.setBillPayingOfficer(saveChanges.getBillPayingOfficer());
+            }
             if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) {
                 dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
             }
@@ -336,6 +339,9 @@ public class CertificateServiceImpl implements CertificateService {
                 }
                 if (rmIcEdit.getConsigneeManufacturer() != null && !rmIcEdit.getConsigneeManufacturer().isBlank()) {
                     dto.setConsigneeManufacturer(rmIcEdit.getConsigneeManufacturer());
+                }
+                if (rmIcEdit.getBillPayingOfficer() != null && !rmIcEdit.getBillPayingOfficer().isBlank()) {
+                    dto.setBillPayingOfficer(rmIcEdit.getBillPayingOfficer());
                 }
                 if (rmIcEdit.getPurchasingAuthority() != null && !rmIcEdit.getPurchasingAuthority().isBlank()) {
                     dto.setPurchasingAuthority(rmIcEdit.getPurchasingAuthority());
@@ -1813,6 +1819,9 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getMaNumberAndDate() != null && !saveChanges.getMaNumberAndDate().isBlank()) {
                 dto.setMaNumberAndDate(saveChanges.getMaNumberAndDate());
             }
+            if (saveChanges.getBillPayingOfficer() != null && !saveChanges.getBillPayingOfficer().isBlank()) {
+                dto.setBillPayingOfficer(saveChanges.getBillPayingOfficer());
+            }
             if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) {
                 dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
             }
@@ -1865,6 +1874,9 @@ public class CertificateServiceImpl implements CertificateService {
                 }
                 if (finalIcEdit.getMaNumberAndDate() != null && !finalIcEdit.getMaNumberAndDate().isBlank()) {
                     dto.setMaNumberAndDate(finalIcEdit.getMaNumberAndDate());
+                }
+                if (finalIcEdit.getBillPayingOfficer() != null && !finalIcEdit.getBillPayingOfficer().isBlank()) {
+                    dto.setBillPayingOfficer(finalIcEdit.getBillPayingOfficer());
                 }
                 if (finalIcEdit.getPurchasingAuthority() != null && !finalIcEdit.getPurchasingAuthority().isBlank()) {
                     dto.setPurchasingAuthority(finalIcEdit.getPurchasingAuthority());

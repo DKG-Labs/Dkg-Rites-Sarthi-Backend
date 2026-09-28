@@ -23,6 +23,7 @@ public class SleeperFinalIcSaveChangesDTO {
     private String qtyPrevPassed;
     private String qtyStillDue;
     private String maNumberAndDate;
+    private String billPayingOfficer;
     private String purchasingAuthority;
     private String description;
     private String manufacturer;

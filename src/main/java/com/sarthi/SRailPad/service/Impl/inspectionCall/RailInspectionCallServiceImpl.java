@@ -233,7 +233,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
                 "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
                 "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
-                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish");
+                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish",
+                "SEND_CALL_TO_IBS", "Send_call_to_ibs", "SEND CALL TO IBS", "Send call to ibs",
+                "SEND_TO_IBS", "Send_to_ibs", "SEND TO IBS", "Send to ibs");
         Page<RailInspectionCall> page;
         if ("pending".equalsIgnoreCase(statusType)) {
             page = repository.findPendingCallsForPlantNative(plantId, terminalStatuses, pageable);
@@ -252,7 +254,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
                 "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
                 "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
-                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish");
+                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish",
+                "SEND_CALL_TO_IBS", "Send_call_to_ibs", "SEND CALL TO IBS", "Send call to ibs",
+                "SEND_TO_IBS", "Send_to_ibs", "SEND TO IBS", "Send to ibs");
         Page<RailInspectionCall> page = repository.findCompletedCallsForPlantNative(plantId, exactStatuses, pageable);
         page.forEach(this::enrichCallData);
         return page;
