@@ -1307,11 +1307,23 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys(targetSleeperType, targetVendorId));
         }
 
-        // ── Bulk Upfront Fetch 3: Passed Lab Tests (Water Cube & MOR) ────────
-        Set<String> passedWaterCubeBatchNos = new HashSet<>(waterCubeStrengthTestRepository.findPassedBatchNumbersIn(batchNumbers));
-        Set<String> passedMORBatchNos = new HashSet<>(momentOfResistanceTestRepository.findPassedBatchNumbersIn(batchNumbers));
+        // ── Expand batch numbers in-memory to leverage DB index on batch_number ──
+        Set<String> expandedBatchNumbers = new HashSet<>();
+        for (String b : batchNumbers) {
+            if (b == null || b.isBlank()) continue;
+            String clean = b.trim();
+            expandedBatchNumbers.add(clean);
+            String stripped = clean.replaceAll("(?i)^[wb\\-_\\s]+", "").trim();
+            if (!stripped.isEmpty()) {
+                expandedBatchNumbers.add(stripped);
+                expandedBatchNumbers.add("B-" + stripped);
+                expandedBatchNumbers.add("b-" + stripped);
+                expandedBatchNumbers.add("W-" + stripped);
+                expandedBatchNumbers.add("w-" + stripped);
+            }
+        }
 
-        // ── Bulk Upfront Fetch 4: Inspection Test Results for all batches ────
+        // ── Bulk Upfront Fetch 3: Inspection Test Results for all batches ────
         List<InspectionTestResult> allResults = resultRepository.findAllResultsByBatchIds(batchIds);
         Map<Long, List<InspectionTestResult>> resultsByBatchId = (allResults != null)
                 ? allResults.stream()
@@ -1319,8 +1331,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 .collect(Collectors.groupingBy(r -> r.getTestHeader().getBatchId()))
                 : Collections.emptyMap();
 
-        // ── Bulk Upfront Fetch 5: ET Sleeper Details for all batch numbers ───
-        List<EtSleeperDetails> allEtDetails = etSleeperDetailsRepository.findByEt_BatchNumberIn(batchNumbers);
+        // ── Bulk Upfront Fetch 4: ET Sleeper Details for all batch numbers ───
+        List<EtSleeperDetails> allEtDetails = etSleeperDetailsRepository.findByEt_BatchNumberIn(expandedBatchNumbers);
         Map<String, Set<Long>> etSleeperIdsByBatchNo = (allEtDetails != null)
                 ? allEtDetails.stream()
                 .filter(e -> e.getEt() != null && e.getEt().getBatchNumber() != null && e.getSleeperId() != null)
@@ -1330,7 +1342,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 ))
                 : Collections.emptyMap();
 
-        // ── Bulk Upfront Fetch 6: Demoulding Inspections with Defects ────────
+        // ── Bulk Upfront Fetch 5: Demoulding Inspections with Defects ────────
         String plantIdParam = declarations.stream()
                 .map(ProductionDeclaration::getPlantId)
                 .filter(Objects::nonNull)
@@ -1338,14 +1350,14 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 .orElse(null);
 
         List<DemouldingInspection> allDemouldings = demouldingInspectionRepository.findByBatchNoInWithDefects(
-                batchNumbers, targetSleeperType, vendorCodeStr, parsedUserId, plantIdParam);
+                expandedBatchNumbers, targetSleeperType, vendorCodeStr, parsedUserId, plantIdParam);
         Map<String, List<DemouldingInspection>> demouldingsByBatchNo = (allDemouldings != null)
                 ? allDemouldings.stream()
                 .filter(d -> d.getBatchNo() != null)
                 .collect(Collectors.groupingBy(d -> d.getBatchNo().trim()))
                 : Collections.emptyMap();
 
-        // ── Bulk Upfront Fetch 7: Production Sleepers for all batches ────────
+        // ── Bulk Upfront Fetch 6: Production Sleepers for all batches ────────
         List<Object[]> allProdSleeperRows = productionSleeperRepository.getSleepersWithBatchIdByBatchIds(batchIds);
         Map<Long, List<ProductionSleeper>> prodSleepersByBatchId = new HashMap<>();
         if (allProdSleeperRows != null) {
@@ -1360,20 +1372,23 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             }
         }
 
-        // ── Bulk Upfront Fetch 8: MOR Tests and Declarations ─────────────────
-        List<MomentOfResistanceTest> allMorTests = momentOfResistanceTestRepository.findByBatchNumbersIn(batchNumbers);
+        // ── Bulk Upfront Fetch 7: MOR Tests and Declarations ─────────────────
+        List<MomentOfResistanceTest> allMorTests = momentOfResistanceTestRepository.findByBatchNumbersIn(expandedBatchNumbers);
         Map<String, List<MomentOfResistanceTest>> morTestsByBatchNo = (allMorTests != null)
                 ? allMorTests.stream()
                 .filter(m -> m.getBatchNumber() != null)
                 .collect(Collectors.groupingBy(m -> m.getBatchNumber().trim()))
                 : Collections.emptyMap();
 
-        List<MomentOfResistance> allMorDeclarations = momentOfResistanceRepository.findByBatchNumbersIn(batchNumbers);
+        List<MomentOfResistance> allMorDeclarations = momentOfResistanceRepository.findByBatchNumbersIn(expandedBatchNumbers);
         Map<String, List<MomentOfResistance>> morDeclarationsByBatchNo = (allMorDeclarations != null)
                 ? allMorDeclarations.stream()
                 .filter(m -> m.getBatchNumber() != null)
                 .collect(Collectors.groupingBy(m -> m.getBatchNumber().trim()))
                 : Collections.emptyMap();
+
+        // ── Bulk Upfront Fetch 8: Water Cube Tests ───────────────────────────
+        List<WaterCubeStrengthTest> allWaterCubeTests = waterCubeStrengthTestRepository.findByBatchNumbersIn(expandedBatchNumbers);
 
         List<BatchInspectionResponseDto> responseList = new ArrayList<>();
 
@@ -1386,6 +1401,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             }
 
             String currentBatchNo = declaration.getBatchNumber().trim();
+            String declPlant = declaration.getPlantId() != null ? declaration.getPlantId().trim() : "";
+            String declVendor = declaration.getVendorCode() != null ? declaration.getVendorCode().trim() : "";
+            LocalDate declCastDate = declaration.getCastingDate();
 
             boolean isCallBatch = false;
             if (callBatchNos != null && !callBatchNos.isEmpty()) {
@@ -1393,9 +1411,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 isCallBatch = callBatchNos.stream().anyMatch(cb -> cb != null && cb.trim().equalsIgnoreCase(bNo));
             }
 
-            // Lab test verification using in-memory pre-fetched sets
-            boolean passedWaterCube = isBatchLabPassed(currentBatchNo, passedWaterCubeBatchNos);
-            boolean passedMOR = isBatchLabPassed(currentBatchNo, passedMORBatchNos);
+            // Lab test verification using in-memory pre-fetched sets & entity filters
+            boolean passedWaterCube = isWaterCubeLabPassedForDeclaration(declaration, allWaterCubeTests, parsedUserId);
+            boolean passedMOR = isMorLabPassedForDeclaration(declaration, allMorTests, parsedUserId, targetSleeperType);
 
             if (!isCallBatch && (!passedWaterCube || !passedMOR)) {
                 continue;
@@ -1408,7 +1426,17 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             List<SleeperDto> goodSleepers = new ArrayList<>();
             List<BadSleeperDto> badSleepers = new ArrayList<>();
 
-            Set<Long> etSleeperIds = etSleeperIdsByBatchNo.getOrDefault(currentBatchNo, Collections.emptySet());
+            Set<Long> etSleeperIds = (allEtDetails != null)
+                    ? allEtDetails.stream()
+                    .filter(e -> e.getEt() != null && e.getEt().getBatchNumber() != null && e.getSleeperId() != null)
+                    .filter(e -> isBatchMatch(e.getEt().getBatchNumber(), currentBatchNo))
+                    .filter(e -> isPlantMatch(declPlant, e.getEt().getPlantId()))
+                    .filter(e -> isVendorMatch(declVendor, e.getEt().getVendorCode(), parsedUserId))
+                    .filter(e -> isSleeperTypeMatch(targetSleeperType, e.getEt().getSleeperType()))
+                    .filter(e -> isCastingLocalDateMatch(declCastDate, e.getEt().getDateOfCasting()))
+                    .map(EtSleeperDetails::getSleeperId)
+                    .collect(Collectors.toSet())
+                    : Collections.emptySet();
 
             for (Map.Entry<Long, List<InspectionTestResult>> entry : grouped.entrySet()) {
                 List<InspectionTestResult> sleeperResults = entry.getValue();
@@ -1476,27 +1504,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             List<DemouldingInspection> demouldings = demouldingsByBatchNo.getOrDefault(currentBatchNo, Collections.emptyList());
             for (DemouldingInspection di : demouldings) {
                 // Sleeper type match check
-                if (targetSleeperType != null && di.getSleeperType() != null && !di.getSleeperType().isBlank()) {
-                    if (!di.getSleeperType().trim().equalsIgnoreCase(targetSleeperType)) {
-                        continue;
-                    }
+                if (!isSleeperTypeMatch(targetSleeperType, di.getSleeperType())) {
+                    continue;
                 }
 
                 // Vendor / Plant match check
-                String declPlant = declaration.getPlantId() != null ? declaration.getPlantId().trim() : "";
-                String declVendor = declaration.getVendorCode() != null ? declaration.getVendorCode().trim() : "";
-                String diPlant = di.getPlantId() != null ? di.getPlantId().trim() : "";
-                String diVendor = di.getVendorCode() != null ? di.getVendorCode().trim() : "";
-
-                boolean vendorMatch = declVendor.isEmpty() || diVendor.isEmpty()
-                        || declVendor.equalsIgnoreCase(diVendor)
-                        || (!parsedUserId.isEmpty() && diVendor.contains(parsedUserId));
-
-                boolean plantMatch = declPlant.isEmpty() || diPlant.isEmpty()
-                        || declPlant.equalsIgnoreCase(diPlant)
-                        || (!parsedUserId.isEmpty() && diPlant.contains(parsedUserId));
-
-                if (!vendorMatch && !plantMatch) {
+                if (!isPlantMatch(declPlant, di.getPlantId())) {
+                    continue;
+                }
+                if (!isVendorMatch(declVendor, di.getVendorCode(), parsedUserId)) {
+                    continue;
+                }
+                if (!isCastingLocalDateMatch(declCastDate, di.getCastingDate())) {
                     continue;
                 }
 
@@ -1585,6 +1604,20 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 if (mor.getSleeperNo() == null || mor.getSleeperNo().isBlank()) {
                     continue;
                 }
+                // Verify plant, vendor, sleeperType, and castingDate match
+                if (!isPlantMatch(declPlant, mor.getPlantId())) {
+                    continue;
+                }
+                if (!isVendorMatch(declVendor, mor.getVendorCode(), parsedUserId)) {
+                    continue;
+                }
+                if (!isSleeperTypeMatch(targetSleeperType, mor.getSleeperType())) {
+                    continue;
+                }
+                if (!isCastingDateMatch(declCastDate, mor.getCastingDate())) {
+                    continue;
+                }
+
                 String testRes = mor.getTestResult() != null ? mor.getTestResult().trim() : "";
                 boolean isPass = testRes.equalsIgnoreCase("Pass") || testRes.equalsIgnoreCase("OK") || testRes.equalsIgnoreCase("Completed");
                 if (!isPass) {
@@ -1646,6 +1679,17 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 if (mor.getSleeperNo() == null || mor.getSleeperNo().isBlank()) {
                     continue;
                 }
+                // Verify plant, vendor, sleeperType
+                if (!isPlantMatch(declPlant, mor.getPlantId())) {
+                    continue;
+                }
+                if (!isVendorMatch(declVendor, mor.getVendorCode(), parsedUserId)) {
+                    continue;
+                }
+                if (!isSleeperTypeMatch(targetSleeperType, mor.getSleeperType())) {
+                    continue;
+                }
+
                 String testRes = mor.getTestResult() != null ? mor.getTestResult().trim() : "";
                 boolean isRejected = testRes.equalsIgnoreCase("Retest") || testRes.equalsIgnoreCase("Fail") || testRes.equalsIgnoreCase("Rejected");
                 if (isRejected) {
@@ -1826,6 +1870,121 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             String cleanP = p.replaceAll("(?i)^[wb\\-_\\s]+", "").trim();
             String cleanB = b.replaceAll("(?i)^[wb\\-_\\s]+", "").trim();
             if (!cleanP.isEmpty() && cleanP.equalsIgnoreCase(cleanB)) return true;
+        }
+        return false;
+    }
+
+    private boolean isPlantMatch(String plant1, String plant2) {
+        if (plant1 == null || plant1.isBlank() || plant2 == null || plant2.isBlank()) {
+            return true;
+        }
+        String clean1 = plant1.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        String clean2 = plant2.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        if (clean1.isEmpty() || clean2.isEmpty()) return true;
+        return clean1.equals(clean2) || clean1.contains(clean2) || clean2.contains(clean1);
+    }
+
+    private boolean isVendorMatch(String vendor1, String vendor2, String parsedUserId) {
+        if (vendor1 == null || vendor1.isBlank() || vendor2 == null || vendor2.isBlank()) {
+            return true;
+        }
+        String clean1 = vendor1.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        String clean2 = vendor2.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        if (clean1.isEmpty() || clean2.isEmpty()) return true;
+        if (clean1.equals(clean2) || clean1.contains(clean2) || clean2.contains(clean1)) return true;
+        if (parsedUserId != null && !parsedUserId.isBlank()) {
+            String cleanUser = parsedUserId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+            if (!cleanUser.isEmpty() && (clean1.contains(cleanUser) || clean2.contains(cleanUser))) return true;
+        }
+        return false;
+    }
+
+    private boolean isSleeperTypeMatch(String type1, String type2) {
+        if (type1 == null || type1.isBlank() || type2 == null || type2.isBlank()) {
+            return true;
+        }
+        String clean1 = type1.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        String clean2 = type2.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        return clean1.equals(clean2) || clean1.contains(clean2) || clean2.contains(clean1);
+    }
+
+    private boolean isCastingDateMatch(LocalDate dDate, String testDateStr) {
+        if (dDate == null || testDateStr == null || testDateStr.isBlank()) {
+            return true;
+        }
+        String cleanTest = testDateStr.trim();
+        if (cleanTest.contains(dDate.toString())) {
+            return true;
+        }
+        String digits = cleanTest.replaceAll("[^0-9]", "");
+        String ymd = String.format("%04d%02d%02d", dDate.getYear(), dDate.getMonthValue(), dDate.getDayOfMonth());
+        String dmy = String.format("%02d%02d%04d", dDate.getDayOfMonth(), dDate.getMonthValue(), dDate.getYear());
+        String mdy = String.format("%02d%02d%04d", dDate.getMonthValue(), dDate.getDayOfMonth(), dDate.getYear());
+        return digits.equals(ymd) || digits.equals(dmy) || digits.equals(mdy) || digits.contains(ymd) || digits.contains(dmy);
+    }
+
+    private boolean isCastingLocalDateMatch(LocalDate dDate, LocalDate testDate) {
+        if (dDate == null || testDate == null) return true;
+        return dDate.equals(testDate);
+    }
+
+    private boolean isBatchMatch(String b1, String b2) {
+        if (b1 == null || b2 == null) return false;
+        String s1 = b1.trim().toUpperCase();
+        String s2 = b2.trim().toUpperCase();
+        if (s1.equals(s2)) return true;
+        String clean1 = s1.replaceAll("^[WB\\-_\\s]+", "").trim();
+        String clean2 = s2.replaceAll("^[WB\\-_\\s]+", "").trim();
+        return !clean1.isEmpty() && clean1.equals(clean2);
+    }
+
+    private boolean isMorLabPassedForDeclaration(ProductionDeclaration declaration, List<MomentOfResistanceTest> allMorTests, String parsedUserId, String targetSleeperType) {
+        if (declaration == null || declaration.getBatchNumber() == null) return false;
+        String bNo = declaration.getBatchNumber().trim();
+        String declPlant = declaration.getPlantId();
+        String declVendor = declaration.getVendorCode();
+        LocalDate declCastDate = declaration.getCastingDate();
+
+        if (allMorTests != null && !allMorTests.isEmpty()) {
+            List<MomentOfResistanceTest> matchingTests = allMorTests.stream()
+                    .filter(m -> m != null && m.getBatchNumber() != null && isBatchMatch(m.getBatchNumber(), bNo))
+                    .filter(m -> isPlantMatch(declPlant, m.getPlantId()))
+                    .filter(m -> isVendorMatch(declVendor, m.getVendorCode(), parsedUserId))
+                    .filter(m -> isSleeperTypeMatch(targetSleeperType, m.getSleeperType()))
+                    .filter(m -> isCastingDateMatch(declCastDate, m.getCastingDate()))
+                    .collect(Collectors.toList());
+
+            if (!matchingTests.isEmpty()) {
+                return matchingTests.stream().anyMatch(m -> {
+                    String res = m.getTestResult() != null ? m.getTestResult().trim().toUpperCase() : "";
+                    return res.startsWith("PASS") || res.equals("OK") || res.equals("COMPLETED");
+                });
+            }
+        }
+        return false;
+    }
+
+    private boolean isWaterCubeLabPassedForDeclaration(ProductionDeclaration declaration, List<WaterCubeStrengthTest> allWaterCubeTests, String parsedUserId) {
+        if (declaration == null || declaration.getBatchNumber() == null) return false;
+        String bNo = declaration.getBatchNumber().trim();
+        String declPlant = declaration.getPlantId();
+        String declVendor = declaration.getVendorCode();
+        LocalDate declCastDate = declaration.getCastingDate();
+
+        if (allWaterCubeTests != null && !allWaterCubeTests.isEmpty()) {
+            List<WaterCubeStrengthTest> matchingTests = allWaterCubeTests.stream()
+                    .filter(w -> w != null && w.getBatchNumber() != null && isBatchMatch(w.getBatchNumber(), bNo))
+                    .filter(w -> isPlantMatch(declPlant, w.getPlantId()))
+                    .filter(w -> isVendorMatch(declVendor, w.getVendorCode(), parsedUserId))
+                    .filter(w -> isCastingDateMatch(declCastDate, w.getCastingDate()))
+                    .collect(Collectors.toList());
+
+            if (!matchingTests.isEmpty()) {
+                return matchingTests.stream().anyMatch(w -> {
+                    String res = w.getFinalTestResult() != null ? w.getFinalTestResult().trim().toUpperCase() : "";
+                    return res.startsWith("PASS");
+                });
+            }
         }
         return false;
     }
