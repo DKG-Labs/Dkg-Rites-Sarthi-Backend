@@ -1705,6 +1705,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Override
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName, String plantId, Long workflowId, Long moduleId) {
+        return allPendingWorkflowTransitions(roleName, null, plantId, workflowId, moduleId);
+    }
+
+    @Override
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, Long assignedTo, String plantId, Long workflowId, Long moduleId) {
 
         List<RailWorkflowTransaction> list = null;
 
@@ -1750,9 +1756,17 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         if (list != null && !list.isEmpty()) {
             preloadCache(list, cache);
         }
-        return list.stream()
+        List<RailWorkflowTransactionDto> result = list.stream()
                 .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
+
+        if (assignedTo != null) {
+            result = result.stream()
+                    .filter(dto -> dto.getAssignedToUser() != null && dto.getAssignedToUser().equals(assignedTo))
+                    .toList();
+        }
+
+        return result;
     }
 
 

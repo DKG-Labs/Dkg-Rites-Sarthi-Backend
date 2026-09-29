@@ -19,6 +19,7 @@ import com.sarthi.repository.mfa.LoginOtpRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
+import com.sarthi.entity.IBS.SarthiIbsPoiMapping;
 import com.sarthi.entity.UserProfileAuditLog;
 import com.sarthi.repository.UserProfileAuditRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -111,6 +112,8 @@ public class UserServiceImpl implements UserService {
     private com.sarthi.repository.WorkflowTransitionRepository workflowTransitionRepository;
     @Autowired
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
+    @Autowired
+    private com.sarthi.repository.SarthiIbsPoiMappingRepository sarthiIbsPoiMappingRepository;
 
 
 
@@ -2090,7 +2093,7 @@ public class UserServiceImpl implements UserService {
                 if (cleanPhone != null && !cleanPhone.isEmpty() && cleanPhone.length() != 10) {
                     throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION, "Contact Person Number for " + unitDto.getUnitName() + " must be exactly 10 digits"));
                 }
-                mapping.setContactPersonNumber(cleanPhone);
+                mapping.setContactPersonNumber(cleanPhone != null && !cleanPhone.isEmpty() ? cleanPhone : null);
                 mapping.setVendorCode(vendorCodeFormatted);
                 mapping.setStatus(unitDto.getStatus() != null ? unitDto.getStatus() : "Active");
 
@@ -2103,6 +2106,19 @@ public class UserServiceImpl implements UserService {
                 }
 
                 pincodePoIMappingRepository.save(mapping);
+
+                // Sync with sarthi_ibs_poi_mapping
+                if (mapping.getPoiCode() != null && !mapping.getPoiCode().trim().isEmpty()) {
+                    String pCode = mapping.getPoiCode().trim();
+                    SarthiIbsPoiMapping ibsMap = sarthiIbsPoiMappingRepository.findBestMatch(pCode, "erc")
+                            .orElse(new SarthiIbsPoiMapping());
+                    ibsMap.setPoiCode(pCode);
+                    if (unitDto.getIbsVendorCode() != null && !unitDto.getIbsVendorCode().trim().isEmpty()) {
+                        ibsMap.setIbsVendorCode(unitDto.getIbsVendorCode().trim());
+                    }
+                    ibsMap.setProductType("erc");
+                    sarthiIbsPoiMappingRepository.save(ibsMap);
+                }
 
                 // 5. Ensure entry in IE_FIELDS_MAPPING for product ERC
                 if (mapping.getPinCode() != null && !mapping.getPinCode().trim().isEmpty()) {
@@ -2200,6 +2216,15 @@ public class UserServiceImpl implements UserService {
                 uDto.setContactPerson(u.getContactPerson());
                 uDto.setContactPersonNumber(u.getContactPersonNumber());
                 uDto.setPoiCode(u.getPoiCode());
+                
+                String ibsCode = null;
+                if (u.getPoiCode() != null && !u.getPoiCode().trim().isEmpty()) {
+                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(u.getPoiCode().trim(), "erc");
+                    if (ibsOpt.isPresent()) {
+                        ibsCode = ibsOpt.get().getIbsVendorCode();
+                    }
+                }
+                uDto.setIbsVendorCode(ibsCode);
                 uDto.setStatus(u.getStatus() != null ? u.getStatus() : "Active");
 
                 // Resolve RIO
@@ -2433,10 +2458,23 @@ public class UserServiceImpl implements UserService {
                 vp.setZonalRailway(plantDto.getZonalRailway());
                 vp.setContactPerson(plantDto.getContactPerson() != null ? plantDto.getContactPerson().trim() : null);
                 vp.setContactPersonNumber(cleanPhone);
+                vp.setPlantAddress(plantDto.getPlantAddress() != null ? plantDto.getPlantAddress().trim() : null);
                 if (userMaster.getUserId() != null) {
                     vp.setVendorId(userMaster.getUserId().longValue());
                 }
                 vendorPlantRepository.save(vp);
+
+                // Sync IBS Vendor Code in sarthi_ibs_poi_mapping
+                if (plantId != null && !plantId.trim().isEmpty()) {
+                    SarthiIbsPoiMapping mapEntity = sarthiIbsPoiMappingRepository.findBestMatch(plantId, "sleeper")
+                            .orElse(new SarthiIbsPoiMapping());
+                    mapEntity.setPoiCode(plantId);
+                    if (plantDto.getIbsVendorCode() != null && !plantDto.getIbsVendorCode().trim().isEmpty()) {
+                        mapEntity.setIbsVendorCode(plantDto.getIbsVendorCode().trim());
+                    }
+                    mapEntity.setProductType("sleeper");
+                    sarthiIbsPoiMappingRepository.save(mapEntity);
+                }
 
                 // Ensure entry in IE_FIELDS_MAPPING for product Sleeper
                 if (!plantPincode.isEmpty()) {
@@ -2577,6 +2615,16 @@ public class UserServiceImpl implements UserService {
                 pDto.setZonalRailway(vp.getZonalRailway());
                 pDto.setContactPerson(vp.getContactPerson());
                 pDto.setContactPersonNumber(vp.getContactPersonNumber());
+                pDto.setPlantAddress(vp.getPlantAddress());
+
+                String ibsCode = null;
+                if (vp.getPlantId() != null && !vp.getPlantId().trim().isEmpty()) {
+                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(vp.getPlantId().trim(), "sleeper");
+                    if (ibsOpt.isPresent()) {
+                        ibsCode = ibsOpt.get().getIbsVendorCode();
+                    }
+                }
+                pDto.setIbsVendorCode(ibsCode);
                 pDto.setStatus("Active");
                 plantList.add(pDto);
             }
@@ -2776,6 +2824,7 @@ public class UserServiceImpl implements UserService {
                 vp.setZonalRailway(plantDto.getZonalRailway());
                 vp.setContactPerson(plantDto.getContactPerson() != null ? plantDto.getContactPerson().trim() : null);
                 vp.setContactPersonNumber(cleanPhone);
+                vp.setPlantAddress(plantDto.getPlantAddress() != null ? plantDto.getPlantAddress().trim() : null);
                 vp.setStatus(plantDto.getStatus() != null ? plantDto.getStatus() : "Active");
                 if (userMaster.getUserId() != null) {
                     vp.setVendorId(userMaster.getUserId().longValue());
@@ -2785,6 +2834,18 @@ public class UserServiceImpl implements UserService {
                 }
                 vp.setUpdatedDate(LocalDateTime.now());
                 railVendorPlantsRepository.save(vp);
+
+                // Sync IBS Vendor Code in sarthi_ibs_poi_mapping
+                if (plantId != null && !plantId.trim().isEmpty()) {
+                    SarthiIbsPoiMapping mapEntity = sarthiIbsPoiMappingRepository.findBestMatch(plantId, "railpad")
+                            .orElse(new SarthiIbsPoiMapping());
+                    mapEntity.setPoiCode(plantId);
+                    if (plantDto.getIbsVendorCode() != null && !plantDto.getIbsVendorCode().trim().isEmpty()) {
+                        mapEntity.setIbsVendorCode(plantDto.getIbsVendorCode().trim());
+                    }
+                    mapEntity.setProductType("railpad");
+                    sarthiIbsPoiMappingRepository.save(mapEntity);
+                }
 
                 // Ensure entry in IE_FIELDS_MAPPING for product Rail Pad
                 if (!plantPincode.isEmpty()) {
@@ -2925,6 +2986,22 @@ public class UserServiceImpl implements UserService {
                 pDto.setZonalRailway(vp.getZonalRailway());
                 pDto.setContactPerson(vp.getContactPerson());
                 pDto.setContactPersonNumber(vp.getContactPersonNumber());
+                pDto.setPlantAddress(vp.getPlantAddress());
+
+                String ibsCode = null;
+                if (vp.getPlantId() != null && !vp.getPlantId().trim().isEmpty()) {
+                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(vp.getPlantId().trim(), "railpad");
+                    if (ibsOpt.isPresent()) {
+                        ibsCode = ibsOpt.get().getIbsVendorCode();
+                    }
+                }
+                if ((ibsCode == null || ibsCode.trim().isEmpty()) && rpm != null && rpm.getPoiCode() != null) {
+                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(rpm.getPoiCode().trim(), "railpad");
+                    if (ibsOpt.isPresent()) {
+                        ibsCode = ibsOpt.get().getIbsVendorCode();
+                    }
+                }
+                pDto.setIbsVendorCode(ibsCode);
                 pDto.setStatus(vp.getStatus() != null ? vp.getStatus() : "Active");
                 plantList.add(pDto);
             }

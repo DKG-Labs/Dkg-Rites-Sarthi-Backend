@@ -30,11 +30,14 @@ public class RailWorkFlowController {
     @GetMapping("/allPendingWorkflowTransition")
     public ResponseEntity<Object> allPendingWorkflowTransition(
             @RequestParam String roleName,
+            @RequestParam(required = false) Long assignedTo,
+            @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String plantId,
             @RequestParam(required = false) Long workflowId,
             @RequestParam(required = false) Long moduleId)  {
 
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName, plantId, workflowId, moduleId)), HttpStatus.OK);
+        Long effectiveAssignedTo = assignedTo != null ? assignedTo : userId;
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.allPendingWorkflowTransitions(roleName, effectiveAssignedTo, plantId, workflowId, moduleId)), HttpStatus.OK);
     }
 
     @GetMapping("/WorkflowTransitionHistory")

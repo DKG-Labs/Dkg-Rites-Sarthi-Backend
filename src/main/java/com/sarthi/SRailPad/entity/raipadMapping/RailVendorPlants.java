@@ -44,6 +44,9 @@ public class RailVendorPlants {
         @Column(name = "contact_person_number", length = 20)
         private String contactPersonNumber;
 
+        @Column(name = "plant_address", length = 500)
+        private String plantAddress;
+
         @Column(name = "status", length = 50)
         private String status;
 

@@ -25,6 +25,108 @@ public class CertificateStorageController {
 
     private final AzureBlobStorageService azureBlobStorageService;
     private final CertificateStorageRepository certificateStorageRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    private java.time.LocalDate parseLocalDate(String dateStr) {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
+            return null;
+        }
+        String clean = dateStr.trim();
+        if (clean.contains("T")) {
+            clean = clean.split("T")[0];
+        } else if (clean.contains(" ")) {
+            clean = clean.split(" ")[0];
+        }
+
+        try {
+            return java.time.LocalDate.parse(clean, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE);
+        } catch (Exception ignored) {}
+
+        try {
+            return java.time.LocalDate.parse(clean, java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+        } catch (Exception ignored) {}
+
+        try {
+            return java.time.LocalDate.parse(clean, java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        } catch (Exception ignored) {}
+
+        try {
+            return java.time.LocalDate.parse(clean, java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        } catch (Exception ignored) {}
+
+        log.warn("Could not parse date string: {}", dateStr);
+        return null;
+    }
+
+    private void syncIcDateToInspectionTables(String icNumber, java.time.LocalDate icDate) {
+        if (icNumber == null || icNumber.trim().isEmpty() || icDate == null) {
+            return;
+        }
+
+        String raw = icNumber.trim();
+        String clean = raw.endsWith(".pdf") ? raw.substring(0, raw.length() - 4) : raw;
+
+        String innerToken = clean;
+        if (clean.contains("/")) {
+            String[] parts = clean.split("/");
+            if (parts.length >= 2 && !parts[1].trim().isEmpty()) {
+                innerToken = parts[1].trim();
+            }
+        }
+
+        java.sql.Timestamp timestamp = java.sql.Timestamp.valueOf(icDate.atStartOfDay());
+        java.sql.Date sqlDate = java.sql.Date.valueOf(icDate);
+
+        log.info("Syncing icDate {} to inspection tables for IC/Call: {} (clean: {}, token: {})",
+                icDate, raw, clean, innerToken);
+
+        updateSafely("UPDATE sleeper_final_ic_edit SET created_at = ? WHERE ic_number = ? OR ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE railpad_final_ic_edit SET created_at = ? WHERE ic_number = ? OR ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE railpad_process_ic_edit SET created_at = ? WHERE ic_number = ? OR ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE final_ic_edit SET created_at = ? WHERE ic_number = ? OR ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE process_ic_edit SET created_at = ? WHERE ic_number = ? OR ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE rm_ic_edit SET created_at = ? WHERE ic_number = ? OR ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE final_cumulative_results SET created_at = ?, date_of_inspection = ? WHERE inspection_call_no = ? OR inspection_call_no = ? OR inspection_call_no LIKE ? OR inspection_call_no LIKE ?",
+                timestamp, sqlDate, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE process_line_final_result SET created_at = ?, date_of_inspection = ? WHERE inspection_call_no = ? OR inspection_call_no = ? OR inspection_call_no LIKE ? OR inspection_call_no LIKE ?",
+                timestamp, sqlDate, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE rm_heat_final_result SET created_at = ?, date_of_inspection = ? WHERE inspection_call_no = ? OR inspection_call_no = ? OR inspection_call_no LIKE ? OR inspection_call_no LIKE ?",
+                timestamp, sqlDate, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE sleeper_inspection_complete_details SET created_on = ? WHERE call_no = ? OR call_no = ? OR certificate_no LIKE ? OR certificate_no LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE rail_inspection_complete_details SET created_on = ? WHERE call_no = ? OR call_no = ? OR certificate_no LIKE ? OR certificate_no LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+
+        updateSafely("UPDATE inspection_complete_details SET created_on = ? WHERE call_no = ? OR call_no = ? OR certificate_no LIKE ? OR certificate_no LIKE ?",
+                timestamp, clean, innerToken, "%" + clean + "%", "%" + innerToken + "%");
+    }
+
+    private void updateSafely(String sql, Object... params) {
+        try {
+            int rows = jdbcTemplate.update(sql, params);
+            if (rows > 0) {
+                log.info("Successfully updated {} row(s) with SQL: {}", rows, sql.split("WHERE")[0]);
+            }
+        } catch (Exception e) {
+            log.debug("Table/column update skipped or failed for SQL: {} - {}", sql, e.getMessage());
+        }
+    }
 
     /**
      * Upload an e-signed certificate PDF (Base64) to Azure Blob Storage and save metadata in DB.
@@ -35,6 +137,7 @@ public class CertificateStorageController {
         String base64Data = payload.get("signedData");
         String fileName = payload.get("fileName");
         String uploadedBy = payload.get("uploadedBy");
+        String icDateStr = payload.get("icDate");
 
         if (icNumber == null || icNumber.trim().isEmpty() || base64Data == null || base64Data.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -56,20 +159,30 @@ public class CertificateStorageController {
             CertificateStorage storage = certificateStorageRepository.findByIcNumber(icNumber.trim())
                     .orElse(new CertificateStorage());
 
+            java.time.LocalDate parsedDate = parseLocalDate(icDateStr);
+
             storage.setIcNumber(icNumber.trim());
             storage.setBlobUrl(blobUrl);
             storage.setFileName(targetFileName);
             storage.setUploadedBy(uploadedBy != null ? uploadedBy : "Inspecting Engineer");
             storage.setUploadedAt(LocalDateTime.now());
+            if (parsedDate != null) {
+                storage.setIcDate(parsedDate);
+            }
 
             certificateStorageRepository.save(storage);
+
+            if (parsedDate != null) {
+                syncIcDateToInspectionTables(icNumber, parsedDate);
+            }
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Certificate uploaded successfully to Azure and database",
                 "icNumber", icNumber,
                 "fileName", targetFileName,
-                "url", blobUrl
+                "url", blobUrl,
+                "icDate", storage.getIcDate() != null ? storage.getIcDate().toString() : ""
             ));
 
         } catch (Exception e) {
@@ -88,7 +201,8 @@ public class CertificateStorageController {
     public ResponseEntity<?> uploadCertificateFile(
             @RequestParam("file") MultipartFile file,
             @RequestParam("icNumber") String icNumber,
-            @RequestParam(value = "uploadedBy", required = false) String uploadedBy) {
+            @RequestParam(value = "uploadedBy", required = false) String uploadedBy,
+            @RequestParam(value = "icDate", required = false) String icDate) {
 
         if (icNumber == null || icNumber.trim().isEmpty() || file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -108,20 +222,30 @@ public class CertificateStorageController {
             CertificateStorage storage = certificateStorageRepository.findByIcNumber(icNumber.trim())
                     .orElse(new CertificateStorage());
 
+            java.time.LocalDate parsedDate = parseLocalDate(icDate);
+
             storage.setIcNumber(icNumber.trim());
             storage.setBlobUrl(blobUrl);
             storage.setFileName(targetFileName);
             storage.setUploadedBy(uploadedBy != null ? uploadedBy : "Inspecting Engineer");
             storage.setUploadedAt(LocalDateTime.now());
+            if (parsedDate != null) {
+                storage.setIcDate(parsedDate);
+            }
 
             certificateStorageRepository.save(storage);
+
+            if (parsedDate != null) {
+                syncIcDateToInspectionTables(icNumber, parsedDate);
+            }
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Certificate file uploaded successfully to Azure and database",
                 "icNumber", icNumber,
                 "fileName", targetFileName,
-                "url", blobUrl
+                "url", blobUrl,
+                "icDate", storage.getIcDate() != null ? storage.getIcDate().toString() : ""
             ));
 
         } catch (Exception e) {
@@ -151,6 +275,7 @@ public class CertificateStorageController {
         String base64Data = payload != null ? payload.get("signedData") : null;
         String newFileName = payload != null ? payload.get("fileName") : null;
         String updatedBy = payload != null ? (payload.get("uploadedBy") != null ? payload.get("uploadedBy") : payload.get("updatedBy")) : null;
+        String icDateStr = payload != null ? payload.get("icDate") : null;
 
         if (icNumber == null || icNumber.trim().isEmpty() || base64Data == null || base64Data.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -194,21 +319,31 @@ public class CertificateStorageController {
             // Upload / Overwrite in Azure
             String blobUrl = azureBlobStorageService.uploadBase64File(base64Data, targetFileName);
 
+            java.time.LocalDate parsedDate = parseLocalDate(icDateStr);
+
             storage.setBlobUrl(blobUrl);
             storage.setFileName(targetFileName);
             if (updatedBy != null && !updatedBy.trim().isEmpty()) {
                 storage.setUploadedBy(updatedBy);
             }
             storage.setUploadedAt(LocalDateTime.now());
+            if (parsedDate != null) {
+                storage.setIcDate(parsedDate);
+            }
 
             certificateStorageRepository.save(storage);
+
+            if (parsedDate != null) {
+                syncIcDateToInspectionTables(icNumber, parsedDate);
+            }
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Certificate updated successfully in Azure and database",
                 "icNumber", icNumber,
                 "fileName", targetFileName,
-                "url", blobUrl
+                "url", blobUrl,
+                "icDate", storage.getIcDate() != null ? storage.getIcDate().toString() : ""
             ));
         } catch (Exception e) {
             log.error("Failed to update certificate for {}: {}", icNumber, e.getMessage(), e);
@@ -226,19 +361,21 @@ public class CertificateStorageController {
     public ResponseEntity<?> updateCertificateFilePut(
             @RequestParam("file") MultipartFile file,
             @RequestParam("icNumber") String icNumber,
-            @RequestParam(value = "uploadedBy", required = false) String uploadedBy) {
-        return performUpdateFile(file, icNumber, uploadedBy);
+            @RequestParam(value = "uploadedBy", required = false) String uploadedBy,
+            @RequestParam(value = "icDate", required = false) String icDate) {
+        return performUpdateFile(file, icNumber, uploadedBy, icDate);
     }
 
     @PostMapping(value = "/update-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> updateCertificateFilePost(
             @RequestParam("file") MultipartFile file,
             @RequestParam("icNumber") String icNumber,
-            @RequestParam(value = "uploadedBy", required = false) String uploadedBy) {
-        return performUpdateFile(file, icNumber, uploadedBy);
+            @RequestParam(value = "uploadedBy", required = false) String uploadedBy,
+            @RequestParam(value = "icDate", required = false) String icDate) {
+        return performUpdateFile(file, icNumber, uploadedBy, icDate);
     }
 
-    private ResponseEntity<?> performUpdateFile(MultipartFile file, String icNumber, String uploadedBy) {
+    private ResponseEntity<?> performUpdateFile(MultipartFile file, String icNumber, String uploadedBy, String icDateStr) {
         if (icNumber == null || icNumber.trim().isEmpty() || file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of(
                 "success", false,
@@ -279,27 +416,94 @@ public class CertificateStorageController {
 
             String blobUrl = azureBlobStorageService.uploadFileBytes(file.getBytes(), targetFileName);
 
+            java.time.LocalDate parsedDate = parseLocalDate(icDateStr);
+
             storage.setBlobUrl(blobUrl);
             storage.setFileName(targetFileName);
             if (uploadedBy != null && !uploadedBy.trim().isEmpty()) {
                 storage.setUploadedBy(uploadedBy);
             }
             storage.setUploadedAt(LocalDateTime.now());
+            if (parsedDate != null) {
+                storage.setIcDate(parsedDate);
+            }
 
             certificateStorageRepository.save(storage);
+
+            if (parsedDate != null) {
+                syncIcDateToInspectionTables(icNumber, parsedDate);
+            }
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Certificate file updated successfully in Azure and database",
                 "icNumber", icNumber,
                 "fileName", targetFileName,
-                "url", blobUrl
+                "url", blobUrl,
+                "icDate", storage.getIcDate() != null ? storage.getIcDate().toString() : ""
             ));
         } catch (Exception e) {
             log.error("Failed to update certificate file for {}: {}", icNumber, e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of(
                 "success", false,
                 "message", "Update file failed: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Dedicated endpoint to update IC Date directly for an IC number
+     */
+    @PostMapping("/update-ic-date")
+    public ResponseEntity<?> updateIcDateOnly(@RequestBody Map<String, String> payload) {
+        String icNumber = payload != null ? payload.get("icNumber") : null;
+        String icDateStr = payload != null ? payload.get("icDate") : null;
+
+        if (icNumber == null || icNumber.trim().isEmpty() || icDateStr == null || icDateStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", "Missing required parameters: icNumber and icDate"
+            ));
+        }
+
+        try {
+            java.time.LocalDate parsedDate = parseLocalDate(icDateStr);
+            if (parsedDate == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Invalid icDate format: " + icDateStr
+                ));
+            }
+
+            Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(icNumber.trim());
+            if (storageOpt.isEmpty()) {
+                storageOpt = certificateStorageRepository.findByCallNumber(icNumber.trim());
+            }
+
+            CertificateStorage storage;
+            if (storageOpt.isPresent()) {
+                storage = storageOpt.get();
+            } else {
+                storage = new CertificateStorage();
+                storage.setIcNumber(icNumber.trim());
+            }
+
+            storage.setIcDate(parsedDate);
+            certificateStorageRepository.save(storage);
+
+            syncIcDateToInspectionTables(icNumber, parsedDate);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "IC Date updated successfully",
+                "icNumber", icNumber,
+                "icDate", parsedDate.toString()
+            ));
+        } catch (Exception e) {
+            log.error("Failed to update IC date for {}: {}", icNumber, e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "Failed to update IC date: " + e.getMessage()
             ));
         }
     }
@@ -394,16 +598,16 @@ public class CertificateStorageController {
         try {
             CertificateStorage storage = storageOpt.get();
             String base64Data = azureBlobStorageService.downloadAsBase64(storage.getFileName());
-            
+
             return ResponseEntity.ok(Map.of(
                 "icNumber", storage.getIcNumber() != null ? storage.getIcNumber() : icNumber.trim(),
                 "fileName", storage.getFileName() != null ? storage.getFileName() : "",
                 "signedData", base64Data != null ? base64Data : "",
                 "url", storage.getBlobUrl() != null ? storage.getBlobUrl() : "",
                 "uploadedBy", storage.getUploadedBy() != null ? storage.getUploadedBy() : "Inspecting Engineer",
-                "uploadedAt", storage.getUploadedAt() != null ? storage.getUploadedAt().toString() : ""
+                "uploadedAt", storage.getUploadedAt() != null ? storage.getUploadedAt().toString() : "",
+                "icDate", storage.getIcDate() != null ? storage.getIcDate().toString() : ""
             ));
-            
         } catch (Exception e) {
             log.error("Failed to fetch certificate for {}: {}", icNumber, e.getMessage());
             return ResponseEntity.internalServerError().body("Fetch failed: " + e.getMessage());
