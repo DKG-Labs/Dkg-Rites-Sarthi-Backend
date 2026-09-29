@@ -14,6 +14,7 @@ public class ErcVendorUnitDto {
     private String contactPerson;
     private String contactPersonNumber;
     private String poiCode;
+    private String ibsVendorCode;
     private String rio;
     private String status = "Active";
 }

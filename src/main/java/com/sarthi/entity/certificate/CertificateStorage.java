@@ -36,4 +36,7 @@ public class CertificateStorage {
     @CreationTimestamp
     @Column(name = "UPLOADED_AT")
     private LocalDateTime uploadedAt;
+
+    @Column(name = "IC_DATE")
+    private java.time.LocalDate icDate;
 }

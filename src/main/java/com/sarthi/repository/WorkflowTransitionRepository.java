@@ -32,7 +32,7 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             ) x ON wt.workflowtransitionid = x.latest_id
             JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
             JOIN po_header ph ON ic.po_no = ph.po_no
-            WHERE wt.STATUS = 'DSC_SIGN_IC'
+            WHERE wt.STATUS = 'SEND_CALL_TO_IBS'
             AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
             AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
             AND (:startDate IS NULL OR :startDate = '' OR wt.CREATEDDATE >= :startDate)
@@ -1005,11 +1005,16 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                     0
                 ) AS callQty
             FROM workflow_transition wt
+            INNER JOIN (
+                SELECT requestid, MAX(workflowtransitionid) latest_id
+                FROM workflow_transition
+                GROUP BY requestid
+            ) x ON wt.workflowtransitionid = x.latest_id
             INNER JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
             INNER JOIN po_header ph ON ic.po_no = ph.po_no
             LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
             LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.call_no
-            WHERE wt.STATUS = 'DSC_SIGN_IC'
+            WHERE wt.STATUS = 'SEND_CALL_TO_IBS'
             AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
             AND (:startDate IS NULL OR DATE(wt.CREATEDDATE) >= :startDate)

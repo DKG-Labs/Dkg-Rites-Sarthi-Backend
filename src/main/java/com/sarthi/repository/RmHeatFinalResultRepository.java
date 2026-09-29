@@ -489,7 +489,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                         ) wf ON wf.REQUESTID = ic.ic_number
                         WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                        AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                        AND wf.STATUS = 'SEND_CALL_TO_IBS'
                         AND (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
                     ),
                     (
@@ -512,7 +512,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                             ) wf ON wf.REQUESTID = ic.ic_number
                             WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                            AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                            AND wf.STATUS = 'SEND_CALL_TO_IBS'
                             AND (UPPER(TRIM(r.overall_status)) = 'REJECTED' OR UPPER(TRIM(r.status)) = 'REJECTED')
                             AND (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
                             GROUP BY r.inspection_call_no

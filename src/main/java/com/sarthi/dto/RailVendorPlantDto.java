@@ -12,5 +12,7 @@ public class RailVendorPlantDto {
     private String rio;
     private String contactPerson;
     private String contactPersonNumber;
+    private String ibsVendorCode;
+    private String plantAddress;
     private String status = "Active";
 }

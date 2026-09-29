@@ -514,12 +514,13 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     stage,
                     SUM(CASE WHEN action IN ('CREATED', 'CREATE', 'VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL') THEN 1 ELSE 0 END) AS pending_calls,
                     SUM(CASE WHEN action IN ('PO_VERIFICATION', 'PAUSE', 'RESUME') THEN 1 ELSE 0 END) AS under_inspection_calls,
-                    SUM(CASE WHEN action IN ('FINISH', 'COMPLETED', 'IC_GENERATION', 'GENERATE_IC', 'DSC_SIGN_IC') THEN 1 ELSE 0 END) AS completed_calls,
-                    SUM(CASE WHEN action IN ('GENERATE_IC', 'DSC_SIGN_IC', 'IC_GENERATION') THEN 1 ELSE 0 END) AS ic_issued_calls
+                    SUM(CASE WHEN (UPPER(COALESCE(status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(action, '')) = 'SEND_CALL_TO_IBS' OR action IN ('FINISH', 'COMPLETED', 'IC_GENERATION', 'GENERATE_IC', 'DSC_SIGN_IC')) THEN 1 ELSE 0 END) AS completed_calls,
+                    SUM(CASE WHEN (UPPER(COALESCE(status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(action, '')) = 'SEND_CALL_TO_IBS') THEN 1 ELSE 0 END) AS ic_issued_calls
                 FROM (
                     SELECT
                         rwt.request_id,
                         rwt.action,
+                        rwt.status,
                         rwt.vendor_code,
                         rwt.plant_id,
                         rwt.poi_code,
@@ -763,8 +764,22 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             COALESCE(SUM(pir.total_rejected_qty), 0) AS process_rejected_nos
         FROM rail_process_inspection_result pir
         JOIN rail_inspection_call ic ON pir.inspection_call_id = ic.id
+        INNER JOIN (
+            SELECT rwt.request_id, rwt.status, rwt.action
+            FROM rail_workflow_transaction rwt
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction
+                WHERE workflow_id = 2
+                GROUP BY request_id
+            ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
+        ) wf ON ic.call_no COLLATE utf8mb4_unicode_ci = wf.request_id COLLATE utf8mb4_unicode_ci
         LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
-        WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
+        WHERE (
+            UPPER(COALESCE(wf.status, '')) = 'SEND_CALL_TO_IBS'
+            OR UPPER(COALESCE(wf.action, '')) = 'SEND_CALL_TO_IBS'
+        )
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
                ic.vendor_code = :vendorPlantCode OR 
                ic.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
                ic.vendor_code = REPLACE(SUBSTRING_INDEX(:vendorPlantCode, '/', 1), ':', '')
@@ -816,6 +831,16 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 ELSE 0 
             END), 0) AS final_rejected_set
         FROM rail_final_inspection_lot_results flr
+        INNER JOIN (
+            SELECT rwt.request_id, rwt.status, rwt.action
+            FROM rail_workflow_transaction rwt
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction
+                WHERE workflow_id = 2
+                GROUP BY request_id
+            ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
+        ) wf ON flr.call_no COLLATE utf8mb4_unicode_ci = wf.request_id COLLATE utf8mb4_unicode_ci
         LEFT JOIN (
             SELECT call_no, 
                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY 
@@ -838,7 +863,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 AND CAST(pi.item_sr_no AS UNSIGNED) = CAST((CASE WHEN ic.po_no LIKE '%/%' THEN TRIM(SUBSTRING_INDEX(ic.po_no, '/', -1)) ELSE TRIM(COALESCE(ic.po_sr, '')) END) AS UNSIGNED)
             )
         )
-        WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
+        WHERE (
+            UPPER(COALESCE(wf.status, '')) = 'SEND_CALL_TO_IBS'
+            OR UPPER(COALESCE(wf.action, '')) = 'SEND_CALL_TO_IBS'
+        )
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
                flr.plant_id = :vendorPlantCode OR 
                flr.vendor_code = :vendorPlantCode OR 
                flr.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR 
@@ -903,7 +932,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 SELECT request_id, MAX(workflow_transition_id) AS max_id
                 FROM rail_workflow_transaction
                 WHERE workflow_id IN (1, 2)
-                  AND action IN ('GENERATE_IC', 'DSC_SIGN_IC', 'IC_GENERATION')
+                  AND (UPPER(COALESCE(status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(action, '')) = 'SEND_CALL_TO_IBS')
                 GROUP BY request_id
             ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
             INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci

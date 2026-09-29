@@ -52,6 +52,9 @@ public interface RailWorkflowService {
     public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
             String roleName, String plantId, Long workflowId, Long moduleId);
 
+    public List<RailWorkflowTransactionDto> allPendingWorkflowTransitions(
+            String roleName, Long assignedTo, String plantId, Long workflowId, Long moduleId);
+
     public List<RailWorkflowTransactionDto> workflowTransitionHistory(String requestId);
 
     public List<RailWorkflowTransactionDto> allCompletedWorkflowTransitions();

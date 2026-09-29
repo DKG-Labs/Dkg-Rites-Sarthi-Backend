@@ -4099,10 +4099,12 @@ public class reportsImpl implements reports {
                 String startDStr = startDateStr == null ? "" : startDateStr;
                 String endDStr = endDateStr == null ? "" : endDateStr;
 
-                java.time.LocalDateTime startDate = startDStr.isEmpty() ? java.time.LocalDateTime.of(1970, 1, 1, 0, 0)
-                                : java.time.LocalDate.parse(startDStr).atStartOfDay();
-                java.time.LocalDateTime endDate = endDStr.isEmpty() ? java.time.LocalDateTime.of(2100, 12, 31, 23, 59)
-                                : java.time.LocalDate.parse(endDStr).atTime(23, 59, 59);
+                java.time.LocalDateTime startDate = (startDStr != null && !startDStr.trim().isEmpty())
+                                ? java.time.LocalDate.parse(startDStr.trim()).atStartOfDay()
+                                : null;
+                java.time.LocalDateTime endDate = (endDStr != null && !endDStr.trim().isEmpty())
+                                ? java.time.LocalDate.parse(endDStr.trim()).atTime(23, 59, 59)
+                                : null;
 
                 List<Object[]> rawList = poItemRepository.fetchPoIssuedDetailsRaw(itemCatDescr, vCode, zCode, startDate,
                                 endDate);
@@ -7429,7 +7431,7 @@ public class reportsImpl implements reports {
                         case "PAUSE_INSPECTION_RESUME_NEXT_DAY" -> "Paused For Next Schedule";
                         case "ENTER_SHIFT_DETAILS_AND_START_INSPECTION" -> "Under Inspection";
                         case "INSPECTION_COMPLETE_CONFIRM" -> "IC Issuance Pending";
-                        case "GENERATE_IC", "DSC_SIGN_IC" -> "IC Issued";
+                        case "GENERATE_IC", "DSC_SIGN_IC", "SEND_CALL_TO_IBS" -> "IC Issued";
                         case "CANCELLED" -> "Cancelled";
                         case "WITHHELD" -> "Withheld";
 
