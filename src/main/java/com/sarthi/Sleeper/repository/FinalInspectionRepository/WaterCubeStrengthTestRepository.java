@@ -65,6 +65,13 @@ AND UPPER(TRIM(w.finalTestResult)) LIKE 'PASS%'
     """, nativeQuery = true)
     List<String> findPassedBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
 
+    @Query(value = """
+        SELECT *
+        FROM water_cube_strength_test
+        WHERE batch_number IN (:batchNumbers)
+    """, nativeQuery = true)
+    List<WaterCubeStrengthTest> findByBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
+
     @Query("SELECT DISTINCT w.batchNumber FROM WaterCubeStrengthTest w")
     List<String> findAllBatchNumbers();
 

@@ -96,10 +96,7 @@ AND (UPPER(TRIM(m.testResult)) LIKE 'PASS%' OR UPPER(TRIM(m.testResult)) = 'OK' 
     @Query(value = """
         SELECT *
         FROM moment_of_resistance_test
-        WHERE (batch_number IN (:batchNumbers) 
-           OR TRIM(batch_number) IN (:batchNumbers)
-           OR REPLACE(batch_number, 'B-', '') IN (:batchNumbers)
-           OR CONCAT('B-', batch_number) IN (:batchNumbers))
+        WHERE batch_number IN (:batchNumbers)
     """, nativeQuery = true)
     List<MomentOfResistanceTest> findByBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
 }
