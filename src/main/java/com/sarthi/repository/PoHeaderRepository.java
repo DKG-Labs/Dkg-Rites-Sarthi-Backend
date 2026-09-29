@@ -216,27 +216,32 @@ public interface PoHeaderRepository extends JpaRepository<PoHeader, Long> {
     @Query("SELECT COUNT(ph.poNo) FROM PoHeader ph")
     long countTotalPo();
 
-    @Query("SELECT COUNT(ph.poNo) FROM PoHeader ph WHERE ph.itemCatDescr = :itemCatDescr")
+    @Query("SELECT COUNT(ph.poNo) FROM PoHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND LOWER(ph.poNo) NOT LIKE '%dummy%'")
     long countPoByItemCatDescr(@Param("itemCatDescr") String itemCatDescr);
 
     @Query(value = """
-        SELECT COUNT(DISTINCT ph.po_no) 
-        FROM po_header ph 
-        WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%')))
-        AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
-        AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway OR ph.rly_cd = :zonalRailway)
-        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CONCAT(':', :vendorPlantCode) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(:vendorPlantCode, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM rail_vendor_plant rvp WHERE CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(rvp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR CONVERT(rvp.plant_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')) OR 
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM railpad_pincode_poi_mapping ppm WHERE CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ppm.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')) OR 
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM pincode_poi_mapping ppm WHERE CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ppm.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')) OR
-             CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM vendor_plant vp WHERE CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci) OR
-             CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
-             CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
-        )
+        SELECT COUNT(*) FROM (
+            SELECT ph.id
+            FROM po_item pi
+            JOIN po_header ph ON pi.po_header_id = ph.id
+            WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%')))
+            AND LOWER(ph.po_no) NOT LIKE '%dummy%'
+            AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
+            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+            AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CONCAT(':', :vendorPlantCode) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(:vendorPlantCode, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CONCAT(':', SUBSTRING_INDEX(:vendorPlantCode, '/', 1)) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM rail_vendor_plant rvp WHERE CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(rvp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(rvp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR CONVERT(rvp.plant_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')) OR 
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM railpad_pincode_poi_mapping ppm WHERE CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ppm.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')) OR 
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(ppm.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM pincode_poi_mapping ppm WHERE CONVERT(ppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ppm.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')) OR
+                 CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (SELECT CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci FROM vendor_plant vp WHERE CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci) OR
+                 CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+                 CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+            )
+            GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.po_date, ph.vendor_details, pi.uom
+        ) AS t
     """, nativeQuery = true)
     long countFilteredPoByItemCatDescr(
             @Param("itemCatDescr") String itemCatDescr,

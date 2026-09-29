@@ -1216,7 +1216,7 @@ ORDER BY month
                     )
                         THEN 'Completed (Pending for IC Issue)'
 
-                    WHEN wt.status = 'DSC_SIGN_IC'
+                    WHEN wt.status IN ('DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
                         THEN 'IC Issued (Completed)'
 
                     ELSE wt.status
@@ -1420,7 +1420,7 @@ ORDER BY month
                     )
                         THEN 'Completed (Pending for IC Issue)'
 
-                    WHEN wt.status = 'DSC_SIGN_IC'
+                    WHEN wt.status IN ('DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
                         THEN 'IC Issued (Completed)'
 
                     ELSE wt.status
@@ -2029,7 +2029,7 @@ LEFT JOIN (
                     FROM workflow_transition wt2
                     WHERE wt2.requestid = ic.ic_number
                 )
-            ) = 'DSC_SIGN_IC'
+            ) IN ('DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
 
             THEN 1
             ELSE 0
@@ -2056,7 +2056,8 @@ LEFT JOIN (
     ) IN (
         'INSPECTION_COMPLETE_CONFIRM',
         'GENERATE_IC',
-        'DSC_SIGN_IC'
+        'DSC_SIGN_IC',
+        'SEND_CALL_TO_IBS'
     )
 
 ) fc

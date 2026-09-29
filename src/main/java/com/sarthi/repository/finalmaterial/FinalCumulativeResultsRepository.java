@@ -369,7 +369,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 ) wf ON wf.REQUESTID = ic.ic_number
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                AND wf.STATUS = 'SEND_CALL_TO_IBS'
                 AND (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     List<Object[]> sumFinalAcceptedAndRejectedRevisedLogic(

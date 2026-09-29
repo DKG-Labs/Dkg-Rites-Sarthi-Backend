@@ -650,7 +650,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 ) wf ON wf.REQUESTID = ic.ic_number
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                AND wf.STATUS = 'SEND_CALL_TO_IBS'
                 AND (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     List<Object[]> sumProcessAcceptedAndRejectedRevisedLogic(
@@ -674,7 +674,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                         GROUP BY REQUESTID
                     ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
                 ) wf ON wf.REQUESTID = ic.ic_number
-                WHERE wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                WHERE wf.STATUS = 'SEND_CALL_TO_IBS'
             """, nativeQuery = true)
     List<Object[]> sumProcessAcceptedAndRejectedAllTime();
 

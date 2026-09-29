@@ -1,5 +1,6 @@
 package com.sarthi.repository;
 
+
 import com.sarthi.dto.PoInspection2ndLevelSerialStatusDto;
 import com.sarthi.entity.PoHeader;
 import com.sarthi.entity.PoItem;
@@ -59,7 +60,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
     @Query("SELECT SUM(pi.qty) FROM PoItem pi WHERE pi.uom IN ('Mt', 'Mts', 'Mts.')")
     Double sumQtyByUomMt();
 
-    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Nos.'")
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Nos.' AND LOWER(ph.poNo) NOT LIKE '%dummy%'")
     Long sumQtyByItemCatDescrAndUomNos(@Param("itemCatDescr") String itemCatDescr);
 
     @Query(value = """
@@ -67,6 +68,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         FROM po_item pi 
         JOIN po_header ph ON pi.po_header_id = ph.id
         WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%'))) AND pi.uom = 'Nos.'
+        AND LOWER(ph.po_no) NOT LIKE '%dummy%'
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
@@ -94,6 +96,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         FROM po_item pi 
         JOIN po_header ph ON pi.po_header_id = ph.id
         WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%'))) AND pi.uom = 'Set'
+        AND LOWER(ph.po_no) NOT LIKE '%dummy%'
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
@@ -116,10 +119,10 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
             @Param("vendorPlantCode") String vendorPlantCode,
             @Param("zonalRailway") String zonalRailway);
 
-    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Set'")
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom = 'Set' AND LOWER(ph.poNo) NOT LIKE '%dummy%'")
     Long sumQtyByItemCatDescrAndUomSet(@Param("itemCatDescr") String itemCatDescr);
 
-    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom IN ('Mt', 'Mts', 'Mts.')")
+    @Query("SELECT SUM(pi.qty) FROM PoItem pi JOIN pi.poHeader ph WHERE ph.itemCatDescr = :itemCatDescr AND pi.uom IN ('Mt', 'Mts', 'Mts.') AND LOWER(ph.poNo) NOT LIKE '%dummy%'")
     Double sumQtyByItemCatDescrAndUomMt(@Param("itemCatDescr") String itemCatDescr);
 
     @Query(value = """
@@ -127,6 +130,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         FROM po_item pi 
         JOIN po_header ph ON pi.po_header_id = ph.id
         WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%'))) AND pi.uom IN ('Mt', 'Mts', 'Mts.')
+        AND LOWER(ph.po_no) NOT LIKE '%dummy%'
         AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR ph.po_date BETWEEN :startDate AND :endDate)
         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR 
@@ -160,6 +164,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         FROM po_item pi
         JOIN po_header ph ON pi.po_header_id = ph.id
         WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%')))
+        AND LOWER(ph.po_no) NOT LIKE '%dummy%'
         AND (:vCode IS NULL OR :vCode = '' OR 
              CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
              CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CONCAT(':', :vCode) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR 
