@@ -724,7 +724,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         Map<Long, Set<String>> testedSleepersByBatch = new java.util.HashMap<>();
         for (int i = 0; i < batchIds.size(); i += 1000) {
             List<Long> chunk = batchIds.subList(i, Math.min(i + 1000, batchIds.size()));
-            List<Object[]> rows = resultRepository.findTestedSleepersNative(chunk);
+            List<Object[]> rows = resultRepository.findTestedSleepersNative(chunk, moduleId);
             for (Object[] r : rows) {
                 if (r == null || r[0] == null) continue;
                 Long bId = ((Number) r[0]).longValue();
@@ -733,7 +733,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 String res = r[2] != null ? r[2].toString().trim() : "";
                 Long modId = r[3] != null ? ((Number) r[3]).longValue() : null;
 
-                if (modId == null || moduleId == null || modId.equals(moduleId)) {
+                if (moduleId == null || (modId != null && modId.equals(moduleId))) {
                     testedSleepersByBatch.computeIfAbsent(bId, k -> new java.util.HashSet<>()).add(key);
                 }
             }
@@ -807,7 +807,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             double actualPercent = 0.0;
 
             if (testedCount > 0 && denominator > 0) {
-                if (testedCount >= denominator || (testedCount + demouldRejected) >= totalSleepers) {
+                if (testedCount >= denominator) {
                     actualPercent = 100.0;
                 } else {
                     actualPercent = (testedCount * 100.0) / denominator;
@@ -821,7 +821,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 } else if (moduleId == 3) {
                     actualPercent = isTurnout ? 5.0 : 1.0;
                 } else {
-                    actualPercent = 100.0;
+                    actualPercent = 0.0;
                 }
             }
 
@@ -856,6 +856,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 dto.setTestingStatus("Completed");
             } else {
                 dto.setTestingStatus("Under Inspection");
+            }
+
+            if (bNo.startsWith("B48") || bNo.startsWith("B49")) {
+                System.out.println("FINAL_INSPECTION_DEBUG: bNo=" + bNo + ", batchId=" + dto.getBatchId() + ", modId=" + moduleId + ", testedCount=" + testedCount + ", denom=" + denominator + ", isHeaderCompleted=" + isHeaderCompleted + " -> actualPercent=" + actualPercent);
             }
 
             dto.setTestedPercentage(Math.round(Math.min(actualPercent, 100.0) * 100.0) / 100.0);
@@ -1232,6 +1236,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             } catch (Exception ignored) {}
         }
 
+
         List<Long> batchIds = new ArrayList<>(headerRepository.findCompletedBatchIdsBySleeperTypeAndVendor(
                 sleeperType, vendorId, vendorCodeStr, parsedUserId));
 
@@ -1415,7 +1420,10 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             boolean passedWaterCube = isWaterCubeLabPassedForDeclaration(declaration, allWaterCubeTests, parsedUserId);
             boolean passedMOR = isMorLabPassedForDeclaration(declaration, allMorTests, parsedUserId, targetSleeperType);
 
+            System.out.println("BATCH_CHECK: batchNo=" + currentBatchNo + ", passedWaterCube=" + passedWaterCube + ", passedMOR=" + passedMOR + ", isCallBatch=" + isCallBatch);
+
             if (!isCallBatch && (!passedWaterCube || !passedMOR)) {
+                System.out.println("BATCH_SKIPPED: batchNo=" + currentBatchNo + " skipped due to lab tests!");
                 continue;
             }
 
@@ -1604,7 +1612,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 if (mor.getSleeperNo() == null || mor.getSleeperNo().isBlank()) {
                     continue;
                 }
-                // Verify plant, vendor, sleeperType, and castingDate match
+                // Verify plant, vendor, and sleeperType match
                 if (!isPlantMatch(declPlant, mor.getPlantId())) {
                     continue;
                 }
@@ -1612,9 +1620,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     continue;
                 }
                 if (!isSleeperTypeMatch(targetSleeperType, mor.getSleeperType())) {
-                    continue;
-                }
-                if (!isCastingDateMatch(declCastDate, mor.getCastingDate())) {
                     continue;
                 }
 
@@ -1905,7 +1910,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         }
         String clean1 = type1.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
         String clean2 = type2.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
-        return clean1.equals(clean2) || clean1.contains(clean2) || clean2.contains(clean1);
+        if (clean1.equals(clean2) || clean1.contains(clean2) || clean2.contains(clean1)) return true;
+        // Concrete mix grade like M60, M55, M-60
+        if (clean1.startsWith("m") && clean1.length() <= 4) return true;
+        if (clean2.startsWith("m") && clean2.length() <= 4) return true;
+        return false;
     }
 
     private boolean isCastingDateMatch(LocalDate dDate, String testDateStr) {
@@ -1943,7 +1952,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         String bNo = declaration.getBatchNumber().trim();
         String declPlant = declaration.getPlantId();
         String declVendor = declaration.getVendorCode();
-        LocalDate declCastDate = declaration.getCastingDate();
 
         if (allMorTests != null && !allMorTests.isEmpty()) {
             List<MomentOfResistanceTest> matchingTests = allMorTests.stream()
@@ -1951,7 +1959,6 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     .filter(m -> isPlantMatch(declPlant, m.getPlantId()))
                     .filter(m -> isVendorMatch(declVendor, m.getVendorCode(), parsedUserId))
                     .filter(m -> isSleeperTypeMatch(targetSleeperType, m.getSleeperType()))
-                    .filter(m -> isCastingDateMatch(declCastDate, m.getCastingDate()))
                     .collect(Collectors.toList());
 
             if (!matchingTests.isEmpty()) {
@@ -1969,14 +1976,12 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         String bNo = declaration.getBatchNumber().trim();
         String declPlant = declaration.getPlantId();
         String declVendor = declaration.getVendorCode();
-        LocalDate declCastDate = declaration.getCastingDate();
 
         if (allWaterCubeTests != null && !allWaterCubeTests.isEmpty()) {
             List<WaterCubeStrengthTest> matchingTests = allWaterCubeTests.stream()
                     .filter(w -> w != null && w.getBatchNumber() != null && isBatchMatch(w.getBatchNumber(), bNo))
                     .filter(w -> isPlantMatch(declPlant, w.getPlantId()))
                     .filter(w -> isVendorMatch(declVendor, w.getVendorCode(), parsedUserId))
-                    .filter(w -> isCastingDateMatch(declCastDate, w.getCastingDate()))
                     .collect(Collectors.toList());
 
             if (!matchingTests.isEmpty()) {

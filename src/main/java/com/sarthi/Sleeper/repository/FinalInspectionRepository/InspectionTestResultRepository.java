@@ -52,8 +52,9 @@ AND h.module.id = :moduleId
        FROM inspection_test_result r
        JOIN inspection_test_header h ON r.test_header_id = h.id
        WHERE h.batch_id = :batchId
-       AND (r.module_id = :moduleId OR h.module_id = :moduleId OR :moduleId IS NULL)
+       AND (COALESCE(r.module_id, h.module_id) = :moduleId OR :moduleId IS NULL)
        AND (r.active = 1 OR r.active IS TRUE OR r.active IS NULL)
+       AND (r.active != 0 AND r.active IS NOT FALSE)
        AND UPPER(TRIM(COALESCE(r.result, ''))) NOT IN ('PENDING', '')
        """, nativeQuery = true)
     Long countTestedSleepers(
@@ -67,8 +68,9 @@ AND h.module.id = :moduleId
        FROM inspection_test_result r
        JOIN inspection_test_header h ON r.test_header_id = h.id
        WHERE h.batch_id IN :batchIds
-       AND (r.module_id = :moduleId OR h.module_id = :moduleId OR :moduleId IS NULL)
+       AND (COALESCE(r.module_id, h.module_id) = :moduleId OR :moduleId IS NULL)
        AND (r.active = 1 OR r.active IS TRUE OR r.active IS NULL)
+       AND (r.active != 0 AND r.active IS NOT FALSE)
        AND UPPER(TRIM(COALESCE(r.result, ''))) NOT IN ('PENDING', '')
        GROUP BY h.batch_id
        """, nativeQuery = true)
@@ -85,10 +87,15 @@ AND h.module.id = :moduleId
        FROM inspection_test_result r
        JOIN inspection_test_header h ON r.test_header_id = h.id
        WHERE h.batch_id IN :batchIds
+         AND (COALESCE(r.module_id, h.module_id) = :moduleId OR :moduleId IS NULL)
          AND (r.active = 1 OR r.active IS TRUE OR r.active IS NULL)
+         AND (r.active != 0 AND r.active IS NOT FALSE)
          AND UPPER(TRIM(COALESCE(r.result, ''))) NOT IN ('PENDING', '')
        """, nativeQuery = true)
-    List<Object[]> findTestedSleepersNative(@Param("batchIds") java.util.Collection<Long> batchIds);
+    List<Object[]> findTestedSleepersNative(
+            @Param("batchIds") java.util.Collection<Long> batchIds,
+            @Param("moduleId") Long moduleId
+    );
 
   @Query("""
           SELECT r
