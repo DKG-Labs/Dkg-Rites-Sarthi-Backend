@@ -27,8 +27,24 @@ FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection i 
   ON i.id = d.inspection_id
 WHERE i.batch_no = :batchNo
+AND (
+    :plantId IS NULL OR :plantId = '' 
+    OR i.plant_id = :plantId 
+    OR REPLACE(i.plant_id, ':', '') = REPLACE(:plantId, ':', '')
+    OR i.plant_id LIKE CONCAT('%', REPLACE(:plantId, ':', ''), '%')
+    OR :plantId LIKE CONCAT('%', REPLACE(i.plant_id, ':', ''), '%')
+)
 AND i.id = (
-    SELECT MAX(id) FROM demoulding_inspection WHERE batch_no = :batchNo
+    SELECT MAX(sub.id) 
+    FROM demoulding_inspection sub 
+    WHERE sub.batch_no = :batchNo
+      AND (
+          :plantId IS NULL OR :plantId = '' 
+          OR sub.plant_id = :plantId 
+          OR REPLACE(sub.plant_id, ':', '') = REPLACE(:plantId, ':', '')
+          OR sub.plant_id LIKE CONCAT('%', REPLACE(:plantId, ':', ''), '%')
+          OR :plantId LIKE CONCAT('%', REPLACE(sub.plant_id, ':', ''), '%')
+      )
 )
 AND (
     (d.visual_reason IS NOT NULL AND d.visual_reason <> '')
@@ -36,7 +52,11 @@ AND (
     (d.dim_reason IS NOT NULL AND d.dim_reason <> '')
 )
 """, nativeQuery = true)
-    Set<String> findRejectedSleeperNos(@Param("batchNo") String batchNo);
+    Set<String> findRejectedSleeperNos(@Param("batchNo") String batchNo, @Param("plantId") String plantId);
+
+    default Set<String> findRejectedSleeperNos(String batchNo) {
+        return findRejectedSleeperNos(batchNo, null);
+    }
 
     @Query(value = """
 SELECT DISTINCT d.sleeper_no
@@ -44,10 +64,26 @@ FROM demoulding_defective_sleepers d
 JOIN demoulding_inspection i 
   ON i.id = d.inspection_id
 WHERE REPLACE(UPPER(i.batch_no), ' ', '') = REPLACE(UPPER(:batchNo), ' ', '')
+AND (
+    :plantId IS NULL OR :plantId = '' 
+    OR i.plant_id = :plantId 
+    OR REPLACE(i.plant_id, ':', '') = REPLACE(:plantId, ':', '')
+    OR i.plant_id LIKE CONCAT('%', REPLACE(:plantId, ':', ''), '%')
+    OR :plantId LIKE CONCAT('%', REPLACE(i.plant_id, ':', ''), '%')
+)
 AND d.sleeper_no IS NOT NULL
 AND TRIM(d.sleeper_no) <> ''
+AND (
+    (d.visual_reason IS NOT NULL AND d.visual_reason <> '')
+    OR
+    (d.dim_reason IS NOT NULL AND d.dim_reason <> '')
+)
 """, nativeQuery = true)
-    Set<String> findAllRejectedSleeperNosByBatchNo(@Param("batchNo") String batchNo);
+    Set<String> findAllRejectedSleeperNosByBatchNo(@Param("batchNo") String batchNo, @Param("plantId") String plantId);
+
+    default Set<String> findAllRejectedSleeperNosByBatchNo(String batchNo) {
+        return findAllRejectedSleeperNosByBatchNo(batchNo, null);
+    }
 
     @Query(value = """
 SELECT COUNT(d.id)

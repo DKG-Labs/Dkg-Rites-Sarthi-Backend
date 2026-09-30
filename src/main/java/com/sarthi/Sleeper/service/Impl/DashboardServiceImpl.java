@@ -1826,15 +1826,23 @@ public class DashboardServiceImpl implements DashboardService {
         for (SleeperWorkflowTransaction tx : latestTransactions) {
             String jobStatus = tx.getJobStatus();
             String action = tx.getAction();
-            String statusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
+            String status = tx.getStatus();
+            String statusUpper = status != null ? status.trim().toUpperCase() : "";
             String actionUpper = action != null ? action.trim().toUpperCase() : "";
+            String jobStatusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
             
-            if ("IC_GENERATION".equals(statusUpper) || statusUpper.contains("CANCEL") || actionUpper.contains("CANCEL")) {
+            if ("IC_GENERATION".equals(jobStatusUpper) || "IC_GENERATION".equals(actionUpper) || "IC_GENERATION".equals(statusUpper)
+                    || "SEND_CALL_TO_IBS".equals(statusUpper) || "SEND_CALL_TO_IBS".equals(actionUpper) || "SEND_CALL_TO_IBS".equals(jobStatusUpper)
+                    || "SENT_TO_IBS".equals(statusUpper) || "SENT_TO_IBS".equals(actionUpper) || "SENT_TO_IBS".equals(jobStatusUpper)
+                    || "CLOSED".equals(statusUpper) || "CLOSED".equals(actionUpper) || "CLOSED".equals(jobStatusUpper)
+                    || "COMPLETED".equals(statusUpper) || "COMPLETED".equals(actionUpper) || "COMPLETED".equals(jobStatusUpper)
+                    || jobStatusUpper.contains("CANCEL") || actionUpper.contains("CANCEL") || statusUpper.contains("CANCEL")) {
                 continue;
             }
             
-            if ("INITIATED".equals(statusUpper) || "PO_VERIFICATION".equals(statusUpper) || "PAUSED".equals(statusUpper) || "WITHHELD".equals(statusUpper)
-                    || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper) || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper)) {
+            if ("INITIATED".equals(jobStatusUpper) || "PO_VERIFICATION".equals(jobStatusUpper) || "PAUSED".equals(jobStatusUpper) || "WITHHELD".equals(jobStatusUpper)
+                    || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper) || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper)
+                    || "INITIATED".equals(statusUpper) || "PO_VERIFICATION".equals(statusUpper) || "PAUSED".equals(statusUpper) || "WITHHELD".equals(statusUpper)) {
                 underInspection++;
             } else {
                 pending++;
@@ -2023,15 +2031,23 @@ public class DashboardServiceImpl implements DashboardService {
 
                     String jobStatus = tx.getJobStatus();
                     String action = tx.getAction();
-                    String statusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
+                    String status = tx.getStatus();
+                    String statusUpper = status != null ? status.trim().toUpperCase() : "";
                     String actionUpper = action != null ? action.trim().toUpperCase() : "";
+                    String jobStatusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
                     
-                    if ("IC_GENERATION".equals(statusUpper) || statusUpper.contains("CANCEL") || actionUpper.contains("CANCEL")) {
+                    if ("IC_GENERATION".equals(jobStatusUpper) || "IC_GENERATION".equals(actionUpper) || "IC_GENERATION".equals(statusUpper)
+                            || "SEND_CALL_TO_IBS".equals(statusUpper) || "SEND_CALL_TO_IBS".equals(actionUpper) || "SEND_CALL_TO_IBS".equals(jobStatusUpper)
+                            || "SENT_TO_IBS".equals(statusUpper) || "SENT_TO_IBS".equals(actionUpper) || "SENT_TO_IBS".equals(jobStatusUpper)
+                            || "CLOSED".equals(statusUpper) || "CLOSED".equals(actionUpper) || "CLOSED".equals(jobStatusUpper)
+                            || "COMPLETED".equals(statusUpper) || "COMPLETED".equals(actionUpper) || "COMPLETED".equals(jobStatusUpper)
+                            || jobStatusUpper.contains("CANCEL") || actionUpper.contains("CANCEL") || statusUpper.contains("CANCEL")) {
                         continue;
                     }
                     
-                    if ("INITIATED".equals(statusUpper) || "PO_VERIFICATION".equals(statusUpper) || "PAUSED".equals(statusUpper) || "WITHHELD".equals(statusUpper)
-                            || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper) || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper)) {
+                    if ("INITIATED".equals(jobStatusUpper) || "PO_VERIFICATION".equals(jobStatusUpper) || "PAUSED".equals(jobStatusUpper) || "WITHHELD".equals(jobStatusUpper)
+                            || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper) || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper)
+                            || "INITIATED".equals(statusUpper) || "PO_VERIFICATION".equals(statusUpper) || "PAUSED".equals(statusUpper) || "WITHHELD".equals(statusUpper)) {
                         underInspection++;
                     } else {
                         pending++;

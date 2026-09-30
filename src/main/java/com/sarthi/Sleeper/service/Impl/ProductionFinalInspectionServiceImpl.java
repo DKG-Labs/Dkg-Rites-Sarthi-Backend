@@ -956,7 +956,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
      Set<String> rejectedSet =
              demouldingDefectiveSleeperRepository
-                     .findRejectedSleeperNos(declaration.getBatchNumber());
+                     .findRejectedSleeperNos(declaration.getBatchNumber(), declaration.getPlantId());
 
      String sleeperType =
              productionSleeperRepository.getSleeperTypeByBatch(batchId);
@@ -1119,7 +1119,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         // Demoulding rejected
         Set<String> rejectedSet =
                 demouldingDefectiveSleeperRepository
-                        .findRejectedSleeperNos(declaration.getBatchNumber());
+                        .findRejectedSleeperNos(declaration.getBatchNumber(), declaration.getPlantId());
 
         BatchInspectionDetailDto dto = new BatchInspectionDetailDto();
 
@@ -2130,7 +2130,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         // Demoulding rejected
         Set<String> rejectedSet =
                 demouldingDefectiveSleeperRepository
-                        .findRejectedSleeperNos(declaration.getBatchNumber());
+                        .findRejectedSleeperNos(declaration.getBatchNumber(), declaration.getPlantId());
 
         //  String sleeperType = productionSleeperRepository.getSleeperTypeByBatch(batchId);
         List<String> sleeperTypes;
