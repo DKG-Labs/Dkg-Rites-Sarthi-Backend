@@ -1022,4 +1022,22 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             @Param("lotNumber") String lotNumber,
             @Param("heatNo") String heatNo);
 
+    /**
+     * Fetch accepted quantity (total_manufactured - total_rejected) for a lot and heat
+     * strictly matching Process IC certificate logic. Single aggregated query - O(1), no N+1.
+     */
+    @Query(value = """
+        SELECT GREATEST(0, COALESCE(SUM(p.total_manufactured), 0) - COALESCE(SUM(p.total_rejected), 0))
+        FROM process_line_final_result p
+        WHERE (:requestId IS NULL OR :requestId = '' 
+               OR p.inspection_call_no = :requestId 
+               OR p.inspection_call_no LIKE CONCAT('%', :requestId, '%')
+               OR :requestId LIKE CONCAT('%', p.inspection_call_no, '%'))
+          AND (REPLACE(p.lot_number, ' ', '') = REPLACE(:lotNumber, ' ', '') OR TRIM(p.lot_number) = TRIM(:lotNumber))
+          AND (:heatNo IS NULL OR :heatNo = '' OR TRIM(p.heat_number) = TRIM(:heatNo))
+        """, nativeQuery = true)
+    Integer sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(
+            @Param("requestId") String requestId,
+            @Param("lotNumber") String lotNumber,
+            @Param("heatNo") String heatNo);
 }
