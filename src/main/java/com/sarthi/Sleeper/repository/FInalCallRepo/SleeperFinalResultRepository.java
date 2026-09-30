@@ -105,11 +105,7 @@ public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinal
             OR pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
         )
         WHERE swt.workflow_id = 2
-          AND (
-            UPPER(COALESCE(swt.job_status, '')) IN ('IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'COMPLETED', 'IC_ISSUE')
-            OR UPPER(COALESCE(swt.action, '')) IN ('IC_GENERATION', 'DSC_SIGN_IC', 'GENERATE_IC', 'FINISH', 'COMPLETED', 'IC_ISSUE')
-            OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED')
-        )
+          AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
         AND (
             sic.plant_id IN (:plantIds) 
             OR REPLACE(COALESCE(sic.plant_id, ''), ':', '') IN (:plantIds) 
@@ -171,11 +167,7 @@ public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinal
             OR pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
         )
         WHERE swt.workflow_id = 2
-          AND (
-            UPPER(COALESCE(swt.job_status, '')) IN ('IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'COMPLETED', 'IC_ISSUE')
-            OR UPPER(COALESCE(swt.action, '')) IN ('IC_GENERATION', 'DSC_SIGN_IC', 'GENERATE_IC', 'FINISH', 'COMPLETED', 'IC_ISSUE')
-            OR UPPER(COALESCE(swt.status, '')) IN ('COMPLETED')
-        )
+          AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
     """, nativeQuery = true)
     java.util.List<Object[]> getAllSleeperFinalSummary();
 
