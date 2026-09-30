@@ -315,22 +315,13 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
 
         @Override
         public int getAcceptedQtyForLot(String requestId, String lotNumber, String heatNo) {
-                int qty = processIeQtyRepository.sumInspectedQtyByRequestIdAndLotNumberAndHeatNo(requestId, lotNumber, heatNo);
-                if (qty == 0 && lotNumber != null && !lotNumber.isBlank()) {
-                        qty = processIeQtyRepository.sumInspectedQtyByRequestIdAndLotNumber(requestId, lotNumber);
+                if (lotNumber == null || lotNumber.isBlank()) {
+                        return 0;
                 }
-                if (qty > 0) {
-                        return qty;
-                }
-
-                if ((requestId == null || requestId.isBlank()) && lotNumber != null && !lotNumber.isBlank()) {
-                        Integer temperingAccepted = processLineFinalResultRepository
-                                        .sumTemperingAcceptedByLotNumberAndHeatNo(lotNumber, heatNo);
-                        if (temperingAccepted != null && temperingAccepted > 0) {
-                                return temperingAccepted;
-                        }
-                }
-                return 0;
+                // Strictly follow Process IC logic: calculate accepted quantity from process_line_final_result (single query, no N+1, no fallbacks)
+                Integer procAccepted = processLineFinalResultRepository
+                                .sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(requestId, lotNumber, heatNo);
+                return procAccepted != null ? procAccepted : 0;
         }
 
 }
