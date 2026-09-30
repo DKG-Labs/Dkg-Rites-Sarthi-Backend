@@ -17,6 +17,10 @@ public class BasicDetailsDto {
     private String lotNumber;
     private LocalDateTime createdAt;
 
+    private Long id;
+    private String callNo;
+    private String createdBy;
+
     private Integer totalAcceptedQty;
     private Integer totalRejectionQty;
 }

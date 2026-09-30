@@ -192,6 +192,43 @@ public class reportsController {
                 return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
         }
 
+        @GetMapping("/process-defect-summary/{finalResultId}/hourly")
+        public ResponseEntity<Object> getProcessDefectHourlyDetails(@PathVariable Long finalResultId) {
+                ProcessDefectHourlyResponseDto data = reportService.getProcessDefectHourlyDetails(finalResultId);
+                return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(data), HttpStatus.OK);
+        }
+
+        @PutMapping("/process-defect-summary/{finalResultId}")
+        public ResponseEntity<Object> updateProcessDefectSummary(
+                        @PathVariable Long finalResultId,
+                        @RequestBody ProcessDefectSummaryUpdateRequest request) {
+                reportService.updateProcessDefectSummary(finalResultId, request);
+                return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse("Process defect summary updated successfully"), HttpStatus.OK);
+        }
+
+        @DeleteMapping("/process-defect-summary/{finalResultId}")
+        public ResponseEntity<Object> deleteProcessDefectSummary(
+                        @PathVariable Long finalResultId,
+                        @RequestParam(required = false) String userId) {
+                reportService.deleteProcessDefectSummary(finalResultId, userId);
+                return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse("Process defect summary deleted successfully"), HttpStatus.OK);
+        }
+
+        @GetMapping("/process-defect-summary/lookup")
+        public ResponseEntity<Object> lookupProcessDefectSummary(
+                        @RequestParam String callNo,
+                        @RequestParam(required = false) String shift,
+                        @RequestParam(required = false) String lotNo,
+                        @RequestParam(required = false) String lineNo) {
+                Long id = reportService.lookupProcessFinalResultId(callNo, shift, lotNo, lineNo);
+                if (id != null) {
+                        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(id), HttpStatus.OK);
+                }
+                return new ResponseEntity<Object>(
+                                ResponseBuilder.getErrorResponse(new ErrorDetails(404, 404, "NOT_FOUND", "Record ID not found")),
+                                HttpStatus.NOT_FOUND);
+        }
+
         @GetMapping("/poWise")
         public ResponseEntity<Object> getPoWise(@RequestParam(required = false) LocalDate startDate,
                         @RequestParam(required = false) LocalDate endDate) {
