@@ -202,4 +202,11 @@ public interface reports {
         public List<ManufacturerPoDetailsDto> getManufacturerPoDetails(String companyName);
 
         public List<PoOpenCallDetailsDto> getPoOpenCalls(String poNo);
+
+        public ProcessDefectHourlyResponseDto getProcessDefectHourlyDetails(Long finalResultId);
+
+        public void updateProcessDefectSummary(Long finalResultId, ProcessDefectSummaryUpdateRequest request);
+
+        public void deleteProcessDefectSummary(Long finalResultId, String userId);
+        public Long lookupProcessFinalResultId(String callNo, String shift, String lotNo, String lineNo);
 }

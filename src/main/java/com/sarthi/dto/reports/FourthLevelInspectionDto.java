@@ -8,6 +8,8 @@ import lombok.Data;
 public class FourthLevelInspectionDto {
 
 
+        private Long id;
+
         private BasicDetailsDto basicDetails;
 
         private ProcessQtyDto processQty;

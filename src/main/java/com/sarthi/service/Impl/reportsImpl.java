@@ -124,11 +124,12 @@ public class reportsImpl implements reports {
         private ProcessShearingDataRepository processShearingDataRepository;
 
         @Autowired
-
         private ProcessTurningDataRepository processTurningDataRepository;
 
         @Autowired
+        private ProcessMpiDataRepository processMpiDataRepository;
 
+        @Autowired
         private ProcessForgingDataRepository processForgingDataRepository;
 
         @Autowired
@@ -2462,10 +2463,14 @@ public class reportsImpl implements reports {
                         }
 
                         FourthLevelInspectionDto dto = new FourthLevelInspectionDto();
+                        dto.setId(p.getId());
 
                         // ================= BASIC =================
 
                         BasicDetailsDto basic = new BasicDetailsDto();
+                        basic.setId(p.getId());
+                        basic.setCallNo(callId);
+                        basic.setCreatedBy(p.getCreatedBy());
                         basic.setDate(date);
                         basic.setShift(p.getShift());
                         basic.setLineNo(p.getLineNo());
@@ -7663,6 +7668,729 @@ public class reportsImpl implements reports {
                         }
                 }
                 return list;
+        }
+
+        private <T> Optional<T> findHourRecord(List<T> list, int hIndex, java.util.function.Function<T, Integer> hourGetter) {
+                if (list == null || list.isEmpty()) return Optional.empty();
+                boolean hasZero = list.stream().anyMatch(e -> {
+                        Integer hi = hourGetter.apply(e);
+                        return hi != null && hi == 0;
+                });
+                int target = hasZero ? hIndex : (hIndex + 1);
+                return list.stream().filter(e -> {
+                        Integer hi = hourGetter.apply(e);
+                        return hi != null && hi == target;
+                }).findFirst();
+        }
+
+        @Override
+        public ProcessDefectHourlyResponseDto getProcessDefectHourlyDetails(Long finalResultId) {
+                ProcessLineFinalResult p = processLineFinalResultRepository.findById(finalResultId)
+                                .orElseThrow(() -> new RuntimeException("Process Line Final Result not found for ID: " + finalResultId));
+
+                String callNo = p.getInspectionCallNo();
+                String shift = p.getShift();
+                String lineNo = p.getLineNo();
+                String lotNo = p.getLotNumber();
+                String createdBy = p.getCreatedBy();
+                LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : LocalDateTime.now();
+                LocalDateTime startDate = createdAt.minusMinutes(3);
+                LocalDateTime endDate = createdAt.plusMinutes(3);
+
+                // Fetch hourly data from all submodules within time window
+                List<ProcessShearingData> shearingList = processShearingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessTurningData> turningList = processTurningDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessMpiData> mpiList = processMpiDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessForgingData> forgingList = processForgingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessQuenchingData> quenchingList = processQuenchingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessTemperingData> temperingList = processTemperingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessFinalCheckData> finalCheckList = processFinalCheckDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessTestingFinishingData> tfList = processTestingFinishingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                // Default shift hour labels
+                List<String> defaultHourLabels = getDefaultShiftHourLabels(shift);
+
+                // Build 8 hourly rows
+                List<ProcessHourlyDefectRowDto> hourlyRows = new ArrayList<>();
+                for (int i = 0; i < 8; i++) {
+                        final int hIndex = i;
+                        ProcessHourlyDefectRowDto row = new ProcessHourlyDefectRowDto();
+                        row.setHourIndex(hIndex);
+                        row.setHourLabel(i < defaultHourLabels.size() ? defaultHourLabels.get(i) : ("Hour " + (i + 1)));
+                        row.setLotNo(lotNo);
+
+                        // Shearing
+                        findHourRecord(shearingList, hIndex, ProcessShearingData::getHourIndex).ifPresent(s -> {
+                                if (s.getHourLabel() != null && !s.getHourLabel().trim().isEmpty()) row.setHourLabel(s.getHourLabel());
+                                row.setNoProduction(Boolean.TRUE.equals(s.getNoProduction()));
+                                row.setLengthCutBarRejected(s.getLengthCutBarRejected() != null ? s.getLengthCutBarRejected() : 0);
+                                row.setImproperDiaRejected(s.getImproperDiaRejected() != null ? s.getImproperDiaRejected() : 0);
+                                row.setSharpEdgesRejected(s.getSharpEdgesRejected() != null ? s.getSharpEdgesRejected() : 0);
+                                row.setCrackedEdgesRejected(s.getCrackedEdgesRejected() != null ? s.getCrackedEdgesRejected() : 0);
+                        });
+
+                        // Turning
+                        findHourRecord(turningList, hIndex, ProcessTurningData::getHourIndex).ifPresent(t -> {
+                                if (t.getHourLabel() != null && !t.getHourLabel().trim().isEmpty() && (row.getHourLabel() == null || row.getHourLabel().startsWith("Hour "))) {
+                                        row.setHourLabel(t.getHourLabel());
+                                }
+                                row.setParallelLengthRejected(t.getParallelLengthRejected() != null ? t.getParallelLengthRejected() : 0);
+                                row.setFullTurningLengthRejected(t.getFullTurningLengthRejected() != null ? t.getFullTurningLengthRejected() : 0);
+                                row.setTurningDiaRejected(t.getTurningDiaRejected() != null ? t.getTurningDiaRejected() : 0);
+                        });
+
+                        // MPI
+                        findHourRecord(mpiList, hIndex, ProcessMpiData::getHourIndex).ifPresent(m -> {
+                                if (m.getHourLabel() != null && !m.getHourLabel().trim().isEmpty() && (row.getHourLabel() == null || row.getHourLabel().startsWith("Hour "))) {
+                                        row.setHourLabel(m.getHourLabel());
+                                }
+                                row.setMpiRejected(m.getMpiRejected() != null ? m.getMpiRejected() : 0);
+                        });
+
+                        // Forging
+                        findHourRecord(forgingList, hIndex, ProcessForgingData::getHourIndex).ifPresent(f -> {
+                                if (f.getHourLabel() != null && !f.getHourLabel().trim().isEmpty() && (row.getHourLabel() == null || row.getHourLabel().startsWith("Hour "))) {
+                                        row.setHourLabel(f.getHourLabel());
+                                }
+                                row.setForgingTempRejected(f.getForgingTempRejected() != null ? f.getForgingTempRejected() : 0);
+                                row.setForgingStabilisationRejectionRejected(f.getForgingStabilisationRejectionRejected() != null ? f.getForgingStabilisationRejectionRejected() : 0);
+                                row.setImproperForgingRejected(f.getImproperForgingRejected() != null ? f.getImproperForgingRejected() : 0);
+                                row.setForgingDefectRejected(f.getForgingDefectRejected() != null ? f.getForgingDefectRejected() : 0);
+                                row.setForgingEmbossingRejected(f.getEmbossingDefectRejected() != null ? f.getEmbossingDefectRejected() : 0);
+                        });
+
+                        // Quenching
+                        findHourRecord(quenchingList, hIndex, ProcessQuenchingData::getHourIndex).ifPresent(q -> {
+                                if (q.getHourLabel() != null && !q.getHourLabel().trim().isEmpty() && (row.getHourLabel() == null || row.getHourLabel().startsWith("Hour "))) {
+                                        row.setHourLabel(q.getHourLabel());
+                                }
+                                row.setQuenchingTemperatureRejected(q.getQuenchingTemperatureRejected() != null ? q.getQuenchingTemperatureRejected() : 0);
+                                row.setQuenchingDurationRejected(q.getQuenchingDurationRejected() != null ? q.getQuenchingDurationRejected() : 0);
+                                row.setQuenchingHardnessRejected(q.getQuenchingHardnessRejected() != null ? q.getQuenchingHardnessRejected() : 0);
+                                row.setQuenchingBoxGaugeRejected(q.getBoxGaugeRejected() != null ? q.getBoxGaugeRejected() : 0);
+                                row.setQuenchingFlatBearingAreaRejected(q.getFlatBearingAreaRejected() != null ? q.getFlatBearingAreaRejected() : 0);
+                                row.setQuenchingFallingGaugeRejected(q.getFallingGaugeRejected() != null ? q.getFallingGaugeRejected() : 0);
+                        });
+
+                        // Tempering Base
+                        findHourRecord(temperingList, hIndex, ProcessTemperingData::getHourIndex).ifPresent(temp -> {
+                                row.setTemperingTemperatureRejected(temp.getTemperingTemperatureRejected() != null ? temp.getTemperingTemperatureRejected() : 0);
+                                row.setTemperingDurationRejected(temp.getTemperingDurationRejected() != null ? temp.getTemperingDurationRejected() : 0);
+                        });
+
+                        // Final Check (Visual, Dims, Tempering Hardness)
+                        findHourRecord(finalCheckList, hIndex, ProcessFinalCheckData::getHourIndex).ifPresent(fc -> {
+                                row.setSurfaceDefectRejected(fc.getSurfaceDefectRejected() != null ? fc.getSurfaceDefectRejected() : 0);
+                                row.setEmbossingDefectRejected(fc.getEmbossingDefectRejected() != null ? fc.getEmbossingDefectRejected() : 0);
+                                row.setMarkingRejected(fc.getMarkingRejected() != null ? fc.getMarkingRejected() : 0);
+                                row.setTemperingHardnessRejected(fc.getTemperingHardnessRejected() != null ? fc.getTemperingHardnessRejected() : 0);
+                                row.setFinalBoxGaugeRejected(fc.getBoxGaugeRejected() != null ? fc.getBoxGaugeRejected() : 0);
+                                row.setFinalFlatBearingAreaRejected(fc.getFlatBearingAreaRejected() != null ? fc.getFlatBearingAreaRejected() : 0);
+                                row.setFinalFallingGaugeRejected(fc.getFallingGaugeRejected() != null ? fc.getFallingGaugeRejected() : 0);
+                        });
+
+                        // Testing & Finishing
+                        findHourRecord(tfList, hIndex, ProcessTestingFinishingData::getHourIndex).ifPresent(tf -> {
+                                row.setToeLoadRejected(tf.getToeLoadRejected() != null ? tf.getToeLoadRejected() : 0);
+                                row.setWeightRejected(tf.getWeightRejected() != null ? tf.getWeightRejected() : 0);
+                                row.setPaintIdentificationRejected(tf.getPaintIdentificationRejected() != null ? tf.getPaintIdentificationRejected() : 0);
+                                row.setErcCoatingRejected(tf.getErcCoatingRejected() != null ? tf.getErcCoatingRejected() : 0);
+                        });
+
+                        hourlyRows.add(row);
+                }
+
+                ProcessDefectHourlyResponseDto response = new ProcessDefectHourlyResponseDto();
+                response.setFinalResultId(p.getId());
+                response.setCallNo(callNo);
+                response.setShift(shift);
+                response.setLineNo(lineNo);
+                response.setLotNumber(lotNo);
+                response.setCreatedBy(createdBy);
+                response.setDateOfInspection(p.getDateOfInspection());
+                response.setCreatedAt(p.getCreatedAt());
+
+                // Resolve engineer display name
+                if (createdBy != null && !createdBy.trim().isEmpty()) {
+                        String cb = createdBy.trim();
+                        UserMaster u = null;
+                        try {
+                                Integer uid = Integer.parseInt(cb);
+                                u = userMasterRepository.findById(uid).orElse(null);
+                        } catch (NumberFormatException ignored) {}
+
+                        if (u == null) {
+                                u = userMasterRepository.findFirstByEmployeeCode(cb)
+                                                .or(() -> userMasterRepository.findFirstByUserName(cb))
+                                                .orElse(null);
+                        }
+
+                        if (u != null) {
+                                String name = (u.getFullName() != null && !u.getFullName().trim().isEmpty())
+                                                ? u.getFullName().trim()
+                                                : (u.getUsername() != null && !u.getUsername().trim().isEmpty() ? u.getUsername().trim() : "");
+                                String empCode = (u.getEmployeeCode() != null && !u.getEmployeeCode().trim().isEmpty())
+                                                ? u.getEmployeeCode().trim()
+                                                : "";
+                                if (!name.isEmpty() && !empCode.isEmpty()) {
+                                        response.setEngineer(name + " (" + empCode + ")");
+                                } else if (!name.isEmpty()) {
+                                        response.setEngineer(name);
+                                } else if (!empCode.isEmpty()) {
+                                        response.setEngineer(empCode);
+                                } else {
+                                        response.setEngineer(cb);
+                                }
+                        } else {
+                                response.setEngineer(cb);
+                        }
+                }
+
+                response.setTotalManufactured(p.getTotalManufactured() != null ? p.getTotalManufactured() : 0);
+                response.setTotalAccepted(p.getTotalAccepted() != null ? p.getTotalAccepted() : 0);
+                response.setTotalRejected(p.getTotalRejected() != null ? p.getTotalRejected() : 0);
+
+                response.setShearingManufactured(p.getShearingManufactured() != null ? p.getShearingManufactured() : 0);
+                response.setShearingRejected(p.getShearingRejected() != null ? p.getShearingRejected() : 0);
+                response.setTurningManufactured(p.getTurningManufactured() != null ? p.getTurningManufactured() : 0);
+                response.setTurningRejected(p.getTurningRejected() != null ? p.getTurningRejected() : 0);
+                response.setMpiManufactured(p.getMpiManufactured() != null ? p.getMpiManufactured() : 0);
+                response.setMpiRejected(p.getMpiRejected() != null ? p.getMpiRejected() : 0);
+                response.setForgingManufactured(p.getForgingManufactured() != null ? p.getForgingManufactured() : 0);
+                response.setForgingRejected(p.getForgingRejected() != null ? p.getForgingRejected() : 0);
+                response.setQuenchingManufactured(p.getQuenchingManufactured() != null ? p.getQuenchingManufactured() : 0);
+                response.setQuenchingRejected(p.getQuenchingRejected() != null ? p.getQuenchingRejected() : 0);
+                response.setTemperingManufactured(p.getTemperingManufactured() != null ? p.getTemperingManufactured() : 0);
+                response.setTemperingRejected(p.getTemperingRejected() != null ? p.getTemperingRejected() : 0);
+
+                response.setHourlyRows(hourlyRows);
+                return response;
+        }
+
+        @Override
+        public void updateProcessDefectSummary(Long finalResultId, ProcessDefectSummaryUpdateRequest request) {
+                ProcessLineFinalResult p = processLineFinalResultRepository.findById(finalResultId)
+                                .orElseThrow(() -> new RuntimeException("Process Line Final Result not found for ID: " + finalResultId));
+
+                LocalDate createdDate = p.getCreatedAt() != null ? p.getCreatedAt().toLocalDate() : p.getDateOfInspection();
+                LocalDate today = LocalDate.now();
+                LocalDate yesterday = today.minusDays(1);
+                if (createdDate != null && !createdDate.isEqual(today) && !createdDate.isEqual(yesterday)) {
+                        throw new RuntimeException("Editing is disabled for records created before yesterday (Record date: " + createdDate + "). Only records created today or yesterday are allowed.");
+                }
+
+                String callNo = p.getInspectionCallNo();
+                String shift = p.getShift();
+                String lineNo = p.getLineNo();
+                String lotNo = p.getLotNumber();
+                String createdBy = p.getCreatedBy();
+                String updatedBy = (request.getUpdatedBy() != null && !request.getUpdatedBy().trim().isEmpty()) ? request.getUpdatedBy().trim() : createdBy;
+                LocalDateTime now = LocalDateTime.now();
+
+                LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : now;
+                LocalDateTime startDate = createdAt.minusMinutes(3);
+                LocalDateTime endDate = createdAt.plusMinutes(3);
+
+                // Fetch hourly entities to update
+                List<ProcessShearingData> shearingList = processShearingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessTurningData> turningList = processTurningDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessMpiData> mpiList = processMpiDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessForgingData> forgingList = processForgingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessQuenchingData> quenchingList = processQuenchingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessTemperingData> temperingList = processTemperingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessFinalCheckData> finalCheckList = processFinalCheckDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                List<ProcessTestingFinishingData> tfList = processTestingFinishingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+
+                // Update hourly records if provided in request
+                if (request.getHourlyRows() != null && !request.getHourlyRows().isEmpty()) {
+                        for (ProcessHourlyDefectRowDto hDto : request.getHourlyRows()) {
+                                int hIndex = hDto.getHourIndex() != null ? hDto.getHourIndex() : 0;
+
+                                // Shearing
+                                findHourRecord(shearingList, hIndex, ProcessShearingData::getHourIndex).ifPresent(s -> {
+                                        s.setLengthCutBarRejected(hDto.getLengthCutBarRejected());
+                                        s.setImproperDiaRejected(hDto.getImproperDiaRejected());
+                                        s.setSharpEdgesRejected(hDto.getSharpEdgesRejected());
+                                        s.setCrackedEdgesRejected(hDto.getCrackedEdgesRejected());
+                                        s.setUpdatedBy(updatedBy);
+                                        s.setUpdatedAt(now);
+                                        processShearingDataRepository.save(s);
+                                });
+
+                                // Turning
+                                findHourRecord(turningList, hIndex, ProcessTurningData::getHourIndex).ifPresent(t -> {
+                                        t.setParallelLengthRejected(hDto.getParallelLengthRejected());
+                                        t.setFullTurningLengthRejected(hDto.getFullTurningLengthRejected());
+                                        t.setTurningDiaRejected(hDto.getTurningDiaRejected());
+                                        t.setUpdatedBy(updatedBy);
+                                        t.setUpdatedAt(now);
+                                        processTurningDataRepository.save(t);
+                                });
+
+                                // MPI
+                                findHourRecord(mpiList, hIndex, ProcessMpiData::getHourIndex).ifPresent(m -> {
+                                        m.setMpiRejected(hDto.getMpiRejected());
+                                        m.setUpdatedBy(updatedBy);
+                                        m.setUpdatedAt(now);
+                                        processMpiDataRepository.save(m);
+                                });
+
+                                // Forging
+                                findHourRecord(forgingList, hIndex, ProcessForgingData::getHourIndex).ifPresent(f -> {
+                                        f.setForgingTempRejected(hDto.getForgingTempRejected());
+                                        f.setForgingStabilisationRejectionRejected(hDto.getForgingStabilisationRejectionRejected());
+                                        f.setImproperForgingRejected(hDto.getImproperForgingRejected());
+                                        f.setForgingDefectRejected(hDto.getForgingDefectRejected());
+                                        f.setEmbossingDefectRejected(hDto.getForgingEmbossingRejected());
+                                        f.setUpdatedBy(updatedBy);
+                                        f.setUpdatedAt(now);
+                                        processForgingDataRepository.save(f);
+                                });
+
+                                // Quenching
+                                findHourRecord(quenchingList, hIndex, ProcessQuenchingData::getHourIndex).ifPresent(q -> {
+                                        q.setQuenchingTemperatureRejected(hDto.getQuenchingTemperatureRejected());
+                                        q.setQuenchingDurationRejected(hDto.getQuenchingDurationRejected());
+                                        q.setQuenchingHardnessRejected(hDto.getQuenchingHardnessRejected());
+                                        q.setBoxGaugeRejected(hDto.getQuenchingBoxGaugeRejected());
+                                        q.setFlatBearingAreaRejected(hDto.getQuenchingFlatBearingAreaRejected());
+                                        q.setFallingGaugeRejected(hDto.getQuenchingFallingGaugeRejected());
+                                        q.setUpdatedBy(updatedBy);
+                                        q.setUpdatedAt(now);
+                                        processQuenchingDataRepository.save(q);
+                                });
+
+                                // Tempering Base
+                                findHourRecord(temperingList, hIndex, ProcessTemperingData::getHourIndex).ifPresent(temp -> {
+                                        temp.setTemperingTemperatureRejected(hDto.getTemperingTemperatureRejected());
+                                        temp.setTemperingDurationRejected(hDto.getTemperingDurationRejected());
+                                        temp.setUpdatedBy(updatedBy);
+                                        temp.setUpdatedAt(now);
+                                        processTemperingDataRepository.save(temp);
+                                });
+
+                                // Final Check
+                                findHourRecord(finalCheckList, hIndex, ProcessFinalCheckData::getHourIndex).ifPresent(fc -> {
+                                        fc.setSurfaceDefectRejected(hDto.getSurfaceDefectRejected());
+                                        fc.setEmbossingDefectRejected(hDto.getEmbossingDefectRejected());
+                                        fc.setMarkingRejected(hDto.getMarkingRejected());
+                                        fc.setTemperingHardnessRejected(hDto.getTemperingHardnessRejected());
+                                        fc.setBoxGaugeRejected(hDto.getFinalBoxGaugeRejected());
+                                        fc.setFlatBearingAreaRejected(hDto.getFinalFlatBearingAreaRejected());
+                                        fc.setFallingGaugeRejected(hDto.getFinalFallingGaugeRejected());
+                                        fc.setUpdatedBy(updatedBy);
+                                        fc.setUpdatedAt(now);
+                                        processFinalCheckDataRepository.save(fc);
+                                });
+
+                                // Testing & Finishing
+                                findHourRecord(tfList, hIndex, ProcessTestingFinishingData::getHourIndex).ifPresent(tf -> {
+                                        tf.setToeLoadRejected(hDto.getToeLoadRejected());
+                                        tf.setWeightRejected(hDto.getWeightRejected());
+                                        tf.setPaintIdentificationRejected(hDto.getPaintIdentificationRejected());
+                                        tf.setErcCoatingRejected(hDto.getErcCoatingRejected());
+                                        tf.setUpdatedBy(updatedBy);
+                                        tf.setUpdatedAt(now);
+                                        processTestingFinishingDataRepository.save(tf);
+                                });
+                        }
+                }
+
+                // Update metadata fields if provided
+                String newShift = (request.getShift() != null && !request.getShift().trim().isEmpty()) ? request.getShift().trim().toUpperCase() : shift;
+                String newLineNo = (request.getLineNo() != null && !request.getLineNo().trim().isEmpty()) ? request.getLineNo().trim() : lineNo;
+                String newCreatedBy = createdBy;
+                if (request.getEngineer() != null && !request.getEngineer().trim().isEmpty()) {
+                        String engStr = request.getEngineer().trim();
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(([^)]+)\\)").matcher(engStr);
+                        String extractedCode = m.find() ? m.group(1).trim() : engStr;
+                        UserMaster u = userMasterRepository.findFirstByEmployeeCode(extractedCode)
+                                        .or(() -> userMasterRepository.findFirstByUserName(extractedCode))
+                                        .orElse(null);
+                        if (u != null) {
+                                newCreatedBy = String.valueOf(u.getUserId());
+                        } else if (request.getCreatedBy() != null && !request.getCreatedBy().trim().isEmpty()) {
+                                newCreatedBy = request.getCreatedBy().trim();
+                        }
+                } else if (request.getCreatedBy() != null && !request.getCreatedBy().trim().isEmpty()) {
+                        newCreatedBy = request.getCreatedBy().trim();
+                }
+                LocalDate newDate = request.getDateOfInspection() != null ? request.getDateOfInspection() : p.getDateOfInspection();
+
+                boolean metadataChanged = !newShift.equalsIgnoreCase(shift) || !newLineNo.equalsIgnoreCase(lineNo) || !newCreatedBy.equalsIgnoreCase(createdBy);
+
+                if (metadataChanged) {
+                        for (ProcessShearingData s : shearingList) { s.setShift(newShift); s.setLineNo(newLineNo); s.setCreatedBy(newCreatedBy); s.setUpdatedBy(updatedBy); s.setUpdatedAt(now); }
+                        processShearingDataRepository.saveAll(shearingList);
+                        for (ProcessTurningData t : turningList) { t.setShift(newShift); t.setLineNo(newLineNo); t.setCreatedBy(newCreatedBy); t.setUpdatedBy(updatedBy); t.setUpdatedAt(now); }
+                        processTurningDataRepository.saveAll(turningList);
+                        for (ProcessMpiData m : mpiList) { m.setShift(newShift); m.setLineNo(newLineNo); m.setCreatedBy(newCreatedBy); m.setUpdatedBy(updatedBy); m.setUpdatedAt(now); }
+                        processMpiDataRepository.saveAll(mpiList);
+                        for (ProcessForgingData f : forgingList) { f.setShift(newShift); f.setLineNo(newLineNo); f.setCreatedBy(newCreatedBy); f.setUpdatedBy(updatedBy); f.setUpdatedAt(now); }
+                        processForgingDataRepository.saveAll(forgingList);
+                        for (ProcessQuenchingData q : quenchingList) { q.setShift(newShift); q.setLineNo(newLineNo); q.setCreatedBy(newCreatedBy); q.setUpdatedBy(updatedBy); q.setUpdatedAt(now); }
+                        processQuenchingDataRepository.saveAll(quenchingList);
+                        for (ProcessTemperingData temp : temperingList) { temp.setShift(newShift); temp.setLineNo(newLineNo); temp.setCreatedBy(newCreatedBy); temp.setUpdatedBy(updatedBy); temp.setUpdatedAt(now); }
+                        processTemperingDataRepository.saveAll(temperingList);
+                        for (ProcessFinalCheckData fc : finalCheckList) { fc.setShift(newShift); fc.setLineNo(newLineNo); fc.setCreatedBy(newCreatedBy); fc.setUpdatedBy(updatedBy); fc.setUpdatedAt(now); }
+                        processFinalCheckDataRepository.saveAll(finalCheckList);
+                        for (ProcessTestingFinishingData tf : tfList) { tf.setShift(newShift); tf.setLineNo(newLineNo); tf.setCreatedBy(newCreatedBy); tf.setUpdatedBy(updatedBy); tf.setUpdatedAt(now); }
+                        processTestingFinishingDataRepository.saveAll(tfList);
+                }
+
+                // Stage-wise re-aggregation
+                int shearingRej = request.getShearingRejected() != null ? request.getShearingRejected() : 0;
+                int turningRej = request.getTurningRejected() != null ? request.getTurningRejected() : 0;
+                int mpiRej = request.getMpiRejected() != null ? request.getMpiRejected() : 0;
+                int forgingRej = request.getForgingRejected() != null ? request.getForgingRejected() : 0;
+                int quenchingRej = request.getQuenchingRejected() != null ? request.getQuenchingRejected() : 0;
+                int temperingRej = request.getTemperingRejected() != null ? request.getTemperingRejected() : 0;
+
+                int calculatedTotalRejected = shearingRej + turningRej + mpiRej + forgingRej + quenchingRej + temperingRej;
+                int finalTotalRejected = request.getTotalRejected() != null ? request.getTotalRejected() : calculatedTotalRejected;
+                int finalTotalAccepted = request.getTotalAccepted() != null ? request.getTotalAccepted() : (p.getTotalAccepted() != null ? p.getTotalAccepted() : 0);
+
+                // Update ProcessLineFinalResult
+                p.setShift(newShift);
+                p.setLineNo(newLineNo);
+                p.setCreatedBy(newCreatedBy);
+                p.setDateOfInspection(newDate);
+
+                p.setShearingRejected(shearingRej);
+                p.setTurningRejected(turningRej);
+                p.setMpiRejected(mpiRej);
+                p.setForgingRejected(forgingRej);
+                p.setQuenchingRejected(quenchingRej);
+                p.setTemperingRejected(temperingRej);
+                p.setTotalRejected(finalTotalRejected);
+                p.setTotalAccepted(finalTotalAccepted);
+
+                if (request.getShearingManufactured() != null) {
+                        p.setShearingManufactured(request.getShearingManufactured());
+                        p.setShearingAccepted(Math.max(0, request.getShearingManufactured() - shearingRej));
+                }
+                if (request.getTurningManufactured() != null) {
+                        p.setTurningManufactured(request.getTurningManufactured());
+                        p.setTurningAccepted(Math.max(0, request.getTurningManufactured() - turningRej));
+                }
+                if (request.getMpiManufactured() != null) {
+                        p.setMpiManufactured(request.getMpiManufactured());
+                        p.setMpiAccepted(Math.max(0, request.getMpiManufactured() - mpiRej));
+                }
+                if (request.getForgingManufactured() != null) {
+                        p.setForgingManufactured(request.getForgingManufactured());
+                        p.setForgingAccepted(Math.max(0, request.getForgingManufactured() - forgingRej));
+                }
+                if (request.getQuenchingManufactured() != null) {
+                        p.setQuenchingManufactured(request.getQuenchingManufactured());
+                        p.setQuenchingAccepted(Math.max(0, request.getQuenchingManufactured() - quenchingRej));
+                }
+                if (request.getTemperingManufactured() != null) {
+                        p.setTemperingManufactured(request.getTemperingManufactured());
+                        p.setTemperingAccepted(Math.max(0, request.getTemperingManufactured() - temperingRej));
+                }
+                if (request.getTotalManufactured() != null) p.setTotalManufactured(request.getTotalManufactured());
+
+                p.setUpdatedBy(updatedBy);
+                p.setUpdatedAt(now);
+                processLineFinalResultRepository.save(p);
+
+                // Reconcile PROCESS_IE_QTY for old and new keys
+                reconcileProcessIeQty(callNo, shift, lotNo, createdBy);
+                if (metadataChanged) {
+                        reconcileProcessIeQty(callNo, newShift, lotNo, newCreatedBy);
+                }
+        }
+
+        @Override
+        public void deleteProcessDefectSummary(Long finalResultId, String userId) {
+                ProcessLineFinalResult p = processLineFinalResultRepository.findById(finalResultId)
+                                .orElseThrow(() -> new RuntimeException("Process Line Final Result not found for ID: " + finalResultId));
+
+                LocalDate createdDate = p.getCreatedAt() != null ? p.getCreatedAt().toLocalDate() : p.getDateOfInspection();
+                LocalDate today = LocalDate.now();
+                LocalDate yesterday = today.minusDays(1);
+                if (createdDate != null && !createdDate.isEqual(today) && !createdDate.isEqual(yesterday)) {
+                        throw new RuntimeException("Deleting is disabled for records created before yesterday (Record date: " + createdDate + "). Only records created today or yesterday are allowed.");
+                }
+
+                String callNo = p.getInspectionCallNo();
+                String shift = p.getShift();
+                String lineNo = p.getLineNo();
+                String lotNo = p.getLotNumber();
+                String createdBy = p.getCreatedBy();
+                LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : LocalDateTime.now();
+                LocalDateTime startDate = createdAt.minusMinutes(3);
+                LocalDateTime endDate = createdAt.plusMinutes(3);
+
+                // 1. Delete associated submodule defect rows within time window
+                List<ProcessShearingData> shearList = processShearingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!shearList.isEmpty()) processShearingDataRepository.deleteAll(shearList);
+
+                List<ProcessTurningData> turnList = processTurningDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!turnList.isEmpty()) processTurningDataRepository.deleteAll(turnList);
+
+                List<ProcessMpiData> mpiList = processMpiDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!mpiList.isEmpty()) processMpiDataRepository.deleteAll(mpiList);
+
+                List<ProcessForgingData> forgeList = processForgingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!forgeList.isEmpty()) processForgingDataRepository.deleteAll(forgeList);
+
+                List<ProcessQuenchingData> quenchList = processQuenchingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!quenchList.isEmpty()) processQuenchingDataRepository.deleteAll(quenchList);
+
+                List<ProcessTemperingData> tempList = processTemperingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!tempList.isEmpty()) processTemperingDataRepository.deleteAll(tempList);
+
+                List<ProcessFinalCheckData> fcList = processFinalCheckDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!fcList.isEmpty()) processFinalCheckDataRepository.deleteAll(fcList);
+
+                List<ProcessTestingFinishingData> tfList = processTestingFinishingDataRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(e -> (shift == null || shift.equalsIgnoreCase(e.getShift()))
+                                                && (lotNo == null || e.getLotNo() == null || lotNo.trim().equalsIgnoreCase(e.getLotNo().trim()))
+                                                && (lineNo == null || lineNo.equalsIgnoreCase(e.getLineNo()))
+                                                && (createdBy == null || createdBy.equals(e.getCreatedBy()))
+                                                && (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(startDate) && !e.getCreatedAt().isAfter(endDate)))
+                                .collect(Collectors.toList());
+                if (!tfList.isEmpty()) processTestingFinishingDataRepository.deleteAll(tfList);
+
+                // 2. Delete ProcessLineFinalResult entity
+                processLineFinalResultRepository.delete(p);
+
+                // 3. Reconcile or Delete from PROCESS_IE_QTY
+                reconcileProcessIeQty(callNo, shift, lotNo, createdBy);
+        }
+
+        private void reconcileProcessIeQty(String callNo, String shift, String lotNo, String createdBy) {
+                // Find all remaining ProcessLineFinalResult rows for this (callNo, shift, lotNo, createdBy)
+                List<ProcessLineFinalResult> remaining = processLineFinalResultRepository.findByInspectionCallNo(callNo).stream()
+                                .filter(r -> (shift == null || shift.equalsIgnoreCase(r.getShift()))
+                                                && (lotNo == null || r.getLotNumber() == null || lotNo.trim().equalsIgnoreCase(r.getLotNumber().trim()))
+                                                && (createdBy == null || createdBy.equals(r.getCreatedBy())))
+                                .collect(Collectors.toList());
+
+                // Find matching ProcessIeQty rows
+                List<ProcessIeQty> ieQtys = processIeQtyRepository.findByRequestId(callNo).stream()
+                                .filter(q -> (shift == null || shift.equalsIgnoreCase(q.getSwiftCode()))
+                                                && (lotNo == null || q.getLotNumber() == null || lotNo.trim().equalsIgnoreCase(q.getLotNumber().trim())))
+                                .collect(Collectors.toList());
+
+                if (remaining.isEmpty()) {
+                        // All lines deleted for this shift/lot -> delete from PROCESS_IE_QTY
+                        if (!ieQtys.isEmpty()) {
+                                processIeQtyRepository.deleteAll(ieQtys);
+                        }
+                } else {
+                        // Re-aggregate from remaining lines
+                        int totalAccepted = remaining.stream().mapToInt(r -> r.getTotalAccepted() != null ? r.getTotalAccepted() : 0).sum();
+                        int totalRejected = remaining.stream().mapToInt(r -> r.getTotalRejected() != null ? r.getTotalRejected() : 0).sum();
+                        int totalMfg = remaining.stream().mapToInt(r -> r.getTotalManufactured() != null ? r.getTotalManufactured() : 0).sum();
+
+                        for (ProcessIeQty qty : ieQtys) {
+                                qty.setInspectedQty(totalAccepted);
+                                qty.setRejectedQty(BigDecimal.valueOf(totalRejected));
+                                if (totalMfg > 0) qty.setManufactureQty(totalMfg);
+                                processIeQtyRepository.save(qty);
+                        }
+                }
+        }
+
+        private List<String> getDefaultShiftHourLabels(String shift) {
+                if ("B".equalsIgnoreCase(shift)) {
+                        return Arrays.asList("14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00");
+                } else if ("C".equalsIgnoreCase(shift)) {
+                        return Arrays.asList("22:00-23:00", "23:00-00:00", "00:00-01:00", "01:00-02:00", "02:00-03:00", "03:00-04:00", "04:00-05:00", "05:00-06:00");
+                } else if ("G".equalsIgnoreCase(shift)) {
+                        return Arrays.asList("09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00");
+                }
+                return Arrays.asList("06:00-07:00", "07:00-08:00", "08:00-09:00", "09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00");
+        }
+
+        @Override
+        public Long lookupProcessFinalResultId(String callNo, String shift, String lotNo, String lineNo) {
+                if (callNo == null || callNo.trim().isEmpty()) return null;
+                List<ProcessLineFinalResult> list = processLineFinalResultRepository.findByInspectionCallNo(callNo.trim());
+                if (list == null || list.isEmpty()) return null;
+
+                // 1. Try exact match on (shift, lotNumber, lineNo)
+                for (ProcessLineFinalResult p : list) {
+                        boolean matchShift = shift == null || shift.trim().isEmpty() || shift.trim().equalsIgnoreCase(p.getShift());
+                        boolean matchLot = lotNo == null || lotNo.trim().isEmpty() || lotNo.trim().equalsIgnoreCase(p.getLotNumber());
+                        boolean matchLine = lineNo == null || lineNo.trim().isEmpty() || lineNo.trim().equalsIgnoreCase(p.getLineNo());
+                        if (matchShift && matchLot && matchLine) {
+                                return p.getId();
+                        }
+                }
+
+                // 2. Try match on (shift, lotNumber)
+                for (ProcessLineFinalResult p : list) {
+                        boolean matchShift = shift == null || shift.trim().isEmpty() || shift.trim().equalsIgnoreCase(p.getShift());
+                        boolean matchLot = lotNo == null || lotNo.trim().isEmpty() || lotNo.trim().equalsIgnoreCase(p.getLotNumber());
+                        if (matchShift && matchLot) {
+                                return p.getId();
+                        }
+                }
+
+                // 3. Fallback: match by shift alone
+                for (ProcessLineFinalResult p : list) {
+                        if (shift != null && !shift.trim().isEmpty() && shift.trim().equalsIgnoreCase(p.getShift())) {
+                                return p.getId();
+                        }
+                }
+
+                return list.get(0).getId();
         }
 }
 
