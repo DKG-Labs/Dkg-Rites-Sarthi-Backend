@@ -34,6 +34,9 @@ public class FinalInspectionLotResults {
 
     private String heatNo;
 
+    @Column(name = "sample_size")
+    private Integer sampleSize;
+
     // ---- TEST RESULTS (Status: OK, NOT OK, PENDING) ----
     private String calibrationStatus;
     private String visualDimStatus;

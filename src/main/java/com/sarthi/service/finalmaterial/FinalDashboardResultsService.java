@@ -35,6 +35,7 @@ public interface FinalDashboardResultsService {
     List<FinalInspectionLotResults> getLotResultsByCallNo(String inspectionCallNo);
     List<FinalInspectionLotResults> getLotResultsByLotNo(String lotNo);
     FinalInspectionLotResults updateLotResults(FinalInspectionLotResultsDto dto, String userId);
+    FinalInspectionLotResults updateSampleSize(String inspectionCallNo, String lotNo, Integer sampleSize, String userId);
     void deleteLotResults(String inspectionCallNo, String lotNo);
 }
 

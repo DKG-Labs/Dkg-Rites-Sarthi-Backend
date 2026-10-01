@@ -351,24 +351,25 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             // Update existing record
             entity = existing.get();
             log.info("Updating existing lot results for call: {} lot: {}", dto.getInspectionCallNo(), dto.getLotNo());
-            entity.setHeatNo(dto.getHeatNo());
-            entity.setCalibrationStatus(dto.getCalibrationStatus());
-            entity.setVisualDimStatus(dto.getVisualDimStatus());
-            entity.setHardnessStatus(dto.getHardnessStatus());
-            entity.setInclusionStatus(dto.getInclusionStatus());
-            entity.setDeflectionStatus(dto.getDeflectionStatus());
-            entity.setToeLoadStatus(dto.getToeLoadStatus());
-            entity.setWeightStatus(dto.getWeightStatus());
-            entity.setChemicalStatus(dto.getChemicalStatus());
-            entity.setErcUsedForTesting(dto.getErcUsedForTesting());
-            entity.setTotalRejectedQty(dto.getTotalRejectedQty());
-            entity.setStdPackingNo(dto.getStdPackingNo());
-            entity.setBagsWithStdPacking(dto.getBagsWithStdPacking());
-            entity.setNonStdBagsCount(dto.getNonStdBagsCount());
-            entity.setNonStdBagsQty(dto.getNonStdBagsQty());
-            entity.setHologramDetails(dto.getHologramDetails());
-            entity.setRemarks(dto.getRemarks());
-            entity.setLotStatus(dto.getLotStatus());
+            if (dto.getHeatNo() != null) entity.setHeatNo(dto.getHeatNo());
+            if (dto.getSampleSize() != null) entity.setSampleSize(dto.getSampleSize());
+            if (dto.getCalibrationStatus() != null) entity.setCalibrationStatus(dto.getCalibrationStatus());
+            if (dto.getVisualDimStatus() != null) entity.setVisualDimStatus(dto.getVisualDimStatus());
+            if (dto.getHardnessStatus() != null) entity.setHardnessStatus(dto.getHardnessStatus());
+            if (dto.getInclusionStatus() != null) entity.setInclusionStatus(dto.getInclusionStatus());
+            if (dto.getDeflectionStatus() != null) entity.setDeflectionStatus(dto.getDeflectionStatus());
+            if (dto.getToeLoadStatus() != null) entity.setToeLoadStatus(dto.getToeLoadStatus());
+            if (dto.getWeightStatus() != null) entity.setWeightStatus(dto.getWeightStatus());
+            if (dto.getChemicalStatus() != null) entity.setChemicalStatus(dto.getChemicalStatus());
+            if (dto.getErcUsedForTesting() != null) entity.setErcUsedForTesting(dto.getErcUsedForTesting());
+            if (dto.getTotalRejectedQty() != null) entity.setTotalRejectedQty(dto.getTotalRejectedQty());
+            if (dto.getStdPackingNo() != null) entity.setStdPackingNo(dto.getStdPackingNo());
+            if (dto.getBagsWithStdPacking() != null) entity.setBagsWithStdPacking(dto.getBagsWithStdPacking());
+            if (dto.getNonStdBagsCount() != null) entity.setNonStdBagsCount(dto.getNonStdBagsCount());
+            if (dto.getNonStdBagsQty() != null) entity.setNonStdBagsQty(dto.getNonStdBagsQty());
+            if (dto.getHologramDetails() != null) entity.setHologramDetails(dto.getHologramDetails());
+            if (dto.getRemarks() != null) entity.setRemarks(dto.getRemarks());
+            if (dto.getLotStatus() != null) entity.setLotStatus(dto.getLotStatus());
             entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : userId);
             entity.setUpdatedAt(dto.getUpdatedAt() != null ? dto.getUpdatedAt() : LocalDateTime.now());
         } else {
@@ -377,23 +378,24 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             entity.setInspectionCallNo(dto.getInspectionCallNo());
             entity.setLotNo(dto.getLotNo());
             entity.setHeatNo(dto.getHeatNo());
-            entity.setCalibrationStatus(dto.getCalibrationStatus());
-            entity.setVisualDimStatus(dto.getVisualDimStatus());
-            entity.setHardnessStatus(dto.getHardnessStatus());
-            entity.setInclusionStatus(dto.getInclusionStatus());
-            entity.setDeflectionStatus(dto.getDeflectionStatus());
-            entity.setToeLoadStatus(dto.getToeLoadStatus());
-            entity.setWeightStatus(dto.getWeightStatus());
-            entity.setChemicalStatus(dto.getChemicalStatus());
+            entity.setSampleSize(dto.getSampleSize());
+            entity.setCalibrationStatus(dto.getCalibrationStatus() != null ? dto.getCalibrationStatus() : "PENDING");
+            entity.setVisualDimStatus(dto.getVisualDimStatus() != null ? dto.getVisualDimStatus() : "PENDING");
+            entity.setHardnessStatus(dto.getHardnessStatus() != null ? dto.getHardnessStatus() : "PENDING");
+            entity.setInclusionStatus(dto.getInclusionStatus() != null ? dto.getInclusionStatus() : "PENDING");
+            entity.setDeflectionStatus(dto.getDeflectionStatus() != null ? dto.getDeflectionStatus() : "PENDING");
+            entity.setToeLoadStatus(dto.getToeLoadStatus() != null ? dto.getToeLoadStatus() : "PENDING");
+            entity.setWeightStatus(dto.getWeightStatus() != null ? dto.getWeightStatus() : "PENDING");
+            entity.setChemicalStatus(dto.getChemicalStatus() != null ? dto.getChemicalStatus() : "PENDING");
             entity.setErcUsedForTesting(dto.getErcUsedForTesting());
             entity.setTotalRejectedQty(dto.getTotalRejectedQty());
-            entity.setStdPackingNo(dto.getStdPackingNo());
+            entity.setStdPackingNo(dto.getStdPackingNo() != null ? dto.getStdPackingNo() : 50);
             entity.setBagsWithStdPacking(dto.getBagsWithStdPacking());
             entity.setNonStdBagsCount(dto.getNonStdBagsCount());
             entity.setNonStdBagsQty(dto.getNonStdBagsQty());
             entity.setHologramDetails(dto.getHologramDetails());
             entity.setRemarks(dto.getRemarks());
-            entity.setLotStatus(dto.getLotStatus());
+            entity.setLotStatus(dto.getLotStatus() != null ? dto.getLotStatus() : "PENDING");
             entity.setCreatedBy(dto.getCreatedBy() != null ? dto.getCreatedBy() : userId);
             entity.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : LocalDateTime.now());
             entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : userId);
@@ -429,6 +431,9 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
             .findByInspectionCallNoAndLotNo(dto.getInspectionCallNo(), dto.getLotNo())
             .orElseThrow(() -> new RuntimeException("Lot results not found"));
         
+        if (dto.getSampleSize() != null) {
+            entity.setSampleSize(dto.getSampleSize());
+        }
         entity.setVisualDimStatus(dto.getVisualDimStatus());
         entity.setHardnessStatus(dto.getHardnessStatus());
         entity.setInclusionStatus(dto.getInclusionStatus());
@@ -447,6 +452,38 @@ public class FinalDashboardResultsServiceImpl implements FinalDashboardResultsSe
         entity.setLotStatus(dto.getLotStatus());
         entity.setUpdatedBy(userId);
         
+        return lotResultsRepository.save(entity);
+    }
+
+    @Override
+    public FinalInspectionLotResults updateSampleSize(String inspectionCallNo, String lotNo, Integer sampleSize, String userId) {
+        log.info("Updating sample size for call: {} lot: {} to {}", inspectionCallNo, lotNo, sampleSize);
+        Optional<FinalInspectionLotResults> existing = lotResultsRepository.findByInspectionCallNoAndLotNo(inspectionCallNo, lotNo);
+        FinalInspectionLotResults entity;
+        if (existing.isPresent()) {
+            entity = existing.get();
+            entity.setSampleSize(sampleSize);
+            entity.setUpdatedBy(userId);
+            entity.setUpdatedAt(LocalDateTime.now());
+        } else {
+            entity = new FinalInspectionLotResults();
+            entity.setInspectionCallNo(inspectionCallNo);
+            entity.setLotNo(lotNo);
+            entity.setSampleSize(sampleSize);
+            entity.setCalibrationStatus("PENDING");
+            entity.setVisualDimStatus("PENDING");
+            entity.setHardnessStatus("PENDING");
+            entity.setInclusionStatus("PENDING");
+            entity.setDeflectionStatus("PENDING");
+            entity.setToeLoadStatus("PENDING");
+            entity.setWeightStatus("PENDING");
+            entity.setChemicalStatus("PENDING");
+            entity.setLotStatus("PENDING");
+            entity.setCreatedBy(userId);
+            entity.setCreatedAt(LocalDateTime.now());
+            entity.setUpdatedBy(userId);
+            entity.setUpdatedAt(LocalDateTime.now());
+        }
         return lotResultsRepository.save(entity);
     }
 

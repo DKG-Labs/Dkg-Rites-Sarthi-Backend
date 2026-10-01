@@ -89,10 +89,9 @@ public class ExceptionHelper {
             return null;
         }
 
-        ex.printStackTrace();
-        System.out.println("EXCEPTION EX: " + ex);
+        logger.error("Unhandled server exception: ", ex);
 
-        String message = ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred.";
+        String message = "An unexpected error occurred while processing your request. Please try again later or contact support.";
         ErrorDetails errorDetails = new ErrorDetails(AppConstant.INTER_SERVER_ERROR,
                 AppConstant.ERROR_TYPE_CODE_INTERNAL,
                 AppConstant.ERROR_TYPE_ERROR, message);

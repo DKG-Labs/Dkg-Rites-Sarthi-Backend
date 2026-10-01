@@ -201,5 +201,29 @@ public class FinalDashboardResultsController {
             return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.BAD_REQUEST);
         }
     }
+
+    @PatchMapping("/lot-results/sample-size")
+    @Operation(summary = "Update sample size for a specific lot")
+    public ResponseEntity<?> updateSampleSize(
+            @RequestParam String callNo,
+            @RequestParam String lotNo,
+            @RequestParam Integer sampleSize,
+            Principal principal) {
+        try {
+            logger.info("Updating sample size for call: {} lot: {} to {}", callNo, lotNo, sampleSize);
+            String userId = principal != null ? principal.getName() : "system";
+            var result = dashboardResultsService.updateSampleSize(callNo, lotNo, sampleSize, userId);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+        } catch (Exception e) {
+            logger.error("Error updating sample size", e);
+            ErrorDetails errorDetails = new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_RESOURCE,
+                    "Failed to update sample size: " + e.getMessage()
+            );
+            return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.BAD_REQUEST);
+        }
+    }
 }
 

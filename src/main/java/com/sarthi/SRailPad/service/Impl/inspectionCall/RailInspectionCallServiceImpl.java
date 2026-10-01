@@ -46,6 +46,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.RailCallCancellationDetailRepository railCallCancellationDetailRepository;
     private final com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
     private final com.sarthi.SRailPad.repository.plantDeclaration.RailApprovedQAPRepository railApprovedQAPRepository;
+    private final com.sarthi.repository.UserMasterRepository userMasterRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     private jakarta.persistence.EntityManager entityManager;
@@ -472,27 +473,47 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         boolean isVerified = false;
         boolean hasIcGen = false;
         String lastAction = null;
+        String assignedIeName = null;
 
         if (call.getCallNo() != null) {
             List<com.sarthi.SRailPad.entity.RailWorkflowTransaction> txList = railWorkflowTransactionRepository
-                    .findByRequestIdOrderByCreatedDateAsc(call.getCallNo());
+                    .findByRequestIdOrderByWorkflowTransitionIdDesc(call.getCallNo());
             if (txList != null && !txList.isEmpty()) {
                 isVerified = txList.stream().anyMatch(tx -> {
                     String act = tx.getAction() != null ? tx.getAction().toUpperCase() : "";
                     String st = tx.getStatus() != null ? tx.getStatus().toUpperCase() : "";
                     return act.contains("VERIFY") || act.contains("SCHEDULE") || act.contains("INITIATE")
-                            || act.contains("ISSUE") || act.contains("COMPLET")
+                            || act.contains("ISSUE") || act.contains("COMPLET") || act.contains("PAUSE")
                             || st.contains("VERIFY") || st.contains("REGISTERED") || st.contains("SCHEDULE")
-                            || st.contains("INITIATE") || st.contains("ISSUE") || st.contains("COMPLET");
+                            || st.contains("INITIATE") || st.contains("ISSUE") || st.contains("COMPLET") || st.contains("PAUSE");
                 });
 
                 hasIcGen = txList.stream()
                         .anyMatch(tx -> tx.getAction() != null && (tx.getAction().equalsIgnoreCase("IC_GENERATION") ||
                                 tx.getAction().equalsIgnoreCase("IC_ISSUE")));
 
-                com.sarthi.SRailPad.entity.RailWorkflowTransaction lastTx = txList.get(txList.size() - 1);
-                if (lastTx.getAction() != null) {
-                    lastAction = lastTx.getAction();
+                // Latest transaction is index 0 (ordered by workflowTransitionId DESC)
+                com.sarthi.SRailPad.entity.RailWorkflowTransaction latestTx = txList.get(0);
+                if (latestTx.getAction() != null) {
+                    lastAction = latestTx.getAction();
+                }
+
+                // Resolve IE name from assignedToUser in the transactions
+                for (com.sarthi.SRailPad.entity.RailWorkflowTransaction tx : txList) {
+                    if (tx.getAssignedToUser() != null && tx.getAssignedToUser() > 0) {
+                        try {
+                            Optional<com.sarthi.entity.UserMaster> userOpt = userMasterRepository
+                                    .findByUserId(tx.getAssignedToUser().intValue());
+                            if (userOpt.isPresent()) {
+                                com.sarthi.entity.UserMaster u = userOpt.get();
+                                assignedIeName = (u.getFullName() != null && !u.getFullName().isBlank())
+                                        ? u.getFullName().trim()
+                                        : u.getUsername();
+                                break;
+                            }
+                        } catch (Exception ignored) {
+                        }
+                    }
                 }
             }
         }
@@ -500,7 +521,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         call.setIsIcGenerated(hasIcGen);
         call.setLatestAction(lastAction);
 
-        if (!isVerified) {
+        if (assignedIeName != null && !assignedIeName.isBlank()) {
+            call.setIeAssignedName(assignedIeName);
+        } else if (!isVerified) {
             call.setIeAssignedName("No ie assigned");
         } else {
             List<String> mainIeNames = railPoiIeMappingRepository.findMainIeNamesByPlantId(call.getPlantId(), null);

@@ -707,18 +707,35 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
      * }
      * 
      */
+    private SleeperWorkflowTransaction resolveCurrentTransaction(SleeperTransitionActionReqDto req) {
+        if (req.getWorkflowTransitionId() != null && req.getWorkflowTransitionId() > 0) {
+            java.util.Optional<SleeperWorkflowTransaction> opt = repository.findById(req.getWorkflowTransitionId());
+            if (opt.isPresent()) {
+                return opt.get();
+            }
+        }
+        if (req.getRequestId() != null && !req.getRequestId().trim().isEmpty()) {
+            List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(req.getRequestId().trim());
+            if (txList != null && !txList.isEmpty()) {
+                return txList.get(0);
+            }
+        }
+        return null;
+    }
+
     @Override
     public SleeperWorkflowTransactionDto performTransitionAction(
             SleeperTransitionActionReqDto req) {
 
-        SleeperWorkflowTransaction current = repository
-                .findById(req.getWorkflowTransitionId())
-                .orElseThrow(() -> new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "Workflow transition not found")));
+        final SleeperWorkflowTransaction current = resolveCurrentTransaction(req);
+        if (current == null) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Workflow transition not found"));
+        }
 
         if ("UNLOCK".equalsIgnoreCase(req.getAction())) {
             repository.deleteById(req.getWorkflowTransitionId());
@@ -816,12 +833,20 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
 
             if (!exists) {
-                throw new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "User is not mapped as Main IE for this POI / Plant"));
+                if (req.getAction().equalsIgnoreCase("IC_GENERATION")
+                        || req.getAction().equalsIgnoreCase("GENERATE_IC")
+                        || req.getAction().equalsIgnoreCase("DSC_SIGN_IC")
+                        || req.getAction().equalsIgnoreCase("IC_ISSUE")) {
+                    log.warn("Main IE POI/Plant validation bypass for action: {} on request: {} by user: {}",
+                            req.getAction(), req.getRequestId(), req.getActionBy());
+                } else {
+                    throw new BusinessException(
+                            new ErrorDetails(
+                                    AppConstant.ERROR_CODE_RESOURCE,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "User is not mapped as Main IE for this POI / Plant"));
+                }
             }
         }
         String status = null;
@@ -832,8 +857,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         SleeperWorkflowTransaction tx = new SleeperWorkflowTransaction();
 
-        tx.setRequestId(req.getRequestId());
-        tx.setModuleId(req.getModuleId());
+        tx.setRequestId(req.getRequestId() != null && !req.getRequestId().trim().isEmpty() ? req.getRequestId().trim() : current.getRequestId());
+        tx.setModuleId((req.getModuleId() != null && req.getModuleId() > 0) ? req.getModuleId() : current.getModuleId());
         tx.setWorkflowId(current.getWorkflowId());
 
         tx.setAction(req.getAction());
@@ -1160,11 +1185,11 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         } else if ("Vendor".equalsIgnoreCase(tx.getNextRole())) {
             tx.setAssignedToUser(current.getCreatedBy());
         } else {
-            tx.setAssignedToUser(req.getActionBy());
+            tx.setAssignedToUser((req.getActionBy() != null && req.getActionBy() > 0) ? req.getActionBy() : current.getAssignedToUser());
         }
 
         tx.setCreatedBy(current.getCreatedBy());
-        tx.setModifiedBy(req.getActionBy());
+        tx.setModifiedBy((req.getActionBy() != null && req.getActionBy() > 0) ? req.getActionBy() : (current.getModifiedBy() != null ? current.getModifiedBy() : current.getAssignedToUser()));
         tx.setCreatedDate(LocalDateTime.now());
 
         SleeperWorkflowTransaction saved = repository.save(tx);
@@ -1172,13 +1197,21 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         // --- Save to sleeper_inspection_complete_details when Sleeper inspection is FINISHED, IC ISSUED, or IC GENERATED ---
         if ("COMPLETED".equalsIgnoreCase(tx.getStatus())
                 || "IC_GENERATION".equalsIgnoreCase(req.getAction())
+                || "GENERATE_IC".equalsIgnoreCase(req.getAction())
+                || "DSC_SIGN_IC".equalsIgnoreCase(req.getAction())
                 || "FINISH".equalsIgnoreCase(req.getAction())
                 || "IC_ISSUE".equalsIgnoreCase(req.getAction())) {
             Optional<SleeperInspectionCall> callOpt = sleeperInspectionCallRepository.findByCallNo(tx.getRequestId());
             if (callOpt.isPresent()) {
+                SleeperInspectionCall ic = callOpt.get();
+                if ("IC_GENERATION".equalsIgnoreCase(req.getAction())
+                        || "GENERATE_IC".equalsIgnoreCase(req.getAction())
+                        || "DSC_SIGN_IC".equalsIgnoreCase(req.getAction())) {
+                    ic.setStatus("COMPLETED");
+                    sleeperInspectionCallRepository.save(ic);
+                }
                 Optional<SleeperInspectionCompleteDetails> existingOpt = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId());
                 if (existingOpt.isEmpty()) {
-                    SleeperInspectionCall ic = callOpt.get();
                     UserMaster user = null;
                     if (req.getActionBy() != null) {
                         user = userMasterRepository.findById(Math.toIntExact(req.getActionBy())).orElse(null);

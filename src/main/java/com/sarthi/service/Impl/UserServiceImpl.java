@@ -2728,6 +2728,12 @@ public class UserServiceImpl implements UserService {
         if (dto.getUnitId() != null) {
             rpm = railPadPincodePoIMappingRepository.findById(dto.getUnitId()).orElse(null);
         }
+        if (rpm == null && vendorCodeFormatted != null) {
+            rpm = railPadPincodePoIMappingRepository.findByVendorCode(vendorCodeFormatted).orElse(null);
+            if (rpm == null) {
+                rpm = railPadPincodePoIMappingRepository.findByVendorCode(cleanVendorCode).orElse(null);
+            }
+        }
         if (rpm == null && userMaster.getUserId() != null) {
             rpm = railPadPincodePoIMappingRepository.findByVendorCode(userMaster.getUserId().toString()).orElse(null);
         }
@@ -2752,7 +2758,7 @@ public class UserServiceImpl implements UserService {
         rpm.setDistrict(dto.getUnitDistrict() != null ? dto.getUnitDistrict().trim() : "");
         rpm.setState(dto.getUnitState() != null ? dto.getUnitState().trim() : "");
         rpm.setPoiCode(poiCode);
-        rpm.setVendorCode(userMaster.getUserId() != null ? userMaster.getUserId().toString() : vendorCodeFormatted);
+        rpm.setVendorCode(vendorCodeFormatted);
         rpm.setStatus(dto.getStatus() != null ? dto.getStatus() : "ACTIVE");
         if (rpm.getId() == null) {
             rpm.setCreatedDate(LocalDateTime.now());
@@ -2937,14 +2943,20 @@ public class UserServiceImpl implements UserService {
 
         // 3. Fetch Single Unit info from RAILPAD_PINCODE_POI_MAPPING
         com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping rpm = null;
-        if (userId != null) {
-            rpm = railPadPincodePoIMappingRepository.findByVendorCode(userId.toString()).orElse(null);
-        }
-        if (rpm == null && empCode != null) {
+        if (empCode != null && !empCode.trim().isEmpty()) {
             String rawCode = empCode.replaceAll("^:", "");
             rpm = railPadPincodePoIMappingRepository.findByVendorCode(empCode).orElse(null);
             if (rpm == null) {
                 rpm = railPadPincodePoIMappingRepository.findByVendorCode(rawCode).orElse(null);
+            }
+        }
+        if (rpm == null && userId != null) {
+            rpm = railPadPincodePoIMappingRepository.findByVendorCode(userId.toString()).orElse(null);
+        }
+        if (rpm == null && compName != null && !compName.trim().isEmpty()) {
+            List<com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping> byComp = railPadPincodePoIMappingRepository.findByCompanyName(compName.trim());
+            if (byComp != null && !byComp.isEmpty()) {
+                rpm = byComp.get(0);
             }
         }
         if (rpm != null) {

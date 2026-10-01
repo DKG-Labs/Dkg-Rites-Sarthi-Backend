@@ -142,8 +142,30 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                           CONVERT(REPLACE(TRIM(sic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    )
                   AND pm.product_type = 'sleeper'
-            WHERE icr.call_number IS NULL
-               OR UPPER(icr.status) = 'FAILED'
+            LEFT JOIN (
+                SELECT swt2.request_id, swt2.status, swt2.action, swt2.job_status
+                FROM sleeper_workflow_transaction swt2
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    FROM sleeper_workflow_transaction
+                    GROUP BY request_id
+                ) latest_wt2
+                    ON swt2.workflow_transition_id = latest_wt2.max_wt_id
+            ) wt_latest
+                    ON CONVERT(wt_latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            WHERE (
+                UPPER(COALESCE(sic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(sic.status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND CALL TO IBS%'
+            )
+            AND (
+                icr.call_number IS NULL
+                OR UPPER(icr.status) = 'FAILED'
+            )
             GROUP BY
                 ph.case_no,
                 sic.created_at,
