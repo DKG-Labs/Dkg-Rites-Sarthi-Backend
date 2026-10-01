@@ -21,6 +21,7 @@ public class FinalInspectionLotResultsDto {
     private String inspectionCallNo;
     private String lotNo;
     private String heatNo;
+    private Integer sampleSize;
 
     // ---- TEST RESULTS (Status: OK, NOT OK, PENDING) ----
     private String calibrationStatus;

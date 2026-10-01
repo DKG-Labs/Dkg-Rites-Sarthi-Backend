@@ -516,8 +516,31 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                    ON pm.poi_code = ic.place_of_inspection
                   AND pm.product_type = 'erc'
 
-            WHERE icr.call_number IS NULL
-               OR UPPER(icr.status) = 'FAILED'
+            LEFT JOIN (
+                SELECT wt1.request_id, wt1.status, wt1.action, wt1.job_status
+                FROM workflow_transition wt1
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    FROM workflow_transition
+                    GROUP BY request_id
+                ) latest_wt
+                    ON wt1.workflow_transition_id = latest_wt.max_wt_id
+            ) wt_latest
+                    ON wt_latest.request_id COLLATE utf8mb4_unicode_ci = ic.ic_number COLLATE utf8mb4_unicode_ci
+
+            WHERE (
+                UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND CALL TO IBS%'
+            )
+            AND (
+                icr.call_number IS NULL
+                OR UPPER(icr.status) = 'FAILED'
+            )
 
             """, nativeQuery = true)
     List<Object[]> getFinalInspectionCalls();

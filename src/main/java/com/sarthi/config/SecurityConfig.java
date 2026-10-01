@@ -11,6 +11,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.http.HttpMethod;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -26,7 +28,13 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration corsConfiguration = new org.springframework.web.cors.CorsConfiguration();
-        corsConfiguration.addAllowedOriginPattern("*");
+        corsConfiguration.setAllowedOriginPatterns(java.util.List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://*.ritesqasarthi.com",
+                "https://*.azurewebsites.net",
+                "https://*.vercel.app"
+        ));
         corsConfiguration.addAllowedMethod("*");
         corsConfiguration.addAllowedHeader("*");
         corsConfiguration.setAllowCredentials(true);
@@ -43,32 +51,35 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .contentTypeOptions(contentType -> {})
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000)
+                        )
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("frame-ancestors 'self' http://localhost:* https://*.ritesqasarthi.com https://*.azurewebsites.net https://*.vercel.app")
+                        )
+                )
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints - no authentication required
+                        // 1. Allow all preflight CORS OPTIONS requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // 2. Public Authentication & Token Exchange endpoints
                         .requestMatchers(
-                                "/api/auth/**",
-                                "/api/vendor/poData",
-                                "/api/vendor/po-data",
-                                "/api/vendor/po-assigned",
-                                "/api/vendor/proxy-pdf",
-                                "/sarthi-backend/api/auth",
+                                "/api/auth/login",
+                                "/api/auth/login/**",
+                                "/api/auth/loginBasedOnType",
+                                "/api/auth/verifyOtp",
+                                "/api/auth/forgot-password",
                                 "/sarthi-backend/api/auth/login",
-                                "/sarthi-backend/api/auth",
-                                "/sarthi-backend/api/region-cluster/regions",
-                                "/sarthi-backend/api/region-cluster/clusters/{regionName}",
-                                "/sarthi-backend/api/ie-users/{clusterName}",
-                                "/sarthi-backend/initiateWorkflow",
-                                "/sarthi-backend/performTransitionAction",
-                                "/sarthi-backend/allPendingWorkflowTransition",
-                                "/sarthi-backend/allPendingQtyEditTransitions",
-                                "/sarthi-backend/workflowTransitionHistory",
-                                "/api/ibs/sarthi/authenticate",
-                                // Raw Material APIs - temporarily public for testing
-                                "/api/raw-material/**",
-                                // Process Material APIs - temporarily public for testing
-                                "/api/process-material/**",
-                                // Final Material APIs - temporarily public for testing
-                                "/api/final-material/**",
+                                "/api/sarthi/authenticate",
+                                "/api/ibs/sarthi/authenticate"
+                        ).permitAll()
+
+                        // 3. API Documentation (Swagger / OpenAPI)
+                        .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -76,17 +87,34 @@ public class SecurityConfig {
                                 "/webjars/**",
                                 "/configuration/ui",
                                 "/configuration/security",
-                                "/api/test/**",
-                                "/api/v1/profile",
-                                "/api/v1/profile/**"
+                                "/actuator/health"
                         ).permitAll()
 
+                        // 4. Public File & Certificate Viewing, Vendor PO and Plant Lookups
                         .requestMatchers(
-                                "/api/ibs/callData",
-                                "/api/ibs/acknowledge"
-                        ).authenticated()
-                        // All other requests - permit for now (can be changed to authenticated() later)
-                        .anyRequest().permitAll()
+                                "/api/vendor/poData",
+                                "/api/vendor/po-data",
+                                "/api/vendor/po-assigned",
+                                "/api/railpad-vendor-plant/**",
+                                "/api/vendor-plant/**",
+                                "/api/filters/**",
+                                "/api/vendor/proxy-pdf",
+                                "/vendor/proxy-pdf",
+                                "/api/certificate-storage/view",
+                                "/api/certificate-storage/view/**",
+                                "/api/images/**",
+                                "/dashboard/images/**"
+                        ).permitAll()
+
+                        // 5. ALL OTHER APIS REQUIRE STRICT TOKEN AUTHENTICATION
+                        .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                            response.getWriter().write("{\"responseStatus\":{\"statusCode\":401,\"message\":\"Unauthorized: Authentication token is missing, invalid, or expired\"}}");
+                        })
                 )
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)

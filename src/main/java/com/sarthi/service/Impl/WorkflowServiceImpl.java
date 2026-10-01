@@ -5027,16 +5027,43 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             poiCode = inspectionCallRepository.findPoiByCallNo(callNo);
         }
 
-        // 1. Look up new user
+        // 1. Look up new user by employeeCode or by userId fallback
         UserMaster newUser = userMasterRepository.findFirstByEmployeeCode(newEmpCode)
-                .orElseThrow(() -> new RuntimeException("Employee with code " + newEmpCode + " not found"));
+                .orElseGet(() -> {
+                    try {
+                        Integer uid = Integer.parseInt(newEmpCode);
+                        return userMasterRepository.findByUserId(uid).orElse(null);
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                });
+
+        if (newUser == null) {
+            throw new RuntimeException("Employee with code " + newEmpCode + " not found");
+        }
+
+        String resolvedNewEmpCode = (newUser.getEmployeeCode() != null && !newUser.getEmployeeCode().isBlank())
+                ? newUser.getEmployeeCode()
+                : newEmpCode;
 
         // 2. Look up old user (if provided)
         Integer oldUserId = null;
+        String resolvedOldEmpCode = oldEmpCode;
         if (oldEmpCode != null && !oldEmpCode.isBlank()) {
-            UserMaster oldUser = userMasterRepository.findFirstByEmployeeCode(oldEmpCode).orElse(null);
+            UserMaster oldUser = userMasterRepository.findFirstByEmployeeCode(oldEmpCode)
+                    .orElseGet(() -> {
+                        try {
+                            Integer uid = Integer.parseInt(oldEmpCode);
+                            return userMasterRepository.findByUserId(uid).orElse(null);
+                        } catch (NumberFormatException e) {
+                            return null;
+                        }
+                    });
             if (oldUser != null) {
                 oldUserId = oldUser.getUserId();
+                if (oldUser.getEmployeeCode() != null && !oldUser.getEmployeeCode().isBlank()) {
+                    resolvedOldEmpCode = oldUser.getEmployeeCode();
+                }
             }
         }
 
@@ -5062,16 +5089,16 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 || "RETURN_TO_VENDOR".equalsIgnoreCase(latest.getStatus())
                 || "RETURNED".equalsIgnoreCase(latest.getStatus());
 
-        // CASE 1: Process calls (EP) -> Always update the POI Process IE mapping table (no assigned_to_user stored)
+        // CASE 1: Process calls (EP) -> Update the POI Process IE mapping table
         if (isProcessStage) {
             if (poiCode != null && !poiCode.isBlank()) {
-                if (oldEmpCode != null && !oldEmpCode.isBlank()) {
-                    int updatedRows = poiProcessIeMappingRepository.updateEmployeeCodeByPoiCode(poiCode, oldEmpCode, newEmpCode);
+                if (resolvedOldEmpCode != null && !resolvedOldEmpCode.isBlank()) {
+                    int updatedRows = poiProcessIeMappingRepository.updateEmployeeCodeByPoiCode(poiCode, resolvedOldEmpCode, resolvedNewEmpCode);
                     if (updatedRows == 0) {
                         List<PoiProcessIeMapping> existing = poiProcessIeMappingRepository.findByPoiCode(poiCode);
                         if (!existing.isEmpty()) {
                             PoiProcessIeMapping m = existing.get(0);
-                            m.setEmployeeCode(newEmpCode);
+                            m.setEmployeeCode(resolvedNewEmpCode);
                             poiProcessIeMappingRepository.save(m);
                         }
                     }
@@ -5079,32 +5106,29 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                     List<PoiProcessIeMapping> existing = poiProcessIeMappingRepository.findByPoiCode(poiCode);
                     if (!existing.isEmpty()) {
                         PoiProcessIeMapping m = existing.get(0);
-                        m.setEmployeeCode(newEmpCode);
+                        m.setEmployeeCode(resolvedNewEmpCode);
                         poiProcessIeMappingRepository.save(m);
                     }
                 }
             } else {
                 throw new RuntimeException("Please contact admin to do mapping. No POI Code is available for this call.");
             }
-            return;
-        }
-
-        // CASE 2: Unverified / Pending Verification calls (ER / EF) -> Update master POI mapping table (ie_pincode_poi_mapping)
-        if (isPendingVerification) {
+        } else if (isPendingVerification) {
+            // CASE 2: Unverified / Pending Verification calls (ER / EF) -> Update master POI mapping table (ie_pincode_poi_mapping)
             if (poiCode != null && !poiCode.isBlank()) {
-                if (oldEmpCode != null && !oldEmpCode.isBlank()) {
-                    int updatedRows = iePincodePoiMappingRepository.updateEmployeeCodeByPoiCode(poiCode, oldEmpCode, newEmpCode);
+                if (resolvedOldEmpCode != null && !resolvedOldEmpCode.isBlank()) {
+                    int updatedRows = iePincodePoiMappingRepository.updateEmployeeCodeByPoiCode(poiCode, resolvedOldEmpCode, resolvedNewEmpCode);
                     if (updatedRows == 0) {
                         List<IePincodePoiMapping> existing = iePincodePoiMappingRepository.findByPoiCode(poiCode);
                         if (!existing.isEmpty()) {
                             for (IePincodePoiMapping m : existing) {
-                                m.setEmployeeCode(newEmpCode);
+                                m.setEmployeeCode(resolvedNewEmpCode);
                                 iePincodePoiMappingRepository.save(m);
                             }
                         } else {
                             IePincodePoiMapping newMapping = new IePincodePoiMapping();
                             newMapping.setPoiCode(poiCode);
-                            newMapping.setEmployeeCode(newEmpCode);
+                            newMapping.setEmployeeCode(resolvedNewEmpCode);
                             newMapping.setProduct("ERC");
                             newMapping.setIeType("PRIMARY");
                             String foundPinCode = pincodePoIMappingRepository.findPinCodeByPoiCode(poiCode);
@@ -5116,13 +5140,13 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                     List<IePincodePoiMapping> existing = iePincodePoiMappingRepository.findByPoiCode(poiCode);
                     if (!existing.isEmpty()) {
                         for (IePincodePoiMapping m : existing) {
-                            m.setEmployeeCode(newEmpCode);
+                            m.setEmployeeCode(resolvedNewEmpCode);
                             iePincodePoiMappingRepository.save(m);
                         }
                     } else {
                         IePincodePoiMapping newMapping = new IePincodePoiMapping();
                         newMapping.setPoiCode(poiCode);
-                        newMapping.setEmployeeCode(newEmpCode);
+                        newMapping.setEmployeeCode(resolvedNewEmpCode);
                         newMapping.setProduct("ERC");
                         newMapping.setIeType("PRIMARY");
                         String foundPinCode = pincodePoIMappingRepository.findPinCodeByPoiCode(poiCode);
@@ -5133,10 +5157,9 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             } else {
                 throw new RuntimeException("Please contact admin to do mapping. No POI Code is available for this call.");
             }
-            return;
         }
 
-        // CASE 3: Verified Calls (ER / EF in Verified & Open status) -> DO NOT touch mapping tables; only reassign this specific call
+        // ALWAYS update the workflow transition's assigned user for this call!
         latest.setAssignedToUser(newUser.getUserId());
         workflowTransitionRepository.save(latest);
 

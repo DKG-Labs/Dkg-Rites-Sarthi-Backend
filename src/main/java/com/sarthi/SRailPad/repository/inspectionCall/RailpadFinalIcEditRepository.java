@@ -129,8 +129,30 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
                   AND pm.product_type = 'railpad'
-            WHERE icr.call_number IS NULL
-               OR UPPER(icr.status) = 'FAILED'
+            LEFT JOIN (
+                SELECT rwt2.request_id, rwt2.status, rwt2.action, rwt2.job_status
+                FROM rail_workflow_transaction rwt2
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    FROM rail_workflow_transaction
+                    GROUP BY request_id
+                ) latest_rwt2
+                    ON rwt2.workflow_transition_id = latest_rwt2.max_wt_id
+            ) wt_latest
+                    ON CONVERT(wt_latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            WHERE (
+                UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
+                OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND CALL TO IBS%'
+            )
+            AND (
+                icr.call_number IS NULL
+                OR UPPER(icr.status) = 'FAILED'
+            )
             GROUP BY
                 ph.case_no,
                 ic.created_at,
