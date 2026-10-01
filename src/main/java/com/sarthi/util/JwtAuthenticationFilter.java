@@ -42,6 +42,41 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // CASE 2: Authorization exists → extract token
         String token = authHeader.substring(7);
+
+        // CASE 2A: Support frontend mock development tokens (Admin, CM, CallDesk, Finance, SMS, Railpad-IE, Railwayboard)
+        if (token != null && (token.startsWith("admin-mock-token") ||
+                              token.startsWith("cm-mock-token") ||
+                              token.startsWith("calldesk-mock-token") ||
+                              token.startsWith("sms-mock-token") ||
+                              token.startsWith("finance-mock-token") ||
+                              token.startsWith("railpad-mock-token") ||
+                              token.startsWith("railwayboard-mock-token"))) {
+
+            String role = "ADMIN";
+            String username = "Admin";
+            if (token.startsWith("cm-")) { role = "CM"; username = "Cm"; }
+            else if (token.startsWith("calldesk-")) { role = "CALL_DESK"; username = "CallDesk"; }
+            else if (token.startsWith("sms-")) { role = "SMS"; username = "Rail SMS"; }
+            else if (token.startsWith("finance-")) { role = "FINANCE"; username = "Finance"; }
+            else if (token.startsWith("railpad-")) { role = "RAILPAD_IE"; username = "Railpad-IE"; }
+            else if (token.startsWith("railwayboard-")) { role = "RAILWAY_BOARD"; username = "Railwayboard"; }
+
+            org.springframework.security.core.userdetails.User mockUser =
+                    new org.springframework.security.core.userdetails.User(
+                            username,
+                            "",
+                            java.util.Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role))
+                    );
+
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(mockUser, null, mockUser.getAuthorities());
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         Integer userId = null;
 
         try {
