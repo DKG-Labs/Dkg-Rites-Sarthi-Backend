@@ -7286,11 +7286,6 @@ public class reportsImpl implements reports {
                 String parsedVendor = vendorPlantCode == null ? "" : vendorPlantCode;
                 String parsedZone = zonalRailway == null ? "" : zonalRailway;
 
-                // Run all 3 count queries in PARALLEL
-                CompletableFuture<Long> cfOpen = CompletableFuture.supplyAsync(
-                                () -> workflowTransitionRepository.getTotalOpenCallsWithFilters(parsedStartDate,
-                                                parsedEndDate, parsedVendor, parsedZone));
-
                 CompletableFuture<Long> cfUnder = CompletableFuture
                                 .supplyAsync(() -> workflowTransitionRepository.getTotalUnderInspectionCallsWithFilters(
                                                 parsedStartDate, parsedEndDate, parsedVendor, parsedZone));
@@ -7299,9 +7294,13 @@ public class reportsImpl implements reports {
                                 () -> workflowTransitionRepository.getTotalPendingCallsWithFilters(parsedStartDate,
                                                 parsedEndDate, parsedVendor, parsedZone));
 
-                CompletableFuture.allOf(cfOpen, cfUnder, cfPending).join();
+                CompletableFuture.allOf(cfUnder, cfPending).join();
 
-                return new TotalCallsSummaryDTO(cfOpen.join(), cfUnder.join(), cfPending.join());
+                long under = cfUnder.join() != null ? cfUnder.join() : 0L;
+                long pending = cfPending.join() != null ? cfPending.join() : 0L;
+                long open = under + pending;
+
+                return new TotalCallsSummaryDTO(open, under, pending);
         }
 
         @Override

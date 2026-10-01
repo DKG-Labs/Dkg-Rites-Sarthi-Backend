@@ -105,9 +105,15 @@ public class reportsController {
                         }
 
                         if (product != null && (product.equalsIgnoreCase("Sleeper") || product.equalsIgnoreCase("PSC Mainline Sleeper"))) {
-                                String vCode = (vendorPlantCode != null && (vendorPlantCode.trim().isEmpty() || "null".equalsIgnoreCase(vendorPlantCode.trim()) || "all".equalsIgnoreCase(vendorPlantCode.trim()))) ? null : vendorPlantCode.trim();
-                                String zRly = (zonalRailway != null && (zonalRailway.trim().isEmpty() || "null".equalsIgnoreCase(zonalRailway.trim()) || "all".equalsIgnoreCase(zonalRailway.trim()))) ? null : zonalRailway.trim();
-                                Long sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(vCode, zRly, sDate, eDate);
+                                String vCode = (vendorPlantCode != null && !vendorPlantCode.trim().isEmpty() && !"null".equalsIgnoreCase(vendorPlantCode.trim()) && !"all".equalsIgnoreCase(vendorPlantCode.trim())) ? vendorPlantCode.trim() : "";
+                                String zRly = (zonalRailway != null && !zonalRailway.trim().isEmpty() && !"null".equalsIgnoreCase(zonalRailway.trim()) && !"all".equalsIgnoreCase(zonalRailway.trim())) ? zonalRailway.trim() : "";
+
+                                Long sleeperIcIssued;
+                                if (vCode.isEmpty() && zRly.isEmpty() && sDate == null && eDate == null) {
+                                        sleeperIcIssued = sleeperWorkflowRepository.countAllSleeperIcIssued();
+                                } else {
+                                        sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(vCode, zRly, sDate, eDate);
+                                }
 
                                 long finalIcIssued = sleeperIcIssued != null ? sleeperIcIssued : 0L;
                                 IcIssuedCountDto dto = new IcIssuedCountDto();

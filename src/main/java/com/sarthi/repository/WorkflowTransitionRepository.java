@@ -1098,12 +1098,17 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 GROUP BY requestid
             ) x
             ON wt.workflowtransitionid = x.latest_id
-            WHERE wt.status NOT IN (
-                'INSPECTION_COMPLETE_CONFIRM',
-                'GENERATE_IC',
-                'DSC_SIGN_IC',
-                'CANCELLED',
-                'WITHDRAW'
+            WHERE UPPER(wt.status) IN (
+                'VERIFY_PO_DETAILS',
+                'PAUSED',
+                'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                'CREATED',
+                'VERIFIED',
+                'RETURNED',
+                'CALL_REGISTERED',
+                'IE_SCHEDULED',
+                'INITIATE_INSPECTION'
             )
             AND ic.po_no <> 'DummyPo_001'
             """, nativeQuery = true)
@@ -1121,12 +1126,17 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             ) x
             ON wt.workflowtransitionid = x.latest_id
             LEFT JOIN po_header ph ON ic.po_no = ph.po_no
-            WHERE wt.status NOT IN (
-                'INSPECTION_COMPLETE_CONFIRM',
-                'GENERATE_IC',
-                'DSC_SIGN_IC',
-                'CANCELLED',
-                'WITHDRAW'
+            WHERE UPPER(wt.status) IN (
+                'VERIFY_PO_DETAILS',
+                'PAUSED',
+                'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                'CREATED',
+                'VERIFIED',
+                'RETURNED',
+                'CALL_REGISTERED',
+                'IE_SCHEDULED',
+                'INITIATE_INSPECTION'
             )
             AND ic.po_no <> 'DummyPo_001'
             AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
@@ -1331,12 +1341,17 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             LEFT JOIN USER_MASTER um_poi ON um_poi.USERID = poi_ie_map.ie_user_id
             JOIN po_header ph ON ic.po_no = ph.po_no
             LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
-            WHERE wt.status NOT IN (
-                'INSPECTION_COMPLETE_CONFIRM',
-                'GENERATE_IC',
-                'DSC_SIGN_IC',
-                'CANCELLED',
-                'WITHDRAW'
+            WHERE UPPER(wt.status) IN (
+                'VERIFY_PO_DETAILS',
+                'PAUSED',
+                'PAUSE_INSPECTION_RESUME_NEXT_DAY',
+                'ENTER_SHIFT_DETAILS_AND_START_INSPECTION',
+                'CREATED',
+                'VERIFIED',
+                'RETURNED',
+                'CALL_REGISTERED',
+                'IE_SCHEDULED',
+                'INITIATE_INSPECTION'
             )
             AND ic.po_no <> 'DummyPo_001'
             AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
