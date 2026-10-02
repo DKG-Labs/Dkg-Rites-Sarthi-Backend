@@ -909,94 +909,105 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
      */
 
     @Query(value = """
-
             SELECT
-                ph.case_no                                   AS caseNumber,
-
-                DATE(ic.created_at)                          AS callDate,
-
-                ic.place_of_inspection                       AS placeOfInspection,
-                pm.ibs_vendor_code                           AS ibsManufacturedCode,
-
-                CAST(um.employee_code AS CHAR)               AS ieEmployeeNumber,
-
-                'A'                                          AS callStatus,
-                'P'                                          AS typeOfCall,
-
-                ic.po_serial_no                              AS poItemSerialNumber,
-
-                CAST(p.book_no AS CHAR)                      AS bkNumber,
-
-                CAST(p.set_no AS CHAR)                       AS setNumber,
-
-                DATE(p.created_at)                           AS icDate,
-
-                COALESCE(SUM(DISTINCT pr.offered_qty),0)
-                                                            AS quantityOffered,
-
-                COALESCE(SUM(pr.total_accepted),0)
-                                                            AS quantityPassed,
-
-                COALESCE(SUM(pr.total_rejected),0)
-                                                            AS quantityRejected,
-
-                ic.ic_number                                 AS callNo,
-                p.ic_number                                  AS callNumber
-
-            FROM process_ic_edit p
-
-            INNER JOIN inspection_calls ic
-                    ON ic.ic_number COLLATE utf8mb4_unicode_ci =
-                       SUBSTRING_INDEX(
-                            SUBSTRING_INDEX(p.ic_number,'/',2),
-                            '/',
-                            -1
-                       ) COLLATE utf8mb4_unicode_ci
-
-            INNER JOIN po_header ph
-                    ON ph.po_no = ic.po_no
-
-            INNER JOIN user_master um
-                    ON um.userid = p.created_by
-
-            LEFT JOIN process_line_final_result pr
-                    ON pr.inspection_call_no COLLATE utf8mb4_unicode_ci
-                     = ic.ic_number COLLATE utf8mb4_unicode_ci
-
+                COALESCE(ph.case_no, '')                                AS caseNumber,
+                DATE(ic.created_at)                                     AS callDate,
+                COALESCE(ic.place_of_inspection, '')                    AS placeOfInspection,
+                COALESCE(pm.ibs_vendor_code, ic.place_of_inspection)    AS ibsManufacturedCode,
+                CAST(COALESCE(um_wt.employee_code, um_p.employee_code, um_ic.employee_code, wt_latest.assigned_to_user, wt_latest.createdby, p.created_by, psc.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
+                'A'                                                     AS callStatus,
+                'P'                                                     AS typeOfCall,
+                (CASE 
+                    WHEN ic.po_no LIKE '%/%' AND SUBSTRING_INDEX(ic.po_no, '/', -1) <> '' THEN SUBSTRING_INDEX(ic.po_no, '/', -1)
+                    WHEN ic.po_serial_no IS NOT NULL AND TRIM(ic.po_serial_no) <> '' THEN TRIM(ic.po_serial_no)
+                    ELSE '1'
+                END)                                                    AS poItemSerialNumber,
+                CAST(COALESCE(p.book_no, psc.book_no, '') AS CHAR)      AS bkNumber,
+                CAST(COALESCE(p.set_no, psc.set_no, '') AS CHAR)        AS setNumber,
+                DATE(COALESCE(p.created_at, psc.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
+                COALESCE(pr.offered_qty, (SELECT SUM(pid.offered_qty) FROM process_inspection_details pid WHERE pid.ic_id = ic.id), 0) AS quantityOffered,
+                COALESCE(pr.total_accepted, 0)                          AS quantityPassed,
+                COALESCE(pr.total_rejected, 0)                          AS quantityRejected,
+                ic.ic_number                                            AS callNo,
+                COALESCE(
+                    NULLIF(icd.certificate_no, ''),
+                    (CASE WHEN p.ic_number LIKE '%/%' THEN p.ic_number ELSE NULL END),
+                    (CASE WHEN psc.ic_number LIKE '%/%' THEN psc.ic_number ELSE NULL END),
+                    NULLIF(p.ic_number, ''),
+                    NULLIF(psc.ic_number, ''),
+                    ic.ic_number
+                )                                                       AS callNumber,
+                0.0                                                     AS cancelCharges,
+                0.0                                                     AS rejectCharges,
+                COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
+            FROM inspection_calls ic
+            LEFT JOIN process_ic_edit p
+                   ON CONVERT(p.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(p.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(SUBSTRING_INDEX(p.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(p.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+            LEFT JOIN process_ic_save_changes psc
+                   ON CONVERT(psc.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT icd1.call_no, icd1.certificate_no, icd1.created_on
+                FROM inspection_complete_details icd1
+                INNER JOIN (
+                    SELECT call_no, MAX(id) AS max_id
+                    FROM inspection_complete_details
+                    GROUP BY call_no
+                ) latest_icd ON icd1.id = latest_icd.max_id
+            ) icd ON CONVERT(icd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN po_header ph
+                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sarthi_ibs_poi_mapping pm
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.place_of_inspection USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND pm.product_type = 'erc'
+            LEFT JOIN (
+                SELECT wt1.requestid, wt1.status, wt1.action, wt1.job_status, wt1.createdby, wt1.assigned_to_user, wt1.rio
+                FROM workflow_transition wt1
+                INNER JOIN (
+                    SELECT requestid, MAX(workflowtransitionid) AS max_wt_id
+                    FROM workflow_transition
+                    GROUP BY requestid
+                ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
+            ) wt_latest
+                   ON CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR (p.ic_number IS NOT NULL AND CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+            LEFT JOIN user_master um_wt
+                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_p
+                   ON CONVERT(um_p.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(p.created_by, psc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_p.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(p.created_by, psc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_ic
+                   ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT 
+                    pr_sub.inspection_call_no,
+                    SUM(COALESCE(pr_sub.offered_qty, 0)) AS offered_qty,
+                    SUM(COALESCE(pr_sub.total_accepted, 0)) AS total_accepted,
+                    SUM(COALESCE(pr_sub.total_rejected, 0)) AS total_rejected
+                FROM process_line_final_result pr_sub
+                GROUP BY pr_sub.inspection_call_no
+            ) pr ON CONVERT(pr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT icr1.*
                 FROM ibs_call_registration icr1
                 INNER JOIN (
-                    SELECT
-                        call_number,
-                        MAX(version) AS max_version
+                    SELECT call_number, MAX(version) AS max_version
                     FROM ibs_call_registration
                     GROUP BY call_number
-                ) latest
-                    ON latest.call_number = icr1.call_number
-                   AND latest.max_version = icr1.version
-            ) icr
-                    ON icr.call_number COLLATE utf8mb4_unicode_ci
-                     = ic.ic_number COLLATE utf8mb4_unicode_ci
-
-            LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON pm.poi_code = ic.place_of_inspection
-                  AND pm.product_type = 'erc'
-
-            LEFT JOIN (
-                SELECT wt1.request_id, wt1.status, wt1.action, wt1.job_status
-                FROM workflow_transition wt1
-                INNER JOIN (
-                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
-                    FROM workflow_transition
-                    GROUP BY request_id
-                ) latest_wt
-                    ON wt1.workflow_transition_id = latest_wt.max_wt_id
-            ) wt_latest
-                    ON (wt_latest.request_id COLLATE utf8mb4_unicode_ci = ic.ic_number COLLATE utf8mb4_unicode_ci
-                        OR wt_latest.request_id COLLATE utf8mb4_unicode_ci = p.ic_number COLLATE utf8mb4_unicode_ci)
-
+                ) latest ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       AND latest.max_version = icr1.version
+            ) icr ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
             WHERE (
+                UPPER(COALESCE(ic.type_of_call, '')) LIKE '%PROCESS%' 
+                OR UPPER(COALESCE(ic.type_of_call, '')) = 'P' 
+                OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'EP%'
+            )
+            AND (
                 UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
@@ -1009,20 +1020,38 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 icr.call_number IS NULL
                 OR UPPER(icr.status) = 'FAILED'
             )
-
             GROUP BY
                 ph.case_no,
                 ic.created_at,
                 ic.place_of_inspection,
                 pm.ibs_vendor_code,
-                um.employee_code,
+                um_wt.employee_code,
+                um_p.employee_code,
+                um_ic.employee_code,
+                wt_latest.assigned_to_user,
+                wt_latest.createdby,
+                p.created_by,
+                psc.created_by,
+                ic.created_by,
+                ic.po_no,
                 ic.po_serial_no,
                 p.book_no,
+                psc.book_no,
                 p.set_no,
+                psc.set_no,
                 p.created_at,
+                psc.created_at,
+                icd.created_on,
+                ic.updated_at,
                 ic.ic_number,
-                p.ic_number
-
+                icd.certificate_no,
+                p.ic_number,
+                psc.ic_number,
+                pr.offered_qty,
+                pr.total_accepted,
+                pr.total_rejected,
+                wt_latest.rio,
+                ic.id
             """, nativeQuery = true)
     List<Object[]> getProcessInspectionCalls();
 

@@ -30,6 +30,40 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
     java.util.List<UserMaster> findByRoleNameContaining(String roleName);
 
     @Query(value = """
+        SELECT 
+            um.USERID,
+            um.USERNAME,
+            um.role_name,
+            um.employee_id,
+            um.PASSWORD,
+            um.EMAIL,
+            um.MOBILENUMBER,
+            um.EMPLOYEE_CODE,
+            um.RITES_EMPLOYEE_CODE,
+            um.EMPLOYMENT_TYPE,
+            um.FULL_NAME,
+            um.SHORT_NAME,
+            um.DATE_OF_BIRTH,
+            um.DESIGNATION,
+            um.DISCIPLINE,
+            um.CREATEDBY,
+            um.product_type,
+            um.ZONAL_RLY,
+            um.Region,
+            um.CREATEDDATE,
+            um.ALTERNATE_MOBILE_NUMBER,
+            CASE WHEN LENGTH(um.PROFILE_PHOTO_PATH) > 1000 THEN NULL ELSE um.PROFILE_PHOTO_PATH END AS PROFILE_PHOTO_PATH,
+            um.status,
+            um.NOTIFICATION_PREFERENCES,
+            um.LOGIN_SECURITY_ENABLED,
+            um.UPDATEDBY,
+            um.UPDATEDDATE,
+            um.LAST_LOGIN_DATE
+        FROM USER_MASTER um
+    """, nativeQuery = true)
+    java.util.List<UserMaster> findAllUsersOptimized();
+
+    @Query(value = """
         SELECT DISTINCT um.* 
         FROM user_master um 
         JOIN user_role_master urm ON um.userid = urm.userid 

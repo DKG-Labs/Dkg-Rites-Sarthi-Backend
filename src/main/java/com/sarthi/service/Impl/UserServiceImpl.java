@@ -421,10 +421,10 @@ public class UserServiceImpl implements UserService {
         userDto.setCreatedBy(userMaster.getCreatedBy());
 
         // Resolve all roles from user_role_master
-        List<String> rolesFromMaster = (userRolesMap != null && userMaster.getUserId() != null) 
-                ? userRolesMap.get(userMaster.getUserId()) 
-                : null;
-        if (rolesFromMaster == null && userMaster.getUserId() != null) {
+        List<String> rolesFromMaster = null;
+        if (userRolesMap != null) {
+            rolesFromMaster = userRolesMap.get(userMaster.getUserId());
+        } else if (userMaster.getUserId() != null) {
             try {
                 rolesFromMaster = userMasterRepository.findRoleNamesByUserId(userMaster.getUserId());
             } catch (Exception ignored) {}
@@ -1685,7 +1685,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserDto> getAllUsers() {
-        List<UserMaster> allUsers = userMasterRepository.findAll();
+        List<UserMaster> allUsers = userMasterRepository.findAllUsersOptimized();
         if (allUsers.isEmpty()) {
             return Collections.emptyList();
         }
