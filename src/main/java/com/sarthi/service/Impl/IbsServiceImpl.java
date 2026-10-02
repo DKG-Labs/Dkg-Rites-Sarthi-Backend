@@ -668,34 +668,81 @@ public class IbsServiceImpl implements IbsService {
     @Transactional(readOnly = true)
     public List<IbsInspectionDto> getAllGeneratedIcCalls() {
 
-        CompletableFuture<List<IbsInspectionDto>> f1 = CompletableFuture.supplyAsync(() ->
-                mapResult(rmHeatFinalResultRepository.getRmInspectionCalls(), "ERC"));
+        CompletableFuture<List<IbsInspectionDto>> f1 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(rmHeatFinalResultRepository.getRmInspectionCalls(), "ERC");
+            } catch (Exception e) {
+                log.error("Error fetching ERC RM inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
-        CompletableFuture<List<IbsInspectionDto>> f2 = CompletableFuture.supplyAsync(() ->
-                mapResult(processLineFinalResultRepository.getProcessInspectionCalls(), "ERC"));
+        CompletableFuture<List<IbsInspectionDto>> f2 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(processLineFinalResultRepository.getProcessInspectionCalls(), "ERC");
+            } catch (Exception e) {
+                log.error("Error fetching ERC Process inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
-        CompletableFuture<List<IbsInspectionDto>> f3 = CompletableFuture.supplyAsync(() ->
-                mapResult(finalCumulativeResultsRepository.getFinalInspectionCalls(), "ERC"));
+        CompletableFuture<List<IbsInspectionDto>> f3 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(finalCumulativeResultsRepository.getFinalInspectionCalls(), "ERC");
+            } catch (Exception e) {
+                log.error("Error fetching ERC Final inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
-        CompletableFuture<List<IbsInspectionDto>> f4 = CompletableFuture.supplyAsync(() ->
-                mapResult(railpadProcessIcEditRepository.getRailpadProcessInspectionCalls(), "RAILPAD"));
+        CompletableFuture<List<IbsInspectionDto>> f4 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(railpadProcessIcEditRepository.getRailpadProcessInspectionCalls(), "RAILPAD");
+            } catch (Exception e) {
+                log.error("Error fetching Railpad Process inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
-        CompletableFuture<List<IbsInspectionDto>> f5 = CompletableFuture.supplyAsync(() ->
-                mapResult(railpadFinalIcEditRepository.getRailpadFinalInspectionCalls(), "RAILPAD"));
+        CompletableFuture<List<IbsInspectionDto>> f5 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(railpadFinalIcEditRepository.getRailpadFinalInspectionCalls(), "RAILPAD");
+            } catch (Exception e) {
+                log.error("Error fetching Railpad Final inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
-        CompletableFuture<List<IbsInspectionDto>> f6 = CompletableFuture.supplyAsync(() ->
-                mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls(), "RAILPAD"));
+        CompletableFuture<List<IbsInspectionDto>> f6 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls(), "RAILPAD");
+            } catch (Exception e) {
+                log.error("Error fetching Railpad Cancelled inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
-        CompletableFuture<List<IbsInspectionDto>> f7 = CompletableFuture.supplyAsync(() ->
-                mapResult(sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls(), "SLEEPER"));
+        CompletableFuture<List<IbsInspectionDto>> f7 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls(), "SLEEPER");
+            } catch (Exception e) {
+                log.error("Error fetching Sleeper Final inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
-        CompletableFuture<List<IbsInspectionDto>> f8 = CompletableFuture.supplyAsync(() ->
-                mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls(), "SLEEPER"));
-
-        CompletableFuture.allOf(f1, f2, f3, f4, f5, f6, f7, f8).join();
+        CompletableFuture<List<IbsInspectionDto>> f8 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls(), "SLEEPER");
+            } catch (Exception e) {
+                log.error("Error fetching Sleeper Cancelled inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
 
         List<IbsInspectionDto> responseList = new ArrayList<>();
         try {
+            CompletableFuture.allOf(f1, f2, f3, f4, f5, f6, f7, f8).join();
             responseList.addAll(f1.get());
             responseList.addAll(f2.get());
             responseList.addAll(f3.get());
@@ -705,11 +752,60 @@ public class IbsServiceImpl implements IbsService {
             responseList.addAll(f7.get());
             responseList.addAll(f8.get());
         } catch (Exception e) {
-            log.error("Error fetching IBS inspection calls in parallel: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to fetch IBS inspection calls: " + e.getMessage(), e);
+            log.error("Error aggregating IBS inspection calls: {}", e.getMessage(), e);
         }
 
         return responseList;
+    }
+
+    private String safeString(Object val) {
+        if (val == null) return null;
+        if (val instanceof byte[]) return new String((byte[]) val, java.nio.charset.StandardCharsets.UTF_8);
+        return val.toString();
+    }
+
+    private LocalDate safeDate(Object val) {
+        if (val == null) return null;
+        if (val instanceof java.sql.Date) return ((java.sql.Date) val).toLocalDate();
+        if (val instanceof java.time.LocalDate) return (java.time.LocalDate) val;
+        if (val instanceof java.time.LocalDateTime) return ((java.time.LocalDateTime) val).toLocalDate();
+        if (val instanceof java.sql.Timestamp) return ((java.sql.Timestamp) val).toLocalDateTime().toLocalDate();
+        if (val instanceof java.util.Date) return ((java.util.Date) val).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        if (val instanceof byte[]) {
+            val = new String((byte[]) val, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        String s = val.toString().trim();
+        if (s.isEmpty()) return null;
+        try {
+            if (s.length() >= 10) {
+                return LocalDate.parse(s.substring(0, 10));
+            }
+            return LocalDate.parse(s);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int safeInt(Object val) {
+        if (val == null) return 0;
+        if (val instanceof Number) return ((Number) val).intValue();
+        if (val instanceof byte[]) val = new String((byte[]) val, java.nio.charset.StandardCharsets.UTF_8);
+        try {
+            return (int) Double.parseDouble(val.toString().trim());
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private double safeDouble(Object val) {
+        if (val == null) return 0.0;
+        if (val instanceof Number) return ((Number) val).doubleValue();
+        if (val instanceof byte[]) val = new String((byte[]) val, java.nio.charset.StandardCharsets.UTF_8);
+        try {
+            return Double.parseDouble(val.toString().trim());
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     private List<IbsInspectionDto> mapResult(
@@ -729,69 +825,63 @@ public class IbsServiceImpl implements IbsService {
             IbsInspectionDto dto =
                     new IbsInspectionDto();
 
-            String rawCaseNo = (String) row[0];
+            String rawCaseNo = safeString(row[0]);
 
-            if (row[1] instanceof java.sql.Date) {
-                dto.setCallDate(((java.sql.Date) row[1]).toLocalDate());
-            } else if (row[1] instanceof java.time.LocalDate) {
-                dto.setCallDate((java.time.LocalDate) row[1]);
-            } else if (row[1] instanceof java.util.Date) {
-                dto.setCallDate(((java.util.Date) row[1]).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+            LocalDate callDate = safeDate(row[1]);
+            if (callDate != null) {
+                dto.setCallDate(callDate);
             }
 
             dto.setPlaceOfInspection(
-                    (String) row[2]
+                    safeString(row[2])
             );
             dto.setIbsManufacturedCode(
-                    row[3] != null ? row[3].toString() : null
+                    row[3] != null ? safeString(row[3]) : null
             );
 
             dto.setIeEmployeeNumber(
-                    row[4] != null ? row[4].toString() : null
+                    row[4] != null ? safeString(row[4]) : null
             );
 
             dto.setCallStatus(
-                    String.valueOf(row[5])
+                    row[5] != null ? safeString(row[5]) : "A"
             );
 
             dto.setTypeOfCall(
-                    String.valueOf(row[6])
+                    row[6] != null ? safeString(row[6]) : ""
             );
 
             dto.setPoItemSerialNumbers(
-                    List.of(row[7] != null ? row[7].toString() : "1")
+                    List.of(row[7] != null ? safeString(row[7]) : "1")
             );
 
             dto.setBkNumber(
-                    row[8] != null ? row[8].toString() : ""
+                    row[8] != null ? safeString(row[8]) : ""
             );
 
             dto.setSetNumber(
-                    row[9] != null ? row[9].toString() : ""
+                    row[9] != null ? safeString(row[9]) : ""
             );
 
-            if (row[10] instanceof java.sql.Date) {
-                dto.setIcDate(((java.sql.Date) row[10]).toLocalDate());
-            } else if (row[10] instanceof java.time.LocalDate) {
-                dto.setIcDate((java.time.LocalDate) row[10]);
-            } else if (row[10] instanceof java.util.Date) {
-                dto.setIcDate(((java.util.Date) row[10]).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+            LocalDate icDate = safeDate(row[10]);
+            if (icDate != null) {
+                dto.setIcDate(icDate);
             }
 
             dto.setQuantityOffered(
-                    row[11] != null ? ((Number) row[11]).intValue() : 0
+                    row[11] != null ? safeInt(row[11]) : 0
             );
 
             dto.setQuantityPassed(
-                    row[12] != null ? ((Number) row[12]).intValue() : 0
+                    row[12] != null ? safeInt(row[12]) : 0
             );
 
             dto.setQuantityRejected(
-                    row[13] != null ? ((Number) row[13]).intValue() : 0
+                    row[13] != null ? safeInt(row[13]) : 0
             );
 
-            String callNumber = row[14] != null ? row[14].toString() : "";
-            String callStatus = row[5] != null ? row[5].toString() : "A";
+            String callNumber = row[14] != null ? safeString(row[14]) : "";
+            String callStatus = row[5] != null ? safeString(row[5]) : "A";
 
             dto.setIcFileLink(
                     "https://api.ritesqasarthi.com"
@@ -802,16 +892,16 @@ public class IbsServiceImpl implements IbsService {
 
 
             dto.setCallNumber(callNumber);
-            dto.setIcNumber(row[15] != null ? row[15].toString() : callNumber);
+            dto.setIcNumber(row[15] != null ? safeString(row[15]) : callNumber);
 
             double cancelCharges = 0.0;
             double rejectCharges = 0.0;
 
             if (row.length > 16 && row[16] != null) {
-                cancelCharges = ((Number) row[16]).doubleValue();
+                cancelCharges = safeDouble(row[16]);
             }
             if (row.length > 17 && row[17] != null) {
-                rejectCharges = ((Number) row[17]).doubleValue();
+                rejectCharges = safeDouble(row[17]);
             }
 
             dto.setCancellationCharges(cancelCharges);
@@ -825,7 +915,10 @@ public class IbsServiceImpl implements IbsService {
 
             String rio = null;
             if (row.length > 18 && row[18] != null) {
-                rio = row[18].toString().trim();
+                String rioStr = safeString(row[18]);
+                if (rioStr != null) {
+                    rio = rioStr.trim();
+                }
             }
 
             if ("ERC".equalsIgnoreCase(productType)) {
@@ -886,51 +979,60 @@ public class IbsServiceImpl implements IbsService {
     private String lookupSleeperRio(String plantId) {
         if (plantId == null || plantId.trim().isEmpty()) return null;
         String key = plantId.trim();
-        String cached = sleeperRioCache.computeIfAbsent(key, k -> {
-            try {
-                List<com.sarthi.Sleeper.entity.VendorPlant> matchingPlants = vendorPlantRepository.findMatchingPlants(k);
-                if (matchingPlants != null && !matchingPlants.isEmpty()) {
-                    for (com.sarthi.Sleeper.entity.VendorPlant vp : matchingPlants) {
-                        if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
-                            return vp.getRio().trim();
-                        }
+        if (sleeperRioCache.containsKey(key)) {
+            String val = sleeperRioCache.get(key);
+            return (val == null || val.isEmpty()) ? null : val;
+        }
+        String foundRio = "";
+        try {
+            List<com.sarthi.Sleeper.entity.VendorPlant> matchingPlants = vendorPlantRepository.findMatchingPlants(key);
+            if (matchingPlants != null && !matchingPlants.isEmpty()) {
+                for (com.sarthi.Sleeper.entity.VendorPlant vp : matchingPlants) {
+                    if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                        foundRio = vp.getRio().trim();
+                        break;
                     }
                 }
-                String cleanPlant = k.replaceAll("^[:\\s]+", "").trim();
-                var vpOpt = vendorPlantRepository.findByPlantId(k);
+            }
+            if (foundRio.isEmpty()) {
+                String cleanPlant = key.replaceAll("^[:\\s]+", "").trim();
+                var vpOpt = vendorPlantRepository.findByPlantId(key);
                 if (vpOpt.isEmpty() && !cleanPlant.isEmpty()) {
                     vpOpt = vendorPlantRepository.findByPlantId(cleanPlant);
                 }
                 if (vpOpt.isPresent() && vpOpt.get().getRio() != null && !vpOpt.get().getRio().trim().isEmpty()) {
-                    return vpOpt.get().getRio().trim();
+                    foundRio = vpOpt.get().getRio().trim();
                 }
-            } catch (Exception e) {
-                log.warn("Could not lookup Sleeper RIO for plantId: {}", k, e);
             }
-            return "";
-        });
-        return cached.isEmpty() ? null : cached;
+        } catch (Exception e) {
+            log.warn("Could not lookup Sleeper RIO for plantId: {}", key, e);
+        }
+        sleeperRioCache.put(key, foundRio);
+        return foundRio.isEmpty() ? null : foundRio;
     }
 
     private String lookupRailpadRio(String plantId) {
         if (plantId == null || plantId.trim().isEmpty()) return null;
         String key = plantId.trim();
-        String cached = railpadRioCache.computeIfAbsent(key, k -> {
-            try {
-                String cleanPlant = k.replaceAll("^[:\\s]+", "").trim();
-                var rvpOpt = railVendorPlantsRepository.findByPlantId(k);
-                if (rvpOpt.isEmpty() && !cleanPlant.isEmpty()) {
-                    rvpOpt = railVendorPlantsRepository.findByPlantId(cleanPlant);
-                }
-                if (rvpOpt.isPresent() && rvpOpt.get().getRio() != null && !rvpOpt.get().getRio().trim().isEmpty()) {
-                    return rvpOpt.get().getRio().trim();
-                }
-            } catch (Exception e) {
-                log.warn("Could not lookup Railpad RIO for plantId: {}", k, e);
+        if (railpadRioCache.containsKey(key)) {
+            String val = railpadRioCache.get(key);
+            return (val == null || val.isEmpty()) ? null : val;
+        }
+        String foundRio = "";
+        try {
+            String cleanPlant = key.replaceAll("^[:\\s]+", "").trim();
+            var rvpOpt = railVendorPlantsRepository.findByPlantId(key);
+            if (rvpOpt.isEmpty() && !cleanPlant.isEmpty()) {
+                rvpOpt = railVendorPlantsRepository.findByPlantId(cleanPlant);
             }
-            return "";
-        });
-        return cached.isEmpty() ? null : cached;
+            if (rvpOpt.isPresent() && rvpOpt.get().getRio() != null && !rvpOpt.get().getRio().trim().isEmpty()) {
+                foundRio = rvpOpt.get().getRio().trim();
+            }
+        } catch (Exception e) {
+            log.warn("Could not lookup Railpad RIO for plantId: {}", key, e);
+        }
+        railpadRioCache.put(key, foundRio);
+        return foundRio.isEmpty() ? null : foundRio;
     }
 
 
