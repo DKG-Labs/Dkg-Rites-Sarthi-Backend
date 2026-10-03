@@ -46,13 +46,38 @@ public class IbsController {
     @GetMapping("/ibs/call-registration-inspection-data")
     public ResponseEntity<Object> getCallData(
             @RequestHeader(value = "Authorization",
-                    required = false) String authHeader) {
+                    required = false) String authHeader,
+            @RequestParam(value = "status", required = false) String status) {
 
       jwtService.validateToken(authHeader);
+
+        if ("COMPLETED".equalsIgnoreCase(status)) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(
+                            service.getCompletedIbsCalls()
+                    ),
+                    HttpStatus.OK
+            );
+        }
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
                         service.getAllGeneratedIcCalls()
+                ),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/ibs/completed-inspection-data")
+    public ResponseEntity<Object> getCompletedCallData(
+            @RequestHeader(value = "Authorization",
+                    required = false) String authHeader) {
+
+        jwtService.validateToken(authHeader);
+
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        service.getCompletedIbsCalls()
                 ),
                 HttpStatus.OK
         );

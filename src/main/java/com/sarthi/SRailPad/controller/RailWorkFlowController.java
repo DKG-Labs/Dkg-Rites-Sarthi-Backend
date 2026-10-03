@@ -3,7 +3,10 @@ package com.sarthi.SRailPad.controller;
 import com.sarthi.SRailPad.dto.RailTransitionActionReqDto;
 import com.sarthi.SRailPad.service.RailWorkflowService;
 import com.sarthi.util.ResponseBuilder;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.ErrorDetails;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +15,7 @@ import com.sarthi.SRailPad.dto.RailpadRemapSubmitDto;
 @RestController
 @RequestMapping({"/railpad-workflow", "/api/railpad-workflow"})
 @AllArgsConstructor
+@Slf4j
 public class RailWorkFlowController {
 
     private RailWorkflowService workflowService;
@@ -332,22 +336,48 @@ public class RailWorkFlowController {
     public ResponseEntity<Object> revertToInspection(
             @PathVariable String requestId,
             @RequestParam(required = false) Integer deletedBy) {
-        workflowService.revertToInspection(requestId, deletedBy);
-        return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse("Call " + requestId + " reverted to Inspection stage successfully."),
-                HttpStatus.OK
-        );
+        try {
+            workflowService.revertToInspection(requestId, deletedBy);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse("Call " + requestId + " reverted to Inspection stage successfully."),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            log.error("Failed to revert call {} to inspection: ", requestId, e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(
+                            HttpStatus.BAD_REQUEST.value(),
+                            HttpStatus.BAD_REQUEST.value(),
+                            AppConstant.ERROR_TYPE_ERROR,
+                            "Failed to revert call: " + e.getMessage()
+                    )),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
     }
 
     @DeleteMapping("/back-to-ic-issuance/{requestId}")
     public ResponseEntity<Object> revertToIcIssuance(
             @PathVariable String requestId,
             @RequestParam(required = false) Integer deletedBy) {
-        workflowService.revertToIcIssuance(requestId, deletedBy);
-        return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse("Call " + requestId + " reverted to IC Issuance stage successfully."),
-                HttpStatus.OK
-        );
+        try {
+            workflowService.revertToIcIssuance(requestId, deletedBy);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse("Call " + requestId + " reverted to IC Issuance stage successfully."),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            log.error("Failed to revert call {} to IC issuance: ", requestId, e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(
+                            HttpStatus.BAD_REQUEST.value(),
+                            HttpStatus.BAD_REQUEST.value(),
+                            AppConstant.ERROR_TYPE_ERROR,
+                            "Failed to revert call: " + e.getMessage()
+                    )),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
     }
 }
 

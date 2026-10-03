@@ -755,7 +755,186 @@ public class IbsServiceImpl implements IbsService {
             log.error("Error aggregating IBS inspection calls: {}", e.getMessage(), e);
         }
 
-        return responseList;
+        // Deduplicate across all product queries by callNumber
+        Map<String, IbsInspectionDto> uniqueCalls = new LinkedHashMap<>();
+        for (IbsInspectionDto dto : responseList) {
+            String callNo = dto.getCallNumber();
+            if (callNo == null || callNo.trim().isEmpty()) {
+                callNo = dto.getIcNumber();
+            }
+            if (callNo == null || callNo.trim().isEmpty()) {
+                continue;
+            }
+            callNo = callNo.trim();
+            if (!uniqueCalls.containsKey(callNo)) {
+                uniqueCalls.put(callNo, dto);
+            } else {
+                IbsInspectionDto existing = uniqueCalls.get(callNo);
+                if ((existing.getCaseNumber() == null || existing.getCaseNumber().trim().isEmpty())
+                        && (dto.getCaseNumber() != null && !dto.getCaseNumber().trim().isEmpty())) {
+                    uniqueCalls.put(callNo, dto);
+                }
+            }
+        }
+
+        return new ArrayList<>(uniqueCalls.values());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<IbsInspectionDto> getCompletedIbsCalls() {
+        List<IbsCallRegistration> completedList = ibsCallRegistrationRepository.findCompletedCalls();
+        log.info("Total completed registrations found in ibs_call_registration: {}", completedList != null ? completedList.size() : 0);
+
+        if (completedList == null || completedList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<String, IbsCallRegistration> regMap = new LinkedHashMap<>();
+        for (IbsCallRegistration reg : completedList) {
+            if (reg.getCallNumber() != null && !reg.getCallNumber().trim().isEmpty()) {
+                regMap.putIfAbsent(reg.getCallNumber().trim(), reg);
+            }
+        }
+
+        CompletableFuture<List<IbsInspectionDto>> f1 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(rmHeatFinalResultRepository.getRmCompletedInspectionCalls(), "ERC");
+            } catch (Exception e) {
+                log.error("Error fetching ERC RM completed inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<IbsInspectionDto>> f2 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(processLineFinalResultRepository.getProcessCompletedInspectionCalls(), "ERC");
+            } catch (Exception e) {
+                log.error("Error fetching ERC Process completed inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<IbsInspectionDto>> f3 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(finalCumulativeResultsRepository.getFinalCompletedInspectionCalls(), "ERC");
+            } catch (Exception e) {
+                log.error("Error fetching ERC Final completed inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<IbsInspectionDto>> f4 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(railpadProcessIcEditRepository.getRailpadProcessCompletedInspectionCalls(), "RAILPAD");
+            } catch (Exception e) {
+                log.error("Error fetching Railpad Process completed inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<IbsInspectionDto>> f5 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(railpadFinalIcEditRepository.getRailpadFinalCompletedInspectionCalls(), "RAILPAD");
+            } catch (Exception e) {
+                log.error("Error fetching Railpad Final completed inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<IbsInspectionDto>> f6 = CompletableFuture.supplyAsync(() -> {
+            try {
+                return mapResult(sleeperFinalIcEditRepository.getSleeperFinalCompletedInspectionCalls(), "SLEEPER");
+            } catch (Exception e) {
+                log.error("Error fetching Sleeper Final completed inspection calls: {}", e.getMessage(), e);
+                return Collections.emptyList();
+            }
+        });
+
+        List<IbsInspectionDto> rawList = new ArrayList<>();
+        try {
+            CompletableFuture.allOf(f1, f2, f3, f4, f5, f6).join();
+            rawList.addAll(f1.get());
+            rawList.addAll(f2.get());
+            rawList.addAll(f3.get());
+            rawList.addAll(f4.get());
+            rawList.addAll(f5.get());
+            rawList.addAll(f6.get());
+        } catch (Exception e) {
+            log.error("Error aggregating completed IBS inspection calls: {}", e.getMessage(), e);
+        }
+
+        // Deduplicate across queries by callNumber
+        Map<String, IbsInspectionDto> uniqueCalls = new LinkedHashMap<>();
+        for (IbsInspectionDto dto : rawList) {
+            String callNo = dto.getCallNumber();
+            if (callNo == null || callNo.trim().isEmpty()) {
+                callNo = dto.getIcNumber();
+            }
+            if (callNo == null || callNo.trim().isEmpty()) {
+                continue;
+            }
+            callNo = callNo.trim();
+            if (!uniqueCalls.containsKey(callNo)) {
+                uniqueCalls.put(callNo, dto);
+            } else {
+                IbsInspectionDto existing = uniqueCalls.get(callNo);
+                if ((existing.getCaseNumber() == null || existing.getCaseNumber().trim().isEmpty())
+                        && (dto.getCaseNumber() != null && !dto.getCaseNumber().trim().isEmpty())) {
+                    uniqueCalls.put(callNo, dto);
+                }
+            }
+        }
+
+        // Enrich every matched call with IBS registration details
+        for (IbsInspectionDto dto : uniqueCalls.values()) {
+            String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
+            IbsCallRegistration reg = regMap.remove(callNo);
+            if (reg == null && dto.getIcNumber() != null) {
+                reg = regMap.remove(dto.getIcNumber().trim());
+            }
+            if (reg != null) {
+                dto.setSrNo(reg.getSrNo());
+                dto.setIbsStatus(reg.getStatus());
+                dto.setReason(reg.getReason());
+                dto.setVersion(reg.getVersion());
+                dto.setBillingStatus(reg.getBillingStatus());
+                dto.setAcknowledgedAt(reg.getAcknowledgedAt());
+            }
+        }
+
+        // For any remaining completed calls from ibs_call_registration not covered by queries
+        for (IbsCallRegistration reg : regMap.values()) {
+            String callNo = reg.getCallNumber() != null ? reg.getCallNumber().trim() : "";
+            if (callNo.isEmpty() || uniqueCalls.containsKey(callNo)) {
+                continue;
+            }
+            IbsInspectionDto dto = new IbsInspectionDto();
+            dto.setCallNumber(callNo);
+            dto.setSrNo(reg.getSrNo());
+            dto.setIbsStatus(reg.getStatus());
+            dto.setReason(reg.getReason());
+            dto.setVersion(reg.getVersion());
+            dto.setBillingStatus(reg.getBillingStatus());
+            dto.setAcknowledgedAt(reg.getAcknowledgedAt());
+            dto.setCallStatus(reg.getStatus() != null ? reg.getStatus() : "SUCCESS");
+            if (reg.getAcknowledgedAt() != null) {
+                dto.setCallDate(reg.getAcknowledgedAt().toLocalDate());
+                dto.setIcDate(reg.getAcknowledgedAt().toLocalDate());
+            }
+            dto.setIcFileLink(
+                    "https://api.ritesqasarthi.com"
+                            + "/sarthi-backend/api/certificate-storage/view/"
+                            + callNo
+                            + ".pdf"
+            );
+            dto.setIsBlocked(0);
+            dto.setCancellationCharges(0.0);
+            dto.setRejectionCharges(0.0);
+            uniqueCalls.put(callNo, dto);
+        }
+
+        return new ArrayList<>(uniqueCalls.values());
     }
 
     private String safeString(Object val) {
@@ -808,80 +987,185 @@ public class IbsServiceImpl implements IbsService {
         }
     }
 
+    private Character getRioInitial(String rio, String icNumber, String placeOfInspection, String productType) {
+        // 1. Highest priority: The RIO prefix directly from the certificate/IC number (e.g. C/SF-..., W/ER-...)
+        if (icNumber != null && icNumber.contains("/")) {
+            String prefix = icNumber.substring(0, icNumber.indexOf('/')).trim().toUpperCase();
+            if (!prefix.isEmpty()) {
+                char ch = prefix.charAt(0);
+                if (ch == 'C' || ch == 'W' || ch == 'N' || ch == 'E' || ch == 'S') {
+                    return ch;
+                }
+            }
+        }
+        // 2. Explicit rio parameter
+        if (rio != null && !rio.trim().isEmpty()) {
+            String r = rio.trim().toUpperCase();
+            if (r.contains("CENTRAL") || r.startsWith("C")) {
+                return 'C';
+            } else if (r.contains("WESTERN") || r.startsWith("W")) {
+                return 'W';
+            } else if (r.contains("NORTHERN") || r.startsWith("N")) {
+                return 'N';
+            } else if (r.contains("EASTERN") || r.startsWith("E")) {
+                return 'E';
+            } else if (r.contains("SOUTHERN") || r.startsWith("S")) {
+                return 'S';
+            }
+        }
+        if (placeOfInspection != null && !placeOfInspection.trim().isEmpty()) {
+            String lookedUpRio = null;
+            if ("SLEEPER".equalsIgnoreCase(productType)) {
+                lookedUpRio = lookupSleeperRio(placeOfInspection);
+            } else if ("RAILPAD".equalsIgnoreCase(productType)) {
+                lookedUpRio = lookupRailpadRio(placeOfInspection);
+            }
+            if (lookedUpRio != null && !lookedUpRio.trim().isEmpty()) {
+                String r = lookedUpRio.trim().toUpperCase();
+                if (r.contains("CENTRAL") || r.startsWith("C")) {
+                    return 'C';
+                } else if (r.contains("WESTERN") || r.startsWith("W")) {
+                    return 'W';
+                } else if (r.contains("NORTHERN") || r.startsWith("N")) {
+                    return 'N';
+                } else if (r.contains("EASTERN") || r.startsWith("E")) {
+                    return 'E';
+                } else if (r.contains("SOUTHERN") || r.startsWith("S")) {
+                    return 'S';
+                }
+            }
+        }
+        return null;
+    }
+
     private List<IbsInspectionDto> mapResult(
             List<Object[]> rows,
             String productType
     ) {
-
-        List<IbsInspectionDto> list =
-                new ArrayList<>();
-
-        if (rows == null) {
+        List<IbsInspectionDto> list = new ArrayList<>();
+        if (rows == null || rows.isEmpty()) {
             return list;
         }
 
+        Map<String, List<Object[]>> groupedByCall = new LinkedHashMap<>();
         for (Object[] row : rows) {
+            String callNumber = row[14] != null ? safeString(row[14]).trim() : "";
+            if (callNumber.isEmpty()) {
+                callNumber = row[15] != null ? safeString(row[15]).trim() : "";
+            }
+            if (callNumber.isEmpty()) {
+                callNumber = "UNKNOWN_" + java.util.UUID.randomUUID();
+            }
+            groupedByCall.computeIfAbsent(callNumber, k -> new ArrayList<>()).add(row);
+        }
 
-            IbsInspectionDto dto =
-                    new IbsInspectionDto();
+        for (Map.Entry<String, List<Object[]>> entry : groupedByCall.entrySet()) {
+            String callNumber = entry.getKey();
+            List<Object[]> candidateRows = entry.getValue();
 
-            String rawCaseNo = safeString(row[0]);
+            Character rioInitial = null;
+            for (Object[] r : candidateRows) {
+                String rowRio = (r.length > 18 && r[18] != null) ? safeString(r[18]) : null;
+                String icNumber = r[15] != null ? safeString(r[15]) : null;
+                String poi = safeString(r[2]);
+                rioInitial = getRioInitial(rowRio, icNumber, poi, productType);
+                if (rioInitial != null) {
+                    break;
+                }
+            }
 
-            LocalDate callDate = safeDate(row[1]);
+            Object[] bestRow = null;
+            String resolvedCaseNo = null;
+
+            // 1. Look for a candidate row whose case number starts with rioInitial
+            if (rioInitial != null) {
+                for (Object[] r : candidateRows) {
+                    String rawCase = safeString(r[0]);
+                    if (rawCase != null && !rawCase.trim().isEmpty()) {
+                        String[] parts = rawCase.trim().split("[,/;]+");
+                        for (String part : parts) {
+                            String p = part.trim();
+                            if (p.toUpperCase().startsWith(String.valueOf(rioInitial))) {
+                                resolvedCaseNo = p;
+                                bestRow = r;
+                                break;
+                            }
+                        }
+                    }
+                    if (bestRow != null) {
+                        break;
+                    }
+                }
+            }
+
+            // 2. If no candidate matched RIO initial, pick first candidate with non-empty case number
+            if (bestRow == null) {
+                for (Object[] r : candidateRows) {
+                    String rawCase = safeString(r[0]);
+                    if (rawCase != null && !rawCase.trim().isEmpty()) {
+                        String[] parts = rawCase.trim().split("[,/;]+");
+                        for (String part : parts) {
+                            String p = part.trim();
+                            if (!p.isEmpty()) {
+                                resolvedCaseNo = p;
+                                bestRow = r;
+                                break;
+                            }
+                        }
+                    }
+                    if (bestRow != null) {
+                        break;
+                    }
+                }
+            }
+
+            // 3. Fallback to first row
+            if (bestRow == null) {
+                bestRow = candidateRows.get(0);
+                resolvedCaseNo = safeString(bestRow[0]);
+            }
+
+            IbsInspectionDto dto = new IbsInspectionDto();
+            dto.setCaseNumber(resolvedCaseNo != null ? resolvedCaseNo.trim() : "");
+
+            LocalDate callDate = safeDate(bestRow[1]);
             if (callDate != null) {
                 dto.setCallDate(callDate);
             }
 
-            dto.setPlaceOfInspection(
-                    safeString(row[2])
-            );
-            dto.setIbsManufacturedCode(
-                    row[3] != null ? safeString(row[3]) : null
-            );
+            dto.setPlaceOfInspection(safeString(bestRow[2]));
+            dto.setIbsManufacturedCode(bestRow[3] != null ? safeString(bestRow[3]) : null);
+            dto.setIeEmployeeNumber(bestRow[4] != null ? safeString(bestRow[4]) : null);
+            dto.setCallStatus(bestRow[5] != null ? safeString(bestRow[5]) : "A");
+            dto.setTypeOfCall(bestRow[6] != null ? safeString(bestRow[6]) : "");
 
-            dto.setIeEmployeeNumber(
-                    row[4] != null ? safeString(row[4]) : null
-            );
+            // Collect distinct PO item serial numbers
+            List<String> poItemSerialNumbers = new ArrayList<>();
+            Set<String> seenSr = new LinkedHashSet<>();
+            for (Object[] r : candidateRows) {
+                if (r[7] != null) {
+                    String sr = safeString(r[7]).trim();
+                    if (!sr.isEmpty() && seenSr.add(sr)) {
+                        poItemSerialNumbers.add(sr);
+                    }
+                }
+            }
+            if (poItemSerialNumbers.isEmpty()) {
+                poItemSerialNumbers.add("1");
+            }
+            dto.setPoItemSerialNumbers(poItemSerialNumbers);
 
-            dto.setCallStatus(
-                    row[5] != null ? safeString(row[5]) : "A"
-            );
+            dto.setBkNumber(bestRow[8] != null ? safeString(bestRow[8]) : "");
+            dto.setSetNumber(bestRow[9] != null ? safeString(bestRow[9]) : "");
 
-            dto.setTypeOfCall(
-                    row[6] != null ? safeString(row[6]) : ""
-            );
-
-            dto.setPoItemSerialNumbers(
-                    List.of(row[7] != null ? safeString(row[7]) : "1")
-            );
-
-            dto.setBkNumber(
-                    row[8] != null ? safeString(row[8]) : ""
-            );
-
-            dto.setSetNumber(
-                    row[9] != null ? safeString(row[9]) : ""
-            );
-
-            LocalDate icDate = safeDate(row[10]);
+            LocalDate icDate = safeDate(bestRow[10]);
             if (icDate != null) {
                 dto.setIcDate(icDate);
             }
 
-            dto.setQuantityOffered(
-                    row[11] != null ? safeInt(row[11]) : 0
-            );
-
-            dto.setQuantityPassed(
-                    row[12] != null ? safeInt(row[12]) : 0
-            );
-
-            dto.setQuantityRejected(
-                    row[13] != null ? safeInt(row[13]) : 0
-            );
-
-            String callNumber = row[14] != null ? safeString(row[14]) : "";
-            String callStatus = row[5] != null ? safeString(row[5]) : "A";
+            dto.setQuantityOffered(bestRow[11] != null ? safeInt(bestRow[11]) : 0);
+            dto.setQuantityPassed(bestRow[12] != null ? safeInt(bestRow[12]) : 0);
+            dto.setQuantityRejected(bestRow[13] != null ? safeInt(bestRow[13]) : 0);
 
             dto.setIcFileLink(
                     "https://api.ritesqasarthi.com"
@@ -890,18 +1174,16 @@ public class IbsServiceImpl implements IbsService {
                             + ".pdf"
             );
 
-
             dto.setCallNumber(callNumber);
-            dto.setIcNumber(row[15] != null ? safeString(row[15]) : callNumber);
+            dto.setIcNumber(bestRow[15] != null ? safeString(bestRow[15]) : callNumber);
 
             double cancelCharges = 0.0;
             double rejectCharges = 0.0;
-
-            if (row.length > 16 && row[16] != null) {
-                cancelCharges = safeDouble(row[16]);
+            if (bestRow.length > 16 && bestRow[16] != null) {
+                cancelCharges = safeDouble(bestRow[16]);
             }
-            if (row.length > 17 && row[17] != null) {
-                rejectCharges = safeDouble(row[17]);
+            if (bestRow.length > 17 && bestRow[17] != null) {
+                rejectCharges = safeDouble(bestRow[17]);
             }
 
             dto.setCancellationCharges(cancelCharges);
@@ -911,30 +1193,6 @@ public class IbsServiceImpl implements IbsService {
                 dto.setIsBlocked(1);
             } else {
                 dto.setIsBlocked(0);
-            }
-
-            String rio = null;
-            if (row.length > 18 && row[18] != null) {
-                String rioStr = safeString(row[18]);
-                if (rioStr != null) {
-                    rio = rioStr.trim();
-                }
-            }
-
-            if ("ERC".equalsIgnoreCase(productType)) {
-                dto.setCaseNumber(rawCaseNo);
-            } else if ("SLEEPER".equalsIgnoreCase(productType)) {
-                if ((rio == null || rio.isEmpty()) && dto.getPlaceOfInspection() != null) {
-                    rio = lookupSleeperRio(dto.getPlaceOfInspection());
-                }
-                dto.setCaseNumber(resolveCaseNumberByRio(rawCaseNo, rio));
-            } else if ("RAILPAD".equalsIgnoreCase(productType)) {
-                if ((rio == null || rio.isEmpty()) && dto.getPlaceOfInspection() != null) {
-                    rio = lookupRailpadRio(dto.getPlaceOfInspection());
-                }
-                dto.setCaseNumber(resolveCaseNumberByRio(rawCaseNo, rio));
-            } else {
-                dto.setCaseNumber(rawCaseNo);
             }
 
             list.add(dto);

@@ -14,6 +14,7 @@ public interface IbsService {
     public AuthResponseDto integrationLogin(AuthRequestDto request);
 
     public List<IbsInspectionDto> getAllGeneratedIcCalls();
+    public List<IbsInspectionDto> getCompletedIbsCalls();
 
     public String acknowledgeCallData(
             IbsAcknowledgementDto dto

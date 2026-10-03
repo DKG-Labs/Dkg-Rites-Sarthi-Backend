@@ -51,4 +51,11 @@ public class IbsInspectionDto {
 
     @com.fasterxml.jackson.annotation.JsonProperty("rejection_charges")
     private Double rejectionCharges;
+
+    private String srNo;
+    private String ibsStatus;
+    private String reason;
+    private Integer version;
+    private String billingStatus;
+    private java.time.LocalDateTime acknowledgedAt;
 }
