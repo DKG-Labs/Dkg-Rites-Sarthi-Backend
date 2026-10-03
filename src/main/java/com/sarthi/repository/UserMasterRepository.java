@@ -23,6 +23,8 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     java.util.List<UserMaster> findByEmployeeCodeIn(java.util.List<String> employeeCodes);
 
+    java.util.List<UserMaster> findAllByEmployeeCode(String employeeCode);
+
     Optional<UserMaster> findFirstByEmail(String email);
 
     UserMaster findByEmployeeCode(String employeeCode); // Keep for compatibility if needed elsewhere, but use findFirstBy in service

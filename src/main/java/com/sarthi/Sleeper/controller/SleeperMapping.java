@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.mapping.*;
 import com.sarthi.Sleeper.service.mappingService;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -39,11 +40,25 @@ public class SleeperMapping {
     @PostMapping("/sleeperMapping")
     public ResponseEntity<Object> createMapping(
             @RequestBody SleeperPoiIeMappingReqDto req){
-
-        return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(mappingService.createMapping(req)),
-                HttpStatus.OK
-        );
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(mappingService.createMapping(req)),
+                    HttpStatus.OK
+            );
+        } catch (Exception ex) {
+            String msg = ex.getMessage();
+            if (msg == null || msg.trim().isEmpty()) {
+                msg = "Failed to create sleeper mapping";
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(
+                            HttpStatus.BAD_REQUEST.value(),
+                            400,
+                            "error",
+                            msg
+                    ))
+            );
+        }
     }
 
     @GetMapping("/mapped-emp-list")
@@ -75,11 +90,25 @@ public class SleeperMapping {
     @PostMapping("/company-wise-sleeper-mapping")
     public ResponseEntity<Object> createMapping(
             @RequestBody CompanyEmployeeMappingReqDto req){
-
-        return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(mappingService.createBulkMapping(req)),
-                HttpStatus.OK
-        );
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(mappingService.createBulkMapping(req)),
+                    HttpStatus.OK
+            );
+        } catch (Exception ex) {
+            String msg = ex.getMessage();
+            if (msg == null || msg.trim().isEmpty()) {
+                msg = "Failed to create bulk sleeper mapping";
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ResponseBuilder.getErrorResponse(new ErrorDetails(
+                            HttpStatus.BAD_REQUEST.value(),
+                            400,
+                            "error",
+                            msg
+                    ))
+            );
+        }
     }
 
     @GetMapping("/employees-by-role")
