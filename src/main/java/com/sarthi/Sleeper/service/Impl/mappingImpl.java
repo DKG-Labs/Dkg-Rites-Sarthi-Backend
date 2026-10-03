@@ -36,33 +36,31 @@ public class mappingImpl implements mappingService {
         public SleeperPoiIeMappingResDto createMapping(
                 SleeperPoiIeMappingReqDto req) {
 
-
-            UserMaster um = userMasterRepository.findByEmployeeCode(req.getEmployeeCode());
-
-
-            if(um == null){
-
-                throw new RuntimeException(
-                        "User does not exist");
+            if (req == null || req.getEmployeeCode() == null || req.getEmployeeCode().trim().isEmpty()) {
+                throw new RuntimeException("Employee Code is required");
             }
 
+            List<UserMaster> users = userMasterRepository.findAllByEmployeeCode(req.getEmployeeCode().trim());
+
+            if (users == null || users.isEmpty()) {
+                throw new RuntimeException("User does not exist with Employee Code: " + req.getEmployeeCode());
+            }
+
+            if (users.size() > 1) {
+                throw new RuntimeException("Multiple duplicate records (" + users.size() + ") found for Employee Code '" 
+                        + req.getEmployeeCode() + "' in User Master. Please resolve duplicate records in User Master.");
+            }
+
+            UserMaster um = users.get(0);
 
             Integer expectedRoleId = null;
 
-            if(req.getIeType()
-                    .equalsIgnoreCase("Main IE")) {
-
+            if (req.getIeType() != null && req.getIeType().equalsIgnoreCase("Main IE")) {
                 expectedRoleId = 10;
-
-            } else if(req.getIeType()
-                    .equalsIgnoreCase("Process IE")) {
-
+            } else if (req.getIeType() != null && req.getIeType().equalsIgnoreCase("Process IE")) {
                 expectedRoleId = 14;
-
             } else {
-
-                throw new RuntimeException(
-                        "Invalid IE Type");
+                throw new RuntimeException("Invalid IE Type: '" + req.getIeType() + "'. Expected 'Main IE' or 'Process IE'");
             }
 
             boolean roleExists =
@@ -73,9 +71,8 @@ public class mappingImpl implements mappingService {
                             );
 
             if(!roleExists){
-
                 throw new RuntimeException(
-                        "User role does not match IE Type");
+                        "User role does not match IE Type (Expected role: " + req.getIeType() + ")");
             }
 
             if (req.getId() != null) {
@@ -108,9 +105,8 @@ public class mappingImpl implements mappingService {
                             );
 
             if(mappingExists){
-
                 throw new RuntimeException(
-                        "User already mapped to same plant");
+                        "User is already mapped to plant " + req.getPlantId() + " as " + req.getIeType());
             }
 
 
@@ -226,19 +222,26 @@ public class mappingImpl implements mappingService {
         for(String employeeCode : req.getEmployeeCodes()) {
 
             try {
-
-                UserMaster user =
-                        userMasterRepository
-                                .findByEmployeeCode(employeeCode);
-
-                // USER VALIDATION
-                if(user == null) {
-
-                    failedEmployees.add(
-                            employeeCode + " -> User not found");
-
+                if (employeeCode == null || employeeCode.trim().isEmpty()) {
                     continue;
                 }
+
+                List<UserMaster> users = userMasterRepository.findAllByEmployeeCode(employeeCode.trim());
+
+                // USER VALIDATION
+                if(users == null || users.isEmpty()) {
+                    failedEmployees.add(
+                            employeeCode + " -> User not found");
+                    continue;
+                }
+
+                if(users.size() > 1) {
+                    failedEmployees.add(
+                            employeeCode + " -> Multiple duplicate records (" + users.size() + ") found in User Master");
+                    continue;
+                }
+
+                UserMaster user = users.get(0);
 
                 // ROLE VALIDATION
                 boolean roleExists =

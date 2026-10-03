@@ -557,23 +557,13 @@ public class CertificateStorageController {
         opt = certificateStorageRepository.findByCallNumber(underVer);
         if (opt.isPresent()) return opt;
 
-        // 4. Split on '/' or '_' to extract sub-tokens like SF-07090001 from E/SF-07090001/RAMM
+        // 4. Split on '/' or '_' to extract substantial call sub-tokens (e.g. SF-07090001 or SF-100326001)
+        // Must contain at least one digit and be at least 6 characters long to prevent matching generic
+        // prefixes/suffixes like "SNMT", "RAMM", "C", "SF", etc.
         String[] slashTokens = clean.split("[/_]");
         for (String token : slashTokens) {
             String trimmedToken = token.trim();
-            if (trimmedToken.length() >= 4) {
-                opt = certificateStorageRepository.findByIcNumber(trimmedToken);
-                if (opt.isPresent()) return opt;
-                opt = certificateStorageRepository.findByCallNumber(trimmedToken);
-                if (opt.isPresent()) return opt;
-            }
-        }
-
-        // 5. Split tokens if delimiter exists (e.g. 0831260002)
-        String[] tokens = clean.split("[/\\-_]");
-        for (String token : tokens) {
-            String trimmedToken = token.trim();
-            if (trimmedToken.length() >= 4) {
+            if (trimmedToken.length() >= 6 && trimmedToken.matches(".*\\d+.*")) {
                 opt = certificateStorageRepository.findByIcNumber(trimmedToken);
                 if (opt.isPresent()) return opt;
                 opt = certificateStorageRepository.findByCallNumber(trimmedToken);

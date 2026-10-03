@@ -103,7 +103,10 @@ public class SecurityConfig {
                                 "/api/certificate-storage/view",
                                 "/api/certificate-storage/view/**",
                                 "/api/images/**",
-                                "/dashboard/images/**"
+                                "/dashboard/images/**",
+                                "/api/ibs/get-case-no",
+                                "/api/ibs/save-case-no",
+                                "/api/Vendorsync/**"
                         ).permitAll()
 
                         // 5. ALL OTHER APIS REQUIRE STRICT TOKEN AUTHENTICATION
