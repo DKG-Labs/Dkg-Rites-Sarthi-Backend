@@ -588,6 +588,141 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
     List<Object[]> getFinalInspectionCalls();
 
     @Query(value = """
+            SELECT
+                COALESCE(ph.case_no, '')                                AS caseNumber,
+                DATE(ic.created_at)                                     AS callDate,
+                COALESCE(ic.place_of_inspection, '')                    AS placeOfInspection,
+                COALESCE(pm.ibs_vendor_code, ic.place_of_inspection)    AS ibsManufacturedCode,
+                CAST(COALESCE(um_wt.employee_code, um_f.employee_code, um_ic.employee_code, wt_latest.assigned_to_user, wt_latest.createdby, f.created_by, fsc.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
+                'A'                                                     AS callStatus,
+                'F'                                                     AS typeOfCall,
+                (CASE 
+                    WHEN ic.po_no LIKE '%/%' AND SUBSTRING_INDEX(ic.po_no, '/', -1) <> '' THEN SUBSTRING_INDEX(ic.po_no, '/', -1)
+                    WHEN ic.po_serial_no IS NOT NULL AND TRIM(ic.po_serial_no) <> '' THEN TRIM(ic.po_serial_no)
+                    ELSE '1'
+                END)                                                    AS poItemSerialNumber,
+                CAST(COALESCE(f.book_no, fsc.book_no, '') AS CHAR)      AS bkNumber,
+                CAST(COALESCE(f.set_no, fsc.set_no, '') AS CHAR)        AS setNumber,
+                DATE(COALESCE(f.created_at, fsc.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
+                COALESCE(fr.offered_qty, (SELECT fid.total_offered_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1), 0) AS quantityOffered,
+                COALESCE(fr.total_accepted, 0)                          AS quantityPassed,
+                COALESCE(fr.total_rejected, 0)                          AS quantityRejected,
+                ic.ic_number                                            AS callNo,
+                COALESCE(
+                    NULLIF(icd.certificate_no, ''),
+                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
+                    (CASE WHEN fsc.ic_number LIKE '%/%' THEN fsc.ic_number ELSE NULL END),
+                    NULLIF(f.ic_number, ''),
+                    NULLIF(fsc.ic_number, ''),
+                    ic.ic_number
+                )                                                       AS callNumber,
+                0.0                                                     AS cancelCharges,
+                0.0                                                     AS rejectCharges,
+                COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
+            FROM inspection_calls ic
+            LEFT JOIN final_ic_edit f
+                   ON CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+            LEFT JOIN final_ic_save_changes fsc
+                   ON CONVERT(fsc.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT icd1.call_no, icd1.certificate_no, icd1.created_on
+                FROM inspection_complete_details icd1
+                INNER JOIN (
+                    SELECT call_no, MAX(id) AS max_id
+                    FROM inspection_complete_details
+                    GROUP BY call_no
+                ) latest_icd ON icd1.id = latest_icd.max_id
+            ) icd ON CONVERT(icd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN po_header ph
+                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sarthi_ibs_poi_mapping pm
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.place_of_inspection USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND pm.product_type = 'erc'
+            LEFT JOIN (
+                SELECT wt1.requestid, wt1.assigned_to_user, wt1.createdby, wt1.status, wt1.action, wt1.rio
+                FROM workflow_transition wt1
+                INNER JOIN (
+                    SELECT requestid, MAX(workflowtransitionid) AS max_wt_id
+                    FROM workflow_transition
+                    GROUP BY requestid
+                ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
+            ) wt_latest
+                   ON CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR (f.ic_number IS NOT NULL AND CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+            LEFT JOIN user_master um_wt
+                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_f
+                   ON CONVERT(um_f.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(f.created_by, fsc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_f.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(f.created_by, fsc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_ic
+                   ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT 
+                    fr_sub.inspection_call_no,
+                    SUM(COALESCE(fr_sub.qty_now_offered, 0)) AS offered_qty,
+                    SUM(COALESCE(fr_sub.qty_now_passed, 0)) AS total_accepted,
+                    SUM(COALESCE(fr_sub.qty_now_rejected, 0)) AS total_rejected
+                FROM final_cumulative_results fr_sub
+                GROUP BY fr_sub.inspection_call_no
+            ) fr ON CONVERT(fr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT icr1.*
+                FROM ibs_call_registration icr1
+                INNER JOIN (
+                    SELECT call_number, MAX(version) AS max_version
+                    FROM ibs_call_registration
+                    GROUP BY call_number
+                ) latest ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       AND latest.max_version = icr1.version
+            ) icr ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            WHERE (
+                UPPER(COALESCE(ic.type_of_call, '')) LIKE '%FINAL%' 
+                OR UPPER(COALESCE(ic.type_of_call, '')) = 'F' 
+                OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'EF%'
+            )
+            AND UPPER(icr.status) = 'SUCCESS'
+            GROUP BY
+                ph.case_no,
+                ic.created_at,
+                ic.place_of_inspection,
+                pm.ibs_vendor_code,
+                um_wt.employee_code,
+                um_f.employee_code,
+                um_ic.employee_code,
+                wt_latest.assigned_to_user,
+                wt_latest.createdby,
+                f.created_by,
+                fsc.created_by,
+                ic.created_by,
+                ic.po_no,
+                ic.po_serial_no,
+                f.book_no,
+                fsc.book_no,
+                f.set_no,
+                fsc.set_no,
+                f.created_at,
+                fsc.created_at,
+                icd.created_on,
+                ic.updated_at,
+                ic.ic_number,
+                icd.certificate_no,
+                f.ic_number,
+                fsc.ic_number,
+                fr.offered_qty,
+                fr.total_accepted,
+                fr.total_rejected,
+                wt_latest.rio,
+                ic.id
+            """, nativeQuery = true)
+    List<Object[]> getFinalCompletedInspectionCalls();
+
+    @Query(value = """
                 SELECT
                     inspection_call_no,
                     qty_now_offered,

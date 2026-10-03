@@ -66,5 +66,25 @@ public interface IbsCallRegistrationRepository
         )
     """)
     List<Object[]> findLatestStatusByCallNumbers(@Param("callNumbers") java.util.Collection<String> callNumbers);
+
+    @Query("""
+        SELECT i
+        FROM IbsCallRegistration i
+        WHERE UPPER(i.status) = 'SUCCESS'
+        AND i.id IN (
+            SELECT MAX(i2.id) 
+            FROM IbsCallRegistration i2 
+            GROUP BY i2.callNumber
+        )
+        ORDER BY i.acknowledgedAt DESC, i.id DESC
+    """)
+    List<IbsCallRegistration> findCompletedCalls();
+
+    @Query("""
+        SELECT i
+        FROM IbsCallRegistration i
+        ORDER BY i.id DESC
+    """)
+    List<IbsCallRegistration> findAllCalls();
 }
 

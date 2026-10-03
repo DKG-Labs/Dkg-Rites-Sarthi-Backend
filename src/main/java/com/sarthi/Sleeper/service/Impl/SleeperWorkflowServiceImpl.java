@@ -46,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -114,6 +115,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     private com.sarthi.repository.IbsCallRegistrationRepository ibsCallRegistrationRepository;
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Autowired
+    private WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
 
     public void validateUser(Integer userId) {
         if (!userMasterRepository.existsById(userId)) {
@@ -2440,9 +2443,28 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         }
         String normalizedRequestId = requestId.trim();
 
+        // Fetch PO No and Certificate No if available for delete history
+        String certificateNo = null;
+        String poNo = null;
+        LocalDateTime inspectionCreatedOn = null;
+        try {
+            if (sleeperInspectionCompleteDetailsRepository != null) {
+                Optional<SleeperInspectionCompleteDetails> detOpt = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(normalizedRequestId);
+                if (detOpt.isPresent()) {
+                    certificateNo = detOpt.get().getCertificateNo();
+                    poNo = detOpt.get().getPoNo();
+                    inspectionCreatedOn = detOpt.get().getCreatedOn();
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error fetching inspection details for Sleeper {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
         // 1. Delete workflow transitions with action/status related to IC_ISSUE, COMPLETED, FINISH
+        // and record each in WorkflowDeleteHistory (mirrors ERC & Railpad)
         List<SleeperWorkflowTransaction> transitions = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(normalizedRequestId);
         if (transitions != null && !transitions.isEmpty()) {
+            Date now = new Date();
             for (SleeperWorkflowTransaction tx : transitions) {
                 String action = (tx.getAction() != null) ? tx.getAction().toUpperCase() : "";
                 String jobStatus = (tx.getJobStatus() != null) ? tx.getJobStatus().toUpperCase() : "";
@@ -2451,6 +2473,38 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 if (action.contains("IC_ISSUE") || action.contains("FINISH") || action.contains("COMPLETED")
                         || jobStatus.contains("IC_ISSUE") || jobStatus.contains("COMPLETED") || jobStatus.contains("FINISH")
                         || status.contains("IC_ISSUE") || status.contains("COMPLETED") || status.contains("FINISH")) {
+
+                    if (workflowDeleteHistoryRepository != null) {
+                        try {
+                            WorkflowDeleteHistory history = new WorkflowDeleteHistory();
+                            history.setRequestId(normalizedRequestId);
+                            history.setRequestType("SLEEPER");
+                            history.setWorkflowTransitionId(tx.getWorkflowTransitionId());
+                            if (tx.getWorkflowId() != null) history.setWorkflowId(tx.getWorkflowId().intValue());
+                            history.setCurrentRole(tx.getCurrentRole());
+                            history.setNextRole(tx.getNextRole());
+                            history.setStatus(tx.getStatus());
+                            history.setAction(tx.getAction());
+                            history.setRemarks(tx.getRemarks());
+                            if (tx.getCreatedBy() != null) history.setCreatedBy(tx.getCreatedBy().intValue());
+                            if (tx.getModifiedBy() != null) history.setModifiedBy(tx.getModifiedBy().intValue());
+                            if (tx.getAssignedToUser() != null) history.setAssignedToUser(tx.getAssignedToUser().intValue());
+                            history.setJobStatus(tx.getJobStatus());
+                            history.setRio(tx.getRio());
+                            if (tx.getCreatedDate() != null) {
+                                history.setTransitionCreatedDate(java.sql.Timestamp.valueOf(tx.getCreatedDate()));
+                            }
+                            history.setPoNo(poNo);
+                            history.setCertificateNo(certificateNo);
+                            history.setInspectionCreatedOn(inspectionCreatedOn);
+                            history.setDeletedBy(deletedBy);
+                            history.setDeletedOn(now);
+                            workflowDeleteHistoryRepository.save(history);
+                        } catch (Exception ex) {
+                            log.warn("Error saving workflow delete history for Sleeper call {}: {}", normalizedRequestId, ex.getMessage());
+                        }
+                    }
+
                     repository.delete(tx);
                 }
             }
@@ -2499,7 +2553,26 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         }
         String normalizedRequestId = requestId.trim();
 
-        // 1. Delete completion / e-signed transaction from sleeper_workflow_transaction
+        // Retrieve certificate No & PO No if exists
+        String certNo = null;
+        String poNo = null;
+        LocalDateTime inspectionCreatedOn = null;
+        try {
+            if (sleeperInspectionCompleteDetailsRepository != null) {
+                Optional<SleeperInspectionCompleteDetails> detOpt = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(normalizedRequestId);
+                if (detOpt.isPresent()) {
+                    if (detOpt.get().getCertificateNo() != null) certNo = detOpt.get().getCertificateNo().trim();
+                    poNo = detOpt.get().getPoNo();
+                    inspectionCreatedOn = detOpt.get().getCreatedOn();
+                } else {
+                    certNo = sleeperInspectionCompleteDetailsRepository.findCertificateNoByCallNo(normalizedRequestId);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Could not find certNo for Sleeper {}: {}", normalizedRequestId, ex.getMessage());
+        }
+
+        // 1. Delete completion / e-signed transaction from sleeper_workflow_transaction and record history
         List<SleeperWorkflowTransaction> transitions = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(normalizedRequestId);
         if (transitions != null && !transitions.isEmpty()) {
             SleeperWorkflowTransaction latest = transitions.get(0);
@@ -2509,21 +2582,43 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
             if (action.contains("IC_GENERATION") || action.contains("GENERATE_IC") || action.contains("DSC_SIGN") || action.contains("SIGN")
                     || jobStatus.contains("IC_GENERATION") || jobStatus.contains("COMPLETED") || status.contains("COMPLETED")) {
+
+                if (workflowDeleteHistoryRepository != null) {
+                    try {
+                        WorkflowDeleteHistory history = new WorkflowDeleteHistory();
+                        history.setRequestId(normalizedRequestId);
+                        history.setRequestType("SLEEPER");
+                        history.setWorkflowTransitionId(latest.getWorkflowTransitionId());
+                        if (latest.getWorkflowId() != null) history.setWorkflowId(latest.getWorkflowId().intValue());
+                        history.setCurrentRole(latest.getCurrentRole());
+                        history.setNextRole(latest.getNextRole());
+                        history.setStatus(latest.getStatus());
+                        history.setAction(latest.getAction());
+                        history.setRemarks(latest.getRemarks());
+                        if (latest.getCreatedBy() != null) history.setCreatedBy(latest.getCreatedBy().intValue());
+                        if (latest.getModifiedBy() != null) history.setModifiedBy(latest.getModifiedBy().intValue());
+                        if (latest.getAssignedToUser() != null) history.setAssignedToUser(latest.getAssignedToUser().intValue());
+                        history.setJobStatus(latest.getJobStatus());
+                        history.setRio(latest.getRio());
+                        if (latest.getCreatedDate() != null) {
+                            history.setTransitionCreatedDate(java.sql.Timestamp.valueOf(latest.getCreatedDate()));
+                        }
+                        history.setPoNo(poNo);
+                        history.setCertificateNo(certNo);
+                        history.setInspectionCreatedOn(inspectionCreatedOn);
+                        history.setDeletedBy(deletedBy);
+                        history.setDeletedOn(new Date());
+                        workflowDeleteHistoryRepository.save(history);
+                    } catch (Exception ex) {
+                        log.warn("Error saving workflow delete history in Sleeper revertToIcIssuance for {}: {}", normalizedRequestId, ex.getMessage());
+                    }
+                }
+
                 repository.delete(latest);
             }
         }
 
-        // 2. Retrieve certificate No if exists
-        String certNo = null;
-        try {
-            if (sleeperInspectionCompleteDetailsRepository != null) {
-                certNo = sleeperInspectionCompleteDetailsRepository.findCertificateNoByCallNo(normalizedRequestId);
-            }
-        } catch (Exception ex) {
-            log.warn("Could not find certNo for {}: {}", normalizedRequestId, ex.getMessage());
-        }
-
-        // 3. Delete from sleeper_final_ic_edit
+        // 2. Delete from sleeper_final_ic_edit
         try {
             if (sleeperFinalIcEditRepository != null) {
                 sleeperFinalIcEditRepository.findByIcNumber(normalizedRequestId).ifPresent(sleeperFinalIcEditRepository::delete);
@@ -2535,7 +2630,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             log.warn("Error deleting sleeper_final_ic_edit for {}: {}", normalizedRequestId, ex.getMessage());
         }
 
-        // 4. Delete from certificate_storage
+        // 3. Delete from certificate_storage
         try {
             if (certificateStorageRepository != null) {
                 certificateStorageRepository.findByCallNumber(normalizedRequestId).ifPresent(certificateStorageRepository::delete);
