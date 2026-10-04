@@ -810,6 +810,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 INNER JOIN (
                     SELECT call_no, MAX(id) AS max_id
                     FROM inspection_complete_details
+                    WHERE call_no IN (:callNumbers)
                     GROUP BY call_no
                 ) latest_icd ON icd1.id = latest_icd.max_id
             ) icd ON CONVERT(icd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -825,6 +826,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 INNER JOIN (
                     SELECT requestid, MAX(workflowtransitionid) AS max_wt_id
                     FROM workflow_transition
+                    WHERE requestid IN (:callNumbers)
                     GROUP BY requestid
                 ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
             ) wt_latest
@@ -846,25 +848,10 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                     SUM(COALESCE(rmr_sub.weight_accepted_mt, 0)) AS total_accepted,
                     SUM(COALESCE(rmr_sub.weight_rejected_mt, 0)) AS total_rejected
                 FROM rm_heat_final_result rmr_sub
+                WHERE rmr_sub.inspection_call_no IN (:callNumbers)
                 GROUP BY rmr_sub.inspection_call_no
             ) rmr ON CONVERT(rmr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT icr1.*
-                FROM ibs_call_registration icr1
-                INNER JOIN (
-                    SELECT call_number, MAX(version) AS max_version
-                    FROM ibs_call_registration
-                    GROUP BY call_number
-                ) latest ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                       AND latest.max_version = icr1.version
-            ) icr ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            WHERE (
-                UPPER(COALESCE(ic.type_of_call, '')) LIKE '%RAW%' 
-                OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%RM%' 
-                OR UPPER(COALESCE(ic.type_of_call, '')) = 'S' 
-                OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'ER%'
-            )
-            AND UPPER(icr.status) = 'SUCCESS'
+            WHERE ic.ic_number IN (:callNumbers)
             GROUP BY
                 ph.case_no,
                 ic.created_at,
@@ -898,7 +885,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 wt_latest.rio,
                 ic.id
             """, nativeQuery = true)
-    List<Object[]> getRmCompletedInspectionCalls();
+    List<Object[]> getRmCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 
     /** Bulk fetch: SUM(accepted_qty_mt) per ic_number for a list of RM call numbers */
     @Query(value = """

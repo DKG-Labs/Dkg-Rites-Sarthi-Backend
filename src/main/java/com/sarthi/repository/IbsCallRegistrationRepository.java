@@ -13,7 +13,12 @@ import java.util.Set;
 public interface IbsCallRegistrationRepository
         extends JpaRepository<IbsCallRegistration, Long> {
     boolean existsByCallNumberAndStatus(String callNumber, String status);
-    List<IbsCallRegistration> findByCallNumber(String callNumber);
+    @Query("SELECT i FROM IbsCallRegistration i WHERE i.callNumber = :callNumber ORDER BY i.id DESC")
+    List<IbsCallRegistration> findByCallNumber(@Param("callNumber") String callNumber);
+
+    List<IbsCallRegistration> findByCallNumberOrderByIdDesc(String callNumber);
+
+    java.util.Optional<IbsCallRegistration> findFirstByCallNumberOrderByIdDesc(String callNumber);
 
     @Query("""
        SELECT i.callNumber
@@ -70,13 +75,12 @@ public interface IbsCallRegistrationRepository
     @Query("""
         SELECT i
         FROM IbsCallRegistration i
-        WHERE UPPER(i.status) = 'SUCCESS'
-        AND i.id IN (
+        WHERE i.id IN (
             SELECT MAX(i2.id) 
             FROM IbsCallRegistration i2 
             GROUP BY i2.callNumber
         )
-        ORDER BY i.acknowledgedAt DESC, i.id DESC
+        ORDER BY i.id DESC
     """)
     List<IbsCallRegistration> findCompletedCalls();
 

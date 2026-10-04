@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
@@ -248,6 +249,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                     SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
                     FROM sleeper_workflow_transaction
                     WHERE assigned_to_user IS NOT NULL
+                      AND request_id IN (:callNumbers)
                     GROUP BY request_id
                 ) latest_wt
                     ON swt1.workflow_transition_id = latest_wt.max_wt_id
@@ -273,6 +275,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 INNER JOIN (
                     SELECT call_no, MAX(id) AS max_id
                     FROM sleeper_inspection_complete_details
+                    WHERE call_no IN (:callNumbers)
                     GROUP BY call_no
                 ) latest_sicd
                     ON sicd1.id = latest_sicd.max_id
@@ -284,29 +287,6 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
             LEFT JOIN user_master um
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT sfr1.call_number, sfr1.total_offered_quantity, sfr1.total_accepted, sfr1.total_rejected
-                FROM sleeper_final_result sfr1
-                INNER JOIN (
-                    SELECT call_number, MAX(id) AS max_id
-                    FROM sleeper_final_result
-                    GROUP BY call_number
-                ) latest_sfr
-                    ON sfr1.id = latest_sfr.max_id
-            ) sfr
-                   ON CONVERT(sfr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT icr1.*
-                FROM ibs_call_registration icr1
-                INNER JOIN (
-                    SELECT call_number, MAX(version) AS max_version
-                    FROM ibs_call_registration
-                    GROUP BY call_number
-                ) latest
-                    ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   AND latest.max_version = icr1.version
-            ) icr
-                    ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sleeper_pincode_poi_mapping sppm
                    ON CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -319,7 +299,19 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                           CONVERT(REPLACE(TRIM(sic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    )
                   AND pm.product_type = 'sleeper'
-            WHERE UPPER(icr.status) = 'SUCCESS'
+            LEFT JOIN (
+                SELECT sfr1.call_number, sfr1.total_offered_quantity, sfr1.total_accepted, sfr1.total_rejected
+                FROM sleeper_final_result sfr1
+                INNER JOIN (
+                    SELECT call_number, MAX(id) AS max_id
+                    FROM sleeper_final_result
+                    WHERE call_number IN (:callNumbers)
+                    GROUP BY call_number
+                ) latest_sfr
+                    ON sfr1.id = latest_sfr.max_id
+            ) sfr
+                   ON CONVERT(sfr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            WHERE sic.call_no IN (:callNumbers)
             GROUP BY
                 ph.case_no,
                 sic.created_at,
@@ -348,5 +340,5 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 sfr.total_accepted,
                 sfr.total_rejected
             """, nativeQuery = true)
-    List<Object[]> getSleeperFinalCompletedInspectionCalls();
+    List<Object[]> getSleeperFinalCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 }

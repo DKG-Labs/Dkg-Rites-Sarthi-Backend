@@ -1,5 +1,6 @@
 package com.sarthi.repository.processmaterial;
 
+import com.sarthi.dto.InspectionQtySummaryView;
 import com.sarthi.dto.summaryDtos.PlantShiftWiseRawDto;
 import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import org.springframework.data.domain.Page;
@@ -88,6 +89,32 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     com.sarthi.dto.processmaterial.ProcessStageAcceptedQtyDto getSumOfAcceptedQuantitiesByCallAndLot(
             @org.springframework.data.repository.query.Param("callNo") String callNo,
             @org.springframework.data.repository.query.Param("lotNo") String lotNo);
+
+    /**
+     * Get lot-wise quantity summary from process_line_final_result:
+     * - Manufactured: sum of shearing manufactured
+     * - Rejected: sum of total rejected
+     * - Accepted: total shearing manufactured - total rejected (non-negative)
+     */
+    @Query("""
+        SELECT
+            p.lotNumber AS lotNumber,
+            COALESCE(MAX(p.offeredQty), 0) AS offeredQty,
+            COALESCE(SUM(p.shearingManufactured), 0) AS manufacturedQty,
+            COALESCE(SUM(p.totalRejected), 0) AS rejectedQty,
+            CASE 
+                WHEN (COALESCE(SUM(p.shearingManufactured), 0) - COALESCE(SUM(p.totalRejected), 0)) < 0 THEN 0 
+                ELSE (COALESCE(SUM(p.shearingManufactured), 0) - COALESCE(SUM(p.totalRejected), 0)) 
+            END AS acceptedQty
+        FROM ProcessLineFinalResult p
+        WHERE p.inspectionCallNo = :callNo
+          AND p.lotNumber IS NOT NULL
+          AND TRIM(p.lotNumber) <> ''
+        GROUP BY p.lotNumber
+    """)
+    List<InspectionQtySummaryView> getLotWiseQtySummaryFromFinalResult(@Param("callNo") String callNo);
+
+    boolean existsByInspectionCallNo(String inspectionCallNo);
 
     /*
      * @Query(value = """
@@ -1101,6 +1128,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 INNER JOIN (
                     SELECT call_no, MAX(id) AS max_id
                     FROM inspection_complete_details
+                    WHERE call_no IN (:callNumbers)
                     GROUP BY call_no
                 ) latest_icd ON icd1.id = latest_icd.max_id
             ) icd ON CONVERT(icd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -1116,6 +1144,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 INNER JOIN (
                     SELECT requestid, MAX(workflowtransitionid) AS max_wt_id
                     FROM workflow_transition
+                    WHERE requestid IN (:callNumbers)
                     GROUP BY requestid
                 ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
             ) wt_latest
@@ -1137,24 +1166,10 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                     SUM(COALESCE(pr_sub.total_accepted, 0)) AS total_accepted,
                     SUM(COALESCE(pr_sub.total_rejected, 0)) AS total_rejected
                 FROM process_line_final_result pr_sub
+                WHERE pr_sub.inspection_call_no IN (:callNumbers)
                 GROUP BY pr_sub.inspection_call_no
             ) pr ON CONVERT(pr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT icr1.*
-                FROM ibs_call_registration icr1
-                INNER JOIN (
-                    SELECT call_number, MAX(version) AS max_version
-                    FROM ibs_call_registration
-                    GROUP BY call_number
-                ) latest ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                       AND latest.max_version = icr1.version
-            ) icr ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            WHERE (
-                UPPER(COALESCE(ic.type_of_call, '')) LIKE '%PROCESS%' 
-                OR UPPER(COALESCE(ic.type_of_call, '')) = 'P' 
-                OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'EP%'
-            )
-            AND UPPER(icr.status) = 'SUCCESS'
+            WHERE ic.ic_number IN (:callNumbers)
             GROUP BY
                 ph.case_no,
                 ic.created_at,
@@ -1188,7 +1203,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 wt_latest.rio,
                 ic.id
             """, nativeQuery = true)
-    List<Object[]> getProcessCompletedInspectionCalls();
+    List<Object[]> getProcessCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 
     /** Bulk fetch: SUM(tempering_accepted) per inspection_call_no for a list of Process call numbers */
     @Query(value = """
@@ -1211,11 +1226,11 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             @Param("heatNo") String heatNo);
 
     /**
-     * Fetch accepted quantity (total_manufactured - total_rejected) for a lot and heat
+     * Fetch accepted quantity (shearing_manufactured - total_rejected) for a lot and heat
      * strictly matching Process IC certificate logic. Single aggregated query - O(1), no N+1.
      */
     @Query(value = """
-        SELECT GREATEST(0, COALESCE(SUM(p.total_manufactured), 0) - COALESCE(SUM(p.total_rejected), 0))
+        SELECT GREATEST(0, COALESCE(SUM(p.shearing_manufactured), 0) - COALESCE(SUM(p.total_rejected), 0))
         FROM process_line_final_result p
         WHERE (:requestId IS NULL OR :requestId = '' 
                OR p.inspection_call_no = :requestId 
@@ -1227,5 +1242,54 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     Integer sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(
             @Param("requestId") String requestId,
             @Param("lotNumber") String lotNumber,
+            @Param("heatNo") String heatNo);
+
+    /**
+     * Sum cumulative accepted quantity (shearing_manufactured - total_rejected) for a lot under a call.
+     */
+    @Query(value = """
+        SELECT GREATEST(0, COALESCE(SUM(p.shearing_manufactured), 0) - COALESCE(SUM(p.total_rejected), 0))
+        FROM process_line_final_result p
+        WHERE p.inspection_call_no = :callNo
+          AND (REPLACE(p.lot_number, ' ', '') = REPLACE(:lotNo, ' ', '') OR TRIM(p.lot_number) = TRIM(:lotNo))
+    """, nativeQuery = true)
+    Integer sumAcceptedQtyByCallNoAndLotNumber(
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo);
+
+    /**
+     * Find offered quantity for a lot under a call from process_line_final_result.
+     */
+    @Query(value = """
+        SELECT COALESCE(MAX(p.offered_qty), 0)
+        FROM process_line_final_result p
+        WHERE p.inspection_call_no = :callNo
+          AND (REPLACE(p.lot_number, ' ', '') = REPLACE(:lotNo, ' ', '') OR TRIM(p.lot_number) = TRIM(:lotNo))
+    """, nativeQuery = true)
+    Integer findOfferedQtyByCallNoAndLotNumber(
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo);
+
+    /**
+     * Sum process manufactured, rejected, and accepted quantities for a heat across calls.
+     */
+    @Query(value = """
+        SELECT 
+            COALESCE(SUM(p.shearing_manufactured), 0) AS mfg,
+            COALESCE(SUM(p.total_rejected), 0) AS rej,
+            GREATEST(0, COALESCE(SUM(p.shearing_manufactured), 0) - COALESCE(SUM(p.total_rejected), 0)) AS acc
+        FROM process_line_final_result p
+        WHERE p.inspection_call_no IN :callNos
+          AND (
+            (REPLACE(p.heat_number, ' ', '') = REPLACE(:heatNo, ' ', '') OR TRIM(p.heat_number) = TRIM(:heatNo))
+            OR EXISTS (
+                SELECT 1 FROM process_inspection_details pid
+                WHERE pid.heat_number = :heatNo
+                  AND (REPLACE(pid.lot_number, ' ', '') = REPLACE(p.lot_number, ' ', '') OR TRIM(pid.lot_number) = TRIM(p.lot_number))
+            )
+          )
+    """, nativeQuery = true)
+    List<Object[]> sumProcessQtyByCallNosAndHeatNo(
+            @Param("callNos") List<String> callNos,
             @Param("heatNo") String heatNo);
 }

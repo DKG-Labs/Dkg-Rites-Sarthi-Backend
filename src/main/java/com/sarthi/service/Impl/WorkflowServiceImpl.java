@@ -114,6 +114,9 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private ProcessInspectionDetailsRepository processInspectionDetailsRepository;
 
+    @Autowired(required = false)
+    private com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository processLineFinalResultRepository;
+
     @Autowired
     private FinalInspectionDetailsRepository finalInspectionDetailsRepository;
 
@@ -821,42 +824,33 @@ public class WorkflowServiceImpl implements WorkflowService {
                     //  Lot number from request
                     String lotNo = req.getLotNo();
 
-// Already inspected qty for SAME request + SAME lot
-                    int alreadyInspectedLotQty =
-                            processIeQtyRepository
-                                    .sumInspectedQtyByRequestIdAndLotNumber(
-                                            req.getRequestId(),
-                                            lotNo
-                                    );
-
-
-                    int lotOfferedQty =
-                            processIeQtyRepository
-                                    .findOfferedQtyByRequestIdAndLotNumber(
-                                            req.getRequestId(),
-                                            lotNo
-                                    );
-
-                    if (lotOfferedQty == 0) {
-                        lotOfferedQty = req.getOfferedQty();
+                    int lotOfferedQty = req.getOfferedQty();
+                    if (lotOfferedQty <= 0 && processLineFinalResultRepository != null) {
+                        Integer maxOffered = processLineFinalResultRepository
+                                .findOfferedQtyByCallNoAndLotNumber(req.getRequestId(), lotNo);
+                        if (maxOffered != null && maxOffered > 0) {
+                            lotOfferedQty = maxOffered;
+                        }
+                    }
+                    if (lotOfferedQty <= 0) {
+                        lotOfferedQty = processInspectionDetailsRepository.findOfferedQtyByIcId(ic.getId());
                     }
 
                     int newQty = req.getInspectedQty();
 
-                    //  CORE VALIDATION
-//                if (alreadyInspectedQty + newQty > totalOfferedQty) {
-//                    throw new BusinessException(
-//                            new ErrorDetails(
-//                                    AppConstant.INVALID_WORKFLOW_TRANSITION,
-//                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
-//                                    AppConstant.ERROR_TYPE_VALIDATION,
-//                                    "Entered quantity exceeds total offered quantity. " +
-//                                            "Remaining qty: " + (totalOfferedQty - alreadyInspectedQty)
-//                            )
-//                    );
-//                }
-                    // LOT-WISE VALIDATION
-                    if (alreadyInspectedLotQty + newQty > lotOfferedQty) {
+                    // Cumulative accepted quantity strictly calculated from process_line_final_result:
+                    // (shearing_manufactured - total_rejected).
+                    // Since pause inspection runs before workflow transition, process_line_final_result already includes this shift.
+                    Integer cumulativeAccepted = (processLineFinalResultRepository != null)
+                            ? processLineFinalResultRepository.sumAcceptedQtyByCallNoAndLotNumber(req.getRequestId(), lotNo)
+                            : null;
+                    int totalAccepted = (cumulativeAccepted != null) ? cumulativeAccepted : 0;
+                    if (totalAccepted == 0 && newQty > 0) {
+                        totalAccepted = newQty;
+                    }
+
+                    // LOT-WISE VALIDATION against process_line_final_result
+                    if (lotOfferedQty > 0 && totalAccepted > lotOfferedQty) {
                         throw new BusinessException(
                                 new ErrorDetails(
                                         AppConstant.INVALID_WORKFLOW_TRANSITION,
@@ -865,7 +859,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                                         "Entered quantity exceeds offered quantity for Lot "
                                                 + lotNo +
                                                 ". Remaining qty: "
-                                                + (lotOfferedQty - alreadyInspectedLotQty)
+                                                + (lotOfferedQty - totalAccepted)
                                 )
                         );
                     }
@@ -4437,6 +4431,12 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                 detail.setQtyRejected(0);
                 processInspectionDetailsRepository.save(detail);
             }
+
+            // 3. Clear ProcessLineFinalResult if call is withdrawn
+            if (processLineFinalResultRepository != null) {
+                processLineFinalResultRepository.deleteByInspectionCallNo(icNumber);
+            }
+
             return "Process call withdrawn successfully. Quantities reset to 0.";
         } else if ("Final".equalsIgnoreCase(typeOfCall)) {
             // 1. Update FinalInspectionDetails
