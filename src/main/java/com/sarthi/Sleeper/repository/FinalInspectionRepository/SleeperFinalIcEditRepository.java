@@ -287,6 +287,18 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
             LEFT JOIN user_master um
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sleeper_pincode_poi_mapping sppm
+                   ON CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(CAST(sic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sarthi_ibs_poi_mapping pm
+                   ON (
+                       CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                          CONVERT(REPLACE(TRIM(sic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   )
+                  AND pm.product_type = 'sleeper'
             LEFT JOIN (
                 SELECT sfr1.call_number, sfr1.total_offered_quantity, sfr1.total_accepted, sfr1.total_rejected
                 FROM sleeper_final_result sfr1

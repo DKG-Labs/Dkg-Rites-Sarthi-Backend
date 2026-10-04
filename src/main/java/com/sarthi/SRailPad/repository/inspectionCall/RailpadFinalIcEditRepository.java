@@ -269,6 +269,14 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_final_inspection_lot_results res
                    ON CONVERT(res.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN railpad_pincode_poi_mapping rpp
+                   ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sarthi_ibs_poi_mapping pm
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND pm.product_type = 'railpad'
             WHERE (
                 ic.call_no IN (:callNumbers)
                 OR f.ic_number IN (:callNumbers)

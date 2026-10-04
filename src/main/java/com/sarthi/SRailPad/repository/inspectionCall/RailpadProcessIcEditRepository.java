@@ -268,6 +268,14 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
             LEFT JOIN user_master um
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN railpad_pincode_poi_mapping rpp
+                   ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sarthi_ibs_poi_mapping pm
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND pm.product_type = 'railpad'
             WHERE (
                 ic.call_no IN (:callNumbers)
                 OR p.ic_number IN (:callNumbers)
