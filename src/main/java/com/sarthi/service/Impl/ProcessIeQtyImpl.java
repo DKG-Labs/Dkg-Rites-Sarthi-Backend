@@ -10,6 +10,7 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.ProcessIeQtyRepository;
 import com.sarthi.repository.RmHeatFinalResultRepository;
+import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.ProcessIeQtyService;
@@ -138,33 +139,36 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                 Integer offeredQty = processInspectionDetailsRepository
                                 .sumOfferedQtyByIcId(ic.getId());
 
-                boolean hasProcessQty = processIeQtyRepository.existsByRequestId(requestId);
+                // Strictly fetch lot-wise summary from process_line_final_result:
+                // manufactured = shearingManufactured, rejected = totalRejected, accepted = shearingManufactured - totalRejected
+                List<InspectionQtySummaryView> list = processLineFinalResultRepository
+                                .getLotWiseQtySummaryFromFinalResult(requestId);
 
-                // Integer offeredEarlier = RmHeatFinalResultRepository.
-
-                // 🔹 CASE 2: No process qty → return offeredQty only
-                if (!hasProcessQty) {
+                // If no records exist in process_line_final_result → return offeredQty only
+                if (list == null || list.isEmpty()) {
                         return List.of(
                                         new InspectionQtySummaryResponse(
                                                         null, // lotNumber
                                                         offeredQty, // offeredQty
                                                         null, // acceptedQty
                                                         null, // manufacturedQty
-                                                        null
-                                        // rejectedQty
+                                                        null  // rejectedQty
                                         ));
                 }
 
                 // Process qty exists → lot-wise list
-                List<InspectionQtySummaryView> list = processIeQtyRepository.getLotWiseQtySummary(requestId);
-
                 return list.stream()
-                                .map(v -> new InspectionQtySummaryResponse(
-                                                v.getLotNumber(),
-                                                v.getOfferedQty(),
-                                                v.getAcceptedQty(),
-                                                v.getManufacturedQty(),
-                                                v.getRejectedQty()))
+                                .map(v -> {
+                                        Integer lotOffered = (v.getOfferedQty() != null && v.getOfferedQty() > 0)
+                                                        ? v.getOfferedQty()
+                                                        : offeredQty;
+                                        return new InspectionQtySummaryResponse(
+                                                        v.getLotNumber(),
+                                                        lotOffered,
+                                                        v.getAcceptedQty(),
+                                                        v.getManufacturedQty(),
+                                                        v.getRejectedQty());
+                                })
                                 .toList();
         }
 
@@ -207,36 +211,79 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                         }
                 }
 
-                // 1. Gather candidates for the specific RM IC Number
+                // 1. Gather candidates for RM IC and Process IC
                 List<String> rmCallCandidates = new java.util.ArrayList<>();
-                if (lookupCallNo != null) {
-                        rmCallCandidates.add(lookupCallNo);
-                        if (lookupCallNo.contains("/")) {
-                                String[] parts = lookupCallNo.split("/");
-                                for (String part : parts) {
-                                        if (part.contains("-")) {
-                                                rmCallCandidates.add(part.trim());
-                                        }
-                                }
-                        }
-                }
+                List<String> processCallNos = new java.util.ArrayList<>();
 
                 InspectionCall ic = null;
                 if (lookupCallNo != null) {
                         ic = inspectionCallRepository.findByIcNumber(lookupCallNo).orElse(null);
                         if (ic == null && lookupCallNo.contains("/")) {
-                                for (String cand : rmCallCandidates) {
-                                        ic = inspectionCallRepository.findByIcNumber(cand).orElse(null);
-                                        if (ic != null) break;
+                                String[] parts = lookupCallNo.split("/");
+                                for (String part : parts) {
+                                        if (part.contains("-")) {
+                                                ic = inspectionCallRepository.findByIcNumber(part.trim()).orElse(null);
+                                                if (ic != null) break;
+                                        }
                                 }
                         }
                 }
-                if (ic != null && ic.getIcNumber() != null && !rmCallCandidates.contains(ic.getIcNumber())) {
-                        rmCallCandidates.add(ic.getIcNumber());
+
+                if (ic != null && "Process".equalsIgnoreCase(ic.getTypeOfCall())) {
+                        // Current call is a Process Inspection Call
+                        processCallNos.add(ic.getIcNumber());
+                        List<ProcessInspectionDetails> pids = processInspectionDetailsRepository.findByIcId(ic.getId());
+                        if (pids != null) {
+                                for (ProcessInspectionDetails pid : pids) {
+                                        if (pid.getRmIcNumber() != null && !pid.getRmIcNumber().isBlank()) {
+                                                String rmIc = pid.getRmIcNumber().trim();
+                                                if (!rmCallCandidates.contains(rmIc)) {
+                                                        rmCallCandidates.add(rmIc);
+                                                }
+                                        }
+                                }
+                        }
+                        if (!rmCallCandidates.isEmpty()) {
+                                List<String> siblingCalls = processInspectionDetailsRepository.findProcessCallNumbersByRmIc(null, rmCallCandidates);
+                                if (siblingCalls != null) {
+                                        for (String sc : siblingCalls) {
+                                                if (!processCallNos.contains(sc)) processCallNos.add(sc);
+                                        }
+                                }
+                        }
+                } else {
+                        // Lookup call is an RM IC directly or unclassified
+                        if (lookupCallNo != null) {
+                                rmCallCandidates.add(lookupCallNo);
+                                if (lookupCallNo.contains("/")) {
+                                        String[] parts = lookupCallNo.split("/");
+                                        for (String part : parts) {
+                                                if (part.contains("-")) {
+                                                        rmCallCandidates.add(part.trim());
+                                                }
+                                        }
+                                }
+                        }
+                        if (ic != null && ic.getIcNumber() != null && !rmCallCandidates.contains(ic.getIcNumber())) {
+                                rmCallCandidates.add(ic.getIcNumber());
+                        }
+
+                        Long rmIcId = ic != null ? ic.getId() : null;
+                        List<String> linkedCalls = processInspectionDetailsRepository.findProcessCallNumbersByRmIc(rmIcId, rmCallCandidates);
+                        if (linkedCalls != null) {
+                                processCallNos.addAll(linkedCalls);
+                        }
                 }
 
-                Long rmIcId = ic != null ? ic.getId() : null;
-                List<String> safeCandidates = !rmCallCandidates.isEmpty() ? rmCallCandidates : java.util.List.of("__NONE__");
+                // Fallback: If no process calls found yet, resolve via PO
+                if (processCallNos.isEmpty() && poSerialNo != null && !poSerialNo.isBlank()) {
+                        List<String> poCalls = (vendorCode != null && !vendorCode.isBlank())
+                                        ? inspectionCallRepository.findCallNumbersByVendorAndPo(vendorCode.trim(), poSerialNo.trim())
+                                        : inspectionCallRepository.findCallNumbersByPoNo(poSerialNo.trim());
+                        if (poCalls != null) {
+                                processCallNos.addAll(poCalls);
+                        }
+                }
 
                 // 2. Fetch RM accepted weights strictly from the specific RM IC
                 BigDecimal rmAcceptedQty = BigDecimal.ZERO;
@@ -261,44 +308,28 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                         }
                 }
 
-                // 3. Process inspection calls for "manufactured" and "offered earlier"
-                // When an RM IC is specified, scope strictly to calls / details under this RM IC!
+                // 3. Process quantities strictly from process_line_final_result (shearingManufactured, totalRejected, accepted)
                 TotalManufaturedQtyOfPoDto dto = new TotalManufaturedQtyOfPoDto();
+                if (!processCallNos.isEmpty()) {
+                        List<Object[]> procRows = processLineFinalResultRepository.sumProcessQtyByCallNosAndHeatNo(processCallNos, heatNo);
+                        if (procRows != null && !procRows.isEmpty() && procRows.get(0) != null) {
+                                Object[] r = procRows.get(0);
+                                long mfg = r[0] != null ? ((Number) r[0]).longValue() : 0L;
+                                long rej = r[1] != null ? ((Number) r[1]).longValue() : 0L;
+                                long acc = r[2] != null ? ((Number) r[2]).longValue() : 0L;
+                                dto.setManufaturedQty(BigDecimal.valueOf(mfg));
+                                dto.setRejectedQty(BigDecimal.valueOf(rej));
+                                dto.setAcceptedQty(BigDecimal.valueOf(acc));
+                        }
+                }
+
+                // 4. Offered Earlier
                 Integer offeredEarlier = 0;
-
-                if (rmIcId != null || !rmCallCandidates.isEmpty()) {
-                        List<String> rmProcessCalls = processInspectionDetailsRepository.findProcessCallNumbersByRmIc(rmIcId, safeCandidates);
-                        if (rmProcessCalls != null && !rmProcessCalls.isEmpty()) {
-                                dto = processIeQtyRepository.sumProcessQty(rmProcessCalls, heatNo);
-                                if (dto == null) {
-                                        dto = new TotalManufaturedQtyOfPoDto();
-                                }
-                        }
-                        offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByRmIcAndHeatNo(rmIcId, safeCandidates, heatNo);
-                } else {
-                        // Fallback: If no RM IC was specified, scope by PO
-                        List<String> processCallNos = new java.util.ArrayList<>();
-                        if (poSerialNo != null && !poSerialNo.isBlank()) {
-                                List<String> poCalls = (vendorCode != null && !vendorCode.isBlank())
-                                                ? inspectionCallRepository.findCallNumbersByVendorAndPo(vendorCode.trim(), poSerialNo.trim())
-                                                : inspectionCallRepository.findCallNumbersByPoNo(poSerialNo.trim());
-                                if (poCalls != null) {
-                                        processCallNos.addAll(poCalls);
-                                }
-                        }
-
-                        if (!processCallNos.isEmpty()) {
-                                dto = processIeQtyRepository.sumProcessQty(processCallNos, heatNo);
-                                if (dto == null) {
-                                        dto = new TotalManufaturedQtyOfPoDto();
-                                }
-                                offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByCallNosAndHeatNo(processCallNos, heatNo);
-                        }
-
-                        if (weightAcceptedMt.compareTo(BigDecimal.ZERO) == 0 && !processCallNos.isEmpty()) {
-                                rmAcceptedQty = rmHeatFinalResultRepository.sumRmAcceptedQty(processCallNos, heatNo);
-                                weightAcceptedMt = rmHeatFinalResultRepository.sumWeightAcceptedMt(processCallNos, heatNo);
-                        }
+                if (!rmCallCandidates.isEmpty()) {
+                        offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByRmIcAndHeatNo(null, rmCallCandidates, heatNo);
+                }
+                if ((offeredEarlier == null || offeredEarlier == 0) && !processCallNos.isEmpty()) {
+                        offeredEarlier = processInspectionDetailsRepository.sumOfferedQtyByCallNosAndHeatNo(processCallNos, heatNo);
                 }
 
                 dto.setRmAcceptedQty(rmAcceptedQty);

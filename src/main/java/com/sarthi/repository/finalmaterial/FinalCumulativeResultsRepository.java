@@ -633,6 +633,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 INNER JOIN (
                     SELECT call_no, MAX(id) AS max_id
                     FROM inspection_complete_details
+                    WHERE call_no IN (:callNumbers)
                     GROUP BY call_no
                 ) latest_icd ON icd1.id = latest_icd.max_id
             ) icd ON CONVERT(icd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -648,6 +649,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 INNER JOIN (
                     SELECT requestid, MAX(workflowtransitionid) AS max_wt_id
                     FROM workflow_transition
+                    WHERE requestid IN (:callNumbers)
                     GROUP BY requestid
                 ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
             ) wt_latest
@@ -669,24 +671,10 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                     SUM(COALESCE(fr_sub.qty_now_passed, 0)) AS total_accepted,
                     SUM(COALESCE(fr_sub.qty_now_rejected, 0)) AS total_rejected
                 FROM final_cumulative_results fr_sub
+                WHERE fr_sub.inspection_call_no IN (:callNumbers)
                 GROUP BY fr_sub.inspection_call_no
             ) fr ON CONVERT(fr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT icr1.*
-                FROM ibs_call_registration icr1
-                INNER JOIN (
-                    SELECT call_number, MAX(version) AS max_version
-                    FROM ibs_call_registration
-                    GROUP BY call_number
-                ) latest ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                       AND latest.max_version = icr1.version
-            ) icr ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            WHERE (
-                UPPER(COALESCE(ic.type_of_call, '')) LIKE '%FINAL%' 
-                OR UPPER(COALESCE(ic.type_of_call, '')) = 'F' 
-                OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'EF%'
-            )
-            AND UPPER(icr.status) = 'SUCCESS'
+            WHERE ic.ic_number IN (:callNumbers)
             GROUP BY
                 ph.case_no,
                 ic.created_at,
@@ -720,7 +708,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 wt_latest.rio,
                 ic.id
             """, nativeQuery = true)
-    List<Object[]> getFinalCompletedInspectionCalls();
+    List<Object[]> getFinalCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 
     @Query(value = """
                 SELECT

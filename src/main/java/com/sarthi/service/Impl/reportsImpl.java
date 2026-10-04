@@ -2677,13 +2677,98 @@ public class reportsImpl implements reports {
                         dimensional.setFallingGauge((quenchFall != null ? quenchFall : 0) + (finalFall != null ? finalFall : 0));
                         dto.setDimensionalDefects(dimensional);
 
-                        resultList.add(dto);
+                        if (hasAnyDefectOrProductionData(dto)) {
+                                resultList.add(dto);
+                        }
                 }
 
                 // ================= RETURN FINAL RESULT =================
 
                 return resultList;
 
+        }
+
+        private boolean hasAnyDefectOrProductionData(FourthLevelInspectionDto dto) {
+                if (dto == null) return false;
+
+                // 1. Accepted or Rejected Qty
+                if (dto.getBasicDetails() != null) {
+                        if (dto.getBasicDetails().getTotalAcceptedQty() != null && dto.getBasicDetails().getTotalAcceptedQty() > 0) return true;
+                        if (dto.getBasicDetails().getTotalRejectionQty() != null && dto.getBasicDetails().getTotalRejectionQty() > 0) return true;
+                }
+
+                // 2. Process stage production & rejection
+                ProcessQtyDto pq = dto.getProcessQty();
+                if (pq != null) {
+                        if (pq.getShearingProductionQty() != null && pq.getShearingProductionQty() > 0) return true;
+                        if (pq.getShearingRejectionQty() != null && pq.getShearingRejectionQty() > 0) return true;
+                        if (pq.getTurningProductionQty() != null && pq.getTurningProductionQty() > 0) return true;
+                        if (pq.getTurningRejectionQty() != null && pq.getTurningRejectionQty() > 0) return true;
+                        if (pq.getMpiProductionQty() != null && pq.getMpiProductionQty() > 0) return true;
+                        if (pq.getMpiRejectionQty() != null && pq.getMpiRejectionQty() > 0) return true;
+                        if (pq.getForgingProductionQty() != null && pq.getForgingProductionQty() > 0) return true;
+                        if (pq.getForgingRejectionQty() != null && pq.getForgingRejectionQty() > 0) return true;
+                        if (pq.getQuenchingProductionQty() != null && pq.getQuenchingProductionQty() > 0) return true;
+                        if (pq.getQuenchingRejectionQty() != null && pq.getQuenchingRejectionQty() > 0) return true;
+                        if (pq.getTemperingProductionQty() != null && pq.getTemperingProductionQty() > 0) return true;
+                        if (pq.getTemperingRejectionQty() != null && pq.getTemperingRejectionQty() > 0) return true;
+                }
+
+                // 3. Defects
+                if (dto.getShearingDefects() != null) {
+                        ShearingDefectsDto d = dto.getShearingDefects();
+                        if (d.getLengthOfCutBar() != null && d.getLengthOfCutBar() > 0) return true;
+                        if (d.getOvalityImproperDiaAtEnd() != null && d.getOvalityImproperDiaAtEnd() > 0) return true;
+                        if (d.getSharpEdges() != null && d.getSharpEdges() > 0) return true;
+                        if (d.getCrackedEdges() != null && d.getCrackedEdges() > 0) return true;
+                }
+                if (dto.getTurningDefects() != null) {
+                        TurningDefectsDto d = dto.getTurningDefects();
+                        if (d.getParallelLength() != null && d.getParallelLength() > 0) return true;
+                        if (d.getFullTurningLength() != null && d.getFullTurningLength() > 0) return true;
+                        if (d.getTurningDia() != null && d.getTurningDia() > 0) return true;
+                }
+                if (dto.getForgingDefects() != null) {
+                        ForgingDefectsDto d = dto.getForgingDefects();
+                        if (d.getForgingTemperature() != null && d.getForgingTemperature() > 0) return true;
+                        if (d.getForgingStabilisationRejection() != null && d.getForgingStabilisationRejection() > 0) return true;
+                        if (d.getImproperForging() != null && d.getImproperForging() > 0) return true;
+                        if (d.getForgingMarksNotches() != null && d.getForgingMarksNotches() > 0) return true;
+                }
+                if (dto.getQuenchingDefects() != null) {
+                        QuenchingDefectsDto d = dto.getQuenchingDefects();
+                        if (d.getQuenchingHardness() != null && d.getQuenchingHardness() > 0) return true;
+                }
+                if (dto.getTemperingDefects() != null) {
+                        TemperingDefectsDto d = dto.getTemperingDefects();
+                        if (d.getTemperingTemp() != null && d.getTemperingTemp() > 0) return true;
+                        if (d.getTemperingDuration() != null && d.getTemperingDuration() > 0) return true;
+                }
+                if (dto.getDimensionalDefects() != null) {
+                        DimensionalDefectsDto d = dto.getDimensionalDefects();
+                        if (d.getBoxGauge() != null && d.getBoxGauge() > 0) return true;
+                        if (d.getFlatBearingArea() != null && d.getFlatBearingArea() > 0) return true;
+                        if (d.getFallingGauge() != null && d.getFallingGauge() > 0) return true;
+                }
+                if (dto.getVisualDefects() != null) {
+                        VisualDefectsDto d = dto.getVisualDefects();
+                        if (d.getSurfaceDefect() != null && d.getSurfaceDefect() > 0) return true;
+                        if (d.getEmbossingDefect() != null && d.getEmbossingDefect() > 0) return true;
+                        if (d.getMarking() != null && d.getMarking() > 0) return true;
+                }
+                if (dto.getTestingDefects() != null) {
+                        TestingDefectsDto d = dto.getTestingDefects();
+                        if (d.getTemperingHardness() != null && d.getTemperingHardness() > 0) return true;
+                        if (d.getToeLoad() != null && d.getToeLoad() > 0) return true;
+                        if (d.getWeight() != null && d.getWeight() > 0) return true;
+                }
+                if (dto.getFinishingDefects() != null) {
+                        FinishingDefectsDto d = dto.getFinishingDefects();
+                        if (d.getPaintIdentification() != null && d.getPaintIdentification() > 0) return true;
+                        if (d.getErcCoating() != null && d.getErcCoating() > 0) return true;
+                }
+
+                return false;
         }
 
         @Override
@@ -7939,6 +8024,12 @@ public class reportsImpl implements reports {
                 String lotNo = p.getLotNumber();
                 String createdBy = p.getCreatedBy();
                 String updatedBy = (request.getUpdatedBy() != null && !request.getUpdatedBy().trim().isEmpty()) ? request.getUpdatedBy().trim() : createdBy;
+
+                if (updatedBy != null && !updatedBy.trim().isEmpty() && createdBy != null && !createdBy.trim().isEmpty()) {
+                        if (!isSameUser(updatedBy, createdBy)) {
+                                throw new RuntimeException("Unauthorized: You can only edit your own shift records.");
+                        }
+                }
                 LocalDateTime now = LocalDateTime.now();
 
                 LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : now;
@@ -8211,6 +8302,33 @@ public class reportsImpl implements reports {
                 }
         }
 
+        private UserMaster resolveUserMaster(String key) {
+                if (key == null || key.trim().isEmpty()) return null;
+                String k = key.trim();
+                UserMaster u = null;
+                try {
+                        Integer uid = Integer.parseInt(k);
+                        u = userMasterRepository.findById(uid).orElse(null);
+                } catch (NumberFormatException ignored) {}
+                if (u == null) {
+                        u = userMasterRepository.findFirstByEmployeeCode(k)
+                                        .or(() -> userMasterRepository.findFirstByUserName(k))
+                                        .orElse(null);
+                }
+                return u;
+        }
+
+        private boolean isSameUser(String userA, String userB) {
+                if (userA == null || userB == null) return false;
+                if (userA.trim().equalsIgnoreCase(userB.trim())) return true;
+                UserMaster ua = resolveUserMaster(userA);
+                UserMaster ub = resolveUserMaster(userB);
+                if (ua != null && ub != null && ua.getUserId() != null) {
+                        return ua.getUserId().equals(ub.getUserId());
+                }
+                return false;
+        }
+
         @Override
         public void deleteProcessDefectSummary(Long finalResultId, String userId) {
                 ProcessLineFinalResult p = processLineFinalResultRepository.findById(finalResultId)
@@ -8228,6 +8346,13 @@ public class reportsImpl implements reports {
                 String lineNo = p.getLineNo();
                 String lotNo = p.getLotNumber();
                 String createdBy = p.getCreatedBy();
+
+                if (userId != null && !userId.trim().isEmpty() && createdBy != null && !createdBy.trim().isEmpty()) {
+                        if (!isSameUser(userId, createdBy)) {
+                                throw new RuntimeException("Unauthorized: You can only delete your own shift records.");
+                        }
+                }
+
                 LocalDateTime createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : LocalDateTime.now();
                 LocalDateTime startDate = createdAt.minusMinutes(3);
                 LocalDateTime endDate = createdAt.plusMinutes(3);

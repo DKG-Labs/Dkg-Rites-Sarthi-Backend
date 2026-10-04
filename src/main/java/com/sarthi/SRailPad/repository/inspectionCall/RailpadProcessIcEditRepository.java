@@ -3,6 +3,7 @@ package com.sarthi.SRailPad.repository.inspectionCall;
 import com.sarthi.SRailPad.entity.inspectionCall.RailpadProcessIcEdit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -233,6 +234,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                     SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
                     FROM rail_workflow_transaction
                     WHERE assigned_to_user IS NOT NULL
+                      AND request_id IN (:callNumbers)
                     GROUP BY request_id
                 ) latest_wt
                     ON rwt1.workflow_transition_id = latest_wt.max_wt_id
@@ -254,6 +256,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 INNER JOIN (
                     SELECT call_no, MAX(id) AS max_id
                     FROM rail_inspection_complete_details
+                    WHERE call_no IN (:callNumbers)
                     GROUP BY call_no
                 ) latest_ricd
                     ON ricd1.id = latest_ricd.max_id
@@ -265,27 +268,11 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
             LEFT JOIN user_master um
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT icr1.*
-                FROM ibs_call_registration icr1
-                INNER JOIN (
-                    SELECT call_number, MAX(version) AS max_version
-                    FROM ibs_call_registration
-                    GROUP BY call_number
-                ) latest
-                    ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   AND latest.max_version = icr1.version
-            ) icr
-                    ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN railpad_pincode_poi_mapping rpp
-                   ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                      CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                  AND pm.product_type = 'railpad'
-            WHERE UPPER(icr.status) = 'SUCCESS'
+            WHERE (
+                ic.call_no IN (:callNumbers)
+                OR p.ic_number IN (:callNumbers)
+                OR ricd.certificate_no IN (:callNumbers)
+            )
             GROUP BY
                 ph.case_no,
                 ic.created_at,
@@ -314,7 +301,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 p.qty_now_passed,
                 p.qty_now_rejected
             """, nativeQuery = true)
-    List<Object[]> getRailpadProcessCompletedInspectionCalls();
+    List<Object[]> getRailpadProcessCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 }
 
 

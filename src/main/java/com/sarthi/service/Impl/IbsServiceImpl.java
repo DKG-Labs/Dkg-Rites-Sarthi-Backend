@@ -783,23 +783,53 @@ public class IbsServiceImpl implements IbsService {
     @Override
     @Transactional(readOnly = true)
     public List<IbsInspectionDto> getCompletedIbsCalls() {
-        List<IbsCallRegistration> completedList = ibsCallRegistrationRepository.findCompletedCalls();
-        log.info("Total completed registrations found in ibs_call_registration: {}", completedList != null ? completedList.size() : 0);
+        List<IbsCallRegistration> allRegistrations = ibsCallRegistrationRepository.findAllCalls();
+        log.info("Total registrations found in ibs_call_registration: {}", allRegistrations != null ? allRegistrations.size() : 0);
 
-        if (completedList == null || completedList.isEmpty()) {
+        if (allRegistrations == null || allRegistrations.isEmpty()) {
             return Collections.emptyList();
         }
 
         Map<String, IbsCallRegistration> regMap = new LinkedHashMap<>();
-        for (IbsCallRegistration reg : completedList) {
+        List<IbsCallRegistration> completedList = new ArrayList<>();
+        Set<String> seenCallNumbers = new HashSet<>();
+        Set<String> targetCallNumbers = new HashSet<>();
+
+        // Because allRegistrations is ordered by id DESC, the first time we see any callNumber,
+        // it is strictly the latest registration record for that call number.
+        for (IbsCallRegistration reg : allRegistrations) {
             if (reg.getCallNumber() != null && !reg.getCallNumber().trim().isEmpty()) {
-                regMap.putIfAbsent(reg.getCallNumber().trim(), reg);
+                String c = reg.getCallNumber().trim();
+                String upperC = c.toUpperCase();
+                if (!seenCallNumbers.contains(upperC)) {
+                    seenCallNumbers.add(upperC);
+                    completedList.add(reg);
+                    regMap.put(c, reg);
+                    regMap.put(upperC, reg);
+                    targetCallNumbers.add(c);
+                    targetCallNumbers.add(upperC);
+                    if (c.contains("/")) {
+                        for (String part : c.split("/")) {
+                            String p = part.trim();
+                            if (!p.isEmpty() && p.length() > 4) {
+                                regMap.putIfAbsent(p, reg);
+                                regMap.putIfAbsent(p.toUpperCase(), reg);
+                                targetCallNumbers.add(p);
+                                targetCallNumbers.add(p.toUpperCase());
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        if (targetCallNumbers.isEmpty()) {
+            return Collections.emptyList();
         }
 
         CompletableFuture<List<IbsInspectionDto>> f1 = CompletableFuture.supplyAsync(() -> {
             try {
-                return mapResult(rmHeatFinalResultRepository.getRmCompletedInspectionCalls(), "ERC");
+                return mapResult(rmHeatFinalResultRepository.getRmCompletedInspectionCalls(targetCallNumbers), "ERC");
             } catch (Exception e) {
                 log.error("Error fetching ERC RM completed inspection calls: {}", e.getMessage(), e);
                 return Collections.emptyList();
@@ -808,7 +838,7 @@ public class IbsServiceImpl implements IbsService {
 
         CompletableFuture<List<IbsInspectionDto>> f2 = CompletableFuture.supplyAsync(() -> {
             try {
-                return mapResult(processLineFinalResultRepository.getProcessCompletedInspectionCalls(), "ERC");
+                return mapResult(processLineFinalResultRepository.getProcessCompletedInspectionCalls(targetCallNumbers), "ERC");
             } catch (Exception e) {
                 log.error("Error fetching ERC Process completed inspection calls: {}", e.getMessage(), e);
                 return Collections.emptyList();
@@ -817,7 +847,7 @@ public class IbsServiceImpl implements IbsService {
 
         CompletableFuture<List<IbsInspectionDto>> f3 = CompletableFuture.supplyAsync(() -> {
             try {
-                return mapResult(finalCumulativeResultsRepository.getFinalCompletedInspectionCalls(), "ERC");
+                return mapResult(finalCumulativeResultsRepository.getFinalCompletedInspectionCalls(targetCallNumbers), "ERC");
             } catch (Exception e) {
                 log.error("Error fetching ERC Final completed inspection calls: {}", e.getMessage(), e);
                 return Collections.emptyList();
@@ -826,7 +856,7 @@ public class IbsServiceImpl implements IbsService {
 
         CompletableFuture<List<IbsInspectionDto>> f4 = CompletableFuture.supplyAsync(() -> {
             try {
-                return mapResult(railpadProcessIcEditRepository.getRailpadProcessCompletedInspectionCalls(), "RAILPAD");
+                return mapResult(railpadProcessIcEditRepository.getRailpadProcessCompletedInspectionCalls(targetCallNumbers), "RAILPAD");
             } catch (Exception e) {
                 log.error("Error fetching Railpad Process completed inspection calls: {}", e.getMessage(), e);
                 return Collections.emptyList();
@@ -835,7 +865,7 @@ public class IbsServiceImpl implements IbsService {
 
         CompletableFuture<List<IbsInspectionDto>> f5 = CompletableFuture.supplyAsync(() -> {
             try {
-                return mapResult(railpadFinalIcEditRepository.getRailpadFinalCompletedInspectionCalls(), "RAILPAD");
+                return mapResult(railpadFinalIcEditRepository.getRailpadFinalCompletedInspectionCalls(targetCallNumbers), "RAILPAD");
             } catch (Exception e) {
                 log.error("Error fetching Railpad Final completed inspection calls: {}", e.getMessage(), e);
                 return Collections.emptyList();
@@ -844,7 +874,7 @@ public class IbsServiceImpl implements IbsService {
 
         CompletableFuture<List<IbsInspectionDto>> f6 = CompletableFuture.supplyAsync(() -> {
             try {
-                return mapResult(sleeperFinalIcEditRepository.getSleeperFinalCompletedInspectionCalls(), "SLEEPER");
+                return mapResult(sleeperFinalIcEditRepository.getSleeperFinalCompletedInspectionCalls(targetCallNumbers), "SLEEPER");
             } catch (Exception e) {
                 log.error("Error fetching Sleeper Final completed inspection calls: {}", e.getMessage(), e);
                 return Collections.emptyList();
@@ -886,16 +916,46 @@ public class IbsServiceImpl implements IbsService {
             }
         }
 
+        Set<Long> matchedRegIds = new HashSet<>();
         // Enrich every matched call with IBS registration details
         for (IbsInspectionDto dto : uniqueCalls.values()) {
             String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
-            IbsCallRegistration reg = regMap.remove(callNo);
-            if (reg == null && dto.getIcNumber() != null) {
-                reg = regMap.remove(dto.getIcNumber().trim());
+            String icNo = dto.getIcNumber() != null ? dto.getIcNumber().trim() : "";
+
+            IbsCallRegistration reg = regMap.get(callNo);
+            if (reg == null && !callNo.isEmpty()) {
+                reg = regMap.get(callNo.toUpperCase());
             }
+            if (reg == null && !icNo.isEmpty()) {
+                reg = regMap.get(icNo);
+            }
+            if (reg == null && !icNo.isEmpty()) {
+                reg = regMap.get(icNo.toUpperCase());
+            }
+            if (reg == null && callNo.contains("/")) {
+                for (String part : callNo.split("/")) {
+                    String p = part.trim();
+                    if (!p.isEmpty() && p.length() > 4) {
+                        reg = regMap.get(p.toUpperCase());
+                        if (reg != null) break;
+                    }
+                }
+            }
+            if (reg == null && icNo.contains("/")) {
+                for (String part : icNo.split("/")) {
+                    String p = part.trim();
+                    if (!p.isEmpty() && p.length() > 4) {
+                        reg = regMap.get(p.toUpperCase());
+                        if (reg != null) break;
+                    }
+                }
+            }
+
             if (reg != null) {
+                matchedRegIds.add(reg.getId());
                 dto.setSrNo(reg.getSrNo());
                 dto.setIbsStatus(reg.getStatus());
+                dto.setCallStatus(reg.getStatus() != null ? reg.getStatus() : "SUCCESS");
                 dto.setReason(reg.getReason());
                 dto.setVersion(reg.getVersion());
                 dto.setBillingStatus(reg.getBillingStatus());
@@ -904,9 +964,12 @@ public class IbsServiceImpl implements IbsService {
         }
 
         // For any remaining completed calls from ibs_call_registration not covered by queries
-        for (IbsCallRegistration reg : regMap.values()) {
+        for (IbsCallRegistration reg : completedList) {
+            if (matchedRegIds.contains(reg.getId())) {
+                continue;
+            }
             String callNo = reg.getCallNumber() != null ? reg.getCallNumber().trim() : "";
-            if (callNo.isEmpty() || uniqueCalls.containsKey(callNo)) {
+            if (callNo.isEmpty() || uniqueCalls.containsKey(callNo) || uniqueCalls.containsKey(callNo.toUpperCase())) {
                 continue;
             }
             IbsInspectionDto dto = new IbsInspectionDto();
