@@ -181,6 +181,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         AND (:zCode IS NULL OR :zCode = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         AND (:startDate IS NULL OR :endDate IS NULL OR ph.po_date BETWEEN :startDate AND :endDate)
         GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.po_date, ph.vendor_details, pi.uom, ph.pdf_path
+        HAVING SUM(pi.qty) > 0
         ORDER BY ph.po_date DESC
     """, nativeQuery = true)
     List<Object[]> fetchPoIssuedDetailsRaw(
@@ -193,33 +194,72 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
 
     @Query(value = """
         SELECT 
-            (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) AS poNo,
-            SUM(COALESCE(r.accepted_qty, 0)) AS totalAccepted
-        FROM rail_final_inspection_lot_results r
-        JOIN rail_inspection_call ic ON CONVERT(r.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-        WHERE (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) IN (:poNos)
-        GROUP BY (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END)
+            (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ic.po_no, '/', 1)), ' ', -1) ELSE ic.po_no END) AS poNo,
+            SUM(COALESCE(flr.accepted_qty, 0)) AS totalAccepted
+        FROM rail_final_inspection_lot_results flr
+        INNER JOIN (
+            SELECT rwt.request_id, rwt.status, rwt.action
+            FROM rail_workflow_transaction rwt
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction
+                WHERE workflow_id = 2
+                GROUP BY request_id
+            ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
+        ) wf ON flr.call_no COLLATE utf8mb4_unicode_ci = wf.request_id COLLATE utf8mb4_unicode_ci
+        JOIN rail_inspection_call ic ON flr.call_no COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+        WHERE (
+            UPPER(COALESCE(wf.status, '')) = 'SEND_CALL_TO_IBS'
+            OR UPPER(COALESCE(wf.action, '')) = 'SEND_CALL_TO_IBS'
+        )
+        AND (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ic.po_no, '/', 1)), ' ', -1) ELSE ic.po_no END) IN (:poNos)
+        GROUP BY (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ic.po_no, '/', 1)), ' ', -1) ELSE ic.po_no END)
     """, nativeQuery = true)
     List<Object[]> findRailpadAcceptedQtyByPoNos(@Param("poNos") List<String> poNos);
 
     @Query(value = """
         SELECT 
-            (CASE WHEN f.po_no LIKE '%/%' THEN SUBSTRING_INDEX(f.po_no, '/', 1) ELSE f.po_no END) AS poNo,
+            ph.po_no AS poNo,
             SUM(COALESCE(f.qty_now_passed, 0)) AS totalAccepted
-        FROM final_cumulative_results f
-        WHERE (CASE WHEN f.po_no LIKE '%/%' THEN SUBSTRING_INDEX(f.po_no, '/', 1) ELSE f.po_no END) IN (:poNos)
-           OR f.po_no IN (:poNos)
-        GROUP BY (CASE WHEN f.po_no LIKE '%/%' THEN SUBSTRING_INDEX(f.po_no, '/', 1) ELSE f.po_no END)
+        FROM inspection_calls ic
+        INNER JOIN po_header ph ON (ph.po_no = ic.po_no OR ph.po_no = SUBSTRING_INDEX(ic.po_no, '/', 1))
+        INNER JOIN final_cumulative_results f ON f.inspection_call_no = ic.ic_number
+        INNER JOIN (
+            SELECT w.REQUESTID, w.STATUS
+            FROM WORKFLOW_TRANSITION w
+            INNER JOIN (
+                SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                FROM WORKFLOW_TRANSITION
+                GROUP BY REQUESTID
+            ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+        ) wf ON wf.REQUESTID = ic.ic_number
+        WHERE wf.STATUS = 'SEND_CALL_TO_IBS'
+        AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode OR REPLACE(ic.place_of_inspection, ':', '') = REPLACE(:vendorPlantCode, ':', ''))
+        AND ph.po_no IN (:poNos)
+        GROUP BY ph.po_no
     """, nativeQuery = true)
-    List<Object[]> findErcAcceptedQtyByPoNos(@Param("poNos") List<String> poNos);
+    List<Object[]> findErcAcceptedQtyByPoNos(
+        @Param("poNos") List<String> poNos,
+        @Param("vendorPlantCode") String vendorPlantCode
+    );
+
 
     @Query(value = """
         SELECT 
             (CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) AS poNo,
-            SUM(COALESCE(ibs.total_accepted, 0)) AS totalAccepted
-        FROM ie_batch_summary ibs
-        JOIN sleeper_inspection_call sic ON CONVERT(ibs.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-        WHERE (CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) IN (:poNos)
+            SUM(COALESCE(sfr.total_accepted, 0)) AS totalAccepted
+        FROM sleeper_final_result sfr
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON TRIM(sfr.call_number) COLLATE utf8mb4_unicode_ci = TRIM(latest.request_id) COLLATE utf8mb4_unicode_ci
+        INNER JOIN sleeper_workflow_transaction swt ON latest.request_id = swt.request_id AND latest.max_id = swt.workflow_transition_id
+        JOIN sleeper_inspection_call sic ON TRIM(sfr.call_number) COLLATE utf8mb4_unicode_ci = TRIM(sic.call_no) COLLATE utf8mb4_unicode_ci
+        WHERE swt.workflow_id = 2
+          AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
+          AND (CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) IN (:poNos)
         GROUP BY (CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END)
     """, nativeQuery = true)
     List<Object[]> findSleeperAcceptedQtyByPoNos(@Param("poNos") List<String> poNos);
@@ -229,8 +269,17 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
             (CASE WHEN fci.rly_po_no LIKE '%/%' THEN SUBSTRING_INDEX(fci.rly_po_no, '/', 1) ELSE fci.rly_po_no END) AS poNo,
             SUM(COALESCE(fci.accepted_qty, 0)) AS totalAccepted
         FROM final_call_inspection_header fci
-        WHERE (CASE WHEN fci.rly_po_no LIKE '%/%' THEN SUBSTRING_INDEX(fci.rly_po_no, '/', 1) ELSE fci.rly_po_no END) IN (:poNos)
-           OR fci.rly_po_no IN (:poNos)
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON TRIM(fci.call_no) COLLATE utf8mb4_unicode_ci = TRIM(latest.request_id) COLLATE utf8mb4_unicode_ci
+        INNER JOIN sleeper_workflow_transaction swt ON latest.request_id = swt.request_id AND latest.max_id = swt.workflow_transition_id
+        WHERE swt.workflow_id = 2
+          AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
+          AND ((CASE WHEN fci.rly_po_no LIKE '%/%' THEN SUBSTRING_INDEX(fci.rly_po_no, '/', 1) ELSE fci.rly_po_no END) IN (:poNos)
+               OR fci.rly_po_no IN (:poNos))
         GROUP BY (CASE WHEN fci.rly_po_no LIKE '%/%' THEN SUBSTRING_INDEX(fci.rly_po_no, '/', 1) ELSE fci.rly_po_no END)
     """, nativeQuery = true)
     List<Object[]> findGeneralAcceptedQtyByPoNos(@Param("poNos") List<String> poNos);

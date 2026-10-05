@@ -8,17 +8,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 public class TestIcCounts implements CommandLineRunner {
 
-    @Autowired
-    private SleeperWorkflowRepository sleeperWorkflowRepository;
-
     @Override
     public void run(String... args) throws Exception {
-        try {
-            Long count = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(null, null, null, null);
-            System.out.println("IC COUNT SUCCESS: " + count);
-        } catch (Exception e) {
-            System.out.println("IC COUNT ERROR:");
-            e.printStackTrace();
-        }
     }
 }
+

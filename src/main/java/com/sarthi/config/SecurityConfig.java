@@ -102,6 +102,8 @@ public class SecurityConfig {
                                 "/vendor/proxy-pdf",
                                 "/api/certificate-storage/view",
                                 "/api/certificate-storage/view/**",
+                                "/api/ic-annexures/list",
+                                "/api/ic-annexures/download/**",
                                 "/api/images/**",
                                 "/dashboard/images/**",
                                 "/api/ibs/**",

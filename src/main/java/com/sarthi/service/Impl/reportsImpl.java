@@ -4232,12 +4232,12 @@ public class reportsImpl implements reports {
 
                         // ERC accepted quantities
                         if (isErc || (!isRailpad && !isSleeper)) {
-                                List<Object[]> ercRes = poItemRepository.findErcAcceptedQtyByPoNos(poNos);
+                                List<Object[]> ercRes = poItemRepository.findErcAcceptedQtyByPoNos(poNos, vCode);
                                 if (ercRes != null) {
                                         for (Object[] row : ercRes) {
                                                 if (row[0] != null && row[1] != null) {
-                                                        String po = row[0].toString();
-                                                        long qty = ((Number) row[1]).longValue();
+                                                        String po = row[0].toString().trim();
+                                                        long qty = Math.max(((Number) row[1]).longValue(), 0L);
                                                         acceptedQtyMap.put(po, acceptedQtyMap.getOrDefault(po, 0L) + qty);
                                                 }
                                         }

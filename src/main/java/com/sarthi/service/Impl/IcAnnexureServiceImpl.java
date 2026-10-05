@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -69,11 +70,6 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         return containerClient;
     }
 
-    private boolean isLocalOrInvalidAzure() {
-        if (connectionString == null || connectionString.trim().isEmpty()) return true;
-        String trimmed = connectionString.trim().replace("\"", "").replace("'", "");
-        return trimmed.equals("sdfghjk") || trimmed.length() < 25 || !trimmed.contains("DefaultEndpointsProtocol=");
-    }
 
     @Override
     @Transactional
@@ -137,20 +133,15 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         String blobPath = String.format("%s/%s/%d_%s", folderPrefix, sanitizedCallNo, System.currentTimeMillis(), sanitizedFileName);
 
         String blobUrl;
-        if (isLocalOrInvalidAzure()) {
-            log.info("Saving annexure to local storage for dev mode: {}", blobPath);
+        try {
+            BlobContainerClient client = getContainerClient();
+            BlobClient blobClient = client.getBlobClient(blobPath);
+            blobClient.upload(new ByteArrayInputStream(finalBytes), finalBytes.length, true);
+            blobUrl = blobClient.getBlobUrl();
+            log.info("Uploaded annexure to Azure Blob: {}", blobUrl);
+        } catch (Exception e) {
+            log.warn("Azure upload failed, saving to local storage: {}", e.getMessage());
             blobUrl = saveToLocal(blobPath, finalBytes);
-        } else {
-            try {
-                BlobContainerClient client = getContainerClient();
-                BlobClient blobClient = client.getBlobClient(blobPath);
-                blobClient.upload(new ByteArrayInputStream(finalBytes), finalBytes.length, true);
-                blobUrl = blobClient.getBlobUrl();
-                log.info("Uploaded annexure to Azure Blob: {}", blobUrl);
-            } catch (Exception e) {
-                log.error("Azure upload failed, falling back to local storage: {}", e.getMessage());
-                blobUrl = saveToLocal(blobPath, finalBytes);
-            }
         }
 
         IcAnnexureDocument doc = IcAnnexureDocument.builder()
@@ -193,11 +184,25 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         if (callNo == null || callNo.trim().isEmpty()) {
             return List.of();
         }
+        String cleanCall = callNo.trim();
+        List<IcAnnexureDocument> docs = List.of();
         if (moduleType != null && !moduleType.trim().isEmpty()) {
-            return annexureRepository.findByCallNoAndModuleTypeAndStatusOrderByUploadedAtDesc(
-                    callNo.trim(), moduleType.trim().toUpperCase(), "ACTIVE");
+            docs = annexureRepository.findByCallNoAndModuleTypeAndStatusOrderByUploadedAtDesc(
+                    cleanCall, moduleType.trim().toUpperCase(), "ACTIVE");
         }
-        return annexureRepository.findByCallNoAndStatusOrderByUploadedAtDesc(callNo.trim(), "ACTIVE");
+        if (docs.isEmpty()) {
+            docs = annexureRepository.findByCallNoAndStatusOrderByUploadedAtDesc(cleanCall, "ACTIVE");
+        }
+        if (docs.isEmpty()) {
+            // Try hyphen to slash and slash to hyphen variations
+            String altCall = cleanCall.contains("-") ? cleanCall.replace("-", "/") : cleanCall.replace("/", "-");
+            docs = annexureRepository.findByCallNoAndStatusOrderByUploadedAtDesc(altCall, "ACTIVE");
+        }
+        if (docs.isEmpty()) {
+            // Also try matching against icNumber in case callNo was stored under icNumber
+            docs = annexureRepository.findByIcNumberAndStatusOrderByUploadedAtDesc(cleanCall, "ACTIVE");
+        }
+        return docs;
     }
 
     @Override
@@ -210,7 +215,7 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
         annexureRepository.save(doc);
 
         // Optionally delete blob if in Azure
-        if (!isLocalOrInvalidAzure() && doc.getBlobFileName() != null) {
+        if (doc.getBlobFileName() != null) {
             try {
                 BlobContainerClient containerClient = getContainerClient();
                 BlobClient blobClient = containerClient.getBlobClient(doc.getBlobFileName());
@@ -243,33 +248,37 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
             }
         }
 
-        // 2. Fallback to Azure Blob Storage if not found locally and Azure is configured
-        if (data == null && !isLocalOrInvalidAzure() && doc.getBlobFileName() != null) {
+        // 2. Fetch from Azure Blob Storage (same standard way as IC download in AzureBlobStorageService)
+        if (data == null && doc.getBlobFileName() != null) {
             try {
                 BlobContainerClient client = getContainerClient();
                 BlobClient blobClient = client.getBlobClient(doc.getBlobFileName());
                 if (blobClient.exists()) {
-                    data = blobClient.downloadContent().toBytes();
-                } else if (doc.getBlobUrl() != null && doc.getBlobUrl().startsWith("http")) {
-                    try {
-                        BlobClient directClient = new BlobClientBuilder()
-                                .endpoint(doc.getBlobUrl())
-                                .connectionString(connectionString)
-                                .buildClient();
-                        if (directClient.exists()) {
-                            data = directClient.downloadContent().toBytes();
-                        }
-                    } catch (Exception ex) {
-                        log.warn("Could not direct-download from blobUrl {}: {}", doc.getBlobUrl(), ex.getMessage());
-                    }
+                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                    blobClient.download(outputStream);
+                    data = outputStream.toByteArray();
                 }
             } catch (Exception e) {
-                log.warn("Could not download from Azure: {}", e.getMessage());
+                log.warn("Could not download annexure from Azure: {}", e.getMessage());
             }
         }
 
         if (data == null) {
-            throw new RuntimeException("File content not available for download");
+            throw new IllegalArgumentException("Annexure file content is not available locally or in cloud storage for ID: " + id);
+        }
+
+        // Cache downloaded bytes locally so subsequent requests on local are instant
+        if (doc.getBlobFileName() != null) {
+            try {
+                File localFile = new File("uploads/annexures", doc.getBlobFileName());
+                if (!localFile.exists()) {
+                    File parent = localFile.getParentFile();
+                    if (parent != null && !parent.exists()) parent.mkdirs();
+                    Files.write(localFile.toPath(), data);
+                }
+            } catch (Exception ex) {
+                log.debug("Could not cache file locally: {}", ex.getMessage());
+            }
         }
 
         // Decompress on-the-fly for view/download if compressed
