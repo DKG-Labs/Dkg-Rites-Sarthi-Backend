@@ -4285,13 +4285,18 @@ public class reportsImpl implements reports {
                                 }
                         }
                         String vendorDetails = row[3] != null ? row[3].toString() : "";
+                        if (vendorDetails != null && vendorDetails.contains("~")) {
+                                String[] parts = vendorDetails.split("~");
+                                vendorDetails = parts.length > 0 && parts[0] != null ? parts[0].trim() : vendorDetails.trim();
+                        }
                         long poQty = row[4] != null ? ((Number) row[4]).longValue() : 0L;
                         String uom = row[5] != null ? row[5].toString() : "";
                         long acceptedQty = acceptedQtyMap.getOrDefault(poNo, 0L);
                         long balanceQty = Math.max(poQty - acceptedQty, 0L);
+                        String pdfPath = (row.length > 6 && row[6] != null) ? row[6].toString() : null;
 
                         PoIssuedDetailDto dto = new PoIssuedDetailDto(
-                                        rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty);
+                                        rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty, pdfPath);
                         list.add(dto);
                 }
                 return list;

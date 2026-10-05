@@ -17,4 +17,5 @@ public class PoIssuedDetailDto {
     private String uom;
     private Long acceptedQtyAfterFinalInspection;
     private Long balanceQuantity;
+    private String pdfPath;
 }

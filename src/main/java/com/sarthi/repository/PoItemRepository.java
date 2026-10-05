@@ -160,7 +160,8 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
             ph.po_date AS poDate,
             ph.vendor_details AS vendorDetails,
             SUM(pi.qty) AS poQuantity,
-            pi.uom AS uom
+            pi.uom AS uom,
+            ph.pdf_path AS pdfPath
         FROM po_item pi
         JOIN po_header ph ON pi.po_header_id = ph.id
         WHERE (LOWER(ph.item_cat_descr) = LOWER(:itemCatDescr) OR LOWER(ph.item_cat_descr) LIKE CONCAT('%', LOWER(:itemCatDescr), '%') OR (LOWER(:itemCatDescr) LIKE '%rail%pad%' AND (LOWER(ph.item_cat_descr) LIKE '%rail%pad%' OR LOWER(ph.item_cat_descr) LIKE '%railpad%')))
@@ -179,7 +180,7 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
         )
         AND (:zCode IS NULL OR :zCode = '' OR CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:zCode USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         AND (:startDate IS NULL OR :endDate IS NULL OR ph.po_date BETWEEN :startDate AND :endDate)
-        GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.po_date, ph.vendor_details, pi.uom
+        GROUP BY ph.id, ph.po_no, ph.rly_short_name, ph.po_date, ph.vendor_details, pi.uom, ph.pdf_path
         ORDER BY ph.po_date DESC
     """, nativeQuery = true)
     List<Object[]> fetchPoIssuedDetailsRaw(
