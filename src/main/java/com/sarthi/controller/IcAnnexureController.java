@@ -101,7 +101,18 @@ public class IcAnnexureController {
 
     @Operation(summary = "Download or stream an uploaded annexure document")
     @GetMapping("/download/{id}")
-    public ResponseEntity<Resource> downloadAnnexure(@PathVariable("id") Long id) {
-        return icAnnexureService.downloadAnnexure(id);
+    public ResponseEntity<?> downloadAnnexure(@PathVariable("id") Long id) {
+        try {
+            return icAnnexureService.downloadAnnexure(id);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("success", false, "message", ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Failed to download annexure {}: {}", id, ex.getMessage(), ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("success", false, "message", ex.getMessage()));
+        }
     }
 }
