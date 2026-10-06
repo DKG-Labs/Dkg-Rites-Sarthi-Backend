@@ -114,18 +114,27 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setQtyOffered(off);
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
             String effectiveStatus = call.getStatus();
+            String jobStatus = null;
             try {
-                List<String> wfStatusList = jdbcTemplate.query(
-                    "SELECT swt.status FROM sleeper_workflow_transaction swt WHERE swt.request_id = ? ORDER BY swt.workflow_transition_id DESC LIMIT 1",
-                    (rs, rowNum) -> rs.getString("status"),
+                List<java.util.Map<String, Object>> wfList = jdbcTemplate.queryForList(
+                    "SELECT swt.status, swt.job_status FROM sleeper_workflow_transaction swt WHERE swt.request_id = ? ORDER BY swt.workflow_transition_id DESC LIMIT 1",
                     call.getCallNo()
                 );
-                if (wfStatusList != null && !wfStatusList.isEmpty() && wfStatusList.get(0) != null && !wfStatusList.get(0).isBlank()) {
-                    effectiveStatus = wfStatusList.get(0).trim();
+                if (wfList != null && !wfList.isEmpty()) {
+                    java.util.Map<String, Object> latestRow = wfList.get(0);
+                    Object s = latestRow.get("status");
+                    Object js = latestRow.get("job_status");
+                    if (s != null && !s.toString().isBlank()) {
+                        effectiveStatus = s.toString().trim();
+                    }
+                    if (js != null && !js.toString().isBlank()) {
+                        jobStatus = js.toString().trim();
+                    }
                 }
             } catch (Exception ignored) {}
 
             dto.setStatus(effectiveStatus);
+            dto.setJobStatus(jobStatus);
             dto.setPlantId(call.getPlantId());
 
             String uom = null;
@@ -160,6 +169,30 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             throw new IllegalArgumentException("Call Number is required");
         }
         String trimmedCallNo = callNo.trim();
+
+        // Check if call is SCHEDULED or PO_VERIFICATION in sleeper_workflow_transaction
+        try {
+            List<String> jsList = jdbcTemplate.query(
+                "SELECT swt.job_status FROM sleeper_workflow_transaction swt WHERE swt.request_id = ? ORDER BY swt.workflow_transition_id DESC LIMIT 1",
+                (rs, rowNum) -> rs.getString("job_status"),
+                trimmedCallNo
+            );
+            if (jsList != null && !jsList.isEmpty() && jsList.get(0) != null) {
+                String js = jsList.get(0).trim().toUpperCase();
+                if ("SCHEDULED".equals(js) || js.contains("SCHEDULE")) {
+                    throw new IllegalStateException("Inspection call is already SCHEDULED and cannot be withdrawn.");
+                }
+                if ("PO_VERIFICATION".equals(js) || js.contains("PO_VERIF")) {
+                    throw new IllegalStateException("Inspection call is under PO_VERIFICATION and cannot be withdrawn.");
+                }
+                if ("COMPLETED".equals(js)) {
+                    throw new IllegalStateException("Inspection call is COMPLETED and cannot be withdrawn.");
+                }
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception ignored) {}
+
         Optional<SleeperInspectionCall> callOpt = inspectionCallRepository.findByCallNoWithBatches(trimmedCallNo);
         if (callOpt.isEmpty()) {
             callOpt = inspectionCallRepository.findByCallNo(trimmedCallNo);
@@ -273,6 +306,24 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             throw new IllegalArgumentException("Call Number is required for modification");
         }
         String trimmedCallNo = dto.getCallNo().trim();
+
+        // Check if call is COMPLETED in sleeper_workflow_transaction
+        try {
+            List<String> jsList = jdbcTemplate.query(
+                "SELECT swt.job_status FROM sleeper_workflow_transaction swt WHERE swt.request_id = ? ORDER BY swt.workflow_transition_id DESC LIMIT 1",
+                (rs, rowNum) -> rs.getString("job_status"),
+                trimmedCallNo
+            );
+            if (jsList != null && !jsList.isEmpty() && jsList.get(0) != null) {
+                String js = jsList.get(0).trim().toUpperCase();
+                if ("COMPLETED".equals(js)) {
+                    throw new IllegalStateException("Inspection call is COMPLETED and cannot be modified.");
+                }
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception ignored) {}
+
         SleeperInspectionCall call = inspectionCallRepository.findByCallNoWithBatches(trimmedCallNo)
                 .orElseGet(() -> inspectionCallRepository.findByCallNo(trimmedCallNo)
                         .orElseThrow(() -> new RuntimeException("Inspection Call not found: " + trimmedCallNo)));
