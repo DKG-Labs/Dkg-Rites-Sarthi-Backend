@@ -612,8 +612,7 @@ public class CallLetterServiceImpl implements CallLetterService {
         dto.setRequestId(sleeperCall.getCallNo());
         dto.setTypeOfCall("Final Inspection");
         int offered = sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0;
-        int rejected = sleeperCall.getTotalRejected() != null ? sleeperCall.getTotalRejected() : 0;
-        dto.setCallQty(String.valueOf(offered + rejected));
+        dto.setCallQty(String.valueOf(offered));
         dto.setCallUnit("Nos.");
 
         // Calculate offered installment number as integer based on PO Number + Sr Number

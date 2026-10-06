@@ -113,7 +113,19 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
             dto.setQtyOffered(off);
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
-            dto.setStatus(call.getStatus());
+            String effectiveStatus = call.getStatus();
+            try {
+                List<String> wfStatusList = jdbcTemplate.query(
+                    "SELECT swt.status FROM sleeper_workflow_transaction swt WHERE swt.request_id = ? ORDER BY swt.workflow_transition_id DESC LIMIT 1",
+                    (rs, rowNum) -> rs.getString("status"),
+                    call.getCallNo()
+                );
+                if (wfStatusList != null && !wfStatusList.isEmpty() && wfStatusList.get(0) != null && !wfStatusList.get(0).isBlank()) {
+                    effectiveStatus = wfStatusList.get(0).trim();
+                }
+            } catch (Exception ignored) {}
+
+            dto.setStatus(effectiveStatus);
             dto.setPlantId(call.getPlantId());
 
             String uom = null;
