@@ -1249,8 +1249,12 @@ ORDER BY um.employee_code
                 'C'                                                     AS callStatus,
                 'C'                                                     AS typeOfCall,
                 (CASE 
-                    WHEN sic.po_no LIKE '%/%' AND SUBSTRING_INDEX(sic.po_no, '/', -1) <> '' THEN SUBSTRING_INDEX(sic.po_no, '/', -1)
+                    WHEN sic.po_no LIKE '%/%' THEN TRIM(sic.po_no)
+                    WHEN sic.sr_no LIKE '%/%' THEN TRIM(sic.sr_no)
+                    WHEN sic.sr_no IS NOT NULL AND TRIM(sic.sr_no) <> '' AND sic.po_no IS NOT NULL AND TRIM(sic.po_no) <> '' 
+                        THEN CONCAT(TRIM(sic.po_no), '/', TRIM(sic.sr_no))
                     WHEN sic.sr_no IS NOT NULL AND TRIM(sic.sr_no) <> '' THEN TRIM(sic.sr_no)
+                    WHEN sic.po_no IS NOT NULL AND TRIM(sic.po_no) <> '' THEN TRIM(sic.po_no)
                     ELSE '1'
                 END)                                                    AS poItemSerialNumber,
                 ''                                                      AS bkNumber,

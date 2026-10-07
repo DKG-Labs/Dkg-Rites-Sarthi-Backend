@@ -12,4 +12,5 @@ public interface RailRawMaterialSourceService {
     List<RawMaterialSourceResponseDto> getAllByVendorCode(String vendorCode);
     List<RawMaterialSourceResponseDto> getAllByPlantId(String plantId);
     void delete(Long id);
+    void unblockRawMaterialSource(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto);
 }

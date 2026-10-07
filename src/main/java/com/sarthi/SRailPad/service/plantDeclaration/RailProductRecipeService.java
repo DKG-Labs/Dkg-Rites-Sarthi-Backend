@@ -12,4 +12,5 @@ public interface RailProductRecipeService {
     List<ProductRecipeResponseDto> getAllByVendorCode(String vendorCode);
     List<ProductRecipeResponseDto> getAllByPlantId(String plantId);
     void delete(Long id);
+    void unblockProductRecipe(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto);
 }

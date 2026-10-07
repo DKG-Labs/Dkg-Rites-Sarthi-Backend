@@ -29,6 +29,9 @@ public class PlantSetupServiceImpl implements PlantSetupService {
     @Autowired
     private RailWorkflowService railWorkflowService;
 
+    @Autowired
+    private com.sarthi.SRailPad.repository.RailUnblockWorkflowHistoryRepository unblockHistoryRepository;
+
     private static final Long MODULE_ID = 1L;
     private static final Long WORKFLOW_ID = 1L;
 
@@ -143,6 +146,68 @@ public class PlantSetupServiceImpl implements PlantSetupService {
     @Override
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public void unblockPlantSetup(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        if (id == null) return;
+
+        PlantSetup setup = repository.findById(id).orElse(null);
+        if (setup == null) {
+            throw new RuntimeException("Plant Setup not found with id: " + id);
+        }
+
+        // 1. Fetch latest workflow transaction to record previous state
+        String reqIdStr = String.valueOf(id);
+        com.sarthi.SRailPad.entity.RailWorkflowTransaction latestTx = 
+                workflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(reqIdStr);
+
+        // 2. Record audit trail in Rail_unblock_workflow_hitory table
+        try {
+            com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory history = new com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory();
+            history.setRequestId(reqIdStr);
+            history.setModuleId(MODULE_ID);
+            history.setModuleName("PLANT_SETUP");
+            history.setWorkflowId(WORKFLOW_ID);
+            history.setPlantId(setup.getPlantId());
+            history.setVendorCode(setup.getVendorCode());
+            history.setShift(setup.getShift());
+            if (latestTx != null) {
+                history.setPreviousStatus(latestTx.getStatus());
+                history.setPreviousAction(latestTx.getAction());
+                history.setPreviousRemarks(latestTx.getRemarks());
+            } else {
+                history.setPreviousStatus("COMPLETED");
+                history.setPreviousAction("VERIFY");
+            }
+            if (unblockDto != null) {
+                history.setUnblockedBy(unblockDto.getUnblockedBy());
+                history.setUnblockedByName(unblockDto.getUnblockedByName());
+                history.setUnblockedByRole(unblockDto.getUnblockedByRole());
+                history.setUnblockRemarks(unblockDto.getRemarks());
+            }
+            history.setUnblockedOn(LocalDateTime.now());
+            if (unblockHistoryRepository != null) {
+                unblockHistoryRepository.save(history);
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Error saving unblock history for Plant Setup " + id + ": " + e.getMessage());
+        }
+
+        // 3. Delete completed workflow transactions for this Plant Setup
+        workflowTransactionRepository.deleteByRequestIdAndModuleId(reqIdStr, MODULE_ID);
+
+        // 4. Re-initiate pending workflow transaction
+        railWorkflowService.initiateWorkflow(
+                reqIdStr,
+                MODULE_ID,
+                WORKFLOW_ID,
+                setup.getCreatedBy(),
+                setup.getVendorCode(),
+                setup.getPlantId(),
+                setup.getShift()
+        );
     }
 
     private PlantSetupResponseDto buildResponse(PlantSetup entity) {

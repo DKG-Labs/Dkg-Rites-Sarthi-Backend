@@ -47,4 +47,12 @@ public class RailRawMaterialSourceController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @RequestMapping(value = "/unblock/{id}", method = {RequestMethod.POST, RequestMethod.DELETE})
+    public ResponseEntity<Object> unblockRawMaterialSource(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        service.unblockRawMaterialSource(id, unblockDto);
+        return ResponseEntity.ok(com.sarthi.util.ResponseBuilder.getSuccessResponse("Raw material source unblocked and returned to pending list successfully"));
+    }
 }

@@ -27,11 +27,11 @@ public class IbsInspectionDto {
 
                 private List<String> poItemSerialNumbers;
 
-                private Integer quantityOffered;
+                private Double quantityOffered;
 
-                private Integer quantityPassed;
+                private Double quantityPassed;
 
-                private Integer quantityRejected;
+                private Double quantityRejected;
 
                 private String bkNumber;
 

@@ -13,4 +13,5 @@ public interface PlantSetupService {
     List<PlantSetupResponseDto> getAllByVendorCode(String vendorCode);
     List<PlantSetupResponseDto> getAllByPlantId(String plantId);
     void delete(Long id);
+    void unblockPlantSetup(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto);
 }

@@ -28,6 +28,9 @@ public class RailProductRecipeServiceImpl implements RailProductRecipeService {
     @Autowired
     private RailWorkflowService railWorkflowService;
 
+    @Autowired
+    private com.sarthi.SRailPad.repository.RailUnblockWorkflowHistoryRepository unblockHistoryRepository;
+
     private static final Long MODULE_ID = 4L;
     private static final Long WORKFLOW_ID = 1L;
 
@@ -117,6 +120,68 @@ public class RailProductRecipeServiceImpl implements RailProductRecipeService {
     @Override
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public void unblockProductRecipe(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        if (id == null) return;
+
+        ProductRecipe recipe = repository.findById(id).orElse(null);
+        if (recipe == null) {
+            throw new RuntimeException("Product Recipe not found with id: " + id);
+        }
+
+        // 1. Fetch latest workflow transaction to record previous state
+        String reqIdStr = String.valueOf(id);
+        com.sarthi.SRailPad.entity.RailWorkflowTransaction latestTx = 
+                workflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(reqIdStr);
+
+        // 2. Record audit trail in Rail_unblock_workflow_hitory table
+        try {
+            com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory history = new com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory();
+            history.setRequestId(reqIdStr);
+            history.setModuleId(MODULE_ID);
+            history.setModuleName("PRODUCT_RECIPE");
+            history.setWorkflowId(WORKFLOW_ID);
+            history.setPlantId(recipe.getPlantId());
+            history.setVendorCode(recipe.getVendorCode());
+            history.setShift(recipe.getShift());
+            if (latestTx != null) {
+                history.setPreviousStatus(latestTx.getStatus());
+                history.setPreviousAction(latestTx.getAction());
+                history.setPreviousRemarks(latestTx.getRemarks());
+            } else {
+                history.setPreviousStatus("COMPLETED");
+                history.setPreviousAction("VERIFY");
+            }
+            if (unblockDto != null) {
+                history.setUnblockedBy(unblockDto.getUnblockedBy());
+                history.setUnblockedByName(unblockDto.getUnblockedByName());
+                history.setUnblockedByRole(unblockDto.getUnblockedByRole());
+                history.setUnblockRemarks(unblockDto.getRemarks());
+            }
+            history.setUnblockedOn(LocalDateTime.now());
+            if (unblockHistoryRepository != null) {
+                unblockHistoryRepository.save(history);
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Error saving unblock history for Product Recipe " + id + ": " + e.getMessage());
+        }
+
+        // 3. Delete completed workflow transactions for this Product Recipe
+        workflowTransactionRepository.deleteByRequestIdAndModuleId(reqIdStr, MODULE_ID);
+
+        // 4. Re-initiate pending workflow transaction
+        railWorkflowService.initiateWorkflow(
+                reqIdStr,
+                MODULE_ID,
+                WORKFLOW_ID,
+                recipe.getCreatedBy(),
+                recipe.getVendorCode(),
+                recipe.getPlantId(),
+                recipe.getShift()
+        );
     }
 
     private ProductRecipeResponseDto buildResponse(ProductRecipe entity) {

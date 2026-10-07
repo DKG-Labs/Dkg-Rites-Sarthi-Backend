@@ -47,4 +47,12 @@ public class RailApprovedQAPController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @RequestMapping(value = "/unblock/{id}", method = {RequestMethod.POST, RequestMethod.DELETE})
+    public ResponseEntity<Object> unblockApprovedQAP(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        service.unblockApprovedQAP(id, unblockDto);
+        return ResponseEntity.ok(com.sarthi.util.ResponseBuilder.getSuccessResponse("Approved QAP baseline unblocked and returned to pending list successfully"));
+    }
 }

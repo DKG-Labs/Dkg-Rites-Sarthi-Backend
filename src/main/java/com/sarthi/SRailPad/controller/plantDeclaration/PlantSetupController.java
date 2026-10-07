@@ -52,4 +52,12 @@ public class PlantSetupController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @RequestMapping(value = "/unblock/{id}", method = {RequestMethod.POST, RequestMethod.DELETE})
+    public ResponseEntity<Object> unblockPlantSetup(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        service.unblockPlantSetup(id, unblockDto);
+        return ResponseEntity.ok(com.sarthi.util.ResponseBuilder.getSuccessResponse("Plant setup unblocked and returned to pending list successfully"));
+    }
 }

@@ -47,4 +47,12 @@ public class RailApprovedAshSGController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @RequestMapping(value = "/unblock/{id}", method = {RequestMethod.POST, RequestMethod.DELETE})
+    public ResponseEntity<Object> unblockApprovedAshSG(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        service.unblockApprovedAshSG(id, unblockDto);
+        return ResponseEntity.ok(com.sarthi.util.ResponseBuilder.getSuccessResponse("Approved Ash & SG baseline unblocked and returned to pending list successfully"));
+    }
 }

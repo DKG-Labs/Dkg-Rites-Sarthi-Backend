@@ -48,7 +48,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import com.sarthi.Sleeper.entity.VendorPlant;
 
 @Slf4j
 @Service
@@ -424,18 +427,26 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 }
 
                 String uom = null;
-                try {
-                    if (call.getPoNo() != null) {
-                        List<String> uomList = jdbcTemplate.query(
-                            "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? AND (pi.item_sr_no = ? OR pi.po_sr_no = ?) LIMIT 1",
-                            (rs, rowNum) -> rs.getString("uom"),
-                            call.getPoNo(), call.getSrNo(), call.getSrNo()
-                        );
-                        if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
-                            uom = uomList.get(0).trim();
+                String uomKey = "uom_" + (call.getPoNo() != null ? call.getPoNo().trim() : "") + "_" + (call.getSrNo() != null ? call.getSrNo().trim() : "");
+                if (cache.containsKey(uomKey) && cache.get(uomKey) != null) {
+                    uom = (String) cache.get(uomKey);
+                } else {
+                    try {
+                        if (call.getPoNo() != null) {
+                            List<String> uomList = jdbcTemplate.query(
+                                "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? AND (pi.item_sr_no = ? OR pi.po_sr_no = ?) LIMIT 1",
+                                (rs, rowNum) -> rs.getString("uom"),
+                                call.getPoNo(), call.getSrNo(), call.getSrNo()
+                            );
+                            if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
+                                uom = uomList.get(0).trim();
+                            }
                         }
+                    } catch (Exception ignored) {}
+                    if (uom != null) {
+                        cache.put(uomKey, uom);
                     }
-                } catch (Exception ignored) {}
+                }
 
                 if (uom == null || uom.isBlank()) {
                     String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
@@ -1519,8 +1530,13 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         } else {
             list = repository.findLastPendingRequestsByRole(roleName);
         }
+        if (list == null || list.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        preloadSleeperCache(list, cache);
         return list.stream()
-                .map(this::mapToResponse)
+                .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
     }
 
@@ -1774,6 +1790,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         List<SleeperWorkflowTransaction> list = repository.findCompletedRequests();
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        preloadSleeperCache(list, cache);
         return list.stream()
                 .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
@@ -1792,6 +1809,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         );
         List<SleeperWorkflowTransaction> list = repository.findPendingVerifiedCalls(pendingActions);
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        preloadSleeperCache(list, cache);
         return list.stream()
                 .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
@@ -1824,6 +1842,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         List<SleeperWorkflowTransaction> list = repository.findFinalCompletedRequests(cleanPlantId, assignedTo);
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        preloadSleeperCache(list, cache);
         List<SleeperWorkflowTransactionDto> dtos = list.stream()
                 .map(tx -> this.mapToResponse(tx, cache))
                 .toList();
@@ -1854,7 +1873,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 ? repository.findFinalClosedRequests(cleanPlantId)
                 : repository.findFinalClosedRequests();
 
-        if (list.isEmpty()) {
+        if (list == null || list.isEmpty()) {
             return java.util.Collections.emptyList();
         }
 
@@ -1887,6 +1906,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         }
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
+        preloadSleeperCache(list, cache);
         List<SleeperWorkflowTransactionDto> dtos = list.stream()
                 .map(tx -> {
                     SleeperWorkflowTransactionDto dto = this.mapToResponse(tx, cache);
@@ -1907,6 +1927,216 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         }
 
         return dtos;
+    }
+
+    private void preloadSleeperCache(List<SleeperWorkflowTransaction> list, java.util.Map<String, Object> cache) {
+        if (list == null || list.isEmpty() || cache == null) return;
+
+        List<String> requestIds = list.stream()
+                .map(SleeperWorkflowTransaction::getRequestId)
+                .filter(r -> r != null && !r.trim().isEmpty())
+                .distinct()
+                .toList();
+
+        // 1. Preload Sleeper Inspection Calls
+        Map<String, SleeperInspectionCall> callMap = new java.util.HashMap<>();
+        if (!requestIds.isEmpty() && sleeperInspectionCallRepository != null) {
+            try {
+                List<SleeperInspectionCall> calls = sleeperInspectionCallRepository.findByCallNoIn(requestIds);
+                for (SleeperInspectionCall c : calls) {
+                    if (c.getCallNo() != null) {
+                        callMap.put(c.getCallNo().trim(), c);
+                        cache.put("call_" + c.getCallNo().trim(), c);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading sleeper calls: {}", e.getMessage());
+            }
+        }
+        for (String reqId : requestIds) {
+            String callCacheKey = "call_" + reqId;
+            if (!cache.containsKey(callCacheKey)) {
+                cache.put(callCacheKey, null);
+            }
+        }
+
+        // 2. Preload Inspection Complete Details (Certificates)
+        if (!requestIds.isEmpty() && sleeperInspectionCompleteDetailsRepository != null) {
+            try {
+                List<SleeperInspectionCompleteDetails> certList = sleeperInspectionCompleteDetailsRepository.findByCallNoIn(requestIds);
+                for (SleeperInspectionCompleteDetails cd : certList) {
+                    if (cd.getCallNo() != null) {
+                        String key = "cert_" + cd.getCallNo().trim();
+                        SleeperInspectionCompleteDetails existing = (SleeperInspectionCompleteDetails) cache.get(key);
+                        if (existing == null || (cd.getId() != null && existing.getId() != null && cd.getId() > existing.getId())) {
+                            cache.put(key, cd);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading sleeper inspection complete details: {}", e.getMessage());
+            }
+        }
+        for (String reqId : requestIds) {
+            String certKey = "cert_" + reqId;
+            if (!cache.containsKey(certKey)) {
+                cache.put(certKey, null);
+            }
+        }
+
+        // 3. Preload Sleeper Schedules
+        if (!requestIds.isEmpty() && sleeperScheduleRepository != null) {
+            try {
+                List<com.sarthi.Sleeper.entity.FInalCall.SleeperSchedule> schedList = sleeperScheduleRepository.findByCallNoIn(requestIds);
+                for (com.sarthi.Sleeper.entity.FInalCall.SleeperSchedule s : schedList) {
+                    if (s.getCallNo() != null) {
+                        String key = "sched_" + s.getCallNo().trim();
+                        com.sarthi.Sleeper.entity.FInalCall.SleeperSchedule existing = (com.sarthi.Sleeper.entity.FInalCall.SleeperSchedule) cache.get(key);
+                        if (existing == null || (s.getId() != null && existing.getId() != null && s.getId() > existing.getId())) {
+                            cache.put(key, s);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading sleeper schedules: {}", e.getMessage());
+            }
+        }
+        for (String reqId : requestIds) {
+            String schedKey = "sched_" + reqId;
+            if (!cache.containsKey(schedKey)) {
+                cache.put(schedKey, null);
+            }
+        }
+
+        // 4. Preload PO Headers
+        List<String> poNos = new ArrayList<>();
+        for (SleeperInspectionCall c : callMap.values()) {
+            if (c.getPoNo() != null && !c.getPoNo().trim().isEmpty()) {
+                String p = c.getPoNo().trim();
+                poNos.add(p.contains("/") ? p.split("/")[0].trim() : p);
+                poNos.add(p);
+            }
+        }
+        poNos = poNos.stream().filter(p -> p != null && !p.trim().isEmpty()).distinct().toList();
+
+        Map<String, com.sarthi.entity.PoHeader> poHeaderMap = new java.util.HashMap<>();
+        if (!poNos.isEmpty() && poHeaderRepository != null) {
+            try {
+                List<com.sarthi.entity.PoHeader> headers = poHeaderRepository.findByPoNoIn(poNos);
+                for (com.sarthi.entity.PoHeader ph : headers) {
+                    if (ph.getPoNo() != null) {
+                        poHeaderMap.put(ph.getPoNo().trim(), ph);
+                        cache.put("poHeader_" + ph.getPoNo().trim(), ph);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading PO headers: {}", e.getMessage());
+            }
+        }
+        for (String poNo : poNos) {
+            String poKey = "poHeader_" + poNo;
+            if (!cache.containsKey(poKey)) {
+                cache.put(poKey, null);
+            }
+        }
+
+        // 5. Preload PO Items
+        List<Long> headerIds = poHeaderMap.values().stream().map(com.sarthi.entity.PoHeader::getId).filter(Objects::nonNull).distinct().toList();
+        if (!headerIds.isEmpty() && poItemRepository != null) {
+            try {
+                List<com.sarthi.entity.PoItem> poItems = poItemRepository.findByPoHeader_IdIn(headerIds);
+                for (com.sarthi.entity.PoItem item : poItems) {
+                    if (item.getPoHeader() != null && item.getPoHeader().getPoNo() != null && item.getItemSrNo() != null) {
+                        String poNoTrim = item.getPoHeader().getPoNo().trim();
+                        String itemSrTrim = item.getItemSrNo().trim();
+                        cache.put("poItem_" + poNoTrim + "_" + itemSrTrim, item);
+                        if (item.getUom() != null && !item.getUom().isBlank()) {
+                            cache.put("uom_" + poNoTrim + "_" + itemSrTrim, item.getUom().trim());
+                        }
+                        try {
+                            int srInt = Integer.parseInt(itemSrTrim);
+                            cache.put("poItem_" + poNoTrim + "_" + srInt, item);
+                            cache.put("poItem_" + poNoTrim + "_" + String.format("%03d", srInt), item);
+                            if (item.getUom() != null && !item.getUom().isBlank()) {
+                                cache.put("uom_" + poNoTrim + "_" + srInt, item.getUom().trim());
+                                cache.put("uom_" + poNoTrim + "_" + String.format("%03d", srInt), item.getUom().trim());
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading PO items: {}", e.getMessage());
+            }
+        }
+
+        // 6. Preload Vendor Plants
+        if (vendorPlantRepository != null) {
+            try {
+                List<VendorPlant> allPlants = vendorPlantRepository.findAll();
+                Map<String, List<VendorPlant>> plantGroupMap = new java.util.HashMap<>();
+                for (VendorPlant vp : allPlants) {
+                    if (vp.getPlantId() != null) {
+                        String pid = vp.getPlantId().trim();
+                        plantGroupMap.computeIfAbsent(pid, k -> new ArrayList<>()).add(vp);
+                        String cleanPid = pid.replaceAll("[:\\s]+", "");
+                        if (!cleanPid.equals(pid)) {
+                            plantGroupMap.computeIfAbsent(cleanPid, k -> new ArrayList<>()).add(vp);
+                        }
+                    }
+                }
+                for (Map.Entry<String, List<VendorPlant>> entry : plantGroupMap.entrySet()) {
+                    cache.put("vpList_" + entry.getKey(), entry.getValue());
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading vendor plants: {}", e.getMessage());
+            }
+        }
+
+        // 7. Preload Users
+        List<Long> assignedUserIds = list.stream()
+                .map(SleeperWorkflowTransaction::getAssignedToUser)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!assignedUserIds.isEmpty() && userMasterRepository != null) {
+            try {
+                List<Integer> intIds = assignedUserIds.stream().map(Long::intValue).distinct().toList();
+                List<UserMaster> users = userMasterRepository.findAllById(intIds);
+                for (UserMaster u : users) {
+                    if (u.getUserId() != null) {
+                        cache.put("user_" + u.getUserId(), u);
+                        cache.put("user_" + Long.valueOf(u.getUserId()), u);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading user master: {}", e.getMessage());
+            }
+        }
+
+        // 8. Preload POI / IE Mappings
+        if (poiIeMappingRepository != null) {
+            try {
+                List<SleeperPoiIeMapping> allMappings = poiIeMappingRepository.findAll();
+                Map<String, List<SleeperPoiIeMapping>> mapGroup = new java.util.HashMap<>();
+                for (SleeperPoiIeMapping m : allMappings) {
+                    String poi = m.getPoiCode() != null ? m.getPoiCode().trim() : "";
+                    String plt = m.getPlantId() != null ? m.getPlantId().trim() : "";
+                    String type = m.getIeType() != null ? m.getIeType().trim() : "";
+                    
+                    mapGroup.computeIfAbsent("ieMap_" + poi + "_" + plt + "_2", k -> new ArrayList<>()).add(m);
+                    mapGroup.computeIfAbsent("ieMap_" + poi + "_" + plt + "_1", k -> new ArrayList<>()).add(m);
+                    if ("Main IE".equalsIgnoreCase(type) || "MAIN_IE".equalsIgnoreCase(type)) {
+                        mapGroup.computeIfAbsent("ieMapMain_" + poi + "_" + plt, k -> new ArrayList<>()).add(m);
+                        mapGroup.computeIfAbsent("ieMapPlant_" + plt, k -> new ArrayList<>()).add(m);
+                    }
+                }
+                for (Map.Entry<String, List<SleeperPoiIeMapping>> entry : mapGroup.entrySet()) {
+                    cache.put(entry.getKey(), entry.getValue());
+                }
+            } catch (Exception e) {
+                log.warn("Error preloading sleeper POI IE mappings: {}", e.getMessage());
+            }
+        }
     }
 
     private boolean isPlantMatch(String callPlantId, String targetPlantId) {

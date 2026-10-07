@@ -47,4 +47,12 @@ public class RailProductRecipeController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @RequestMapping(value = "/unblock/{id}", method = {RequestMethod.POST, RequestMethod.DELETE})
+    public ResponseEntity<Object> unblockProductRecipe(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        service.unblockProductRecipe(id, unblockDto);
+        return ResponseEntity.ok(com.sarthi.util.ResponseBuilder.getSuccessResponse("Product recipe unblocked and returned to pending list successfully"));
+    }
 }

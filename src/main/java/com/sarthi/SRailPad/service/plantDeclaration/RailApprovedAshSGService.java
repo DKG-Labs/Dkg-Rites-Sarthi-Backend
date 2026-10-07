@@ -12,4 +12,5 @@ public interface RailApprovedAshSGService {
     List<ApprovedAshSGResponseDto> getAllByVendorCode(String vendorCode);
     List<ApprovedAshSGResponseDto> getAllByPlantId(String plantId);
     void delete(Long id);
+    void unblockApprovedAshSG(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto);
 }

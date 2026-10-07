@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +33,9 @@ public class VendorPoServiceImpl implements VendorPoService {
 
     @Autowired
     private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
+
+    @Autowired
+    private com.sarthi.SRailPad.repository.ieVerification.RailFinalInspectionLotResultsRepository railFinalInspectionLotResultsRepository;
 
     @Autowired
     private com.sarthi.Sleeper.repository.VendorPlantRepository vendorPlantRepository;
@@ -140,16 +144,51 @@ public class VendorPoServiceImpl implements VendorPoService {
         }
         logger.info("[DB Debug] Found {} total inspection calls for vendor {}", vendorCalls.size(), vendorCode);
 
+        // Fetch lot results for all RPF final calls in batch
+        java.util.Map<String, List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults>> lotResultsByCallNo = new java.util.HashMap<>();
+        try {
+            List<String> rpfCallNos = vendorCalls.stream()
+                    .map(com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall::getCallNo)
+                    .filter(cn -> cn != null && cn.startsWith("RPF"))
+                    .distinct()
+                    .toList();
+            if (railFinalInspectionLotResultsRepository != null && !rpfCallNos.isEmpty()) {
+                List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults> allLots = 
+                        railFinalInspectionLotResultsRepository.findAllByCallNoIn(rpfCallNos);
+                if (allLots != null && !allLots.isEmpty()) {
+                    lotResultsByCallNo = allLots.stream()
+                            .filter(l -> l.getCallNo() != null)
+                            .collect(java.util.stream.Collectors.groupingBy(com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults::getCallNo));
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Error fetching rail final inspection lot results for vendor {}: {}", vendorCode, e.getMessage());
+        }
+
         final List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> finalVendorCalls = vendorCalls;
+        final java.util.Map<String, List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults>> finalLotResultsByCallNo = lotResultsByCallNo;
         final boolean finalIsSleeper = isSleeper;
         final String finalSleeperRio = sleeperRio;
-        return poHeaders.stream().map(po -> mapToHeaderDto(po, finalVendorCalls, finalIsSleeper, finalSleeperRio)).toList();
+        return poHeaders.stream().map(po -> mapToHeaderDto(po, finalVendorCalls, finalLotResultsByCallNo, finalIsSleeper, finalSleeperRio)).toList();
     }
 
     public String getPdfPathByRawPoNo(String rawPoNo) {
-        if (rawPoNo == null || rawPoNo.isEmpty())
+        if (rawPoNo == null || rawPoNo.trim().isEmpty())
             return null;
-        return poHeaderRepository.findByPoNo(rawPoNo)
+        String clean = rawPoNo.trim();
+        return poHeaderRepository.findFirstByPoNoOrL5PoNo(clean)
+                .or(() -> poHeaderRepository.findByPoNo(clean))
+                .or(() -> {
+                    String[] parts = clean.split("/");
+                    for (String part : parts) {
+                        String p = part.trim();
+                        if (!p.isEmpty()) {
+                            Optional<com.sarthi.entity.PoHeader> found = poHeaderRepository.findFirstByPoNoOrL5PoNo(p);
+                            if (found.isPresent()) return found;
+                        }
+                    }
+                    return Optional.empty();
+                })
                 .map(com.sarthi.entity.PoHeader::getPdfPath)
                 .orElse(null);
     }
@@ -190,6 +229,7 @@ public class VendorPoServiceImpl implements VendorPoService {
 
     private VendorPoHeaderResponseDto mapToHeaderDto(PoHeader poHeader,
             List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls,
+            java.util.Map<String, List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults>> lotResultsByCallNo,
             boolean isSleeper,
             String sleeperRio) {
 
@@ -237,7 +277,7 @@ public class VendorPoServiceImpl implements VendorPoService {
         List<VendorPoItemsResponseDto> itemDtos = poHeader.getItems()
                 .stream()
                 .filter(item -> !(item.getItemSrNo() == null && item.getItemDesc() == null && (item.getQty() == null || item.getQty() == 0)))
-                .map(item -> mapToItemDto(item, vendorCalls))
+                .map(item -> mapToItemDto(item, vendorCalls, lotResultsByCallNo))
                 .toList();
 
         dto.setPoItem(itemDtos);
@@ -246,7 +286,8 @@ public class VendorPoServiceImpl implements VendorPoService {
     }
 
     private VendorPoItemsResponseDto mapToItemDto(PoItem item,
-            List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls) {
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls,
+            java.util.Map<String, List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults>> lotResultsByCallNo) {
 
         VendorPoItemsResponseDto dto = new VendorPoItemsResponseDto();
 
@@ -275,11 +316,10 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setUom(itemUom);
         dto.setUnit(itemUom);
 
-        // Calculate offered qty by strictly matching specific PO item serial number and
-        // excluding withdrawn calls
+        // Filter all active RPF calls matching this PO and Sr No
         final boolean isSetUom = itemUom != null && itemUom.toUpperCase().contains("SET");
 
-        int totalOffered = vendorCalls.stream()
+        List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> matchingCalls = vendorCalls.stream()
                 .filter(c -> {
                     String cPoNo = c.getPoNo();
                     String callNo = c.getCallNo();
@@ -297,25 +337,20 @@ public class VendorPoServiceImpl implements VendorPoService {
                     if (!cBasePo.equalsIgnoreCase(basePoNo.trim()))
                         return false;
 
-                    // Match SR Number
+                    // Match SR Number (supporting both c.poSr and c.poNo with slash)
                     String cPoSr = c.getPoSr();
                     if (cPoSr != null && !cPoSr.trim().isEmpty()) {
-                        try {
-                            return Integer.parseInt(cPoSr.trim()) == Integer.parseInt(srNo.trim());
-                        } catch (NumberFormatException e) {
-                            return cPoSr.trim().equalsIgnoreCase(srNo.trim());
-                        }
+                        return isPoSrMatch(cPoSr, srNo);
                     } else if (cPoNo.contains("/")) {
                         String storedSr = cPoNo.substring(cPoNo.indexOf("/") + 1).trim();
-                        try {
-                            return Integer.parseInt(storedSr) == Integer.parseInt(srNo.trim());
-                        } catch (NumberFormatException e) {
-                            return storedSr.equalsIgnoreCase(srNo.trim());
-                        }
+                        return isPoSrMatch(storedSr, srNo);
                     }
 
                     return false;
                 })
+                .toList();
+
+        int totalOffered = matchingCalls.stream()
                 .mapToInt(c -> {
                     if (isSetUom && c.getNoOfSets() != null && c.getNoOfSets() > 0) {
                         return c.getNoOfSets();
@@ -324,13 +359,41 @@ public class VendorPoServiceImpl implements VendorPoService {
                 })
                 .sum();
 
+        // Calculate accepted qty from rail_final_inspection_lot_results for matching calls
+        int totalAccepted = 0;
+        if (lotResultsByCallNo != null) {
+            for (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall c : matchingCalls) {
+                List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults> lots =
+                        lotResultsByCallNo.getOrDefault(c.getCallNo(), List.of());
+                if (lots == null || lots.isEmpty()) continue;
+
+                boolean isNcr = (c.getRailPadType() != null && (c.getRailPadType().toUpperCase().contains("NCR") || c.getRailPadType().toUpperCase().contains("NYLON")))
+                        || lots.stream().anyMatch(l -> l.getRailpadType() != null && (l.getRailpadType().toUpperCase().contains("NCR") || l.getRailpadType().toUpperCase().contains("NYLON")));
+
+                if (isNcr) {
+                    // For NCRGRSP: same accepted qty is stored for all lots of that call, so take single lot (max) accepted qty
+                    int callAccepted = lots.stream()
+                            .mapToInt(l -> l.getAcceptedQty() != null ? l.getAcceptedQty() : 0)
+                            .max().orElse(0);
+                    totalAccepted += callAccepted;
+                } else {
+                    // For CGRSP / GRSP / standard Railpad: sum across all lots of this call
+                    int callAccepted = lots.stream()
+                            .mapToInt(l -> l.getAcceptedQty() != null ? l.getAcceptedQty() : 0)
+                            .sum();
+                    totalAccepted += callAccepted;
+                }
+            }
+        }
+
         BigDecimal offeredQty = BigDecimal.valueOf(totalOffered);
-        logger.info("[PO Stats] PO/SR: {}, Offered: {}", poSrNo, offeredQty);
+        BigDecimal acceptedQty = BigDecimal.valueOf(totalAccepted);
+        logger.info("[PO Stats] PO/SR: {}, Offered: {}, Accepted: {}", poSrNo, offeredQty, acceptedQty);
 
         dto.setOfferedTillNow(offeredQty);
-        dto.setAcceptedTillNow(BigDecimal.ZERO);
+        dto.setAcceptedTillNow(acceptedQty);
         int itemQtyVal = item.getQty() != null ? item.getQty() : 0;
-        int dueVal = Math.max(0, itemQtyVal - totalOffered);
+        int dueVal = Math.max(0, itemQtyVal - totalAccepted);
         dto.setDue(BigDecimal.valueOf(dueVal));
 
         LocalDate effectiveOdp = resolveEffectiveOriginalDeliveryDate(item);

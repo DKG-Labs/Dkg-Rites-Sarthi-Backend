@@ -139,24 +139,40 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
      */
     List<InventoryEntry> findByTcNumberAndVendorCode(String tcNumber, String vendorCode);
 
-        @Query(value = "SELECT DISTINCT ie.tc_file_path " +
-                   "FROM inventory_entries ie " +
-                   "WHERE ie.tc_file_path IS NOT NULL AND ie.heat_number IN (" +
-                   "    SELECT rhq.heat_number " +
-                   "    FROM inspection_calls ic " +
-                   "    JOIN rm_inspection_details rid ON rid.ic_id = ic.id " +
-                   "    JOIN rm_heat_quantities rhq ON rhq.rm_detail_id = rid.id " +
-                   "    WHERE ic.ic_number = :callNo " +
-                   "    UNION " +
-                   "    SELECT prim.heat_number " +
-                   "    FROM inspection_calls ic " +
-                   "    JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic.id " +
-                   "    WHERE ic.ic_number = :callNo " +
-                   "    UNION " +
-                   "    SELECT fpim.heat_number " +
-                   "    FROM inspection_calls ic " +
-                   "    JOIN final_process_ic_mapping fpim ON fpim.final_ic_id = ic.id " +
-                   "    WHERE ic.ic_number = :callNo" +
-                   ")", nativeQuery = true)
+    @Query(value = "SELECT DISTINCT ie.tc_file_path " +
+            "FROM inventory_entries ie " +
+            "WHERE ie.tc_file_path IS NOT NULL AND TRIM(ie.tc_file_path) != '' AND (" +
+            "    ie.heat_number IN (" +
+            "        SELECT rhq.heat_number " +
+            "        FROM inspection_calls ic " +
+            "        JOIN rm_inspection_details rid ON rid.ic_id = ic.id " +
+            "        JOIN rm_heat_quantities rhq ON rhq.rm_detail_id = rid.id " +
+            "        WHERE ic.ic_number = :callNo OR ic.ic_number LIKE CONCAT('%', :callNo, '%') " +
+            "        UNION " +
+            "        SELECT prim.heat_number " +
+            "        FROM inspection_calls ic " +
+            "        JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic.id " +
+            "        WHERE ic.ic_number = :callNo OR ic.ic_number LIKE CONCAT('%', :callNo, '%') " +
+            "        UNION " +
+            "        SELECT fpim.heat_number " +
+            "        FROM inspection_calls ic " +
+            "        JOIN final_process_ic_mapping fpim ON fpim.final_ic_id = ic.id " +
+            "        WHERE ic.ic_number = :callNo OR ic.ic_number LIKE CONCAT('%', :callNo, '%') " +
+            "    ) " +
+            "    OR (ie.tc_number IS NOT NULL AND ie.tc_number IN (" +
+            "        SELECT rhq.tc_number " +
+            "        FROM inspection_calls ic " +
+            "        JOIN rm_inspection_details rid ON rid.ic_id = ic.id " +
+            "        JOIN rm_heat_quantities rhq ON rhq.rm_detail_id = rid.id " +
+            "        WHERE (ic.ic_number = :callNo OR ic.ic_number LIKE CONCAT('%', :callNo, '%')) " +
+            "          AND rhq.tc_number IS NOT NULL AND TRIM(rhq.tc_number) != '' " +
+            "        UNION " +
+            "        SELECT rid.tc_number " +
+            "        FROM inspection_calls ic " +
+            "        JOIN rm_inspection_details rid ON rid.ic_id = ic.id " +
+            "        WHERE (ic.ic_number = :callNo OR ic.ic_number LIKE CONCAT('%', :callNo, '%')) " +
+            "          AND rid.tc_number IS NOT NULL AND TRIM(rid.tc_number) != '' " +
+            "    ))" +
+            ")", nativeQuery = true)
     List<String> findTcFilePathsByCallNo(@Param("callNo") String callNo);
 }
