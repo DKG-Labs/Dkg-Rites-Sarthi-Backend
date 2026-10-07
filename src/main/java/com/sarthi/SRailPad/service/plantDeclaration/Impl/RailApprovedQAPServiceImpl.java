@@ -28,6 +28,9 @@ public class RailApprovedQAPServiceImpl implements RailApprovedQAPService {
     @Autowired
     private RailWorkflowService railWorkflowService;
 
+    @Autowired
+    private com.sarthi.SRailPad.repository.RailUnblockWorkflowHistoryRepository unblockHistoryRepository;
+
     private static final Long MODULE_ID = 6L;
     private static final Long WORKFLOW_ID = 1L;
 
@@ -137,6 +140,68 @@ public class RailApprovedQAPServiceImpl implements RailApprovedQAPService {
     @Transactional
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public void unblockApprovedQAP(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        if (id == null) return;
+
+        ApprovedQAP qap = repository.findById(id).orElse(null);
+        if (qap == null) {
+            throw new RuntimeException("Approved QAP not found with id: " + id);
+        }
+
+        // 1. Fetch latest workflow transaction to record previous state
+        String reqIdStr = String.valueOf(id);
+        com.sarthi.SRailPad.entity.RailWorkflowTransaction latestTx = 
+                workflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(reqIdStr);
+
+        // 2. Record audit trail in Rail_unblock_workflow_hitory table
+        try {
+            com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory history = new com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory();
+            history.setRequestId(reqIdStr);
+            history.setModuleId(MODULE_ID);
+            history.setModuleName("APPROVED_QAP");
+            history.setWorkflowId(WORKFLOW_ID);
+            history.setPlantId(qap.getPlantId());
+            history.setVendorCode(qap.getVendorCode());
+            history.setShift(qap.getShift());
+            if (latestTx != null) {
+                history.setPreviousStatus(latestTx.getStatus());
+                history.setPreviousAction(latestTx.getAction());
+                history.setPreviousRemarks(latestTx.getRemarks());
+            } else {
+                history.setPreviousStatus("COMPLETED");
+                history.setPreviousAction("VERIFY");
+            }
+            if (unblockDto != null) {
+                history.setUnblockedBy(unblockDto.getUnblockedBy());
+                history.setUnblockedByName(unblockDto.getUnblockedByName());
+                history.setUnblockedByRole(unblockDto.getUnblockedByRole());
+                history.setUnblockRemarks(unblockDto.getRemarks());
+            }
+            history.setUnblockedOn(LocalDateTime.now());
+            if (unblockHistoryRepository != null) {
+                unblockHistoryRepository.save(history);
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Error saving unblock history for Approved QAP " + id + ": " + e.getMessage());
+        }
+
+        // 3. Delete completed workflow transactions for this Approved QAP
+        workflowTransactionRepository.deleteByRequestIdAndModuleId(reqIdStr, MODULE_ID);
+
+        // 4. Re-initiate pending workflow transaction
+        railWorkflowService.initiateWorkflow(
+                reqIdStr,
+                MODULE_ID,
+                WORKFLOW_ID,
+                qap.getCreatedBy(),
+                qap.getVendorCode(),
+                qap.getPlantId(),
+                qap.getShift()
+        );
     }
 
     private ApprovedQAPResponseDto buildResponse(ApprovedQAP entity) {

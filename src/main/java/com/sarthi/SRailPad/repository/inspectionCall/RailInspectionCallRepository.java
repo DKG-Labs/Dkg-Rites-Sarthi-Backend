@@ -135,8 +135,12 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
                 'C'                                                     AS callStatus,
                 (CASE WHEN ic.call_type = 'PROCESS' THEN 'P' ELSE 'F' END) AS typeOfCall,
                 (CASE 
-                    WHEN ic.po_no LIKE '%/%' AND SUBSTRING_INDEX(ic.po_no, '/', -1) <> '' THEN SUBSTRING_INDEX(ic.po_no, '/', -1)
+                    WHEN ic.po_no LIKE '%/%' THEN TRIM(ic.po_no)
+                    WHEN ic.po_sr LIKE '%/%' THEN TRIM(ic.po_sr)
+                    WHEN ic.po_sr IS NOT NULL AND TRIM(ic.po_sr) <> '' AND ic.po_no IS NOT NULL AND TRIM(ic.po_no) <> '' 
+                        THEN CONCAT(TRIM(ic.po_no), '/', TRIM(ic.po_sr))
                     WHEN ic.po_sr IS NOT NULL AND TRIM(ic.po_sr) <> '' THEN TRIM(ic.po_sr)
+                    WHEN ic.po_no IS NOT NULL AND TRIM(ic.po_no) <> '' THEN TRIM(ic.po_no)
                     ELSE '1'
                 END)                                                    AS poItemSerialNumber,
                 ''                                                      AS bkNumber,

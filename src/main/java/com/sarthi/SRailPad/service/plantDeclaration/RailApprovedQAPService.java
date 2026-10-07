@@ -12,4 +12,5 @@ public interface RailApprovedQAPService {
     List<ApprovedQAPResponseDto> getAllByVendorCode(String vendorCode);
     List<ApprovedQAPResponseDto> getAllByPlantId(String plantId);
     void delete(Long id);
+    void unblockApprovedQAP(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto);
 }

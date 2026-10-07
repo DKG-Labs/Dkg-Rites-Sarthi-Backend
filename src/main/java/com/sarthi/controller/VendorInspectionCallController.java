@@ -75,32 +75,33 @@ public class VendorInspectionCallController {
     
     /**
      * Get merged TC documents for a specific call number.
-     * GET /api/vendor/inspection-calls/tc-docs/{callNo}
-     *
-     * @param callNo Call number to fetch TC documents for
-     * @return PDF byte array
+     * GET /api/vendor/inspection-calls/tc-docs?callNumber={callNo}
      */
-    @GetMapping("/tc-docs/{callNo}")
+    @GetMapping(value = {"/tc-docs", "/tc-docs/{callNo}"})
     @Operation(
         summary = "Get merged TC documents for a call",
         description = "Fetches and merges all TC documents associated with the provided call number"
     )
-    public ResponseEntity<byte[]> getTcDocsByCallNo(@PathVariable String callNo) {
-        logger.info("Received request to fetch TC documents for call: {}", callNo);
+    public ResponseEntity<byte[]> getTcDocsByCallNo(
+            @PathVariable(required = false) String callNo,
+            @RequestParam(required = false) String callNumber
+    ) {
+        String effectiveCallNo = (callNumber != null && !callNumber.isBlank()) ? callNumber.trim() : (callNo != null ? callNo.trim() : "");
+        logger.info("Received request to fetch TC documents for call: {}", effectiveCallNo);
         
         try {
-            byte[] pdfBytes = vendorInspectionCallService.getTcDocsByCallNo(callNo);
+            byte[] pdfBytes = vendorInspectionCallService.getTcDocsByCallNo(effectiveCallNo);
             
             return ResponseEntity.ok()
-                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"TC_Documents_" + callNo + ".pdf\"")
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"TC_Documents.pdf\"")
                     .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
                     .contentLength(pdfBytes.length)
                     .body(pdfBytes);
         } catch (com.sarthi.exception.BusinessException e) {
-            logger.warn("Business exception while fetching TC docs for call {}: {}", callNo, e.getMessage());
+            logger.warn("Business exception while fetching TC docs for call {}: {}", effectiveCallNo, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         } catch (Exception e) {
-            logger.error("Error fetching TC documents for call: {}", callNo, e);
+            logger.error("Error fetching TC documents for call: {}", effectiveCallNo, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }

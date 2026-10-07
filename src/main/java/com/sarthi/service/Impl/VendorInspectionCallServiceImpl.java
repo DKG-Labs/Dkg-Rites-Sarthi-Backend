@@ -336,15 +336,127 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
     // Deprecated methods replaced by optimized versions
 
+    @Autowired
+    private com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository rmInspectionDetailsRepository;
+
     @Override
     @Transactional(readOnly = true)
     public byte[] getTcDocsByCallNo(String callNo) {
-        logger.info("Fetching TC docs for call number: {}", callNo);
-        List<String> tcFilePaths = inventoryEntryRepository.findTcFilePathsByCallNo(callNo);
-        if (tcFilePaths == null || tcFilePaths.isEmpty()) {
+        if (callNo == null || callNo.isBlank()) {
+            throw new BusinessException(new ErrorDetails(AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION, "Call number cannot be empty"));
+        }
+        String trimmed = callNo.trim();
+        logger.info("Fetching TC docs for call number: {}", trimmed);
+
+        Set<String> heatNumbers = new LinkedHashSet<>();
+        Set<String> tcNumbers = new LinkedHashSet<>();
+        Set<String> tcFilePaths = new LinkedHashSet<>();
+
+        // Step 1: Find InspectionCall by IC number variants
+        List<String> callVariants = new ArrayList<>();
+        callVariants.add(trimmed);
+        if (trimmed.contains("-")) {
+            callVariants.add(trimmed.substring(trimmed.indexOf("-") + 1).trim());
+        }
+        if (!trimmed.startsWith("ER-")) {
+            callVariants.add("ER-" + trimmed);
+        }
+
+        InspectionCall matchedCall = null;
+        for (String variant : callVariants) {
+            if (variant.isBlank()) continue;
+            Optional<InspectionCall> opt = inspectionCallRepository.findByIcNumber(variant);
+            if (opt.isPresent()) {
+                matchedCall = opt.get();
+                logger.info("Found InspectionCall with ID: {} for variant: {}", matchedCall.getId(), variant);
+                break;
+            }
+        }
+
+        // Step 2: From InspectionCall -> RmInspectionDetails -> RmHeatQuantity
+        if (matchedCall != null) {
+            RmInspectionDetails rmDetails = matchedCall.getRmInspectionDetails();
+            if (rmDetails == null) {
+                rmDetails = rmInspectionDetailsRepository.findByIcId(matchedCall.getId()).orElse(null);
+            }
+
+            if (rmDetails != null) {
+                logger.info("Found RmInspectionDetails ID: {} for InspectionCall ID: {}", rmDetails.getId(), matchedCall.getId());
+                if (rmDetails.getTcNumber() != null && !rmDetails.getTcNumber().isBlank()) {
+                    tcNumbers.add(rmDetails.getTcNumber().trim());
+                }
+                if (rmDetails.getHeatNumbers() != null && !rmDetails.getHeatNumbers().isBlank()) {
+                    for (String hn : rmDetails.getHeatNumbers().split(",")) {
+                        if (!hn.trim().isBlank()) heatNumbers.add(hn.trim());
+                    }
+                }
+
+                List<com.sarthi.entity.rawmaterial.RmHeatQuantity> hqList = 
+                        rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rmDetails.getId()));
+                if (hqList != null && !hqList.isEmpty()) {
+                    for (com.sarthi.entity.rawmaterial.RmHeatQuantity hq : hqList) {
+                        if (hq.getHeatNumber() != null && !hq.getHeatNumber().isBlank()) {
+                            heatNumbers.add(hq.getHeatNumber().trim());
+                        }
+                        if (hq.getTcNumber() != null && !hq.getTcNumber().isBlank()) {
+                            tcNumbers.add(hq.getTcNumber().trim());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Step 3: Fallback query via RmHeatQuantityRepository
+        if (heatNumbers.isEmpty() && tcNumbers.isEmpty()) {
+            for (String variant : callVariants) {
+                List<com.sarthi.entity.rawmaterial.RmHeatQuantity> hqList = 
+                        rmHeatQuantityRepository.findByInspectionCallNo(variant);
+                if (hqList != null && !hqList.isEmpty()) {
+                    for (com.sarthi.entity.rawmaterial.RmHeatQuantity hq : hqList) {
+                        if (hq.getHeatNumber() != null && !hq.getHeatNumber().isBlank()) {
+                            heatNumbers.add(hq.getHeatNumber().trim());
+                        }
+                        if (hq.getTcNumber() != null && !hq.getTcNumber().isBlank()) {
+                            tcNumbers.add(hq.getTcNumber().trim());
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        logger.info("Resolved Heat Numbers: {} and TC Numbers: {} for call: {}", heatNumbers, tcNumbers, trimmed);
+
+        // Step 4: Find inventory entries by heat numbers
+        if (!heatNumbers.isEmpty()) {
+            List<com.sarthi.entity.InventoryEntry> entries = inventoryEntryRepository.findByHeatNumberIn(new ArrayList<>(heatNumbers));
+            if (entries != null) {
+                for (com.sarthi.entity.InventoryEntry ie : entries) {
+                    if (ie.getTcFilePath() != null && !ie.getTcFilePath().isBlank()) {
+                        tcFilePaths.add(ie.getTcFilePath().trim());
+                    }
+                }
+            }
+        }
+
+        // Step 5: Fallback to repository native query
+        if (tcFilePaths.isEmpty()) {
+            for (String variant : callVariants) {
+                List<String> paths = inventoryEntryRepository.findTcFilePathsByCallNo(variant);
+                if (paths != null && !paths.isEmpty()) {
+                    tcFilePaths.addAll(paths);
+                    break;
+                }
+            }
+        }
+
+        logger.info("Found {} TC file paths for call {}: {}", tcFilePaths.size(), trimmed, tcFilePaths);
+
+        if (tcFilePaths.isEmpty()) {
             throw new BusinessException(new ErrorDetails(AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION, "No TC Documents found for this call number"));
         }
 
+        // Step 6: Download all TC PDF files from Azure Storage
         List<byte[]> pdfBytesList = new ArrayList<>();
         for (String path : tcFilePaths) {
             try {
@@ -368,6 +480,7 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
             return pdfBytesList.get(0);
         }
 
+        // Step 7: Merge multiple TC files into a single PDF
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             Document document = new Document();
             PdfCopy copy = new PdfCopy(document, baos);
@@ -382,7 +495,7 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
-            logger.error("Error merging PDF documents for call: {}", callNo, e);
+            logger.error("Error merging PDF documents for call: {}", trimmed, e);
             throw new BusinessException(new ErrorDetails(AppConstant.INTERNAL_SERVER_ERROR, AppConstant.ERROR_TYPE_CODE_INTERNAL, AppConstant.ERROR_TYPE_INTERNAL, "Error merging TC documents"));
         }
     }

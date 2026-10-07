@@ -81,8 +81,7 @@ public class JwtServiceImpl implements JwtService {
 
         String token = authHeader.substring(7).trim();
 
-        if (token.startsWith("admin-mock-token") ||
-            token.startsWith("cm-mock-token") ||
+        if (token.startsWith("cm-mock-token") ||
             token.startsWith("calldesk-mock-token") ||
             token.startsWith("sms-mock-token") ||
             token.startsWith("finance-mock-token") ||

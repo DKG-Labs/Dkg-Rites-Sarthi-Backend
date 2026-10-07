@@ -49,8 +49,10 @@ public class RailIEProductionVerificationController {
     }
 
     @RequestMapping(value = "/unblock/{requestId}", method = {RequestMethod.POST, RequestMethod.DELETE})
-    public ResponseEntity<APIResponse> unblockProductionVerification(@PathVariable Long requestId) {
-        service.unblockProductionVerification(requestId);
+    public ResponseEntity<APIResponse> unblockProductionVerification(
+            @PathVariable Long requestId,
+            @RequestBody(required = false) com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        service.unblockProductionVerification(requestId, unblockDto);
         return ResponseEntity.ok(ResponseBuilder.getSuccessResponse("Production declaration unblocked and returned to pending list successfully"));
     }
 

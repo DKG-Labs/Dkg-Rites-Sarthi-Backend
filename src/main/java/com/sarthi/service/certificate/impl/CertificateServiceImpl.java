@@ -153,6 +153,12 @@ public class CertificateServiceImpl implements CertificateService {
     @Autowired
     private com.sarthi.repository.UserMasterRepository userMasterRepository;
 
+    @Autowired(required = false)
+    private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcEditRepository sleeperFinalIcEditRepository;
+
+    @Autowired(required = false)
+    private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcSaveChangesRepository sleeperFinalIcSaveChangesRepository;
+
     @Override
     public RawMaterialCertificateDto generateRawMaterialCertificate(String icNumber) {
         logger.info("Generating Raw Material Certificate for IC Number: {}", icNumber);
@@ -881,11 +887,37 @@ public class CertificateServiceImpl implements CertificateService {
             String details = hr.getHologramDetails();
             if (details != null && !details.isEmpty()) {
                 hasHologram = true;
-                String[] entries = details.split(", ");
-                for (String entry : entries) {
-                    String cleaned = entry.replace("Range: ", "").replace("Single: ", "").trim();
-                    if (!cleaned.isEmpty()) {
-                        uniqueHolograms.add(cleaned.toUpperCase());
+                if (details.trim().startsWith("[") || details.trim().startsWith("{")) {
+                    try {
+                        List<Map<String, String>> parsedList = objectMapper.readValue(
+                                details,
+                                new TypeReference<List<Map<String, String>>>() {
+                                });
+                        for (Map<String, String> entry : parsedList) {
+                            String type = entry.get("type");
+                            if ("range".equalsIgnoreCase(type)) {
+                                String from = entry.get("from");
+                                String to = entry.get("to");
+                                if (from != null && !from.trim().isEmpty() && to != null && !to.trim().isEmpty()) {
+                                    uniqueHolograms.add(from.trim().toUpperCase() + " TO " + to.trim().toUpperCase());
+                                }
+                            } else if ("single".equalsIgnoreCase(type)) {
+                                String val = entry.get("value");
+                                if (val != null && !val.trim().isEmpty()) {
+                                    uniqueHolograms.add(val.trim().toUpperCase());
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Error parsing RM hologram JSON details: {}", details, e);
+                    }
+                } else {
+                    String[] entries = details.split(", ");
+                    for (String entry : entries) {
+                        String cleaned = entry.replace("Range: ", "").replace("Single: ", "").trim();
+                        if (!cleaned.isEmpty()) {
+                            uniqueHolograms.add(cleaned.toUpperCase());
+                        }
                     }
                 }
             }
@@ -1777,118 +1809,162 @@ public class CertificateServiceImpl implements CertificateService {
         end = System.currentTimeMillis();
         logger.info("Built FinalCertificateDto for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
 
-        // Merge saved draft edits if available, else fallback to final edits
-        Optional<FinalIcSaveChanges> finalIcSaveChangesOpt = finalIcSaveChangesRepository
-                .findByIcNumber(inspectionCall.getIcNumber());
-        if (finalIcSaveChangesOpt.isPresent()) {
-            FinalIcSaveChanges saveChanges = finalIcSaveChangesOpt.get();
-            if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
-                dto.setBookNo(saveChanges.getBookNo());
-            }
-            if (saveChanges.getSetNo() != null && !saveChanges.getSetNo().isBlank()) {
-                dto.setSetNo(saveChanges.getSetNo());
-            }
-            if (saveChanges.getOfferedInstallmentNo() != null && !saveChanges.getOfferedInstallmentNo().isBlank()) {
-                dto.setOfferedInstNo(saveChanges.getOfferedInstallmentNo());
-            }
-            if (saveChanges.getPassedInstallmentNo() != null && !saveChanges.getPassedInstallmentNo().isBlank()) {
-                dto.setPassedInstNo(saveChanges.getPassedInstallmentNo());
-            }
-            if (saveChanges.getConsignee() != null && !saveChanges.getConsignee().isBlank()) {
-                dto.setConsignee(saveChanges.getConsignee());
-                dto.setConsigneeRailway(saveChanges.getConsignee());
-            }
-            if (saveChanges.getCummQtyOfferedPrev() != null) {
-                try {
-                    dto.setQtyOfferedPreviously(Double.parseDouble(saveChanges.getCummQtyOfferedPrev()));
-                } catch (NumberFormatException ignored) {
+        // 1. Check Sleeper Final IC Edit (sleeper_final_ic_edit) strictly
+        boolean sleeperFound = false;
+        if (sleeperFinalIcEditRepository != null) {
+            var sleeperEditOpt = sleeperFinalIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
+            if (sleeperEditOpt.isPresent()) {
+                var finalIcEdit = sleeperEditOpt.get();
+                sleeperFound = true;
+                if (finalIcEdit.getCreatedAt() != null) {
+                    dto.setCertificateDate(formatDate(finalIcEdit.getCreatedAt().toLocalDate()));
                 }
-            }
-            if (saveChanges.getQtyPrevPassed() != null) {
-                try {
-                    dto.setQtyPassedPreviously(Double.parseDouble(saveChanges.getQtyPrevPassed()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-            if (saveChanges.getQtyStillDue() != null) {
-                try {
-                    dto.setQtyStillDue(Double.parseDouble(saveChanges.getQtyStillDue()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-            if (saveChanges.getMaNumberAndDate() != null && !saveChanges.getMaNumberAndDate().isBlank()) {
-                dto.setMaNumberAndDate(saveChanges.getMaNumberAndDate());
-            }
-            if (saveChanges.getBillPayingOfficer() != null && !saveChanges.getBillPayingOfficer().isBlank()) {
-                dto.setBillPayingOfficer(saveChanges.getBillPayingOfficer());
-            }
-            if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) {
-                dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
-            }
-            if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
-                dto.setDescription(saveChanges.getDescription());
-            }
-            if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) {
-                dto.setTrRecDate(saveChanges.getTrRecDate());
-            }
-            if (saveChanges.getSealingPattern() != null && !saveChanges.getSealingPattern().isBlank()) {
-                dto.setSealingPattern(saveChanges.getSealingPattern());
-            }
-        } else {
-            Optional<FinalIcEdit> finalIcEditOpt = finalIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
-            if (finalIcEditOpt.isPresent()) {
-                FinalIcEdit finalIcEdit = finalIcEditOpt.get();
-                if (finalIcEdit.getBookNo() != null && !finalIcEdit.getBookNo().isBlank()) {
-                    dto.setBookNo(finalIcEdit.getBookNo());
-                }
-                if (finalIcEdit.getSetNo() != null && !finalIcEdit.getSetNo().isBlank()) {
-                    dto.setSetNo(finalIcEdit.getSetNo());
-                }
-                if (finalIcEdit.getOfferedInstallmentNo() != null && !finalIcEdit.getOfferedInstallmentNo().isBlank()) {
-                    dto.setOfferedInstNo(finalIcEdit.getOfferedInstallmentNo());
-                }
-                if (finalIcEdit.getPassedInstallmentNo() != null && !finalIcEdit.getPassedInstallmentNo().isBlank()) {
-                    dto.setPassedInstNo(finalIcEdit.getPassedInstallmentNo());
-                }
+                if (finalIcEdit.getBookNo() != null && !finalIcEdit.getBookNo().isBlank()) dto.setBookNo(finalIcEdit.getBookNo());
+                if (finalIcEdit.getSetNo() != null && !finalIcEdit.getSetNo().isBlank()) dto.setSetNo(finalIcEdit.getSetNo());
+                if (finalIcEdit.getOfferedInstallmentNo() != null && !finalIcEdit.getOfferedInstallmentNo().isBlank()) dto.setOfferedInstNo(finalIcEdit.getOfferedInstallmentNo());
+                if (finalIcEdit.getPassedInstallmentNo() != null && !finalIcEdit.getPassedInstallmentNo().isBlank()) dto.setPassedInstNo(finalIcEdit.getPassedInstallmentNo());
                 if (finalIcEdit.getConsignee() != null && !finalIcEdit.getConsignee().isBlank()) {
                     dto.setConsignee(finalIcEdit.getConsignee());
                     dto.setConsigneeRailway(finalIcEdit.getConsignee());
                 }
                 if (finalIcEdit.getCummQtyOfferedPrev() != null) {
-                    try {
-                        dto.setQtyOfferedPreviously(Double.parseDouble(finalIcEdit.getCummQtyOfferedPrev()));
-                    } catch (NumberFormatException ignored) {
-                    }
+                    try { dto.setQtyOfferedPreviously(Double.parseDouble(finalIcEdit.getCummQtyOfferedPrev())); } catch (Exception ignored) {}
                 }
                 if (finalIcEdit.getQtyPrevPassed() != null) {
-                    try {
-                        dto.setQtyPassedPreviously(Double.parseDouble(finalIcEdit.getQtyPrevPassed()));
-                    } catch (NumberFormatException ignored) {
-                    }
+                    try { dto.setQtyPassedPreviously(Double.parseDouble(finalIcEdit.getQtyPrevPassed())); } catch (Exception ignored) {}
                 }
                 if (finalIcEdit.getQtyStillDue() != null) {
+                    try { dto.setQtyStillDue(Double.parseDouble(finalIcEdit.getQtyStillDue())); } catch (Exception ignored) {}
+                }
+                if (finalIcEdit.getMaNumberAndDate() != null && !finalIcEdit.getMaNumberAndDate().isBlank()) dto.setMaNumberAndDate(finalIcEdit.getMaNumberAndDate());
+                if (finalIcEdit.getBillPayingOfficer() != null && !finalIcEdit.getBillPayingOfficer().isBlank()) dto.setBillPayingOfficer(finalIcEdit.getBillPayingOfficer());
+                if (finalIcEdit.getPurchasingAuthority() != null && !finalIcEdit.getPurchasingAuthority().isBlank()) dto.setPurchasingAuthority(finalIcEdit.getPurchasingAuthority());
+                if (finalIcEdit.getDescription() != null && !finalIcEdit.getDescription().isBlank()) dto.setDescription(finalIcEdit.getDescription());
+                if (finalIcEdit.getTrRecDate() != null && !finalIcEdit.getTrRecDate().isBlank()) dto.setTrRecDate(finalIcEdit.getTrRecDate());
+                if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) dto.setSealingPattern(finalIcEdit.getSealingPattern());
+            }
+        }
+
+        // 2. Merge standard saved draft edits if available, else fallback to final edits
+        if (!sleeperFound) {
+            Optional<FinalIcSaveChanges> finalIcSaveChangesOpt = finalIcSaveChangesRepository
+                    .findByIcNumber(inspectionCall.getIcNumber());
+            if (finalIcSaveChangesOpt.isPresent()) {
+                FinalIcSaveChanges saveChanges = finalIcSaveChangesOpt.get();
+                if (saveChanges.getCreatedAt() != null) {
+                    dto.setCertificateDate(formatDate(saveChanges.getCreatedAt().toLocalDate()));
+                }
+                if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
+                    dto.setBookNo(saveChanges.getBookNo());
+                }
+                if (saveChanges.getSetNo() != null && !saveChanges.getSetNo().isBlank()) {
+                    dto.setSetNo(saveChanges.getSetNo());
+                }
+                if (saveChanges.getOfferedInstallmentNo() != null && !saveChanges.getOfferedInstallmentNo().isBlank()) {
+                    dto.setOfferedInstNo(saveChanges.getOfferedInstallmentNo());
+                }
+                if (saveChanges.getPassedInstallmentNo() != null && !saveChanges.getPassedInstallmentNo().isBlank()) {
+                    dto.setPassedInstNo(saveChanges.getPassedInstallmentNo());
+                }
+                if (saveChanges.getConsignee() != null && !saveChanges.getConsignee().isBlank()) {
+                    dto.setConsignee(saveChanges.getConsignee());
+                    dto.setConsigneeRailway(saveChanges.getConsignee());
+                }
+                if (saveChanges.getCummQtyOfferedPrev() != null) {
                     try {
-                        dto.setQtyStillDue(Double.parseDouble(finalIcEdit.getQtyStillDue()));
+                        dto.setQtyOfferedPreviously(Double.parseDouble(saveChanges.getCummQtyOfferedPrev()));
                     } catch (NumberFormatException ignored) {
                     }
                 }
-                if (finalIcEdit.getMaNumberAndDate() != null && !finalIcEdit.getMaNumberAndDate().isBlank()) {
-                    dto.setMaNumberAndDate(finalIcEdit.getMaNumberAndDate());
+                if (saveChanges.getQtyPrevPassed() != null) {
+                    try {
+                        dto.setQtyPassedPreviously(Double.parseDouble(saveChanges.getQtyPrevPassed()));
+                    } catch (NumberFormatException ignored) {
+                    }
                 }
-                if (finalIcEdit.getBillPayingOfficer() != null && !finalIcEdit.getBillPayingOfficer().isBlank()) {
-                    dto.setBillPayingOfficer(finalIcEdit.getBillPayingOfficer());
+                if (saveChanges.getQtyStillDue() != null) {
+                    try {
+                        dto.setQtyStillDue(Double.parseDouble(saveChanges.getQtyStillDue()));
+                    } catch (NumberFormatException ignored) {
+                    }
                 }
-                if (finalIcEdit.getPurchasingAuthority() != null && !finalIcEdit.getPurchasingAuthority().isBlank()) {
-                    dto.setPurchasingAuthority(finalIcEdit.getPurchasingAuthority());
+                if (saveChanges.getMaNumberAndDate() != null && !saveChanges.getMaNumberAndDate().isBlank()) {
+                    dto.setMaNumberAndDate(saveChanges.getMaNumberAndDate());
                 }
-                if (finalIcEdit.getDescription() != null && !finalIcEdit.getDescription().isBlank()) {
-                    dto.setDescription(finalIcEdit.getDescription());
+                if (saveChanges.getBillPayingOfficer() != null && !saveChanges.getBillPayingOfficer().isBlank()) {
+                    dto.setBillPayingOfficer(saveChanges.getBillPayingOfficer());
                 }
-                if (finalIcEdit.getTrRecDate() != null && !finalIcEdit.getTrRecDate().isBlank()) {
-                    dto.setTrRecDate(finalIcEdit.getTrRecDate());
+                if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) {
+                    dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
                 }
-                if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) {
-                    dto.setSealingPattern(finalIcEdit.getSealingPattern());
+                if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
+                    dto.setDescription(saveChanges.getDescription());
+                }
+                if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) {
+                    dto.setTrRecDate(saveChanges.getTrRecDate());
+                }
+                if (saveChanges.getSealingPattern() != null && !saveChanges.getSealingPattern().isBlank()) {
+                    dto.setSealingPattern(saveChanges.getSealingPattern());
+                }
+            } else {
+                Optional<FinalIcEdit> finalIcEditOpt = finalIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
+                if (finalIcEditOpt.isPresent()) {
+                    FinalIcEdit finalIcEdit = finalIcEditOpt.get();
+                    if (finalIcEdit.getCreatedAt() != null) {
+                        dto.setCertificateDate(formatDate(finalIcEdit.getCreatedAt().toLocalDate()));
+                    }
+                    if (finalIcEdit.getBookNo() != null && !finalIcEdit.getBookNo().isBlank()) {
+                        dto.setBookNo(finalIcEdit.getBookNo());
+                    }
+                    if (finalIcEdit.getSetNo() != null && !finalIcEdit.getSetNo().isBlank()) {
+                        dto.setSetNo(finalIcEdit.getSetNo());
+                    }
+                    if (finalIcEdit.getOfferedInstallmentNo() != null && !finalIcEdit.getOfferedInstallmentNo().isBlank()) {
+                        dto.setOfferedInstNo(finalIcEdit.getOfferedInstallmentNo());
+                    }
+                    if (finalIcEdit.getPassedInstallmentNo() != null && !finalIcEdit.getPassedInstallmentNo().isBlank()) {
+                        dto.setPassedInstNo(finalIcEdit.getPassedInstallmentNo());
+                    }
+                    if (finalIcEdit.getConsignee() != null && !finalIcEdit.getConsignee().isBlank()) {
+                        dto.setConsignee(finalIcEdit.getConsignee());
+                        dto.setConsigneeRailway(finalIcEdit.getConsignee());
+                    }
+                    if (finalIcEdit.getCummQtyOfferedPrev() != null) {
+                        try {
+                            dto.setQtyOfferedPreviously(Double.parseDouble(finalIcEdit.getCummQtyOfferedPrev()));
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                    if (finalIcEdit.getQtyPrevPassed() != null) {
+                        try {
+                            dto.setQtyPassedPreviously(Double.parseDouble(finalIcEdit.getQtyPrevPassed()));
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                    if (finalIcEdit.getQtyStillDue() != null) {
+                        try {
+                            dto.setQtyStillDue(Double.parseDouble(finalIcEdit.getQtyStillDue()));
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                    if (finalIcEdit.getMaNumberAndDate() != null && !finalIcEdit.getMaNumberAndDate().isBlank()) {
+                        dto.setMaNumberAndDate(finalIcEdit.getMaNumberAndDate());
+                    }
+                    if (finalIcEdit.getBillPayingOfficer() != null && !finalIcEdit.getBillPayingOfficer().isBlank()) {
+                        dto.setBillPayingOfficer(finalIcEdit.getBillPayingOfficer());
+                    }
+                    if (finalIcEdit.getPurchasingAuthority() != null && !finalIcEdit.getPurchasingAuthority().isBlank()) {
+                        dto.setPurchasingAuthority(finalIcEdit.getPurchasingAuthority());
+                    }
+                    if (finalIcEdit.getDescription() != null && !finalIcEdit.getDescription().isBlank()) {
+                        dto.setDescription(finalIcEdit.getDescription());
+                    }
+                    if (finalIcEdit.getTrRecDate() != null && !finalIcEdit.getTrRecDate().isBlank()) {
+                        dto.setTrRecDate(finalIcEdit.getTrRecDate());
+                    }
+                    if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) {
+                        dto.setSealingPattern(finalIcEdit.getSealingPattern());
+                    }
                 }
             }
         }

@@ -28,6 +28,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
     private final com.sarthi.SRailPad.repository.plantDeclaration.RailProductionDeclarationRepository railProductionDeclarationRepository;
     private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
     private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
+    private final com.sarthi.SRailPad.repository.RailUnblockWorkflowHistoryRepository unblockHistoryRepository;
 
     @Override
     @Transactional
@@ -200,22 +201,70 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
     @Override
     @Transactional
     public void unblockProductionVerification(Long requestId) {
+        unblockProductionVerification(requestId, null);
+    }
+
+    @Override
+    @Transactional
+    public void unblockProductionVerification(Long requestId, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
         if (requestId == null) return;
         logger.info("[Unblock Verification] Starting unblock for RequestID: {}", requestId);
 
-        // 1. Delete IE Production Verification and its children (info & rejections)
+        String reqIdStr = String.valueOf(requestId);
+        com.sarthi.SRailPad.entity.plantDeclaration.RailProductionDeclaration decl = 
+                railProductionDeclarationRepository.findById(requestId).orElse(null);
+
+        // 1. Fetch latest workflow transaction to record previous status/action
+        com.sarthi.SRailPad.entity.RailWorkflowTransaction latestTx = 
+                railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(reqIdStr);
+
+        // 2. Record audit trail in Rail_unblock_workflow_hitory table
+        try {
+            com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory history = new com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory();
+            history.setRequestId(reqIdStr);
+            history.setModuleId(3L);
+            history.setModuleName("PRODUCTION_DECLARATION");
+            history.setWorkflowId(1L);
+            if (decl != null) {
+                history.setPlantId(decl.getPlantId());
+                history.setVendorCode(decl.getVendorCode());
+                history.setShift(decl.getShift());
+            }
+            if (latestTx != null) {
+                history.setPreviousStatus(latestTx.getStatus());
+                history.setPreviousAction(latestTx.getAction());
+                history.setPreviousRemarks(latestTx.getRemarks());
+            } else {
+                history.setPreviousStatus("COMPLETED");
+                history.setPreviousAction("VERIFY");
+            }
+            if (unblockDto != null) {
+                history.setUnblockedBy(unblockDto.getUnblockedBy());
+                history.setUnblockedByName(unblockDto.getUnblockedByName());
+                history.setUnblockedByRole(unblockDto.getUnblockedByRole());
+                history.setUnblockRemarks(unblockDto.getRemarks());
+            }
+            history.setUnblockedOn(java.time.LocalDateTime.now());
+            if (unblockHistoryRepository != null) {
+                unblockHistoryRepository.save(history);
+            }
+        } catch (Exception e) {
+            logger.warn("Warning: Error saving unblock history for Production Declaration {}: {}", requestId, e.getMessage());
+        }
+
+        // 3. Delete IE Production Verification and its children (info & rejections)
         List<RailIEProductionVerification> verifications = repository.findAllByRequestId(requestId);
         if (!verifications.isEmpty()) {
             logger.info("[Unblock Verification] Removing {} verification record(s) for RequestID: {}", verifications.size(), requestId);
             repository.deleteAll(verifications);
         }
 
-        // 2. Delete existing completed workflow transaction for Module 3 (Production Declaration)
+        // 4. Delete existing completed workflow transactions for Module 3 (Production Declaration)
         logger.info("[Unblock Verification] Removing completed workflow transactions for RequestID: {}", requestId);
-        railWorkflowTransactionRepository.deleteByRequestIdAndModuleId(String.valueOf(requestId), 3L);
+        railWorkflowTransactionRepository.deleteByRequestIdAndModuleId(reqIdStr, 3L);
 
-        // 3. Re-initiate workflow transaction to return it to PENDING for Process IE
-        railProductionDeclarationRepository.findById(requestId).ifPresent(decl -> {
+        // 5. Re-initiate workflow transaction to return it to PENDING for Process IE
+        if (decl != null) {
             logger.info("[Unblock Verification] Re-initiating pending workflow transaction for RequestID: {}", requestId);
             railWorkflowService.initiateWorkflow(
                     String.valueOf(decl.getId()),
@@ -226,7 +275,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
                     decl.getPlantId(),
                     decl.getShift()
             );
-        });
+        }
     }
 
     @Override

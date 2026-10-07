@@ -485,15 +485,18 @@ public class IbsServiceImpl implements IbsService {
         );
 
         dto.setQuantityOffered(
-                quantityResult.getQuantityOffered()
+                quantityResult != null && quantityResult.getQuantityOffered() != null 
+                        ? quantityResult.getQuantityOffered().doubleValue() : 0.0
         );
 
         dto.setQuantityPassed(
-                quantityResult.getQuantityPassed()
+                quantityResult != null && quantityResult.getQuantityPassed() != null 
+                        ? quantityResult.getQuantityPassed().doubleValue() : 0.0
         );
 
         dto.setQuantityRejected(
-                quantityResult.getQuantityRejected()
+                quantityResult != null && quantityResult.getQuantityRejected() != null 
+                        ? quantityResult.getQuantityRejected().doubleValue() : 0.0
         );
 
         return dto;
@@ -1050,6 +1053,19 @@ public class IbsServiceImpl implements IbsService {
         }
     }
 
+    private Double safeQuantity(Object val) {
+        if (val == null) return 0.0;
+        if (val instanceof byte[]) val = new String((byte[]) val, java.nio.charset.StandardCharsets.UTF_8);
+        try {
+            double d = (val instanceof Number) ? ((Number) val).doubleValue() : Double.parseDouble(val.toString().trim());
+            return java.math.BigDecimal.valueOf(d)
+                    .setScale(3, java.math.RoundingMode.HALF_UP)
+                    .doubleValue();
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
     private Character getRioInitial(String rio, String icNumber, String placeOfInspection, String productType) {
         // 1. Highest priority: The RIO prefix directly from the certificate/IC number (e.g. C/SF-..., W/ER-...)
         if (icNumber != null && icNumber.contains("/")) {
@@ -1196,9 +1212,35 @@ public class IbsServiceImpl implements IbsService {
                 dto.setCallDate(callDate);
             }
 
-            dto.setPlaceOfInspection(safeString(bestRow[2]));
-            dto.setIbsManufacturedCode(bestRow[3] != null ? safeString(bestRow[3]) : null);
-            dto.setIeEmployeeNumber(bestRow[4] != null ? safeString(bestRow[4]) : null);
+            String rawPoi = safeString(bestRow[2]);
+            if (rawPoi != null) {
+                while (rawPoi.startsWith(":")) {
+                    rawPoi = rawPoi.substring(1).trim();
+                }
+            }
+            dto.setPlaceOfInspection(rawPoi);
+
+            String rawIbsMfc = bestRow[3] != null ? safeString(bestRow[3]).trim() : null;
+            if (rawIbsMfc != null) {
+                while (rawIbsMfc.startsWith(":")) {
+                    rawIbsMfc = rawIbsMfc.substring(1).trim();
+                }
+                if (rawIbsMfc.isEmpty()) {
+                    rawIbsMfc = null;
+                }
+            }
+            dto.setIbsManufacturedCode(rawIbsMfc);
+
+            String rawIeEmp = bestRow[4] != null ? safeString(bestRow[4]).trim() : null;
+            if (rawIeEmp != null) {
+                while (rawIeEmp.startsWith(":")) {
+                    rawIeEmp = rawIeEmp.substring(1).trim();
+                }
+                if (rawIeEmp.isEmpty()) {
+                    rawIeEmp = null;
+                }
+            }
+            dto.setIeEmployeeNumber(rawIeEmp);
             dto.setCallStatus(bestRow[5] != null ? safeString(bestRow[5]) : "A");
             dto.setTypeOfCall(bestRow[6] != null ? safeString(bestRow[6]) : "");
 
@@ -1226,9 +1268,9 @@ public class IbsServiceImpl implements IbsService {
                 dto.setIcDate(icDate);
             }
 
-            dto.setQuantityOffered(bestRow[11] != null ? safeInt(bestRow[11]) : 0);
-            dto.setQuantityPassed(bestRow[12] != null ? safeInt(bestRow[12]) : 0);
-            dto.setQuantityRejected(bestRow[13] != null ? safeInt(bestRow[13]) : 0);
+            dto.setQuantityOffered(safeQuantity(bestRow[11]));
+            dto.setQuantityPassed(safeQuantity(bestRow[12]));
+            dto.setQuantityRejected(safeQuantity(bestRow[13]));
 
             dto.setIcFileLink(
                     "https://api.ritesqasarthi.com"

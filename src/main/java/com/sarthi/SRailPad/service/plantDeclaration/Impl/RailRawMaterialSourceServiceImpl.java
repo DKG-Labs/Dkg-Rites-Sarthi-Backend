@@ -27,6 +27,9 @@ public class RailRawMaterialSourceServiceImpl implements RailRawMaterialSourceSe
     @Autowired
     private RailWorkflowService railWorkflowService;
 
+    @Autowired
+    private com.sarthi.SRailPad.repository.RailUnblockWorkflowHistoryRepository unblockHistoryRepository;
+
     private static final Long MODULE_ID = 2L;
     private static final Long WORKFLOW_ID = 1L;
 
@@ -105,6 +108,68 @@ public class RailRawMaterialSourceServiceImpl implements RailRawMaterialSourceSe
     @Override
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public void unblockRawMaterialSource(Long id, com.sarthi.SRailPad.dto.RailUnblockReqDto unblockDto) {
+        if (id == null) return;
+
+        RawMaterialSource source = repository.findById(id).orElse(null);
+        if (source == null) {
+            throw new RuntimeException("Raw Material Source not found with id: " + id);
+        }
+
+        // 1. Fetch latest workflow transaction to record previous state
+        String reqIdStr = String.valueOf(id);
+        com.sarthi.SRailPad.entity.RailWorkflowTransaction latestTx = 
+                workflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(reqIdStr);
+
+        // 2. Record audit trail in Rail_unblock_workflow_hitory table
+        try {
+            com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory history = new com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory();
+            history.setRequestId(reqIdStr);
+            history.setModuleId(MODULE_ID);
+            history.setModuleName("RAW_MATERIAL_SOURCE");
+            history.setWorkflowId(WORKFLOW_ID);
+            history.setPlantId(source.getPlantId());
+            history.setVendorCode(source.getVendorCode());
+            history.setShift(source.getShift());
+            if (latestTx != null) {
+                history.setPreviousStatus(latestTx.getStatus());
+                history.setPreviousAction(latestTx.getAction());
+                history.setPreviousRemarks(latestTx.getRemarks());
+            } else {
+                history.setPreviousStatus("COMPLETED");
+                history.setPreviousAction("VERIFY");
+            }
+            if (unblockDto != null) {
+                history.setUnblockedBy(unblockDto.getUnblockedBy());
+                history.setUnblockedByName(unblockDto.getUnblockedByName());
+                history.setUnblockedByRole(unblockDto.getUnblockedByRole());
+                history.setUnblockRemarks(unblockDto.getRemarks());
+            }
+            history.setUnblockedOn(LocalDateTime.now());
+            if (unblockHistoryRepository != null) {
+                unblockHistoryRepository.save(history);
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Error saving unblock history for Raw Material Source " + id + ": " + e.getMessage());
+        }
+
+        // 3. Delete completed workflow transactions for this Raw Material Source
+        workflowTransactionRepository.deleteByRequestIdAndModuleId(reqIdStr, MODULE_ID);
+
+        // 4. Re-initiate pending workflow transaction
+        railWorkflowService.initiateWorkflow(
+                reqIdStr,
+                MODULE_ID,
+                WORKFLOW_ID,
+                source.getCreatedBy(),
+                source.getVendorCode(),
+                source.getPlantId(),
+                source.getShift()
+        );
     }
 
     private RawMaterialSourceResponseDto buildResponse(RawMaterialSource entity) {

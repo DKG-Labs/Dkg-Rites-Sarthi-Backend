@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@lombok.extern.slf4j.Slf4j
 @Service
 public class crisServiceImpl implements crisService {
 
@@ -102,10 +103,18 @@ public class crisServiceImpl implements crisService {
         }
 
         // Vendor + User creation
-        createVendorIfNotExists(hdr);
-
         try {
-            PoHeader header = headerRepo.findByPoKey(poKey).orElse(null);
+            createVendorIfNotExists(hdr);
+        } catch (Exception e) {
+            log.warn("Could not auto-create vendor user: {}", e.getMessage());
+        }
+
+        final String poNoLookup = hdr.getPO_NO();
+        try {
+            PoHeader header = headerRepo.findByPoKey(poKey)
+                    .orElseGet(() -> (poNoLookup != null && !poNoLookup.isBlank())
+                            ? headerRepo.findByPoNo(poNoLookup).orElse(null)
+                            : null);
 
             if (header == null) {
                 // Save New Header
@@ -122,18 +131,85 @@ public class crisServiceImpl implements crisService {
                     }
                 }
             } else {
-                // Update Existing Header
-                if (hdr.getITEM_CAT_DESCR() != null && !hdr.getITEM_CAT_DESCR().isBlank()) {
-                    header.setItemCatDescr(hdr.getITEM_CAT_DESCR());
+                // Update Existing Header with all incoming fields
+                if (hdr.getPOKEY() != null && !hdr.getPOKEY().isBlank()) {
+                    header.setPoKey(hdr.getPOKEY());
                 }
                 if (hdr.getPO_NO() != null && !hdr.getPO_NO().isBlank()) {
                     header.setPoNo(hdr.getPO_NO());
                 }
+                if (hdr.getL5NO_PO() != null && !hdr.getL5NO_PO().isBlank()) {
+                    header.setL5PoNo(hdr.getL5NO_PO());
+                }
                 if (hdr.getRLY_CD() != null && !hdr.getRLY_CD().isBlank()) {
                     header.setRlyCd(hdr.getRLY_CD());
                 }
+                if (hdr.getRLY_SHORTNAME() != null && !hdr.getRLY_SHORTNAME().isBlank()) {
+                    header.setRlyShortName(hdr.getRLY_SHORTNAME());
+                }
+                if (hdr.getIMMS_PURCHASER_CODE() != null && !hdr.getIMMS_PURCHASER_CODE().isBlank()) {
+                    header.setPurchaserCode(hdr.getIMMS_PURCHASER_CODE());
+                }
+                if (hdr.getIMMS_PURCHASER_DETAIL() != null && !hdr.getIMMS_PURCHASER_DETAIL().isBlank()) {
+                    header.setPurchaserDetail(hdr.getIMMS_PURCHASER_DETAIL());
+                }
                 if (hdr.getIMMS_VENDOR_CODE() != null && !hdr.getIMMS_VENDOR_CODE().isBlank()) {
-                    header.setVendorCode(hdr.getIMMS_VENDOR_CODE());
+                    String v = hdr.getIMMS_VENDOR_CODE();
+                    if (!v.startsWith(":")) {
+                        v = ":" + v;
+                    }
+                    header.setVendorCode(v);
+                }
+                if (hdr.getVENDOR_DETAILS() != null && !hdr.getVENDOR_DETAILS().isBlank()) {
+                    header.setVendorDetails(hdr.getVENDOR_DETAILS());
+                }
+                if (hdr.getFIRM_DETAILS() != null && !hdr.getFIRM_DETAILS().isBlank()) {
+                    header.setFirmDetails(hdr.getFIRM_DETAILS());
+                }
+                if (hdr.getSTOCK_NONSTOCK() != null && !hdr.getSTOCK_NONSTOCK().isBlank()) {
+                    header.setStockNonStock(hdr.getSTOCK_NONSTOCK());
+                }
+                if (hdr.getRLY_NONRLY() != null && !hdr.getRLY_NONRLY().isBlank()) {
+                    header.setRlyNonRly(hdr.getRLY_NONRLY());
+                }
+                if (hdr.getPO_OR_LETTER() != null && !hdr.getPO_OR_LETTER().isBlank()) {
+                    header.setPoOrLetter(hdr.getPO_OR_LETTER());
+                }
+                if (hdr.getPO_STATUS() != null && !hdr.getPO_STATUS().isBlank()) {
+                    header.setPoStatus(hdr.getPO_STATUS());
+                }
+                if (hdr.getINSPECTING_AGENCY() != null && !hdr.getINSPECTING_AGENCY().isBlank()) {
+                    header.setInspectingAgency(hdr.getINSPECTING_AGENCY());
+                }
+                if (hdr.getPO_PDF_PATH() != null && !hdr.getPO_PDF_PATH().isBlank()) {
+                    header.setPdfPath(hdr.getPO_PDF_PATH());
+                }
+                if (hdr.getREGION_CODE() != null && !hdr.getREGION_CODE().isBlank()) {
+                    header.setRegionCode(hdr.getREGION_CODE());
+                }
+                if (hdr.getREMARKS() != null && !hdr.getREMARKS().isBlank()) {
+                    header.setRemarks(hdr.getREMARKS());
+                }
+                if (hdr.getBILL_PAY_OFF() != null && !hdr.getBILL_PAY_OFF().isBlank()) {
+                    header.setBillPayOff(hdr.getBILL_PAY_OFF());
+                }
+                if (hdr.getBILL_PAY_OFF_NAME() != null && !hdr.getBILL_PAY_OFF_NAME().isBlank()) {
+                    header.setBillPayOffName(hdr.getBILL_PAY_OFF_NAME());
+                }
+                if (hdr.getPOI_CD() != null && !hdr.getPOI_CD().isBlank()) {
+                    header.setPoiCd(hdr.getPOI_CD());
+                }
+                if (hdr.getITEM_CAT() != null && !hdr.getITEM_CAT().isBlank()) {
+                    header.setItemCat(hdr.getITEM_CAT());
+                }
+                if (hdr.getITEM_CAT_DESCR() != null && !hdr.getITEM_CAT_DESCR().isBlank()) {
+                    header.setItemCatDescr(hdr.getITEM_CAT_DESCR());
+                }
+                if (hdr.getPO_DT() != null && !hdr.getPO_DT().isBlank()) {
+                    header.setPoDate(parseFlexibleDateTime(hdr.getPO_DT()));
+                }
+                if (hdr.getRECV_DT() != null && !hdr.getRECV_DT().isBlank()) {
+                    header.setReceivedDate(parseFlexibleDateTime(hdr.getRECV_DT()));
                 }
                 header.setIsAmended(true);
                 Integer count = header.getAmendmentCount() == null ? 1 : header.getAmendmentCount() + 1;
@@ -146,7 +222,23 @@ public class crisServiceImpl implements crisService {
                         if (m.getITEM_SRNO() == null || m.getPL_NO() == null) continue;
                         PoItem existingItem = itemRepo.findByPoHeaderAndItemSrNo(header, m.getITEM_SRNO()).orElse(null);
                         if (existingItem != null) {
-                            if (m.getQTY() != null) existingItem.setQty(parseInteger(m.getQTY()));
+                            if (m.getPOKEY() != null && !m.getPOKEY().isBlank()) existingItem.setCaseNo(m.getPOKEY());
+                            if (m.getPL_NO() != null && !m.getPL_NO().isBlank()) existingItem.setPlNo(m.getPL_NO());
+                            if (m.getITEM_DESC() != null && !m.getITEM_DESC().isBlank()) existingItem.setItemDesc(m.getITEM_DESC());
+                            if (m.getCONSIGNEE_CD() != null && !m.getCONSIGNEE_CD().isBlank()) existingItem.setConsigneeCd(m.getCONSIGNEE_CD());
+                            if (m.getIMMS_CONSIGNEE_CD() != null && !m.getIMMS_CONSIGNEE_CD().isBlank()) existingItem.setImmsConsigneeCd(m.getIMMS_CONSIGNEE_CD());
+                            if (m.getIMMS_CONSIGNEE_NAME() != null && !m.getIMMS_CONSIGNEE_NAME().isBlank()) existingItem.setImmsConsigneeName(m.getIMMS_CONSIGNEE_NAME());
+                            if (m.getCONSIGNEE_DETAIL() != null && !m.getCONSIGNEE_DETAIL().isBlank()) existingItem.setConsigneeDetail(m.getCONSIGNEE_DETAIL());
+                            if (m.getCONSIGNEE_RLY() != null && !m.getCONSIGNEE_RLY().isBlank()) existingItem.setConsigneeRly(m.getCONSIGNEE_RLY());
+                            if (m.getCONSIGNEE_RLY_SHORTNAME() != null && !m.getCONSIGNEE_RLY_SHORTNAME().isBlank()) existingItem.setConsigneeRlyShortName(m.getCONSIGNEE_RLY_SHORTNAME());
+                            if (m.getP_RLY() != null && !m.getP_RLY().isBlank()) existingItem.setPRly(m.getP_RLY());
+                            if (m.getBILL_PAY_OFF() != null && !m.getBILL_PAY_OFF().isBlank()) existingItem.setBillPayOff(m.getBILL_PAY_OFF());
+                            if (m.getBILL_PAY_OFF_DESC() != null && !m.getBILL_PAY_OFF_DESC().isBlank()) existingItem.setBillPayOffDesc(m.getBILL_PAY_OFF_DESC());
+                            if (m.getBILL_PASS_OFF() != null && !m.getBILL_PASS_OFF().isBlank()) existingItem.setBillPassOff(m.getBILL_PASS_OFF());
+                            if (m.getUOM_CD() != null && !m.getUOM_CD().isBlank()) existingItem.setUomCd(m.getUOM_CD());
+                            if (m.getUOM() != null && !m.getUOM().isBlank()) existingItem.setUom(m.getUOM());
+                            if (m.getQTY() != null) existingItem.setQty(new BigDecimal(m.getQTY()).setScale(0, java.math.RoundingMode.HALF_UP).intValue());
+                            if (m.getQTY_CANCELLED() != null) existingItem.setQtyCancelled(new BigDecimal(m.getQTY_CANCELLED()).setScale(0, java.math.RoundingMode.HALF_UP).intValue());
                             if (m.getRATE() != null) existingItem.setRate(bd(m.getRATE()));
                             if (m.getBASIC_VALUE() != null) existingItem.setBasicValue(bd(m.getBASIC_VALUE()));
                             if (m.getSALES_TAX() != null) existingItem.setSalesTax(bd(m.getSALES_TAX()));
@@ -158,8 +250,8 @@ public class crisServiceImpl implements crisService {
                             if (m.getEXT_DELV_DT() != null && !m.getEXT_DELV_DT().isBlank()) {
                                 existingItem.setExtendedDeliveryDate(parseFlexibleDateTime(m.getEXT_DELV_DT()));
                             }
-                            if (m.getITEM_DESC() != null && !m.getITEM_DESC().isBlank()) {
-                                existingItem.setItemDesc(m.getITEM_DESC());
+                            if (m.getDATETIME() != null && !m.getDATETIME().isBlank()) {
+                                existingItem.setCrisTimestamp(parseFlexibleDateTime(m.getDATETIME()));
                             }
                             itemRepo.save(existingItem);
                         } else {

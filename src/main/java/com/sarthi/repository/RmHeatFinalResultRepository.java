@@ -622,7 +622,10 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 DATE(ic.created_at)                                     AS callDate,
                 COALESCE(ic.place_of_inspection, '')                    AS placeOfInspection,
                 COALESCE(pm.ibs_vendor_code, ic.place_of_inspection)    AS ibsManufacturedCode,
-                CAST(COALESCE(um_wt.employee_code, um_rm.employee_code, um_ic.employee_code, wt_latest.assigned_to_user, wt_latest.createdby, rm.created_by, rmsc.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
+                CAST(COALESCE(
+                    NULLIF(TRIM(um_rm.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_rm.rites_employee_code AS CHAR)), '')
+                ) AS CHAR)                                              AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'S'                                                     AS typeOfCall,
                 (CASE 
@@ -630,19 +633,17 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                     WHEN ic.po_serial_no IS NOT NULL AND TRIM(ic.po_serial_no) <> '' THEN TRIM(ic.po_serial_no)
                     ELSE '1'
                 END)                                                    AS poItemSerialNumber,
-                CAST(COALESCE(rm.book_no, rmsc.book_no, '') AS CHAR)    AS bkNumber,
-                CAST(COALESCE(rm.set_no, rmsc.set_no, '') AS CHAR)      AS setNumber,
-                DATE(COALESCE(rm.created_at, rmsc.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(rmr.offered_qty, (SELECT COALESCE(rmd.tc_quantity, rmd.total_offered_qty_mt, rmd.offered_qty_erc) FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), 0) AS quantityOffered,
+                CAST(COALESCE(rm.book_no, '') AS CHAR)                  AS bkNumber,
+                CAST(COALESCE(rm.set_no, '') AS CHAR)                    AS setNumber,
+                DATE(COALESCE(rm.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
+                COALESCE((SELECT COALESCE(rmd.tc_quantity, rmd.total_offered_qty_mt, rmd.offered_qty_erc) FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), rmr.offered_qty, 0) AS quantityOffered,
                 COALESCE(rmr.total_accepted, 0)                         AS quantityPassed,
                 COALESCE(rmr.total_rejected, 0)                         AS quantityRejected,
                 ic.ic_number                                            AS callNo,
                 COALESCE(
                     NULLIF(icd.certificate_no, ''),
                     (CASE WHEN rm.ic_number LIKE '%/%' THEN rm.ic_number ELSE NULL END),
-                    (CASE WHEN rmsc.ic_number LIKE '%/%' THEN rmsc.ic_number ELSE NULL END),
                     NULLIF(rm.ic_number, ''),
-                    NULLIF(rmsc.ic_number, ''),
                     ic.ic_number
                 )                                                       AS callNumber,
                 0.0                                                     AS cancelCharges,
@@ -654,8 +655,6 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                    OR CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(rm.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(SUBSTRING_INDEX(rm.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
-            LEFT JOIN rm_ic_save_changes rmsc
-                   ON CONVERT(rmsc.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT icd1.call_no, icd1.certificate_no, icd1.created_on
                 FROM inspection_complete_details icd1
@@ -682,19 +681,13 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             ) wt_latest
                    ON CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR (rm.ic_number IS NOT NULL AND CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci)
-            LEFT JOIN user_master um_wt
-                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_rm
-                   ON CONVERT(um_rm.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(rm.created_by, rmsc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_rm.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(rm.created_by, rmsc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN user_master um_ic
-                   ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(um_rm.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_rm.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT 
                     rmr_sub.inspection_call_no,
-                    SUM(COALESCE(rmr_sub.total_qty_offered_mt, 0)) AS offered_qty,
+                    MAX(COALESCE(rmr_sub.total_qty_offered_mt, 0)) AS offered_qty,
                     SUM(COALESCE(rmr_sub.weight_accepted_mt, 0)) AS total_accepted,
                     SUM(COALESCE(rmr_sub.weight_rejected_mt, 0)) AS total_rejected
                 FROM rm_heat_final_result rmr_sub
@@ -734,28 +727,19 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 ic.created_at,
                 ic.place_of_inspection,
                 pm.ibs_vendor_code,
-                um_wt.employee_code,
                 um_rm.employee_code,
-                um_ic.employee_code,
-                wt_latest.assigned_to_user,
-                wt_latest.createdby,
+                um_rm.rites_employee_code,
                 rm.created_by,
-                rmsc.created_by,
-                ic.created_by,
                 ic.po_no,
                 ic.po_serial_no,
                 rm.book_no,
-                rmsc.book_no,
                 rm.set_no,
-                rmsc.set_no,
                 rm.created_at,
-                rmsc.created_at,
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
                 icd.certificate_no,
                 rm.ic_number,
-                rmsc.ic_number,
                 rmr.offered_qty,
                 rmr.total_accepted,
                 rmr.total_rejected,
@@ -770,7 +754,10 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 DATE(ic.created_at)                                     AS callDate,
                 COALESCE(ic.place_of_inspection, '')                    AS placeOfInspection,
                 COALESCE(pm.ibs_vendor_code, ic.place_of_inspection)    AS ibsManufacturedCode,
-                CAST(COALESCE(um_wt.employee_code, um_rm.employee_code, um_ic.employee_code, wt_latest.assigned_to_user, wt_latest.createdby, rm.created_by, rmsc.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
+                CAST(COALESCE(
+                    NULLIF(TRIM(um_rm.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_rm.rites_employee_code AS CHAR)), '')
+                ) AS CHAR)                                              AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'S'                                                     AS typeOfCall,
                 (CASE 
@@ -778,19 +765,17 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                     WHEN ic.po_serial_no IS NOT NULL AND TRIM(ic.po_serial_no) <> '' THEN TRIM(ic.po_serial_no)
                     ELSE '1'
                 END)                                                    AS poItemSerialNumber,
-                CAST(COALESCE(rm.book_no, rmsc.book_no, '') AS CHAR)    AS bkNumber,
-                CAST(COALESCE(rm.set_no, rmsc.set_no, '') AS CHAR)      AS setNumber,
-                DATE(COALESCE(rm.created_at, rmsc.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(rmr.offered_qty, (SELECT COALESCE(rmd.tc_quantity, rmd.total_offered_qty_mt, rmd.offered_qty_erc) FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), 0) AS quantityOffered,
+                CAST(COALESCE(rm.book_no, '') AS CHAR)                  AS bkNumber,
+                CAST(COALESCE(rm.set_no, '') AS CHAR)                    AS setNumber,
+                DATE(COALESCE(rm.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
+                COALESCE((SELECT COALESCE(rmd.tc_quantity, rmd.total_offered_qty_mt, rmd.offered_qty_erc) FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), rmr.offered_qty, 0) AS quantityOffered,
                 COALESCE(rmr.total_accepted, 0)                         AS quantityPassed,
                 COALESCE(rmr.total_rejected, 0)                         AS quantityRejected,
                 ic.ic_number                                            AS callNo,
                 COALESCE(
                     NULLIF(icd.certificate_no, ''),
                     (CASE WHEN rm.ic_number LIKE '%/%' THEN rm.ic_number ELSE NULL END),
-                    (CASE WHEN rmsc.ic_number LIKE '%/%' THEN rmsc.ic_number ELSE NULL END),
                     NULLIF(rm.ic_number, ''),
-                    NULLIF(rmsc.ic_number, ''),
                     ic.ic_number
                 )                                                       AS callNumber,
                 0.0                                                     AS cancelCharges,
@@ -802,8 +787,6 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                    OR CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(rm.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(SUBSTRING_INDEX(rm.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
-            LEFT JOIN rm_ic_save_changes rmsc
-                   ON CONVERT(rmsc.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT icd1.call_no, icd1.certificate_no, icd1.created_on
                 FROM inspection_complete_details icd1
@@ -832,19 +815,13 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             ) wt_latest
                    ON CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR (rm.ic_number IS NOT NULL AND CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci)
-            LEFT JOIN user_master um_wt
-                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(wt_latest.assigned_to_user, wt_latest.createdby) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_rm
-                   ON CONVERT(um_rm.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(rm.created_by, rmsc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_rm.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(rm.created_by, rmsc.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN user_master um_ic
-                   ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(um_rm.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_rm.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT 
                     rmr_sub.inspection_call_no,
-                    SUM(COALESCE(rmr_sub.total_qty_offered_mt, 0)) AS offered_qty,
+                    MAX(COALESCE(rmr_sub.total_qty_offered_mt, 0)) AS offered_qty,
                     SUM(COALESCE(rmr_sub.weight_accepted_mt, 0)) AS total_accepted,
                     SUM(COALESCE(rmr_sub.weight_rejected_mt, 0)) AS total_rejected
                 FROM rm_heat_final_result rmr_sub
@@ -857,28 +834,19 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 ic.created_at,
                 ic.place_of_inspection,
                 pm.ibs_vendor_code,
-                um_wt.employee_code,
                 um_rm.employee_code,
-                um_ic.employee_code,
-                wt_latest.assigned_to_user,
-                wt_latest.createdby,
+                um_rm.rites_employee_code,
                 rm.created_by,
-                rmsc.created_by,
-                ic.created_by,
                 ic.po_no,
                 ic.po_serial_no,
                 rm.book_no,
-                rmsc.book_no,
                 rm.set_no,
-                rmsc.set_no,
                 rm.created_at,
-                rmsc.created_at,
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
                 icd.certificate_no,
                 rm.ic_number,
-                rmsc.ic_number,
                 rmr.offered_qty,
                 rmr.total_accepted,
                 rmr.total_rejected,
