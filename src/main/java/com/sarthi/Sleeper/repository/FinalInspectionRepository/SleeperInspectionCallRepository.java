@@ -27,6 +27,12 @@ public interface SleeperInspectionCallRepository extends JpaRepository<SleeperIn
     boolean existsByCallNo(String callNo);
     List<SleeperInspectionCall> findByPoNoOrderByIdAsc(String poNo);
 
+    @Query("SELECT DISTINCT sic.callNo FROM SleeperInspectionCall sic WHERE UPPER(COALESCE(sic.status, '')) LIKE '%SEND_CALL_TO_IBS%' OR UPPER(COALESCE(sic.status, '')) LIKE '%SENT_TO_IBS%'")
+    List<String> findPendingIbsCallNumbers();
+
+    @Query("SELECT DISTINCT swt.requestId FROM SleeperWorkflowTransaction swt WHERE UPPER(COALESCE(swt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS') OR UPPER(COALESCE(swt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')")
+    List<String> findPendingWorkflowCallNumbers();
+
     @Query("""
 SELECT DISTINCT c
 FROM SleeperInspectionCall c

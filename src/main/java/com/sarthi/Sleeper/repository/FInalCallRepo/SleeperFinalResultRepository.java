@@ -95,14 +95,14 @@ public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinal
             FROM sleeper_workflow_transaction
             WHERE workflow_id = 2
             GROUP BY request_id
-        ) latest ON TRIM(sfr.call_number) COLLATE utf8mb4_unicode_ci = TRIM(latest.request_id) COLLATE utf8mb4_unicode_ci
+        ) latest ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(latest.request_id) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         INNER JOIN sleeper_workflow_transaction swt ON latest.request_id = swt.request_id AND latest.max_id = swt.workflow_transition_id
-        LEFT JOIN sleeper_inspection_call sic ON TRIM(sfr.call_number) COLLATE utf8mb4_unicode_ci = TRIM(sic.call_no) COLLATE utf8mb4_unicode_ci
-        LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
-            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN sleeper_inspection_call sic ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
-            pi.item_sr_no COLLATE utf8mb4_unicode_ci = sic.sr_no COLLATE utf8mb4_unicode_ci 
-            OR pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
+            CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         )
         WHERE swt.workflow_id = 2
           AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
@@ -119,57 +119,102 @@ public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinal
 
     @Query(value = """
         SELECT 
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%turnout%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%set%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%pnc%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%rt-9790%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%rt-4218%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%rt-4865%' 
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('set', 'sets')
                 THEN sfr.total_accepted ELSE 0 END), 0) AS final_accepted_nos,
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%turnout%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%set%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%pnc%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%rt-9790%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%rt-4218%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%rt-4865%' 
-                THEN sfr.total_accepted ELSE 0 END), 0) AS final_accepted_set,
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) != 'set' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%turnout%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%set%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%pnc%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%rt-9790%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%rt-4218%' 
-                AND LOWER(COALESCE(sfr.sleeper_type, '')) NOT LIKE '%rt-4865%' 
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('set', 'sets')
+                THEN COALESCE(sfr.accepted_sets_quantity, sfr.total_accepted) ELSE 0 END), 0) AS final_accepted_set,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('set', 'sets')
                 THEN sfr.total_rejected ELSE 0 END), 0) AS final_rejected_nos,
-            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) = 'set' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%turnout%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%set%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%pnc%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%rt-9790%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%rt-4218%' 
-                OR LOWER(COALESCE(sfr.sleeper_type, '')) LIKE '%rt-4865%' 
-                THEN sfr.total_rejected ELSE 0 END), 0) AS final_rejected_set
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('set', 'sets')
+                THEN COALESCE(sfr.rejected_sets_quantity, sfr.total_rejected) ELSE 0 END), 0) AS final_rejected_set,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('set', 'sets')
+                THEN sfr.total_offered_quantity ELSE 0 END), 0) AS total_offered_nos,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('set', 'sets')
+                THEN COALESCE(sfr.offered_sets_quantity, sfr.total_offered_quantity) ELSE 0 END), 0) AS total_offered_set
         FROM sleeper_final_result sfr
         INNER JOIN (
             SELECT request_id, MAX(workflow_transition_id) AS max_id
             FROM sleeper_workflow_transaction
             WHERE workflow_id = 2
             GROUP BY request_id
-        ) latest ON TRIM(sfr.call_number) COLLATE utf8mb4_unicode_ci = TRIM(latest.request_id) COLLATE utf8mb4_unicode_ci
+        ) latest ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(latest.request_id) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         INNER JOIN sleeper_workflow_transaction swt ON latest.request_id = swt.request_id AND latest.max_id = swt.workflow_transition_id
-        LEFT JOIN sleeper_inspection_call sic ON TRIM(sfr.call_number) COLLATE utf8mb4_unicode_ci = TRIM(sic.call_no) COLLATE utf8mb4_unicode_ci
-        LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
-            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN sleeper_inspection_call sic ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
-            pi.item_sr_no COLLATE utf8mb4_unicode_ci = sic.sr_no COLLATE utf8mb4_unicode_ci 
-            OR pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
+            CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         )
         WHERE swt.workflow_id = 2
-          AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
     """, nativeQuery = true)
     java.util.List<Object[]> getAllSleeperFinalSummary();
+
+    @Query(value = """
+        SELECT 
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('set', 'sets')
+                THEN sfr.total_accepted ELSE 0 END), 0) AS final_accepted_nos,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('set', 'sets')
+                THEN COALESCE(sfr.accepted_sets_quantity, sfr.total_accepted) ELSE 0 END), 0) AS final_accepted_set,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('set', 'sets')
+                THEN sfr.total_rejected ELSE 0 END), 0) AS final_rejected_nos,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('set', 'sets')
+                THEN COALESCE(sfr.rejected_sets_quantity, sfr.total_rejected) ELSE 0 END), 0) AS final_rejected_set,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('set', 'sets')
+                THEN sfr.total_offered_quantity ELSE 0 END), 0) AS total_offered_nos,
+            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('set', 'sets')
+                THEN COALESCE(sfr.offered_sets_quantity, sfr.total_offered_quantity) ELSE 0 END), 0) AS total_offered_set
+        FROM sleeper_final_result sfr
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(latest.request_id) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        INNER JOIN sleeper_workflow_transaction swt ON latest.request_id = swt.request_id AND latest.max_id = swt.workflow_transition_id
+        LEFT JOIN sleeper_inspection_call sic ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
+            CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        )
+        WHERE swt.workflow_id = 2
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
+          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
+               CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(sfr.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(sfr.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(swt.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(swt.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR 
+               UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
+          AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR 
+               DATE(COALESCE(sfr.date_of_inspection, swt.created_date, sfr.created_at)) BETWEEN :startDate AND :endDate)
+    """, nativeQuery = true)
+    java.util.List<Object[]> getSleeperFinalSummaryFiltered(
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate
+    );
 
     @Query(value = """
         SELECT 

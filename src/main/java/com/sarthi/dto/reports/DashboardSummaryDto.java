@@ -12,6 +12,7 @@ public class DashboardSummaryDto {
     private long poQuantityNos;
     private double poQuantityMt;
     private long finalInspectionQuantity;
+    private double finalInspectionQuantityMt;
     private double avgProductionPerDay;
     private double processRejectionPercentage;
     private double finalRejectionPercentage;

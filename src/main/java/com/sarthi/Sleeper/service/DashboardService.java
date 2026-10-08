@@ -96,8 +96,12 @@ public interface DashboardService {
             String endDate);
 
     /**
-     * Consolidated summary for the Sleeper dashboard with optional vendor and zonal railway filter.
-     * Returns: rejectedInProcess, rejectedInFinal, rejectionPercentage, pendingCalls, underInspectionCalls
+     * Consolidated summary for the Sleeper dashboard with optional vendor, zonal railway, and date filters.
+     * Returns: rejectedInProcess, rejectedInFinal, rejectionPercentage, pendingCalls, underInspectionCalls, totalProduction, sleeperIcIssued, etc.
      */
-    java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone);
+    java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone, String startDate, String endDate);
+
+    default java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone) {
+        return getSleeperDashboardSummary(vendor, zone, null, null);
+    }
 }

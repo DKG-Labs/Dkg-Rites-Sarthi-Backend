@@ -481,7 +481,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                         INNER JOIN po_header ph ON ic.po_no = ph.po_no
                         INNER JOIN rm_heat_final_result r ON r.inspection_call_no = ic.ic_number
                         INNER JOIN (
-                            SELECT w.REQUESTID, w.STATUS
+                            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
                             FROM WORKFLOW_TRANSITION w
                             INNER JOIN (
                                 SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
@@ -492,7 +492,10 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                         WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                         AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                        AND (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+                        AND (
+                            DATE(COALESCE(wf.CREATEDDATE, r.date_of_inspection, r.created_at)) BETWEEN :startDate AND :endDate
+                            OR (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+                        )
                     ),
                     (
                         SELECT COALESCE(SUM(sub.no_of_erc_finished), 0)
@@ -504,7 +507,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                             INNER JOIN po_header ph ON ic.po_no = ph.po_no
                             INNER JOIN rm_heat_final_result r ON r.inspection_call_no = ic.ic_number
                             INNER JOIN (
-                                SELECT w.REQUESTID, w.STATUS
+                                SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
                                 FROM WORKFLOW_TRANSITION w
                                 INNER JOIN (
                                     SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
@@ -516,7 +519,10 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                             AND wf.STATUS = 'SEND_CALL_TO_IBS'
                             AND (UPPER(TRIM(r.overall_status)) = 'REJECTED' OR UPPER(TRIM(r.status)) = 'REJECTED')
-                            AND (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+                            AND (
+                                DATE(COALESCE(wf.CREATEDDATE, r.date_of_inspection, r.created_at)) BETWEEN :startDate AND :endDate
+                                OR (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
+                            )
                             GROUP BY r.inspection_call_no
                         ) sub
                     )
@@ -758,7 +764,13 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 COALESCE(pm.ibs_vendor_code, ic.place_of_inspection)    AS ibsManufacturedCode,
                 CAST(COALESCE(
                     NULLIF(TRIM(um_rm.employee_code), ''),
-                    NULLIF(TRIM(CAST(um_rm.rites_employee_code AS CHAR)), '')
+                    NULLIF(TRIM(CAST(um_rm.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_assigned.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_assigned.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_wt.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_wt.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_ic.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_ic.rites_employee_code AS CHAR)), '')
                 ) AS CHAR)                                              AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'S'                                                     AS typeOfCall,
@@ -820,6 +832,15 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
             LEFT JOIN user_master um_rm
                    ON CONVERT(um_rm.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um_rm.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_assigned
+                   ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_assigned.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_wt
+                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_ic
+                   ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT 
                     rmr_sub.inspection_call_no,
@@ -831,6 +852,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 GROUP BY rmr_sub.inspection_call_no
             ) rmr ON CONVERT(rmr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
             WHERE ic.ic_number IN (:callNumbers)
+              AND (ic.ic_number LIKE 'ER%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%RAW%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%RM%' OR UPPER(COALESCE(ic.type_of_call, '')) = 'S' OR rm.ic_number IS NOT NULL)
             GROUP BY
                 ph.case_no,
                 ic.created_at,
@@ -838,6 +860,12 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 pm.ibs_vendor_code,
                 um_rm.employee_code,
                 um_rm.rites_employee_code,
+                um_assigned.employee_code,
+                um_assigned.rites_employee_code,
+                um_wt.employee_code,
+                um_wt.rites_employee_code,
+                um_ic.employee_code,
+                um_ic.rites_employee_code,
                 rm.created_by,
                 ic.po_no,
                 ic.po_serial_no,

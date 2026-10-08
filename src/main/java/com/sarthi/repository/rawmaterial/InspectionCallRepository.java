@@ -43,6 +43,12 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
 
     List<InspectionCall> findByStatusInOrderByCreatedAtDesc(List<String> statuses);
 
+    @Query("SELECT DISTINCT ic.icNumber FROM InspectionCall ic WHERE UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%' OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'")
+    List<String> findPendingIbsCallNumbers();
+
+    @Query("SELECT DISTINCT wt.requestId FROM WorkflowTransition wt WHERE UPPER(COALESCE(wt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS') OR UPPER(COALESCE(wt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')")
+    List<String> findPendingWorkflowCallNumbers();
+
     /* ==================== Find by Type of Call ==================== */
 
     List<InspectionCall> findByTypeOfCallOrderByCreatedAtDesc(String typeOfCall);

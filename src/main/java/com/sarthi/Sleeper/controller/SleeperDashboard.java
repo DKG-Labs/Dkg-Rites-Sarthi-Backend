@@ -408,21 +408,49 @@ public class SleeperDashboard {
 
     /**
      * Consolidated Sleeper Dashboard Summary
-     * Supports optional vendor and zonal railway filtering.
-     * GET /api/sleeper-dashboard/summary?vendor={vendor}&zone={zone}
+     * Supports optional vendor, zonal railway, and date range filtering.
+     * GET /api/sleeper-dashboard/summary?vendor={vendor}&zone={zone}&startDate={startDate}&endDate={endDate}
      */
     @GetMapping("/summary")
     public ResponseEntity<Object> getSleeperDashboardSummary(
             @RequestParam(required = false) String vendor,
             @RequestParam(required = false) String zone,
-            @RequestParam(required = false) String plantId) {
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         String effectiveVendor = (vendor != null && !vendor.isBlank()) ? vendor : plantId;
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        dashboardService.getSleeperDashboardSummary(effectiveVendor, zone)
+                        dashboardService.getSleeperDashboardSummary(effectiveVendor, zone, startDate, endDate)
                 ),
                 HttpStatus.OK
         );
     }
 
+    @Autowired(required = false)
+    private com.sarthi.service.reports reportService;
+
+    @GetMapping("/debug-reports")
+    public ResponseEntity<Object> debugReports() {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        try {
+            if (reportService != null) {
+                map.put("dashboardSummary", reportService.getDashboardSummary(null, null, null, null));
+            }
+        } catch (Exception e) {
+            java.io.StringWriter sw = new java.io.StringWriter();
+            e.printStackTrace(new java.io.PrintWriter(sw));
+            map.put("dashboardSummaryError", sw.toString());
+        }
+        try {
+            if (reportService != null) {
+                map.put("inspectionCallStatus", reportService.getInspectionCallStatus(null, null, null, null, "Sleeper"));
+            }
+        } catch (Exception e) {
+            java.io.StringWriter sw = new java.io.StringWriter();
+            e.printStackTrace(new java.io.PrintWriter(sw));
+            map.put("inspectionCallStatusError", sw.toString());
+        }
+        return ResponseEntity.ok(map);
+    }
 }

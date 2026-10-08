@@ -23,6 +23,12 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
 
     boolean existsByCallNo(String callNo);
 
+    @Query("SELECT DISTINCT ric.callNo FROM RailInspectionCall ric WHERE UPPER(COALESCE(ric.status, '')) LIKE '%SEND_CALL_TO_IBS%' OR UPPER(COALESCE(ric.status, '')) LIKE '%SENT_TO_IBS%'")
+    List<String> findPendingIbsCallNumbers();
+
+    @Query("SELECT DISTINCT rwt.requestId FROM RailWorkflowTransaction rwt WHERE UPPER(COALESCE(rwt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS') OR UPPER(COALESCE(rwt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')")
+    List<String> findPendingWorkflowCallNumbers();
+
     long countByPoNo(String poNo);
 
     List<RailInspectionCall> findAllByVendorCode(String vendorCode);

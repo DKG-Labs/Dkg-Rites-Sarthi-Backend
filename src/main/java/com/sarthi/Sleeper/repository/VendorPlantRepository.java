@@ -73,96 +73,111 @@ public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> 
     String findZonalRailwayByPlantId(@Param("plantId") String plantId);
 
     @Query(value = """
-    SELECT DISTINCT company_name FROM (
-        SELECT vp.company_name AS company_name
+    SELECT DISTINCT t.company_name FROM (
+        SELECT CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci AS company_name
         FROM vendor_plant vp
         WHERE (:zone IS NULL OR :zone = '' OR :zone = 'all'
-               OR UPPER(TRIM(vp.zonal_railway)) = UPPER(TRIM(:zone)))
-          AND vp.company_name IS NOT NULL AND vp.company_name <> ''
+               OR UPPER(TRIM(CONVERT(vp.zonal_railway USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
+          AND vp.company_name IS NOT NULL AND TRIM(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci) <> ''
 
-        UNION
+        UNION ALL
 
-        SELECT COALESCE(vp.company_name, ph.vendor_details, ph.firm_details) AS company_name
+        SELECT COALESCE(
+            CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+            CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+            CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) AS company_name
         FROM po_header ph
         LEFT JOIN vendor_plant vp ON (
-            vp.vendor_code = ph.vendor_code 
-            OR vp.vendor_code = CONCAT(':', ph.vendor_code) 
-            OR REPLACE(COALESCE(vp.vendor_code, ''), ':', '') = REPLACE(COALESCE(ph.vendor_code, ''), ':', '')
-            OR UPPER(TRIM(vp.company_name)) = UPPER(TRIM(ph.vendor_details))
-            OR UPPER(TRIM(vp.company_name)) = UPPER(TRIM(ph.firm_details))
+            CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CONCAT(':', ph.vendor_code) USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(REPLACE(COALESCE(CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(COALESCE(CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR UPPER(TRIM(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+            OR UPPER(TRIM(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci))
         )
-        WHERE LOWER(TRIM(ph.item_cat_descr)) LIKE '%sleeper%'
+        WHERE LOWER(TRIM(CONVERT(ph.item_cat_descr USING utf8mb4) COLLATE utf8mb4_unicode_ci)) LIKE '%sleeper%'
           AND (:zone IS NULL OR :zone = '' OR :zone = 'all'
-               OR UPPER(TRIM(ph.rly_short_name)) = UPPER(TRIM(:zone))
-               OR UPPER(TRIM(ph.rly_cd)) = UPPER(TRIM(:zone)))
-          AND COALESCE(vp.company_name, ph.vendor_details, ph.firm_details) IS NOT NULL
-          AND COALESCE(vp.company_name, ph.vendor_details, ph.firm_details) <> ''
+               OR UPPER(TRIM(CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
     ) t
-    ORDER BY company_name ASC
+    WHERE t.company_name IS NOT NULL AND TRIM(t.company_name) <> ''
+    ORDER BY t.company_name ASC
     """, nativeQuery = true)
     List<String> findDistinctCompanyNamesByZone(@Param("zone") String zone);
 
     @Query(value = """
-    SELECT DISTINCT plant_id FROM (
-        SELECT vp.plant_id AS plant_id
+    SELECT DISTINCT t.plant_id FROM (
+        SELECT CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS plant_id
         FROM vendor_plant vp
-        WHERE (:zone IS NULL OR :zone = '' OR :zone = 'all')
+        WHERE (:zone IS NULL OR :zone = '' OR :zone = 'all'
+               OR UPPER(TRIM(CONVERT(vp.zonal_railway USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
           AND (:companyName IS NULL OR :companyName = '' OR :companyName = 'all'
-               OR UPPER(TRIM(vp.company_name)) = UPPER(TRIM(:companyName)) 
-               OR UPPER(TRIM(vp.vendor_code)) = UPPER(TRIM(:companyName)) 
-               OR UPPER(TRIM(vp.plant_id)) = UPPER(TRIM(:companyName))
-               OR REPLACE(COALESCE(vp.plant_id, ''), ':', '') = REPLACE(:companyName, ':', ''))
-          AND vp.plant_id IS NOT NULL AND vp.plant_id <> ''
+               OR UPPER(TRIM(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci)) 
+               OR UPPER(TRIM(CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci)) 
+               OR UPPER(TRIM(CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR CONVERT(REPLACE(COALESCE(CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(COALESCE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+               OR REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%')
+               OR REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
+          AND vp.plant_id IS NOT NULL AND TRIM(CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci) <> ''
 
-        UNION
+        UNION ALL
 
-        SELECT vp.plant_id AS plant_id
+        SELECT CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS plant_id
         FROM po_header ph
         JOIN vendor_plant vp ON (
-            vp.vendor_code = ph.vendor_code 
-            OR vp.vendor_code = CONCAT(':', ph.vendor_code) 
-            OR REPLACE(COALESCE(vp.vendor_code, ''), ':', '') = REPLACE(COALESCE(ph.vendor_code, ''), ':', '')
-            OR UPPER(TRIM(vp.company_name)) = UPPER(TRIM(ph.vendor_details))
-            OR UPPER(TRIM(vp.company_name)) = UPPER(TRIM(ph.firm_details))
+            CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CONCAT(':', ph.vendor_code) USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(REPLACE(COALESCE(CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(COALESCE(CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR UPPER(TRIM(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+            OR UPPER(TRIM(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci))
         )
-        WHERE LOWER(TRIM(ph.item_cat_descr)) LIKE '%sleeper%'
+        WHERE LOWER(TRIM(CONVERT(ph.item_cat_descr USING utf8mb4) COLLATE utf8mb4_unicode_ci)) LIKE '%sleeper%'
           AND (:zone IS NULL OR :zone = '' OR :zone = 'all'
-               OR UPPER(TRIM(ph.rly_short_name)) = UPPER(TRIM(:zone))
-               OR UPPER(TRIM(ph.rly_cd)) = UPPER(TRIM(:zone)))
+               OR UPPER(TRIM(CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
           AND (:companyName IS NULL OR :companyName = '' OR :companyName = 'all'
-               OR UPPER(TRIM(vp.company_name)) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(ph.vendor_details)) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(ph.firm_details)) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(vp.vendor_code)) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(ph.vendor_code)) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(vp.plant_id)) = UPPER(TRIM(:companyName))
-               OR REPLACE(COALESCE(vp.plant_id, ''), ':', '') = REPLACE(:companyName, ':', ''))
-          AND vp.plant_id IS NOT NULL AND vp.plant_id <> ''
+               OR UPPER(TRIM(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR CONVERT(REPLACE(COALESCE(CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(COALESCE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+               OR REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%')
+               OR REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%')
+               OR REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%')
+               OR REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
+          AND vp.plant_id IS NOT NULL AND TRIM(CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci) <> ''
 
-        UNION
+        UNION ALL
 
-        SELECT sic.plant_id AS plant_id
+        SELECT CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS plant_id
         FROM sleeper_inspection_call sic
         JOIN po_header ph ON (
-            ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci 
-            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
+            CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         )
         LEFT JOIN vendor_plant vp ON (
-            vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
-            OR REPLACE(COALESCE(vp.plant_id, ''), ':', '') COLLATE utf8mb4_unicode_ci = REPLACE(COALESCE(sic.plant_id, ''), ':', '') COLLATE utf8mb4_unicode_ci
+            CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(REPLACE(COALESCE(CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(COALESCE(CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
         )
         WHERE (:zone IS NULL OR :zone = '' OR :zone = 'all'
-               OR UPPER(TRIM(ph.rly_short_name)) = UPPER(TRIM(:zone))
-               OR UPPER(TRIM(ph.rly_cd)) = UPPER(TRIM(:zone)))
+               OR UPPER(TRIM(CONVERT(ph.rly_short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(CONVERT(ph.rly_cd USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zone USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
           AND (:companyName IS NULL OR :companyName = '' OR :companyName = 'all'
-               OR UPPER(TRIM(COALESCE(vp.company_name, ''))) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(COALESCE(ph.vendor_details, ''))) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(COALESCE(ph.firm_details, ''))) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(COALESCE(ph.vendor_code, ''))) = UPPER(TRIM(:companyName))
-               OR UPPER(TRIM(COALESCE(sic.plant_id, ''))) = UPPER(TRIM(:companyName))
-               OR REPLACE(COALESCE(sic.plant_id, ''), ':', '') = REPLACE(:companyName, ':', ''))
-          AND sic.plant_id IS NOT NULL AND sic.plant_id <> ''
+               OR UPPER(TRIM(COALESCE(CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''))) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(COALESCE(CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''))) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(COALESCE(CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''))) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(COALESCE(CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''))) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR UPPER(TRIM(COALESCE(CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''))) = UPPER(TRIM(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci))
+               OR CONVERT(REPLACE(COALESCE(CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(COALESCE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+               OR REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%')
+               OR REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%')
+               OR REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%')
+               OR REPLACE(REPLACE(REPLACE(CONVERT(:companyName USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
+          AND sic.plant_id IS NOT NULL AND TRIM(CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci) <> ''
     ) t
+    WHERE t.plant_id IS NOT NULL AND TRIM(t.plant_id) <> ''
     """, nativeQuery = true)
     List<String> findPlantIdsByCompanyAndZone(@Param("companyName") String companyName, @Param("zone") String zone);
 }

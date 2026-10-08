@@ -668,119 +668,192 @@ public class IbsServiceImpl implements IbsService {
     }
 */
 
+    @Override
     @Transactional(readOnly = true)
     public List<IbsInspectionDto> getAllGeneratedIcCalls() {
-
-        CompletableFuture<List<IbsInspectionDto>> f1 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(rmHeatFinalResultRepository.getRmInspectionCalls(), "ERC");
-            } catch (Exception e) {
-                log.error("Error fetching ERC RM inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        CompletableFuture<List<IbsInspectionDto>> f2 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(processLineFinalResultRepository.getProcessInspectionCalls(), "ERC");
-            } catch (Exception e) {
-                log.error("Error fetching ERC Process inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        CompletableFuture<List<IbsInspectionDto>> f3 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(finalCumulativeResultsRepository.getFinalInspectionCalls(), "ERC");
-            } catch (Exception e) {
-                log.error("Error fetching ERC Final inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        CompletableFuture<List<IbsInspectionDto>> f4 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(railpadProcessIcEditRepository.getRailpadProcessInspectionCalls(), "RAILPAD");
-            } catch (Exception e) {
-                log.error("Error fetching Railpad Process inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        CompletableFuture<List<IbsInspectionDto>> f5 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(railpadFinalIcEditRepository.getRailpadFinalInspectionCalls(), "RAILPAD");
-            } catch (Exception e) {
-                log.error("Error fetching Railpad Final inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        CompletableFuture<List<IbsInspectionDto>> f6 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls(), "RAILPAD");
-            } catch (Exception e) {
-                log.error("Error fetching Railpad Cancelled inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        CompletableFuture<List<IbsInspectionDto>> f7 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(sleeperFinalIcEditRepository.getSleeperFinalInspectionCalls(), "SLEEPER");
-            } catch (Exception e) {
-                log.error("Error fetching Sleeper Final inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        CompletableFuture<List<IbsInspectionDto>> f8 = CompletableFuture.supplyAsync(() -> {
-            try {
-                return mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls(), "SLEEPER");
-            } catch (Exception e) {
-                log.error("Error fetching Sleeper Cancelled inspection calls: {}", e.getMessage(), e);
-                return Collections.emptyList();
-            }
-        });
-
-        List<IbsInspectionDto> responseList = new ArrayList<>();
+        long overallStart = System.currentTimeMillis();
         try {
-            CompletableFuture.allOf(f1, f2, f3, f4, f5, f6, f7, f8).join();
-            responseList.addAll(f1.get());
-            responseList.addAll(f2.get());
-            responseList.addAll(f3.get());
-            responseList.addAll(f4.get());
-            responseList.addAll(f5.get());
-            responseList.addAll(f6.get());
-            responseList.addAll(f7.get());
-            responseList.addAll(f8.get());
-        } catch (Exception e) {
-            log.error("Error aggregating IBS inspection calls: {}", e.getMessage(), e);
-        }
-
-        // Deduplicate across all product queries by callNumber
-        Map<String, IbsInspectionDto> uniqueCalls = new LinkedHashMap<>();
-        for (IbsInspectionDto dto : responseList) {
-            String callNo = dto.getCallNumber();
-            if (callNo == null || callNo.trim().isEmpty()) {
-                callNo = dto.getIcNumber();
-            }
-            if (callNo == null || callNo.trim().isEmpty()) {
-                continue;
-            }
-            callNo = callNo.trim();
-            if (!uniqueCalls.containsKey(callNo)) {
-                uniqueCalls.put(callNo, dto);
-            } else {
-                IbsInspectionDto existing = uniqueCalls.get(callNo);
-                if ((existing.getCaseNumber() == null || existing.getCaseNumber().trim().isEmpty())
-                        && (dto.getCaseNumber() != null && !dto.getCaseNumber().trim().isEmpty())) {
-                    uniqueCalls.put(callNo, dto);
+            // 1. Fetch all registrations once to find already registered / successful calls
+            List<IbsCallRegistration> allRegistrations = ibsCallRegistrationRepository.findAllCalls();
+            Set<String> successfulCalls = new HashSet<>();
+            if (allRegistrations != null) {
+                for (IbsCallRegistration reg : allRegistrations) {
+                    if (reg.getCallNumber() != null && !"FAILED".equalsIgnoreCase(reg.getStatus())) {
+                        String c = reg.getCallNumber().trim().toUpperCase();
+                        successfulCalls.add(c);
+                        if (c.contains("/")) {
+                            for (String part : c.split("/")) {
+                                String p = part.trim();
+                                if (!p.isEmpty()) {
+                                    successfulCalls.add(p);
+                                }
+                            }
+                        }
+                    }
                 }
             }
-        }
 
-        return new ArrayList<>(uniqueCalls.values());
+            // 2. Fetch pending candidate call numbers across ERC, Sleeper, and Railpad
+            Set<String> ercPending = new HashSet<>();
+            try {
+                for (String cn : inspectionCallsRepository.findPendingIbsCallNumbers()) {
+                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                        ercPending.add(cn.trim());
+                    }
+                }
+                for (String cn : inspectionCallsRepository.findPendingWorkflowCallNumbers()) {
+                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                        ercPending.add(cn.trim());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error fetching ERC pending call numbers: {}", e.getMessage(), e);
+            }
+
+            Set<String> sleeperPending = new HashSet<>();
+            try {
+                for (String cn : sleeperInspectionCallRepository.findPendingIbsCallNumbers()) {
+                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                        sleeperPending.add(cn.trim());
+                    }
+                }
+                for (String cn : sleeperInspectionCallRepository.findPendingWorkflowCallNumbers()) {
+                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                        sleeperPending.add(cn.trim());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error fetching Sleeper pending call numbers: {}", e.getMessage(), e);
+            }
+
+            Set<String> railpadPending = new HashSet<>();
+            try {
+                for (String cn : railInspectionCallRepository.findPendingIbsCallNumbers()) {
+                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                        railpadPending.add(cn.trim());
+                    }
+                }
+                for (String cn : railInspectionCallRepository.findPendingWorkflowCallNumbers()) {
+                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                        railpadPending.add(cn.trim());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error fetching Railpad pending call numbers: {}", e.getMessage(), e);
+            }
+
+            log.info("[IBS-FETCH] Candidates pending registration: ERC={}, Sleeper={}, Railpad={}",
+                    ercPending.size(), sleeperPending.size(), railpadPending.size());
+
+            List<String> ercRmPending = ercPending.stream()
+                    .filter(c -> c != null && (c.toUpperCase().startsWith("ER") || (!c.toUpperCase().startsWith("EP") && !c.toUpperCase().startsWith("EF"))))
+                    .toList();
+            List<String> ercProcessPending = ercPending.stream()
+                    .filter(c -> c != null && (c.toUpperCase().startsWith("EP") || (!c.toUpperCase().startsWith("ER") && !c.toUpperCase().startsWith("EF"))))
+                    .toList();
+            List<String> ercFinalPending = ercPending.stream()
+                    .filter(c -> c != null && (c.toUpperCase().startsWith("EF") || (!c.toUpperCase().startsWith("ER") && !c.toUpperCase().startsWith("EP"))))
+                    .toList();
+
+            List<IbsInspectionDto> responseList = new ArrayList<>();
+
+            CompletableFuture<List<IbsInspectionDto>> f1 = ercRmPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(rmHeatFinalResultRepository.getRmCompletedInspectionCalls(ercRmPending), "ERC");
+                } catch (Exception e) {
+                    log.error("Error fetching ERC RM pending calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            CompletableFuture<List<IbsInspectionDto>> f2 = ercProcessPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(processLineFinalResultRepository.getProcessCompletedInspectionCalls(ercProcessPending), "ERC");
+                } catch (Exception e) {
+                    log.error("Error fetching ERC Process pending calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            CompletableFuture<List<IbsInspectionDto>> f3 = ercFinalPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(finalCumulativeResultsRepository.getFinalCompletedInspectionCalls(ercFinalPending), "ERC");
+                } catch (Exception e) {
+                    log.error("Error fetching ERC Final pending calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            CompletableFuture<List<IbsInspectionDto>> f4 = railpadPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(railpadProcessIcEditRepository.getRailpadProcessCompletedInspectionCalls(railpadPending), "RAILPAD");
+                } catch (Exception e) {
+                    log.error("Error fetching Railpad Process pending calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            CompletableFuture<List<IbsInspectionDto>> f5 = railpadPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(railpadFinalIcEditRepository.getRailpadFinalCompletedInspectionCalls(railpadPending), "RAILPAD");
+                } catch (Exception e) {
+                    log.error("Error fetching Railpad Final pending calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            CompletableFuture<List<IbsInspectionDto>> f6 = sleeperPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(sleeperFinalIcEditRepository.getSleeperFinalCompletedInspectionCalls(sleeperPending), "SLEEPER");
+                } catch (Exception e) {
+                    log.error("Error fetching Sleeper Final pending calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            try {
+                CompletableFuture.allOf(f1, f2, f3, f4, f5, f6).join();
+                if (f1.isDone() && !f1.isCompletedExceptionally()) responseList.addAll(f1.get());
+                if (f2.isDone() && !f2.isCompletedExceptionally()) responseList.addAll(f2.get());
+                if (f3.isDone() && !f3.isCompletedExceptionally()) responseList.addAll(f3.get());
+                if (f4.isDone() && !f4.isCompletedExceptionally()) responseList.addAll(f4.get());
+                if (f5.isDone() && !f5.isCompletedExceptionally()) responseList.addAll(f5.get());
+                if (f6.isDone() && !f6.isCompletedExceptionally()) responseList.addAll(f6.get());
+            } catch (Exception e) {
+                log.error("Error aggregating IBS pending inspection calls: {}", e.getMessage(), e);
+            }
+
+            // Deduplicate across all product queries by callNumber
+            Map<String, IbsInspectionDto> uniqueCalls = new LinkedHashMap<>();
+            for (IbsInspectionDto dto : responseList) {
+                if (dto == null) continue;
+                String callNo = dto.getCallNumber();
+                if (callNo == null || callNo.trim().isEmpty()) {
+                    callNo = dto.getIcNumber();
+                }
+                if (callNo == null || callNo.trim().isEmpty()) {
+                    continue;
+                }
+                callNo = callNo.trim();
+                if (!uniqueCalls.containsKey(callNo)) {
+                    uniqueCalls.put(callNo, dto);
+                } else {
+                    IbsInspectionDto existing = uniqueCalls.get(callNo);
+                    if ((existing.getCaseNumber() == null || existing.getCaseNumber().trim().isEmpty())
+                            && (dto.getCaseNumber() != null && !dto.getCaseNumber().trim().isEmpty())) {
+                        uniqueCalls.put(callNo, dto);
+                    }
+                }
+            }
+
+            log.info("[IBS-FETCH] getAllGeneratedIcCalls completed in {} ms returning {} calls",
+                    System.currentTimeMillis() - overallStart, uniqueCalls.size());
+
+            return new ArrayList<>(uniqueCalls.values());
+        } catch (Throwable t) {
+            log.error("Error in getAllGeneratedIcCalls: {}", t.getMessage(), t);
+            return Collections.emptyList();
+        }
     }
 
     @Override

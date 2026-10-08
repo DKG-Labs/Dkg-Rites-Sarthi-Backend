@@ -1947,14 +1947,16 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone) {
+    public java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone, String startDate, String endDate) {
         boolean hasVendor = vendor != null && !vendor.isBlank() && !"all".equalsIgnoreCase(vendor.trim());
         boolean hasZone = zone != null && !zone.isBlank() && !"all".equalsIgnoreCase(zone.trim());
-        boolean filtered = hasVendor || hasZone;
+        boolean hasStartDate = startDate != null && !startDate.isBlank();
+        boolean hasEndDate = endDate != null && !endDate.isBlank();
+        boolean filtered = hasVendor || hasZone || hasStartDate || hasEndDate;
 
-        long rejectedInProcess;
-        long rejectedInFinal;
-        double rejectionPercentage;
+        long rejectedInProcess = 0L;
+        long rejectedInFinal = 0L;
+        double rejectionPercentage = 0.0;
         long pending = 0;
         long underInspection = 0;
         long totalProduction = 0;
@@ -1966,108 +1968,107 @@ public class DashboardServiceImpl implements DashboardService {
         long finalRejectedNos = 0L;
         long finalRejectedSet = 0L;
 
+        String sDate = hasStartDate ? startDate.trim() : null;
+        String eDate = hasEndDate ? endDate.trim() : null;
+
+        java.time.LocalDateTime startLdt = null;
+        java.time.LocalDateTime endLdt = null;
+        if (sDate != null) {
+            try {
+                startLdt = java.time.LocalDate.parse(sDate).atStartOfDay();
+            } catch (Exception ignored) {}
+        }
+        if (eDate != null) {
+            try {
+                endLdt = java.time.LocalDate.parse(eDate).atTime(java.time.LocalTime.MAX);
+            } catch (Exception ignored) {}
+        }
+
         if (filtered) {
-            String v = hasVendor ? vendor.trim() : null;
-            String z = hasZone ? zone.trim() : null;
-            List<String> foundPlantIds = vendorPlantRepository.findPlantIdsByCompanyAndZone(v, z);
-
-            if ((foundPlantIds == null || foundPlantIds.isEmpty()) && hasVendor) {
-                foundPlantIds = vendorPlantRepository.findPlantIdsByVendorCode(v);
-            }
-
-            if (foundPlantIds != null && !foundPlantIds.isEmpty()) {
-                java.util.Set<String> plantIdsSet = new java.util.HashSet<>(foundPlantIds);
-                for (String pid : foundPlantIds) {
-                    if (pid != null && !pid.isBlank()) {
-                        String clean = pid.replace(":", "").trim();
-                        plantIdsSet.add(clean);
-                        plantIdsSet.add(":" + clean);
-                    }
+            String v = hasVendor ? vendor.replace("+", " ").trim() : null;
+            if (v != null) {
+                String cleanV = v.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+                if (cleanV.contains("BGSLEEPER")) {
+                    v = "BG SLEEPER";
                 }
-                List<String> plantIds = new java.util.ArrayList<>(plantIdsSet);
+            }
+            String z = hasZone ? zone.trim() : null;
 
-                Long demouldRejected = demouldingDefectiveSleeperRepository.countByWithReasonsAndPlantIds(plantIds);
-                rejectedInProcess = demouldRejected != null ? demouldRejected : 0L;
+            long totalOfferedNos = 0L;
+            long totalOfferedSet = 0L;
 
-                List<Object[]> finalSummaryRows = sleeperFinalResultRepository.getSleeperFinalSummaryByPlantIds(plantIds);
+            // 1. Direct Final Summary calculation (checking PO zone, vendor & date)
+            try {
+                List<Object[]> finalSummaryRows = sleeperFinalResultRepository.getSleeperFinalSummaryFiltered(v, z, sDate, eDate);
                 if (finalSummaryRows != null && !finalSummaryRows.isEmpty() && finalSummaryRows.get(0) != null) {
                     Object[] row = finalSummaryRows.get(0);
                     finalAcceptedNos = row[0] != null ? ((Number) row[0]).longValue() : 0L;
                     finalAcceptedSet = row[1] != null ? ((Number) row[1]).longValue() : 0L;
                     finalRejectedNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
                     finalRejectedSet = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                    if (row.length > 4 && row[4] != null) totalOfferedNos = ((Number) row[4]).longValue();
+                    if (row.length > 5 && row[5] != null) totalOfferedSet = ((Number) row[5]).longValue();
                 }
-                rejectedInFinal = finalRejectedNos + finalRejectedSet;
+            } catch (Exception ex) {
+                System.err.println("Error in getSleeperFinalSummaryFiltered: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+            rejectedInFinal = finalRejectedNos + finalRejectedSet;
 
-                Long production = productionDeclarationRepository.getTotalProductionCountByPlantIds(plantIds);
-                totalProduction = production != null ? production : 0L;
-                long totalRejected = rejectedInProcess + rejectedInFinal;
-                rejectionPercentage = totalProduction > 0 ? (totalRejected * 100.0) / totalProduction : 0.0;
-
-                Long icCount = sleeperWorkflowRepository.countSleeperIcIssuedByPlantIds(plantIds);
+            // 2. Direct IC Issued Count (checking PO zone, vendor & date)
+            try {
+                Long icCount = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(v, z, startLdt, endLdt);
                 sleeperIcIssued = icCount != null ? icCount : 0L;
+            } catch (Exception ex) {
+                System.err.println("Error in countSleeperIcIssuedFiltered: " + ex.getMessage());
+                ex.printStackTrace();
+            }
 
-                List<SleeperWorkflowTransaction> latestTxs = sleeperWorkflowRepository.findLatestTransactionsForWorkflow2ByPlantIds(plantIds);
-                for (SleeperWorkflowTransaction tx : latestTxs) {
-                    // Strict zone filter check on each transaction's call
-                    if (hasZone) {
-                        String callNo = tx.getRequestId();
-                        if (callNo != null && !callNo.isBlank()) {
-                            var callOpt = inspectionCallRepository.findByCallNo(callNo);
-                            if (callOpt.isPresent()) {
-                                var call = callOpt.get();
-                                if (call.getPoNo() != null && !call.getPoNo().isBlank()) {
-                                    var poOpt = poHeaderRepository.findByPoNo(call.getPoNo().trim());
-                                    if (poOpt.isPresent()) {
-                                        String rly = poOpt.get().getRlyShortName();
-                                        if (rly != null && !rly.isBlank() && !rly.trim().equalsIgnoreCase(z)) {
-                                            continue;
-                                        }
-                                    }
-                                }
-                            }
+            // 3. Process and Production derived from Issued ICs
+            try {
+                Long demouldDefects = demouldingDefectiveSleeperRepository.countDemouldingDefectsForIssuedIcsFiltered(v, z, sDate, eDate);
+                rejectedInProcess = demouldDefects != null ? demouldDefects : 0L;
+            } catch (Exception ex) {
+                System.err.println("Error in countDemouldingDefectsForIssuedIcsFiltered: " + ex.getMessage());
+                rejectedInProcess = 0L;
+            }
+
+            if (totalOfferedNos > 0 || totalOfferedSet > 0) {
+                totalProduction = totalOfferedNos + totalOfferedSet + rejectedInProcess;
+            } else if (finalAcceptedNos > 0 || finalAcceptedSet > 0 || rejectedInFinal > 0) {
+                totalProduction = finalAcceptedNos + finalAcceptedSet + rejectedInFinal + rejectedInProcess;
+            } else {
+                totalProduction = 0L;
+            }
+
+            long totalRejected = rejectedInProcess + rejectedInFinal;
+            rejectionPercentage = totalProduction > 0 ? (totalRejected * 100.0) / totalProduction : 0.0;
+
+            // 4. Inspection Call Status (Pending, Under Inspection)
+            try {
+                List<Object[]> callStatusRows = sleeperWorkflowRepository.getSleeperInspectionCallStatusDetailsFiltered(
+                        "ALL", "ALL", v, z, startLdt, endLdt
+                );
+                if (callStatusRows != null) {
+                    for (Object[] callRow : callStatusRows) {
+                        String mainStatus = callRow.length > 7 && callRow[7] != null ? callRow[7].toString().trim() : "";
+                        String status = callRow.length > 6 && callRow[6] != null ? callRow[6].toString().trim() : "";
+                        String effectiveStatus = !mainStatus.isEmpty() ? mainStatus : status;
+                        if ("Under Inspection".equalsIgnoreCase(effectiveStatus)) {
+                            underInspection++;
+                        } else if ("Pending".equalsIgnoreCase(effectiveStatus) || "Open".equalsIgnoreCase(effectiveStatus)) {
+                            pending++;
                         }
                     }
-
-                    String jobStatus = tx.getJobStatus();
-                    String action = tx.getAction();
-                    String status = tx.getStatus();
-                    String statusUpper = status != null ? status.trim().toUpperCase() : "";
-                    String actionUpper = action != null ? action.trim().toUpperCase() : "";
-                    String jobStatusUpper = jobStatus != null ? jobStatus.trim().toUpperCase() : "";
-                    
-                    if ("IC_GENERATION".equals(jobStatusUpper) || "IC_GENERATION".equals(actionUpper) || "IC_GENERATION".equals(statusUpper)
-                            || "SEND_CALL_TO_IBS".equals(statusUpper) || "SEND_CALL_TO_IBS".equals(actionUpper) || "SEND_CALL_TO_IBS".equals(jobStatusUpper)
-                            || "SENT_TO_IBS".equals(statusUpper) || "SENT_TO_IBS".equals(actionUpper) || "SENT_TO_IBS".equals(jobStatusUpper)
-                            || "CLOSED".equals(statusUpper) || "CLOSED".equals(actionUpper) || "CLOSED".equals(jobStatusUpper)
-                            || "COMPLETED".equals(statusUpper) || "COMPLETED".equals(actionUpper) || "COMPLETED".equals(jobStatusUpper)
-                            || jobStatusUpper.contains("CANCEL") || actionUpper.contains("CANCEL") || statusUpper.contains("CANCEL")) {
-                        continue;
-                    }
-                    
-                    if ("INITIATED".equals(jobStatusUpper) || "PO_VERIFICATION".equals(jobStatusUpper) || "PAUSED".equals(jobStatusUpper) || "WITHHELD".equals(jobStatusUpper)
-                            || "INITIATE_CALL".equals(actionUpper) || "PO_VERIFICATION".equals(actionUpper) || "PAUSE".equals(actionUpper) || "WITHHELD".equals(actionUpper)
-                            || "INITIATED".equals(statusUpper) || "PO_VERIFICATION".equals(statusUpper) || "PAUSED".equals(statusUpper) || "WITHHELD".equals(statusUpper)) {
-                        underInspection++;
-                    } else {
-                        pending++;
-                    }
                 }
-            } else {
-                rejectedInProcess = 0L;
-                rejectedInFinal = 0L;
-                rejectionPercentage = 0.0;
-                sleeperIcIssued = 0L;
+            } catch (Exception ex) {
+                System.err.println("Error in getSleeperInspectionCallStatusDetailsFiltered: " + ex.getMessage());
+                ex.printStackTrace();
             }
         } else {
-            // Global cached values
-            if (!isCacheInitialized) {
-                synchronized (this) {
-                    if (!isCacheInitialized) updateDashboardMetrics();
-                }
-            }
-            rejectedInProcess = demouldingDefectiveSleeperRepository.countByWithReasons() != null
-                    ? demouldingDefectiveSleeperRepository.countByWithReasons() : 0L;
+            // Global overview calculated from all issued ICs
+            long totalOfferedNos = 0L;
+            long totalOfferedSet = 0L;
 
             List<Object[]> finalSummaryRows = sleeperFinalResultRepository.getAllSleeperFinalSummary();
             if (finalSummaryRows != null && !finalSummaryRows.isEmpty() && finalSummaryRows.get(0) != null) {
@@ -2076,11 +2077,25 @@ public class DashboardServiceImpl implements DashboardService {
                 finalAcceptedSet = row[1] != null ? ((Number) row[1]).longValue() : 0L;
                 finalRejectedNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
                 finalRejectedSet = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                if (row.length > 4 && row[4] != null) totalOfferedNos = ((Number) row[4]).longValue();
+                if (row.length > 5 && row[5] != null) totalOfferedSet = ((Number) row[5]).longValue();
             }
             rejectedInFinal = finalRejectedNos + finalRejectedSet;
+            try {
+                Long demouldDefects = demouldingDefectiveSleeperRepository.countAllDemouldingDefectsForIssuedIcs();
+                rejectedInProcess = demouldDefects != null ? demouldDefects : 0L;
+            } catch (Exception ex) {
+                System.err.println("Error in countAllDemouldingDefectsForIssuedIcs: " + ex.getMessage());
+                rejectedInProcess = 0L;
+            }
 
-            Long production = productionDeclarationRepository.getTotalProductionCount();
-            totalProduction = production != null ? production : 0L;
+            if (totalOfferedNos > 0 || totalOfferedSet > 0) {
+                totalProduction = totalOfferedNos + totalOfferedSet + rejectedInProcess;
+            } else if (finalAcceptedNos > 0 || finalAcceptedSet > 0 || rejectedInFinal > 0) {
+                totalProduction = finalAcceptedNos + finalAcceptedSet + rejectedInFinal + rejectedInProcess;
+            } else {
+                totalProduction = 0L;
+            }
 
             long totalRejected = rejectedInProcess + rejectedInFinal;
             rejectionPercentage = totalProduction > 0 ? (totalRejected * 100.0) / totalProduction : 0.0;
