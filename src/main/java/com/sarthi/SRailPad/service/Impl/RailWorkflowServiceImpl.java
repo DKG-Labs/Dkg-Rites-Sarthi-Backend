@@ -1717,40 +1717,32 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         List<RailWorkflowTransaction> list = null;
 
+        String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
+
         if (workflowId != null || moduleId != null) {
-            if (plantId != null && !plantId.trim().isEmpty()) {
-                if (roleName.equalsIgnoreCase("Rail Main IE")) {
-                    list = railWorkflowTransactionRepository
-                            .findLatestByRoleAndPlantIdAndWorkflowId(roleName, plantId.trim(), workflowId, moduleId);
-                } else {
-                    list = railWorkflowTransactionRepository
-                            .findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(roleName, plantId.trim(), workflowId, moduleId);
-                }
+            if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                list = railWorkflowTransactionRepository
+                        .findLatestByRoleAndPlantIdAndWorkflowId(roleName, cleanPlantId, workflowId, moduleId, assignedTo);
             } else {
-                if (roleName.equalsIgnoreCase("Rail Main IE")) {
-                    list = railWorkflowTransactionRepository
-                            .findLatestByRoleAndPlantIdAndWorkflowId(roleName, null, workflowId, moduleId);
-                } else {
-                    list = railWorkflowTransactionRepository
-                            .findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(roleName, null, workflowId, moduleId);
-                }
+                list = railWorkflowTransactionRepository
+                        .findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(roleName, cleanPlantId, workflowId, moduleId, assignedTo);
             }
         } else {
-            if (plantId != null && !plantId.trim().isEmpty()) {
+            if (cleanPlantId != null) {
                 if (roleName.equalsIgnoreCase("Rail Main IE")) {
                     list = railWorkflowTransactionRepository
-                            .findLatestByRoleAndPlantId(roleName, plantId.trim());
+                            .findLatestByRoleAndPlantId(roleName, cleanPlantId, assignedTo);
                 } else {
                     list = railWorkflowTransactionRepository
-                            .findLastPendingRequestsByRoleAndPlantId(roleName, plantId.trim());
+                            .findLastPendingRequestsByRoleAndPlantId(roleName, cleanPlantId, assignedTo);
                 }
             } else {
                 if (roleName.equalsIgnoreCase("Rail Main IE")) {
                     list = railWorkflowTransactionRepository
-                            .findLatestByRole(roleName);
+                            .findLatestByRole(roleName, assignedTo);
                 } else {
                     list = railWorkflowTransactionRepository
-                            .findLastPendingRequestsByRole(roleName);
+                            .findLastPendingRequestsByRole(roleName, assignedTo);
                 }
             }
         }

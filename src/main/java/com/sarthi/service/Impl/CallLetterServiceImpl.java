@@ -113,7 +113,10 @@ public class CallLetterServiceImpl implements CallLetterService {
         Optional<InspectionCall> icOpt = inspectionCallRepository.findFirstByIcNumber(requestId);
         if (icOpt.isEmpty()) {
             // Check if it is a Sleeper Inspection Call
-            Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> sleeperOpt = sleeperInspectionCallRepository.findByCallNo(requestId);
+            Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> sleeperOpt = sleeperInspectionCallRepository.findByCallNoWithBatches(requestId);
+            if (sleeperOpt.isEmpty()) {
+                sleeperOpt = sleeperInspectionCallRepository.findByCallNo(requestId);
+            }
             if (sleeperOpt.isPresent()) {
                 return enrichFromSleeperCall(sleeperOpt.get(), dto);
             }
@@ -951,10 +954,84 @@ public class CallLetterServiceImpl implements CallLetterService {
                 List<CallLetterDetailsDto.HeatDetail> heatDetailsList = new java.util.ArrayList<>();
                 List<CallLetterDetailsDto.SleeperBatchDetail> batchesList = new java.util.ArrayList<>();
 
+                java.util.Map<Long, Long> batchCountCache = new java.util.HashMap<>();
+                java.util.Map<String, ProductionDeclaration> pdBatchCache = new java.util.HashMap<>();
+
+                // Preload all batch names
+                java.util.Set<String> allBatchNames = new java.util.HashSet<>();
+                for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch batch : sleeperCall.getBatchesSelected()) {
+                    if (batch != null && batch.getBatchNo() != null) {
+                        String raw = batch.getBatchNo().trim();
+                        String clean = raw.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                        allBatchNames.add(raw);
+                        allBatchNames.add(clean);
+                        allBatchNames.add("Batch " + clean);
+                    }
+                }
+
+                // 1. Preload all ET sleepers in 1 bulk query
+                java.util.Map<String, List<String>> etSleepersByBatch = new java.util.HashMap<>();
+                if (!allBatchNames.isEmpty() && etSleeperDetailsRepository != null) {
+                    try {
+                        List<com.sarthi.Sleeper.entity.EtSleeperDetails> etList = etSleeperDetailsRepository.findByEt_BatchNumberIn(allBatchNames);
+                        if (etList != null) {
+                            for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etList) {
+                                if (et != null && et.getEt() != null && et.getEt().getBatchNumber() != null && et.getSleeperNo() != null) {
+                                    String bNo = et.getEt().getBatchNumber().trim();
+                                    etSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(et.getSleeperNo().trim());
+                                    String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                    etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new java.util.ArrayList<>()).add(et.getSleeperNo().trim());
+                                }
+                            }
+                        }
+                    } catch (Exception ignore) {}
+                }
+
+                // 2. Preload ProductionDeclaration records using indexed batch IN query
+                if (!allBatchNames.isEmpty() && productionDeclarationRepository != null) {
+                    try {
+                        List<ProductionDeclaration> pds = productionDeclarationRepository.findAllByBatchNumbers(allBatchNames);
+                        if (pds != null) {
+                            for (ProductionDeclaration item : pds) {
+                                if (item != null && item.getBatchNumber() != null) {
+                                    String b = item.getBatchNumber().trim();
+                                    pdBatchCache.putIfAbsent(b, item);
+                                    String cb = b.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                    pdBatchCache.putIfAbsent(cb, item);
+                                    pdBatchCache.putIfAbsent("Batch " + cb, item);
+                                }
+                            }
+                        }
+                    } catch (Exception ignore) {}
+                }
+
+                // 3. Preload all batch sleeper counts in 1 single bulk query
+                java.util.Set<Long> allPdIds = new java.util.HashSet<>();
+                for (var pdItem : pdBatchCache.values()) {
+                    if (pdItem != null && pdItem.getId() != null) {
+                        allPdIds.add(pdItem.getId());
+                    }
+                }
+                if (!allPdIds.isEmpty() && productionSleeperRepository != null) {
+                    try {
+                        List<Object[]> counts = productionSleeperRepository.countSleepersByBatchIds(new java.util.ArrayList<>(allPdIds));
+                        if (counts != null) {
+                            for (Object[] row : counts) {
+                                if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                                    Long batchId = ((Number) row[0]).longValue();
+                                    Long cnt = ((Number) row[1]).longValue();
+                                    batchCountCache.put(batchId, cnt);
+                                }
+                            }
+                        }
+                    } catch (Exception ignore) {}
+                }
+
                 for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch batch : sleeperCall.getBatchesSelected()) {
                     if (batch == null) continue;
                     String rawBatchNo = batch.getBatchNo() != null ? batch.getBatchNo().trim() : "-";
                     String displayBatchNo = rawBatchNo.startsWith("Batch ") ? rawBatchNo : "Batch " + rawBatchNo;
+                    String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
 
                     List<String> goodSleepersList = new java.util.ArrayList<>();
                     List<String> badSleepersList = new java.util.ArrayList<>();
@@ -983,55 +1060,20 @@ public class CallLetterServiceImpl implements CallLetterService {
                     int badCount = badSleepersList.size();
                     String rejNoStr = String.join(", ", badSleepersList);
 
-                    // Look up ProductionDeclaration for this batch
+                    // Look up ProductionDeclaration directly from preloaded pdBatchCache
                     String castDateStr = batch.getCastDate();
                     Integer totalCasted = batch.getTotalCasted();
                     int prevOffered = batch.getPreviouslyOffered() != null ? batch.getPreviouslyOffered() : 0;
 
-                    ProductionDeclaration pd = null;
-
-                    // 1. Try resolving ProductionDeclaration via SleeperDetails (sleeperId)
-                    try {
-                        if (batch.getGoodSleepers() != null) {
-                            for (com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail s : batch.getGoodSleepers()) {
-                                if (s != null && s.getSleeperId() != null) {
-                                    Optional<com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper> psOpt = productionSleeperRepository.findById(s.getSleeperId());
-                                    if (psOpt.isPresent()) {
-                                        com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionSleeper ps = psOpt.get();
-                                        if (ps.getBenchGroup() != null && ps.getBenchGroup().getChamber() != null && ps.getBenchGroup().getChamber().getDeclaration() != null) {
-                                            pd = ps.getBenchGroup().getChamber().getDeclaration();
-                                            break;
-                                        } else if (ps.getGang() != null && ps.getGang().getDeclaration() != null) {
-                                            pd = ps.getGang().getDeclaration();
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Exception ignore) {}
-
-                    // 2. If pd still null, try finding via flexible batch queries
+                    ProductionDeclaration pd = pdBatchCache.get(rawBatchNo);
                     if (pd == null) {
-                        try {
-                            String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
-                            try {
-                                pd = productionDeclarationRepository.findLatestByBatchNoFlexible(rawBatchNo, cleanBatch);
-                            } catch (Exception ignore) {}
-                            if (pd == null) {
-                                try {
-                                    pd = productionDeclarationRepository.findLatestByBatchNo(cleanBatch);
-                                } catch (Exception ignore) {}
-                            }
-                            if (pd == null && !rawBatchNo.equals(cleanBatch)) {
-                                try {
-                                    pd = productionDeclarationRepository.findLatestByBatchNo(rawBatchNo);
-                                } catch (Exception ignore) {}
-                            }
-                        } catch (Exception ignore) {}
+                        pd = pdBatchCache.get(cleanBatch);
+                    }
+                    if (pd == null) {
+                        pd = pdBatchCache.get(displayBatchNo);
                     }
 
-                    // 3. Extract castDate and totalCasted from pd if needed
+                    // Extract castDate and totalCasted from pd if needed
                     if (pd != null) {
                         if (castDateStr == null || castDateStr.isBlank() || "-".equals(castDateStr) || "N/A".equalsIgnoreCase(castDateStr)) {
                             if (pd.getCastingDate() != null) {
@@ -1040,7 +1082,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                         }
                         if (totalCasted == null || totalCasted <= 0) {
                             try {
-                                Long count = productionSleeperRepository.countByBatchId(pd.getId());
+                                Long count = batchCountCache.get(pd.getId());
                                 if (count != null && count > 0) {
                                     totalCasted = count.intValue();
                                 } else if (pd.getTotalCastedSleepers() != null && pd.getTotalCastedSleepers() > 0) {
@@ -1062,33 +1104,15 @@ public class CallLetterServiceImpl implements CallLetterService {
                         castDateStr = sleeperCall.getCreatedAt() != null ? sleeperCall.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "-";
                     }
 
-                    // Look up ET sleepers for this batch
+                    // Look up ET sleepers from preloaded map
                     List<String> etSleepersList = new java.util.ArrayList<>();
-                    String etNoStr = "";
-                    int etCount = 0;
-                    try {
-                        String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*", "").trim();
-                        List<com.sarthi.Sleeper.entity.EtSleeperDetails> etList = null;
-                        try {
-                            etList = etSleeperDetailsRepository.findByEt_BatchNumber(cleanBatch);
-                        } catch (Exception ignore) {}
-                        if ((etList == null || etList.isEmpty()) && !rawBatchNo.equals(cleanBatch)) {
-                            try {
-                                etList = etSleeperDetailsRepository.findByEt_BatchNumber(rawBatchNo);
-                            } catch (Exception ignore) {}
-                        }
-                        if (etList != null && !etList.isEmpty()) {
-                            for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etList) {
-                                if (et != null && et.getSleeperNo() != null && !et.getSleeperNo().isBlank()) {
-                                    etSleepersList.add(et.getSleeperNo().trim());
-                                }
-                            }
-                            etNoStr = String.join(", ", etSleepersList);
-                            etCount = etSleepersList.size();
-                        }
-                    } catch (Exception e) {
-                        logger.error("Error fetching ET sleepers for batch: {}", rawBatchNo, e);
+                    if (etSleepersByBatch.containsKey(rawBatchNo)) {
+                        etSleepersList.addAll(etSleepersByBatch.get(rawBatchNo));
+                    } else if (etSleepersByBatch.containsKey(cleanBatch)) {
+                        etSleepersList.addAll(etSleepersByBatch.get(cleanBatch));
                     }
+                    String etNoStr = String.join(", ", etSleepersList);
+                    int etCount = etSleepersList.size();
 
                     int notOffered = Math.max(0, totalCasted - goodCount - badCount);
 

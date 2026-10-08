@@ -20,98 +20,115 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
     @Query("DELETE FROM RailWorkflowTransaction t WHERE t.requestId = :requestId AND t.moduleId = :moduleId")
     void deleteByRequestIdAndModuleId(@Param("requestId") String requestId, @Param("moduleId") Long moduleId);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
-            AND t.nextRole = :roleName
-            """)
-    List<RailWorkflowTransaction> findLatestByRole(String roleName);
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.next_role = :roleName
+              AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
+              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+              AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
+    List<RailWorkflowTransaction> findLatestByRole(@Param("roleName") String roleName, @Param("assignedTo") Long assignedTo);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
-            AND t.nextRole = :roleName
-            AND (:workflowId IS NULL OR t.workflowId = :workflowId)
-            AND (:moduleId IS NULL OR t.moduleId = :moduleId)
-            AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
-            """)
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE (:workflowId IS NULL OR wt.workflow_id = :workflowId)
+                  AND (:moduleId IS NULL OR wt.module_id = :moduleId)
+                  AND (:plantId IS NULL OR :plantId = '' OR wt.plant_id = :plantId OR wt.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR wt.plant_id = REPLACE(:plantId, ':', '') OR LOWER(wt.plant_id) = LOWER(:plantId))
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.next_role = :roleName
+              AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
+              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+              AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
     List<RailWorkflowTransaction> findLatestByRoleAndPlantIdAndWorkflowId(@Param("roleName") String roleName,
-            @Param("plantId") String plantId, @Param("workflowId") Long workflowId, @Param("moduleId") Long moduleId);
+            @Param("plantId") String plantId, @Param("workflowId") Long workflowId, @Param("moduleId") Long moduleId,
+            @Param("assignedTo") Long assignedTo);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED')
-            AND t.nextRole = :roleName
-            AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
-            """)
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE (:plantId IS NULL OR :plantId = '' OR wt.plant_id = :plantId OR wt.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR wt.plant_id = REPLACE(:plantId, ':', '') OR LOWER(wt.plant_id) = LOWER(:plantId))
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.next_role = :roleName
+              AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
+              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+              AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
     List<RailWorkflowTransaction> findLatestByRoleAndPlantId(@Param("roleName") String roleName,
-            @Param("plantId") String plantId);
+            @Param("plantId") String plantId, @Param("assignedTo") Long assignedTo);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
-            AND t.nextRole = :roleName
-            ORDER BY t.workflowTransitionId DESC
-            """)
-    List<RailWorkflowTransaction> findLastPendingRequestsByRole(String roleName);
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.next_role = :roleName
+              AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
+              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+              AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
+    List<RailWorkflowTransaction> findLastPendingRequestsByRole(@Param("roleName") String roleName, @Param("assignedTo") Long assignedTo);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
-            AND t.nextRole = :roleName
-            AND (:workflowId IS NULL OR t.workflowId = :workflowId)
-            AND (:moduleId IS NULL OR t.moduleId = :moduleId)
-            AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
-            ORDER BY t.workflowTransitionId DESC
-            """)
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE (:workflowId IS NULL OR wt.workflow_id = :workflowId)
+                  AND (:moduleId IS NULL OR wt.module_id = :moduleId)
+                  AND (:plantId IS NULL OR :plantId = '' OR wt.plant_id = :plantId OR wt.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR wt.plant_id = REPLACE(:plantId, ':', '') OR LOWER(wt.plant_id) = LOWER(:plantId))
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.next_role = :roleName
+              AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
+              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+              AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(
-            @Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId, @Param("moduleId") Long moduleId);
+            @Param("roleName") String roleName, @Param("plantId") String plantId, @Param("workflowId") Long workflowId, @Param("moduleId") Long moduleId,
+            @Param("assignedTo") Long assignedTo);
 
-    @Query("""
-            SELECT t FROM RailWorkflowTransaction t
-            WHERE t.workflowTransitionId = (
-                SELECT MAX(t2.workflowTransitionId)
-                FROM RailWorkflowTransaction t2
-                WHERE t2.requestId = t.requestId
-                AND COALESCE(t2.moduleId, 0) = COALESCE(t.moduleId, 0)
-            )
-            AND UPPER(t.status) IN ('CREATED','PENDING', 'CREATE', 'RETURNED', 'RESUBMITTED')
-            AND t.nextRole = :roleName
-            AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR t.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) OR t.plantId = REPLACE(:plantId, ':', '') OR LOWER(t.plantId) = LOWER(:plantId))
-            ORDER BY t.workflowTransitionId DESC
-            """)
+    @Query(value = """
+            SELECT t.* FROM rail_workflow_transaction t
+            JOIN (
+                SELECT MAX(wt.workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction wt
+                WHERE (:plantId IS NULL OR :plantId = '' OR wt.plant_id = :plantId OR wt.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR wt.plant_id = REPLACE(:plantId, ':', '') OR LOWER(wt.plant_id) = LOWER(:plantId))
+                GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
+            ) latest ON t.workflow_transition_id = latest.max_id
+            WHERE t.next_role = :roleName
+              AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
+              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+              AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
+            ORDER BY t.workflow_transition_id DESC
+            """, nativeQuery = true)
     List<RailWorkflowTransaction> findLastPendingRequestsByRoleAndPlantId(@Param("roleName") String roleName,
-            @Param("plantId") String plantId);
+            @Param("plantId") String plantId, @Param("assignedTo") Long assignedTo);
 
     List<RailWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
 
