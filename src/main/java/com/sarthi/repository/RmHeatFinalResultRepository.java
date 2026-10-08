@@ -24,6 +24,8 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
 
     List<RmHeatFinalResult> findByInspectionCallNoInAndHeatNo(List<String> inspectionCallNos, String heatNo);
 
+    List<RmHeatFinalResult> findByInspectionCallNoContainingAndHeatNo(String inspectionCallNo, String heatNo);
+
     void deleteByInspectionCallNo(String inspectionCallNo);
 
     @Query("""
