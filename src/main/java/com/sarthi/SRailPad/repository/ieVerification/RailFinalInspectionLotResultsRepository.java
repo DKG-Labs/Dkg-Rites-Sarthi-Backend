@@ -14,6 +14,7 @@ import java.util.Optional;
 public interface RailFinalInspectionLotResultsRepository extends JpaRepository<RailFinalInspectionLotResults, Long> {
     Optional<RailFinalInspectionLotResults> findByCallNoAndLotNo(String callNo, String lotNo);
     List<RailFinalInspectionLotResults> findAllByCallNo(String callNo);
+    List<RailFinalInspectionLotResults> findAllByCallNoIn(List<String> callNos);
     Optional<RailFinalInspectionLotResults> findFirstByCallNo(String callNo);
     Optional<RailFinalInspectionLotResults> findFirstByCallNoOrderByIdAsc(String callNo);
     List<RailFinalInspectionLotResults> findAllByPlantIdAndShiftAndDateOfInspection(String plantId, String shift, LocalDate dateOfInspection);
