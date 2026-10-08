@@ -121,6 +121,15 @@ public class RailInspectionCall {
     @Transient
     private Boolean isIcGenerated;
 
+    @Transient
+    private Integer offeredQty;
+
+    @Transient
+    private Integer acceptedQty;
+
+    @Transient
+    private Integer rejectedQty;
+
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RailInspectionLot> lots;
 
