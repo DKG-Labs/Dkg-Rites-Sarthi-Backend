@@ -109,6 +109,8 @@ public class SecurityConfig {
                                 "/api/case-letter/**",
                                 "/api/images/**",
                                 "/dashboard/images/**",
+                                "/api/sleeper-dashboard/**",
+                                "/api/reports/**",
                                 "/api/ibs/**",
                                 "/api/Vendorsync/**"
                         ).permitAll()

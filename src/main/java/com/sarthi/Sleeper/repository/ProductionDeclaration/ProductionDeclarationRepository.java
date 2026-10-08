@@ -29,11 +29,27 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p")
     Long getTotalProductionCount();
 
+    @Query(value = "SELECT COALESCE(SUM(p.total_casted_sleepers), 0) FROM production_declaration p WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR DATE(COALESCE(p.casting_date, p.created_date)) BETWEEN :startDate AND :endDate)", nativeQuery = true)
+    Long getTotalProductionCountByDate(@Param("startDate") String startDate, @Param("endDate") String endDate);
+
     @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p WHERE p.plantId = :plantId")
     Long getTotalProductionCountByPlantId(@Param("plantId") String plantId);
 
     @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p WHERE p.plantId IN :plantIds")
     Long getTotalProductionCountByPlantIds(@Param("plantIds") java.util.Collection<String> plantIds);
+
+    @Query(value = """
+        SELECT COALESCE(SUM(p.total_casted_sleepers), 0) 
+        FROM production_declaration p 
+        WHERE (p.plant_id IN (:plantIds) OR p.vendor_code IN (:plantIds) 
+            OR REPLACE(COALESCE(p.plant_id, ''), ':', '') IN (:plantIds) 
+            OR REPLACE(COALESCE(p.vendor_code, ''), ':', '') IN (:plantIds)) 
+          AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR DATE(COALESCE(p.casting_date, p.created_date)) BETWEEN :startDate AND :endDate)
+    """, nativeQuery = true)
+    Long getTotalProductionCountByPlantIdsAndDate(
+            @Param("plantIds") java.util.Collection<String> plantIds,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate);
 
     @Query("""
 SELECT c.declaration.id, b.sleeperType

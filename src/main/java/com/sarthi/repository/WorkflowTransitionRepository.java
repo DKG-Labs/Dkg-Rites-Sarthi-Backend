@@ -997,13 +997,28 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                             FROM process_inspection_details pid WHERE pid.ic_id = ic.id
                         )
                         WHEN ic.ic_number LIKE '%EF%' THEN (
-                            SELECT fid.total_offered_qty
+                            SELECT 
+                                CASE 
+                                    WHEN LOWER(COALESCE(
+                                        (SELECT pi2.uom FROM po_item pi2 WHERE (pi2.po_header_id = ph.id OR pi2.case_no = ph.case_no) ORDER BY (pi2.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi2.item_sr_no = ic.po_serial_no) DESC, pi2.id ASC LIMIT 1),
+                                        'nos'
+                                    )) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons')
+                                    THEN COALESCE(
+                                        (SELECT fcr.qty_now_offered FROM final_cumulative_results fcr WHERE fcr.inspection_call_no = ic.ic_number OR fcr.inspection_call_no = icd.certificate_no OR fcr.inspection_call_no LIKE CONCAT('%', ic.ic_number, '%') LIMIT 1),
+                                        fid.total_offered_qty
+                                    )
+                                    ELSE fid.total_offered_qty
+                                END
                             FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
                         )
                     END,
                     (SELECT icd2.call_qty FROM inspection_call_details icd2 WHERE icd2.inspection_call_no = ic.ic_number ORDER BY icd2.id DESC LIMIT 1),
                     0
-                ) AS callQty
+                ) AS callQty,
+                COALESCE(
+                    (SELECT pi2.uom FROM po_item pi2 WHERE (pi2.po_header_id = ph.id OR pi2.case_no = ph.case_no) ORDER BY (pi2.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi2.item_sr_no = ic.po_serial_no) DESC, pi2.id ASC LIMIT 1),
+                    ''
+                ) AS poUom
             FROM workflow_transition wt
             INNER JOIN (
                 SELECT requestid, MAX(workflowtransitionid) latest_id
@@ -1011,7 +1026,7 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 GROUP BY requestid
             ) x ON wt.workflowtransitionid = x.latest_id
             INNER JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
-            INNER JOIN po_header ph ON ic.po_no = ph.po_no
+            INNER JOIN po_header ph ON (ph.po_no = ic.po_no OR ic.po_no LIKE CONCAT('%', ph.po_no, '%') OR ph.po_no LIKE CONCAT('%', ic.po_no, '%'))
             LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
             LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.call_no
             WHERE wt.STATUS = 'SEND_CALL_TO_IBS'

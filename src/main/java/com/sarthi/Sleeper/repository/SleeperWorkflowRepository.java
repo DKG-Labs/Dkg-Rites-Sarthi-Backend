@@ -516,7 +516,7 @@ AND t.workflowTransitionId = (
             FROM sleeper_workflow_transaction
             WHERE workflow_id = 2
             GROUP BY request_id
-        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
+        ) latest ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AND swt.workflow_transition_id = latest.max_id
         LEFT JOIN (
             SELECT 
                 swt_sub.request_id,
@@ -530,29 +530,36 @@ AND t.workflowTransitionId = (
                 WHERE assigned_to_user IS NOT NULL
                 GROUP BY request_id
             ) swt_max ON swt_sub.workflow_transition_id = swt_max.max_swt_id
-        ) swt_assigned ON swt_assigned.request_id COLLATE utf8mb4_unicode_ci = swt.request_id COLLATE utf8mb4_unicode_ci
+        ) swt_assigned ON CONVERT(swt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
         LEFT JOIN USER_MASTER um_ie ON um_ie.USERID = swt_assigned.ie_user_id
-        INNER JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
-        LEFT JOIN vendor_plant vp ON (vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
-            OR vp.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(sic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci)
-        LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
-            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
+        INNER JOIN sleeper_inspection_call sic ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
-            pi.item_sr_no COLLATE utf8mb4_unicode_ci = sic.sr_no COLLATE utf8mb4_unicode_ci 
-            OR pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
+            CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         )
         WHERE swt.workflow_id = 2
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
-               sic.plant_id = :vendorPlantCode OR
-               REPLACE(COALESCE(sic.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
-               swt.plant_id = :vendorPlantCode OR
-               REPLACE(COALESCE(swt.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
-               vp.company_name = :vendorPlantCode OR
-               vp.vendor_code = :vendorPlantCode)
+               CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(swt.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(swt.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
           AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR 
-               UPPER(TRIM(COALESCE(vp.zonal_railway, ''))) = UPPER(TRIM(:zonalRailway)) OR
-               UPPER(TRIM(COALESCE(ph.rly_short_name, ''))) = UPPER(TRIM(:zonalRailway)) OR
-               UPPER(TRIM(COALESCE(ph.rly_cd, ''))) = UPPER(TRIM(:zonalRailway)))
+               UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
           AND (:startDate IS NULL OR :endDate IS NULL OR COALESCE(sic.created_at, swt.created_date) BETWEEN :startDate AND :endDate OR :status IN ('Open', 'Pending', 'Under Inspection'))
           AND (
                :stage = 'ALL' OR :stage IS NULL OR :stage = '' OR :stage = 'Final' OR :stage = 'Final Stage'
@@ -610,30 +617,57 @@ AND t.workflowTransitionId = (
             COALESCE(ph.item_cat_descr, 'PSC Mainline Sleeper') AS itemCatDescr,
             COALESCE(sicd.created_on, swt.created_date) AS rawCreatedDate,
             DATE_FORMAT(sic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
-            (COALESCE(sic.total_offered, 0) + COALESCE(sic.total_rejected, 0)) AS callQty
+            COALESCE(
+                CASE 
+                    WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS') OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%' OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%' THEN 
+                        COALESCE(sfr.accepted_sets_quantity, sfr.total_accepted)
+                    ELSE COALESCE(sfr.total_accepted, sfr.accepted_sets_quantity)
+                END,
+                (SELECT fci.accepted_qty FROM final_call_inspection_header fci WHERE CONVERT(TRIM(fci.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci ORDER BY fci.id DESC LIMIT 1),
+                (SELECT CAST(sfie.passed_installment_no AS SIGNED) FROM sleeper_final_ic_edit sfie WHERE CONVERT(TRIM(sfie.ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(sfie.ic_number, '/', 2), '/', -1)) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci ORDER BY sfie.id DESC LIMIT 1),
+                GREATEST(0, COALESCE(sic.total_offered, 0) - COALESCE(sic.total_rejected, 0)),
+                0
+            ) AS callQty,
+            COALESCE(pi.uom, sfr.sleeper_type, '') AS poUom
         FROM sleeper_workflow_transaction swt
         INNER JOIN (
             SELECT request_id, MAX(workflow_transition_id) AS max_id
             FROM sleeper_workflow_transaction
             WHERE workflow_id = 2
             GROUP BY request_id
-        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
-        INNER JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
-        LEFT JOIN vendor_plant vp ON (vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
-            OR vp.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(sic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci)
-        LEFT JOIN po_header ph ON (ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
-            OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci)
-        LEFT JOIN sleeper_inspection_complete_details sicd ON sic.call_no COLLATE utf8mb4_unicode_ci = sicd.call_no COLLATE utf8mb4_unicode_ci
+        ) latest ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AND swt.workflow_transition_id = latest.max_id
+        INNER JOIN sleeper_inspection_call sic ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
+            CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        )
+        LEFT JOIN sleeper_final_result sfr ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE swt.workflow_id = 2
-          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
-               sic.plant_id = :vendorPlantCode OR
-               REPLACE(COALESCE(sic.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
-               swt.plant_id = :vendorPlantCode OR
-               REPLACE(COALESCE(swt.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
-               vp.company_name = :vendorPlantCode OR
-               vp.vendor_code = :vendorPlantCode)
-          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
+               CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(swt.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(swt.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR 
+               UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
           AND (:startDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) >= :startDate)
           AND (:endDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) <= :endDate)
         ORDER BY rawCreatedDate DESC
@@ -652,24 +686,34 @@ AND t.workflowTransitionId = (
             FROM sleeper_workflow_transaction
             WHERE workflow_id = 2
             GROUP BY request_id
-        ) latest ON swt.request_id = latest.request_id AND swt.workflow_transition_id = latest.max_id
-        LEFT JOIN sleeper_inspection_call sic ON swt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+        ) latest ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AND swt.workflow_transition_id = latest.max_id
+        LEFT JOIN sleeper_inspection_call sic ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
         LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
             OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE swt.workflow_id = 2
-          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
-               sic.plant_id = :vendorPlantCode OR
-               REPLACE(COALESCE(sic.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
-               swt.plant_id = :vendorPlantCode OR
-               REPLACE(COALESCE(swt.plant_id, ''), ':', '') = REPLACE(:vendorPlantCode, ':', '') OR
-               vp.company_name = :vendorPlantCode OR
-               vp.vendor_code = :vendorPlantCode)
-          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR vp.zonal_railway = :zonalRailway OR ph.rly_short_name = :zonalRailway)
-          AND (:startDate IS NULL OR :endDate IS NULL OR sic.created_at BETWEEN :startDate AND :endDate)
+               CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(swt.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(swt.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR 
+               UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
+          AND (:startDate IS NULL OR :endDate IS NULL OR COALESCE(sicd.created_on, swt.created_date, sic.created_at) BETWEEN :startDate AND :endDate)
     """, nativeQuery = true)
     Long countSleeperIcIssuedFiltered(
             @Param("vendorPlantCode") String vendorPlantCode,

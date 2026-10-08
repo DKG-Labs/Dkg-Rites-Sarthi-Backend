@@ -472,19 +472,22 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 INNER JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
                 INNER JOIN po_header ph ON ic.po_no = ph.po_no
                 INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS
-                    FROM WORKFLOW_TRANSITION w
-                    INNER JOIN (
-                        SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
-                        FROM WORKFLOW_TRANSITION
-                        GROUP BY REQUESTID
-                    ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
-                ) wf ON wf.REQUESTID = ic.ic_number
-                WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
-                AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
-                AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
-            """, nativeQuery = true)
+                SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                FROM WORKFLOW_TRANSITION w
+                INNER JOIN (
+                    SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                    FROM WORKFLOW_TRANSITION
+                    GROUP BY REQUESTID
+                ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+            ) wf ON wf.REQUESTID = ic.ic_number
+            WHERE (
+                DATE(COALESCE(wf.CREATEDDATE, p.date_of_inspection, p.created_at)) BETWEEN :startDate AND :endDate
+                OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+            )
+            AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+            AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
+        """, nativeQuery = true)
     Long sumTemperingManufacturedWithFilters(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
             @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
@@ -492,25 +495,28 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
 
     @org.springframework.data.jpa.repository.Query(value = """
-                SELECT COUNT(DISTINCT DATE(p.created_at))
-                FROM process_line_final_result p
-                INNER JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
-                INNER JOIN po_header ph ON ic.po_no = ph.po_no
+            SELECT COUNT(DISTINCT DATE(COALESCE(wf.CREATEDDATE, p.date_of_inspection, p.created_at)))
+            FROM process_line_final_result p
+            INNER JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
+            INNER JOIN po_header ph ON ic.po_no = ph.po_no
+            INNER JOIN (
+                SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                FROM WORKFLOW_TRANSITION w
                 INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS
-                    FROM WORKFLOW_TRANSITION w
-                    INNER JOIN (
-                        SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
-                        FROM WORKFLOW_TRANSITION
-                        GROUP BY REQUESTID
-                    ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
-                ) wf ON wf.REQUESTID = ic.ic_number
-                WHERE (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
-                AND p.tempering_manufactured > 0
-                AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
-                AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-                AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
-            """, nativeQuery = true)
+                    SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                    FROM WORKFLOW_TRANSITION
+                    GROUP BY REQUESTID
+                ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+            ) wf ON wf.REQUESTID = ic.ic_number
+            WHERE (
+                DATE(COALESCE(wf.CREATEDDATE, p.date_of_inspection, p.created_at)) BETWEEN :startDate AND :endDate
+                OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+            )
+            AND p.tempering_manufactured > 0
+            AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+            AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
+        """, nativeQuery = true)
     Long countDistinctProductionDaysWithFilters(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
             @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
@@ -661,13 +667,13 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
 
     @Query(value = """
                 SELECT
-                    SUM(COALESCE(p.tempering_accepted, 0)),
+                    SUM(COALESCE(p.total_accepted, p.tempering_accepted, 0)),
                     SUM(COALESCE(p.total_rejected, 0))
                 FROM inspection_calls ic
                 INNER JOIN po_header ph ON ic.po_no = ph.po_no
                 INNER JOIN process_line_final_result p ON p.inspection_call_no = ic.ic_number
                 INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS
+                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
                     FROM WORKFLOW_TRANSITION w
                     INNER JOIN (
                         SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
@@ -678,7 +684,10 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                 AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                AND (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+                AND (
+                    DATE(COALESCE(wf.CREATEDDATE, p.date_of_inspection, p.created_at)) BETWEEN :startDate AND :endDate
+                    OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+                )
             """, nativeQuery = true)
     List<Object[]> sumProcessAcceptedAndRejectedRevisedLogic(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
@@ -1074,7 +1083,16 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 COALESCE(pm.ibs_vendor_code, ic.place_of_inspection)    AS ibsManufacturedCode,
                 CAST(COALESCE(
                     NULLIF(TRIM(um_p.employee_code), ''),
-                    NULLIF(TRIM(CAST(um_p.rites_employee_code AS CHAR)), '')
+                    NULLIF(TRIM(CAST(um_p.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_cert.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_cert.rites_employee_code AS CHAR)), ''),
+                    (SELECT NULLIF(TRIM(um_piq.employee_code), '') FROM process_ie_qty piq JOIN user_master um_piq ON um_piq.userid = piq.ie_user_id WHERE piq.request_id = ic.ic_number LIMIT 1),
+                    NULLIF(TRIM(um_assigned.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_assigned.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_wt.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_wt.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_ic.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_ic.rites_employee_code AS CHAR)), '')
                 ) AS CHAR)                                              AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'P'                                                     AS typeOfCall,
@@ -1086,9 +1104,26 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 CAST(COALESCE(p.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(p.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(COALESCE(p.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(NULLIF(pr.total_processed, 0), (SELECT SUM(pid.offered_qty) FROM process_inspection_details pid WHERE pid.ic_id = ic.id), 0) AS quantityOffered,
-                COALESCE(pr.total_accepted, 0)                          AS quantityPassed,
-                COALESCE(pr.total_rejected, 0)                          AS quantityRejected,
+                COALESCE(
+                    NULLIF(pr.total_processed, 0),
+                    (SELECT COALESCE(SUM(piq.offered_qty), SUM(piq.manufacture_qty), SUM(piq.inspected_qty)) FROM process_ie_qty piq WHERE piq.request_id = ic.ic_number),
+                    (SELECT SUM(pid.offered_qty) FROM process_inspection_details pid WHERE pid.ic_id = ic.id),
+                    (SELECT icd_sub.call_qty FROM inspection_call_details icd_sub WHERE icd_sub.inspection_call_no = ic.ic_number ORDER BY icd_sub.id DESC LIMIT 1),
+                    0
+                ) AS quantityOffered,
+                COALESCE(
+                    NULLIF(pr.total_accepted, 0),
+                    (SELECT SUM(COALESCE(piq.inspected_qty, piq.offered_qty, 0)) FROM process_ie_qty piq WHERE piq.request_id = ic.ic_number),
+                    (SELECT SUM(COALESCE(pid.qty_accepted, pid.offered_qty, 0)) FROM process_inspection_details pid WHERE pid.ic_id = ic.id),
+                    (SELECT icd_sub.call_qty FROM inspection_call_details icd_sub WHERE icd_sub.inspection_call_no = ic.ic_number ORDER BY icd_sub.id DESC LIMIT 1),
+                    0
+                ) AS quantityPassed,
+                COALESCE(
+                    NULLIF(pr.total_rejected, 0),
+                    (SELECT SUM(COALESCE(piq.rejected_qty, 0)) FROM process_ie_qty piq WHERE piq.request_id = ic.ic_number),
+                    (SELECT SUM(COALESCE(pid.qty_rejected, 0)) FROM process_inspection_details pid WHERE pid.ic_id = ic.id),
+                    0
+                ) AS quantityRejected,
                 ic.ic_number                                            AS callNo,
                 COALESCE(
                     NULLIF(icd.certificate_no, ''),
@@ -1136,6 +1171,18 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             LEFT JOIN user_master um_p
                    ON CONVERT(um_p.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um_p.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_cert
+                   ON CONVERT(um_cert.short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(p.ic_number, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_cert.short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(icd.certificate_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_assigned
+                   ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_assigned.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_wt
+                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_ic
+                   ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT 
                     pr_sub.inspection_call_no,
@@ -1143,10 +1190,11 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                     GREATEST(0, SUM(COALESCE(pr_sub.total_manufactured, 0)) - SUM(COALESCE(pr_sub.total_rejected, 0))) AS total_accepted,
                     SUM(COALESCE(pr_sub.total_rejected, 0)) AS total_rejected
                 FROM process_line_final_result pr_sub
-                WHERE pr_sub.inspection_call_no IN (:callNumbers)
                 GROUP BY pr_sub.inspection_call_no
             ) pr ON CONVERT(pr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                 OR (p.ic_number IS NOT NULL AND CONVERT(pr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci)
             WHERE ic.ic_number IN (:callNumbers)
+              AND (ic.ic_number LIKE 'EP%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%PROCESS%' OR UPPER(COALESCE(ic.type_of_call, '')) = 'P' OR p.ic_number IS NOT NULL)
             GROUP BY
                 ph.case_no,
                 ic.created_at,
@@ -1154,6 +1202,14 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 pm.ibs_vendor_code,
                 um_p.employee_code,
                 um_p.rites_employee_code,
+                um_cert.employee_code,
+                um_cert.rites_employee_code,
+                um_assigned.employee_code,
+                um_assigned.rites_employee_code,
+                um_wt.employee_code,
+                um_wt.rites_employee_code,
+                um_ic.employee_code,
+                um_ic.rites_employee_code,
                 p.created_by,
                 ic.po_no,
                 ic.po_serial_no,

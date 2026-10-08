@@ -84,9 +84,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
-
 public class reportsImpl implements reports {
 
         @Autowired
@@ -2798,14 +2799,9 @@ public class reportsImpl implements reports {
                 CompletableFuture<Double> cfQtyMt = CompletableFuture.supplyAsync(() -> poItemRepository
                                 .sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", null, null, vCode, zCode));
 
-                CompletableFuture<Long> cfFinalQtyPassed = CompletableFuture.supplyAsync(() -> {
-                        List<Object[]> res = finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(
+                CompletableFuture<List<Object[]>> cfFinalResults = CompletableFuture.supplyAsync(() -> {
+                        return finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(
                                         parsedStartDate, parsedEndDate, vCode, zCode);
-                        if (res != null && !res.isEmpty() && res.get(0) != null) {
-                                Object[] row = res.get(0);
-                                return row[0] != null ? ((Number) row[0]).longValue() : 0L;
-                        }
-                        return 0L;
                 });
 
                 CompletableFuture<Double> cfAvgProd = CompletableFuture.supplyAsync(
@@ -2887,7 +2883,7 @@ public class reportsImpl implements reports {
                                                 .countDistinctPlantDaysLast30Days(thirtyDaysAgoDate));
 
                 // Wait for all futures to complete
-                CompletableFuture.allOf(cfPoIssued, cfQtyNos, cfQtyMt, cfFinalQtyPassed, cfAvgProd,
+                CompletableFuture.allOf(cfPoIssued, cfQtyNos, cfQtyMt, cfFinalResults, cfAvgProd,
                                 cfProcRej, cfFinalRejResults, cfRmRejResults, cfSleeperPoIssued,
                                 cfSleeperQtyNos, cfSleeperQtySet, cfSleeperIcIssued, cfRailPadPoIssued, cfRailPadQtyNos,
                                 cfRailPadQtySet, cfCallCounts, cfFinalSummary, cfTotalRejection,
@@ -2898,7 +2894,14 @@ public class reportsImpl implements reports {
                 long poIssued = cfPoIssued.join();
                 Long qtyNos = cfQtyNos.join();
                 Double qtyMt = cfQtyMt.join();
-                Long finalQtyPassed = cfFinalQtyPassed.join();
+                List<Object[]> finalData = cfFinalResults.join();
+                long finalQtyPassed = 0L;
+                double finalQtyMtPassed = 0.0;
+                if (finalData != null && !finalData.isEmpty() && finalData.get(0) != null) {
+                        Object[] row = finalData.get(0);
+                        finalQtyPassed = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                        finalQtyMtPassed = (row.length > 2 && row[2] != null) ? ((Number) row[2]).doubleValue() : 0.0;
+                }
                 double avgProductionPerDayWithFilters = cfAvgProd.join();
                 double processRejectionPctValue = cfProcRej.join();
 
@@ -2956,7 +2959,8 @@ public class reportsImpl implements reports {
                 dto.setPoIssued(poIssued);
                 dto.setPoQuantityNos(qtyNos != null ? qtyNos : 0L);
                 dto.setPoQuantityMt(qtyMt != null ? qtyMt : 0.0);
-                dto.setFinalInspectionQuantity(finalQtyPassed != null ? finalQtyPassed : 0L);
+                dto.setFinalInspectionQuantity(finalQtyPassed);
+                dto.setFinalInspectionQuantityMt(finalQtyMtPassed);
                 dto.setAvgProductionPerDay(avgProductionPerDayWithFilters);
                 dto.setProcessRejectionPercentage(processRejectionPctValue);
                 dto.setFinalRejectionPercentage(finalRejectionPctValue);
@@ -4188,6 +4192,10 @@ public class reportsImpl implements reports {
                 String zCode = zonalRailway == null ? "" : zonalRailway;
                 String startDStr = startDateStr == null ? "" : startDateStr;
                 String endDStr = endDateStr == null ? "" : endDateStr;
+                String catLower = itemCatDescr != null ? itemCatDescr.toLowerCase() : "";
+                boolean isRailpad = catLower.contains("rail") && catLower.contains("pad");
+                boolean isSleeper = catLower.contains("sleeper");
+                boolean isErc = catLower.contains("clip") || catLower.contains("erc") || catLower.contains("elastic");
 
                 java.time.LocalDateTime startDate = (startDStr != null && !startDStr.trim().isEmpty())
                                 ? java.time.LocalDate.parse(startDStr.trim()).atStartOfDay()
@@ -4213,11 +4221,6 @@ public class reportsImpl implements reports {
                 Map<String, Long> acceptedQtyMap = new HashMap<>();
 
                 if (!poNos.isEmpty()) {
-                        String catLower = itemCatDescr != null ? itemCatDescr.toLowerCase() : "";
-                        boolean isRailpad = catLower.contains("rail") && catLower.contains("pad");
-                        boolean isSleeper = catLower.contains("sleeper");
-                        boolean isErc = catLower.contains("clip") || catLower.contains("erc") || catLower.contains("elastic");
-
                         // Railpad accepted quantities
                         if (isRailpad || (!isSleeper && !isErc)) {
                                 List<Object[]> railpadRes = poItemRepository.findRailpadAcceptedQtyByPoNos(poNos);
@@ -4246,27 +4249,40 @@ public class reportsImpl implements reports {
 
                         // Sleeper accepted quantities
                         if (isSleeper || (!isRailpad && !isErc)) {
-                                List<Object[]> sleeperRes = poItemRepository.findSleeperAcceptedQtyByPoNos(poNos);
-                                if (sleeperRes != null) {
-                                        for (Object[] row : sleeperRes) {
-                                                if (row[0] != null && row[1] != null) {
-                                                        String po = row[0].toString();
-                                                        long qty = ((Number) row[1]).longValue();
-                                                        acceptedQtyMap.put(po, acceptedQtyMap.getOrDefault(po, 0L) + qty);
-                                                }
-                                        }
-                                }
-                                List<Object[]> genRes = poItemRepository.findGeneralAcceptedQtyByPoNos(poNos);
-                                if (genRes != null) {
-                                        for (Object[] row : genRes) {
-                                                if (row[0] != null && row[1] != null) {
-                                                        String po = row[0].toString();
-                                                        long qty = ((Number) row[1]).longValue();
-                                                        if (!acceptedQtyMap.containsKey(po) || acceptedQtyMap.get(po) == 0L) {
-                                                                acceptedQtyMap.put(po, qty);
+                                try {
+                                        List<Object[]> sleeperRes = poItemRepository.findSleeperAcceptedQtyByPoNos(poNos);
+                                        if (sleeperRes != null) {
+                                                for (Object[] row : sleeperRes) {
+                                                        if (row[0] != null && row[1] != null) {
+                                                                String po = row[0].toString().trim();
+                                                                long qty = ((Number) row[1]).longValue();
+                                                                String rawUom = row.length > 2 && row[2] != null ? row[2].toString().trim().toLowerCase() : "";
+                                                                String normUom = rawUom.startsWith("set") ? "set" : (rawUom.startsWith("no") ? "nos" : rawUom);
+                                                                if (!normUom.isEmpty()) {
+                                                                        acceptedQtyMap.put(po + "_" + normUom, acceptedQtyMap.getOrDefault(po + "_" + normUom, 0L) + qty);
+                                                                }
+                                                                acceptedQtyMap.put(po, acceptedQtyMap.getOrDefault(po, 0L) + qty);
                                                         }
                                                 }
                                         }
+                                } catch (Exception ex) {
+                                        log.error("Error in findSleeperAcceptedQtyByPoNos: {}", ex.getMessage(), ex);
+                                }
+                                try {
+                                        List<Object[]> genRes = poItemRepository.findGeneralAcceptedQtyByPoNos(poNos);
+                                        if (genRes != null) {
+                                                for (Object[] row : genRes) {
+                                                        if (row[0] != null && row[1] != null) {
+                                                                String po = row[0].toString().trim();
+                                                                long qty = ((Number) row[1]).longValue();
+                                                                if (!acceptedQtyMap.containsKey(po) || acceptedQtyMap.get(po) == 0L) {
+                                                                        acceptedQtyMap.put(po, qty);
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                } catch (Exception ex) {
+                                        log.error("Error in findGeneralAcceptedQtyByPoNos: {}", ex.getMessage(), ex);
                                 }
                         }
                 }
@@ -4290,8 +4306,17 @@ public class reportsImpl implements reports {
                                 vendorDetails = parts.length > 0 && parts[0] != null ? parts[0].trim() : vendorDetails.trim();
                         }
                         long poQty = row[4] != null ? ((Number) row[4]).longValue() : 0L;
-                        String uom = row[5] != null ? row[5].toString() : "";
-                        long acceptedQty = acceptedQtyMap.getOrDefault(poNo, 0L);
+                        String uom = row[5] != null ? row[5].toString().trim() : "";
+                        String rawUom = uom.toLowerCase();
+                        String normUom = rawUom.startsWith("set") ? "set" : (rawUom.startsWith("no") ? "nos" : rawUom);
+
+                        long acceptedQty = 0L;
+                        if (acceptedQtyMap.containsKey(poNo + "_" + normUom)) {
+                                acceptedQty = acceptedQtyMap.get(poNo + "_" + normUom);
+                        } else if (!catLower.contains("sleeper")) {
+                                acceptedQty = acceptedQtyMap.getOrDefault(poNo, 0L);
+                        }
+
                         long balanceQty = Math.max(poQty - acceptedQty, 0L);
                         String pdfPath = (row.length > 6 && row[6] != null) ? row[6].toString() : null;
 
@@ -6298,9 +6323,40 @@ public class reportsImpl implements reports {
                         Object rawQty = row.length > 11 && row[11] != null ? row[11] : null;
                         String callNo = row[4] != null ? row[4].toString() : "";
                         String stage = row[6] != null ? row[6].toString() : "";
-                        String railpadType = row.length > 12 && row[12] != null ? row[12].toString() : "";
+                        String railpadType = (isRailPad && row.length > 12 && row[12] != null) ? row[12].toString() : "";
+                        String poUom = (!isRailPad && row.length > 12 && row[12] != null) ? row[12].toString() : "";
 
-                        String callQty = formatCallQtyWithUom(rawQty, callNo, stage, railpadType);
+                        String callQty = formatCallQtyWithUom(rawQty, callNo, stage, railpadType, poUom);
+                        String callQtySet = "-";
+                        String callQtyNos = "-";
+
+                        if (callQty != null && !"-".equals(callQty)) {
+                                if (callQty.endsWith("MT") || callQty.endsWith("Set") || callQty.endsWith("Sets")) {
+                                        callQtySet = callQty;
+                                        if (callQty.endsWith("MT")) {
+                                                try {
+                                                        double mt = Double.parseDouble(callQty.replace("MT", "").trim());
+                                                        long approxNos = Math.round((mt * 1000.0) / 1.088);
+                                                        callQtyNos = String.format("%,d Nos", approxNos);
+                                                } catch (Exception ignored) {
+                                                        callQtyNos = "-";
+                                                }
+                                        }
+                                } else {
+                                        callQtyNos = callQty;
+                                        try {
+                                                String cleanNum = callQty.replaceAll("(?i)nos\\.?", "").replaceAll(",", "").trim();
+                                                double numVal = Double.parseDouble(cleanNum);
+                                                boolean isErc = (callNo != null && (callNo.toUpperCase().startsWith("EF") || callNo.toUpperCase().startsWith("EP") || callNo.toUpperCase().startsWith("ER")))
+                                                                || (!filterProduct.isEmpty() && filterProduct.contains("erc"))
+                                                                || (itemCatDescr != null && (itemCatDescr.toLowerCase().contains("clip") || itemCatDescr.toLowerCase().contains("erc")));
+                                                if (isErc && numVal >= 100) {
+                                                        double mtVal = Math.round((numVal * 1.088 / 1000.0) * 1000.0) / 1000.0;
+                                                        callQtySet = String.format(java.util.Locale.US, "%.3f MT", mtVal);
+                                                }
+                                        } catch (Exception ignored) {}
+                                }
+                        }
 
                         com.sarthi.dto.reports.IcAnnexuresReportDto dto = com.sarthi.dto.reports.IcAnnexuresReportDto
                                         .builder()
@@ -6315,6 +6371,8 @@ public class reportsImpl implements reports {
                                         .itemCatDescr(itemCatDescr)
                                         .callSubmissionDateTime(callSubmissionDateTime)
                                         .callQty(callQty)
+                                        .callQtySet(callQtySet)
+                                        .callQtyNos(callQtyNos)
                                         .build();
 
                         if (isRailPad || isSleeper) {
@@ -7581,18 +7639,21 @@ public class reportsImpl implements reports {
                 return regionName;
         }
 
-        private String formatCallQtyWithUom(Object qty, String callNumber, String stage, String railpadType) {
+        private String formatCallQtyWithUom(Object qty, String callNumber, String stage, String railpadType, String poUom) {
                 if (qty == null) return "-";
                 String s = qty.toString().trim();
                 if (s.isEmpty() || "-".equals(s) || "0".equals(s)) return "-";
                 if (s.endsWith("MT") || s.endsWith("Nos") || s.endsWith("Nos.") || s.endsWith("Set")) return s;
 
+                double numVal = 0.0;
+                boolean isParsed = false;
                 try {
-                        double d = Double.parseDouble(s);
-                        if (d == (long) d) {
-                                s = String.valueOf((long) d);
+                        numVal = Double.parseDouble(s);
+                        isParsed = true;
+                        if (numVal == (long) numVal) {
+                                s = String.valueOf((long) numVal);
                         } else {
-                                s = String.valueOf(d);
+                                s = String.valueOf(numVal);
                         }
                 } catch (Exception ignored) {}
 
@@ -7609,14 +7670,37 @@ public class reportsImpl implements reports {
                         }
                 }
 
+                boolean isSetPo = poUom != null && (poUom.equalsIgnoreCase("set") || poUom.equalsIgnoreCase("sets") || poUom.toLowerCase().contains("turnout") || poUom.toLowerCase().contains("set"));
+                if (isSetPo) {
+                        return s + " Set";
+                }
+
+                boolean isMtPo = poUom != null && (poUom.equalsIgnoreCase("mt") || poUom.equalsIgnoreCase("mts") || poUom.equalsIgnoreCase("metric ton") || poUom.equalsIgnoreCase("ton") || poUom.equalsIgnoreCase("tons"));
+
                 boolean isRm = (callNumber != null && (callNumber.startsWith("ER") || callNumber.contains("ER-") || callNumber.contains("ER/")))
                                 || (stage != null && stage.toLowerCase().contains("rm"));
 
-                return s + (isRm ? " MT" : " Nos");
+                if (isRm) {
+                        return s + " MT";
+                }
+
+                if (isMtPo) {
+                        if (isParsed && numVal > 500) {
+                                double mtVal = Math.round((numVal * 1.088 / 1000.0) * 1000.0) / 1000.0;
+                                return mtVal + " MT";
+                        }
+                        return s + " MT";
+                }
+
+                return s + " Nos";
+        }
+
+        private String formatCallQtyWithUom(Object qty, String callNumber, String stage, String railpadType) {
+                return formatCallQtyWithUom(qty, callNumber, stage, railpadType, null);
         }
 
         private String formatCallQtyWithUom(Object qty, String callNumber, String stage) {
-                return formatCallQtyWithUom(qty, callNumber, stage, null);
+                return formatCallQtyWithUom(qty, callNumber, stage, null, null);
         }
 
         private String cleanPoSrNo(String val) {

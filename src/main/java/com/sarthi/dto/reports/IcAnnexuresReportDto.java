@@ -21,4 +21,6 @@ public class IcAnnexuresReportDto {
     private String itemCatDescr;
     private String callSubmissionDateTime;
     private Object callQty;
+    private Object callQtySet;
+    private Object callQtyNos;
 }

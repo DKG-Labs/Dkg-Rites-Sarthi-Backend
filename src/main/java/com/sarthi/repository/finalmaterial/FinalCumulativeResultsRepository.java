@@ -353,13 +353,15 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
 
     @Query(value = """
                 SELECT
-                    SUM(COALESCE(f.qty_now_passed, 0)),
-                    SUM(COALESCE(f.qty_now_rejected, 0))
+                    SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton') THEN 0 ELSE COALESCE(f.qty_now_passed, 0) END),
+                    SUM(COALESCE(f.qty_now_rejected, 0)),
+                    SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton') THEN COALESCE(f.qty_now_passed, 0) ELSE 0.0 END)
                 FROM inspection_calls ic
                 INNER JOIN po_header ph ON ic.po_no = ph.po_no
+                LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (pi.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi.item_sr_no = ic.po_serial_no)
                 INNER JOIN final_cumulative_results f ON f.inspection_call_no = ic.ic_number
                 INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS
+                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
                     FROM WORKFLOW_TRANSITION w
                     INNER JOIN (
                         SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
@@ -370,7 +372,10 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                 AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                AND (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
+                AND (
+                    DATE(COALESCE(wf.CREATEDDATE, f.date_of_inspection, f.created_at)) BETWEEN :startDate AND :endDate
+                    OR (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
+                )
             """, nativeQuery = true)
     List<Object[]> sumFinalAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,
@@ -579,7 +584,15 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 COALESCE(pm.ibs_vendor_code, ic.place_of_inspection)    AS ibsManufacturedCode,
                 CAST(COALESCE(
                     NULLIF(TRIM(um_f.employee_code), ''),
-                    NULLIF(TRIM(CAST(um_f.rites_employee_code AS CHAR)), '')
+                    NULLIF(TRIM(CAST(um_f.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_cert.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_cert.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_assigned.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_assigned.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_wt.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_wt.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_ic.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_ic.rites_employee_code AS CHAR)), '')
                 ) AS CHAR)                                              AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'F'                                                     AS typeOfCall,
@@ -591,9 +604,23 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(COALESCE(f.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(fr.offered_qty, (SELECT fid.total_offered_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1), 0) AS quantityOffered,
-                COALESCE(fr.total_accepted, 0)                          AS quantityPassed,
-                COALESCE(fr.total_rejected, 0)                          AS quantityRejected,
+                COALESCE(
+                    NULLIF(fr.offered_qty, 0),
+                    (SELECT fid.total_offered_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1),
+                    (SELECT icd_sub.call_qty FROM inspection_call_details icd_sub WHERE icd_sub.inspection_call_no = ic.ic_number ORDER BY icd_sub.id DESC LIMIT 1),
+                    0
+                ) AS quantityOffered,
+                COALESCE(
+                    NULLIF(fr.total_accepted, 0),
+                    (SELECT fid.total_accepted_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1),
+                    (SELECT COALESCE(fid.total_offered_qty, icd_sub.call_qty) FROM inspection_call_details icd_sub LEFT JOIN final_inspection_details fid ON fid.ic_id = ic.id WHERE icd_sub.inspection_call_no = ic.ic_number ORDER BY icd_sub.id DESC LIMIT 1),
+                    0
+                ) AS quantityPassed,
+                COALESCE(
+                    NULLIF(fr.total_rejected, 0),
+                    (SELECT fid.total_rejected_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1),
+                    0
+                ) AS quantityRejected,
                 ic.ic_number                                            AS callNo,
                 COALESCE(
                     NULLIF(icd.certificate_no, ''),
@@ -641,6 +668,18 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
             LEFT JOIN user_master um_f
                    ON CONVERT(um_f.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um_f.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_cert
+                   ON CONVERT(um_cert.short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(f.ic_number, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_cert.short_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(icd.certificate_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_assigned
+                   ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_assigned.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_wt
+                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_ic
+                   ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT 
                     fr_sub.inspection_call_no,
@@ -648,10 +687,11 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                     SUM(COALESCE(fr_sub.qty_now_passed, 0)) AS total_accepted,
                     SUM(COALESCE(fr_sub.qty_now_rejected, 0)) AS total_rejected
                 FROM final_cumulative_results fr_sub
-                WHERE fr_sub.inspection_call_no IN (:callNumbers)
                 GROUP BY fr_sub.inspection_call_no
             ) fr ON CONVERT(fr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                 OR (f.ic_number IS NOT NULL AND CONVERT(fr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci)
             WHERE ic.ic_number IN (:callNumbers)
+              AND (ic.ic_number LIKE 'EF%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%FINAL%' OR UPPER(COALESCE(ic.type_of_call, '')) = 'F' OR f.ic_number IS NOT NULL)
             GROUP BY
                 ph.case_no,
                 ic.created_at,
@@ -659,6 +699,14 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 pm.ibs_vendor_code,
                 um_f.employee_code,
                 um_f.rites_employee_code,
+                um_cert.employee_code,
+                um_cert.rites_employee_code,
+                um_assigned.employee_code,
+                um_assigned.rites_employee_code,
+                um_wt.employee_code,
+                um_wt.rites_employee_code,
+                um_ic.employee_code,
+                um_ic.rites_employee_code,
                 f.created_by,
                 ic.po_no,
                 ic.po_serial_no,
