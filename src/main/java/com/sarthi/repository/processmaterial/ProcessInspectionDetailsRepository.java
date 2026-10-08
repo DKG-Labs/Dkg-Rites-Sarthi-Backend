@@ -77,12 +77,14 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
         AND (
             (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId)
             OR pid.rm_ic_number IN :rmCallCandidates
+            OR (:callPattern IS NOT NULL AND :callPattern != '' AND pid.rm_ic_number LIKE CONCAT('%', :callPattern, '%'))
             OR EXISTS (
                 SELECT 1 FROM process_rm_ic_mapping prim
                 WHERE prim.process_ic_id = pid.ic_id
                 AND (
                     (:rmIcId IS NOT NULL AND prim.rm_ic_id = :rmIcId)
                     OR prim.rm_ic_number IN :rmCallCandidates
+                    OR (:callPattern IS NOT NULL AND :callPattern != '' AND prim.rm_ic_number LIKE CONCAT('%', :callPattern, '%'))
                 )
             )
         )
@@ -90,6 +92,7 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
     Integer sumOfferedQtyByRmIcAndHeatNo(
             @Param("rmIcId") Long rmIcId,
             @Param("rmCallCandidates") List<String> rmCallCandidates,
+            @Param("callPattern") String callPattern,
             @Param("heatNo") String heatNo
     );
 
@@ -105,6 +108,7 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
             AND (
                 (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId)
                 OR pid.rm_ic_number IN :rmCallCandidates
+                OR (:callPattern IS NOT NULL AND :callPattern != '' AND pid.rm_ic_number LIKE CONCAT('%', :callPattern, '%'))
             )
         )
         OR EXISTS (
@@ -113,12 +117,14 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
             AND (
                 (:rmIcId IS NOT NULL AND prim.rm_ic_id = :rmIcId)
                 OR prim.rm_ic_number IN :rmCallCandidates
+                OR (:callPattern IS NOT NULL AND :callPattern != '' AND prim.rm_ic_number LIKE CONCAT('%', :callPattern, '%'))
             )
         )
     """, nativeQuery = true)
     List<String> findProcessCallNumbersByRmIc(
             @Param("rmIcId") Long rmIcId,
-            @Param("rmCallCandidates") List<String> rmCallCandidates
+            @Param("rmCallCandidates") List<String> rmCallCandidates,
+            @Param("callPattern") String callPattern
     );
 
     /**

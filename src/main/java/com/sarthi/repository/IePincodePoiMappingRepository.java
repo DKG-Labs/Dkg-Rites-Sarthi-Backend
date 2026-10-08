@@ -22,12 +22,12 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
     WHERE m.pinCode = :pinCode
       AND m.product = :product
       AND m.poiCode = :poiCode
-      AND m.ieType = 'PRIMARY'
+      AND UPPER(m.ieType) = 'PRIMARY'
 """)
-    Optional<String> findPrimaryIe(
-            String pinCode,
-            String product,
-            String poiCode
+    List<String> findPrimaryIe(
+            @Param("pinCode") String pinCode,
+            @Param("product") String product,
+            @Param("poiCode") String poiCode
     );
 
     @Query("""
@@ -36,12 +36,12 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
     WHERE m.pinCode = :pinCode
       AND m.product = :product
       AND m.poiCode = :poiCode
-      AND m.ieType = 'SECONDARY'
+      AND UPPER(m.ieType) = 'SECONDARY'
 """)
-    Optional<String> findSecondaryIe(
-            String pinCode,
-            String product,
-            String poiCode
+    List<String> findSecondaryIe(
+            @Param("pinCode") String pinCode,
+            @Param("product") String product,
+            @Param("poiCode") String poiCode
     );
 
 

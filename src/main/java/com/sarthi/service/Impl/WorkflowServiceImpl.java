@@ -2109,20 +2109,38 @@ private Integer assignIE(
 //    if (secondaryIe.isPresent()) {
 //        return secondaryIe.get();
 //    }
-    System.out.println(pinCode);
-    System.out.println(product);
-    System.out.println(poiCode);
-
-    Optional<String> primaryIe =  iePincodePoiMappingRepository.findPrimaryIe(pinCode, product, poiCode);
-    if (primaryIe.isPresent()) {
-        UserMaster um = userMasterRepository.findByEmployeeCode(primaryIe.get());
-       return um.getUserId();
+    List<String> primaryIe = iePincodePoiMappingRepository.findPrimaryIe(pinCode, product, poiCode);
+    if (primaryIe != null && primaryIe.size() > 1) {
+        throw new BusinessException(
+                new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "Duplicate employee code mapping found in IE Pincode POI mapping for POI: " + poiCode 
+                        + " (Pin Code: " + pinCode + ", Product: " + product + "). Please delete the duplicate mapping or contact Admin.")
+        );
     }
-    Optional<String> secondaryIe = iePincodePoiMappingRepository.findSecondaryIe(pinCode, product, poiCode);
+    if (primaryIe != null && primaryIe.size() == 1) {
+        UserMaster um = userMasterRepository.findByEmployeeCode(primaryIe.get(0));
+        if (um != null) {
+            return um.getUserId();
+        }
+    }
 
-    if (secondaryIe.isPresent()) {
-        UserMaster um = userMasterRepository.findByEmployeeCode(secondaryIe.get());
-        return um.getUserId();
+    List<String> secondaryIe = iePincodePoiMappingRepository.findSecondaryIe(pinCode, product, poiCode);
+    if (secondaryIe != null && secondaryIe.size() > 1) {
+        throw new BusinessException(
+                new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
+                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "Duplicate employee code mapping found in Secondary IE Pincode POI mapping for POI: " + poiCode 
+                        + " (Pin Code: " + pinCode + ", Product: " + product + "). Please delete the duplicate mapping or contact Admin.")
+        );
+    }
+    if (secondaryIe != null && secondaryIe.size() == 1) {
+        UserMaster um = userMasterRepository.findByEmployeeCode(secondaryIe.get(0));
+        if (um != null) {
+            return um.getUserId();
+        }
     }
 
     // 5. No IE

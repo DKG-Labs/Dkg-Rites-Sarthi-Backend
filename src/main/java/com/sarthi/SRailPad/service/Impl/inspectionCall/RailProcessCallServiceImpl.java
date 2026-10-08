@@ -587,23 +587,20 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                     String normD = normalizeDrawingNo(dNo);
                     String normB = normalizeBatchKey(bNo);
 
-                    // 1. Batch-only fallback mappings
-                    remainingOfferedMap.put(bNo, remainingOfferedMap.getOrDefault(bNo, 0) + sumQty);
-                    if (!bNo.equalsIgnoreCase(bNo.toUpperCase())) {
-                        remainingOfferedMap.put(bNo.toUpperCase(), remainingOfferedMap.getOrDefault(bNo.toUpperCase(), 0) + sumQty);
-                    }
-                    if (!normB.isEmpty() && !normB.equals(bNo)) {
-                        remainingOfferedMap.put(normB, remainingOfferedMap.getOrDefault(normB, 0) + sumQty);
-                    }
-
-                    // 2. Exact Drawing mappings
+                    // Exact Drawing mappings
                     if (!cleanExactD.isEmpty()) {
                         remainingOfferedMap.put(bNo + "|" + cleanExactD, remainingOfferedMap.getOrDefault(bNo + "|" + cleanExactD, 0) + sumQty);
+                        if (!normB.isEmpty() && !normB.equals(bNo)) {
+                            remainingOfferedMap.put(normB + "|" + cleanExactD, remainingOfferedMap.getOrDefault(normB + "|" + cleanExactD, 0) + sumQty);
+                        }
                     }
 
-                    // 3. Normalized Drawing mappings
+                    // Normalized Drawing mappings
                     if (!normD.isEmpty()) {
                         remainingOfferedMap.put(bNo + "|" + normD, remainingOfferedMap.getOrDefault(bNo + "|" + normD, 0) + sumQty);
+                        if (!normB.isEmpty() && !normB.equals(bNo)) {
+                            remainingOfferedMap.put(normB + "|" + normD, remainingOfferedMap.getOrDefault(normB + "|" + normD, 0) + sumQty);
+                        }
                     }
                 }
             }
@@ -626,18 +623,16 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             String normD = normalizeDrawingNo(dNo);
             String normB = normalizeBatchKey(bNo);
 
-            // Determine matching key for available offered pool
+            // Determine matching key for available offered pool (strictly batch + drawing)
             String matchedKey = null;
             if (!normD.isEmpty() && remainingOfferedMap.containsKey(bNo + "|" + normD)) {
                 matchedKey = bNo + "|" + normD;
             } else if (!cleanExactD.isEmpty() && remainingOfferedMap.containsKey(bNo + "|" + cleanExactD)) {
                 matchedKey = bNo + "|" + cleanExactD;
-            } else if (remainingOfferedMap.containsKey(bNo)) {
-                matchedKey = bNo;
-            } else if (remainingOfferedMap.containsKey(bNo.toUpperCase())) {
-                matchedKey = bNo.toUpperCase();
-            } else if (!normB.isEmpty() && remainingOfferedMap.containsKey(normB)) {
-                matchedKey = normB;
+            } else if (!normB.isEmpty() && !normD.isEmpty() && remainingOfferedMap.containsKey(normB + "|" + normD)) {
+                matchedKey = normB + "|" + normD;
+            } else if (!normB.isEmpty() && !cleanExactD.isEmpty() && remainingOfferedMap.containsKey(normB + "|" + cleanExactD)) {
+                matchedKey = normB + "|" + cleanExactD;
             }
 
             int alreadyOfferedForThisBatch = 0;
@@ -645,12 +640,6 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                 int poolAvail = remainingOfferedMap.get(matchedKey);
                 alreadyOfferedForThisBatch = Math.min(netAccepted, poolAvail);
                 remainingOfferedMap.put(matchedKey, Math.max(0, poolAvail - alreadyOfferedForThisBatch));
-
-                // Also keep batch-only fallback in sync if a drawing key was consumed
-                if (matchedKey.contains("|") && remainingOfferedMap.containsKey(bNo)) {
-                    int bOnlyAvail = remainingOfferedMap.get(bNo);
-                    remainingOfferedMap.put(bNo, Math.max(0, bOnlyAvail - alreadyOfferedForThisBatch));
-                }
             }
 
             b.setQtyAccepted(netAccepted);
