@@ -300,18 +300,8 @@ public class CaseLetterServiceImpl implements CaseLetterService {
     private Optional<CaseLetterDocument> findActiveCaseLetter(String callNo) {
         if (callNo == null || callNo.isBlank()) return Optional.empty();
         String clean = callNo.trim();
-        Optional<CaseLetterDocument> doc = caseLetterDocumentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
-        if (doc.isPresent()) return doc;
-
-        String alt1 = clean.replace("-", "/");
-        doc = caseLetterDocumentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(alt1, "ACTIVE");
-        if (doc.isPresent()) return doc;
-
-        String alt2 = clean.replace("/", "-");
-        doc = caseLetterDocumentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(alt2, "ACTIVE");
-        if (doc.isPresent()) return doc;
-
-        return Optional.empty();
+        // Fetch only the exact call number (no hyphen/slash variants)
+        return caseLetterDocumentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
     }
 
     @Override
