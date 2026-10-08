@@ -533,6 +533,35 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 call.setIeAssignedName("No ie assigned");
             }
         }
+
+        // 5. If Railpad Type is NCRGRSP, fetch offered and accepted quantity from rail_final_inspection_lot_results
+        boolean isNcrgrsp = call.getRailPadType() != null && (
+                call.getRailPadType().toUpperCase().contains("NCR")
+                || call.getRailPadType().toUpperCase().contains("NYLON CORD")
+                || call.getRailPadType().toUpperCase().contains("9790")
+        );
+
+        if (isNcrgrsp && call.getCallNo() != null && !call.getCallNo().isBlank()) {
+            Optional<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults> lotResultOpt = 
+                    railFinalInspectionLotResultsRepository.findFirstByCallNoOrderByIdAsc(call.getCallNo());
+            if (lotResultOpt.isEmpty()) {
+                lotResultOpt = railFinalInspectionLotResultsRepository.findFirstByCallNo(call.getCallNo());
+            }
+            if (lotResultOpt.isPresent()) {
+                com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults lotRes = lotResultOpt.get();
+                if (lotRes.getOfferedQty() != null) {
+                    call.setTotalQty(lotRes.getOfferedQty());
+                    call.setOfferedQty(lotRes.getOfferedQty());
+                }
+                if (lotRes.getAcceptedQty() != null) {
+                    call.setQtyAcceptedTillNow(lotRes.getAcceptedQty());
+                    call.setAcceptedQty(lotRes.getAcceptedQty());
+                }
+                if (lotRes.getRejectedQty() != null) {
+                    call.setRejectedQty(lotRes.getRejectedQty());
+                }
+            }
+        }
     }
 
     private String extractVendorName(String raw) {
