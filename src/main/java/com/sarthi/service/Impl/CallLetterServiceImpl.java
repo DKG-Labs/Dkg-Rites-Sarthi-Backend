@@ -1119,8 +1119,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                     // Populate HeatDetail
                     CallLetterDetailsDto.HeatDetail hd = new CallLetterDetailsDto.HeatDetail();
                     hd.setHeatNo(displayBatchNo);
-                    hd.setTcNo("Good: " + goodCount + (badCount > 0 ? " | Rejected: " + badCount : ""));
-                    hd.setQtyOffered(String.valueOf(goodCount));
+                    hd.setTcNo("Accepted: " + goodCount + (badCount > 0 ? " | Rejected: " + badCount : ""));
+                    int totalBatchOffered = goodCount + badCount;
+                    hd.setQtyOffered(String.valueOf(totalBatchOffered));
                     hd.setCastDate(castDateStr);
                     hd.setTotalCasted(totalCasted);
                     hd.setPreviouslyOffered(prevOffered);

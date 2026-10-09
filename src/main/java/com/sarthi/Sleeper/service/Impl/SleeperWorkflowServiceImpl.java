@@ -400,9 +400,38 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 }
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
-                int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
-                dto.setOfferedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
-                dto.setAcceptedQty(call.getTotalOffered() != null ? call.getTotalOffered() : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
+                Integer finalOffered = call.getTotalOffered();
+                Integer finalAccepted = null;
+                Integer finalRejected = call.getTotalRejected();
+
+                try {
+                    List<java.util.Map<String, Object>> fchList = jdbcTemplate.queryForList(
+                        "SELECT qty_offered_now, accepted_qty, rejected_qty FROM final_call_inspection_header WHERE call_no = ? ORDER BY id DESC LIMIT 1",
+                        call.getCallNo()
+                    );
+                    if (fchList != null && !fchList.isEmpty()) {
+                        java.util.Map<String, Object> fch = fchList.get(0);
+                        Object qOff = fch.get("qty_offered_now");
+                        Object qAcc = fch.get("accepted_qty");
+                        Object qRej = fch.get("rejected_qty");
+                        if (qOff != null && ((Number) qOff).intValue() > 0) {
+                            finalOffered = ((Number) qOff).intValue();
+                        }
+                        if (qAcc != null) {
+                            finalAccepted = ((Number) qAcc).intValue();
+                        }
+                        if (qRej != null) {
+                            finalRejected = ((Number) qRej).intValue();
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                if (finalAccepted == null && finalOffered != null) {
+                    finalAccepted = finalOffered - (finalRejected != null ? finalRejected : 0);
+                }
+
+                dto.setOfferedQty(finalOffered != null ? finalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
+                dto.setAcceptedQty(finalAccepted != null ? finalAccepted : (dto.getAcceptedQty() != null ? dto.getAcceptedQty() : 0));
                 
                 // Lookup certificate details from SLEEPER_INSPECTION_COMPLETE_DETAILS
                 String certKey = "cert_" + tx.getRequestId();

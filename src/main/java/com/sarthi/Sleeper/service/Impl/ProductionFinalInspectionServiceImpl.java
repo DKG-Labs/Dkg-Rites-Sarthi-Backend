@@ -1588,8 +1588,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                                 if (goodMatch.isPresent()) {
                                     goodSleepers.remove(goodMatch.get());
                                 } else {
-                                    goodSleepers.removeIf(g -> isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo)
-                                            || (bad.getSleeperId() != null && bad.getSleeperId() != 0L && Objects.equals(g.getSleeperId(), bad.getSleeperId())));
+                                    goodSleepers.removeIf(g -> (bad.getSleeperId() != null && bad.getSleeperId() != 0L && g.getSleeperId() != null && g.getSleeperId() != 0L)
+                                            ? Objects.equals(g.getSleeperId(), bad.getSleeperId())
+                                            : isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo));
                                 }
 
                                 String badKey = (bad.getSleeperNo() != null)
@@ -1663,8 +1664,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         if (goodMatch.isPresent()) {
                             goodSleepers.remove(goodMatch.get());
                         } else {
-                            goodSleepers.removeIf(g -> isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo)
-                                    || (bad.getSleeperId() != null && bad.getSleeperId() != 0L && Objects.equals(g.getSleeperId(), bad.getSleeperId())));
+                            goodSleepers.removeIf(g -> (bad.getSleeperId() != null && bad.getSleeperId() != 0L && g.getSleeperId() != null && g.getSleeperId() != 0L)
+                                    ? Objects.equals(g.getSleeperId(), bad.getSleeperId())
+                                    : isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo));
                         }
 
                         String badKey = (bad.getSleeperNo() != null)
@@ -1735,8 +1737,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                         if (goodMatch.isPresent()) {
                             goodSleepers.remove(goodMatch.get());
                         } else {
-                            goodSleepers.removeIf(g -> isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo)
-                                    || (bad.getSleeperId() != null && bad.getSleeperId() != 0L && Objects.equals(g.getSleeperId(), bad.getSleeperId())));
+                            goodSleepers.removeIf(g -> (bad.getSleeperId() != null && bad.getSleeperId() != 0L && g.getSleeperId() != null && g.getSleeperId() != 0L)
+                                    ? Objects.equals(g.getSleeperId(), bad.getSleeperId())
+                                    : isSleeperMatch(g.getSleeperNo(), bad.getSleeperNo(), currentBatchNo));
                         }
 
                         String badKey = (bad.getSleeperNo() != null)
@@ -1778,14 +1781,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
 
                 boolean isBad = (ps.getId() != null && accountedBadIds.contains(ps.getId()))
-                        || badSleepers.stream().anyMatch(b -> isSleeperMatch(b.getSleeperNo(), ps.getSleeperNo(), currentBatchNo));
+                        || badSleepers.stream().anyMatch(b -> (b.getSleeperId() != null && b.getSleeperId() != 0L && ps.getId() != null && ps.getId() != 0L)
+                                ? Objects.equals(b.getSleeperId(), ps.getId())
+                                : isSleeperMatch(b.getSleeperNo(), ps.getSleeperNo(), currentBatchNo));
 
                 if (isBad) {
                     continue;
                 }
 
                 boolean isAlreadyGood = (ps.getId() != null && accountedGoodIds.contains(ps.getId()))
-                        || goodSleepers.stream().anyMatch(g -> isSleeperMatch(g.getSleeperNo(), ps.getSleeperNo(), currentBatchNo));
+                        || goodSleepers.stream().anyMatch(g -> (g.getSleeperId() != null && g.getSleeperId() != 0L && ps.getId() != null && ps.getId() != 0L)
+                                ? Objects.equals(g.getSleeperId(), ps.getId())
+                                : isSleeperMatch(g.getSleeperNo(), ps.getSleeperNo(), currentBatchNo));
 
                 if (!isAlreadyGood) {
                     SleeperDto dto = new SleeperDto();
@@ -1801,8 +1808,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             // Ensure bad sleepers are strictly excluded from goodSleepers
             goodSleepers.removeIf(g -> badSleepers.stream().anyMatch(b ->
-                    (b.getSleeperId() != null && b.getSleeperId() != 0L && Objects.equals(b.getSleeperId(), g.getSleeperId()))
-                            || isSleeperMatch(b.getSleeperNo(), g.getSleeperNo(), currentBatchNo)
+                    (b.getSleeperId() != null && b.getSleeperId() != 0L && g.getSleeperId() != null && g.getSleeperId() != 0L)
+                            ? Objects.equals(b.getSleeperId(), g.getSleeperId())
+                            : isSleeperMatch(b.getSleeperNo(), g.getSleeperNo(), currentBatchNo)
             ));
 
             BatchInspectionResponseDto response = new BatchInspectionResponseDto();
