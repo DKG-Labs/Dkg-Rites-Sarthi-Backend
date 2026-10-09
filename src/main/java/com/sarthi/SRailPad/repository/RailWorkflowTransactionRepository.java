@@ -29,7 +29,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ) latest ON t.workflow_transition_id = latest.max_id
             WHERE t.next_role = :roleName
               AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
-              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(COALESCE(t.action, '')) NOT IN ('COMPLETED', 'FINISH', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS', 'DSC_SIGN_IC')
               AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
               AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
             ORDER BY t.workflow_transition_id DESC
@@ -48,7 +48,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ) latest ON t.workflow_transition_id = latest.max_id
             WHERE t.next_role = :roleName
               AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
-              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(COALESCE(t.action, '')) NOT IN ('COMPLETED', 'FINISH', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS', 'DSC_SIGN_IC')
               AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
               AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
             ORDER BY t.workflow_transition_id DESC
@@ -67,7 +67,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ) latest ON t.workflow_transition_id = latest.max_id
             WHERE t.next_role = :roleName
               AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
-              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(COALESCE(t.action, '')) NOT IN ('COMPLETED', 'FINISH', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS', 'DSC_SIGN_IC')
               AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
               AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
             ORDER BY t.workflow_transition_id DESC
@@ -84,7 +84,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ) latest ON t.workflow_transition_id = latest.max_id
             WHERE t.next_role = :roleName
               AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
-              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(COALESCE(t.action, '')) NOT IN ('COMPLETED', 'FINISH', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS', 'DSC_SIGN_IC')
               AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
               AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
             ORDER BY t.workflow_transition_id DESC
@@ -103,7 +103,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ) latest ON t.workflow_transition_id = latest.max_id
             WHERE t.next_role = :roleName
               AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
-              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(COALESCE(t.action, '')) NOT IN ('COMPLETED', 'FINISH', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS', 'DSC_SIGN_IC')
               AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
               AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
             ORDER BY t.workflow_transition_id DESC
@@ -122,7 +122,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ) latest ON t.workflow_transition_id = latest.max_id
             WHERE t.next_role = :roleName
               AND (:assignedTo IS NULL OR t.assigned_to_user = :assignedTo)
-              AND UPPER(t.action) IN ('VERIFY', 'MAIN_IE_SCHEDULE_CALL', 'INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'RESUME')
+              AND UPPER(COALESCE(t.action, '')) NOT IN ('COMPLETED', 'FINISH', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS', 'DSC_SIGN_IC')
               AND UPPER(t.status) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
               AND UPPER(COALESCE(t.job_status, '')) NOT IN ('COMPLETED', 'CANCEL', 'CANCELLED', 'CLOSED', 'SENT_TO_IBS')
             ORDER BY t.workflow_transition_id DESC
