@@ -192,7 +192,7 @@ WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '
         )
         INNER JOIN demoulding_defective_sleepers dds ON di.id = dds.inspection_id
         WHERE swt.workflow_id = 2
-          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
           AND ((dds.visual_reason IS NOT NULL AND dds.visual_reason <> '') OR (dds.dim_reason IS NOT NULL AND dds.dim_reason <> ''))
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
                CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
@@ -233,7 +233,7 @@ WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '
         )
         INNER JOIN demoulding_defective_sleepers dds ON di.id = dds.inspection_id
         WHERE swt.workflow_id = 2
-          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
           AND ((dds.visual_reason IS NOT NULL AND dds.visual_reason <> '') OR (dds.dim_reason IS NOT NULL AND dds.dim_reason <> ''))
     """, nativeQuery = true)
     Long countAllDemouldingDefectsForIssuedIcs();

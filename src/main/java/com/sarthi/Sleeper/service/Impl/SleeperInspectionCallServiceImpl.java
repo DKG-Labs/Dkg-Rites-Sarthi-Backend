@@ -110,8 +110,40 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setCallDate(call.getCreatedAt() != null ? call.getCreatedAt().format(formatter) : "N/A");
             dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
             dto.setSleeperType(call.getSleeperType());
-            int off = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
-            dto.setQtyOffered(off);
+
+            Integer finalOffered = call.getTotalOffered();
+            Integer finalAccepted = null;
+            Integer finalRejected = call.getTotalRejected();
+
+            try {
+                List<java.util.Map<String, Object>> fchList = jdbcTemplate.queryForList(
+                    "SELECT qty_offered_now, accepted_qty, rejected_qty FROM final_call_inspection_header WHERE call_no = ? ORDER BY id DESC LIMIT 1",
+                    call.getCallNo()
+                );
+                if (fchList != null && !fchList.isEmpty()) {
+                    java.util.Map<String, Object> fch = fchList.get(0);
+                    Object qOff = fch.get("qty_offered_now");
+                    Object qAcc = fch.get("accepted_qty");
+                    Object qRej = fch.get("rejected_qty");
+                    if (qOff != null && ((Number) qOff).intValue() > 0) {
+                        finalOffered = ((Number) qOff).intValue();
+                    }
+                    if (qAcc != null) {
+                        finalAccepted = ((Number) qAcc).intValue();
+                    }
+                    if (qRej != null) {
+                        finalRejected = ((Number) qRej).intValue();
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            if (finalAccepted == null && finalOffered != null) {
+                finalAccepted = finalOffered - (finalRejected != null ? finalRejected : 0);
+            }
+
+            dto.setQtyOffered(finalOffered != null ? finalOffered : 0);
+            dto.setAcceptedQty(finalAccepted != null ? finalAccepted : 0);
+            dto.setRejectedQty(finalRejected != null ? finalRejected : 0);
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
             String effectiveStatus = call.getStatus();
             String jobStatus = null;
@@ -158,6 +190,45 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                 }
             }
             dto.setUom(uom);
+
+            String icNo = null;
+            String icDate = null;
+            try {
+                List<java.util.Map<String, Object>> certList = jdbcTemplate.queryForList(
+                    "SELECT sicd.CERTIFICATE_NO, sicd.CREATED_ON FROM sleeper_inspection_complete_details sicd WHERE sicd.call_no = ? ORDER BY sicd.id DESC LIMIT 1",
+                    call.getCallNo()
+                );
+                if (certList != null && !certList.isEmpty()) {
+                    Object cNo = certList.get(0).get("CERTIFICATE_NO");
+                    Object cDt = certList.get(0).get("CREATED_ON");
+                    if (cNo != null && !cNo.toString().isBlank()) {
+                        icNo = cNo.toString().trim();
+                    }
+                    if (cDt != null) {
+                        icDate = cDt.toString();
+                    }
+                }
+                if (icNo == null || icNo.isBlank()) {
+                    List<java.util.Map<String, Object>> csList = jdbcTemplate.queryForList(
+                        "SELECT cs.IC_NUMBER, cs.CREATED_DATE FROM certificate_storage cs WHERE cs.IC_NUMBER LIKE ? OR cs.CALL_NO = ? ORDER BY cs.ID DESC LIMIT 1",
+                        "%" + call.getCallNo() + "%", call.getCallNo()
+                    );
+                    if (csList != null && !csList.isEmpty()) {
+                        Object cNo = csList.get(0).get("IC_NUMBER");
+                        Object cDt = csList.get(0).get("CREATED_DATE");
+                        if (cNo != null && !cNo.toString().isBlank()) {
+                            icNo = cNo.toString().trim();
+                        }
+                        if (cDt != null) {
+                            icDate = cDt.toString();
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            dto.setIcNo(icNo);
+            dto.setIcDate(icDate);
+
             return dto;
         }).collect(Collectors.toList());
     }
