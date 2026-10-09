@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -128,23 +129,21 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
 
-        // Single batch query to avoid N+1 queries
-        Map<String, ProductionDeclaration> declMap = new HashMap<>();
+        // Fetch all relevant declarations for the call's batches
+        List<ProductionDeclaration> allDeclarations = new ArrayList<>();
         if (!batchNos.isEmpty()) {
-            List<ProductionDeclaration> declarations = Collections.emptyList();
-            if (call.getPoNo() != null && !call.getPoNo().trim().isEmpty()) {
-                declarations = productionDeclarationRepository.findAllByBatchNumbersAndPoNo(batchNos, call.getPoNo().trim());
+            if (call.getPlantId() != null && !call.getPlantId().trim().isEmpty()) {
+                allDeclarations.addAll(productionDeclarationRepository.findAllByBatchNumbersAndPlantId(batchNos, call.getPlantId().trim()));
             }
-            if (declarations.isEmpty() && call.getPlantId() != null && !call.getPlantId().trim().isEmpty()) {
-                declarations = productionDeclarationRepository.findAllByBatchNumbersAndPlantId(batchNos, call.getPlantId().trim());
+            if (allDeclarations.isEmpty()) {
+                allDeclarations.addAll(productionDeclarationRepository.findAllByBatchNumbers(batchNos));
             }
-            if (declarations.isEmpty()) {
-                declarations = productionDeclarationRepository.findAllByBatchNumbers(batchNos);
-            }
-            for (ProductionDeclaration pd : declarations) {
-                if (pd.getBatchNumber() != null) {
-                    declMap.putIfAbsent(pd.getBatchNumber().trim(), pd);
-                }
+        }
+
+        Map<String, List<ProductionDeclaration>> declListMap = new HashMap<>();
+        for (ProductionDeclaration pd : allDeclarations) {
+            if (pd.getBatchNumber() != null) {
+                declListMap.computeIfAbsent(pd.getBatchNumber().trim(), k -> new ArrayList<>()).add(pd);
             }
         }
 
@@ -157,7 +156,55 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             String batchNo = batch.getBatchNo();
             dto.setBatchNo(batchNo);
 
-            ProductionDeclaration declaration = batchNo != null ? declMap.get(batchNo.trim()) : null;
+            List<ProductionDeclaration> candidates = (batchNo != null) ? declListMap.getOrDefault(batchNo.trim(), Collections.emptyList()) : Collections.emptyList();
+            
+            Set<String> batchGoodSleeperNos = (batch.getGoodSleepers() != null) 
+                    ? batch.getGoodSleepers().stream()
+                        .map(SleeperDetail::getSleeperNo)
+                        .filter(s -> s != null && !s.isBlank())
+                        .map(String::trim)
+                        .collect(Collectors.toSet())
+                    : Collections.emptySet();
+
+            // Find best matching declaration by offered sleepers or casting date or max sleepers
+            ProductionDeclaration declaration = null;
+            if (!candidates.isEmpty()) {
+                if (!batchGoodSleeperNos.isEmpty()) {
+                    for (ProductionDeclaration cand : candidates) {
+                        if (cand.getChambers() != null) {
+                            boolean hasMatch = cand.getChambers().stream()
+                                .flatMap(c -> c.getBenchGroups() != null ? c.getBenchGroups().stream() : java.util.stream.Stream.empty())
+                                .flatMap(bg -> bg.getSleepers() != null ? bg.getSleepers().stream() : java.util.stream.Stream.empty())
+                                .anyMatch(s -> s.getSleeperNo() != null && batchGoodSleeperNos.contains(s.getSleeperNo().trim()));
+                            if (hasMatch) {
+                                declaration = cand;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (declaration == null && batch.getCastDate() != null) {
+                    for (ProductionDeclaration cand : candidates) {
+                        if (cand.getCastingDate() != null && cand.getCastingDate().toString().equals(batch.getCastDate())) {
+                            declaration = cand;
+                            break;
+                        }
+                    }
+                }
+                if (declaration == null && call.getPoNo() != null) {
+                    for (ProductionDeclaration cand : candidates) {
+                        if (call.getPoNo().trim().equalsIgnoreCase(cand.getPoNo())) {
+                            declaration = cand;
+                            break;
+                        }
+                    }
+                }
+                if (declaration == null) {
+                    declaration = candidates.stream()
+                        .max(Comparator.comparingInt(d -> d.getTotalCastedSleepers() != null ? d.getTotalCastedSleepers() : 0))
+                        .orElse(candidates.get(0));
+                }
+            }
 
             if (declaration != null && declaration.getCastingDate() != null) {
                 dto.setCastingDate(declaration.getCastingDate().toString());
@@ -181,6 +228,9 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
 
             if (chamberSleeperCount > totalCasted) {
                 totalCasted = chamberSleeperCount;
+            }
+            if (batch.getTotalCasted() != null && batch.getTotalCasted() > totalCasted) {
+                totalCasted = batch.getTotalCasted();
             }
 
             List<String> accepted = (batch.getGoodSleepers() != null && !batch.getGoodSleepers().isEmpty())
