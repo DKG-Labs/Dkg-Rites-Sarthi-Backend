@@ -24,7 +24,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
-                COALESCE(CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
+                COALESCE(CONVERT(pm.poi_code USING utf8mb4), CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
                 CAST(COALESCE(um_assigned.employee_code, um.employee_code, p.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
@@ -129,8 +129,16 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                       CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rpp.poi_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON (
+                       CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                          CONVERT(REPLACE(TRIM(ic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                          CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   )
                   AND pm.product_type = 'railpad'
             LEFT JOIN (
                 SELECT rwt2.request_id, rwt2.status, rwt2.action, rwt2.job_status
@@ -161,6 +169,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 ic.created_at,
                 ic.updated_at,
                 ic.plant_id,
+                pm.poi_code,
                 rpp.poi_code,
                 pm.ibs_vendor_code,
                 um_assigned.employee_code,
@@ -190,7 +199,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                    AS callDate,
-                COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4), CONVERT(rpp.poi_code USING utf8mb4)) AS placeOfInspection,
+                COALESCE(CONVERT(pm.poi_code USING utf8mb4), CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
                 CAST(COALESCE(um_assigned.employee_code, um.employee_code, p.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
@@ -281,8 +290,16 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                       CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(REPLACE(TRIM(COALESCE(ic.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(rpp.poi_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON (
+                       CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                          CONVERT(REPLACE(TRIM(ic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                          CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   )
                   AND pm.product_type = 'railpad'
             WHERE (
                 ic.call_no IN (:callNumbers)
@@ -294,6 +311,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 ic.created_at,
                 ic.updated_at,
                 ic.plant_id,
+                pm.poi_code,
                 rpp.poi_code,
                 pm.ibs_vendor_code,
                 um_assigned.employee_code,
