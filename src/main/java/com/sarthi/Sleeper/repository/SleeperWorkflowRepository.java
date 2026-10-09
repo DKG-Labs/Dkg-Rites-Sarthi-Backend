@@ -486,13 +486,13 @@ AND t.workflowTransitionId = (
             DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
             CASE
                 WHEN swt.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD') OR UPPER(COALESCE(swt.job_status, '')) IN ('INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD') THEN 'Under Inspection'
-                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION' THEN 'Completed'
+                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' THEN 'Completed'
                 WHEN UPPER(COALESCE(swt.job_status, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.action, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.status, '')) LIKE '%CANCEL%' THEN 'Cancelled'
                 ELSE 'Pending'
             END AS status,
             CASE
                 WHEN swt.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD') OR UPPER(COALESCE(swt.job_status, '')) IN ('INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD') THEN 'Under Inspection'
-                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION' THEN 'Completed'
+                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' THEN 'Completed'
                 WHEN UPPER(COALESCE(swt.job_status, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.action, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.status, '')) LIKE '%CANCEL%' THEN 'Cancelled'
                 ELSE 'Pending'
             END AS mainStatus,
@@ -504,7 +504,7 @@ AND t.workflowTransitionId = (
                 WHEN swt.action = 'MAIN_IE_SCHEDULE_CALL' OR UPPER(COALESCE(swt.job_status, '')) = 'SCHEDULED' THEN 'Scheduled'
                 WHEN swt.action = 'VERIFY' OR UPPER(COALESCE(swt.job_status, '')) = 'RIO_VERIFIED' THEN 'Assigned to IE'
                 WHEN swt.action IN ('CREATE', 'CREATED', 'CALL_CREATED') OR UPPER(COALESCE(swt.job_status, '')) = 'CREATED' THEN 'Call Created'
-                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION' THEN 'IC Issued'
+                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' THEN 'IC Issued'
                 ELSE COALESCE(swt.action, swt.job_status, 'Pending')
             END AS subStatus,
             (COALESCE(sic.total_offered, 0) + COALESCE(sic.total_rejected, 0)) AS callQty,
@@ -591,7 +591,6 @@ AND t.workflowTransitionId = (
                 ((:status = 'Completed' OR :status = 'IC Issued') AND (
                     UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
                     OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS'
-                    OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION'
                 ))
            )
         ORDER BY COALESCE(sic.created_at, swt.created_date) DESC, swt.workflow_transition_id DESC
@@ -649,7 +648,7 @@ AND t.workflowTransitionId = (
         LEFT JOIN sleeper_final_result sfr ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE swt.workflow_id = 2
-          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
                CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
                CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
@@ -694,7 +693,7 @@ AND t.workflowTransitionId = (
             OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE swt.workflow_id = 2
-          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION')
+          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
                CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
                CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
