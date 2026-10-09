@@ -2120,7 +2120,12 @@ private Integer assignIE(
         );
     }
     if (primaryIe != null && primaryIe.size() == 1) {
-        UserMaster um = userMasterRepository.findByEmployeeCode(primaryIe.get(0));
+        String empCode = primaryIe.get(0) != null ? primaryIe.get(0).trim() : "";
+        Optional<UserMaster> optUm = userMasterRepository.findFirstByEmployeeCode(empCode);
+        if (optUm.isPresent()) {
+            return optUm.get().getUserId();
+        }
+        UserMaster um = userMasterRepository.findByEmployeeCode(empCode);
         if (um != null) {
             return um.getUserId();
         }
@@ -2137,13 +2142,35 @@ private Integer assignIE(
         );
     }
     if (secondaryIe != null && secondaryIe.size() == 1) {
-        UserMaster um = userMasterRepository.findByEmployeeCode(secondaryIe.get(0));
+        String empCode = secondaryIe.get(0) != null ? secondaryIe.get(0).trim() : "";
+        Optional<UserMaster> optUm = userMasterRepository.findFirstByEmployeeCode(empCode);
+        if (optUm.isPresent()) {
+            return optUm.get().getUserId();
+        }
+        UserMaster um = userMasterRepository.findByEmployeeCode(empCode);
         if (um != null) {
             return um.getUserId();
         }
     }
 
-    // 5. No IE
+    // 5. Fallback directly by POI
+    List<IePincodePoiMapping> poiMappings = iePincodePoiMappingRepository.findByPoiCode(poiCode);
+    if (poiMappings == null || poiMappings.isEmpty()) {
+        String cleanPoi = poiCode != null ? poiCode.replaceAll("^:+", "").trim() : "";
+        poiMappings = iePincodePoiMappingRepository.findByPoiCode(cleanPoi);
+    }
+    if (poiMappings != null && !poiMappings.isEmpty()) {
+        for (IePincodePoiMapping m : poiMappings) {
+            if (m.getEmployeeCode() != null && !m.getEmployeeCode().trim().isEmpty()) {
+                Optional<UserMaster> optUm = userMasterRepository.findFirstByEmployeeCode(m.getEmployeeCode().trim());
+                if (optUm.isPresent()) {
+                    return optUm.get().getUserId();
+                }
+            }
+        }
+    }
+
+    // 6. No IE
     throw new BusinessException(
             new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
                     AppConstant.ERROR_TYPE_CODE_VALIDATION,

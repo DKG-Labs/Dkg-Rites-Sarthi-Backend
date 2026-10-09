@@ -2,6 +2,7 @@ package com.sarthi.service.Impl;
 
 import com.sarthi.dto.UnitDetailsDTO;
 import com.sarthi.dto.UnitDto;
+import com.sarthi.entity.PincodePoIMapping;
 import com.sarthi.repository.PincodePoIMappingRepository;
 import com.sarthi.service.poiService;
 import jakarta.persistence.Access;
@@ -9,7 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class PoiServiceImpl implements poiService {
@@ -33,8 +36,31 @@ public class PoiServiceImpl implements poiService {
     // 3️ Auto-fill address + get poiCode
     @Override
     public UnitDetailsDTO getUnitDetails(String companyName, String unitName) {
-        return pincodePoIMappingRepository.findUnitDetails(companyName, unitName)
-                .orElseThrow(() ->
-                        new RuntimeException("Unit not found"));
+        if (companyName != null && !companyName.trim().isEmpty() && unitName != null && !unitName.trim().isEmpty()) {
+            Optional<UnitDetailsDTO> details = pincodePoIMappingRepository.findUnitDetails(companyName.trim(), unitName.trim());
+            if (details.isPresent()) {
+                return details.get();
+            }
+        }
+        if (unitName != null && !unitName.trim().isEmpty()) {
+            List<UnitDetailsDTO> byUnit = pincodePoIMappingRepository.findUnitDetailsByUnitNameOnly(unitName.trim());
+            if (!byUnit.isEmpty()) {
+                return byUnit.get(0);
+            }
+        }
+        return new UnitDetailsDTO("", "", "");
+    }
+
+    @Override
+    public List<PincodePoIMapping> getVendorUnits(String vendorCode) {
+        if (vendorCode == null || vendorCode.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String cleanVendor = vendorCode.trim();
+        List<PincodePoIMapping> list = pincodePoIMappingRepository.findByVendorCodeWithColonHandling(cleanVendor);
+        if (list.isEmpty() && cleanVendor.startsWith(":")) {
+            list = pincodePoIMappingRepository.findByVendorCodeWithColonHandling(cleanVendor.substring(1));
+        }
+        return list;
     }
 }

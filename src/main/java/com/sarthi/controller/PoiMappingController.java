@@ -45,17 +45,26 @@ public class PoiMappingController {
     
     @GetMapping("/companies/unit-details")
     public ResponseEntity<Object> getUnitDetails(
-            @RequestParam String companyName,
+            @RequestParam(required = false, defaultValue = "") String companyName,
             @RequestParam String unitName) {
 
         UnitDetailsDTO unitDetails =
                 poiService.getUnitDetails(
-                        companyName.trim(),
-                        unitName.trim()
+                        companyName != null ? companyName.trim() : "",
+                        unitName != null ? unitName.trim() : ""
                 );
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(unitDetails),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/vendor/units")
+    public ResponseEntity<Object> getVendorUnits(@RequestParam String vendorCode) {
+        var list = poiService.getVendorUnits(vendorCode);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(list),
                 HttpStatus.OK
         );
     }

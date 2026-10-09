@@ -19,10 +19,13 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
     @Query("""
     SELECT m.employeeCode
     FROM IePincodePoiMapping m
-    WHERE m.pinCode = :pinCode
-      AND m.product = :product
-      AND m.poiCode = :poiCode
-      AND UPPER(m.ieType) = 'PRIMARY'
+    WHERE (m.poiCode = :poiCode OR TRIM(LEADING ':' FROM m.poiCode) = TRIM(LEADING ':' FROM :poiCode))
+      AND (
+          (TRIM(m.pinCode) = TRIM(:pinCode) AND TRIM(UPPER(m.product)) = TRIM(UPPER(:product)))
+          OR (:pinCode IS NOT NULL)
+      )
+      AND UPPER(TRIM(m.ieType)) = 'PRIMARY'
+    ORDER BY CASE WHEN TRIM(m.pinCode) = TRIM(:pinCode) THEN 0 ELSE 1 END
 """)
     List<String> findPrimaryIe(
             @Param("pinCode") String pinCode,
@@ -33,10 +36,13 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
     @Query("""
     SELECT m.employeeCode
     FROM IePincodePoiMapping m
-    WHERE m.pinCode = :pinCode
-      AND m.product = :product
-      AND m.poiCode = :poiCode
-      AND UPPER(m.ieType) = 'SECONDARY'
+    WHERE (m.poiCode = :poiCode OR TRIM(LEADING ':' FROM m.poiCode) = TRIM(LEADING ':' FROM :poiCode))
+      AND (
+          (TRIM(m.pinCode) = TRIM(:pinCode) AND TRIM(UPPER(m.product)) = TRIM(UPPER(:product)))
+          OR (:pinCode IS NOT NULL)
+      )
+      AND UPPER(TRIM(m.ieType)) = 'SECONDARY'
+    ORDER BY CASE WHEN TRIM(m.pinCode) = TRIM(:pinCode) THEN 0 ELSE 1 END
 """)
     List<String> findSecondaryIe(
             @Param("pinCode") String pinCode,

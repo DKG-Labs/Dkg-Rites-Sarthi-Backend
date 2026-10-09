@@ -195,5 +195,67 @@ List<Object[]> findCertificateNosByCallNos(
             nativeQuery = true)
     List<Object[]> findProcessIcNumbersWithDateByMultipleRmIcNumbers(@Param("rmCertificateNos") List<String> rmCertificateNos);
 
+    @Query(value = "SELECT DISTINCT " +
+            "icd.CERTIFICATE_NO, " +
+            "icd.CALL_NO, " +
+            "ic.po_no, " +
+            "ic.po_serial_no, " +
+            "ic.actual_inspection_date, " +
+            "COALESCE((SELECT SUM(fr.weight_accepted_mt) FROM rm_heat_final_result fr WHERE fr.inspection_call_no = icd.CALL_NO), " +
+            "         (SELECT SUM(hq.qty_accepted) FROM rm_heat_quantities hq JOIN rm_inspection_details rmd ON hq.rm_detail_id = rmd.id WHERE rmd.ic_id = ic.id), 0.0) AS total_accepted " +
+            "FROM inspection_complete_details icd " +
+            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
+            "WHERE icd.CALL_NO LIKE 'ER-%' " +
+            "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
+            "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findEligibleRmSourceIcs(
+            @Param("vendorCode") String vendorCode,
+            @Param("plantParam") String plantParam
+    );
+
+    @Query(value = "SELECT DISTINCT " +
+            "icd.CERTIFICATE_NO, " +
+            "icd.CALL_NO, " +
+            "ic.po_no, " +
+            "ic.po_serial_no, " +
+            "ic.actual_inspection_date, " +
+            "COALESCE((SELECT SUM(pfr.total_accepted) FROM process_line_final_result pfr WHERE pfr.inspection_call_no = icd.CALL_NO), " +
+            "         (SELECT SUM(pid.qty_accepted) FROM process_inspection_details pid WHERE pid.ic_id = ic.id), " +
+            "         (SELECT SUM(pid2.offered_qty) FROM process_inspection_details pid2 WHERE pid2.ic_id = ic.id), 0.0) AS total_accepted " +
+            "FROM inspection_complete_details icd " +
+            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
+            "WHERE (icd.CALL_NO LIKE 'EP-%' OR ic.type_of_call LIKE '%PROCESS%') " +
+            "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
+            "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findEligibleProcessSourceIcs(
+            @Param("vendorCode") String vendorCode,
+            @Param("plantParam") String plantParam
+    );
+
+    @Query(value = "SELECT DISTINCT " +
+            "icd.CERTIFICATE_NO, " +
+            "icd.CALL_NO, " +
+            "ic.po_no, " +
+            "ic.po_serial_no, " +
+            "ic.actual_inspection_date, " +
+            "COALESCE((SELECT SUM(fld.qty_accepted) FROM final_inspection_lot_details fld JOIN final_inspection_details fid ON fld.final_detail_id = fid.id WHERE fid.ic_id = ic.id), " +
+            "         (SELECT fid2.total_accepted_qty FROM final_inspection_details fid2 WHERE fid2.ic_id = ic.id), " +
+            "         (SELECT fid3.total_offered_qty FROM final_inspection_details fid3 WHERE fid3.ic_id = ic.id), 0.0) AS total_accepted " +
+            "FROM inspection_complete_details icd " +
+            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
+            "WHERE (icd.CALL_NO LIKE 'EF-%' OR ic.type_of_call LIKE '%FINAL%') " +
+            "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
+            "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
+            "ORDER BY icd.CERTIFICATE_NO DESC",
+            nativeQuery = true)
+    List<Object[]> findEligibleFinalSourceIcs(
+            @Param("vendorCode") String vendorCode,
+            @Param("plantParam") String plantParam
+    );
+
     void deleteByCallNo(String normalizedRequestId);
 }

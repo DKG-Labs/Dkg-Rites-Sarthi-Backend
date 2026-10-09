@@ -76,6 +76,18 @@ public class InspectionCall {
     private com.sarthi.entity.finalmaterial.FinalInspectionDetails finalInspectionDetails;
 
     private Boolean isModified;
+
+    @Column(name = "call_category", length = 30)
+    private String callCategory; // FRESH, DIVERTED_PASSED
+
+    @Column(name = "is_diverted_material")
+    private Boolean isDivertedMaterial = false;
+
+    @Column(name = "diversion_request_no", length = 50)
+    private String diversionRequestNo;
+
+    @Column(name = "source_ic_no", length = 100)
+    private String sourceIcNo;
 }
 
 
