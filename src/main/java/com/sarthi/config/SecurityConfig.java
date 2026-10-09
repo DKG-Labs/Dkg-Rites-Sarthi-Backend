@@ -90,20 +90,29 @@ public class SecurityConfig {
                                 "/actuator/health"
                         ).permitAll()
 
-                        // 4. Public File & Certificate Viewing, Vendor PO and Plant Lookups
+                        // 4. Public File & Certificate Viewing, Vendor PO, Inspection Calls, and Plant Lookups
                         .requestMatchers(
                                 "/api/vendor/poData",
                                 "/api/vendor/po-data",
                                 "/api/vendor/po-assigned",
                                 "/api/railpad-vendor-plant/**",
                                 "/api/vendor-plant/**",
+                                "/api/rail-inspection-call/**",
+                                "/api/railpad-workflow/**",
+                                "/api/rail-production-declaration/**",
+                                "/api/rail-product-recipe/**",
+                                "/api/rail-plant-setup/**",
+                                "/api/rail-raw-material-source/**",
+                                "/api/rail-approved-ash-sg/**",
+                                "/api/rail-approved-qap/**",
+                                "/api/inspection-calls/**",
+                                "/api/sleeper-final-ic/**",
                                 "/api/filters/**",
                                 "/api/vendor/proxy-pdf",
                                 "/vendor/proxy-pdf",
                                 "/api/certificate-storage/view",
                                 "/api/certificate-storage/view/**",
-                                "/api/correction-slip/view-pdf/**",
-                                "/api/correction-slip/download-pdf/**",
+                                "/api/correction-slip/**",
                                 "/api/ic-annexures/list",
                                 "/api/ic-annexures/download/**",
                                 "/api/case-letter/**",

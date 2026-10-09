@@ -12,6 +12,10 @@ public interface CorrectionSlipDocumentRepository extends JpaRepository<Correcti
 
     List<CorrectionSlipDocument> findByCallNoAndStatusOrderByUploadedAtDesc(String callNo, String status);
 
+    List<CorrectionSlipDocument> findByCallNoAndStatusOrderByUploadedAtAsc(String callNo, String status);
+
+    List<CorrectionSlipDocument> findByCallNoInAndStatusOrderByUploadedAtAsc(List<String> callNos, String status);
+
     Optional<CorrectionSlipDocument> findFirstByCallNoAndStatusOrderByUploadedAtDesc(String callNo, String status);
 
     Optional<CorrectionSlipDocument> findFirstByCallNoAndStageAndStatusOrderByUploadedAtDesc(String callNo, String stage, String status);

@@ -26,6 +26,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
     private UserServiceImpl userServiceImpl;
+
+    @Autowired
+    private com.sarthi.repository.UserMasterRepository userMasterRepository;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -41,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // CASE 2: Authorization exists → extract token
-        String token = authHeader.substring(7);
+        String token = authHeader.substring(7).trim();
 
         // CASE 2A: Support frontend mock development tokens (CM, CallDesk, Finance, SMS, Railpad-IE, Railwayboard)
         if (token != null && (token.startsWith("cm-mock-token") ||
@@ -49,6 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                               token.startsWith("sms-mock-token") ||
                               token.startsWith("finance-mock-token") ||
                               token.startsWith("railpad-mock-token") ||
+                              token.startsWith("sleeper-vendor-token") ||
                               token.startsWith("railwayboard-mock-token"))) {
 
             String role = "CM";
@@ -58,6 +63,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             else if (token.startsWith("finance-")) { role = "FINANCE"; username = "Finance"; }
             else if (token.startsWith("railpad-")) { role = "RAILPAD_IE"; username = "Railpad-IE"; }
             else if (token.startsWith("railwayboard-")) { role = "RAILWAY_BOARD"; username = "Railwayboard"; }
+            else if (token.startsWith("sleeper-vendor-")) { role = "SLEEPER_VENDOR"; username = "Sleeper Vendor"; }
 
             org.springframework.security.core.userdetails.User mockUser =
                     new org.springframework.security.core.userdetails.User(
@@ -75,10 +81,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        Integer userId = null;
+        String subject = null;
 
         try {
-            userId = Integer.valueOf(jwtService.extractUserId(token));
+            subject = jwtService.extractUserId(token);
         } catch (Exception e) {
             // Invalid token → do NOT block → allow request (same as Rites project)
             filterChain.doFilter(request, response);
@@ -86,20 +92,66 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // CASE 3: Token valid → authenticate user
-        if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (subject != null && !subject.trim().isEmpty() && SecurityContextHolder.getContext().getAuthentication() == null) {
+            try {
+                com.sarthi.entity.UserMaster user = null;
 
-            UserDetails userDetails = userServiceImpl.loadUserByUsername(userId);
+                // 1. Try finding by numeric userId
+                try {
+                    Integer uId = Integer.valueOf(subject);
+                    user = userMasterRepository.findByUserId(uId).orElse(null);
+                } catch (NumberFormatException ignored) {}
 
-            if (jwtService.isValid(token, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
+                // 2. Try finding by userName or employeeCode
+                if (user == null) {
+                    user = userMasterRepository.findFirstByUserName(subject).orElse(null);
+                    if (user == null) {
+                        user = userMasterRepository.findFirstByEmployeeCode(subject).orElse(null);
+                    }
+                }
 
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                // 3. Try colon prefix variants for vendor codes (:1007406 vs 1007406)
+                if (user == null) {
+                    if (subject.startsWith(":")) {
+                        String stripped = subject.substring(1);
+                        user = userMasterRepository.findFirstByUserName(stripped).orElse(null);
+                        if (user == null) {
+                            user = userMasterRepository.findFirstByEmployeeCode(stripped).orElse(null);
+                        }
+                    } else {
+                        String coloed = ":" + subject;
+                        user = userMasterRepository.findFirstByUserName(coloed).orElse(null);
+                        if (user == null) {
+                            user = userMasterRepository.findFirstByEmployeeCode(coloed).orElse(null);
+                        }
+                    }
+                }
+
+                if (user != null) {
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    user,
+                                    null,
+                                    user.getAuthorities()
+                            );
+
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                } else {
+                    // Valid signed JWT token from Sarthi backend: create authenticated principal
+                    org.springframework.security.core.userdetails.User principal =
+                            new org.springframework.security.core.userdetails.User(
+                                    subject,
+                                    "",
+                                    java.util.Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER"))
+                            );
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
+            } catch (Exception e) {
+                logger.warn("Authentication error for token subject " + subject + ": " + e.getMessage());
             }
         }
 

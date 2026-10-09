@@ -987,7 +987,24 @@ ORDER BY um.employee_code
 
         COALESCE(ph.vendor_details, ph.vendor_code) AS placeOfInspection,
 
-        CONCAT(sic.po_no, IF(ph.po_date IS NOT NULL, CONCAT(' dated ', DATE_FORMAT(ph.po_date, '%d.%m.%Y')), IF(sic.created_at IS NOT NULL, CONCAT(' dated ', DATE_FORMAT(sic.created_at, '%d.%m.%Y')), ''))) AS contractRefAndDate,
+        CONCAT(
+            IF(COALESCE(NULLIF(TRIM(ph.rly_short_name), ''), NULLIF(TRIM(ph.rly_cd), '')) IS NOT NULL,
+               CONCAT(COALESCE(NULLIF(TRIM(ph.rly_short_name), ''), NULLIF(TRIM(ph.rly_cd), '')), '/'),
+               ''),
+            IF(
+                sic.po_no LIKE '%/%',
+                TRIM(sic.po_no),
+                CONCAT(
+                    TRIM(sic.po_no),
+                    IF(
+                        sic.sr_no IS NOT NULL AND TRIM(sic.sr_no) <> '',
+                        CONCAT('/', LPAD(SUBSTRING_INDEX(TRIM(sic.sr_no), '/', -1), 3, '0')),
+                        IF(pi.item_sr_no IS NOT NULL AND TRIM(pi.item_sr_no) <> '', CONCAT('/', LPAD(TRIM(pi.item_sr_no), 3, '0')), '')
+                    )
+                )
+            ),
+            IF(ph.po_date IS NOT NULL, CONCAT(' dated ', DATE_FORMAT(ph.po_date, '%d.%m.%Y')), IF(sic.created_at IS NOT NULL, CONCAT(' dated ', DATE_FORMAT(sic.created_at, '%d.%m.%Y')), ''))
+        ) AS contractRefAndDate,
 
         COALESCE(pi.bill_pay_off_desc, ph.bill_pay_off_name, ph.bill_pay_off) AS billPayingOffice,
 

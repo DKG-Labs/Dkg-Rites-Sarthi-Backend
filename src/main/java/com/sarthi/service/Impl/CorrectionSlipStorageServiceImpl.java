@@ -28,7 +28,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,16 +54,21 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         if (containerClient == null) {
             synchronized (this) {
                 if (containerClient == null) {
-                    BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
-                            .connectionString(connectionString)
-                            .buildClient();
-                    BlobContainerClient client = blobServiceClient.getBlobContainerClient(correctionSlipContainerName);
                     try {
-                        client.createIfNotExists();
+                        BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                                .connectionString(connectionString)
+                                .buildClient();
+                        BlobContainerClient client = blobServiceClient.getBlobContainerClient(correctionSlipContainerName);
+                        try {
+                            client.createIfNotExists();
+                        } catch (Exception e) {
+                            log.debug("Container already exists or verified: {}", e.getMessage());
+                        }
+                        containerClient = client;
                     } catch (Exception e) {
-                        log.debug("Container already exists or verified: {}", e.getMessage());
+                        log.warn("Could not initialize Azure BlobContainerClient for container '{}': {}", correctionSlipContainerName, e.getMessage());
+                        return null;
                     }
-                    containerClient = client;
                 }
             }
         }
@@ -121,13 +128,11 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         // 2. Resolve Azure folder hierarchy: erc/ER, erc/EP, erc/EF, railpad/RPP, railpad/RPF, sleeper
         String folderPrefix = BlobFolderResolver.resolveFolder(callNo, moduleType);
 
-        String fileName = request.getFileName();
-        if (fileName == null || fileName.trim().isEmpty()) {
-            fileName = String.format("Correction_Slip_%s.pdf", callNo.replaceAll("[^a-zA-Z0-9_-]", "_"));
-        }
-        String sanitizedCallNo = callNo.replaceAll("[^a-zA-Z0-9_-]", "_");
-        String sanitizedFileName = fileName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        List<CorrectionSlipDocument> existingDocs = getAllDocuments(callNo);
+        int nextIndex = existingDocs.size() + 1;
 
+        String sanitizedCallNo = callNo.replaceAll("[^a-zA-Z0-9_-]", "_");
+        String sanitizedFileName = String.format("Correction_Slip_%s_%d.pdf", sanitizedCallNo, nextIndex);
         String blobPath = String.format("%s/%s/%s", folderPrefix, sanitizedCallNo, sanitizedFileName);
 
         // 3. Upload to Azure or local storage
@@ -149,24 +154,21 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             }
         }
 
-        // 4. Save/Update in DB
-        CorrectionSlipDocument doc = documentRepository
-                .findFirstByCallNoAndStatusOrderByUploadedAtDesc(callNo, "ACTIVE")
-                .orElse(CorrectionSlipDocument.builder()
-                        .callNo(callNo)
-                        .status("ACTIVE")
-                        .build());
-
-        doc.setIcNumber(request.getIcNumber());
-        doc.setModuleType(moduleType);
-        doc.setOriginalFileName(sanitizedFileName);
-        doc.setBlobFileName(blobPath);
-        doc.setBlobUrl(blobUrl);
-        doc.setFileSizeOriginal(originalSize);
-        doc.setFileSizeCompressed(finalSize);
-        doc.setContentType("application/pdf");
-        doc.setStage(stage);
-        doc.setUploadedBy(request.getUploadedBy() != null ? request.getUploadedBy() : "Inspecting Engineer");
+        // 4. Save new CorrectionSlipDocument row in DB
+        CorrectionSlipDocument doc = CorrectionSlipDocument.builder()
+                .callNo(callNo)
+                .status("ACTIVE")
+                .icNumber(request.getIcNumber())
+                .moduleType(moduleType)
+                .originalFileName(sanitizedFileName)
+                .blobFileName(blobPath)
+                .blobUrl(blobUrl)
+                .fileSizeOriginal(originalSize)
+                .fileSizeCompressed(finalSize)
+                .contentType("application/pdf")
+                .stage(stage)
+                .uploadedBy(request.getUploadedBy() != null ? request.getUploadedBy() : "Inspecting Engineer")
+                .build();
 
         documentRepository.save(doc);
 
@@ -208,7 +210,41 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         if (callNo == null || callNo.trim().isEmpty()) {
             return Optional.empty();
         }
-        return documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(callNo.trim(), "ACTIVE");
+        String clean = callNo.replaceAll("^:+", "").trim();
+        Optional<CorrectionSlipDocument> docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
+        if (docOpt.isEmpty()) {
+            docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(":" + clean, "ACTIVE");
+        }
+        if (docOpt.isEmpty()) {
+            String alt = clean.contains(" ") ? clean.replace(" ", "-") : clean.replace("-", " ");
+            docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(alt, "ACTIVE");
+            if (docOpt.isEmpty()) {
+                docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(":" + alt, "ACTIVE");
+            }
+        }
+        return docOpt;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CorrectionSlipDocument> getAllDocuments(String callNo) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String clean = callNo.replaceAll("^:+", "").trim();
+        List<String> variations = new ArrayList<>();
+        variations.add(clean);
+        variations.add(":" + clean);
+        if (clean.contains(" ")) {
+            variations.add(clean.replace(" ", "-"));
+            variations.add(":" + clean.replace(" ", "-"));
+        } else if (clean.contains("-")) {
+            variations.add(clean.replace("-", " "));
+            variations.add(":" + clean.replace("-", " "));
+        }
+
+        List<CorrectionSlipDocument> list = documentRepository.findByCallNoInAndStatusOrderByUploadedAtAsc(variations, "ACTIVE");
+        return list != null ? list : Collections.emptyList();
     }
 
     @Override
@@ -223,41 +259,114 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         return getPdfResource(callNo, false);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> viewPdfById(Long id) {
+        return getPdfResourceById(id, true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> downloadPdfById(Long id) {
+        return getPdfResourceById(id, false);
+    }
+
     private ResponseEntity<Resource> getPdfResource(String callNo, boolean inline) {
         if (callNo == null || callNo.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        String clean = callNo.trim();
-        if (clean.endsWith(".pdf")) {
-            clean = clean.substring(0, clean.length() - 4);
+        Optional<CorrectionSlipDocument> optDoc = getLatestDocument(callNo);
+        if (optDoc.isEmpty()) {
+            log.warn("No correction slip document found in database for call: {}", callNo);
+            return ResponseEntity.notFound().build();
         }
 
-        CorrectionSlipDocument doc = documentRepository
-                .findFirstByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE")
-                .orElseThrow(() -> new IllegalArgumentException("No correction slip document found for call: " + callNo));
+        return buildPdfResponse(optDoc.get(), inline);
+    }
 
+    private ResponseEntity<Resource> getPdfResourceById(Long id, boolean inline) {
+        if (id == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Optional<CorrectionSlipDocument> optDoc = documentRepository.findByIdAndStatus(id, "ACTIVE");
+        if (optDoc.isEmpty()) {
+            log.warn("No correction slip document found in database for id: {}", id);
+            return ResponseEntity.notFound().build();
+        }
+
+        return buildPdfResponse(optDoc.get(), inline);
+    }
+
+    private ResponseEntity<Resource> buildPdfResponse(CorrectionSlipDocument doc, boolean inline) {
         byte[] data = null;
 
-        // 1. Try local file first
-        if (doc.getBlobFileName() != null) {
-            File localFile = new File("uploads/correction_slips", doc.getBlobFileName());
-            if (localFile.exists()) {
-                try {
-                    data = Files.readAllBytes(localFile.toPath());
-                } catch (IOException e) {
-                    log.error("Could not read local correction slip file: {}", e.getMessage());
-                }
+        List<String> candidatePaths = new ArrayList<>();
+        if (doc.getBlobFileName() != null && !doc.getBlobFileName().trim().isEmpty()) {
+            candidatePaths.add(doc.getBlobFileName().trim());
+            try {
+                String decoded = java.net.URLDecoder.decode(doc.getBlobFileName().trim(), java.nio.charset.StandardCharsets.UTF_8);
+                if (!candidatePaths.contains(decoded)) candidatePaths.add(decoded);
+            } catch (Exception ignored) {}
+        }
+        if (doc.getBlobUrl() != null && doc.getBlobUrl().contains(correctionSlipContainerName + "/")) {
+            String pathPart = doc.getBlobUrl().substring(doc.getBlobUrl().indexOf(correctionSlipContainerName + "/") + (correctionSlipContainerName + "/").length());
+            if (pathPart.contains("?")) {
+                pathPart = pathPart.substring(0, pathPart.indexOf("?"));
             }
+            if (!candidatePaths.contains(pathPart)) candidatePaths.add(pathPart);
+            try {
+                String decoded = java.net.URLDecoder.decode(pathPart, java.nio.charset.StandardCharsets.UTF_8);
+                if (!candidatePaths.contains(decoded)) candidatePaths.add(decoded);
+            } catch (Exception ignored) {}
         }
 
-        // 2. Try Azure Blob Storage
-        if (data == null && !isLocalOrInvalidAzure() && doc.getBlobFileName() != null) {
+        // 1. Try local file checks
+        for (String path : candidatePaths) {
+            List<File> localFiles = List.of(
+                    new File("uploads/correction_slips", path),
+                    new File("uploads", path),
+                    new File("uploads/correction_slips", new File(path).getName())
+            );
+            for (File f : localFiles) {
+                if (f.exists() && f.isFile()) {
+                    try {
+                        data = Files.readAllBytes(f.toPath());
+                        log.info("Read correction slip from local file: {}", f.getPath());
+                        break;
+                    } catch (IOException e) {
+                        log.warn("Could not read local file {}: {}", f.getPath(), e.getMessage());
+                    }
+                }
+            }
+            if (data != null) break;
+        }
+
+        // 2. Try Azure Blob Storage with SDK client for each candidate path
+        if (data == null && !isLocalOrInvalidAzure()) {
             try {
                 BlobContainerClient containerClient = getContainerClient();
-                BlobClient blobClient = containerClient.getBlobClient(doc.getBlobFileName());
-                if (blobClient.exists()) {
-                    data = blobClient.downloadContent().toBytes();
+                if (containerClient != null) {
+                    for (String blobCandidate : candidatePaths) {
+                        try {
+                            BlobClient blobClient = containerClient.getBlobClient(blobCandidate);
+                            if (blobClient.exists()) {
+                                java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
+                                blobClient.downloadStream(outputStream);
+                                data = outputStream.toByteArray();
+                                log.info("Downloaded correction slip PDF from Azure blob: {}", blobCandidate);
+
+                                // Cache downloaded bytes locally
+                                try {
+                                    saveToLocal(blobCandidate, data);
+                                } catch (Exception ignored) {}
+                                break;
+                            }
+                        } catch (Exception e) {
+                            log.debug("Blob candidate check '{}' failed: {}", blobCandidate, e.getMessage());
+                        }
+                    }
                 }
             } catch (Exception e) {
                 log.warn("Could not download correction slip from Azure container '{}': {}",
@@ -265,7 +374,20 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             }
         }
 
+        // 3. Fallback: try streaming directly from blob URL if available
+        if (data == null && doc.getBlobUrl() != null && doc.getBlobUrl().startsWith("http")) {
+            try {
+                java.net.URL url = new java.net.URI(doc.getBlobUrl()).toURL();
+                try (java.io.InputStream in = url.openStream()) {
+                    data = in.readAllBytes();
+                }
+            } catch (Exception e) {
+                log.debug("Direct HTTP stream from blobUrl '{}' failed (expected if container is private): {}", doc.getBlobUrl(), e.getMessage());
+            }
+        }
+
         if (data == null) {
+            log.warn("Correction slip file content could not be retrieved from local or Azure for id: {}", doc.getId());
             return ResponseEntity.notFound().build();
         }
 
@@ -273,7 +395,7 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         ByteArrayResource resource = new ByteArrayResource(decompressedBytes);
 
         String disposition = inline ? "inline" : "attachment";
-        String filename = doc.getOriginalFileName() != null ? doc.getOriginalFileName() : ("Correction_Slip_" + clean + ".pdf");
+        String filename = doc.getOriginalFileName() != null ? doc.getOriginalFileName() : ("Correction_Slip_" + doc.getCallNo() + ".pdf");
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
@@ -288,7 +410,7 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             return;
         }
         String clean = callNo.trim();
-        List<CorrectionSlipDocument> docs = documentRepository.findByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
+        List<CorrectionSlipDocument> docs = getAllDocuments(clean);
         for (CorrectionSlipDocument doc : docs) {
             // Delete blob from Azure
             if (!isLocalOrInvalidAzure() && doc.getBlobFileName() != null) {

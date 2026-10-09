@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +100,7 @@ public class CorrectionSlipController {
 
     /**
      * GET /api/correction-slip/document?callNo=...
-     * Get document metadata and check if a correction slip PDF exists.
+     * Get latest document metadata and check if a correction slip PDF exists.
      */
     @GetMapping("/document")
     public ResponseEntity<?> getDocument(@RequestParam String callNo) {
@@ -107,11 +108,13 @@ public class CorrectionSlipController {
         try {
             Optional<CorrectionSlipDocument> docOpt = correctionSlipStorageService.getLatestDocument(callNo);
             if (docOpt.isEmpty()) {
-                return ResponseEntity.ok(Map.of("exists", false));
+                return ResponseEntity.ok(Map.of("exists", false, "totalCount", 0));
             }
+            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getAllDocuments(callNo);
             CorrectionSlipDocument doc = docOpt.get();
             Map<String, Object> res = new HashMap<>();
             res.put("exists", true);
+            res.put("totalCount", allDocs.size());
             res.put("id", doc.getId());
             res.put("callNo", doc.getCallNo());
             res.put("icNumber", doc.getIcNumber());
@@ -132,29 +135,119 @@ public class CorrectionSlipController {
     }
 
     /**
-     * GET /api/correction-slip/view-pdf/{*callNo}
-     * View the stored correction slip PDF inline in the browser.
+     * GET /api/correction-slip/documents?callNo=...
+     * Get all stored correction slip documents for a call number with sequence indexing.
      */
-    @GetMapping("/view-pdf/{*callNo}")
-    public ResponseEntity<Resource> viewPdf(@PathVariable String callNo) {
+    @GetMapping("/documents")
+    public ResponseEntity<?> getAllDocuments(@RequestParam String callNo) {
+        log.info("REST GET /api/correction-slip/documents for callNo: {}", callNo);
+        try {
+            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getAllDocuments(callNo);
+            List<Map<String, Object>> resList = new ArrayList<>();
+            for (int i = 0; i < allDocs.size(); i++) {
+                CorrectionSlipDocument doc = allDocs.get(i);
+                Map<String, Object> item = new HashMap<>();
+                item.put("id", doc.getId());
+                item.put("slipNumber", i + 1);
+                item.put("title", "Correction Slip " + (i + 1));
+                item.put("callNo", doc.getCallNo());
+                item.put("icNumber", doc.getIcNumber());
+                item.put("moduleType", doc.getModuleType());
+                item.put("fileName", doc.getOriginalFileName());
+                item.put("blobFileName", doc.getBlobFileName());
+                item.put("blobUrl", doc.getBlobUrl());
+                item.put("fileSizeOriginal", doc.getFileSizeOriginal());
+                item.put("fileSizeCompressed", doc.getFileSizeCompressed());
+                item.put("stage", doc.getStage());
+                item.put("uploadedBy", doc.getUploadedBy());
+                item.put("uploadedAt", doc.getUploadedAt());
+                resList.add(item);
+            }
+            return ResponseEntity.ok(resList);
+        } catch (Exception e) {
+            log.error("Error fetching all correction slip documents for {}: ", callNo, e);
+            return serverError("Failed to fetch correction slip documents list.");
+        }
+    }
+
+    /**
+     * GET /api/correction-slip/view-pdf-by-id/{id}
+     * View a specific stored correction slip PDF inline.
+     */
+    @GetMapping("/view-pdf-by-id/{id}")
+    public ResponseEntity<Resource> viewPdfById(@PathVariable Long id) {
+        log.info("REST GET /api/correction-slip/view-pdf-by-id for id: {}", id);
+        try {
+            return correctionSlipStorageService.viewPdfById(id);
+        } catch (Exception e) {
+            log.error("Error viewing correction slip PDF for id {}: ", id, e);
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * GET /api/correction-slip/download-pdf-by-id/{id}
+     * Download a specific stored correction slip PDF.
+     */
+    @GetMapping("/download-pdf-by-id/{id}")
+    public ResponseEntity<Resource> downloadPdfById(@PathVariable Long id) {
+        log.info("REST GET /api/correction-slip/download-pdf-by-id for id: {}", id);
+        try {
+            return correctionSlipStorageService.downloadPdfById(id);
+        } catch (Exception e) {
+            log.error("Error downloading correction slip PDF for id {}: ", id, e);
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * GET /api/correction-slip/view-pdf/{callNo}
+     * View the latest stored correction slip PDF inline in the browser.
+     */
+    @GetMapping({"/view-pdf/{callNo}", "/view-pdf/{*callNo}"})
+    public ResponseEntity<Resource> viewPdf(@PathVariable(required = false) String callNo, jakarta.servlet.http.HttpServletRequest request) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            String uri = request != null ? request.getRequestURI() : "";
+            int idx = uri.indexOf("/view-pdf/");
+            if (idx != -1) {
+                callNo = uri.substring(idx + "/view-pdf/".length());
+            }
+        }
         if (callNo != null && callNo.startsWith("/")) {
             callNo = callNo.substring(1);
         }
         log.info("REST GET /api/correction-slip/view-pdf for callNo: {}", callNo);
-        return correctionSlipStorageService.viewPdf(callNo);
+        try {
+            return correctionSlipStorageService.viewPdf(callNo);
+        } catch (Exception e) {
+            log.error("Error viewing correction slip PDF for callNo {}: ", callNo, e);
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /**
-     * GET /api/correction-slip/download-pdf/{*callNo}
-     * Download the stored correction slip PDF as an attachment.
+     * GET /api/correction-slip/download-pdf/{callNo}
+     * Download the latest stored correction slip PDF as an attachment.
      */
-    @GetMapping("/download-pdf/{*callNo}")
-    public ResponseEntity<Resource> downloadPdf(@PathVariable String callNo) {
+    @GetMapping({"/download-pdf/{callNo}", "/download-pdf/{*callNo}"})
+    public ResponseEntity<Resource> downloadPdf(@PathVariable(required = false) String callNo, jakarta.servlet.http.HttpServletRequest request) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            String uri = request != null ? request.getRequestURI() : "";
+            int idx = uri.indexOf("/download-pdf/");
+            if (idx != -1) {
+                callNo = uri.substring(idx + "/download-pdf/".length());
+            }
+        }
         if (callNo != null && callNo.startsWith("/")) {
             callNo = callNo.substring(1);
         }
         log.info("REST GET /api/correction-slip/download-pdf for callNo: {}", callNo);
-        return correctionSlipStorageService.downloadPdf(callNo);
+        try {
+            return correctionSlipStorageService.downloadPdf(callNo);
+        } catch (Exception e) {
+            log.error("Error downloading correction slip PDF for callNo {}: ", callNo, e);
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /**
