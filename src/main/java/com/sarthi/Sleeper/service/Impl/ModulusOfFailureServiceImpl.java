@@ -54,6 +54,8 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         // Sample Identification
         if (dto.getSampleIdentification() != null && !dto.getSampleIdentification().trim().isEmpty()) {
             entity.setSampleIdentification(dto.getSampleIdentification().trim());
+        } else if (dto.getBenchGangNumber() != null && dto.getMouldNo() != null && !dto.getBenchGangNumber().isBlank() && !dto.getMouldNo().isBlank()) {
+            entity.setSampleIdentification(dto.getBenchGangNumber().trim() + dto.getMouldNo().trim().toUpperCase());
         } else if (dto.getShedLineNumber() != null || dto.getBenchGangNumber() != null || dto.getMouldNo() != null) {
             entity.setSampleIdentification(
                     (dto.getShedLineNumber() != null ? dto.getShedLineNumber() : "") + " + "
@@ -110,6 +112,8 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         // Sample Identification
         if (dto.getSampleIdentification() != null && !dto.getSampleIdentification().trim().isEmpty()) {
             entity.setSampleIdentification(dto.getSampleIdentification().trim());
+        } else if (dto.getBenchGangNumber() != null && dto.getMouldNo() != null && !dto.getBenchGangNumber().isBlank() && !dto.getMouldNo().isBlank()) {
+            entity.setSampleIdentification(dto.getBenchGangNumber().trim() + dto.getMouldNo().trim().toUpperCase());
         } else if (dto.getShedLineNumber() != null || dto.getBenchGangNumber() != null || dto.getMouldNo() != null) {
             entity.setSampleIdentification(
                     (dto.getShedLineNumber() != null ? dto.getShedLineNumber() : "") + " + "

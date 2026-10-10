@@ -2259,7 +2259,6 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     return p;
                 }
             }
-            return null;
         }
 
         for (String part : parts) {

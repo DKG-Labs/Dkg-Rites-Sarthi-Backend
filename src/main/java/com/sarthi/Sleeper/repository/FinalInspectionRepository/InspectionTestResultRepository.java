@@ -245,4 +245,19 @@ GROUP BY pd.plant_id
   List<Object[]> getFinalRejection(
           @Param("startDate") LocalDateTime startDate,
           @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT pd.batch_number,
+               itr.sleeper_no,
+               itr.sleeper_id,
+               itr.rejection_reason,
+               COALESCE(itr.module_id, ith.module_id) AS mod_id
+        FROM inspection_test_result itr
+        JOIN inspection_test_header ith ON itr.test_header_id = ith.id
+        JOIN production_declaration pd ON ith.batch_id = pd.id
+        WHERE pd.batch_number IN (:batchNos)
+          AND UPPER(TRIM(COALESCE(itr.result, ''))) = 'REJECTED'
+        ORDER BY itr.id DESC
+        """, nativeQuery = true)
+    List<Object[]> findRejectionDetailsByBatchNumbers(@Param("batchNos") java.util.Collection<String> batchNos);
 }
