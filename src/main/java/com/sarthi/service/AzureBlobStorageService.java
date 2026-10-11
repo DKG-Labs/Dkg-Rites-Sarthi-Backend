@@ -530,57 +530,63 @@ public class AzureBlobStorageService {
      * Downloads a file from Azure Blob Storage as base64
      */
     public String downloadAsBase64(String fileName) {
-        try {
-            BlobClient blobClient = getContainerClient().getBlobClient(fileName);
-            if (!blobClient.exists()) {
-                throw new RuntimeException("File not found in storage: " + fileName);
-            }
-            
-            byte[] content = blobClient.downloadContent().toBytes();
-            return Base64.getEncoder().encodeToString(content);
-            
-        } catch (Exception e) {
-            log.error("Error downloading file from Azure: {}", e.getMessage());
-            throw new RuntimeException("Failed to download file from Azure", e);
-        }
+        byte[] content = downloadFile(fileName);
+        return Base64.getEncoder().encodeToString(content);
     }
 
     /**
      * Downloads a file from Azure Blob Storage as byte array
      */
     public byte[] downloadFile(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) {
+            throw new IllegalArgumentException("File name cannot be empty");
+        }
 
         try {
+            BlobContainerClient container = getContainerClient();
+            BlobClient blobClient = container.getBlobClient(fileName);
 
-            BlobClient blobClient =
-                    getContainerClient().getBlobClient(fileName);
-
+            // If direct file doesn't exist, check candidate name variations (slashes vs underscores)
             if (!blobClient.exists()) {
-
-                throw new RuntimeException(
-                        "File not found in storage: " + fileName
+                java.util.List<String> candidates = java.util.List.of(
+                        fileName.replaceAll("[/\\\\]", "_"),
+                        fileName.replace("_", "/"),
+                        fileName.replace("_", "-"),
+                        fileName.replace("-", "_")
                 );
+                for (String cand : candidates) {
+                    BlobClient altClient = container.getBlobClient(cand);
+                    if (altClient.exists()) {
+                        blobClient = altClient;
+                        break;
+                    }
+                }
             }
 
-            ByteArrayOutputStream outputStream =
-                    new ByteArrayOutputStream();
+            if (!blobClient.exists()) {
+                // Check local disk fallback
+                java.util.List<java.io.File> localCandidates = java.util.List.of(
+                        new java.io.File("uploads/certificates", fileName),
+                        new java.io.File("uploads", fileName),
+                        new java.io.File("uploads/inspection_images", fileName)
+                );
+                for (java.io.File localF : localCandidates) {
+                    if (localF.exists() && localF.isFile()) {
+                        log.info("Serving certificate from local storage: {}", localF.getAbsolutePath());
+                        return java.nio.file.Files.readAllBytes(localF.toPath());
+                    }
+                }
 
+                throw new RuntimeException("File not found in storage: " + fileName);
+            }
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             blobClient.download(outputStream);
-
             return outputStream.toByteArray();
 
         } catch (Exception e) {
-
-            log.error(
-                    "Error downloading file from Azure: {}",
-                    e.getMessage(),
-                    e
-            );
-
-            throw new RuntimeException(
-                    "Failed to download file from Azure",
-                    e
-            );
+            log.error("Error downloading file from Azure: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to download file from Azure: " + e.getMessage(), e);
         }
     }
 

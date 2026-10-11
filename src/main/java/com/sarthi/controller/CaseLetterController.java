@@ -90,13 +90,17 @@ public class CaseLetterController {
         }
     }
 
-    @GetMapping("/view/{callNo}")
+    @GetMapping({"/view/{callNo}", "/view/{callNo}.pdf"})
     @Operation(summary = "View saved Case Letter PDF inline in browser")
     public ResponseEntity<byte[]> viewCaseLetter(@PathVariable String callNo) {
         try {
-            byte[] pdfBytes = caseLetterService.getLatestCaseLetterPdf(callNo);
+            String clean = callNo != null ? callNo.trim() : "";
+            if (clean.toLowerCase().endsWith(".pdf")) {
+                clean = clean.substring(0, clean.length() - 4).trim();
+            }
+            byte[] pdfBytes = caseLetterService.getLatestCaseLetterPdf(clean);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"Case_Letter_" + callNo + ".pdf\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"Case_Letter_" + clean + ".pdf\"")
                     .contentType(MediaType.APPLICATION_PDF)
                     .contentLength(pdfBytes.length)
                     .body(pdfBytes);
@@ -106,13 +110,17 @@ public class CaseLetterController {
         }
     }
 
-    @GetMapping("/download/{callNo}")
+    @GetMapping({"/download/{callNo}", "/download/{callNo}.pdf"})
     @Operation(summary = "Download saved Case Letter PDF")
     public ResponseEntity<byte[]> downloadCaseLetter(@PathVariable String callNo) {
         try {
-            byte[] pdfBytes = caseLetterService.getLatestCaseLetterPdf(callNo);
+            String clean = callNo != null ? callNo.trim() : "";
+            if (clean.toLowerCase().endsWith(".pdf")) {
+                clean = clean.substring(0, clean.length() - 4).trim();
+            }
+            byte[] pdfBytes = caseLetterService.getLatestCaseLetterPdf(clean);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"Case_Letter_" + callNo + ".pdf\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"Case_Letter_" + clean + ".pdf\"")
                     .contentType(MediaType.APPLICATION_PDF)
                     .contentLength(pdfBytes.length)
                     .body(pdfBytes);

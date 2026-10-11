@@ -47,6 +47,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // CASE 2: Authorization exists → extract token
         String token = authHeader.substring(7).trim();
 
+        // Handle proxy or browser XHR comma-separated duplicate headers (e.g. "token1, Bearer token2")
+        if (token.contains(",")) {
+            String[] parts = token.split(",");
+            for (String part : parts) {
+                String cleanPart = part.trim();
+                if (cleanPart.startsWith("Bearer ")) {
+                    cleanPart = cleanPart.substring(7).trim();
+                }
+                if (!cleanPart.isEmpty() && !cleanPart.equalsIgnoreCase("null") && !cleanPart.equalsIgnoreCase("undefined")) {
+                    token = cleanPart;
+                    break;
+                }
+            }
+        }
+
         // CASE 2A: Support frontend mock development tokens (CM, CallDesk, Finance, SMS, Railpad-IE, Railwayboard)
         if (token != null && (token.startsWith("cm-mock-token") ||
                               token.startsWith("calldesk-mock-token") ||
