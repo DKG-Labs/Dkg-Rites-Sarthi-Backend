@@ -173,7 +173,7 @@ public class CaseLetterServiceImpl implements CaseLetterService {
         }
     }
 
-    private static final long MAX_INDIVIDUAL_FILE_SIZE = 3L * 1024 * 1024; // 3 MB
+    private static final long MAX_INDIVIDUAL_FILE_SIZE = 50L * 1024 * 1024; // 50 MB
 
     @Override
     public byte[] mergeUploadedFiles(List<MultipartFile> files) {
@@ -192,14 +192,24 @@ public class CaseLetterServiceImpl implements CaseLetterService {
                     throw new IllegalArgumentException("Only PDF format (.pdf) is allowed. Invalid file: " + file.getOriginalFilename());
                 }
 
-                // 2. Strictly enforce 3 MB file size limit
+                // 2. Enforce file size limit (50 MB)
                 if (file.getSize() > MAX_INDIVIDUAL_FILE_SIZE) {
-                    throw new IllegalArgumentException(String.format("File '%s' exceeds the maximum allowed upload limit of 3 MB (Size: %.2f MB).",
+                    throw new IllegalArgumentException(String.format("File '%s' exceeds the maximum allowed upload limit of 50 MB (Size: %.2f MB).",
                             file.getOriginalFilename(), file.getSize() / (1024.0 * 1024.0)));
                 }
 
                 try {
-                    byteList.add(file.getBytes());
+                    byte[] fileBytes = file.getBytes();
+                    if (fileBytes.length >= 4) {
+                        String header = new String(fileBytes, 0, Math.min(fileBytes.length, 1024), java.nio.charset.StandardCharsets.ISO_8859_1);
+                        if (!header.contains("%PDF-")) {
+                            if (header.contains("<Error>") || header.contains("<?xml") || header.contains("<html")) {
+                                throw new IllegalArgumentException(String.format("File '%s' is not a valid PDF (received an XML/HTML storage error response instead).", file.getOriginalFilename()));
+                            }
+                            throw new IllegalArgumentException(String.format("File '%s' is not a valid PDF document (missing PDF header).", file.getOriginalFilename()));
+                        }
+                    }
+                    byteList.add(fileBytes);
                 } catch (IOException e) {
                     throw new RuntimeException("Failed to read file: " + file.getOriginalFilename(), e);
                 }
