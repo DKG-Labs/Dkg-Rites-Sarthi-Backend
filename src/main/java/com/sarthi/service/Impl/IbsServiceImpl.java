@@ -30,6 +30,16 @@ import com.sarthi.repository.certificate.CaseLetterDocumentRepository;
 import com.sarthi.repository.certificate.IcAnnexureDocumentRepository;
 import com.sarthi.entity.certificate.CaseLetterDocument;
 import com.sarthi.entity.certificate.IcAnnexureDocument;
+import com.sarthi.entity.processmaterial.ProcessRmIcMapping;
+import com.sarthi.entity.processmaterial.ProcessInspectionDetails;
+import com.sarthi.entity.finalmaterial.FinalProcessIcMapping;
+import com.sarthi.entity.finalmaterial.FinalInspectionDetails;
+import com.sarthi.repository.processmaterial.ProcessRmIcMappingRepository;
+import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
+import com.sarthi.repository.finalmaterial.FinalProcessIcMappingRepository;
+import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
+import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
+import com.sarthi.service.AzureBlobStorageService;
 import com.sarthi.service.IbsService;
 import com.sarthi.service.JwtService;
 
@@ -91,6 +101,13 @@ public class IbsServiceImpl implements IbsService {
     private final IbsBillingClient  billingClient;
     private final CaseLetterDocumentRepository caseLetterDocumentRepository;
     private final IcAnnexureDocumentRepository icAnnexureDocumentRepository;
+    private final ProcessRmIcMappingRepository processRmIcMappingRepository;
+    private final ProcessInspectionDetailsRepository processInspectionDetailsRepository;
+    private final FinalProcessIcMappingRepository finalProcessIcMappingRepository;
+    private final FinalInspectionDetailsRepository finalInspectionDetailsRepository;
+    private final AzureBlobStorageService azureBlobStorageService;
+    private final InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
 
     @Override
     public AuthResponseDto integrationLogin(
@@ -1000,6 +1017,17 @@ public class IbsServiceImpl implements IbsService {
         }
 
         Set<Long> matchedRegIds = new HashSet<>();
+        Set<String> completedCallTokens = new HashSet<>();
+        Set<String> completedIcTokens = new HashSet<>();
+        for (IbsInspectionDto d : uniqueCalls.values()) {
+            if (d.getCallNumber() != null) completedCallTokens.add(d.getCallNumber());
+            if (d.getIcNumber() != null) completedIcTokens.add(d.getIcNumber());
+        }
+        for (IbsCallRegistration reg : completedList) {
+            if (reg.getCallNumber() != null) completedCallTokens.add(reg.getCallNumber());
+        }
+        Map<String, String> completedDocLinks = prefetchUploadedCallDocuments(completedCallTokens, completedIcTokens);
+
         // Enrich every matched call with IBS registration details
         for (IbsInspectionDto dto : uniqueCalls.values()) {
             String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
@@ -1045,11 +1073,29 @@ public class IbsServiceImpl implements IbsService {
                 dto.setAcknowledgedAt(reg.getAcknowledgedAt());
             }
             if (dto.getUploadedInspectionCallDocument() == null) {
-                dto.setUploadedInspectionCallDocument(resolveUploadedCallDocument(!callNo.isEmpty() ? callNo : icNo));
+                String docLink = completedDocLinks.get(callNo);
+                if (docLink == null && !icNo.isEmpty()) docLink = completedDocLinks.get(icNo);
+                dto.setUploadedInspectionCallDocument(docLink);
             }
         }
 
         // For any remaining completed calls from ibs_call_registration not covered by queries
+        Set<String> fallbackEpCallNos = new HashSet<>();
+        Set<String> fallbackEfCallNos = new HashSet<>();
+        Set<String> fallbackRpfCallNos = new HashSet<>();
+        for (IbsCallRegistration reg : completedList) {
+            if (matchedRegIds.contains(reg.getId())) continue;
+            String cNo = reg.getCallNumber() != null ? reg.getCallNumber().trim() : "";
+            if (cNo.isEmpty() || uniqueCalls.containsKey(cNo) || uniqueCalls.containsKey(cNo.toUpperCase())) continue;
+            String upper = cNo.toUpperCase();
+            if (upper.startsWith("EP") || upper.contains("EP-")) fallbackEpCallNos.add(cNo);
+            else if (upper.startsWith("EF") || upper.contains("EF-")) fallbackEfCallNos.add(cNo);
+            else if (upper.startsWith("RPF") || upper.contains("RPF-")) fallbackRpfCallNos.add(cNo);
+        }
+        Map<String, String> fallbackLinkedIcs = (fallbackEpCallNos.isEmpty() && fallbackEfCallNos.isEmpty() && fallbackRpfCallNos.isEmpty())
+                ? Collections.emptyMap()
+                : prefetchLinkedParentIcNumbers(fallbackEpCallNos, fallbackEfCallNos, fallbackRpfCallNos);
+
         for (IbsCallRegistration reg : completedList) {
             if (matchedRegIds.contains(reg.getId())) {
                 continue;
@@ -1077,7 +1123,11 @@ public class IbsServiceImpl implements IbsService {
                             + callNo
                             + ".pdf"
             );
-            dto.setUploadedInspectionCallDocument(resolveUploadedCallDocument(callNo));
+            String docLink = completedDocLinks.get(callNo);
+            dto.setUploadedInspectionCallDocument(docLink);
+            if (fallbackLinkedIcs.containsKey(callNo)) {
+                dto.setIcLinkedForCurrentCall(fallbackLinkedIcs.get(callNo));
+            }
             dto.setIsBlocked(0);
             dto.setCancellationCharges(0.0);
             dto.setRejectionCharges(0.0);
@@ -1201,6 +1251,99 @@ public class IbsServiceImpl implements IbsService {
         return null;
     }
 
+    private Map<String, String> prefetchUploadedCallDocuments(Collection<String> callNumbers, Collection<String> icNumbers) {
+        if ((callNumbers == null || callNumbers.isEmpty()) && (icNumbers == null || icNumbers.isEmpty())) {
+            return Collections.emptyMap();
+        }
+
+        Set<String> allTokens = new HashSet<>();
+        if (callNumbers != null) {
+            for (String cn : callNumbers) {
+                if (cn == null || cn.trim().isEmpty()) continue;
+                String clean = cn.trim();
+                if (clean.toLowerCase().endsWith(".pdf")) clean = clean.substring(0, clean.length() - 4).trim();
+                allTokens.add(clean);
+                allTokens.add(clean.replace("-", "/"));
+                allTokens.add(clean.replace("/", "-"));
+            }
+        }
+        if (icNumbers != null) {
+            for (String ic : icNumbers) {
+                if (ic == null || ic.trim().isEmpty()) continue;
+                String clean = ic.trim();
+                if (clean.toLowerCase().endsWith(".pdf")) clean = clean.substring(0, clean.length() - 4).trim();
+                allTokens.add(clean);
+                allTokens.add(clean.replace("-", "/"));
+                allTokens.add(clean.replace("/", "-"));
+                if (clean.contains("/")) {
+                    for (String part : clean.split("/")) {
+                        String p = part.trim();
+                        if (p.length() >= 6 && p.matches(".*\\d+.*")) {
+                            allTokens.add(p);
+                            allTokens.add(p.replace("-", "/"));
+                            allTokens.add(p.replace("/", "-"));
+                        }
+                    }
+                }
+            }
+        }
+        allTokens.remove("");
+        if (allTokens.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> resultMap = new HashMap<>();
+
+        // 1. Batch fetch Case Letter Documents (Priority 1)
+        if (caseLetterDocumentRepository != null) {
+            try {
+                List<CaseLetterDocument> caseLetters = caseLetterDocumentRepository.findActiveByCallTokens(allTokens);
+                for (CaseLetterDocument cld : caseLetters) {
+                    if (cld.getCallNo() == null) continue;
+                    String cNo = cld.getCallNo().trim();
+                    String link = "https://api.ritesqasarthi.com/sarthi-backend/api/case-letter/view/" + cNo + ".pdf";
+                    resultMap.putIfAbsent(cNo, link);
+                    resultMap.putIfAbsent(cNo.toUpperCase(), link);
+                    resultMap.putIfAbsent(cNo.replace("-", "/"), link);
+                    resultMap.putIfAbsent(cNo.replace("/", "-"), link);
+                }
+            } catch (Exception e) {
+                log.warn("Error prefetching case letters: {}", e.getMessage());
+            }
+        }
+
+        // 2. Batch fetch IC Annexures (Priority 2)
+        if (icAnnexureDocumentRepository != null) {
+            try {
+                List<IcAnnexureDocument> annexures = icAnnexureDocumentRepository.findActiveAnnexuresByCallTokens(allTokens);
+                for (IcAnnexureDocument doc : annexures) {
+                    String link = (doc.getBlobUrl() != null && !doc.getBlobUrl().trim().isEmpty())
+                            ? doc.getBlobUrl().trim()
+                            : ("https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + doc.getId());
+
+                    if (doc.getCallNo() != null && !doc.getCallNo().trim().isEmpty()) {
+                        String cNo = doc.getCallNo().trim();
+                        resultMap.putIfAbsent(cNo, link);
+                        resultMap.putIfAbsent(cNo.toUpperCase(), link);
+                        resultMap.putIfAbsent(cNo.replace("-", "/"), link);
+                        resultMap.putIfAbsent(cNo.replace("/", "-"), link);
+                    }
+                    if (doc.getIcNumber() != null && !doc.getIcNumber().trim().isEmpty()) {
+                        String ic = doc.getIcNumber().trim();
+                        resultMap.putIfAbsent(ic, link);
+                        resultMap.putIfAbsent(ic.toUpperCase(), link);
+                        resultMap.putIfAbsent(ic.replace("-", "/"), link);
+                        resultMap.putIfAbsent(ic.replace("/", "-"), link);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error prefetching ic annexures: {}", e.getMessage());
+            }
+        }
+
+        return resultMap;
+    }
+
     private String resolveUploadedCallDocument(String callNumber) {
         if (callNumber == null || callNumber.trim().isEmpty()) {
             return null;
@@ -1221,17 +1364,19 @@ public class IbsServiceImpl implements IbsService {
             // 2. Priority 2: Fallback to Uploaded IC Annexures
             if (icAnnexureDocumentRepository != null) {
                 List<IcAnnexureDocument> annexures =
-                        icAnnexureDocumentRepository.findByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
+                        icAnnexureDocumentRepository.findActiveAnnexuresByCallVariants(clean);
                 if (!annexures.isEmpty()) {
-                    return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + annexures.get(0).getId();
+                    IcAnnexureDocument doc = annexures.get(0);
+                    return (doc.getBlobUrl() != null && !doc.getBlobUrl().trim().isEmpty())
+                            ? doc.getBlobUrl().trim()
+                            : ("https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + doc.getId());
                 }
-                String variant = clean.contains("-") ? clean.replace("-", "/") : clean.replace("/", "-");
-                if (!variant.equals(clean)) {
-                    List<IcAnnexureDocument> variantAnnexures =
-                            icAnnexureDocumentRepository.findByCallNoAndStatusOrderByUploadedAtDesc(variant, "ACTIVE");
-                    if (!variantAnnexures.isEmpty()) {
-                        return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + variantAnnexures.get(0).getId();
-                    }
+            }
+            // 3. Priority 3: Fallback check in Azure container directly
+            if (azureBlobStorageService != null) {
+                String blobUrl = azureBlobStorageService.findBlobUrlByCallToken(clean);
+                if (blobUrl != null) {
+                    return blobUrl;
                 }
             }
         } catch (Exception e) {
@@ -1246,9 +1391,205 @@ public class IbsServiceImpl implements IbsService {
             return doc;
         }
         if (icNumber != null && !icNumber.trim().isEmpty() && !icNumber.trim().equalsIgnoreCase(callNumber)) {
-            return resolveUploadedCallDocument(icNumber);
+            doc = resolveUploadedCallDocument(icNumber);
+            if (doc != null) {
+                return doc;
+            }
+        }
+        // Fallback to Azure container search if still not found
+        if (azureBlobStorageService != null) {
+            String blobUrl = azureBlobStorageService.findBlobUrlByCallToken(callNumber);
+            if (blobUrl != null) return blobUrl;
+            if (icNumber != null && !icNumber.trim().isEmpty()) {
+                blobUrl = azureBlobStorageService.findBlobUrlByCallToken(icNumber);
+                if (blobUrl != null) return blobUrl;
+            }
         }
         return null;
+    }
+
+    private String extractCallToken(String raw, String prefix) {
+        if (raw == null || raw.trim().isEmpty()) return null;
+        String s = raw.trim();
+        if (s.toLowerCase().endsWith(".pdf")) {
+            s = s.substring(0, s.length() - 4).trim();
+        }
+        // If it looks like a full certificate number (e.g. W/ER-0915260001/SWR), preserve the whole certificate number!
+        if (s.contains("/") && !s.startsWith("http://") && !s.startsWith("https://")) {
+            String[] parts = s.split("/");
+            if (parts.length >= 2 && prefix != null) {
+                for (String p : parts) {
+                    if (p.trim().toUpperCase().startsWith(prefix.toUpperCase()) && p.trim().length() >= 6) {
+                        return s; // Preserves the full certificate number
+                    }
+                }
+            }
+        }
+        if (s.contains("/") || s.contains("_")) {
+            String[] tokens = s.split("[/_]");
+            for (String t : tokens) {
+                String trimmedT = t.trim();
+                if (prefix != null && trimmedT.toUpperCase().startsWith(prefix.toUpperCase()) && trimmedT.length() >= 6) {
+                    return trimmedT;
+                }
+            }
+        }
+        return s;
+    }
+
+    private Map<String, String> prefetchLinkedParentIcNumbers(Set<String> epCallNos, Set<String> efCallNos, Set<String> rpfCallNos) {
+        Map<String, String> resultMap = new HashMap<>();
+        Map<String, Set<String>> rawMap = new HashMap<>();
+        Set<String> callsToResolveSet = new HashSet<>();
+
+        // 1. ERC Process (EP) -> Raw Material IC (starts with ER)
+        if (epCallNos != null && !epCallNos.isEmpty() && processRmIcMappingRepository != null) {
+            try {
+                List<Object[]> rows = processRmIcMappingRepository.findBatchRmIcByProcessCallNos(epCallNos);
+                if (rows != null) {
+                    for (Object[] r : rows) {
+                        if (r == null || r.length < 2) continue;
+                        String processCall = safeString(r[0]);
+                        String rmVal = safeString(r[1]);
+                        if (processCall != null && rmVal != null && !rmVal.isBlank()) {
+                            for (String p : rmVal.split("[,;]+")) {
+                                String token = extractCallToken(p, "ER");
+                                if (token != null && !token.isEmpty()) {
+                                    rawMap.computeIfAbsent(processCall.trim(), k -> new LinkedHashSet<>()).add(token);
+                                    if (!token.contains("/")) {
+                                        callsToResolveSet.add(token);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error in batch prefetching EP linked RM IC numbers: {}", e.getMessage());
+            }
+        }
+
+        // 2. ERC Final (EF) -> Process IC (starts with EP)
+        if (efCallNos != null && !efCallNos.isEmpty() && finalProcessIcMappingRepository != null) {
+            try {
+                List<Object[]> rows = finalProcessIcMappingRepository.findBatchProcessIcByFinalCallNos(efCallNos);
+                if (rows != null) {
+                    for (Object[] r : rows) {
+                        if (r == null || r.length < 2) continue;
+                        String finalCall = safeString(r[0]);
+                        String procVal = safeString(r[1]);
+                        if (finalCall != null && procVal != null && !procVal.isBlank()) {
+                            for (String p : procVal.split("[,;]+")) {
+                                String token = extractCallToken(p, "EP");
+                                if (token != null && !token.isEmpty()) {
+                                    rawMap.computeIfAbsent(finalCall.trim(), k -> new LinkedHashSet<>()).add(token);
+                                    if (!token.contains("/")) {
+                                        callsToResolveSet.add(token);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error in batch prefetching EF linked Process IC numbers: {}", e.getMessage());
+            }
+        }
+
+        // 3. Railpad Final (RPF) -> Process IC (starts with RPP)
+        if (rpfCallNos != null && !rpfCallNos.isEmpty() && railInspectionCallRepository != null) {
+            try {
+                List<Object[]> rows = railInspectionCallRepository.findBatchProcessIcByRailpadCallNos(rpfCallNos);
+                if (rows != null) {
+                    for (Object[] r : rows) {
+                        if (r == null || r.length < 2) continue;
+                        String rpfCall = safeString(r[0]);
+                        String procVal = safeString(r[1]);
+                        if (rpfCall != null && procVal != null && !procVal.isBlank()) {
+                            for (String p : procVal.split("[,;]+")) {
+                                String token = extractCallToken(p, "RPP");
+                                if (token != null && !token.isEmpty()) {
+                                    rawMap.computeIfAbsent(rpfCall.trim(), k -> new LinkedHashSet<>()).add(token);
+                                    if (!token.contains("/")) {
+                                        callsToResolveSet.add(token);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error in batch prefetching RPF linked Process IC numbers: {}", e.getMessage());
+            }
+        }
+
+        // 4. Batch resolve any plain call numbers to their full Certificate numbers
+        Map<String, String> certLookupMap = new HashMap<>();
+        if (!callsToResolveSet.isEmpty()) {
+            if (inspectionCompleteDetailsRepository != null) {
+                try {
+                    List<Object[]> certRows = inspectionCompleteDetailsRepository.findCertificateNosByCallNos(new ArrayList<>(callsToResolveSet));
+                    if (certRows != null) {
+                        for (Object[] cr : certRows) {
+                            if (cr != null && cr.length >= 2 && cr[0] != null && cr[1] != null) {
+                                String cn = safeString(cr[0]).trim();
+                                String cert = safeString(cr[1]).trim();
+                                if (!cn.isEmpty() && !cert.isEmpty()) {
+                                    certLookupMap.put(cn.toUpperCase(), cert);
+                                    certLookupMap.put(cn, cert);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error resolving certificate numbers for calls: {}", e.getMessage());
+                }
+            }
+            if (railInspectionCompleteDetailsRepository != null) {
+                try {
+                    List<Object[]> railCertRows = railInspectionCompleteDetailsRepository.findCertificateNosByCallNos(callsToResolveSet);
+                    if (railCertRows != null) {
+                        for (Object[] cr : railCertRows) {
+                            if (cr != null && cr.length >= 2 && cr[0] != null && cr[1] != null) {
+                                String cn = safeString(cr[0]).trim();
+                                String cert = safeString(cr[1]).trim();
+                                if (!cn.isEmpty() && !cert.isEmpty()) {
+                                    certLookupMap.put(cn.toUpperCase(), cert);
+                                    certLookupMap.put(cn, cert);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error resolving railpad certificate numbers: {}", e.getMessage());
+                }
+            }
+        }
+
+        // 5. Populate final result map with full certificate numbers
+        for (Map.Entry<String, Set<String>> entry : rawMap.entrySet()) {
+            Set<String> resolvedCertNums = new LinkedHashSet<>();
+            for (String token : entry.getValue()) {
+                if (token.contains("/")) {
+                    resolvedCertNums.add(token);
+                } else if (certLookupMap.containsKey(token.toUpperCase())) {
+                    resolvedCertNums.add(certLookupMap.get(token.toUpperCase()));
+                } else {
+                    resolvedCertNums.add(token);
+                }
+            }
+            if (!resolvedCertNums.isEmpty()) {
+                String joined = String.join(", ", resolvedCertNums);
+                resultMap.put(entry.getKey(), joined);
+                if (entry.getKey().contains("/")) {
+                    for (String part : entry.getKey().split("/")) {
+                        resultMap.putIfAbsent(part.trim(), joined);
+                    }
+                }
+            }
+        }
+
+        return resultMap;
     }
 
     private List<IbsInspectionDto> mapResult(
@@ -1271,6 +1612,52 @@ public class IbsServiceImpl implements IbsService {
             }
             groupedByCall.computeIfAbsent(callNumber, k -> new ArrayList<>()).add(row);
         }
+
+        // Eliminate N+1 queries by batch-prefetching parent IC links for this entire batch
+        Set<String> epCallNos = new HashSet<>();
+        Set<String> efCallNos = new HashSet<>();
+        Set<String> rpfCallNos = new HashSet<>();
+
+        for (String cNo : groupedByCall.keySet()) {
+            if (cNo == null || cNo.isBlank()) continue;
+            String upper = cNo.toUpperCase();
+            if (upper.startsWith("EP") || upper.contains("EP-")) {
+                epCallNos.add(cNo);
+                if (cNo.contains("/")) {
+                    for (String part : cNo.split("/")) {
+                        if (part.trim().toUpperCase().startsWith("EP")) epCallNos.add(part.trim());
+                    }
+                }
+            } else if (upper.startsWith("EF") || upper.contains("EF-")) {
+                efCallNos.add(cNo);
+                if (cNo.contains("/")) {
+                    for (String part : cNo.split("/")) {
+                        if (part.trim().toUpperCase().startsWith("EF")) efCallNos.add(part.trim());
+                    }
+                }
+            } else if (upper.startsWith("RPF") || upper.contains("RPF-")) {
+                rpfCallNos.add(cNo);
+                if (cNo.contains("/")) {
+                    for (String part : cNo.split("/")) {
+                        if (part.trim().toUpperCase().startsWith("RPF")) rpfCallNos.add(part.trim());
+                    }
+                }
+            }
+        }
+
+        Map<String, String> batchLinkedIcs = (epCallNos.isEmpty() && efCallNos.isEmpty() && rpfCallNos.isEmpty())
+                ? Collections.emptyMap()
+                : prefetchLinkedParentIcNumbers(epCallNos, efCallNos, rpfCallNos);
+
+        Set<String> allCandidateIcNos = new HashSet<>();
+        for (List<Object[]> rowsList : groupedByCall.values()) {
+            for (Object[] r : rowsList) {
+                if (r.length > 15 && r[15] != null) {
+                    allCandidateIcNos.add(safeString(r[15]));
+                }
+            }
+        }
+        Map<String, String> batchCallDocLinks = prefetchUploadedCallDocuments(groupedByCall.keySet(), allCandidateIcNos);
 
         for (Map.Entry<String, List<Object[]>> entry : groupedByCall.entrySet()) {
             String callNumber = entry.getKey();
@@ -1414,7 +1801,17 @@ public class IbsServiceImpl implements IbsService {
             );
 
             String icNo = bestRow[15] != null ? safeString(bestRow[15]) : callNumber;
-            dto.setUploadedInspectionCallDocument(resolveUploadedCallDocument(callNumber, icNo));
+            String callDocLink = batchCallDocLinks.get(callNumber);
+            if (callDocLink == null && !icNo.isEmpty()) {
+                callDocLink = batchCallDocLinks.get(icNo);
+            }
+            dto.setUploadedInspectionCallDocument(callDocLink);
+
+            String linkedIc = batchLinkedIcs.get(callNumber);
+            if (linkedIc == null && !icNo.isEmpty()) {
+                linkedIc = batchLinkedIcs.get(icNo);
+            }
+            dto.setIcLinkedForCurrentCall(linkedIc);
 
             dto.setCallNumber(callNumber);
             dto.setIcNumber(icNo);

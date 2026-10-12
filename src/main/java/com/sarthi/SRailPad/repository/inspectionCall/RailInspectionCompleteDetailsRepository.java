@@ -32,4 +32,14 @@ public interface RailInspectionCompleteDetailsRepository extends JpaRepository<R
         ORDER BY d.CREATED_ON DESC
     """, nativeQuery = true)
     List<RailInspectionCompleteDetails> findProcessCallsByPoNoAndSr(@Param("poNo") String poNo, @Param("poSr") String poSr);
+
+    @Query(value = """
+        SELECT ricd.call_no, ricd.certificate_no
+        FROM rail_inspection_complete_details ricd
+        WHERE ricd.call_no IN (:callNos)
+          AND ricd.certificate_no IS NOT NULL
+          AND ricd.certificate_no != ''
+        ORDER BY ricd.id DESC
+    """, nativeQuery = true)
+    List<Object[]> findCertificateNosByCallNos(@Param("callNos") java.util.Collection<String> callNos);
 }

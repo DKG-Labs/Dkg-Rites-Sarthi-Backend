@@ -46,6 +46,9 @@ public class IbsInspectionDto {
                 @com.fasterxml.jackson.annotation.JsonProperty("uploadedInspectionCallDocument")
                 private String uploadedInspectionCallDocument;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("ic_linked_for_current_call")
+    private String icLinkedForCurrentCall;
+
     @com.fasterxml.jackson.annotation.JsonProperty("is_blocked")
     private Integer isBlocked;
 
