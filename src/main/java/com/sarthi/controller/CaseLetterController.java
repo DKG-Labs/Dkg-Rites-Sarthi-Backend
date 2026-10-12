@@ -37,7 +37,7 @@ public class CaseLetterController {
 
     @PostMapping(value = "/merge-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Merge multiple uploaded PDFs in memory and return the merged PDF for preview")
-    public ResponseEntity<byte[]> mergePreview(
+    public ResponseEntity<?> mergePreview(
             @RequestParam("files") List<MultipartFile> files
     ) {
         try {
@@ -49,10 +49,16 @@ public class CaseLetterController {
                     .body(mergedBytes);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid input for merge-preview: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(null);
+            return ResponseEntity.badRequest()
+                    .header("X-Error-Message", e.getMessage())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
             log.error("Error in merge-preview: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .header("X-Error-Message", e.getMessage())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("status", "error", "message", "Error in merge-preview: " + e.getMessage()));
         }
     }
 
