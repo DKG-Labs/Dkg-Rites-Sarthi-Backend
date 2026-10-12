@@ -293,4 +293,37 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .body(resource);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> downloadAnnexureByBlobName(String blobName) {
+        if (blobName == null || blobName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Blob name must not be empty");
+        }
+        byte[] data = null;
+        try {
+            BlobContainerClient client = getContainerClient();
+            BlobClient blobClient = client.getBlobClient(blobName.trim());
+            if (blobClient.exists()) {
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                blobClient.download(outputStream);
+                data = outputStream.toByteArray();
+            }
+        } catch (Exception e) {
+            log.warn("Could not download annexure blob from Azure: {}", e.getMessage());
+        }
+
+        if (data == null) {
+            throw new IllegalArgumentException("Blob not found: " + blobName);
+        }
+
+        byte[] decompressedBytes = FileCompressionUtil.decompressIfNeeded(data);
+        ByteArrayResource resource = new ByteArrayResource(decompressedBytes);
+        String filename = blobName.contains("/") ? blobName.substring(blobName.lastIndexOf('/') + 1) : blobName;
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .body(resource);
+    }
 }

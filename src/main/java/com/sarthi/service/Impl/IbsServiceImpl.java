@@ -1317,9 +1317,7 @@ public class IbsServiceImpl implements IbsService {
             try {
                 List<IcAnnexureDocument> annexures = icAnnexureDocumentRepository.findActiveAnnexuresByCallTokens(allTokens);
                 for (IcAnnexureDocument doc : annexures) {
-                    String link = (doc.getBlobUrl() != null && !doc.getBlobUrl().trim().isEmpty())
-                            ? doc.getBlobUrl().trim()
-                            : ("https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + doc.getId());
+                    String link = "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + doc.getId();
 
                     if (doc.getCallNo() != null && !doc.getCallNo().trim().isEmpty()) {
                         String cNo = doc.getCallNo().trim();
@@ -1367,16 +1365,15 @@ public class IbsServiceImpl implements IbsService {
                         icAnnexureDocumentRepository.findActiveAnnexuresByCallVariants(clean);
                 if (!annexures.isEmpty()) {
                     IcAnnexureDocument doc = annexures.get(0);
-                    return (doc.getBlobUrl() != null && !doc.getBlobUrl().trim().isEmpty())
-                            ? doc.getBlobUrl().trim()
-                            : ("https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + doc.getId());
+                    return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + doc.getId();
                 }
             }
             // 3. Priority 3: Fallback check in Azure container directly
             if (azureBlobStorageService != null) {
-                String blobUrl = azureBlobStorageService.findBlobUrlByCallToken(clean);
-                if (blobUrl != null) {
-                    return blobUrl;
+                String blobName = azureBlobStorageService.findBlobNameByCallToken(clean);
+                if (blobName != null) {
+                    return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/stream?blobName="
+                            + java.net.URLEncoder.encode(blobName, java.nio.charset.StandardCharsets.UTF_8);
                 }
             }
         } catch (Exception e) {
@@ -1398,11 +1395,17 @@ public class IbsServiceImpl implements IbsService {
         }
         // Fallback to Azure container search if still not found
         if (azureBlobStorageService != null) {
-            String blobUrl = azureBlobStorageService.findBlobUrlByCallToken(callNumber);
-            if (blobUrl != null) return blobUrl;
+            String blobName = azureBlobStorageService.findBlobNameByCallToken(callNumber);
+            if (blobName != null) {
+                return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/stream?blobName="
+                        + java.net.URLEncoder.encode(blobName, java.nio.charset.StandardCharsets.UTF_8);
+            }
             if (icNumber != null && !icNumber.trim().isEmpty()) {
-                blobUrl = azureBlobStorageService.findBlobUrlByCallToken(icNumber);
-                if (blobUrl != null) return blobUrl;
+                blobName = azureBlobStorageService.findBlobNameByCallToken(icNumber);
+                if (blobName != null) {
+                    return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/stream?blobName="
+                            + java.net.URLEncoder.encode(blobName, java.nio.charset.StandardCharsets.UTF_8);
+                }
             }
         }
         return null;

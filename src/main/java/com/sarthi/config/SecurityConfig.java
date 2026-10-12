@@ -96,7 +96,7 @@ public class SecurityConfig {
                                 "/certificate-storage/**",
                                 "/api/case-letter/view/**",
                                 "/api/case-letter/download/**",
-                                "/api/ic-annexures/download/**",
+                                "/api/ic-annexures/**",
                                 "/api/images/**",
                                 "/dashboard/images/**",
                                 "/api/ibs/**",

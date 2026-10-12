@@ -831,4 +831,75 @@ public class AzureBlobStorageService {
     public String findBlobUrlByCallToken(String callToken) {
         return findBlobUrlByCallToken("sarthi-uploads", callToken);
     }
+
+    public String findBlobNameByCallToken(String targetContainerName, String callToken) {
+        if (callToken == null || callToken.trim().isEmpty() || isLocalOrInvalidAzure()) {
+            return null;
+        }
+        String clean = callToken.trim();
+        if (clean.toLowerCase().endsWith(".pdf")) {
+            clean = clean.substring(0, clean.length() - 4).trim();
+        }
+        String sanitized = clean.replaceAll("[^a-zA-Z0-9_-]", "_");
+
+        try {
+            BlobContainerClient container = getContainerClient(targetContainerName);
+            if (!container.exists()) {
+                return null;
+            }
+
+            String[] directCandidates = {
+                clean + ".pdf",
+                sanitized + ".pdf",
+                clean,
+                sanitized
+            };
+            for (String cand : directCandidates) {
+                BlobClient bc = container.getBlobClient(cand);
+                if (bc.exists()) {
+                    return cand;
+                }
+            }
+
+            String[] prefixCandidates = {
+                "erc/" + sanitized + "/",
+                "erc/" + clean + "/",
+                "sleeper/" + sanitized + "/",
+                "sleeper/" + clean + "/",
+                "railpad/" + sanitized + "/",
+                "railpad/" + clean + "/",
+                sanitized + "/",
+                clean + "/"
+            };
+
+            for (String pfx : prefixCandidates) {
+                for (com.azure.storage.blob.models.BlobItem item : container.listBlobs(new com.azure.storage.blob.models.ListBlobsOptions().setPrefix(pfx), null)) {
+                    if (item.getName() != null && item.getName().toLowerCase().endsWith(".pdf")) {
+                        return item.getName();
+                    }
+                }
+            }
+
+            if (clean.length() >= 6) {
+                String tokenLower = clean.toLowerCase();
+                String sanitizedLower = sanitized.toLowerCase();
+                for (com.azure.storage.blob.models.BlobItem item : container.listBlobs()) {
+                    String bName = item.getName();
+                    if (bName != null && bName.toLowerCase().endsWith(".pdf")) {
+                        String bLower = bName.toLowerCase();
+                        if (bLower.contains(tokenLower) || bLower.contains(sanitizedLower)) {
+                            return bName;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error finding blob name for token '{}' in container '{}': {}", callToken, targetContainerName, e.getMessage());
+        }
+        return null;
+    }
+
+    public String findBlobNameByCallToken(String callToken) {
+        return findBlobNameByCallToken("sarthi-uploads", callToken);
+    }
 }
