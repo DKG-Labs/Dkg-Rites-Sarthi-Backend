@@ -64,9 +64,12 @@ public class JwtServiceImpl implements JwtService {
     @Override
     public boolean isValid(String token, UserDetails user) {
         if (user instanceof UserMaster) {
-            String tokenUserId = extractUserId(token);
-            return tokenUserId.equals(String.valueOf(((UserMaster) user).getUserId())) &&
-                    !extractClaim(token, Claims::getExpiration).before(new Date());
+            UserMaster um = (UserMaster) user;
+            String tokenSubject = extractUserId(token);
+            boolean match = tokenSubject.equals(String.valueOf(um.getUserId()))
+                    || (um.getUsername() != null && (tokenSubject.equals(um.getUsername()) || tokenSubject.equals(um.getUsername().replaceAll("^:", ""))))
+                    || (um.getEmployeeCode() != null && (tokenSubject.equals(um.getEmployeeCode()) || tokenSubject.equals(um.getEmployeeCode().replaceAll("^:", ""))));
+            return match && !extractClaim(token, Claims::getExpiration).before(new Date());
         }
         return false;
     }

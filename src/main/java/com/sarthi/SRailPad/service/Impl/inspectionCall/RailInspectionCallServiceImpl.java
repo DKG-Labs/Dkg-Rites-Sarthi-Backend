@@ -934,7 +934,18 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setManufacturer(manufacturerAddress);
         dto.setConsigneeManufacturer(manufacturerAddress);
         dto.setPlaceOfInspection(manufacturerAddress);
-        dto.setContractReferences("PO NO. " + poNo + (poDateStr.isEmpty() ? "" : " dated " + poDateStr));
+        String rly = (poHeader != null && poHeader.getRlyShortName() != null && !poHeader.getRlyShortName().trim().isEmpty())
+                ? poHeader.getRlyShortName().trim()
+                : (poHeader != null && poHeader.getRlyCd() != null ? poHeader.getRlyCd().trim() : "");
+        String basePoDetails;
+        if (!itemSr.isEmpty() && itemSr.contains(poNo) && !poNo.isEmpty()) {
+            basePoDetails = (rly.isEmpty() ? "" : rly + "/") + itemSr;
+        } else {
+            basePoDetails = (rly.isEmpty() ? "" : rly + "/") +
+                    poNo +
+                    (itemSr.isEmpty() ? "" : "/" + itemSr);
+        }
+        dto.setContractReferences(basePoDetails + (poDateStr.isEmpty() ? "" : " dated " + poDateStr));
         dto.setLatest4Amendments(latest4Amendments);
         dto.setBillPayingOfficer(
                 poItem != null && poItem.getBillPayOffDesc() != null ? poItem.getBillPayOffDesc() : "");

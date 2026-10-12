@@ -51,6 +51,19 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
     @Autowired
     private EntityManager entityManager;
 
+    @jakarta.annotation.PostConstruct
+    @Transactional
+    public void initSchema() {
+        try {
+            String[] cols = {"offered_sets", "accepted_sets", "rejected_sets"};
+            for (String col : cols) {
+                try {
+                    entityManager.createNativeQuery("ALTER TABLE rail_process_inspection_result ADD COLUMN IF NOT EXISTS " + col + " INT NULL").executeUpdate();
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
+    }
+
     @Override
     public RailProcessCallDto getProcessCallDetails(String callNo) {
         RailProcessCallDetails details = processCallDetailsRepository.findByInspectionCall_CallNo(callNo)
@@ -297,6 +310,9 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         result.setTotalManufacturedQty(saveDto.getTotalManufacturedQty());
         result.setTotalRejectedQty(saveDto.getTotalRejectedQty());
         result.setTotalAcceptedQty(saveDto.getTotalAcceptedQty());
+        result.setOfferedSets(saveDto.getOfferedSets());
+        result.setAcceptedSets(saveDto.getAcceptedSets());
+        result.setRejectedSets(saveDto.getRejectedSets());
         result.setReasonForRejection(saveDto.getReasonForRejection());
         result.setLotRangeFrom(saveDto.getLotRangeFrom());
         result.setLotRangeTo(saveDto.getLotRangeTo());
@@ -478,6 +494,9 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             totalAcc = maxTotalAcc;
         }
         dto.setTotalAcceptedQty(totalAcc);
+        dto.setOfferedSets(result.getOfferedSets());
+        dto.setAcceptedSets(result.getAcceptedSets());
+        dto.setRejectedSets(result.getRejectedSets());
 
         dto.setReasonForRejection(result.getReasonForRejection());
         dto.setLotRangeFrom(result.getLotRangeFrom());

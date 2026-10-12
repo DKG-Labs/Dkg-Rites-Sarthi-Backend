@@ -25,5 +25,10 @@ public interface ModulusOfFailureRepository
             """, nativeQuery = true)
     DateOnlyProjection getMFData(String batchNo);
 
-
+    @Query(value = """
+        SELECT *
+        FROM modulus_of_failure
+        WHERE batch_no IN (:batchNumbers)
+    """, nativeQuery = true)
+    List<ModulusOfFailure> findByBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
 }

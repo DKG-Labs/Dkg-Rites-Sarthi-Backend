@@ -538,7 +538,14 @@ public class CertificateStorageController {
         opt = certificateStorageRepository.findByCallNumber(clean);
         if (opt.isPresent()) return opt;
 
-        // 3. Try hyphen-to-slash and slash-to-hyphen / underscore variations
+        // 3. Try underscore-to-slash match directly (e.g. SWR_RPP-082126003_Suryaprakash -> SWR/RPP-082126003/Suryaprakash)
+        String underToSlash = clean.replace("_", "/");
+        opt = certificateStorageRepository.findByIcNumber(underToSlash);
+        if (opt.isPresent()) return opt;
+        opt = certificateStorageRepository.findByCallNumber(underToSlash);
+        if (opt.isPresent()) return opt;
+
+        // 4. Try hyphen-to-slash and slash-to-hyphen / underscore variations
         String slashVer = clean.replace("-", "/").replace("_", "/");
         opt = certificateStorageRepository.findByIcNumber(slashVer);
         if (opt.isPresent()) return opt;

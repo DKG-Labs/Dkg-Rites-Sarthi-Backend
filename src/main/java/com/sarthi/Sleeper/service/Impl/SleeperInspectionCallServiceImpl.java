@@ -183,7 +183,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
 
             if (uom == null || uom.isBlank()) {
                 String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
-                if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("8746") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
+                if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
                     uom = "Set";
                 } else {
                     uom = "Nos.";
@@ -319,7 +319,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
 
         if (detailUom == null || detailUom.isBlank()) {
             String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
-            if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("8746") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
+            if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
                 detailUom = "Set";
             } else {
                 detailUom = "Nos.";

@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -37,6 +39,15 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
 
     @Autowired
     private com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository sleeperFinalResultRepository;
+
+    @Autowired(required = false)
+    private com.sarthi.Sleeper.repository.EtSleeperDetailsRepository etSleeperDetailsRepository;
+
+    @Autowired(required = false)
+    private com.sarthi.Sleeper.repository.MfTestDetailsRepository mfTestDetailsRepository;
+
+    @Autowired(required = false)
+    private com.sarthi.Sleeper.repository.ModulusOfFailureRepository modulusOfFailureRepository;
 
     @Override
     public SleeperInspectionCallSummaryDTO getInspectionCallSummary(String callNo) {
@@ -144,6 +155,74 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         for (ProductionDeclaration pd : allDeclarations) {
             if (pd.getBatchNumber() != null) {
                 declListMap.computeIfAbsent(pd.getBatchNumber().trim(), k -> new ArrayList<>()).add(pd);
+            }
+        }
+
+        Set<String> allBatchNames = new HashSet<>();
+        for (String b : batchNos) {
+            allBatchNames.add(b);
+            String clean = b.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+            allBatchNames.add(clean);
+            allBatchNames.add("Batch " + clean);
+            allBatchNames.add("BATCH " + clean);
+        }
+
+        // Preload ET sleepers by batch
+        Map<String, List<String>> etSleepersByBatch = new HashMap<>();
+        if (!allBatchNames.isEmpty() && etSleeperDetailsRepository != null) {
+            try {
+                List<com.sarthi.Sleeper.entity.EtSleeperDetails> etList = etSleeperDetailsRepository.findByEt_BatchNumberIn(allBatchNames);
+                if (etList != null) {
+                    for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etList) {
+                        if (et != null && et.getEt() != null && et.getEt().getBatchNumber() != null && et.getSleeperNo() != null) {
+                            String bNo = et.getEt().getBatchNumber().trim();
+                            etSleepersByBatch.computeIfAbsent(bNo, k -> new ArrayList<>()).add(et.getSleeperNo().trim());
+                            String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                            etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new ArrayList<>()).add(et.getSleeperNo().trim());
+                        }
+                    }
+                }
+            } catch (Exception ignore) {}
+        }
+
+        // Preload MF tested sleepers by batch
+        Map<String, List<String>> mfSleepersByBatch = new HashMap<>();
+        if (!allBatchNames.isEmpty()) {
+            if (mfTestDetailsRepository != null) {
+                try {
+                    List<com.sarthi.Sleeper.entity.MfTestDetails> mfTests = mfTestDetailsRepository.findByBatchNumbersIn(allBatchNames);
+                    if (mfTests != null) {
+                        for (com.sarthi.Sleeper.entity.MfTestDetails t : mfTests) {
+                            if (t != null && t.getBatchNo() != null && t.getSampleIdentification() != null && !t.getSampleIdentification().isBlank()) {
+                                String bNo = t.getBatchNo().trim();
+                                String sNo = cleanMfSleeperNo(t.getSampleIdentification());
+                                if (!sNo.isBlank()) {
+                                    mfSleepersByBatch.computeIfAbsent(bNo, k -> new ArrayList<>()).add(sNo);
+                                    String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                    mfSleepersByBatch.computeIfAbsent(cleanBNo, k -> new ArrayList<>()).add(sNo);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignore) {}
+            }
+            if (modulusOfFailureRepository != null) {
+                try {
+                    List<com.sarthi.Sleeper.entity.ModulusOfFailure> mfs = modulusOfFailureRepository.findByBatchNumbersIn(allBatchNames);
+                    if (mfs != null) {
+                        for (com.sarthi.Sleeper.entity.ModulusOfFailure m : mfs) {
+                            if (m != null && m.getBatchNo() != null && m.getSampleIdentification() != null && !m.getSampleIdentification().isBlank()) {
+                                String bNo = m.getBatchNo().trim();
+                                String sNo = cleanMfSleeperNo(m.getSampleIdentification());
+                                if (!sNo.isBlank()) {
+                                    mfSleepersByBatch.computeIfAbsent(bNo, k -> new ArrayList<>()).add(sNo);
+                                    String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                    mfSleepersByBatch.computeIfAbsent(cleanBNo, k -> new ArrayList<>()).add(sNo);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignore) {}
             }
         }
 
@@ -333,7 +412,18 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             int unoffered = totalCasted - offeredNow;
             dto.setUnoffered(Math.max(0, unoffered));
 
-            dto.setEtSleepers(null);
+            String rawBatchNo = batchNo != null ? batchNo.trim() : "";
+            String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+
+            Set<String> etDistinct = new java.util.LinkedHashSet<>();
+            if (etSleepersByBatch.containsKey(rawBatchNo)) etDistinct.addAll(etSleepersByBatch.get(rawBatchNo));
+            if (etSleepersByBatch.containsKey(cleanBatch)) etDistinct.addAll(etSleepersByBatch.get(cleanBatch));
+            dto.setEtSleepers(new ArrayList<>(etDistinct));
+
+            Set<String> mfDistinct = new java.util.LinkedHashSet<>();
+            if (mfSleepersByBatch.containsKey(rawBatchNo)) mfDistinct.addAll(mfSleepersByBatch.get(rawBatchNo));
+            if (mfSleepersByBatch.containsKey(cleanBatch)) mfDistinct.addAll(mfSleepersByBatch.get(cleanBatch));
+            dto.setMfSleepers(new ArrayList<>(mfDistinct));
 
             response.add(dto);
         }
@@ -366,5 +456,24 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             return new ArrayList<>(list.subList(0, count));
         }
         return list;
+    }
+
+    private String cleanMfSleeperNo(String s) {
+        if (s == null || s.isBlank()) return "";
+        String trimmed = s.trim();
+        if (trimmed.contains("+")) {
+            String[] parts = trimmed.split("\\+");
+            String bench = "";
+            String mould = "";
+            for (String p : parts) {
+                String clean = p.trim();
+                if (clean.matches("(?i)^shed.*")) continue;
+                if (clean.matches("^\\d+$")) bench = clean;
+                else if (clean.matches("^[a-zA-Z]$")) mould = clean.toUpperCase();
+                else if (clean.matches("^\\d+[a-zA-Z]+$")) return clean.toUpperCase();
+            }
+            if (!bench.isEmpty() || !mould.isEmpty()) return bench + mould;
+        }
+        return trimmed;
     }
 }

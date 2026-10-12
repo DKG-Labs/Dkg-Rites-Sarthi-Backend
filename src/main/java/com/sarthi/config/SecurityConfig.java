@@ -90,29 +90,19 @@ public class SecurityConfig {
                                 "/actuator/health"
                         ).permitAll()
 
-                        // 4. Public File & Certificate Viewing, Vendor PO and Plant Lookups
+                        // 4. External Integrations, Stamped Media & Public Certificates
                         .requestMatchers(
-                                "/api/vendor/poData",
-                                "/api/vendor/po-data",
-                                "/api/vendor/po-assigned",
-                                "/api/railpad-vendor-plant/**",
-                                "/api/vendor-plant/**",
-                                "/api/filters/**",
-                                "/api/vendor/proxy-pdf",
-                                "/vendor/proxy-pdf",
-                                "/api/certificate-storage/view",
-                                "/api/certificate-storage/view/**",
-                                "/api/correction-slip/view-pdf/**",
-                                "/api/correction-slip/download-pdf/**",
-                                "/api/ic-annexures/list",
+                                "/api/certificate-storage/**",
+                                "/certificate-storage/**",
+                                "/api/case-letter/view/**",
+                                "/api/case-letter/download/**",
                                 "/api/ic-annexures/download/**",
-                                "/api/case-letter/**",
                                 "/api/images/**",
                                 "/dashboard/images/**",
-                                "/api/sleeper-dashboard/**",
-                                "/api/reports/**",
                                 "/api/ibs/**",
-                                "/api/Vendorsync/**"
+                                "/api/Vendorsync/**",
+                                "/api/vendor/proxy-pdf",
+                                "/vendor/proxy-pdf"
                         ).permitAll()
 
                         // 5. ALL OTHER APIS REQUIRE STRICT TOKEN AUTHENTICATION

@@ -26,6 +26,10 @@ import com.sarthi.repository.processmaterial.ProcessIcEditRepository;
 import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmIcEditRepository;
+import com.sarthi.repository.certificate.CaseLetterDocumentRepository;
+import com.sarthi.repository.certificate.IcAnnexureDocumentRepository;
+import com.sarthi.entity.certificate.CaseLetterDocument;
+import com.sarthi.entity.certificate.IcAnnexureDocument;
 import com.sarthi.service.IbsService;
 import com.sarthi.service.JwtService;
 
@@ -85,6 +89,9 @@ public class IbsServiceImpl implements IbsService {
     private final IbsPaymentDetailsRepository ibsPaymentDetailsRepository;
 
     private final IbsBillingClient  billingClient;
+    private final CaseLetterDocumentRepository caseLetterDocumentRepository;
+    private final IcAnnexureDocumentRepository icAnnexureDocumentRepository;
+
     @Override
     public AuthResponseDto integrationLogin(
             AuthRequestDto request) {
@@ -1037,6 +1044,9 @@ public class IbsServiceImpl implements IbsService {
                 dto.setBillingStatus(reg.getBillingStatus());
                 dto.setAcknowledgedAt(reg.getAcknowledgedAt());
             }
+            if (dto.getUploadedInspectionCallDocument() == null) {
+                dto.setUploadedInspectionCallDocument(resolveUploadedCallDocument(!callNo.isEmpty() ? callNo : icNo));
+            }
         }
 
         // For any remaining completed calls from ibs_call_registration not covered by queries
@@ -1067,6 +1077,7 @@ public class IbsServiceImpl implements IbsService {
                             + callNo
                             + ".pdf"
             );
+            dto.setUploadedInspectionCallDocument(resolveUploadedCallDocument(callNo));
             dto.setIsBlocked(0);
             dto.setCancellationCharges(0.0);
             dto.setRejectionCharges(0.0);
@@ -1186,6 +1197,56 @@ public class IbsServiceImpl implements IbsService {
                     return 'S';
                 }
             }
+        }
+        return null;
+    }
+
+    private String resolveUploadedCallDocument(String callNumber) {
+        if (callNumber == null || callNumber.trim().isEmpty()) {
+            return null;
+        }
+        String clean = callNumber.trim();
+        if (clean.toLowerCase().endsWith(".pdf")) {
+            clean = clean.substring(0, clean.length() - 4).trim();
+        }
+        try {
+            // 1. Priority 1: Check for Case Letter Document
+            if (caseLetterDocumentRepository != null) {
+                Optional<CaseLetterDocument> cldOpt =
+                        caseLetterDocumentRepository.findActiveByCallNoVariants(clean, "ACTIVE");
+                if (cldOpt.isPresent()) {
+                    return "https://api.ritesqasarthi.com/sarthi-backend/api/case-letter/view/" + clean + ".pdf";
+                }
+            }
+            // 2. Priority 2: Fallback to Uploaded IC Annexures
+            if (icAnnexureDocumentRepository != null) {
+                List<IcAnnexureDocument> annexures =
+                        icAnnexureDocumentRepository.findByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
+                if (!annexures.isEmpty()) {
+                    return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + annexures.get(0).getId();
+                }
+                String variant = clean.contains("-") ? clean.replace("-", "/") : clean.replace("/", "-");
+                if (!variant.equals(clean)) {
+                    List<IcAnnexureDocument> variantAnnexures =
+                            icAnnexureDocumentRepository.findByCallNoAndStatusOrderByUploadedAtDesc(variant, "ACTIVE");
+                    if (!variantAnnexures.isEmpty()) {
+                        return "https://api.ritesqasarthi.com/sarthi-backend/api/ic-annexures/download/" + variantAnnexures.get(0).getId();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error resolving uploaded inspection document for call {}: {}", clean, e.getMessage());
+        }
+        return null;
+    }
+
+    private String resolveUploadedCallDocument(String callNumber, String icNumber) {
+        String doc = resolveUploadedCallDocument(callNumber);
+        if (doc != null) {
+            return doc;
+        }
+        if (icNumber != null && !icNumber.trim().isEmpty() && !icNumber.trim().equalsIgnoreCase(callNumber)) {
+            return resolveUploadedCallDocument(icNumber);
         }
         return null;
     }
@@ -1352,8 +1413,11 @@ public class IbsServiceImpl implements IbsService {
                             + ".pdf"
             );
 
+            String icNo = bestRow[15] != null ? safeString(bestRow[15]) : callNumber;
+            dto.setUploadedInspectionCallDocument(resolveUploadedCallDocument(callNumber, icNo));
+
             dto.setCallNumber(callNumber);
-            dto.setIcNumber(bestRow[15] != null ? safeString(bestRow[15]) : callNumber);
+            dto.setIcNumber(icNo);
 
             double cancelCharges = 0.0;
             double rejectCharges = 0.0;

@@ -45,6 +45,15 @@ public class CallLetterServiceImpl implements CallLetterService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
+    private static class DefectDetail {
+        final String reason;
+        final Long moduleId;
+        DefectDetail(String reason, Long moduleId) {
+            this.reason = reason;
+            this.moduleId = moduleId;
+        }
+    }
+
     @Autowired
     private InspectionCallRepository inspectionCallRepository;
 
@@ -98,6 +107,15 @@ public class CallLetterServiceImpl implements CallLetterService {
 
     @Autowired
     private com.sarthi.Sleeper.repository.EtSleeperDetailsRepository etSleeperDetailsRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.FinalInspectionRepository.InspectionTestResultRepository inspectionTestResultRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.ModulusOfFailureRepository modulusOfFailureRepository;
+
+    @Autowired
+    private com.sarthi.Sleeper.repository.MfTestDetailsRepository mfTestDetailsRepository;
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -614,9 +632,33 @@ public class CallLetterServiceImpl implements CallLetterService {
     private CallLetterDetailsDto enrichFromSleeperCall(com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall sleeperCall, CallLetterDetailsDto dto) {
         dto.setRequestId(sleeperCall.getCallNo());
         dto.setTypeOfCall("Final Inspection");
-        int offered = sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0;
-        dto.setCallQty(String.valueOf(offered));
-        dto.setCallUnit("Nos.");
+
+        String sleeperType = sleeperCall.getSleeperType() != null ? sleeperCall.getSleeperType().toUpperCase() : "";
+        boolean isTurnout = sleeperType.contains("SET") || sleeperType.contains("PNC") || sleeperType.contains("TURNOUT")
+                || sleeperType.contains("4218") || sleeperType.contains("4865") || sleeperType.contains("9790")
+                || sleeperType.contains("4732") || sleeperType.contains("DERAIL");
+
+        if (isTurnout) {
+            int sets = sleeperCall.getTotalOffered() != null && sleeperCall.getTotalOffered() > 0 ? sleeperCall.getTotalOffered() : 1;
+            dto.setCallQty(String.valueOf(sets));
+            dto.setCallUnit("Set");
+        } else {
+            int batchTotalOffered = 0;
+            if (sleeperCall.getBatchesSelected() != null) {
+                for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch b : sleeperCall.getBatchesSelected()) {
+                    int g = b.getGoodSleepers() != null ? b.getGoodSleepers().size() : 0;
+                    int bad = b.getBadSleepers() != null ? b.getBadSleepers().size() : 0;
+                    batchTotalOffered += (g + bad);
+                }
+            }
+
+            int callQtyVal = batchTotalOffered > 0
+                    ? batchTotalOffered
+                    : (sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0);
+
+            dto.setCallQty(String.valueOf(callQtyVal));
+            dto.setCallUnit("Nos.");
+        }
 
         // Calculate offered installment number as integer based on PO Number + Sr Number
         int installmentNo = 1;
@@ -707,9 +749,11 @@ public class CallLetterServiceImpl implements CallLetterService {
                     vpList = vendorPlantRepository.findMatchingPlants(cleanPlant);
                 }
                 if ((vpList == null || vpList.isEmpty()) && pId.contains("/")) {
-                    for (String part : pId.split("/")) {
-                        if (!part.trim().isEmpty()) {
-                            vpList = vendorPlantRepository.findMatchingPlants(part.trim());
+                    String[] parts = pId.split("/");
+                    for (int i = parts.length - 1; i >= 0; i--) {
+                        String part = parts[i].trim();
+                        if (!part.isEmpty()) {
+                            vpList = vendorPlantRepository.findMatchingPlants(part);
                             if (vpList != null && !vpList.isEmpty()) break;
                         }
                     }
@@ -930,7 +974,21 @@ public class CallLetterServiceImpl implements CallLetterService {
                     dto.setItemSrNo(pi.getItemSrNo());
                     dto.setItemDesc(pi.getItemDesc());
                     dto.setPoQty(pi.getQty());
-                    dto.setUom(pi.getUom() != null ? pi.getUom() : "Nos.");
+                    if (pi.getUom() != null && !pi.getUom().isBlank()) {
+                        String itemUom = pi.getUom().trim();
+                        dto.setUom(itemUom);
+                        if (itemUom.toUpperCase().contains("SET")) {
+                            dto.setCallUnit("Set");
+                            int setQty = sleeperCall.getTotalOffered() != null && sleeperCall.getTotalOffered() > 0 && sleeperCall.getTotalOffered() <= 50
+                                    ? sleeperCall.getTotalOffered()
+                                    : 1;
+                            dto.setCallQty(String.valueOf(setQty));
+                        } else {
+                            dto.setCallUnit(itemUom);
+                        }
+                    } else if (dto.getUom() == null) {
+                        dto.setUom("Nos.");
+                    }
                     String consignee = (pi.getImmsConsigneeName() != null && !pi.getImmsConsigneeName().isBlank())
                             ? pi.getImmsConsigneeName().trim()
                             : pi.getConsigneeDetail();
@@ -1027,6 +1085,94 @@ public class CallLetterServiceImpl implements CallLetterService {
                     } catch (Exception ignore) {}
                 }
 
+                // 4. Preload all rejected inspection test results directly by batch numbers
+                java.util.Map<String, DefectDetail> defectByBatchAndSleeper = new java.util.HashMap<>();
+                if (!allBatchNames.isEmpty() && inspectionTestResultRepository != null) {
+                    try {
+                        List<Object[]> rejRows = inspectionTestResultRepository.findRejectionDetailsByBatchNumbers(allBatchNames);
+                        if (rejRows != null) {
+                            for (Object[] row : rejRows) {
+                                if (row != null && row.length >= 4) {
+                                    String bNo = row[0] != null ? String.valueOf(row[0]).trim() : "";
+                                    String sNo = row[1] != null ? String.valueOf(row[1]).trim() : "";
+                                    String reason = row[3] != null ? String.valueOf(row[3]).trim() : "";
+                                    Long modId = null;
+                                    if (row.length >= 5 && row[4] != null) {
+                                        try {
+                                            modId = ((Number) row[4]).longValue();
+                                        } catch (Exception ignore) {}
+                                    }
+                                    if (!sNo.isEmpty()) {
+                                        String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                        String cleanSNo = sNo.replaceAll("\\s+", "").toLowerCase();
+                                        DefectDetail dd = new DefectDetail(reason, modId);
+                                        defectByBatchAndSleeper.put(cleanBNo.toLowerCase() + ":" + cleanSNo, dd);
+                                        defectByBatchAndSleeper.put(bNo.toLowerCase() + ":" + cleanSNo, dd);
+                                        defectByBatchAndSleeper.putIfAbsent(cleanSNo, dd);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {
+                        logger.warn("Error preloading rejection details by batch numbers: {}", ex.getMessage());
+                    }
+                }
+
+                java.util.Map<Long, List<com.sarthi.Sleeper.entity.FinalInspection.InspectionTestResult>> resultsByBatchId = new java.util.HashMap<>();
+                if (!allPdIds.isEmpty() && inspectionTestResultRepository != null) {
+                    try {
+                        List<com.sarthi.Sleeper.entity.FinalInspection.InspectionTestResult> allResults = inspectionTestResultRepository.findAllResultsByBatchIds(allPdIds);
+                        if (allResults != null) {
+                            for (com.sarthi.Sleeper.entity.FinalInspection.InspectionTestResult r : allResults) {
+                                if (r != null && r.getTestHeader() != null && r.getTestHeader().getBatchId() != null) {
+                                    resultsByBatchId.computeIfAbsent(r.getTestHeader().getBatchId(), k -> new java.util.ArrayList<>()).add(r);
+                                }
+                            }
+                        }
+                    } catch (Exception ignore) {}
+                }
+
+                // 5. Preload all Moment of Failure (MF / MFT) tested sleepers in 1 bulk query
+                java.util.Map<String, List<String>> mfSleepersByBatch = new java.util.HashMap<>();
+                if (!allBatchNames.isEmpty()) {
+                    if (mfTestDetailsRepository != null) {
+                        try {
+                            List<com.sarthi.Sleeper.entity.MfTestDetails> mfTests = mfTestDetailsRepository.findByBatchNumbersIn(allBatchNames);
+                            if (mfTests != null) {
+                                for (com.sarthi.Sleeper.entity.MfTestDetails t : mfTests) {
+                                    if (t != null && t.getBatchNo() != null && t.getSampleIdentification() != null && !t.getSampleIdentification().isBlank()) {
+                                        String bNo = t.getBatchNo().trim();
+                                        String sNo = cleanMfSleeperNo(t.getSampleIdentification());
+                                        if (!sNo.isBlank()) {
+                                            mfSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(sNo);
+                                            String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                            mfSleepersByBatch.computeIfAbsent(cleanBNo, k -> new java.util.ArrayList<>()).add(sNo);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception ignore) {}
+                    }
+                    if (modulusOfFailureRepository != null) {
+                        try {
+                            List<com.sarthi.Sleeper.entity.ModulusOfFailure> mfs = modulusOfFailureRepository.findByBatchNumbersIn(allBatchNames);
+                            if (mfs != null) {
+                                for (com.sarthi.Sleeper.entity.ModulusOfFailure m : mfs) {
+                                    if (m != null && m.getBatchNo() != null && m.getSampleIdentification() != null && !m.getSampleIdentification().isBlank()) {
+                                        String bNo = m.getBatchNo().trim();
+                                        String sNo = cleanMfSleeperNo(m.getSampleIdentification());
+                                        if (!sNo.isBlank()) {
+                                            mfSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(sNo);
+                                            String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                            mfSleepersByBatch.computeIfAbsent(cleanBNo, k -> new java.util.ArrayList<>()).add(sNo);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception ignore) {}
+                    }
+                }
+
                 for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch batch : sleeperCall.getBatchesSelected()) {
                     if (batch == null) continue;
                     String rawBatchNo = batch.getBatchNo() != null ? batch.getBatchNo().trim() : "-";
@@ -1034,7 +1180,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
 
                     List<String> goodSleepersList = new java.util.ArrayList<>();
-                    List<String> badSleepersList = new java.util.ArrayList<>();
+                    List<String> rawBadSleepersList = new java.util.ArrayList<>();
 
                     try {
                         if (batch.getGoodSleepers() != null) {
@@ -1050,15 +1196,14 @@ public class CallLetterServiceImpl implements CallLetterService {
                         if (batch.getBadSleepers() != null) {
                             for (com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail s : batch.getBadSleepers()) {
                                 if (s != null && s.getSleeperNo() != null && !s.getSleeperNo().isBlank()) {
-                                    badSleepersList.add(s.getSleeperNo().trim());
+                                    rawBadSleepersList.add(s.getSleeperNo().trim());
                                 }
                             }
                         }
                     } catch (Exception ignore) {}
 
                     int goodCount = goodSleepersList.size();
-                    int badCount = badSleepersList.size();
-                    String rejNoStr = String.join(", ", badSleepersList);
+                    int badCount = rawBadSleepersList.size();
 
                     // Look up ProductionDeclaration directly from preloaded pdBatchCache
                     String castDateStr = batch.getCastDate();
@@ -1104,17 +1249,136 @@ public class CallLetterServiceImpl implements CallLetterService {
                         castDateStr = sleeperCall.getCreatedAt() != null ? sleeperCall.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "-";
                     }
 
-                    // Look up ET sleepers from preloaded map
-                    List<String> etSleepersList = new java.util.ArrayList<>();
+                    // Look up ET sleepers from preloaded map (with deduplication)
+                    java.util.Set<String> etSleepersDistinct = new java.util.LinkedHashSet<>();
                     if (etSleepersByBatch.containsKey(rawBatchNo)) {
-                        etSleepersList.addAll(etSleepersByBatch.get(rawBatchNo));
+                        etSleepersDistinct.addAll(etSleepersByBatch.get(rawBatchNo));
                     } else if (etSleepersByBatch.containsKey(cleanBatch)) {
-                        etSleepersList.addAll(etSleepersByBatch.get(cleanBatch));
+                        etSleepersDistinct.addAll(etSleepersByBatch.get(cleanBatch));
                     }
+                    List<String> etSleepersList = new java.util.ArrayList<>(etSleepersDistinct);
                     String etNoStr = String.join(", ", etSleepersList);
                     int etCount = etSleepersList.size();
 
                     int notOffered = Math.max(0, totalCasted - goodCount - badCount);
+
+                    List<com.sarthi.Sleeper.entity.FinalInspection.InspectionTestResult> batchResults = java.util.Collections.emptyList();
+                    if (pd != null && pd.getId() != null) {
+                        batchResults = resultsByBatchId.getOrDefault(pd.getId(), java.util.Collections.emptyList());
+                    }
+
+                    // Format bad sleepers with bracket abbreviations e.g. 1A (SD), 4A (RSD), 10D (OGL)
+                    List<String> formattedBadSleepersList = new java.util.ArrayList<>();
+                    if (batch.getBadSleepers() != null) {
+                        for (com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail s : batch.getBadSleepers()) {
+                            if (s == null || s.getSleeperNo() == null || s.getSleeperNo().isBlank()) continue;
+                            String sNo = s.getSleeperNo().trim();
+                            if (sNo.contains("(") && sNo.contains(")")) {
+                                formattedBadSleepersList.add(sNo);
+                                continue;
+                            }
+                            String cleanSNo = sNo.replaceAll("\\s+", "").toLowerCase();
+                            DefectDetail foundDd = defectByBatchAndSleeper.get(cleanBatch.toLowerCase() + ":" + cleanSNo);
+                            if (foundDd == null) foundDd = defectByBatchAndSleeper.get(rawBatchNo.toLowerCase() + ":" + cleanSNo);
+                            if (foundDd == null) foundDd = defectByBatchAndSleeper.get(cleanSNo);
+
+                            String abbr = "SD";
+                            if (foundDd != null) {
+                                abbr = mapToAbbreviation(foundDd.reason, foundDd.moduleId);
+                            } else if (!batchResults.isEmpty()) {
+                                for (com.sarthi.Sleeper.entity.FinalInspection.InspectionTestResult tr : batchResults) {
+                                    if ("REJECTED".equalsIgnoreCase(tr.getResult())) {
+                                        boolean matchId = s.getSleeperId() != null && s.getSleeperId().equals(tr.getSleeperId());
+                                        boolean matchNo = tr.getSleeperNo() != null && tr.getSleeperNo().replaceAll("\\s+", "").equalsIgnoreCase(cleanSNo);
+                                        if (matchId || matchNo) {
+                                            Long modId = tr.getModuleId();
+                                            if (modId == null && tr.getTestHeader() != null && tr.getTestHeader().getModule() != null) {
+                                                modId = tr.getTestHeader().getModule().getId();
+                                            }
+                                            abbr = mapToAbbreviation(tr.getRejectionReason(), modId);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            formattedBadSleepersList.add(sNo + " (" + abbr + ")");
+                        }
+                    }
+                    if (formattedBadSleepersList.isEmpty() && !rawBadSleepersList.isEmpty()) {
+                        for (String sNo : rawBadSleepersList) {
+                            if (sNo.contains("(") && sNo.contains(")")) {
+                                formattedBadSleepersList.add(sNo);
+                            } else {
+                                String cleanSNo = sNo.replaceAll("\\s+", "").toLowerCase();
+                                DefectDetail foundDd = defectByBatchAndSleeper.get(cleanBatch.toLowerCase() + ":" + cleanSNo);
+                                if (foundDd == null) foundDd = defectByBatchAndSleeper.get(rawBatchNo.toLowerCase() + ":" + cleanSNo);
+                                if (foundDd == null) foundDd = defectByBatchAndSleeper.get(cleanSNo);
+
+                                String abbr = "SD";
+                                if (foundDd != null) {
+                                    abbr = mapToAbbreviation(foundDd.reason, foundDd.moduleId);
+                                } else if (!batchResults.isEmpty()) {
+                                    for (com.sarthi.Sleeper.entity.FinalInspection.InspectionTestResult tr : batchResults) {
+                                        if ("REJECTED".equalsIgnoreCase(tr.getResult()) && tr.getSleeperNo() != null && tr.getSleeperNo().replaceAll("\\s+", "").equalsIgnoreCase(cleanSNo)) {
+                                            Long modId = tr.getModuleId();
+                                            if (modId == null && tr.getTestHeader() != null && tr.getTestHeader().getModule() != null) {
+                                                modId = tr.getTestHeader().getModule().getId();
+                                            }
+                                            abbr = mapToAbbreviation(tr.getRejectionReason(), modId);
+                                            break;
+                                        }
+                                    }
+                                }
+                                formattedBadSleepersList.add(sNo + " (" + abbr + ")");
+                            }
+                        }
+                    }
+                    String rejNoStr = String.join(", ", formattedBadSleepersList);
+
+                    // Dynamic classification of rejections by defect type (Surf, Dim, Oth, SBT)
+                    int rejSurf = 0;
+                    int rejDim = 0;
+                    int rejOth = 0;
+                    int rejSbt = 0;
+
+                    for (String item : formattedBadSleepersList) {
+                        String abbrStr = "";
+                        int start = item.indexOf("(");
+                        int end = item.indexOf(")");
+                        if (start != -1 && end > start) {
+                            abbrStr = item.substring(start + 1, end).trim();
+                        }
+                        String cat = classifyRejectionCategory(item, abbrStr, null);
+                        if ("sbt".equalsIgnoreCase(cat)) {
+                            rejSbt++;
+                        } else if ("dim".equalsIgnoreCase(cat)) {
+                            rejDim++;
+                        } else if ("surf".equalsIgnoreCase(cat)) {
+                            rejSurf++;
+                        } else {
+                            rejOth++;
+                        }
+                    }
+
+                    int totalClassified = rejSurf + rejDim + rejOth + rejSbt;
+                    if (badCount > 0 && totalClassified < badCount) {
+                        rejOth += (badCount - totalClassified);
+                    }
+
+                    // Look up MF (Moment of Failure) sleepers from preloaded map (with deduplication)
+                    java.util.Set<String> mfSleepersDistinct = new java.util.LinkedHashSet<>();
+                    if (mfSleepersByBatch.containsKey(rawBatchNo)) {
+                        mfSleepersDistinct.addAll(mfSleepersByBatch.get(rawBatchNo));
+                    } else if (mfSleepersByBatch.containsKey(cleanBatch)) {
+                        mfSleepersDistinct.addAll(mfSleepersByBatch.get(cleanBatch));
+                    }
+                    List<String> mfSleepersList = new java.util.ArrayList<>(mfSleepersDistinct);
+                    String mfNoStr = String.join(", ", mfSleepersList);
+                    int mftCount = mfSleepersList.size();
+                    int mftAccepted = mftCount;
+
+                    int normAccepted = Math.max(0, goodCount - etCount - mftAccepted);
+                    int etAccepted = etCount;
 
                     // Populate HeatDetail
                     CallLetterDetailsDto.HeatDetail hd = new CallLetterDetailsDto.HeatDetail();
@@ -1128,18 +1392,18 @@ public class CallLetterServiceImpl implements CallLetterService {
                     hd.setGoodCount(goodCount);
                     hd.setBadCount(badCount);
                     hd.setGoodSleepers(goodSleepersList);
-                    hd.setBadSleepers(badSleepersList);
+                    hd.setBadSleepers(formattedBadSleepersList);
                     hd.setEtSleepers(etSleepersList);
                     hd.setRejNo(rejNoStr);
                     hd.setEtNo(etNoStr);
-                    hd.setMfNo("");
-                    hd.setNormAccepted(0);
-                    hd.setEtAccepted(etCount);
-                    hd.setMftAccepted(0);
-                    hd.setRejSurf(0);
-                    hd.setRejDim(0);
-                    hd.setRejOth(badCount);
-                    hd.setRejSbt(0);
+                    hd.setMfNo(mfNoStr);
+                    hd.setNormAccepted(normAccepted);
+                    hd.setEtAccepted(etAccepted);
+                    hd.setMftAccepted(mftAccepted);
+                    hd.setRejSurf(rejSurf);
+                    hd.setRejDim(rejDim);
+                    hd.setRejOth(rejOth);
+                    hd.setRejSbt(rejSbt);
                     hd.setNotOffered(notOffered);
                     heatDetailsList.add(hd);
 
@@ -1152,23 +1416,35 @@ public class CallLetterServiceImpl implements CallLetterService {
                     sbd.setGoodSleepers(goodCount);
                     sbd.setBadSleepers(badCount);
                     sbd.setGoodSleepersList(goodSleepersList);
-                    sbd.setBadSleepersList(badSleepersList);
+                    sbd.setBadSleepersList(formattedBadSleepersList);
                     sbd.setEtSleepers(etSleepersList);
                     sbd.setRejNo(rejNoStr);
                     sbd.setEtNo(etNoStr);
-                    sbd.setMfNo("");
-                    sbd.setNormAccepted(0);
-                    sbd.setEtAccepted(etCount);
-                    sbd.setMftAccepted(0);
-                    sbd.setRejSurf(0);
-                    sbd.setRejDim(0);
-                    sbd.setRejOth(badCount);
-                    sbd.setRejSbt(0);
+                    sbd.setMfNo(mfNoStr);
+                    sbd.setNormAccepted(normAccepted);
+                    sbd.setEtAccepted(etAccepted);
+                    sbd.setMftAccepted(mftAccepted);
+                    sbd.setRejSurf(rejSurf);
+                    sbd.setRejDim(rejDim);
+                    sbd.setRejOth(rejOth);
+                    sbd.setRejSbt(rejSbt);
                     sbd.setNotOffered(notOffered);
                     batchesList.add(sbd);
                 }
                 dto.setHeatDetails(heatDetailsList);
                 dto.setBatchesSelected(batchesList);
+
+                if (!"Set".equalsIgnoreCase(dto.getCallUnit())) {
+                    int totalSleepersAcceptedAndRejected = 0;
+                    for (CallLetterDetailsDto.HeatDetail hd : heatDetailsList) {
+                        int g = hd.getGoodCount() != null ? hd.getGoodCount() : 0;
+                        int b = hd.getBadCount() != null ? hd.getBadCount() : 0;
+                        totalSleepersAcceptedAndRejected += (g + b);
+                    }
+                    if (totalSleepersAcceptedAndRejected > 0) {
+                        dto.setCallQty(String.valueOf(totalSleepersAcceptedAndRejected));
+                    }
+                }
             }
         } catch (Exception e) {
             logger.error("Error processing batches for sleeper call: {}", sleeperCall.getCallNo(), e);
@@ -1194,6 +1470,69 @@ public class CallLetterServiceImpl implements CallLetterService {
         return dto;
     }
 
+    private String mapToAbbreviation(String reason, Long moduleId) {
+        if (reason != null && !reason.isBlank()) {
+            String r = reason.toUpperCase().trim();
+            if (r.contains("TIGHT") && r.contains("SEAT")) return "RST";
+            if (r.contains("LOOSE") && r.contains("SEAT")) return "RSL";
+            if (r.contains("SEAT") && (r.contains("DEFECT") || r.contains("DAMAGE"))) return "RSD";
+            if (r.contains("TOE") && r.contains("GAP") && r.contains("LOOSE")) return "TGL";
+            if (r.contains("TOE") && r.contains("GAP") && r.contains("TIGHT")) return "TGT";
+            if (r.contains("INSERT") && r.contains("TILT")) return "IT";
+            if (r.contains("INSERT") && (r.contains("OUT") || r.contains("MISSING"))) return "IO";
+            if (r.contains("INSERT") && r.contains("SINK")) return "IS";
+            if (r.contains("OUTER") && r.contains("GAUGE") && (r.contains("LOOSE") || r.contains("+"))) return "OGL";
+            if (r.contains("OUTER") && r.contains("GAUGE") && (r.contains("TIGHT") || r.contains("-"))) return "OGT";
+            if (r.contains("OUTER") && r.contains("GAUGE")) return "OGL";
+            if (r.contains("END") && (r.contains("BROKEN") || r.contains("BREAK"))) return "EB";
+            if (r.contains("END") && (r.contains("DAMAGE") || r.contains("DAMAGED"))) return "ED";
+            if (r.contains("FTC") || r.contains("TRACK CIRCUIT") || r.contains("NFTC")) return "NFTC";
+            if (r.contains("END") && r.contains("HONEY")) return "EHC";
+            if (r.contains("SURFACE") && r.contains("HONEY")) return "SHC";
+            if (r.contains("HONEY")) return "SHC";
+            if (r.contains("CRACK") || r.contains("RC")) return "RC";
+            if (r.contains("DAMAGE") || r.contains("DEMOULD") || r.contains("RD")) return "RD";
+            if (r.contains("GAUGE") || r.contains("DIMENSION") || r.contains("DIM")) return "RSD";
+            if (r.contains("SURFACE") || r.contains("VISUAL") || r.contains("SD")) return "SD";
+            if (r.contains("FAILURE") || r.contains("MF")) return "MF";
+            if (r.contains("EPOXY") || r.contains("ET")) return "ET";
+        }
+        if (moduleId != null) {
+            if (moduleId == 6L) return "MF";
+            if (moduleId == 1L) return "SD";
+            if (moduleId == 2L || moduleId == 3L) return "RSD";
+            if (moduleId == 4L) return "RD";
+        }
+        return "SD";
+    }
+
+    private String classifyRejectionCategory(String reason, String abbr, Long moduleId) {
+        String a = abbr != null ? abbr.toUpperCase().trim() : "";
+        String r = reason != null ? reason.toUpperCase().trim() : "";
+
+        // 1. SBT (Moment of Resistance / Static Bending Test / Moment of Failure)
+        if ("MF".equals(a) || "SBT".equals(a) || Long.valueOf(6L).equals(moduleId) ||
+            r.contains("MOR") || r.contains("STATIC BEND") || r.contains("SBT") || r.contains("FAILURE") || r.contains("MOMENT OF")) {
+            return "sbt";
+        }
+
+        // 2. Dim (Dimensional Rejection)
+        if (java.util.List.of("OGL", "OGT", "RSD", "RSL", "RST", "TGL", "TGT", "RG").contains(a) ||
+            Long.valueOf(2L).equals(moduleId) || Long.valueOf(3L).equals(moduleId) ||
+            r.contains("DIMENSION") || r.contains("GAUGE") || r.contains("SEAT") || r.contains("TOE GAP") || r.contains("OUTER GAUGE")) {
+            return "dim";
+        }
+
+        // 3. Surf (Surface Defect Rejection)
+        if (java.util.List.of("SD", "SHC", "EHC", "RC", "RD").contains(a) ||
+            Long.valueOf(1L).equals(moduleId) || Long.valueOf(4L).equals(moduleId) ||
+            r.contains("SURFACE") || r.contains("VISUAL") || r.contains("HONEY") || r.contains("CRACK") || r.contains("DEMOULD") || r.contains("DAMAGE")) {
+            return "surf";
+        }
+
+        return "oth";
+    }
+
     private String resolveSleeperCaseNo(String rawCaseNo, String rio) {
         if (rawCaseNo == null || rawCaseNo.trim().isEmpty()) {
             return null;
@@ -1210,7 +1549,6 @@ public class CallLetterServiceImpl implements CallLetterService {
                     return p;
                 }
             }
-            return null;
         }
 
         for (String part : parts) {
@@ -1220,5 +1558,24 @@ public class CallLetterServiceImpl implements CallLetterService {
             }
         }
         return parts[0].trim();
+    }
+
+    private String cleanMfSleeperNo(String s) {
+        if (s == null || s.isBlank()) return "";
+        String trimmed = s.trim();
+        if (trimmed.contains("+")) {
+            String[] parts = trimmed.split("\\+");
+            String bench = "";
+            String mould = "";
+            for (String p : parts) {
+                String clean = p.trim();
+                if (clean.matches("(?i)^shed.*")) continue;
+                if (clean.matches("^\\d+$")) bench = clean;
+                else if (clean.matches("^[a-zA-Z]$")) mould = clean.toUpperCase();
+                else if (clean.matches("^\\d+[a-zA-Z]+$")) return clean.toUpperCase();
+            }
+            if (!bench.isEmpty() || !mould.isEmpty()) return bench + mould;
+        }
+        return trimmed;
     }
 }

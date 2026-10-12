@@ -367,3 +367,10 @@ CREATE TABLE IF NOT EXISTS rail_raw_material_weighment_item (
     CONSTRAINT fk_weighment FOREIGN KEY (weighment_id) REFERENCES rail_raw_material_weighment(id) ON DELETE CASCADE
 );
 
+-- 2026-10-10: Add sets columns to rail_process_inspection_result
+ALTER TABLE rail_process_inspection_result
+    ADD COLUMN IF NOT EXISTS offered_sets INT NULL,
+    ADD COLUMN IF NOT EXISTS accepted_sets INT NULL,
+    ADD COLUMN IF NOT EXISTS rejected_sets INT NULL;
+
+

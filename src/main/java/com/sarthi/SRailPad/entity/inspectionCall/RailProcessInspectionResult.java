@@ -37,6 +37,15 @@ public class RailProcessInspectionResult {
     @Column(name = "total_accepted_qty")
     private Integer totalAcceptedQty;
 
+    @Column(name = "offered_sets")
+    private Integer offeredSets;
+
+    @Column(name = "accepted_sets")
+    private Integer acceptedSets;
+
+    @Column(name = "rejected_sets")
+    private Integer rejectedSets;
+
     @Column(name = "reason_for_rejection", columnDefinition = "LONGTEXT")
     private String reasonForRejection;
 

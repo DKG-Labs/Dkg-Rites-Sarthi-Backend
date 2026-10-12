@@ -214,8 +214,6 @@ public class VendorPoServiceImpl implements VendorPoService {
                     return p;
                 }
             }
-            // Strict check: if RIO is present and no case number starts with this RIO, return null
-            return null;
         }
 
         for (String part : parts) {

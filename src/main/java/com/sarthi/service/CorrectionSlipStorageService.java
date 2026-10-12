@@ -14,9 +14,15 @@ public interface CorrectionSlipStorageService {
 
     Optional<CorrectionSlipDocument> getLatestDocument(String callNo);
 
+    java.util.List<CorrectionSlipDocument> getAllDocuments(String callNo);
+
     ResponseEntity<Resource> viewPdf(String callNo);
 
     ResponseEntity<Resource> downloadPdf(String callNo);
+
+    ResponseEntity<Resource> viewPdfById(Long id);
+
+    ResponseEntity<Resource> downloadPdfById(Long id);
 
     void deleteCorrectionSlip(String callNo);
 }

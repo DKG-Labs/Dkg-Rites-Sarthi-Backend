@@ -11,6 +11,9 @@ public class ProcessInspectionSaveDto {
     private Integer totalManufacturedQty;
     private Integer totalRejectedQty;
     private Integer totalAcceptedQty;
+    private Integer offeredSets;
+    private Integer acceptedSets;
+    private Integer rejectedSets;
     private String reasonForRejection;
     private String lotRangeFrom;
     private String lotRangeTo;

@@ -20,6 +20,7 @@ public class SleeperInspectionBatchDetailDTO {
         private List<String> acceptedSleepers;
         private List<String> rejectedSleepers;
 
-        private List<String> etSleepers; // null
+        private List<String> etSleepers;
+        private List<String> mfSleepers;
 
 }

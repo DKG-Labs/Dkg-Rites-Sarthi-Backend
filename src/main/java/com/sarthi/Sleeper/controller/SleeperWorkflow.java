@@ -85,7 +85,7 @@ public class SleeperWorkflow {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(workflowService.getPendingVerifiedCalls()), HttpStatus.OK);
     }
 
-    @GetMapping("/allFInalCallCompletedCalls")
+    @GetMapping({"/allFInalCallCompletedCalls", "/allFinalCallCompletedCalls"})
     public ResponseEntity<Object> AllFinalCallCompletedTransition(
             @RequestParam(required = false) String plantId,
             @RequestParam(required = false) Long assignedTo,
