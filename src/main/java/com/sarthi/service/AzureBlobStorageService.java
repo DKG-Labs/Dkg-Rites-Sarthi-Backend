@@ -546,20 +546,73 @@ public class AzureBlobStorageService {
             BlobContainerClient container = getContainerClient();
             BlobClient blobClient = container.getBlobClient(fileName);
 
-            // If direct file doesn't exist, check candidate name variations (slashes vs underscores)
+            // If direct file doesn't exist, check candidate name variations (whitespace trimming, delimiters, slashes vs underscores)
             if (!blobClient.exists()) {
-                java.util.List<String> candidates = java.util.List.of(
-                        fileName.replaceAll("[/\\\\]", "_"),
-                        fileName.replace("_", "/"),
-                        fileName.replace("_", "-"),
-                        fileName.replace("-", "_")
-                );
+                String cleanName = fileName.trim();
+                java.util.List<String> candidates = new java.util.ArrayList<>();
+                candidates.add(cleanName);
+
+                // 1. Remove space after/before delimiters (e.g. "SWR_RPP-082126003_ Suryaprakash.pdf" -> "SWR_RPP-082126003_Suryaprakash.pdf")
+                String noDelimSpaces = cleanName.replaceAll("([/_\\-])\\s+", "$1").replaceAll("\\s+([/_\\-])", "$1");
+                candidates.add(noDelimSpaces);
+                candidates.add(noDelimSpaces.replaceAll("[/\\\\]", "_"));
+                candidates.add(noDelimSpaces.replace("_", "/"));
+                candidates.add(noDelimSpaces.replace("_", "-"));
+                candidates.add(noDelimSpaces.replace("-", "_"));
+
+                // 2. Remove all spaces entirely
+                String noSpaces = cleanName.replaceAll("\\s+", "");
+                candidates.add(noSpaces);
+                candidates.add(noSpaces.replaceAll("[/\\\\]", "_"));
+                candidates.add(noSpaces.replace("_", "/"));
+
+                // 3. Standard delimiter replacements
+                candidates.add(cleanName.replaceAll("[/\\\\]", "_"));
+                candidates.add(cleanName.replace("_", "/"));
+                candidates.add(cleanName.replace("_", "-"));
+                candidates.add(cleanName.replace("-", "_"));
+
                 for (String cand : candidates) {
-                    BlobClient altClient = container.getBlobClient(cand);
-                    if (altClient.exists()) {
-                        blobClient = altClient;
-                        break;
+                    if (cand != null && !cand.isEmpty()) {
+                        BlobClient altClient = container.getBlobClient(cand);
+                        if (altClient.exists()) {
+                            blobClient = altClient;
+                            log.info("Resolved Azure blob for '{}' using candidate '{}'", fileName, cand);
+                            break;
+                        }
                     }
+                }
+            }
+
+            // 4. Fuzzy search in container by call token if candidates still not found
+            if (!blobClient.exists()) {
+                try {
+                    String cleanName = fileName.trim();
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("([A-Za-z0-9]+-[0-9]+)").matcher(cleanName);
+                    String callToken = m.find() ? m.group(1).toLowerCase() : null;
+                    if (callToken == null) {
+                        java.util.regex.Matcher m2 = java.util.regex.Pattern.compile("([0-9]{7,12})").matcher(cleanName);
+                        if (m2.find()) callToken = m2.group(1);
+                    }
+
+                    if (callToken != null) {
+                        for (com.azure.storage.blob.models.BlobItem blobItem : container.listBlobs()) {
+                            String bName = blobItem.getName();
+                            if (bName != null && bName.toLowerCase().endsWith(".pdf")) {
+                                String normalizedBlobName = bName.toLowerCase().replaceAll("\\s+", "");
+                                if (normalizedBlobName.contains(callToken)) {
+                                    BlobClient altClient = container.getBlobClient(bName);
+                                    if (altClient.exists()) {
+                                        blobClient = altClient;
+                                        log.info("Found Azure blob '{}' matching token '{}' for requested '{}'", bName, callToken, fileName);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    log.warn("Fuzzy search in Azure container for '{}' failed: {}", fileName, ex.getMessage());
                 }
             }
 
@@ -700,5 +753,82 @@ public class AzureBlobStorageService {
             return ResponseEntity.internalServerError()
                     .build();
         }
+    }
+
+    /**
+     * Finds the direct Azure Blob URL for an inspection call document or annexure in the target container.
+     */
+    public String findBlobUrlByCallToken(String targetContainerName, String callToken) {
+        if (callToken == null || callToken.trim().isEmpty() || isLocalOrInvalidAzure()) {
+            return null;
+        }
+        String clean = callToken.trim();
+        if (clean.toLowerCase().endsWith(".pdf")) {
+            clean = clean.substring(0, clean.length() - 4).trim();
+        }
+        String sanitized = clean.replaceAll("[^a-zA-Z0-9_-]", "_");
+
+        try {
+            BlobContainerClient container = getContainerClient(targetContainerName);
+            if (!container.exists()) {
+                return null;
+            }
+
+            // 1. Direct candidate files
+            String[] directCandidates = {
+                clean + ".pdf",
+                sanitized + ".pdf",
+                clean,
+                sanitized
+            };
+            for (String cand : directCandidates) {
+                BlobClient bc = container.getBlobClient(cand);
+                if (bc.exists()) {
+                    return bc.getBlobUrl();
+                }
+            }
+
+            // 2. Candidate prefixes commonly used in sarthi-uploads (e.g. erc/EP_0903260001/)
+            String[] prefixCandidates = {
+                "erc/" + sanitized + "/",
+                "erc/" + clean + "/",
+                "sleeper/" + sanitized + "/",
+                "sleeper/" + clean + "/",
+                "railpad/" + sanitized + "/",
+                "railpad/" + clean + "/",
+                sanitized + "/",
+                clean + "/"
+            };
+
+            for (String pfx : prefixCandidates) {
+                for (com.azure.storage.blob.models.BlobItem item : container.listBlobs(new com.azure.storage.blob.models.ListBlobsOptions().setPrefix(pfx), null)) {
+                    if (item.getName() != null && item.getName().toLowerCase().endsWith(".pdf")) {
+                        return container.getBlobClient(item.getName()).getBlobUrl();
+                    }
+                }
+            }
+
+            // 3. Substring matching in container if token is long enough
+            if (clean.length() >= 6) {
+                String tokenLower = clean.toLowerCase();
+                String sanitizedLower = sanitized.toLowerCase();
+                for (com.azure.storage.blob.models.BlobItem item : container.listBlobs()) {
+                    String bName = item.getName();
+                    if (bName != null && bName.toLowerCase().endsWith(".pdf")) {
+                        String bLower = bName.toLowerCase();
+                        if (bLower.contains(tokenLower) || bLower.contains(sanitizedLower)) {
+                            return container.getBlobClient(bName).getBlobUrl();
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error finding blob URL for token '{}' in container '{}': {}", callToken, targetContainerName, e.getMessage());
+        }
+        return null;
+    }
+
+    public String findBlobUrlByCallToken(String callToken) {
+        return findBlobUrlByCallToken("sarthi-uploads", callToken);
     }
 }

@@ -80,6 +80,15 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
     List<RailInspectionCall> findByCallNoIn(List<String> callNos);
 
     @Query(value = """
+        SELECT ric.call_no AS callNo, ric.process_ic_no AS processIcNo
+        FROM rail_inspection_call ric
+        WHERE ric.call_no IN (:callNos)
+          AND ric.process_ic_no IS NOT NULL
+          AND ric.process_ic_no != ''
+    """, nativeQuery = true)
+    List<Object[]> findBatchProcessIcByRailpadCallNos(@Param("callNos") java.util.Collection<String> callNos);
+
+    @Query(value = """
         SELECT COUNT(DISTINCT ic.call_no)
         FROM rail_inspection_call ic
         WHERE 

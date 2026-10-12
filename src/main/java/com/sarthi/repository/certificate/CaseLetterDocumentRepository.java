@@ -24,6 +24,16 @@ public interface CaseLetterDocumentRepository extends JpaRepository<CaseLetterDo
     java.util.Optional<CaseLetterDocument> findActiveByCallNoVariants(@org.springframework.data.repository.query.Param("callNo") String callNo,
                                                                         @org.springframework.data.repository.query.Param("status") String status);
 
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT c FROM CaseLetterDocument c
+        WHERE UPPER(c.status) = 'ACTIVE'
+          AND (c.callNo IN :tokens
+               OR REPLACE(c.callNo, '-', '/') IN :tokens
+               OR REPLACE(c.callNo, '/', '-') IN :tokens)
+        ORDER BY c.uploadedAt DESC
+        """)
+    List<CaseLetterDocument> findActiveByCallTokens(@org.springframework.data.repository.query.Param("tokens") java.util.Collection<String> tokens);
+
 
     // Retained for backward compatibility; not used in new flow
     Optional<CaseLetterDocument> findFirstByCallNoAndStatusOrderByUploadedAtDesc(String callNo, String status);

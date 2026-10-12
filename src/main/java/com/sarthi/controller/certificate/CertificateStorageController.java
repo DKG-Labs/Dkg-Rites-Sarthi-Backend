@@ -594,7 +594,35 @@ public class CertificateStorageController {
 
         try {
             CertificateStorage storage = storageOpt.get();
-            String base64Data = azureBlobStorageService.downloadAsBase64(storage.getFileName());
+            String requestedFileName = storage.getFileName();
+            String base64Data = null;
+            try {
+                base64Data = azureBlobStorageService.downloadAsBase64(requestedFileName);
+            } catch (Exception ex) {
+                if (requestedFileName != null) {
+                    String noSpaceVariant = requestedFileName.replaceAll("([/_\\-])\\s+", "$1").replaceAll("\\s+([/_\\-])", "$1").trim();
+                    if (!noSpaceVariant.equals(requestedFileName)) {
+                        try {
+                            base64Data = azureBlobStorageService.downloadAsBase64(noSpaceVariant);
+                            storage.setFileName(noSpaceVariant);
+                            certificateStorageRepository.save(storage);
+                        } catch (Exception ignored) {}
+                    }
+                    if (base64Data == null) {
+                        String strippedSpaces = requestedFileName.replaceAll("\\s+", "");
+                        if (!strippedSpaces.equals(requestedFileName)) {
+                            try {
+                                base64Data = azureBlobStorageService.downloadAsBase64(strippedSpaces);
+                                storage.setFileName(strippedSpaces);
+                                certificateStorageRepository.save(storage);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+                if (base64Data == null) {
+                    throw ex;
+                }
+            }
 
             return ResponseEntity.ok(Map.of(
                 "icNumber", storage.getIcNumber() != null ? storage.getIcNumber() : icNumber.trim(),
