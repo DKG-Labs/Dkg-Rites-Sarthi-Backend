@@ -115,4 +115,21 @@ public class IcAnnexureController {
                     .body(Map.of("success", false, "message", ex.getMessage()));
         }
     }
+
+    @Operation(summary = "Stream an uploaded annexure document by blob name")
+    @GetMapping("/stream")
+    public ResponseEntity<?> streamAnnexure(@RequestParam("blobName") String blobName) {
+        try {
+            return icAnnexureService.downloadAnnexureByBlobName(blobName);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("success", false, "message", ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Failed to stream annexure blob {}: {}", blobName, ex.getMessage(), ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("success", false, "message", ex.getMessage()));
+        }
+    }
 }

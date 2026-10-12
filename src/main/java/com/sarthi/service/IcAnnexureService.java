@@ -22,4 +22,6 @@ public interface IcAnnexureService {
     void deleteAnnexure(Long id, String requestedBy);
 
     ResponseEntity<Resource> downloadAnnexure(Long id);
+
+    ResponseEntity<Resource> downloadAnnexureByBlobName(String blobName);
 }
