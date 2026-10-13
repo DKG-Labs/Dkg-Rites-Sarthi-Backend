@@ -73,6 +73,10 @@ public class CallLetterDetailsDto {
     // ---- Batches Selected for Sleeper Offer List ----
     private java.util.List<SleeperBatchDetail> batchesSelected;
 
+    // ---- Shed batch range summary for Offer List header ----
+    private String shed1BatchNo; // e.g. "Batch 284 To Batch 292"
+    private String shed2BatchNo; // e.g. "Batch 301 To Batch 305" or "-"
+
     @Data
     public static class HeatDetail {
         private String heatNo;
@@ -102,6 +106,7 @@ public class CallLetterDetailsDto {
     @Data
     public static class SleeperBatchDetail {
         private String batchNo;
+        private String shed; // e.g. "Shed 1" or "Shed 2" (derived from productionUnit)
         private String castDate;
         private Integer totalCasted;
         private Integer previouslyOffered;
