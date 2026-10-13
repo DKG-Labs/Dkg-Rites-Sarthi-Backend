@@ -48,6 +48,12 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
     @Value("${azure.storage.correctionslip-container-name:ic-correctionslip}")
     private String correctionSlipContainerName;
 
+    @Value("${azure.storage.uat-connection-string:}")
+    private String uatConnectionString;
+
+    @Value("${azure.storage.prod-connection-string:}")
+    private String prodConnectionString;
+
     private volatile BlobContainerClient containerClient;
 
     private BlobContainerClient getContainerClient() {
@@ -300,6 +306,9 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
     }
 
     private ResponseEntity<Resource> buildPdfResponse(CorrectionSlipDocument doc, boolean inline) {
+        log.info("buildPdfResponse for doc id={}, callNo='{}', blobFileName='{}', blobUrl='{}', defaultContainer='{}'",
+                doc.getId(), doc.getCallNo(), doc.getBlobFileName(), doc.getBlobUrl(), correctionSlipContainerName);
+
         byte[] data = null;
 
         List<String> candidatePaths = new ArrayList<>();
@@ -310,16 +319,38 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
                 if (!candidatePaths.contains(decoded)) candidatePaths.add(decoded);
             } catch (Exception ignored) {}
         }
-        if (doc.getBlobUrl() != null && doc.getBlobUrl().contains(correctionSlipContainerName + "/")) {
-            String pathPart = doc.getBlobUrl().substring(doc.getBlobUrl().indexOf(correctionSlipContainerName + "/") + (correctionSlipContainerName + "/").length());
-            if (pathPart.contains("?")) {
-                pathPart = pathPart.substring(0, pathPart.indexOf("?"));
-            }
-            if (!candidatePaths.contains(pathPart)) candidatePaths.add(pathPart);
+
+        String urlContainer = null;
+        String urlBlobPath = null;
+        String urlAccount = null;
+
+        if (doc.getBlobUrl() != null && doc.getBlobUrl().trim().startsWith("http")) {
             try {
-                String decoded = java.net.URLDecoder.decode(pathPart, java.nio.charset.StandardCharsets.UTF_8);
-                if (!candidatePaths.contains(decoded)) candidatePaths.add(decoded);
-            } catch (Exception ignored) {}
+                java.net.URI uri = new java.net.URI(doc.getBlobUrl().trim());
+                String host = uri.getHost();
+                if (host != null && host.contains(".blob.core.windows.net")) {
+                    urlAccount = host.substring(0, host.indexOf(".blob.core.windows.net"));
+                }
+                String path = uri.getPath();
+                if (path != null) {
+                    if (path.startsWith("/")) path = path.substring(1);
+                    int firstSlash = path.indexOf('/');
+                    if (firstSlash > 0) {
+                        urlContainer = path.substring(0, firstSlash);
+                        urlBlobPath = path.substring(firstSlash + 1);
+                        if (urlBlobPath.contains("?")) {
+                            urlBlobPath = urlBlobPath.substring(0, urlBlobPath.indexOf('?'));
+                        }
+                        if (!candidatePaths.contains(urlBlobPath)) candidatePaths.add(urlBlobPath);
+                        try {
+                            String decoded = java.net.URLDecoder.decode(urlBlobPath, java.nio.charset.StandardCharsets.UTF_8);
+                            if (!candidatePaths.contains(decoded)) candidatePaths.add(decoded);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Could not parse blobUrl: {}", e.getMessage());
+            }
         }
 
         // 1. Try local file checks
@@ -343,34 +374,44 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             if (data != null) break;
         }
 
-        // 2. Try Azure Blob Storage with SDK client for each candidate path
-        if (data == null && !isLocalOrInvalidAzure()) {
-            try {
-                BlobContainerClient containerClient = getContainerClient();
-                if (containerClient != null) {
-                    for (String blobCandidate : candidatePaths) {
-                        try {
-                            BlobClient blobClient = containerClient.getBlobClient(blobCandidate);
-                            if (blobClient.exists()) {
-                                java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-                                blobClient.downloadStream(outputStream);
-                                data = outputStream.toByteArray();
-                                log.info("Downloaded correction slip PDF from Azure blob: {}", blobCandidate);
+        // 2. Try Azure Blob Storage downloads with multi-account & multi-container fallback
+        if (data == null) {
+            List<String> connectionStringsToTry = new ArrayList<>();
+            if (urlAccount != null && urlAccount.equalsIgnoreCase("ridesurestorageaccount")) {
+                if (isValidAzure(uatConnectionString)) connectionStringsToTry.add(uatConnectionString);
+                if (isValidAzure(connectionString) && !connectionStringsToTry.contains(connectionString)) connectionStringsToTry.add(connectionString);
+                if (isValidAzure(prodConnectionString) && !connectionStringsToTry.contains(prodConnectionString)) connectionStringsToTry.add(prodConnectionString);
+            } else if (urlAccount != null && urlAccount.equalsIgnoreCase("ritesblobstorage")) {
+                if (isValidAzure(prodConnectionString)) connectionStringsToTry.add(prodConnectionString);
+                if (isValidAzure(connectionString) && !connectionStringsToTry.contains(connectionString)) connectionStringsToTry.add(connectionString);
+                if (isValidAzure(uatConnectionString) && !connectionStringsToTry.contains(uatConnectionString)) connectionStringsToTry.add(uatConnectionString);
+            } else {
+                if (isValidAzure(connectionString)) connectionStringsToTry.add(connectionString);
+                if (isValidAzure(prodConnectionString) && !connectionStringsToTry.contains(prodConnectionString)) connectionStringsToTry.add(prodConnectionString);
+                if (isValidAzure(uatConnectionString) && !connectionStringsToTry.contains(uatConnectionString)) connectionStringsToTry.add(uatConnectionString);
+            }
 
-                                // Cache downloaded bytes locally
-                                try {
-                                    saveToLocal(blobCandidate, data);
-                                } catch (Exception ignored) {}
-                                break;
-                            }
-                        } catch (Exception e) {
-                            log.debug("Blob candidate check '{}' failed: {}", blobCandidate, e.getMessage());
+            List<String> containersToTry = new ArrayList<>();
+            if (urlContainer != null && !urlContainer.isBlank()) containersToTry.add(urlContainer);
+            if (correctionSlipContainerName != null && !containersToTry.contains(correctionSlipContainerName)) containersToTry.add(correctionSlipContainerName);
+            if (!containersToTry.contains("ic-correctionslip")) containersToTry.add("ic-correctionslip");
+            if (!containersToTry.contains("sarthi-uploads")) containersToTry.add("sarthi-uploads");
+            if (!containersToTry.contains("certificates")) containersToTry.add("certificates");
+
+            for (String connStr : connectionStringsToTry) {
+                for (String cName : containersToTry) {
+                    for (String bPath : candidatePaths) {
+                        data = tryDownloadFromAzure(connStr, cName, bPath);
+                        if (data != null) {
+                            try {
+                                saveToLocal(bPath, data);
+                            } catch (Exception ignored) {}
+                            break;
                         }
                     }
+                    if (data != null) break;
                 }
-            } catch (Exception e) {
-                log.warn("Could not download correction slip from Azure container '{}': {}",
-                        correctionSlipContainerName, e.getMessage());
+                if (data != null) break;
             }
         }
 
@@ -402,6 +443,34 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + filename + "\"")
                 .body(resource);
     }
+
+    private boolean isValidAzure(String connStr) {
+        if (connStr == null || connStr.trim().isEmpty()) return false;
+        String trimmed = connStr.trim().replace("\"", "").replace("'", "");
+        return trimmed.length() >= 25 && trimmed.contains("DefaultEndpointsProtocol=");
+    }
+
+    private byte[] tryDownloadFromAzure(String connStr, String targetContainer, String blobCandidate) {
+        try {
+            BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                    .connectionString(connStr)
+                    .buildClient();
+            BlobContainerClient client = blobServiceClient.getBlobContainerClient(targetContainer);
+            if (client != null && client.exists()) {
+                BlobClient blobClient = client.getBlobClient(blobCandidate);
+                if (blobClient.exists()) {
+                    java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
+                    blobClient.downloadStream(outputStream);
+                    log.info("Downloaded correction slip PDF from Azure container '{}': {}", targetContainer, blobCandidate);
+                    return outputStream.toByteArray();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Azure check for blob '{}' in container '{}' failed: {}", blobCandidate, targetContainer, e.getMessage());
+        }
+        return null;
+    }
+
 
     @Override
     @Transactional
