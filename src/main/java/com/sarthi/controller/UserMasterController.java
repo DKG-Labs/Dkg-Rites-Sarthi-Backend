@@ -265,6 +265,12 @@ public class UserMasterController {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
     }
 
+    @GetMapping("/api/vendor-master/lookup")
+    public ResponseEntity<Object> lookupVendorMasterByCode(@RequestParam String vendorCode) {
+        Object response = userService.lookupVendorMasterByCode(vendorCode);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
     @PostMapping("/api/sleeper-vendor")
     public ResponseEntity<Object> createOrUpdateSleeperVendor(@RequestBody com.sarthi.dto.SleeperVendorCreationDto dto) {
         Object response = userService.createOrUpdateSleeperVendor(dto);

@@ -77,6 +77,8 @@ public interface UserService {
 
     public Object getErcVendorDetails(Integer userId);
 
+    public Object lookupVendorMasterByCode(String vendorCode);
+
     public Object createOrUpdateSleeperVendor(com.sarthi.dto.SleeperVendorCreationDto dto);
 
     public Object getSleeperVendorDetails(Integer userId);
