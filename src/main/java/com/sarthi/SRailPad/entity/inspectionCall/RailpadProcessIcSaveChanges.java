@@ -91,6 +91,15 @@ public class RailpadProcessIcSaveChanges {
     @Column(name = "qty_now_rejected")
     private String qtyNowRejected;
 
+    @Column(name = "offered_sets")
+    private Integer offeredSets;
+
+    @Column(name = "accepted_sets")
+    private Integer acceptedSets;
+
+    @Column(name = "rejected_sets")
+    private Integer rejectedSets;
+
     @Column(name = "quantity_now_passed_text", columnDefinition = "TEXT")
     private String quantityNowPassedText;
 

@@ -2596,7 +2596,7 @@ WHERE ic.created_at BETWEEN :startDate AND :endDate
                 DATE_FORMAT(ic.created_at, '%d-%m-%Y') AS callDate,
                 DATE_FORMAT(ic.desired_inspection_date, '%d-%m-%Y') AS desiredDate,
                 COALESCE(
-                    CASE
+                    CASE 
                         WHEN ic.ic_number LIKE '%ER%' THEN (
                             SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
                             FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
@@ -2629,6 +2629,140 @@ WHERE ic.created_at BETWEEN :startDate AND :endDate
             ORDER BY ic.created_at DESC
             """, nativeQuery = true)
     List<Object[]> getPoOpenCalls(@Param("poNo") String poNo);
+
+    @Query(value = """
+            SELECT
+                COALESCE(ph.case_no, '')                                AS caseNumber,
+                DATE(ic.created_at)                                     AS callDate,
+                COALESCE(CONVERT(pm.poi_code USING utf8mb4), CONVERT(ic.place_of_inspection USING utf8mb4)) AS placeOfInspection,
+                COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.place_of_inspection USING utf8mb4)) AS ibsManufacturedCode,
+                CAST(COALESCE(
+                    NULLIF(TRIM(um_assigned.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_assigned.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(um_wt.employee_code), ''),
+                    NULLIF(TRIM(CAST(um_wt.rites_employee_code AS CHAR)), ''),
+                    NULLIF(TRIM(cd.created_by), ''),
+                    NULLIF(TRIM(CAST(wt_latest.createdby AS CHAR)), ''),
+                    NULLIF(TRIM(CAST(ic.created_by AS CHAR)), '')
+                ) AS CHAR)                                              AS ieEmployeeNumber,
+                'C'                                                     AS callStatus,
+                (CASE 
+                    WHEN ic.ic_number LIKE 'ER%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%RAW%' THEN 'S'
+                    WHEN ic.ic_number LIKE 'EP%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%PROCESS%' THEN 'P'
+                    ELSE 'F'
+                END)                                                    AS typeOfCall,
+                (CASE 
+                    WHEN ic.po_no LIKE '%/%' AND SUBSTRING_INDEX(ic.po_no, '/', -1) <> '' THEN SUBSTRING_INDEX(ic.po_no, '/', -1)
+                    WHEN ic.po_serial_no IS NOT NULL AND TRIM(ic.po_serial_no) <> '' THEN TRIM(ic.po_serial_no)
+                    ELSE '1'
+                END)                                                    AS poItemSerialNumber,
+                ''                                                      AS bkNumber,
+                ''                                                      AS setNumber,
+                DATE(COALESCE(cd.created_date, wt_latest.createddate, ic.updated_at, ic.created_at)) AS icDate,
+                COALESCE(
+                    CASE 
+                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                        )
+                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                            SELECT SUM(pid.offered_qty)
+                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                        )
+                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                            SELECT fid.total_offered_qty
+                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                        )
+                    END,
+                    (SELECT icd_sub.call_qty FROM inspection_call_details icd_sub WHERE icd_sub.inspection_call_no = ic.ic_number ORDER BY icd_sub.id DESC LIMIT 1),
+                    0
+                )                                                       AS quantityOffered,
+                0                                                       AS quantityPassed,
+                0                                                       AS quantityRejected,
+                ic.ic_number                                            AS callNo,
+                ic.ic_number                                            AS callNumber,
+                COALESCE(
+                    (CASE WHEN cd.cancellation_basis = 'CHARGEABLE' THEN COALESCE(cd.final_cancellation_charges, cd.calculated_charges, 0) ELSE 0 END),
+                    0
+                )                                                       AS cancellationCharges,
+                0.0                                                     AS rejectionCharges,
+                COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
+            FROM inspection_calls ic
+            LEFT JOIN call_cancellation_details cd
+                   ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT wt1.requestid, wt1.assigned_to_user, wt1.createdby, wt1.createddate, wt1.status, wt1.job_status, wt1.action, wt1.rio
+                FROM workflow_transition wt1
+                INNER JOIN (
+                    SELECT requestid, MAX(workflowtransitionid) AS max_wt_id
+                    FROM workflow_transition
+                    GROUP BY requestid
+                ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
+            ) wt_latest
+                   ON CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN po_header ph
+                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                      CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN sarthi_ibs_poi_mapping pm
+                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.place_of_inspection USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND pm.product_type = 'erc'
+            LEFT JOIN user_master um_assigned
+                   ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_assigned.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN user_master um_wt
+                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT icr1.*
+                FROM ibs_call_registration icr1
+                INNER JOIN (
+                    SELECT call_number, MAX(version) AS max_version
+                    FROM ibs_call_registration
+                    GROUP BY call_number
+                ) latest
+                    ON CONVERT(latest.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(icr1.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   AND latest.max_version = icr1.version
+            ) icr
+                    ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            WHERE (
+                UPPER(ic.status) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(wt_latest.job_status, '')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(wt_latest.status, '')) = 'BLOCKED'
+                OR UPPER(COALESCE(wt_latest.job_status, '')) = 'BLOCKED'
+                OR cd.call_number IS NOT NULL
+            )
+            AND (
+                icr.call_number IS NULL
+                OR UPPER(icr.status) = 'FAILED'
+            )
+            GROUP BY
+                ph.case_no,
+                ic.created_at,
+                ic.place_of_inspection,
+                pm.poi_code,
+                pm.ibs_vendor_code,
+                um_assigned.employee_code,
+                um_assigned.rites_employee_code,
+                um_wt.employee_code,
+                um_wt.rites_employee_code,
+                cd.created_by,
+                wt_latest.createdby,
+                ic.created_by,
+                ic.ic_number,
+                ic.type_of_call,
+                ic.po_no,
+                ic.po_serial_no,
+                cd.created_date,
+                wt_latest.createddate,
+                ic.updated_at,
+                cd.cancellation_basis,
+                cd.final_cancellation_charges,
+                cd.calculated_charges,
+                wt_latest.rio,
+                ic.id
+            """, nativeQuery = true)
+    List<Object[]> getErcCancelledInspectionCalls();
 
 }
 

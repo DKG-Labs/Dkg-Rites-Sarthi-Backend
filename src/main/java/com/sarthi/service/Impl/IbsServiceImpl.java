@@ -835,14 +835,44 @@ public class IbsServiceImpl implements IbsService {
                 }
             });
 
+            CompletableFuture<List<IbsInspectionDto>> f7 = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls(), "RAILPAD");
+                } catch (Exception e) {
+                    log.error("Error fetching Railpad cancelled inspection calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            CompletableFuture<List<IbsInspectionDto>> f8 = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls(), "SLEEPER");
+                } catch (Exception e) {
+                    log.error("Error fetching Sleeper cancelled inspection calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
+            CompletableFuture<List<IbsInspectionDto>> f9 = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mapResult(inspectionCallsRepository.getErcCancelledInspectionCalls(), "ERC");
+                } catch (Exception e) {
+                    log.error("Error fetching ERC cancelled inspection calls: {}", e.getMessage(), e);
+                    return Collections.emptyList();
+                }
+            });
+
             try {
-                CompletableFuture.allOf(f1, f2, f3, f4, f5, f6).join();
+                CompletableFuture.allOf(f1, f2, f3, f4, f5, f6, f7, f8, f9).join();
                 if (f1.isDone() && !f1.isCompletedExceptionally()) responseList.addAll(f1.get());
                 if (f2.isDone() && !f2.isCompletedExceptionally()) responseList.addAll(f2.get());
                 if (f3.isDone() && !f3.isCompletedExceptionally()) responseList.addAll(f3.get());
                 if (f4.isDone() && !f4.isCompletedExceptionally()) responseList.addAll(f4.get());
                 if (f5.isDone() && !f5.isCompletedExceptionally()) responseList.addAll(f5.get());
                 if (f6.isDone() && !f6.isCompletedExceptionally()) responseList.addAll(f6.get());
+                if (f7.isDone() && !f7.isCompletedExceptionally()) responseList.addAll(f7.get());
+                if (f8.isDone() && !f8.isCompletedExceptionally()) responseList.addAll(f8.get());
+                if (f9.isDone() && !f9.isCompletedExceptionally()) responseList.addAll(f9.get());
             } catch (Exception e) {
                 log.error("Error aggregating IBS pending inspection calls: {}", e.getMessage(), e);
             }
@@ -863,7 +893,14 @@ public class IbsServiceImpl implements IbsService {
                     uniqueCalls.put(callNo, dto);
                 } else {
                     IbsInspectionDto existing = uniqueCalls.get(callNo);
-                    if ((existing.getCaseNumber() == null || existing.getCaseNumber().trim().isEmpty())
+                    if ("C".equalsIgnoreCase(dto.getCallStatus()) && !"C".equalsIgnoreCase(existing.getCallStatus())) {
+                        if ((dto.getTypeOfCall() == null || dto.getTypeOfCall().trim().isEmpty() || "C".equalsIgnoreCase(dto.getTypeOfCall()))
+                                && existing.getTypeOfCall() != null && !existing.getTypeOfCall().trim().isEmpty() && !"C".equalsIgnoreCase(existing.getTypeOfCall())) {
+                            dto.setTypeOfCall(existing.getTypeOfCall());
+                        }
+                        uniqueCalls.put(callNo, dto);
+                    } else if (!"C".equalsIgnoreCase(existing.getCallStatus())
+                            && (existing.getCaseNumber() == null || existing.getCaseNumber().trim().isEmpty())
                             && (dto.getCaseNumber() != null && !dto.getCaseNumber().trim().isEmpty())) {
                         uniqueCalls.put(callNo, dto);
                     }

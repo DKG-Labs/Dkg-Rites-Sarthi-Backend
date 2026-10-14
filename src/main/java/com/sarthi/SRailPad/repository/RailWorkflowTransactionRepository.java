@@ -175,10 +175,13 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                   AND (:plantId IS NULL OR :plantId = '' OR wt.plant_id = :plantId OR wt.plant_id = CONCAT(':', REPLACE(:plantId, ':', '')) OR wt.plant_id = REPLACE(:plantId, ':', '') OR LOWER(wt.plant_id) = LOWER(:plantId))
                 GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
             ) latest ON t.workflow_transition_id = latest.max_id
-            WHERE (UPPER(t.status) = 'COMPLETED' 
-                OR UPPER(t.status) LIKE '%CANCEL%' 
-                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CANCEL%' 
-                OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
+            WHERE UPPER(t.status) = 'COMPLETED' 
+              AND UPPER(t.status) NOT LIKE '%CANCEL%' 
+              AND UPPER(COALESCE(t.job_status, '')) NOT LIKE '%CANCEL%' 
+              AND UPPER(COALESCE(t.action, '')) NOT LIKE '%CANCEL%'
+              AND UPPER(t.status) <> 'BLOCKED'
+              AND UPPER(COALESCE(t.job_status, '')) <> 'BLOCKED'
+              AND UPPER(COALESCE(t.action, '')) <> 'BLOCKED'
             ORDER BY t.workflow_transition_id DESC
             """, nativeQuery = true)
     List<RailWorkflowTransaction> findCompletedRequestsByPlantIdAndWorkflowIdAndModuleId(
@@ -207,10 +210,13 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 GROUP BY wt.request_id, COALESCE(wt.module_id, 0)
             ) latest ON t.workflow_transition_id = latest.max_id
             WHERE t.workflow_id = 2
-              AND (UPPER(t.status) = 'COMPLETED' 
-                OR UPPER(t.status) LIKE '%CANCEL%' 
-                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CANCEL%' 
-                OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%')
+              AND UPPER(t.status) = 'COMPLETED' 
+              AND UPPER(t.status) NOT LIKE '%CANCEL%' 
+              AND UPPER(COALESCE(t.job_status, '')) NOT LIKE '%CANCEL%' 
+              AND UPPER(COALESCE(t.action, '')) NOT LIKE '%CANCEL%'
+              AND UPPER(t.status) <> 'BLOCKED'
+              AND UPPER(COALESCE(t.job_status, '')) <> 'BLOCKED'
+              AND UPPER(COALESCE(t.action, '')) <> 'BLOCKED'
             ORDER BY t.workflow_transition_id DESC
             """, nativeQuery = true)
     List<RailWorkflowTransaction> findFinalCompletedRequests();
@@ -227,12 +233,18 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
               AND (UPPER(t.status) LIKE '%SENT_TO_IBS%'
                 OR UPPER(t.status) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(t.status) LIKE '%CLOSED%'
+                OR UPPER(t.status) LIKE '%CANCEL%'
+                OR UPPER(t.status) = 'BLOCKED'
                 OR UPPER(COALESCE(t.job_status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(t.job_status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(t.job_status, '')) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(t.job_status, '')) = 'BLOCKED'
                 OR UPPER(COALESCE(t.action, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(t.action, '')) LIKE '%SEND_CALL_TO_IBS%'
-                OR UPPER(COALESCE(t.action, '')) LIKE '%CLOSED%')
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(t.action, '')) = 'BLOCKED')
             ORDER BY t.workflow_transition_id DESC
             """, nativeQuery = true)
     List<RailWorkflowTransaction> findFinalClosedRequests();
@@ -251,12 +263,18 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
               AND (UPPER(t.status) LIKE '%SENT_TO_IBS%'
                 OR UPPER(t.status) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(t.status) LIKE '%CLOSED%'
+                OR UPPER(t.status) LIKE '%CANCEL%'
+                OR UPPER(t.status) = 'BLOCKED'
                 OR UPPER(COALESCE(t.job_status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(t.job_status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(t.job_status, '')) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.job_status, '')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(t.job_status, '')) = 'BLOCKED'
                 OR UPPER(COALESCE(t.action, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(t.action, '')) LIKE '%SEND_CALL_TO_IBS%'
-                OR UPPER(COALESCE(t.action, '')) LIKE '%CLOSED%')
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CLOSED%'
+                OR UPPER(COALESCE(t.action, '')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(t.action, '')) = 'BLOCKED')
             ORDER BY t.workflow_transition_id DESC
             """, nativeQuery = true)
     List<RailWorkflowTransaction> findFinalClosedRequests(@Param("plantId") String plantId);

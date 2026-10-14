@@ -41,9 +41,22 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 CAST(COALESCE(p.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(p.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(COALESCE(p.created_at, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(CAST(NULLIF(p.qty_now_offered, '') AS UNSIGNED), ic.total_qty, 0) AS quantityOffered,
-                COALESCE(CAST(NULLIF(p.qty_now_passed, '') AS UNSIGNED), 0)  AS quantityPassed,
-                COALESCE(CAST(NULLIF(p.qty_now_rejected, '') AS UNSIGNED), 0) AS quantityRejected,
+                (CASE
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND p.offered_sets IS NOT NULL THEN p.offered_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND rpir.offered_sets IS NOT NULL THEN rpir.offered_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND ic.no_of_sets IS NOT NULL THEN ic.no_of_sets
+                    ELSE COALESCE(CAST(NULLIF(p.qty_now_offered, '') AS UNSIGNED), ic.total_qty, 0)
+                END)                                                    AS quantityOffered,
+                (CASE
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND p.accepted_sets IS NOT NULL THEN p.accepted_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND rpir.accepted_sets IS NOT NULL THEN rpir.accepted_sets
+                    ELSE COALESCE(CAST(NULLIF(p.qty_now_passed, '') AS UNSIGNED), 0)
+                END)                                                    AS quantityPassed,
+                (CASE
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND p.rejected_sets IS NOT NULL THEN p.rejected_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND rpir.rejected_sets IS NOT NULL THEN rpir.rejected_sets
+                    ELSE COALESCE(CAST(NULLIF(p.qty_now_rejected, '') AS UNSIGNED), 0)
+                END)                                                    AS quantityRejected,
                 ic.call_no                                              AS callNo,
                 COALESCE(
                     NULLIF(ricd.certificate_no, ''),
@@ -69,6 +82,8 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                        CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(p.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                     OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(p.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN rail_process_inspection_result rpir
+                   ON rpir.inspection_call_id = ic.id
             LEFT JOIN (
                 SELECT rwt1.request_id, rwt1.assigned_to_user, rwt1.rio
                 FROM rail_workflow_transaction rwt1
@@ -189,6 +204,14 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 wt_assigned.rio,
                 rvp.rio,
                 ic.total_qty,
+                ic.rail_pad_type,
+                ic.no_of_sets,
+                p.offered_sets,
+                p.accepted_sets,
+                p.rejected_sets,
+                rpir.offered_sets,
+                rpir.accepted_sets,
+                rpir.rejected_sets,
                 p.qty_now_offered,
                 p.qty_now_passed,
                 p.qty_now_rejected
@@ -216,9 +239,22 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 CAST(COALESCE(p.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(p.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(COALESCE(p.created_at, ic.created_at))             AS icDate,
-                COALESCE(CAST(p.qty_now_offered AS SIGNED), ic.total_qty, 0) AS quantityOffered,
-                COALESCE(CAST(p.qty_now_passed AS SIGNED), 0)          AS quantityPassed,
-                COALESCE(CAST(p.qty_now_rejected AS SIGNED), 0)        AS quantityRejected,
+                (CASE
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND p.offered_sets IS NOT NULL THEN p.offered_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND rpir.offered_sets IS NOT NULL THEN rpir.offered_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND ic.no_of_sets IS NOT NULL THEN ic.no_of_sets
+                    ELSE COALESCE(CAST(p.qty_now_offered AS SIGNED), ic.total_qty, 0)
+                END)                                                    AS quantityOffered,
+                (CASE
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND p.accepted_sets IS NOT NULL THEN p.accepted_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND rpir.accepted_sets IS NOT NULL THEN rpir.accepted_sets
+                    ELSE COALESCE(CAST(p.qty_now_passed AS SIGNED), 0)
+                END)                                                    AS quantityPassed,
+                (CASE
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND p.rejected_sets IS NOT NULL THEN p.rejected_sets
+                    WHEN UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCR%' AND rpir.rejected_sets IS NOT NULL THEN rpir.rejected_sets
+                    ELSE COALESCE(CAST(p.qty_now_rejected AS SIGNED), 0)
+                END)                                                    AS quantityRejected,
                 ic.call_no                                             AS callNo,
                 COALESCE(
                     NULLIF(ricd.certificate_no, ''),
@@ -244,6 +280,8 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                        CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(p.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                     OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(p.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN rail_process_inspection_result rpir
+                   ON rpir.inspection_call_id = ic.id
             LEFT JOIN (
                 SELECT rwt1.request_id, rwt1.assigned_to_user, rwt1.rio
                 FROM rail_workflow_transaction rwt1
@@ -331,6 +369,14 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 wt_assigned.rio,
                 rvp.rio,
                 ic.total_qty,
+                ic.rail_pad_type,
+                ic.no_of_sets,
+                p.offered_sets,
+                p.accepted_sets,
+                p.rejected_sets,
+                rpir.offered_sets,
+                rpir.accepted_sets,
+                rpir.rejected_sets,
                 p.qty_now_offered,
                 p.qty_now_passed,
                 p.qty_now_rejected

@@ -434,12 +434,20 @@ public class FinalCallServiceImpl implements FinalCallService {
 
     public FinalCallInspectionHeaderResponse create(FinalCallInspectionHeaderRequest dto) {
 
-        FinalCallInspectionHeader entity = new FinalCallInspectionHeader();
+        FinalCallInspectionHeader entity = finalCallInspectionHeaderRepository.findByCallNo(dto.getCallNo())
+                .orElseGet(FinalCallInspectionHeader::new);
+
+        boolean isNew = entity.getId() == null;
 
         mapFields(entity, dto);
 
-        entity.setCreatedBy(dto.getCreatedBy());
-        entity.setCreatedDate(LocalDateTime.now());
+        if (isNew) {
+            entity.setCreatedBy(dto.getCreatedBy());
+            entity.setCreatedDate(LocalDateTime.now());
+        } else {
+            entity.setUpdatedBy(dto.getUpdatedBy() != null ? dto.getUpdatedBy() : dto.getCreatedBy());
+            entity.setUpdatedDate(LocalDateTime.now());
+        }
 
         FinalCallInspectionHeader saved = finalCallInspectionHeaderRepository.save(entity);
 
@@ -470,6 +478,29 @@ public class FinalCallServiceImpl implements FinalCallService {
                 .orElseThrow(() -> new RuntimeException(
                         "Data not found for callNo: " + callNo));
 
+        if (callNo != null) {
+            try {
+                sleeperInspectionCallRepository.findByCallNo(callNo).ifPresent(sic -> {
+                    String sType = sic.getSleeperType() != null ? sic.getSleeperType().toUpperCase() : "";
+                    boolean isTurnoutOrSet = sType.contains("TURNOUT")
+                            || sType.contains("SET")
+                            || sType.contains("RT-8838")
+                            || sType.contains("RT-6068")
+                            || sType.contains("RT-4865")
+                            || sType.contains("RT-9790")
+                            || sType.contains("RT-4218")
+                            || sType.contains("POINTS")
+                            || sType.contains("CROSSING");
+
+                    if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered() > 0) {
+                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered()) {
+                            entity.setQtyOfferedNow(sic.getTotalOffered());
+                        }
+                    }
+                });
+            } catch (Exception ignored) {}
+        }
+
         return mapToResponse(entity);
     }
 
@@ -496,6 +527,35 @@ public class FinalCallServiceImpl implements FinalCallService {
         entity.setQtyOfferedNow(dto.getQtyOfferedNow());
         entity.setAcceptedQty(dto.getAcceptedQty());
         entity.setRejectedQty(dto.getRejectedQty());
+
+        if (dto.getCallNo() != null) {
+            try {
+                sleeperInspectionCallRepository.findByCallNo(dto.getCallNo()).ifPresent(sic -> {
+                    String sType = sic.getSleeperType() != null ? sic.getSleeperType().toUpperCase() : "";
+                    boolean isTurnoutOrSet = sType.contains("TURNOUT")
+                            || sType.contains("SET")
+                            || sType.contains("RT-8838")
+                            || sType.contains("RT-6068")
+                            || sType.contains("RT-4865")
+                            || sType.contains("RT-9790")
+                            || sType.contains("RT-4218")
+                            || sType.contains("POINTS")
+                            || sType.contains("CROSSING");
+
+                    if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered() > 0) {
+                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered() || entity.getQtyOfferedNow() <= 0) {
+                            entity.setQtyOfferedNow(sic.getTotalOffered());
+                        }
+                        if (entity.getRejectedQty() == null) {
+                            entity.setRejectedQty(0);
+                        }
+                        if (entity.getAcceptedQty() == null || entity.getAcceptedQty() > entity.getQtyOfferedNow()) {
+                            entity.setAcceptedQty(Math.max(0, entity.getQtyOfferedNow() - entity.getRejectedQty()));
+                        }
+                    }
+                });
+            } catch (Exception ignored) {}
+        }
 
         entity.setEtSleepers(dto.getEtSleepers());
 
