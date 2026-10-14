@@ -213,12 +213,15 @@ ORDER BY t.workflowTransitionId DESC
         GROUP BY t2.requestId
     )
     AND (
-        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
-        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
-        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'REJECT', 'REJECTED')
+        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'REJECT')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'REJECT', 'REJECTED')
     )
     AND UPPER(COALESCE(t.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
     AND UPPER(COALESCE(t.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
+    AND UPPER(COALESCE(t.status, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.status, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.status, '')) <> 'BLOCKED'
+    AND UPPER(COALESCE(t.action, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.action, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.action, '')) <> 'BLOCKED'
+    AND UPPER(COALESCE(t.jobStatus, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.jobStatus, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.jobStatus, '')) <> 'BLOCKED'
     AND t.workflowId = 2
     AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
     AND (:assignedTo IS NULL OR t.assignedToUser = :assignedTo OR t.createdBy = :assignedTo OR t.modifiedBy = :assignedTo)
@@ -235,12 +238,15 @@ ORDER BY t.workflowTransitionId DESC
         GROUP BY t2.requestId
     )
     AND (
-        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
-        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
-        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'REJECT', 'REJECTED')
+        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'REJECT')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'REJECT', 'REJECTED')
     )
     AND UPPER(COALESCE(t.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
     AND UPPER(COALESCE(t.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
+    AND UPPER(COALESCE(t.status, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.status, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.status, '')) <> 'BLOCKED'
+    AND UPPER(COALESCE(t.action, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.action, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.action, '')) <> 'BLOCKED'
+    AND UPPER(COALESCE(t.jobStatus, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.jobStatus, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.jobStatus, '')) <> 'BLOCKED'
     AND t.workflowId = 2
     AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
     ORDER BY t.workflowTransitionId DESC
@@ -256,12 +262,15 @@ ORDER BY t.workflowTransitionId DESC
         GROUP BY t2.requestId
     )
     AND (
-        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
-        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'CANCEL', 'WITHDRAW', 'REJECT')
-        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'REJECT', 'REJECTED')
+        UPPER(COALESCE(t.status, '')) IN ('COMPLETED', 'IC_ISSUE', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'REJECT', 'REJECTED')
+        OR UPPER(COALESCE(t.action, '')) IN ('FINISH', 'COMPLETED', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'REJECT')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('COMPLETED', 'FINISH', 'IC_ISSUE', 'ISSUE IC', 'GENERATE_IC', 'IC_GENERATION', 'GENERATED', 'DSC_SIGN_IC', 'IC_SIGNED', 'REJECT', 'REJECTED')
     )
     AND UPPER(COALESCE(t.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
     AND UPPER(COALESCE(t.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
+    AND UPPER(COALESCE(t.status, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.status, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.status, '')) <> 'BLOCKED'
+    AND UPPER(COALESCE(t.action, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.action, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.action, '')) <> 'BLOCKED'
+    AND UPPER(COALESCE(t.jobStatus, '')) NOT LIKE '%CANCEL%' AND UPPER(COALESCE(t.jobStatus, '')) NOT LIKE '%WITHDRAW%' AND UPPER(COALESCE(t.jobStatus, '')) <> 'BLOCKED'
     AND t.workflowId = 2
     ORDER BY t.workflowTransitionId DESC
 """)
@@ -276,9 +285,11 @@ ORDER BY t.workflowTransitionId DESC
         GROUP BY t2.requestId
     )
     AND (
-        UPPER(COALESCE(t.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
-        OR UPPER(COALESCE(t.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
-        OR UPPER(COALESCE(t.jobStatus, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+        UPPER(COALESCE(t.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'BLOCKED')
+        OR UPPER(COALESCE(t.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS', 'CANCEL', 'WITHDRAW', 'BLOCKED')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'BLOCKED')
+        OR UPPER(COALESCE(t.status, '')) LIKE '%CANCEL%'
+        OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%'
     )
     AND t.workflowId = 2
     AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
@@ -295,9 +306,11 @@ ORDER BY t.workflowTransitionId DESC
         GROUP BY t2.requestId
     )
     AND (
-        UPPER(COALESCE(t.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
-        OR UPPER(COALESCE(t.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
-        OR UPPER(COALESCE(t.jobStatus, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
+        UPPER(COALESCE(t.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'BLOCKED')
+        OR UPPER(COALESCE(t.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS', 'CANCEL', 'WITHDRAW', 'BLOCKED')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'CANCEL', 'CANCELLED', 'WITHDRAW', 'WITHDRAWN', 'BLOCKED')
+        OR UPPER(COALESCE(t.status, '')) LIKE '%CANCEL%'
+        OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%'
     )
     AND t.workflowId = 2
     ORDER BY t.workflowTransitionId DESC

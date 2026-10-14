@@ -2054,6 +2054,9 @@ public class UserServiceImpl implements UserService {
                         .orElse(new VendorMaster()));
         vendorMaster.setVendorCode(vendorCodeFormatted);
         vendorMaster.setVendorName(cleanCompanyName);
+        if (dto.getVendorAddress() != null) {
+            vendorMaster.setVendorDetails(dto.getVendorAddress().trim());
+        }
         if (vendorMaster.getId() == null) {
             vendorMaster.setCreatedDate(LocalDateTime.now());
         }
@@ -2167,22 +2170,30 @@ public class UserServiceImpl implements UserService {
         }
         dto.setVendorCode(empCode);
 
-        // 2. Resolve Company Name
+        // 2. Resolve Company Name and Vendor Address
         String companyName = user.getFullName();
-        if ((companyName == null || companyName.trim().isEmpty()) && empCode != null && !empCode.trim().isEmpty()) {
-            String vCodeCol = ":" + empCode;
+        String vendorAddress = null;
+        if (empCode != null && !empCode.trim().isEmpty()) {
+            String cleanCode = empCode.trim();
+            String vCodeCol = cleanCode.startsWith(":") ? cleanCode : ":" + cleanCode;
+            String rawCode = cleanCode.startsWith(":") ? cleanCode.substring(1) : cleanCode;
             Optional<VendorMaster> vmOpt = vendorMasterRepository.findByVendorCode(vCodeCol);
             if (vmOpt.isEmpty()) {
-                vmOpt = vendorMasterRepository.findByVendorCode(empCode);
+                vmOpt = vendorMasterRepository.findByVendorCode(rawCode);
             }
-            if (vmOpt.isPresent() && vmOpt.get().getVendorName() != null && !vmOpt.get().getVendorName().trim().isEmpty()) {
-                companyName = vmOpt.get().getVendorName().trim();
+            if (vmOpt.isPresent()) {
+                VendorMaster vm = vmOpt.get();
+                if ((companyName == null || companyName.trim().isEmpty()) && vm.getVendorName() != null && !vm.getVendorName().trim().isEmpty()) {
+                    companyName = vm.getVendorName().trim();
+                }
+                vendorAddress = vm.getVendorDetails();
             }
         }
         if (companyName == null || companyName.trim().isEmpty()) {
             companyName = user.getUsername() != null ? user.getUsername().replaceAll("^:", "") : empCode;
         }
         dto.setCompanyName(companyName);
+        dto.setVendorAddress(vendorAddress);
 
         dto.setEmail(user.getEmail());
         dto.setMobileNumber(user.getMobileNumber());
@@ -2244,6 +2255,31 @@ public class UserServiceImpl implements UserService {
         }
         dto.setUnits(unitDtos);
         return dto;
+    }
+
+    @Override
+    public Object lookupVendorMasterByCode(String vendorCode) {
+        if (vendorCode == null || vendorCode.trim().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        String cleanCode = vendorCode.trim();
+        String vCodeCol = cleanCode.startsWith(":") ? cleanCode : ":" + cleanCode;
+        String rawCode = cleanCode.startsWith(":") ? cleanCode.substring(1) : cleanCode;
+
+        Optional<VendorMaster> vmOpt = vendorMasterRepository.findByVendorCode(vCodeCol);
+        if (vmOpt.isEmpty()) {
+            vmOpt = vendorMasterRepository.findByVendorCode(rawCode);
+        }
+
+        if (vmOpt.isPresent()) {
+            VendorMaster vm = vmOpt.get();
+            Map<String, Object> map = new HashMap<>();
+            map.put("vendorCode", vm.getVendorCode());
+            map.put("vendorName", vm.getVendorName());
+            map.put("vendorDetails", vm.getVendorDetails());
+            return map;
+        }
+        return Collections.emptyMap();
     }
 
     private synchronized String generateNextPoiCode() {

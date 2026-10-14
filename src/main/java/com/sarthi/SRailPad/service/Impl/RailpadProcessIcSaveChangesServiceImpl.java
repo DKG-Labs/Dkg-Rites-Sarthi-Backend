@@ -55,6 +55,9 @@ public class RailpadProcessIcSaveChangesServiceImpl implements RailpadProcessIcS
         entity.setQtyNowOffered(dto.getQtyNowOffered());
         entity.setQtyNowPassed(dto.getQtyNowPassed());
         entity.setQtyNowRejected(dto.getQtyNowRejected());
+        entity.setOfferedSets(dto.getOfferedSets());
+        entity.setAcceptedSets(dto.getAcceptedSets());
+        entity.setRejectedSets(dto.getRejectedSets());
         entity.setQuantityNowPassedText(dto.getQuantityNowPassedText());
         entity.setReasonsForRejection(dto.getReasonsForRejection());
         entity.setDateOfCall(dto.getDateOfCall());
@@ -94,6 +97,9 @@ public class RailpadProcessIcSaveChangesServiceImpl implements RailpadProcessIcS
                 .qtyNowOffered(entity.getQtyNowOffered())
                 .qtyNowPassed(entity.getQtyNowPassed())
                 .qtyNowRejected(entity.getQtyNowRejected())
+                .offeredSets(entity.getOfferedSets())
+                .acceptedSets(entity.getAcceptedSets())
+                .rejectedSets(entity.getRejectedSets())
                 .quantityNowPassedText(entity.getQuantityNowPassedText())
                 .reasonsForRejection(entity.getReasonsForRejection())
                 .dateOfCall(entity.getDateOfCall())

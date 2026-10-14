@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -1035,6 +1036,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                         if (etList != null) {
                             for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etList) {
                                 if (et != null && et.getEt() != null && et.getEt().getBatchNumber() != null && et.getSleeperNo() != null) {
+                                    if (!isPlantMatch(sleeperCall.getPlantId(), et.getEt().getPlantId(), et.getEt().getVendorCode())) {
+                                        continue;
+                                    }
                                     String bNo = et.getEt().getBatchNumber().trim();
                                     etSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(et.getSleeperNo().trim());
                                     String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
@@ -1045,10 +1049,19 @@ public class CallLetterServiceImpl implements CallLetterService {
                     } catch (Exception ignore) {}
                 }
 
-                // 2. Preload ProductionDeclaration records using indexed batch IN query
+                // 2. Preload ProductionDeclaration records using indexed batch IN query, prioritizing call's PO and Plant
                 if (!allBatchNames.isEmpty() && productionDeclarationRepository != null) {
                     try {
-                        List<ProductionDeclaration> pds = productionDeclarationRepository.findAllByBatchNumbers(allBatchNames);
+                        List<ProductionDeclaration> pds = null;
+                        if (sleeperCall.getPoNo() != null && !sleeperCall.getPoNo().isBlank()) {
+                            pds = productionDeclarationRepository.findAllByBatchNumbersAndPoNo(allBatchNames, sleeperCall.getPoNo().trim());
+                        }
+                        if ((pds == null || pds.isEmpty()) && sleeperCall.getPlantId() != null && !sleeperCall.getPlantId().isBlank()) {
+                            pds = productionDeclarationRepository.findAllByBatchNumbersAndPlantId(allBatchNames, sleeperCall.getPlantId().trim());
+                        }
+                        if (pds == null || pds.isEmpty()) {
+                            pds = productionDeclarationRepository.findAllByBatchNumbers(allBatchNames);
+                        }
                         if (pds != null) {
                             for (ProductionDeclaration item : pds) {
                                 if (item != null && item.getBatchNumber() != null) {
@@ -1141,6 +1154,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                             if (mfTests != null) {
                                 for (com.sarthi.Sleeper.entity.MfTestDetails t : mfTests) {
                                     if (t != null && t.getBatchNo() != null && t.getSampleIdentification() != null && !t.getSampleIdentification().isBlank()) {
+                                        if (!isPlantMatch(sleeperCall.getPlantId(), t.getPlantId(), t.getVendorCode())) {
+                                            continue;
+                                        }
                                         String bNo = t.getBatchNo().trim();
                                         String sNo = cleanMfSleeperNo(t.getSampleIdentification());
                                         if (!sNo.isBlank()) {
@@ -1159,6 +1175,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                             if (mfs != null) {
                                 for (com.sarthi.Sleeper.entity.ModulusOfFailure m : mfs) {
                                     if (m != null && m.getBatchNo() != null && m.getSampleIdentification() != null && !m.getSampleIdentification().isBlank()) {
+                                        if (!isPlantMatch(sleeperCall.getPlantId(), m.getPlantId(), m.getVendorCode())) {
+                                            continue;
+                                        }
                                         String bNo = m.getBatchNo().trim();
                                         String sNo = cleanMfSleeperNo(m.getSampleIdentification());
                                         if (!sNo.isBlank()) {
@@ -1170,6 +1189,39 @@ public class CallLetterServiceImpl implements CallLetterService {
                                 }
                             }
                         } catch (Exception ignore) {}
+                    }
+                }
+
+                // Preload previously offered counts per batch from earlier calls of the same PO / plant
+                java.util.Map<String, Integer> priorOfferedByBatch = new java.util.HashMap<>();
+                if (sleeperCall.getId() != null && sleeperCall.getPoNo() != null) {
+                    try {
+                        List<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> poCalls =
+                                sleeperInspectionCallRepository.findByPoNoOrderByIdAsc(sleeperCall.getPoNo());
+                        if (poCalls != null) {
+                            for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall pc : poCalls) {
+                                if (pc == null || pc.getId() == null || pc.getId() >= sleeperCall.getId()) continue;
+                                if (isPlantMatch(sleeperCall.getPlantId(), pc.getPlantId(), null)) {
+                                    if (pc.getBatchesSelected() != null) {
+                                        for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch pb : pc.getBatchesSelected()) {
+                                            if (pb == null || pb.getBatchNo() == null) continue;
+                                            String pbRaw = pb.getBatchNo().trim();
+                                            String pbClean = pbRaw.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
+                                            int offeredInPrior = 0;
+                                            if (pb.getGoodSleepers() != null) offeredInPrior += pb.getGoodSleepers().size();
+                                            if (pb.getBadSleepers() != null) offeredInPrior += pb.getBadSleepers().size();
+                                            if (offeredInPrior > 0) {
+                                                priorOfferedByBatch.merge(pbRaw, offeredInPrior, Integer::sum);
+                                                priorOfferedByBatch.merge(pbClean, offeredInPrior, Integer::sum);
+                                                priorOfferedByBatch.merge("Batch " + pbClean, offeredInPrior, Integer::sum);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {
+                        logger.warn("Error computing prior offered counts for sleeper call: {}", sleeperCall.getCallNo(), ex);
                     }
                 }
 
@@ -1208,7 +1260,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                     // Look up ProductionDeclaration directly from preloaded pdBatchCache
                     String castDateStr = batch.getCastDate();
                     Integer totalCasted = batch.getTotalCasted();
-                    int prevOffered = batch.getPreviouslyOffered() != null ? batch.getPreviouslyOffered() : 0;
+                    int prevOffered = batch.getPreviouslyOffered() != null && batch.getPreviouslyOffered() > 0
+                            ? batch.getPreviouslyOffered()
+                            : priorOfferedByBatch.getOrDefault(cleanBatch, priorOfferedByBatch.getOrDefault(rawBatchNo, 0));
 
                     ProductionDeclaration pd = pdBatchCache.get(rawBatchNo);
                     if (pd == null) {
@@ -1216,6 +1270,29 @@ public class CallLetterServiceImpl implements CallLetterService {
                     }
                     if (pd == null) {
                         pd = pdBatchCache.get(displayBatchNo);
+                    }
+                    if (pd == null && productionDeclarationRepository != null) {
+                        try {
+                            if (sleeperCall.getPoNo() != null && !sleeperCall.getPoNo().isBlank()) {
+                                pd = productionDeclarationRepository.findLatestByBatchNoAndPoNo(cleanBatch, sleeperCall.getPoNo().trim());
+                                if (pd == null) {
+                                    pd = productionDeclarationRepository.findLatestByBatchNoAndPoNo(rawBatchNo, sleeperCall.getPoNo().trim());
+                                }
+                            }
+                            if (pd == null && sleeperCall.getPlantId() != null && !sleeperCall.getPlantId().isBlank()) {
+                                pd = productionDeclarationRepository.findLatestByBatchNoAndPlantId(cleanBatch, sleeperCall.getPlantId().trim());
+                                if (pd == null) {
+                                    pd = productionDeclarationRepository.findLatestByBatchNoAndPlantId(rawBatchNo, sleeperCall.getPlantId().trim());
+                                }
+                            }
+                            if (pd == null) {
+                                pd = productionDeclarationRepository.findLatestByBatchNoFlexible(rawBatchNo, cleanBatch);
+                            }
+                            if (pd != null) {
+                                pdBatchCache.put(rawBatchNo, pd);
+                                pdBatchCache.put(cleanBatch, pd);
+                            }
+                        } catch (Exception ignore) {}
                     }
 
                     // Extract castDate and totalCasted from pd if needed
@@ -1241,12 +1318,20 @@ public class CallLetterServiceImpl implements CallLetterService {
                         }
                     }
 
+                    // Normalize ISO format yyyy-MM-dd if batch.getCastDate() provided it in ISO format
+                    if (castDateStr != null && castDateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*")) {
+                        try {
+                            java.time.LocalDate d = java.time.LocalDate.parse(castDateStr.substring(0, 10));
+                            castDateStr = d.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                        } catch (Exception ignore) {}
+                    }
+
                     // Fallbacks
                     if (totalCasted == null || totalCasted <= 0) {
                         totalCasted = goodCount + badCount;
                     }
-                    if (castDateStr == null || castDateStr.isBlank() || "-".equals(castDateStr) || "N/A".equalsIgnoreCase(castDateStr)) {
-                        castDateStr = sleeperCall.getCreatedAt() != null ? sleeperCall.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "-";
+                    if (castDateStr == null || castDateStr.isBlank() || "N/A".equalsIgnoreCase(castDateStr)) {
+                        castDateStr = "-";
                     }
 
                     // Look up ET sleepers from preloaded map (with deduplication)
@@ -1260,7 +1345,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     String etNoStr = String.join(", ", etSleepersList);
                     int etCount = etSleepersList.size();
 
-                    int notOffered = Math.max(0, totalCasted - goodCount - badCount);
+                    int notOffered = Math.max(0, totalCasted - prevOffered - goodCount - badCount);
 
                     List<com.sarthi.Sleeper.entity.FinalInspection.InspectionTestResult> batchResults = java.util.Collections.emptyList();
                     if (pd != null && pd.getId() != null) {
@@ -1428,11 +1513,28 @@ public class CallLetterServiceImpl implements CallLetterService {
                     sbd.setRejDim(rejDim);
                     sbd.setRejOth(rejOth);
                     sbd.setRejSbt(rejSbt);
+                    sbd.setShed(pd != null && pd.getProductionUnit() != null ? pd.getProductionUnit().trim() : "Shed 1");
                     sbd.setNotOffered(notOffered);
                     batchesList.add(sbd);
                 }
                 dto.setHeatDetails(heatDetailsList);
                 dto.setBatchesSelected(batchesList);
+
+                // Compute Shed-1 and Shed-2 batch range strings for the offer list header
+                try {
+                    java.util.List<String> shed1Batches = new java.util.ArrayList<>();
+                    java.util.List<String> shed2Batches = new java.util.ArrayList<>();
+                    for (CallLetterDetailsDto.SleeperBatchDetail sbd2 : batchesList) {
+                        String shedLabel = sbd2.getShed() != null ? sbd2.getShed().trim().toUpperCase() : "SHED 1";
+                        if (shedLabel.contains("2")) {
+                            shed2Batches.add(sbd2.getBatchNo());
+                        } else {
+                            shed1Batches.add(sbd2.getBatchNo());
+                        }
+                    }
+                    dto.setShed1BatchNo(buildBatchRange(shed1Batches));
+                    dto.setShed2BatchNo(buildBatchRange(shed2Batches));
+                } catch (Exception ignore) {}
 
                 if (!"Set".equalsIgnoreCase(dto.getCallUnit())) {
                     int totalSleepersAcceptedAndRejected = 0;
@@ -1577,5 +1679,40 @@ public class CallLetterServiceImpl implements CallLetterService {
             if (!bench.isEmpty() || !mould.isEmpty()) return bench + mould;
         }
         return trimmed;
+    }
+
+    /**
+     * Given a list of batch display strings (e.g. ["Batch 284", "Batch 285", "Batch 292"]),
+     * returns a compact range string: "Batch 284 To Batch 292", or a single value, or "-" if empty.
+     */
+    private String buildBatchRange(java.util.List<String> batchNos) {
+        if (batchNos == null || batchNos.isEmpty()) return "-";
+        if (batchNos.size() == 1) return batchNos.get(0);
+        return batchNos.get(0) + " To " + batchNos.get(batchNos.size() - 1);
+    }
+
+    private boolean isPlantMatch(String callPlantId, String targetPlantId, String targetVendorCode) {
+        if (callPlantId == null || callPlantId.isBlank()) return true;
+        String cleanCall = callPlantId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        String callNumbers = callPlantId.replaceAll("[^0-9]", "");
+
+        String cleanPlant = targetPlantId != null ? targetPlantId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+        String plantNumbers = targetPlantId != null ? targetPlantId.replaceAll("[^0-9]", "") : "";
+
+        String cleanVendor = targetVendorCode != null ? targetVendorCode.replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+        String vendorNumbers = targetVendorCode != null ? targetVendorCode.replaceAll("[^0-9]", "") : "";
+
+        if (!callNumbers.isEmpty()) {
+            if (plantNumbers.equals(callNumbers) || vendorNumbers.equals(callNumbers)) {
+                return true;
+            }
+        }
+        if (!cleanPlant.isEmpty() && (cleanPlant.contains(cleanCall) || cleanCall.contains(cleanPlant))) {
+            return true;
+        }
+        if (!cleanVendor.isEmpty() && (cleanVendor.contains(cleanCall) || cleanCall.contains(cleanVendor))) {
+            return true;
+        }
+        return false;
     }
 }

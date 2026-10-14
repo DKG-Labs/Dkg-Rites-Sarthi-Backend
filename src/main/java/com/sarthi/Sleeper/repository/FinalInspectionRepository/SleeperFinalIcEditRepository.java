@@ -167,6 +167,10 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND CALL TO IBS%'
             )
+            AND UPPER(COALESCE(sic.status, '')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(wt_latest.status, '')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(wt_latest.action, '')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(wt_latest.job_status, '')) NOT LIKE '%CANCEL%'
             AND (
                 icr.call_number IS NULL
                 OR UPPER(icr.status) = 'FAILED'
@@ -320,6 +324,12 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
             ) sfr
                    ON CONVERT(sfr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             WHERE sic.call_no IN (:callNumbers)
+              AND UPPER(COALESCE(sic.status, '')) NOT LIKE '%CANCEL%'
+              AND NOT EXISTS (
+                  SELECT 1 FROM sleeper_workflow_transaction swt_c 
+                  WHERE CONVERT(swt_c.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    AND (UPPER(swt_c.status) LIKE '%CANCEL%' OR UPPER(swt_c.action) LIKE '%CANCEL%' OR UPPER(COALESCE(swt_c.job_status, '')) LIKE '%CANCEL%')
+              )
             GROUP BY
                 ph.case_no,
                 sic.created_at,

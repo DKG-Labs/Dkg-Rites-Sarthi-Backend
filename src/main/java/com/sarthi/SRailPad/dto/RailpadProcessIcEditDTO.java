@@ -35,6 +35,9 @@ public class RailpadProcessIcEditDTO {
     private String qtyNowOffered;
     private String qtyNowPassed;
     private String qtyNowRejected;
+    private Integer offeredSets;
+    private Integer acceptedSets;
+    private Integer rejectedSets;
     private String quantityNowPassedText;
     private String reasonsForRejection;
     private String dateOfCall;

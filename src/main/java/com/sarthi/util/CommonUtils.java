@@ -146,8 +146,19 @@ public class CommonUtils {
        if (dateString == null || dateString.trim().isEmpty()) {
            return null;
        }
-       DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-       return LocalDate.parse(dateString, formatter);
+       List<DateTimeFormatter> formatters = Arrays.asList(
+               DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+               DateTimeFormatter.ofPattern("dd-MM-yyyy"),
+               DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+               DateTimeFormatter.ofPattern("yyyy/MM/dd")
+       );
+       for (DateTimeFormatter formatter : formatters) {
+           try {
+               return LocalDate.parse(dateString.trim(), formatter);
+           } catch (DateTimeParseException ignored) {
+           }
+       }
+       return null;
    }
     public static LocalDate convertIsoDateStringToDateObject(String dateString) {
         if (dateString == null || dateString.trim().isEmpty()) {

@@ -20,13 +20,13 @@ public class SleeperInspectionCallBatch {
     @Column(name = "batch_no", nullable = false)
     private String batchNo;
 
-    @Transient
-    private Integer totalCasted;
-
-    @Transient
+    @Column(name = "cast_date")
     private String castDate;
 
-    @Transient
+    @Column(name = "total_casted")
+    private Integer totalCasted;
+
+    @Column(name = "previously_offered")
     private Integer previouslyOffered;
 
     @ElementCollection

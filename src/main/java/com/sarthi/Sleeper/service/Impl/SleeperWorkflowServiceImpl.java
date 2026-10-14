@@ -426,8 +426,25 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     }
                 } catch (Exception ignored) {}
 
+                String sType = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
+                boolean isTurnoutOrSet = sType.contains("TURNOUT") 
+                        || sType.contains("SET") 
+                        || sType.contains("RT-8838") 
+                        || sType.contains("RT-6068")
+                        || sType.contains("RT-4865")
+                        || sType.contains("RT-9790")
+                        || sType.contains("RT-4218")
+                        || sType.contains("POINTS")
+                        || sType.contains("CROSSING");
+
+                if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered() > 0) {
+                    if (finalOffered == null || finalOffered > call.getTotalOffered()) {
+                        finalOffered = call.getTotalOffered();
+                    }
+                }
+
                 if (finalAccepted == null && finalOffered != null) {
-                    finalAccepted = finalOffered - (finalRejected != null ? finalRejected : 0);
+                    finalAccepted = Math.max(0, finalOffered - (finalRejected != null ? finalRejected : 0));
                 }
 
                 dto.setOfferedQty(finalOffered != null ? finalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));

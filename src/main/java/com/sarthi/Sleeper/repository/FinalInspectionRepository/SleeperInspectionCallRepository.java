@@ -27,10 +27,22 @@ public interface SleeperInspectionCallRepository extends JpaRepository<SleeperIn
     boolean existsByCallNo(String callNo);
     List<SleeperInspectionCall> findByPoNoOrderByIdAsc(String poNo);
 
-    @Query("SELECT DISTINCT sic.callNo FROM SleeperInspectionCall sic WHERE UPPER(COALESCE(sic.status, '')) LIKE '%SEND_CALL_TO_IBS%' OR UPPER(COALESCE(sic.status, '')) LIKE '%SENT_TO_IBS%'")
+    @Query("SELECT DISTINCT sic.callNo FROM SleeperInspectionCall sic WHERE (UPPER(COALESCE(sic.status, '')) LIKE '%SEND_CALL_TO_IBS%' OR UPPER(COALESCE(sic.status, '')) LIKE '%SENT_TO_IBS%') AND UPPER(COALESCE(sic.status, '')) NOT LIKE '%CANCEL%'")
     List<String> findPendingIbsCallNumbers();
 
-    @Query("SELECT DISTINCT swt.requestId FROM SleeperWorkflowTransaction swt WHERE UPPER(COALESCE(swt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS') OR UPPER(COALESCE(swt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')")
+    @Query("""
+        SELECT DISTINCT swt.requestId 
+        FROM SleeperWorkflowTransaction swt 
+        WHERE (UPPER(COALESCE(swt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS') 
+               OR UPPER(COALESCE(swt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS'))
+          AND swt.requestId NOT IN (
+              SELECT DISTINCT swt2.requestId 
+              FROM SleeperWorkflowTransaction swt2 
+              WHERE UPPER(COALESCE(swt2.status, '')) LIKE '%CANCEL%' 
+                 OR UPPER(COALESCE(swt2.action, '')) LIKE '%CANCEL%'
+                 OR UPPER(COALESCE(swt2.jobStatus, '')) LIKE '%CANCEL%'
+          )
+    """)
     List<String> findPendingWorkflowCallNumbers();
 
     @Query("""
@@ -1270,7 +1282,7 @@ ORDER BY um.employee_code
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(sic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
                 CAST(COALESCE(um_assigned.employee_code, um.employee_code, cd.created_by, wt.created_by, sic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'C'                                                     AS callStatus,
-                'C'                                                     AS typeOfCall,
+                'F'                                                     AS typeOfCall,
                 (CASE 
                     WHEN sic.po_no LIKE '%/%' THEN TRIM(sic.po_no)
                     WHEN sic.sr_no LIKE '%/%' THEN TRIM(sic.sr_no)
@@ -1343,14 +1355,21 @@ ORDER BY um.employee_code
                     ON CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sleeper_call_cancellation_details cd
                     ON CONVERT(cd.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN sleeper_workflow_transaction wt
-                    ON wt.workflow_transition_id = (
-                        SELECT MAX(wt2.workflow_transition_id)
-                        FROM sleeper_workflow_transaction wt2
-                        WHERE CONVERT(wt2.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                              CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                          AND (UPPER(wt2.status) LIKE '%CANCEL%' OR UPPER(COALESCE(wt2.job_status, '')) LIKE '%CANCEL%')
-                    )
+            LEFT JOIN (
+                SELECT swt2.request_id, swt2.workflow_transition_id, swt2.created_by, swt2.created_date
+                FROM sleeper_workflow_transaction swt2
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    FROM sleeper_workflow_transaction
+                    WHERE UPPER(status) LIKE '%CANCEL%' 
+                       OR UPPER(COALESCE(job_status, '')) LIKE '%CANCEL%' 
+                       OR UPPER(status) = 'BLOCKED' 
+                       OR UPPER(COALESCE(job_status, '')) = 'BLOCKED'
+                    GROUP BY request_id
+                ) latest_cancel_wt
+                    ON swt2.workflow_transition_id = latest_cancel_wt.max_wt_id
+            ) wt
+                    ON CONVERT(wt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -1383,6 +1402,7 @@ ORDER BY um.employee_code
                     ON CONVERT(icr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             WHERE (
                 UPPER(sic.status) LIKE '%CANCEL%'
+                OR UPPER(sic.status) = 'BLOCKED'
                 OR cd.call_number IS NOT NULL
                 OR wt.workflow_transition_id IS NOT NULL
             )

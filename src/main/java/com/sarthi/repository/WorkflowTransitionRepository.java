@@ -176,7 +176,11 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 FROM WorkflowTransition wt2
                 GROUP BY wt2.requestId
             )
-            AND (wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED') OR wt.status LIKE '%CANCEL%')
+            AND wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+            AND UPPER(COALESCE(wt.status, '')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(wt.status, '')) <> 'BLOCKED'
+            AND UPPER(COALESCE(wt.action, '')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(wt.action, '')) <> 'BLOCKED'
               AND (
                    (wt.requestId LIKE 'EP%' AND
                        (um.userId = :userId
@@ -208,7 +212,11 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 FROM WorkflowTransition wt2
                 GROUP BY wt2.requestId
             )
-            AND (wt.status IN ('DSC_SIGN_IC', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED') OR wt.status LIKE '%CANCEL%')
+            AND wt.status IN ('DSC_SIGN_IC', 'Completed')
+            AND UPPER(COALESCE(wt.status, '')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(wt.status, '')) <> 'BLOCKED'
+            AND UPPER(COALESCE(wt.action, '')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE(wt.action, '')) <> 'BLOCKED'
             AND UPPER(COALESCE(wt.status, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED')
             AND UPPER(COALESCE(wt.action, '')) NOT IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS')
               AND (
@@ -242,8 +250,11 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 FROM WorkflowTransition wt2
                 GROUP BY wt2.requestId
             )
-            AND (UPPER(COALESCE(wt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED') 
-                 OR UPPER(COALESCE(wt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS'))
+            AND (UPPER(COALESCE(wt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'CANCELLED', 'CANCEL', 'COMPLETED-CANCELLED', 'BLOCKED') 
+                 OR UPPER(COALESCE(wt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS', 'CANCEL', 'CANCEL_CALL', 'CANCELLED', 'BLOCKED')
+                 OR UPPER(COALESCE(wt.status, '')) LIKE '%CANCEL%'
+                 OR UPPER(COALESCE(wt.jobStatus, '')) LIKE '%CANCEL%'
+                 OR UPPER(COALESCE(wt.jobStatus, '')) = 'BLOCKED')
               AND (
                    (wt.requestId LIKE 'EP%' AND
                        (um.userId = :userId

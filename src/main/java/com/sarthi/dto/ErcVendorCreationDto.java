@@ -13,5 +13,6 @@ public class ErcVendorCreationDto {
     private String password;
     private String status = "Active";
     private String createdBy;
+    private String vendorAddress;
     private List<ErcVendorUnitDto> units;
 }
