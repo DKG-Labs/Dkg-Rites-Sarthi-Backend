@@ -634,8 +634,14 @@ public class WorkflowServiceImpl implements WorkflowService {
                             )
                     ));
 
-
-
+        // GLOBAL CANCELLATION HANDLER (Handles cancellation at any stage: Workflow 1 or Workflow 2)
+        if ((req.getAction() != null && req.getAction().equalsIgnoreCase("VERIFY_MATERIAL_AVAILABILITY")
+                && "NO".equalsIgnoreCase(req.getMaterialAvailable()))
+                || (req.getAction() != null && req.getAction().equalsIgnoreCase("CANCEL_CALL"))
+                || (req.getAction() != null && req.getAction().equalsIgnoreCase("CANCEL"))
+                || (req.getAction() != null && req.getAction().equalsIgnoreCase("CANCELLED"))) {
+            return handleCallCancellation(current, req);
+        }
 
         // IE WORKFLOW (ID = 2)
         if (current.getWorkflowId() == 2) {
@@ -1411,7 +1417,108 @@ public class WorkflowServiceImpl implements WorkflowService {
         return mapWorkflowTransition(next);
     }
 
+    private WorkflowTransitionDto handleCallCancellation(WorkflowTransition current, TransitionActionReqDto req) {
+        WorkflowTransition last = workflowTransitionRepository
+                .findTopByRequestIdOrderByWorkflowTransitionIdDesc(req.getRequestId() != null ? req.getRequestId() : current.getRequestId());
 
+        WorkflowTransition next = new WorkflowTransition();
+        next.setWorkflowId(current.getWorkflowId());
+        next.setTransitionId(current.getTransitionId());
+        next.setRequestId(req.getRequestId() != null && !req.getRequestId().trim().isEmpty() ? req.getRequestId().trim() : current.getRequestId());
+        next.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+        next.setCurrentRoleName(current.getNextRoleName() != null ? current.getNextRoleName() : current.getCurrentRoleName());
+        next.setNextRole(null);
+        next.setNextRoleName(null);
+        next.setStatus("CANCELLED");
+        next.setJobStatus("CANCELLED");
+        next.setAction(req.getAction() != null ? req.getAction() : "VERIFY_MATERIAL_AVAILABILITY");
+
+        String cancelRemarks = req.getRemarks() != null && !req.getRemarks().isEmpty()
+                ? req.getRemarks()
+                : (req.getCancellationDescription() != null ? req.getCancellationDescription() : "Cancelled - Material Not Available");
+        next.setRemarks(cancelRemarks);
+
+        next.setCreatedDate(new Date());
+        next.setCreatedBy(current.getCreatedBy());
+        next.setModifiedBy(req.getActionBy());
+
+        String currentRio = current.getRio();
+        if (currentRio == null || currentRio.isBlank()) {
+            currentRio = last != null ? last.getRio() : null;
+        }
+        if (currentRio == null || currentRio.isBlank()) {
+            currentRio = workflowTransitionRepository.findRioByCallNoAndStatusCreated(req.getRequestId());
+        }
+        next.setRio(currentRio);
+
+        if (last != null && last.getWorkflowSequence() != null) {
+            next.setWorkflowSequence(last.getWorkflowSequence() + 1);
+        } else if (current.getWorkflowSequence() != null) {
+            next.setWorkflowSequence(current.getWorkflowSequence() + 1);
+        } else {
+            next.setWorkflowSequence(1);
+        }
+
+        // 1. Update InspectionCall table status to CANCELLED
+        Optional<InspectionCall> icOpt = inspectionCallRepository.findByIcNumber(req.getRequestId());
+        if (icOpt.isPresent()) {
+            InspectionCall ic = icOpt.get();
+            ic.setStatus("CANCELLED");
+            inspectionCallRepository.save(ic);
+        }
+
+        // 2. Persist SRS CallCancellationDetail & VendorFinancialLiability
+        try {
+            String dynamicVendorCode = req.getVendorCode();
+            if (dynamicVendorCode == null || dynamicVendorCode.isEmpty()) {
+                dynamicVendorCode = icOpt.map(InspectionCall::getVendorId).orElse("");
+            }
+
+            String creatorId = req.getActionBy() != null ? String.valueOf(req.getActionBy()) :
+                              (req.getUpdatedBy() != null ? req.getUpdatedBy() : null);
+
+            CallCancellationDetail cancellationDetail = new CallCancellationDetail();
+            cancellationDetail.setCallNumber(req.getRequestId());
+            cancellationDetail.setVendorCode(dynamicVendorCode);
+            cancellationDetail.setCancellationBasis(req.getCancellationBasis() != null ? req.getCancellationBasis() : "NON_CHARGEABLE");
+            cancellationDetail.setVisitStatus(req.getVisitStatus());
+            cancellationDetail.setReasons(req.getCancellationReasons() != null ? String.join("; ", req.getCancellationReasons()) : req.getRemarks());
+            cancellationDetail.setCancellationDescription(req.getCancellationDescription());
+            cancellationDetail.setMaterialValue(req.getMaterialValue());
+            cancellationDetail.setPercentage(req.getCancellationPercentage());
+            cancellationDetail.setCalculatedCharges(req.getCalculatedCharges());
+            cancellationDetail.setMaximumCap(req.getMaximumCap());
+            cancellationDetail.setFinalCancellationCharges(req.getFinalCancellationCharges() != null ? req.getFinalCancellationCharges() : BigDecimal.ZERO);
+            cancellationDetail.setDocumentName(req.getDocumentName());
+            cancellationDetail.setActionBy(req.getActionBy() != null ? req.getActionBy().longValue() : 0L);
+            cancellationDetail.setCreatedBy(creatorId);
+            cancellationDetail.setUpdatedBy(creatorId);
+
+            callCancellationDetailRepository.save(cancellationDetail);
+
+            // If CHARGEABLE and final cancellation charges > 0, record vendor financial liability
+            if ("CHARGEABLE".equalsIgnoreCase(req.getCancellationBasis()) && 
+                req.getFinalCancellationCharges() != null && 
+                req.getFinalCancellationCharges().compareTo(BigDecimal.ZERO) > 0) {
+
+                VendorFinancialLiability liability = new VendorFinancialLiability();
+                liability.setCallNumber(req.getRequestId());
+                liability.setVendorCode(dynamicVendorCode);
+                liability.setLiabilityType("CANCELLATION_CHARGES");
+                liability.setAmount(req.getFinalCancellationCharges());
+                liability.setPaymentStatus("PENDING");
+                liability.setCreatedBy(creatorId);
+                liability.setUpdatedBy(creatorId);
+
+                vendorFinancialLiabilityRepository.save(liability);
+            }
+        } catch (Exception ex) {
+            log.error("Failed to persist CallCancellationDetail / VendorFinancialLiability: ", ex);
+        }
+
+        workflowTransitionRepository.save(next);
+        return mapWorkflowTransition(next);
+    }
 
     private WorkflowTransitionDto cancelCallByIE(WorkflowTransition current, TransitionActionReqDto req) {
     System.out.print(current);
