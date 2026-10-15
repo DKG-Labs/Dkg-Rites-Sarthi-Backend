@@ -1592,10 +1592,10 @@ public class CallLetterServiceImpl implements CallLetterService {
             if (r.contains("END") && r.contains("HONEY")) return "EHC";
             if (r.contains("SURFACE") && r.contains("HONEY")) return "SHC";
             if (r.contains("HONEY")) return "SHC";
-            if (r.contains("CRACK") || r.contains("RC")) return "RC";
-            if (r.contains("DAMAGE") || r.contains("DEMOULD") || r.contains("RD")) return "RD";
-            if (r.contains("GAUGE") || r.contains("DIMENSION") || r.contains("DIM")) return "RSD";
             if (r.contains("SURFACE") || r.contains("VISUAL") || r.contains("SD")) return "SD";
+            if (r.contains("CRACK") || r.contains("RC")) return "RC";
+            if (r.contains("DEMOULD") || r.contains("RD") || r.contains("DAMAGE")) return "RD";
+            if (r.contains("GAUGE") || r.contains("DIMENSION") || r.contains("DIM")) return "RSD";
             if (r.contains("FAILURE") || r.contains("MF")) return "MF";
             if (r.contains("EPOXY") || r.contains("ET")) return "ET";
         }
@@ -1693,26 +1693,40 @@ public class CallLetterServiceImpl implements CallLetterService {
 
     private boolean isPlantMatch(String callPlantId, String targetPlantId, String targetVendorCode) {
         if (callPlantId == null || callPlantId.isBlank()) return true;
+        if ((targetPlantId == null || targetPlantId.isBlank()) && (targetVendorCode == null || targetVendorCode.isBlank())) {
+            return false;
+        }
+
         String cleanCall = callPlantId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
-        String callNumbers = callPlantId.replaceAll("[^0-9]", "");
-
         String cleanPlant = targetPlantId != null ? targetPlantId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
-        String plantNumbers = targetPlantId != null ? targetPlantId.replaceAll("[^0-9]", "") : "";
-
         String cleanVendor = targetVendorCode != null ? targetVendorCode.replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
-        String vendorNumbers = targetVendorCode != null ? targetVendorCode.replaceAll("[^0-9]", "") : "";
 
-        if (!callNumbers.isEmpty()) {
-            if (plantNumbers.equals(callNumbers) || vendorNumbers.equals(callNumbers)) {
+        // If target has a specific plantId, check if full plant identifier matches
+        if (!cleanPlant.isEmpty()) {
+            if (cleanCall.equals(cleanPlant) || cleanCall.contains(cleanPlant) || cleanPlant.contains(cleanCall)) {
                 return true;
             }
+            // Check location name/code suffix after slash if both have one (e.g. ":41647/Kargi" vs ":41647/Pathri")
+            String callLoc = callPlantId.contains("/") ? callPlantId.substring(callPlantId.lastIndexOf('/') + 1).replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+            String targetLoc = targetPlantId.contains("/") ? targetPlantId.substring(targetPlantId.lastIndexOf('/') + 1).replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+            if (!callLoc.isEmpty() && !targetLoc.isEmpty()) {
+                // Both explicitly specify different locations -> NOT a match!
+                return callLoc.equals(targetLoc) || callLoc.contains(targetLoc) || targetLoc.contains(callLoc);
+            }
+            return false;
         }
-        if (!cleanPlant.isEmpty() && (cleanPlant.contains(cleanCall) || cleanCall.contains(cleanPlant))) {
-            return true;
+
+        // If targetPlantId is not specified, fall back to vendor code matching only if call has no specific sub-location
+        String callNumbers = callPlantId.replaceAll("[^0-9]", "");
+        String vendorNumbers = targetVendorCode != null ? targetVendorCode.replaceAll("[^0-9]", "") : "";
+        if (!callNumbers.isEmpty() && !vendorNumbers.isEmpty()) {
+            return callNumbers.equals(vendorNumbers);
         }
+
         if (!cleanVendor.isEmpty() && (cleanVendor.contains(cleanCall) || cleanCall.contains(cleanVendor))) {
             return true;
         }
+
         return false;
     }
 }
