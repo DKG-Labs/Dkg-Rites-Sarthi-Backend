@@ -175,6 +175,9 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                 if (etList != null) {
                     for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etList) {
                         if (et != null && et.getEt() != null && et.getEt().getBatchNumber() != null && et.getSleeperNo() != null) {
+                            if (!isPlantMatch(call.getPlantId(), et.getEt().getPlantId(), et.getEt().getVendorCode())) {
+                                continue;
+                            }
                             String bNo = et.getEt().getBatchNumber().trim();
                             etSleepersByBatch.computeIfAbsent(bNo, k -> new ArrayList<>()).add(et.getSleeperNo().trim());
                             String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
@@ -194,6 +197,9 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                     if (mfTests != null) {
                         for (com.sarthi.Sleeper.entity.MfTestDetails t : mfTests) {
                             if (t != null && t.getBatchNo() != null && t.getSampleIdentification() != null && !t.getSampleIdentification().isBlank()) {
+                                if (!isPlantMatch(call.getPlantId(), t.getPlantId(), t.getVendorCode())) {
+                                    continue;
+                                }
                                 String bNo = t.getBatchNo().trim();
                                 String sNo = cleanMfSleeperNo(t.getSampleIdentification());
                                 if (!sNo.isBlank()) {
@@ -212,6 +218,9 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                     if (mfs != null) {
                         for (com.sarthi.Sleeper.entity.ModulusOfFailure m : mfs) {
                             if (m != null && m.getBatchNo() != null && m.getSampleIdentification() != null && !m.getSampleIdentification().isBlank()) {
+                                if (!isPlantMatch(call.getPlantId(), m.getPlantId(), m.getVendorCode())) {
+                                    continue;
+                                }
                                 String bNo = m.getBatchNo().trim();
                                 String sNo = cleanMfSleeperNo(m.getSampleIdentification());
                                 if (!sNo.isBlank()) {
@@ -475,5 +484,44 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             if (!bench.isEmpty() || !mould.isEmpty()) return bench + mould;
         }
         return trimmed;
+    }
+
+    private boolean isPlantMatch(String callPlantId, String targetPlantId, String targetVendorCode) {
+        if (callPlantId == null || callPlantId.isBlank()) return true;
+        if ((targetPlantId == null || targetPlantId.isBlank()) && (targetVendorCode == null || targetVendorCode.isBlank())) {
+            return false;
+        }
+
+        String cleanCall = callPlantId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase();
+        String cleanPlant = targetPlantId != null ? targetPlantId.replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+        String cleanVendor = targetVendorCode != null ? targetVendorCode.replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+
+        // If target has a specific plantId, check if full plant identifier matches
+        if (!cleanPlant.isEmpty()) {
+            if (cleanCall.equals(cleanPlant) || cleanCall.contains(cleanPlant) || cleanPlant.contains(cleanCall)) {
+                return true;
+            }
+            // Check location name/code suffix after slash if both have one (e.g. ":41647/Kargi" vs ":41647/Pathri")
+            String callLoc = callPlantId.contains("/") ? callPlantId.substring(callPlantId.lastIndexOf('/') + 1).replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+            String targetLoc = targetPlantId.contains("/") ? targetPlantId.substring(targetPlantId.lastIndexOf('/') + 1).replaceAll("[^0-9a-zA-Z]", "").toLowerCase() : "";
+            if (!callLoc.isEmpty() && !targetLoc.isEmpty()) {
+                // Both explicitly specify different locations -> NOT a match!
+                return callLoc.equals(targetLoc) || callLoc.contains(targetLoc) || targetLoc.contains(callLoc);
+            }
+            return false;
+        }
+
+        // If targetPlantId is not specified, fall back to vendor code matching only if call has no specific sub-location
+        String callNumbers = callPlantId.replaceAll("[^0-9]", "");
+        String vendorNumbers = targetVendorCode != null ? targetVendorCode.replaceAll("[^0-9]", "") : "";
+        if (!callNumbers.isEmpty() && !vendorNumbers.isEmpty()) {
+            return callNumbers.equals(vendorNumbers);
+        }
+
+        if (!cleanVendor.isEmpty() && (cleanVendor.contains(cleanCall) || cleanCall.contains(cleanVendor))) {
+            return true;
+        }
+
+        return false;
     }
 }

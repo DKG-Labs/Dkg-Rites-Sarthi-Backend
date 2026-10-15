@@ -1039,6 +1039,9 @@ public class crisServiceImpl implements crisService {
             String maFld = d.getMaFld();
             String maFldDescr = d.getMaFldDescr();
             String poSr = d.getPoSr();
+            // IMMS sometimes omits PO_SR on the detail row; MA_SR_NO identifies
+            // the same PO item serial number in that case, so fall back to it.
+            String effectiveSr = (poSr != null && !poSr.isBlank()) ? poSr : d.getMaSrNo();
 
             // -------------------------------------------------------------
             // A. Delivery Period / Extended Delivery Date Update
@@ -1050,7 +1053,7 @@ public class crisServiceImpl implements crisService {
                 LocalDate parsedDate = VendorPoServiceImpl.parseDateFromMaValue(d.getNewValue());
                 if (parsedDate != null) {
                     for (PoItem item : items) {
-                        if (isPoSrMatch(poSr, item.getItemSrNo())) {
+                        if (isPoSrMatch(effectiveSr, item.getItemSrNo())) {
                             item.setExtendedDeliveryDate(parsedDate.atStartOfDay());
                             itemRepo.save(item);
                             System.out.println("[MA Sync] Updated PoItem EDP to " + parsedDate + " for item_sr_no: " + item.getItemSrNo());
