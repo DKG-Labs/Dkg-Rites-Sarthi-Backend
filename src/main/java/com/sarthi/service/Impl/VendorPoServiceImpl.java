@@ -433,7 +433,23 @@ public class VendorPoServiceImpl implements VendorPoService {
         if (maDetails != null && !maDetails.isEmpty()) {
             String srNo = item.getItemSrNo();
             for (com.sarthi.entity.CricsPos.PoMaDetail d : maDetails) {
-                if (isPoSrMatch(d.getPoSr(), srNo)) {
+                String poSr = d.getPoSr();
+                String maSrNo = d.getMaSrNo();
+                String effectiveSr = null;
+                if (isValidSrNo(poSr)) {
+                    effectiveSr = poSr.trim();
+                } else if (isValidSrNo(maSrNo)) {
+                    effectiveSr = maSrNo.trim();
+                }
+
+                boolean matches = false;
+                if (effectiveSr != null) {
+                    matches = isPoSrMatch(effectiveSr, srNo);
+                } else {
+                    matches = true; // Wildcard applies to all items
+                }
+
+                if (matches) {
                     LocalDate parsedDate = null;
                     if (d.getOrigDp() != null && !d.getOrigDp().isBlank()) {
                         parsedDate = parseDateFromMaValue(d.getOrigDp());
@@ -443,7 +459,7 @@ public class VendorPoServiceImpl implements VendorPoService {
                     }
                     if (parsedDate != null) {
                         try {
-                            item.setDeliveryDate(parsedDate.atStartOfDay());
+                            item.setDeliveryDate(parsedDate.atTime(23, 59, 0));
                             poItemRepository.save(item);
                             logger.info("[MA ODP Update] Updated item {}/{} ODP to {} from po_ma_detail", poNo, srNo, parsedDate);
                         } catch (Exception e) {
@@ -480,11 +496,29 @@ public class VendorPoServiceImpl implements VendorPoService {
                 LocalDate latestMaEdpDate = null;
 
                 for (com.sarthi.entity.CricsPos.PoMaDetail d : maDetails) {
-                    if (isDpField(d.getMaFld(), d.getMaFldDescr()) && isPoSrMatch(d.getPoSr(), srNo)) {
-                        LocalDate parsedDate = parseDateFromMaValue(d.getNewValue());
-                        if (parsedDate != null) {
-                            if (latestMaEdpDate == null || parsedDate.isAfter(latestMaEdpDate)) {
-                                latestMaEdpDate = parsedDate;
+                    if (isDpField(d.getMaFld(), d.getMaFldDescr())) {
+                        String poSr = d.getPoSr();
+                        String maSrNo = d.getMaSrNo();
+                        String effectiveSr = null;
+                        if (isValidSrNo(poSr)) {
+                            effectiveSr = poSr.trim();
+                        } else if (isValidSrNo(maSrNo)) {
+                            effectiveSr = maSrNo.trim();
+                        }
+
+                        boolean matches = false;
+                        if (effectiveSr != null) {
+                            matches = isPoSrMatch(effectiveSr, srNo);
+                        } else {
+                            matches = true; // Wildcard applies to all items
+                        }
+
+                        if (matches) {
+                            LocalDate parsedDate = parseDateFromMaValue(d.getNewValue());
+                            if (parsedDate != null) {
+                                if (latestMaEdpDate == null || parsedDate.isAfter(latestMaEdpDate)) {
+                                    latestMaEdpDate = parsedDate;
+                                }
                             }
                         }
                     }
@@ -492,7 +526,7 @@ public class VendorPoServiceImpl implements VendorPoService {
 
                 if (latestMaEdpDate != null) {
                     try {
-                        item.setExtendedDeliveryDate(latestMaEdpDate.atStartOfDay());
+                        item.setExtendedDeliveryDate(latestMaEdpDate.atTime(23, 59, 0));
                         poItemRepository.save(item);
                         logger.info("[MA EDP Update] Updated item {}/{} EDP to {} from po_ma_detail", poNo, srNo, latestMaEdpDate);
                     } catch (Exception e) {
@@ -521,8 +555,23 @@ public class VendorPoServiceImpl implements VendorPoService {
         String cleanMa = maPoSr.trim();
         String cleanItem = itemSrNo.trim();
         if (cleanMa.equalsIgnoreCase(cleanItem)) return true;
+        if (cleanMa.equals("***") || cleanMa.equalsIgnoreCase("ALL")) return true;
         try {
             return Integer.parseInt(cleanMa) == Integer.parseInt(cleanItem);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private boolean isValidSrNo(String val) {
+        if (val == null || val.isBlank()) return false;
+        String clean = val.trim();
+        if (clean.equals("***") || clean.contains("*") || clean.equalsIgnoreCase("null") || clean.equals("000")) {
+            return false;
+        }
+        try {
+            Integer.parseInt(clean);
+            return true;
         } catch (NumberFormatException e) {
             return false;
         }

@@ -29,6 +29,7 @@ public class RailFinalInspectionLotResultsResponseDto {
     private String overallStatus;
     private String hologram;
     private String remarks;
+    private String specificVersion;
     private Long createdBy;
     private LocalDateTime createdDate;
     private Long updatedBy;

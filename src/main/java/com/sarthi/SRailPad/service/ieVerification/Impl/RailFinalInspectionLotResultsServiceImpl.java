@@ -113,6 +113,7 @@ public class RailFinalInspectionLotResultsServiceImpl implements RailFinalInspec
         entity.setOverallStatus(dto.getOverallStatus());
         entity.setHologram(dto.getHologram());
         entity.setRemarks(dto.getRemarks());
+        entity.setSpecificVersion(dto.getSpecificVersion());
         // Note: sectionResults are managed separately in save() using two-phase flush
     }
 
@@ -139,6 +140,7 @@ public class RailFinalInspectionLotResultsServiceImpl implements RailFinalInspec
         dto.setOverallStatus(entity.getOverallStatus());
         dto.setHologram(entity.getHologram());
         dto.setRemarks(entity.getRemarks());
+        dto.setSpecificVersion(entity.getSpecificVersion());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedDate(entity.getCreatedDate());
         dto.setUpdatedBy(entity.getUpdatedBy());
