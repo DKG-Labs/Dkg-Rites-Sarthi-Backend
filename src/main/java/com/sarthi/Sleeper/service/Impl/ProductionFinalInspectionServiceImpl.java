@@ -1635,6 +1635,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                             .filter(g -> isSleeperMatch(g.getSleeperNo(), rawSleeperNo, currentBatchNo))
                             .findFirst();
 
+                    // If it does not match any real sleeper in this batch, ignore it
+                    if (prodMatch.isEmpty() && goodMatch.isEmpty()) {
+                        continue;
+                    }
+
                     String actualSleeperNo = prodMatch.isPresent() && prodMatch.get().getSleeperNo() != null
                             ? prodMatch.get().getSleeperNo()
                             : (goodMatch.isPresent() && goodMatch.get().getSleeperNo() != null
@@ -1707,6 +1712,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     Optional<SleeperDto> goodMatch = goodSleepers.stream()
                             .filter(g -> isSleeperMatch(g.getSleeperNo(), rawSleeperNo, currentBatchNo))
                             .findFirst();
+
+                    // If it does not match any real sleeper in this batch, ignore it
+                    if (prodMatch.isEmpty() && goodMatch.isEmpty()) {
+                        continue;
+                    }
 
                     String actualSleeperNo = prodMatch.isPresent() && prodMatch.get().getSleeperNo() != null
                             ? prodMatch.get().getSleeperNo()
