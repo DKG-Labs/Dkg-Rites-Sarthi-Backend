@@ -245,10 +245,10 @@ public class crisServiceImpl implements crisService {
                             if (m.getSALES_TAX_PER() != null) existingItem.setSalesTaxPercent(bd(m.getSALES_TAX_PER()));
                             if (m.getVALUE() != null) existingItem.setValue(bd(m.getVALUE()));
                             if (m.getDELV_DT() != null && !m.getDELV_DT().isBlank()) {
-                                existingItem.setDeliveryDate(parseFlexibleDateTime(m.getDELV_DT()));
+                                existingItem.setDeliveryDate(parseFlexibleDeliveryDateTime(m.getDELV_DT()));
                             }
                             if (m.getEXT_DELV_DT() != null && !m.getEXT_DELV_DT().isBlank()) {
-                                existingItem.setExtendedDeliveryDate(parseFlexibleDateTime(m.getEXT_DELV_DT()));
+                                existingItem.setExtendedDeliveryDate(parseFlexibleDeliveryDateTime(m.getEXT_DELV_DT()));
                             }
                             if (m.getDATETIME() != null && !m.getDATETIME().isBlank()) {
                                 existingItem.setCrisTimestamp(parseFlexibleDateTime(m.getDATETIME()));
@@ -457,10 +457,10 @@ public class crisServiceImpl implements crisService {
         i.setValue(bd(m.getVALUE()));
 
         if (m.getDELV_DT() != null)
-            i.setDeliveryDate(parseFlexibleDateTime(m.getDELV_DT()));
+            i.setDeliveryDate(parseFlexibleDeliveryDateTime(m.getDELV_DT()));
 
         if (m.getEXT_DELV_DT() != null)
-            i.setExtendedDeliveryDate(parseFlexibleDateTime(m.getEXT_DELV_DT()));
+            i.setExtendedDeliveryDate(parseFlexibleDeliveryDateTime(m.getEXT_DELV_DT()));
 
         if (m.getDATETIME() != null)
             i.setCrisTimestamp(parseFlexibleDateTime(m.getDATETIME()));
@@ -505,6 +505,14 @@ public class crisServiceImpl implements crisService {
             return LocalDate.parse(str).atStartOfDay();
         } catch (Exception ignored) {}
         return null;
+    }
+
+    private LocalDateTime parseFlexibleDeliveryDateTime(String str) {
+        LocalDateTime dt = parseFlexibleDateTime(str);
+        if (dt != null && dt.getHour() == 0 && dt.getMinute() == 0 && dt.getSecond() == 0) {
+            return dt.toLocalDate().atTime(23, 59, 0);
+        }
+        return dt;
     }
 
     private LocalDate parseFlexibleLocalDate(String str) {
@@ -911,7 +919,12 @@ public class crisServiceImpl implements crisService {
 
             if (request.getData() != null && request.getData().getPoDtl() != null && !request.getData().getPoDtl().isEmpty()) {
                 List<AmendedPoItemDTO> validPoDtls = request.getData().getPoDtl().stream()
-                        .filter(it -> it != null && it.getItemSrNo() != null && !it.getItemSrNo().isBlank())
+                        .filter(it -> it != null 
+                                && it.getItemSrNo() != null 
+                                && !it.getItemSrNo().isBlank()
+                                && !it.getItemSrNo().contains("*")
+                                && !it.getItemSrNo().equalsIgnoreCase("null")
+                                && (it.getPlNo() == null || !it.getPlNo().contains("*")))
                         .collect(java.util.stream.Collectors.toList());
 
                 if (!validPoDtls.isEmpty()) {
@@ -1039,9 +1052,21 @@ public class crisServiceImpl implements crisService {
             String maFld = d.getMaFld();
             String maFldDescr = d.getMaFldDescr();
             String poSr = d.getPoSr();
-            // IMMS sometimes omits PO_SR on the detail row; MA_SR_NO identifies
-            // the same PO item serial number in that case, so fall back to it.
-            String effectiveSr = (poSr != null && !poSr.isBlank()) ? poSr : d.getMaSrNo();
+            String maSrNo = d.getMaSrNo();
+
+            // Determine effective item serial number:
+            // 1. If poSr is a real item serial number (not null, not blank, not "***", not "null"), use poSr.
+            // 2. Otherwise fall back to maSrNo (if maSrNo is a real item serial number, not null, not "***", not "000").
+            String effectiveSr = null;
+            if (isValidSrNo(poSr)) {
+                effectiveSr = poSr.trim();
+            } else if (isValidSrNo(maSrNo)) {
+                effectiveSr = maSrNo.trim();
+            }
+
+            // If both poSr and maSrNo are wildcard ("***") or null, it's a general amendment for ALL items under the PO
+            boolean isWildcard = (poSr == null || poSr.isBlank() || poSr.contains("*") || poSr.equalsIgnoreCase("ALL"))
+                    && (maSrNo == null || maSrNo.isBlank() || maSrNo.contains("*") || maSrNo.equals("000") || maSrNo.equalsIgnoreCase("null"));
 
             // -------------------------------------------------------------
             // A. Delivery Period / Extended Delivery Date Update
@@ -1053,10 +1078,22 @@ public class crisServiceImpl implements crisService {
                 LocalDate parsedDate = VendorPoServiceImpl.parseDateFromMaValue(d.getNewValue());
                 if (parsedDate != null) {
                     for (PoItem item : items) {
-                        if (isPoSrMatch(effectiveSr, item.getItemSrNo())) {
-                            item.setExtendedDeliveryDate(parsedDate.atStartOfDay());
+                        // Skip bogus items
+                        if (item.getItemSrNo() != null && item.getItemSrNo().contains("*")) {
+                            continue;
+                        }
+
+                        boolean matches = false;
+                        if (effectiveSr != null) {
+                            matches = isPoSrMatch(effectiveSr, item.getItemSrNo());
+                        } else if (isWildcard || items.size() == 1) {
+                            matches = true;
+                        }
+
+                        if (matches) {
+                            item.setExtendedDeliveryDate(parsedDate.atTime(23, 59, 0));
                             itemRepo.save(item);
-                            System.out.println("[MA Sync] Updated PoItem EDP to " + parsedDate + " for item_sr_no: " + item.getItemSrNo());
+                            System.out.println("[MA Sync] Updated PoItem EDP to " + parsedDate + " (23:59:00) for item_sr_no: " + item.getItemSrNo());
                         }
                     }
                 }
@@ -1072,7 +1109,18 @@ public class crisServiceImpl implements crisService {
                 try {
                     int newQty = (int) Math.round(Double.parseDouble(d.getNewValue().trim().replace(",", "")));
                     for (PoItem item : items) {
-                        if (isPoSrMatch(poSr, item.getItemSrNo())) {
+                        if (item.getItemSrNo() != null && item.getItemSrNo().contains("*")) {
+                            continue;
+                        }
+
+                        boolean matches = false;
+                        if (effectiveSr != null) {
+                            matches = isPoSrMatch(effectiveSr, item.getItemSrNo());
+                        } else if (isWildcard || items.size() == 1) {
+                            matches = true;
+                        }
+
+                        if (matches) {
                             item.setQty(newQty);
                             itemRepo.save(item);
                             System.out.println("[MA Sync] Updated PoItem Qty to " + newQty + " for item_sr_no: " + item.getItemSrNo());
@@ -1148,8 +1196,8 @@ public class crisServiceImpl implements crisService {
             if (tokens.length > 8 && !tokens[8].isBlank()) {
                 LocalDate edp = VendorPoServiceImpl.parseDateFromMaValue(tokens[8]);
                 if (edp != null) {
-                    item.setExtendedDeliveryDate(edp.atStartOfDay());
-                    item.setDeliveryDate(edp.atStartOfDay());
+                    item.setExtendedDeliveryDate(edp.atTime(23, 59, 0));
+                    item.setDeliveryDate(edp.atTime(23, 59, 0));
                 }
             }
 
@@ -1178,7 +1226,7 @@ public class crisServiceImpl implements crisService {
             if (tokens.length > 24 && !tokens[24].isBlank()) {
                 LocalDate odp = VendorPoServiceImpl.parseDateFromMaValue(tokens[24]);
                 if (odp != null) {
-                    item.setDeliveryDate(odp.atStartOfDay());
+                    item.setDeliveryDate(odp.atTime(23, 59, 0));
                 }
             }
 
@@ -1212,8 +1260,23 @@ public class crisServiceImpl implements crisService {
         String cleanMa = maPoSr.trim();
         String cleanItem = itemSrNo.trim();
         if (cleanMa.equalsIgnoreCase(cleanItem)) return true;
+        if (cleanMa.equals("***") || cleanMa.equalsIgnoreCase("ALL")) return true;
         try {
             return Integer.parseInt(cleanMa) == Integer.parseInt(cleanItem);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private boolean isValidSrNo(String val) {
+        if (val == null || val.isBlank()) return false;
+        String clean = val.trim();
+        if (clean.equals("***") || clean.contains("*") || clean.equalsIgnoreCase("null") || clean.equals("000")) {
+            return false;
+        }
+        try {
+            Integer.parseInt(clean);
+            return true;
         } catch (NumberFormatException e) {
             return false;
         }
@@ -1586,11 +1649,11 @@ public class crisServiceImpl implements crisService {
 
             // DATES
             if (dto.getDeliveryDate() != null && !dto.getDeliveryDate().isBlank()) {
-                item.setDeliveryDate(parseFlexibleDateTime(dto.getDeliveryDate()));
+                item.setDeliveryDate(parseFlexibleDeliveryDateTime(dto.getDeliveryDate()));
             }
 
             if (dto.getExtendedDeliveryDate() != null && !dto.getExtendedDeliveryDate().isBlank()) {
-                item.setExtendedDeliveryDate(parseFlexibleDateTime(dto.getExtendedDeliveryDate()));
+                item.setExtendedDeliveryDate(parseFlexibleDeliveryDateTime(dto.getExtendedDeliveryDate()));
             }
 
             if (dto.getCrisTimestamp() != null && !dto.getCrisTimestamp().isBlank()) {
@@ -1655,8 +1718,8 @@ public class crisServiceImpl implements crisService {
                         (existing, replacement) -> existing));
 
         for (AmendedPoItem amendedItem : amendedItems) {
-            if (amendedItem.getItemSrNo() == null || amendedItem.getItemSrNo().isBlank()) {
-                continue; // Skip items without a valid serial number
+            if (amendedItem.getItemSrNo() == null || amendedItem.getItemSrNo().isBlank() || amendedItem.getItemSrNo().contains("*")) {
+                continue; // Skip items without a valid serial number or wildcard
             }
 
             PoItem poItem = existingItems.get(amendedItem.getItemSrNo());

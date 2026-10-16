@@ -27,6 +27,7 @@ public class RailFinalInspectionLotResultsRequestDto {
     private String overallStatus;
     private String hologram;
     private String remarks;
+    private String specificVersion;
     private Long userId;
     private List<RailFinalInspectionSectionResultDto> sectionResults;
 }

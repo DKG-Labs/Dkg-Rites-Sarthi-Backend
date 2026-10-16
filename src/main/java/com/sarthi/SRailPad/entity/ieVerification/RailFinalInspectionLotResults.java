@@ -76,6 +76,9 @@ public class RailFinalInspectionLotResults extends BaseEntity {
     @Column(name = "remarks")
     private String remarks;
 
+    @Column(name = "specific_version")
+    private String specificVersion;
+
     @PrePersist
     protected void onCreate() {
         setCreatedDate(java.time.LocalDateTime.now());
