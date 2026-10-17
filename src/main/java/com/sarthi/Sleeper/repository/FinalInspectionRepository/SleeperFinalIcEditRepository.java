@@ -42,7 +42,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(f.created_at, sic.created_at))             AS icDate,
+                DATE(f.created_at)                                      AS icDate,
                 COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0) AS quantityOffered,
                 COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)         AS quantityPassed,
                 COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)         AS quantityRejected,
@@ -138,9 +138,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
             ) wt_latest
                     ON CONVERT(wt_latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             WHERE (
-                UPPER(COALESCE(sic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
-                OR UPPER(COALESCE(sic.status, '')) LIKE '%SENT_TO_IBS%'
-                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
@@ -203,7 +201,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(f.created_at, sic.created_at))             AS icDate,
+                DATE(f.created_at)                                      AS icDate,
                 COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0) AS quantityOffered,
                 COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)         AS quantityPassed,
                 COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)         AS quantityRejected,

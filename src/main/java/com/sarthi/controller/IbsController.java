@@ -113,4 +113,19 @@ public class IbsController {
                 HttpStatus.OK
         );
     }
+
+    @DeleteMapping("/ibs/revert-to-completed")
+    public ResponseEntity<Object> revertIbsCallToCompleted(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam("callNumber") String callNumber,
+            @RequestParam(value = "deletedBy", required = false) Integer deletedBy) {
+
+        jwtService.validateToken(authHeader);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        service.revertIbsCallToCompleted(callNumber, deletedBy)
+                ),
+                HttpStatus.OK
+        );
+    }
 }

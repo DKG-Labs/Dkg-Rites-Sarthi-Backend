@@ -1058,6 +1058,14 @@ public class WorkflowServiceImpl implements WorkflowService {
                     next.setRemarks("Cancelled - Material Not Available");
                 }
 
+                if (im != null) {
+                    try {
+                        restoreCallQuantitiesAndInventory(im, req.getRequestId());
+                    } catch (Exception ex) {
+                        log.error("Failed to restore call quantities and inventory for cancelled call {}: ", req.getRequestId(), ex);
+                    }
+                }
+
                 // SRS Call Cancellation Processing
                 try {
                     String dynamicVendorCode = req.getVendorCode();
@@ -1460,11 +1468,19 @@ public class WorkflowServiceImpl implements WorkflowService {
         }
 
         // 1. Update InspectionCall table status to CANCELLED
-        Optional<InspectionCall> icOpt = inspectionCallRepository.findByIcNumber(req.getRequestId());
+        String cleanCallNo = req.getRequestId() != null && !req.getRequestId().trim().isEmpty() ? req.getRequestId().trim() : current.getRequestId();
+        Optional<InspectionCall> icOpt = inspectionCallRepository.findByIcNumber(cleanCallNo);
         if (icOpt.isPresent()) {
             InspectionCall ic = icOpt.get();
             ic.setStatus("CANCELLED");
             inspectionCallRepository.save(ic);
+
+            // Re-initiate quantities used for that call to 0 and restore inventory (same as withdrawn)
+            try {
+                restoreCallQuantitiesAndInventory(ic, cleanCallNo);
+            } catch (Exception ex) {
+                log.error("Failed to restore call quantities and inventory for cancelled call {}: ", cleanCallNo, ex);
+            }
         }
 
         // 2. Persist SRS CallCancellationDetail & VendorFinancialLiability
@@ -4521,7 +4537,29 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
             return "Withdrawn (No call type specified)";
         }
 
-        if ("Raw Material".equalsIgnoreCase(typeOfCall)) {
+        restoreCallQuantitiesAndInventory(inspectionCall, icNumber);
+
+        if (typeOfCall.toUpperCase().contains("RAW")) {
+            return "Call withdrawn & inventory restored successfully";
+        } else if (typeOfCall.toUpperCase().contains("PROCESS")) {
+            return "Process call withdrawn successfully. Quantities reset to 0.";
+        } else if (typeOfCall.toUpperCase().contains("FINAL")) {
+            return "Final call withdrawn successfully. Quantities reset to 0 and mappings cleared.";
+        }
+
+        return "Call withdrawn successfully";
+    }
+
+    private void restoreCallQuantitiesAndInventory(InspectionCall inspectionCall, String icNumber) {
+        if (inspectionCall == null) return;
+
+        String typeOfCall = inspectionCall.getTypeOfCall();
+        if (typeOfCall == null) {
+            log.warn("Cannot restore call quantities: no call type specified for call {}", icNumber);
+            return;
+        }
+
+        if ("Raw Material".equalsIgnoreCase(typeOfCall) || typeOfCall.toUpperCase().contains("RAW")) {
             Optional<RmInspectionDetails> rmDetails =
                     rmInspectionDetailsRepository.findByIcId(inspectionCall.getId());
 
@@ -4533,11 +4571,22 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                     BigDecimal qty = heat.getOfferedQty();
                     if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) continue;
                     if (heat.getHeatNumber() == null || heat.getTcNumber() == null) continue;
-                    restoreInventoryJpa(heat.getHeatNumber(), heat.getTcNumber(), qty);
+                    try {
+                        restoreInventoryJpa(heat.getHeatNumber(), heat.getTcNumber(), qty);
+                        log.info("✅ Restored inventory for Heat: {}, TC: {}, Qty: {}", heat.getHeatNumber(), heat.getTcNumber(), qty);
+                    } catch (Exception ex) {
+                        log.error("Failed to restore inventory for Heat: {}, TC: {}: {}", heat.getHeatNumber(), heat.getTcNumber(), ex.getMessage());
+                    }
+                    heat.setOfferedQty(BigDecimal.ZERO);
+                    rmHeatQuantityRepository.save(heat);
                 }
+
+                rm.setTotalOfferedQtyMt(BigDecimal.ZERO);
+                rm.setOfferedQtyErc(0);
+                rmInspectionDetailsRepository.save(rm);
             });
-            return "Call withdrawn & inventory restored successfully";
-        } else if ("Process".equalsIgnoreCase(typeOfCall)) {
+            log.info("✅ Raw Material call {}: inventory restored and quantities reset to 0", icNumber);
+        } else if ("Process".equalsIgnoreCase(typeOfCall) || typeOfCall.toUpperCase().contains("PROCESS")) {
             // 1. Update ProcessIeQty (Results entered by IE)
             List<ProcessIeQty> ieQtys = processIeQtyRepository.findByRequestId(icNumber);
             for (ProcessIeQty qty : ieQtys) {
@@ -4557,13 +4606,17 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                 processInspectionDetailsRepository.save(detail);
             }
 
-            // 3. Clear ProcessLineFinalResult if call is withdrawn
+            // 3. Clear ProcessLineFinalResult if call is cancelled/withdrawn
             if (processLineFinalResultRepository != null) {
-                processLineFinalResultRepository.deleteByInspectionCallNo(icNumber);
+                try {
+                    processLineFinalResultRepository.deleteByInspectionCallNo(icNumber);
+                } catch (Exception ex) {
+                    log.warn("Could not delete processLineFinalResult for call {}: {}", icNumber, ex.getMessage());
+                }
             }
 
-            return "Process call withdrawn successfully. Quantities reset to 0.";
-        } else if ("Final".equalsIgnoreCase(typeOfCall)) {
+            log.info("✅ Process call {}: quantities reset to 0", icNumber);
+        } else if ("Final".equalsIgnoreCase(typeOfCall) || typeOfCall.toUpperCase().contains("FINAL")) {
             // 1. Update FinalInspectionDetails
             Optional<com.sarthi.entity.finalmaterial.FinalInspectionDetails> finalDetailsOpt =
                     finalInspectionDetailsRepository.findByIcId(inspectionCall.getId());
@@ -4584,20 +4637,19 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                     finalInspectionLotDetailsRepository.save(lot);
                 }
 
-                // 3. Delete FinalProcessIcMapping records
+                // 3. Delete FinalProcessIcMapping records so Process IC quantities are released back
                 List<com.sarthi.entity.finalmaterial.FinalProcessIcMapping> mappings =
                         finalProcessIcMappingRepository.findByFinalIcId(inspectionCall.getId());
                 if (!mappings.isEmpty()) {
                     finalProcessIcMappingRepository.deleteAll(mappings);
-                    log.info("✅ Deleted {} Process IC mappings for withdrawn Final call ID: {}", 
+                    log.info("✅ Deleted {} Process IC mappings for call ID: {}", 
                             mappings.size(), inspectionCall.getId());
                 }
             });
-            return "Final call withdrawn successfully. Quantities reset to 0 and mappings cleared.";
+            log.info("✅ Final call {}: quantities reset to 0 and mappings cleared", icNumber);
         }
-
-        return "Call withdrawn successfully";
     }
+
 
     private void restoreInventoryJpa(String heatNumber, String tcNumber, BigDecimal qty) {
 

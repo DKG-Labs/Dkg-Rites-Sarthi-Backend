@@ -464,8 +464,8 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(f.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(fr.offered_qty, (SELECT fid.total_offered_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1), 0) AS quantityOffered,
+                DATE(f.created_at)                                      AS icDate,
+                COALESCE(fr.offered_qty, 0)                             AS quantityOffered,
                 COALESCE(fr.total_accepted, 0)                          AS quantityPassed,
                 COALESCE(fr.total_rejected, 0)                          AS quantityRejected,
                 ic.ic_number                                            AS callNo,
@@ -533,9 +533,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'EF%'
             )
             AND (
-                UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
-                OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'
-                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
@@ -597,13 +595,8 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(f.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(
-                    NULLIF(fr.offered_qty, 0),
-                    (SELECT fid.total_offered_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1),
-                    (SELECT icd_sub.call_qty FROM inspection_call_details icd_sub WHERE icd_sub.inspection_call_no = ic.ic_number ORDER BY icd_sub.id DESC LIMIT 1),
-                    0
-                ) AS quantityOffered,
+                DATE(f.created_at)                                      AS icDate,
+                COALESCE(fr.offered_qty, 0)                             AS quantityOffered,
                 COALESCE(
                     NULLIF(fr.total_accepted, 0),
                     (SELECT fid.total_accepted_qty FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1),

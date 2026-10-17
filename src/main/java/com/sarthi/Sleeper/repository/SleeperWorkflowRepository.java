@@ -18,6 +18,7 @@ public interface SleeperWorkflowRepository
         extends JpaRepository<SleeperWorkflowTransaction, Long> {
 
     List<SleeperWorkflowTransaction> findByAssignedToUserAndStatusIn(Long userId, List<String> status);
+    List<SleeperWorkflowTransaction> findByRequestIdAndStatus(String requestId, String status);
 
     List<SleeperWorkflowTransaction> findByRequestIdOrderByCreatedDateAsc(String requestId);
 
@@ -661,7 +662,7 @@ AND t.workflowTransitionId = (
         LEFT JOIN sleeper_final_result sfr ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE swt.workflow_id = 2
-          AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
+          AND (UPPER(COALESCE(swt.status, '')) = 'IC_GENERATION' OR UPPER(COALESCE(swt.action, '')) = 'IC_GENERATION')
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
                CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
                CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR

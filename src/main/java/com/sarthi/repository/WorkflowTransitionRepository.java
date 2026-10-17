@@ -14,6 +14,7 @@ import java.util.Map;
 public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTransition, Integer> {
     WorkflowTransition findByWorkflowIdAndRequestId(Integer workflowId, String requestId);
     List<WorkflowTransition> findByRequestIdOrderByWorkflowTransitionIdAsc(String requestId);
+    List<WorkflowTransition> findByRequestIdAndStatus(String requestId, String status);
 
     @org.springframework.data.jpa.repository.Modifying
     @Query("UPDATE WorkflowTransition wt SET wt.assignedToUser = :newUser WHERE wt.workflowTransitionId = (SELECT w2.workflowTransitionId FROM (SELECT MAX(workflowTransitionId) AS workflowTransitionId FROM WorkflowTransition WHERE requestId = :callNo) w2)")
@@ -1040,7 +1041,7 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             INNER JOIN po_header ph ON (ph.po_no = ic.po_no OR ic.po_no LIKE CONCAT('%', ph.po_no, '%') OR ph.po_no LIKE CONCAT('%', ic.po_no, '%'))
             LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
             LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.call_no
-            WHERE wt.STATUS = 'SEND_CALL_TO_IBS'
+            WHERE wt.STATUS = 'DSC_SIGN_IC'
             AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
             AND (:startDate IS NULL OR DATE(wt.CREATEDDATE) >= :startDate)
