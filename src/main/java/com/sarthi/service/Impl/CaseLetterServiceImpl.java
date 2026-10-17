@@ -135,28 +135,24 @@ public class CaseLetterServiceImpl implements CaseLetterService {
             throw new IllegalArgumentException("No PDF files provided to merge");
         }
 
-        try (PDDocument mergedDoc = new PDDocument();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-
+        List<File> tempFiles = new ArrayList<>();
+        File tempOutputFile = null;
+        try {
+            tempOutputFile = File.createTempFile("merged_out_", ".pdf");
             PDFMergerUtility merger = new PDFMergerUtility();
+            merger.setIgnoreAcroFormErrors(true);
+            merger.setDestinationFileName(tempOutputFile.getAbsolutePath());
             int validDocCount = 0;
 
             for (byte[] bytes : pdfByteList) {
                 if (bytes != null && bytes.length > 0) {
-                    try (PDDocument sourceDoc = Loader.loadPDF(new RandomAccessReadBuffer(bytes))) {
-                        merger.appendDocument(mergedDoc, sourceDoc);
-                        validDocCount++;
-                    } catch (Exception docEx) {
-                        log.warn("Error appending document with PDFMergerUtility, attempting fallback page copy: {}", docEx.getMessage());
-                        try (PDDocument sourceDoc = Loader.loadPDF(new RandomAccessReadBuffer(bytes))) {
-                            for (PDPage page : sourceDoc.getPages()) {
-                                mergedDoc.addPage(page);
-                            }
-                            validDocCount++;
-                        } catch (Exception fallbackEx) {
-                            log.error("Failed to append PDF bytes: {}", fallbackEx.getMessage());
-                        }
+                    File tempFile = File.createTempFile("merge_src_", ".pdf");
+                    tempFiles.add(tempFile);
+                    try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                        fos.write(bytes);
                     }
+                    merger.addSource(tempFile);
+                    validDocCount++;
                 }
             }
 
@@ -164,16 +160,59 @@ public class CaseLetterServiceImpl implements CaseLetterService {
                 throw new IllegalArgumentException("All provided PDF files were empty or invalid");
             }
 
-            mergedDoc.save(out, CompressParameters.DEFAULT_COMPRESSION);
-            log.info("Merged {} PDF documents successfully. Output size: {} bytes", validDocCount, out.size());
-            return out.toByteArray();
+            try {
+                merger.mergeDocuments(org.apache.pdfbox.io.IOUtils.createTempFileOnlyStreamCache(), CompressParameters.DEFAULT_COMPRESSION);
+                byte[] mergedBytes = Files.readAllBytes(tempOutputFile.toPath());
+                log.info("Merged {} PDF documents successfully using temp disk cache. Output size: {} bytes", validDocCount, mergedBytes.length);
+                return mergedBytes;
+            } catch (Exception mergeEx) {
+                log.warn("mergeDocuments via temp cache failed ({}), attempting fallback in-memory merge...", mergeEx.getMessage());
+                return fallbackMergePdfs(pdfByteList);
+            }
         } catch (Exception e) {
             log.error("Error merging PDFs: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to merge PDF documents: " + e.getMessage(), e);
+        } finally {
+            if (tempOutputFile != null && tempOutputFile.exists()) {
+                try {
+                    tempOutputFile.delete();
+                } catch (Exception ignored) {}
+            }
+            for (File tempFile : tempFiles) {
+                try {
+                    if (tempFile.exists()) {
+                        tempFile.delete();
+                    }
+                } catch (Exception ignored) {}
+            }
         }
     }
 
-    private static final long MAX_INDIVIDUAL_FILE_SIZE = 50L * 1024 * 1024; // 50 MB
+    private byte[] fallbackMergePdfs(List<byte[]> pdfByteList) {
+        try (PDDocument mergedDoc = new PDDocument();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            int count = 0;
+            for (byte[] bytes : pdfByteList) {
+                if (bytes != null && bytes.length > 0) {
+                    try (PDDocument sourceDoc = Loader.loadPDF(new RandomAccessReadBuffer(bytes))) {
+                        for (PDPage page : sourceDoc.getPages()) {
+                            mergedDoc.addPage(page);
+                        }
+                        count++;
+                    } catch (Exception ex) {
+                        log.error("Failed to append PDF bytes in fallback: {}", ex.getMessage());
+                    }
+                }
+            }
+            if (count == 0) {
+                throw new IllegalArgumentException("All provided PDF files were empty or invalid in fallback");
+            }
+            mergedDoc.save(out, CompressParameters.DEFAULT_COMPRESSION);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Fallback merge failed: " + e.getMessage(), e);
+        }
+    }
 
     @Override
     public byte[] mergeUploadedFiles(List<MultipartFile> files) {
@@ -192,11 +231,7 @@ public class CaseLetterServiceImpl implements CaseLetterService {
                     throw new IllegalArgumentException("Only PDF format (.pdf) is allowed. Invalid file: " + file.getOriginalFilename());
                 }
 
-                // 2. Enforce file size limit (50 MB)
-                if (file.getSize() > MAX_INDIVIDUAL_FILE_SIZE) {
-                    throw new IllegalArgumentException(String.format("File '%s' exceeds the maximum allowed upload limit of 50 MB (Size: %.2f MB).",
-                            file.getOriginalFilename(), file.getSize() / (1024.0 * 1024.0)));
-                }
+                // File size validation removed per requirements
 
                 try {
                     byte[] fileBytes = file.getBytes();

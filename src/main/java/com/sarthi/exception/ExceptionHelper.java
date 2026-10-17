@@ -107,4 +107,14 @@ public class ExceptionHelper {
                 HttpStatus.BAD_REQUEST);
     }
 
-}
+    @ExceptionHandler(value = { org.springframework.web.multipart.MaxUploadSizeExceededException.class })
+    public ResponseEntity<Object> handleMaxUploadSizeExceededException(org.springframework.web.multipart.MaxUploadSizeExceededException ex, WebRequest request) {
+        logger.error("Upload size exceeded: ", ex);
+        ErrorDetails errorDetails = new ErrorDetails(HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                AppConstant.ERROR_TYPE_ERROR, "Uploaded file or total request size exceeds server limit.");
+        return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails),
+                HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
+}

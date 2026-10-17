@@ -92,19 +92,7 @@ public class IcAnnexureServiceImpl implements IcAnnexureService {
 
         long originalSize = file.getSize();
 
-        // Check module-specific size limits
-        long maxSizeAllowed = MAX_SIZE_SLEEPER_BYTES;
-        if ("ERC".equals(normalizedModule)) {
-            maxSizeAllowed = MAX_SIZE_ERC_BYTES;
-        } else if ("RAILPAD".equals(normalizedModule)) {
-            maxSizeAllowed = MAX_SIZE_RAILPAD_BYTES;
-        }
-
-        if (originalSize > maxSizeAllowed) {
-            long maxMb = maxSizeAllowed / (1024 * 1024);
-            throw new IllegalArgumentException(String.format(
-                    "File size exceeds maximum allowed limit for %s (%d MB)", normalizedModule, maxMb));
-        }
+        // File size validation removed per requirements
 
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "annexure.pdf";
         String contentType = file.getContentType() != null ? file.getContentType() : "application/pdf";
