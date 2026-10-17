@@ -50,11 +50,94 @@ public class InspectionImageController {
      * @param imageName the blob file name (e.g. ER_03090004_abc123.jpg)
      * @return image bytes with correct content-type
      */
-    @GetMapping("/{imageName}")
+    @GetMapping("/{imageName:.+}")
     public ResponseEntity<byte[]> getImage(@PathVariable String imageName) {
         log.info("GET /api/images/{} - Fetching inspection image", imageName);
         try {
-            byte[] imageBytes = azureBlobStorageService.downloadFileFromContainer(imageName, imagesContainerName);
+            byte[] imageBytes = null;
+            java.util.List<String> nameCandidates = new java.util.ArrayList<>();
+            nameCandidates.add(imageName);
+            if (!imageName.toLowerCase().endsWith(".jpg") && !imageName.toLowerCase().endsWith(".jpeg") && !imageName.toLowerCase().endsWith(".png")) {
+                nameCandidates.add(imageName + ".jpg");
+                nameCandidates.add(imageName + ".jpeg");
+                nameCandidates.add(imageName + ".png");
+            }
+
+            java.util.List<String> containers = new java.util.ArrayList<>();
+            if (imagesContainerName != null && !imagesContainerName.trim().isEmpty()) {
+                containers.add(imagesContainerName.trim());
+            }
+            if (!containers.contains("ercinspectionimages-uat")) {
+                containers.add("ercinspectionimages-uat");
+            }
+            if (!containers.contains("sarthi-uploads")) {
+                containers.add("sarthi-uploads");
+            }
+            if (!containers.contains("certificates")) {
+                containers.add("certificates");
+            }
+
+            for (String cand : nameCandidates) {
+                for (String cont : containers) {
+                    try {
+                        imageBytes = azureBlobStorageService.downloadFileFromContainer(cand, cont);
+                        if (imageBytes != null && imageBytes.length > 0) {
+                            log.info("Found image {} in container {} ({} bytes)", cand, cont, imageBytes.length);
+                            break;
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+                if (imageBytes != null && imageBytes.length > 0) {
+                    break;
+                }
+            }
+
+            if (imageBytes == null || imageBytes.length == 0) {
+                // Check local file storage fallback
+                for (String cand : nameCandidates) {
+                    java.io.File f = new java.io.File("uploads/inspection_images/" + cand);
+                    if (f.exists()) {
+                        imageBytes = java.nio.file.Files.readAllBytes(f.toPath());
+                        log.info("Found local image file for {}: {} ({} bytes)", cand, f.getAbsolutePath(), imageBytes.length);
+                        break;
+                    }
+                }
+            }
+
+            if (imageBytes == null || imageBytes.length == 0) {
+                // Check if there is an inspection_images entry with full imageUrl
+                java.util.List<InspectionImage> dbImgs = inspectionImageRepository.findByImageName(imageName);
+                if (dbImgs == null || dbImgs.isEmpty()) {
+                    dbImgs = inspectionImageRepository.findByImageNameContaining(imageName);
+                }
+                if (dbImgs != null && !dbImgs.isEmpty()) {
+                    for (InspectionImage dbImg : dbImgs) {
+                        if (dbImg.getImageUrl() != null && dbImg.getImageUrl().startsWith("http")) {
+                            try {
+                                java.net.URI uri = new java.net.URI(dbImg.getImageUrl());
+                                String p = uri.getPath();
+                                if (p.startsWith("/")) p = p.substring(1);
+                                int slash = p.indexOf('/');
+                                if (slash > 0) {
+                                    String cName = p.substring(0, slash);
+                                    String bName = p.substring(slash + 1);
+                                    imageBytes = azureBlobStorageService.downloadFileFromContainer(bName, cName);
+                                    if (imageBytes != null && imageBytes.length > 0) {
+                                        log.info("Resolved image from db imageUrl {}: {} bytes", dbImg.getImageUrl(), imageBytes.length);
+                                        break;
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            }
+
+            if (imageBytes == null || imageBytes.length == 0) {
+                log.warn("Image {} not found in any container or local storage", imageName);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
 
             String contentType = "image/jpeg";
             String lowerName = imageName.toLowerCase();
@@ -75,7 +158,7 @@ public class InspectionImageController {
             return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
 
         } catch (Exception e) {
-            log.error("Failed to fetch image {}: {}", imageName, e.getMessage());
+            log.error("Failed to fetch image {}: {}", imageName, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
@@ -89,36 +172,98 @@ public class InspectionImageController {
             @RequestParam(required = false) String typeOfCall) {
         log.info("GET /api/images/call/{} typeOfCall: {}", callNo, typeOfCall);
         try {
-            boolean isSleeper = typeOfCall != null && typeOfCall.toUpperCase().contains("SLEEPER") && sleeperPhotoInspectionRecordRepository != null;
+            String trimmedCallNo = callNo != null ? callNo.trim() : "";
+            boolean isSleeper = (typeOfCall != null && typeOfCall.toUpperCase().contains("SLEEPER"))
+                    || trimmedCallNo.toUpperCase().startsWith("SF");
 
             java.util.List<com.sarthi.dto.ImageCaptureDto> dtos = new java.util.ArrayList<>();
 
             if (isSleeper) {
-                java.util.List<SleeperPhotoInspectionRecord> sleeperImages = sleeperPhotoInspectionRecordRepository.findByInspectionCallNo(callNo);
-                if (sleeperImages != null) {
+                java.util.List<SleeperPhotoInspectionRecord> sleeperImages = null;
+                if (sleeperPhotoInspectionRecordRepository != null) {
+                    sleeperImages = sleeperPhotoInspectionRecordRepository.findByInspectionCallNo(trimmedCallNo);
+                    if ((sleeperImages == null || sleeperImages.isEmpty()) && !trimmedCallNo.equals(callNo)) {
+                        sleeperImages = sleeperPhotoInspectionRecordRepository.findByInspectionCallNo(callNo);
+                    }
+                }
+                if (sleeperImages != null && !sleeperImages.isEmpty()) {
                     for (SleeperPhotoInspectionRecord img : sleeperImages) {
                         com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
-                        dto.setBase64Data("/api/images/" + img.getImageName());
-                        dto.setPreview("/api/images/" + img.getImageName());
+                        String proxyUrl = "/api/images/" + img.getImageName();
+                        dto.setBase64Data(proxyUrl);
+                        dto.setPreview(proxyUrl);
+                        dto.setUrl(proxyUrl);
+                        dto.setPhotoUrl(proxyUrl);
                         dto.setLatitude(img.getLatitude());
                         dto.setLongitude(img.getLongitude());
                         dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
                         dtos.add(dto);
                     }
+                } else {
+                    // Fallback to inspection_images table in case sleeper images were saved there
+                    java.util.List<InspectionImage> fallbackImages = inspectionImageRepository.findByInspectionCallNo(trimmedCallNo);
+                    if ((fallbackImages == null || fallbackImages.isEmpty()) && !trimmedCallNo.equals(callNo)) {
+                        fallbackImages = inspectionImageRepository.findByInspectionCallNo(callNo);
+                    }
+                    if (fallbackImages != null) {
+                        for (InspectionImage img : fallbackImages) {
+                            com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
+                            String proxyUrl = "/api/images/" + img.getImageName();
+                            dto.setBase64Data(proxyUrl);
+                            dto.setPreview(proxyUrl);
+                            dto.setUrl(proxyUrl);
+                            dto.setPhotoUrl(proxyUrl);
+                            dto.setLatitude(img.getLatitude());
+                            dto.setLongitude(img.getLongitude());
+                            dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
+                            dtos.add(dto);
+                        }
+                    }
                 }
             } else {
-                java.util.List<InspectionImage> images;
-                if (typeOfCall != null && !typeOfCall.trim().isEmpty()) {
-                    images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(callNo, typeOfCall);
-                } else {
+                java.util.List<InspectionImage> images = null;
+                // If specific non-generic typeOfCall is provided (e.g. RM, PROCESS, FINAL, RAILPAD_PROCESS, RAILPAD_FINAL)
+                if (typeOfCall != null && !typeOfCall.trim().isEmpty() 
+                        && !typeOfCall.equalsIgnoreCase("ERC") 
+                        && !typeOfCall.equalsIgnoreCase("RAILPAD")) {
+                    images = inspectionImageRepository.findByInspectionCallNoAndTypeOfCall(trimmedCallNo, typeOfCall.trim());
+                }
+
+                // If no images found with specific typeOfCall, query by callNo across all types (RM, PROCESS, FINAL, RAILPAD_PROCESS, RAILPAD_FINAL, etc.)
+                if (images == null || images.isEmpty()) {
+                    images = inspectionImageRepository.findByInspectionCallNo(trimmedCallNo);
+                }
+                if ((images == null || images.isEmpty()) && !trimmedCallNo.equals(callNo)) {
                     images = inspectionImageRepository.findByInspectionCallNo(callNo);
+                }
+
+                // If still empty, check sleeperPhotoInspectionRecordRepository just in case
+                if ((images == null || images.isEmpty()) && sleeperPhotoInspectionRecordRepository != null) {
+                    java.util.List<SleeperPhotoInspectionRecord> sleeperImages = sleeperPhotoInspectionRecordRepository.findByInspectionCallNo(trimmedCallNo);
+                    if (sleeperImages != null && !sleeperImages.isEmpty()) {
+                        for (SleeperPhotoInspectionRecord img : sleeperImages) {
+                            com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
+                            String proxyUrl = "/api/images/" + img.getImageName();
+                            dto.setBase64Data(proxyUrl);
+                            dto.setPreview(proxyUrl);
+                            dto.setUrl(proxyUrl);
+                            dto.setPhotoUrl(proxyUrl);
+                            dto.setLatitude(img.getLatitude());
+                            dto.setLongitude(img.getLongitude());
+                            dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
+                            dtos.add(dto);
+                        }
+                    }
                 }
 
                 if (images != null) {
                     for (InspectionImage img : images) {
                         com.sarthi.dto.ImageCaptureDto dto = new com.sarthi.dto.ImageCaptureDto();
-                        dto.setBase64Data("/api/images/" + img.getImageName());
-                        dto.setPreview("/api/images/" + img.getImageName());
+                        String proxyUrl = "/api/images/" + img.getImageName();
+                        dto.setBase64Data(proxyUrl);
+                        dto.setPreview(proxyUrl);
+                        dto.setUrl(proxyUrl);
+                        dto.setPhotoUrl(proxyUrl);
                         dto.setLatitude(img.getLatitude());
                         dto.setLongitude(img.getLongitude());
                         dto.setTimestamp(img.getCreatedAt() != null ? img.getCreatedAt().toString() : null);
@@ -126,6 +271,7 @@ public class InspectionImageController {
                     }
                 }
             }
+            log.info("Found {} images for call {}", dtos.size(), callNo);
             return ResponseEntity.ok(dtos);
         } catch (Exception e) {
             log.error("Failed to fetch images for call {}: {}", callNo, e.getMessage(), e);
@@ -143,7 +289,7 @@ public class InspectionImageController {
         log.info("POST /api/images/call/{} type: {}", callNo, request.getTypeOfCall());
         try {
             String typeOfCall = request.getTypeOfCall() != null ? request.getTypeOfCall() : "RAILPAD";
-            boolean isSleeper = typeOfCall.toUpperCase().contains("SLEEPER") && sleeperPhotoInspectionRecordRepository != null;
+            boolean isSleeper = (typeOfCall.toUpperCase().contains("SLEEPER") || (callNo != null && callNo.trim().toUpperCase().startsWith("SF"))) && sleeperPhotoInspectionRecordRepository != null;
             java.util.List<com.sarthi.dto.ImageCaptureDto> images = request.getCapturedImages() != null ? request.getCapturedImages() : java.util.Collections.emptyList();
 
             java.util.Set<String> existingImageNames = new java.util.HashSet<>();

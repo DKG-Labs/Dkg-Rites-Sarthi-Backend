@@ -38,14 +38,7 @@ public interface IcAnnexureDocumentRepository extends JpaRepository<IcAnnexureDo
     @org.springframework.data.jpa.repository.Query("""
         SELECT a FROM IcAnnexureDocument a
         WHERE (a.status IS NULL OR UPPER(a.status) = 'ACTIVE')
-          AND (
-               a.callNo IN :tokens
-            OR REPLACE(a.callNo, '-', '/') IN :tokens
-            OR REPLACE(a.callNo, '/', '-') IN :tokens
-            OR a.icNumber IN :tokens
-            OR REPLACE(a.icNumber, '-', '/') IN :tokens
-            OR REPLACE(a.icNumber, '/', '-') IN :tokens
-          )
+          AND (a.callNo IN :tokens OR a.icNumber IN :tokens)
         ORDER BY a.uploadedAt DESC
         """)
     List<IcAnnexureDocument> findActiveAnnexuresByCallTokens(@org.springframework.data.repository.query.Param("tokens") java.util.Collection<String> tokens);

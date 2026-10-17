@@ -17,4 +17,8 @@ public interface InspectionImageRepository extends JpaRepository<InspectionImage
 
     List<InspectionImage> findByInspectionCallNoAndTypeOfCallAndShiftAndDateOfInspection(
             String inspectionCallNo, String typeOfCall, String shift, String dateOfInspection);
+
+    List<InspectionImage> findByImageName(String imageName);
+
+    List<InspectionImage> findByImageNameContaining(String imageName);
 }

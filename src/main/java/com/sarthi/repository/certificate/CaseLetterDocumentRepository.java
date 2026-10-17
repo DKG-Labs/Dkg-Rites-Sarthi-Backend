@@ -26,10 +26,8 @@ public interface CaseLetterDocumentRepository extends JpaRepository<CaseLetterDo
 
     @org.springframework.data.jpa.repository.Query("""
         SELECT c FROM CaseLetterDocument c
-        WHERE UPPER(c.status) = 'ACTIVE'
-          AND (c.callNo IN :tokens
-               OR REPLACE(c.callNo, '-', '/') IN :tokens
-               OR REPLACE(c.callNo, '/', '-') IN :tokens)
+        WHERE (c.status IS NULL OR UPPER(c.status) = 'ACTIVE')
+          AND (c.callNo IN :tokens OR c.icNumber IN :tokens)
         ORDER BY c.uploadedAt DESC
         """)
     List<CaseLetterDocument> findActiveByCallTokens(@org.springframework.data.repository.query.Param("tokens") java.util.Collection<String> tokens);

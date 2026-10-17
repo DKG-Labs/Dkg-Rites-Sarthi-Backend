@@ -17,6 +17,7 @@ import com.sarthi.entity.processmaterial.ProcessIcEdit;
 import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmIcEdit;
+import com.sarthi.entity.CallCancellationDetail;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
@@ -108,6 +109,7 @@ public class IbsServiceImpl implements IbsService {
     private final AzureBlobStorageService azureBlobStorageService;
     private final InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
+    private final CallCancellationDetailRepository callCancellationDetailRepository;
 
     @Override
     public AuthResponseDto integrationLogin(
@@ -766,8 +768,9 @@ public class IbsServiceImpl implements IbsService {
                 log.error("Error fetching Railpad pending call numbers: {}", e.getMessage(), e);
             }
 
-            log.info("[IBS-FETCH] Candidates pending registration: ERC={}, Sleeper={}, Railpad={}",
-                    ercPending.size(), sleeperPending.size(), railpadPending.size());
+            long tCandidates = System.currentTimeMillis();
+            log.info("[IBS-FETCH] Candidates pending registration: ERC={}, Sleeper={}, Railpad={} (took {} ms)",
+                    ercPending.size(), sleeperPending.size(), railpadPending.size(), (tCandidates - overallStart));
 
             List<String> ercRmPending = ercPending.stream()
                     .filter(c -> c != null && (c.toUpperCase().startsWith("ER") || (!c.toUpperCase().startsWith("EP") && !c.toUpperCase().startsWith("EF"))))
@@ -780,84 +783,112 @@ public class IbsServiceImpl implements IbsService {
                     .toList();
 
             List<IbsInspectionDto> responseList = new ArrayList<>();
+            long tFuturesStart = System.currentTimeMillis();
 
             CompletableFuture<List<IbsInspectionDto>> f1 = ercRmPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(rmHeatFinalResultRepository.getRmCompletedInspectionCalls(ercRmPending), "ERC");
+                    List<IbsInspectionDto> res = mapResult(rmHeatFinalResultRepository.getRmCompletedInspectionCalls(ercRmPending), "ERC");
+                    log.info("[IBS-FETCH] f1 (ERC RM) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching ERC RM pending calls: {}", e.getMessage(), e);
+                    log.error("Error fetching ERC RM pending calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f2 = ercProcessPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(processLineFinalResultRepository.getProcessCompletedInspectionCalls(ercProcessPending), "ERC");
+                    List<IbsInspectionDto> res = mapResult(processLineFinalResultRepository.getProcessCompletedInspectionCalls(ercProcessPending), "ERC");
+                    log.info("[IBS-FETCH] f2 (ERC Process) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching ERC Process pending calls: {}", e.getMessage(), e);
+                    log.error("Error fetching ERC Process pending calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f3 = ercFinalPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(finalCumulativeResultsRepository.getFinalCompletedInspectionCalls(ercFinalPending), "ERC");
+                    List<IbsInspectionDto> res = mapResult(finalCumulativeResultsRepository.getFinalCompletedInspectionCalls(ercFinalPending), "ERC");
+                    log.info("[IBS-FETCH] f3 (ERC Final) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching ERC Final pending calls: {}", e.getMessage(), e);
+                    log.error("Error fetching ERC Final pending calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f4 = railpadPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(railpadProcessIcEditRepository.getRailpadProcessCompletedInspectionCalls(railpadPending), "RAILPAD");
+                    List<IbsInspectionDto> res = mapResult(railpadProcessIcEditRepository.getRailpadProcessCompletedInspectionCalls(railpadPending), "RAILPAD");
+                    log.info("[IBS-FETCH] f4 (Railpad Process) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching Railpad Process pending calls: {}", e.getMessage(), e);
+                    log.error("Error fetching Railpad Process pending calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f5 = railpadPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(railpadFinalIcEditRepository.getRailpadFinalCompletedInspectionCalls(railpadPending), "RAILPAD");
+                    List<IbsInspectionDto> res = mapResult(railpadFinalIcEditRepository.getRailpadFinalCompletedInspectionCalls(railpadPending), "RAILPAD");
+                    log.info("[IBS-FETCH] f5 (Railpad Final) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching Railpad Final pending calls: {}", e.getMessage(), e);
+                    log.error("Error fetching Railpad Final pending calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f6 = sleeperPending.isEmpty() ? CompletableFuture.completedFuture(Collections.emptyList()) : CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(sleeperFinalIcEditRepository.getSleeperFinalCompletedInspectionCalls(sleeperPending), "SLEEPER");
+                    List<IbsInspectionDto> res = mapResult(sleeperFinalIcEditRepository.getSleeperFinalCompletedInspectionCalls(sleeperPending), "SLEEPER");
+                    log.info("[IBS-FETCH] f6 (Sleeper Final) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching Sleeper Final pending calls: {}", e.getMessage(), e);
+                    log.error("Error fetching Sleeper Final pending calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f7 = CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls(), "RAILPAD");
+                    List<IbsInspectionDto> res = mapResult(railInspectionCallRepository.getRailpadCancelledInspectionCalls(), "RAILPAD");
+                    log.info("[IBS-FETCH] f7 (Railpad Cancelled) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching Railpad cancelled inspection calls: {}", e.getMessage(), e);
+                    log.error("Error fetching Railpad cancelled inspection calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f8 = CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls(), "SLEEPER");
+                    List<IbsInspectionDto> res = mapResult(sleeperInspectionCallRepository.getSleeperCancelledInspectionCalls(), "SLEEPER");
+                    log.info("[IBS-FETCH] f8 (Sleeper Cancelled) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching Sleeper cancelled inspection calls: {}", e.getMessage(), e);
+                    log.error("Error fetching Sleeper cancelled inspection calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
 
             CompletableFuture<List<IbsInspectionDto>> f9 = CompletableFuture.supplyAsync(() -> {
+                long s = System.currentTimeMillis();
                 try {
-                    return mapResult(inspectionCallsRepository.getErcCancelledInspectionCalls(), "ERC");
+                    List<IbsInspectionDto> res = mapResult(inspectionCallsRepository.getErcCancelledInspectionCalls(), "ERC");
+                    log.info("[IBS-FETCH] f9 (ERC Cancelled) took {} ms (items={})", System.currentTimeMillis() - s, res.size());
+                    return res;
                 } catch (Exception e) {
-                    log.error("Error fetching ERC cancelled inspection calls: {}", e.getMessage(), e);
+                    log.error("Error fetching ERC cancelled inspection calls (took {} ms): {}", System.currentTimeMillis() - s, e.getMessage(), e);
                     return Collections.emptyList();
                 }
             });
@@ -876,6 +907,9 @@ public class IbsServiceImpl implements IbsService {
             } catch (Exception e) {
                 log.error("Error aggregating IBS pending inspection calls: {}", e.getMessage(), e);
             }
+            long tFuturesEnd = System.currentTimeMillis();
+            log.info("[IBS-FETCH] Futures f1-f9 joined in {} ms (raw items={})",
+                    (tFuturesEnd - tFuturesStart), responseList.size());
 
             // Deduplicate across all product queries by callNumber
             Map<String, IbsInspectionDto> uniqueCalls = new LinkedHashMap<>();
@@ -889,6 +923,9 @@ public class IbsServiceImpl implements IbsService {
                     continue;
                 }
                 callNo = callNo.trim();
+                if ("C".equalsIgnoreCase(dto.getCallStatus())) {
+                    dto.setIcNumber(null);
+                }
                 if (!uniqueCalls.containsKey(callNo)) {
                     uniqueCalls.put(callNo, dto);
                 } else {
@@ -898,6 +935,7 @@ public class IbsServiceImpl implements IbsService {
                                 && existing.getTypeOfCall() != null && !existing.getTypeOfCall().trim().isEmpty() && !"C".equalsIgnoreCase(existing.getTypeOfCall())) {
                             dto.setTypeOfCall(existing.getTypeOfCall());
                         }
+                        dto.setIcNumber(null);
                         uniqueCalls.put(callNo, dto);
                     } else if (!"C".equalsIgnoreCase(existing.getCallStatus())
                             && (existing.getCaseNumber() == null || existing.getCaseNumber().trim().isEmpty())
@@ -906,6 +944,22 @@ public class IbsServiceImpl implements IbsService {
                     }
                 }
             }
+
+            long tEnrichStart = System.currentTimeMillis();
+            // Single-batch enrich parent IC links for EP, EF, RPF calls
+            enrichLinkedParentIcs(uniqueCalls.values());
+            long tLinkedIcs = System.currentTimeMillis();
+
+            // Single-batch enrich uploaded case letters / IC annexures
+            enrichUploadedCallDocuments(uniqueCalls.values());
+            long tDocs = System.currentTimeMillis();
+
+            // Batch-enrich cancelled calls: zero N+1 queries (batched via IN-clause or fast-path in-memory)
+            batchEnrichCancelledCallEmployeeCodes(uniqueCalls.values());
+            long tCancelEmp = System.currentTimeMillis();
+
+            log.info("[IBS-FETCH] Breakdown: Candidates={} ms, Futures={} ms, LinkedIcs={} ms, Docs={} ms, CancelEmp={} ms, Total={} ms",
+                    (tCandidates - overallStart), (tFuturesEnd - tFuturesStart), (tLinkedIcs - tEnrichStart), (tDocs - tLinkedIcs), (tCancelEmp - tDocs), (tCancelEmp - overallStart));
 
             log.info("[IBS-FETCH] getAllGeneratedIcCalls completed in {} ms returning {} calls",
                     System.currentTimeMillis() - overallStart, uniqueCalls.size());
@@ -1053,6 +1107,9 @@ public class IbsServiceImpl implements IbsService {
             }
         }
 
+        // Single-batch enrich parent IC links for completed calls
+        enrichLinkedParentIcs(uniqueCalls.values());
+
         Set<Long> matchedRegIds = new HashSet<>();
         Set<String> completedCallTokens = new HashSet<>();
         Set<String> completedIcTokens = new HashSet<>();
@@ -1067,6 +1124,9 @@ public class IbsServiceImpl implements IbsService {
 
         // Enrich every matched call with IBS registration details
         for (IbsInspectionDto dto : uniqueCalls.values()) {
+            if ("C".equalsIgnoreCase(dto.getCallStatus())) {
+                dto.setIcNumber(null);
+            }
             String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
             String icNo = dto.getIcNumber() != null ? dto.getIcNumber().trim() : "";
 
@@ -1170,6 +1230,9 @@ public class IbsServiceImpl implements IbsService {
             dto.setRejectionCharges(0.0);
             uniqueCalls.put(callNo, dto);
         }
+
+        // Batch-enrich cancelled calls: zero N+1 queries (batched via IN-clause or fast-path in-memory)
+        batchEnrichCancelledCallEmployeeCodes(uniqueCalls.values());
 
         return new ArrayList<>(uniqueCalls.values());
     }
@@ -1288,6 +1351,38 @@ public class IbsServiceImpl implements IbsService {
         return null;
     }
 
+    private void addTokenVariants(Set<String> allTokens, String raw) {
+        if (raw == null || raw.trim().isEmpty()) return;
+        String clean = raw.trim();
+        if (clean.toLowerCase().endsWith(".pdf")) {
+            clean = clean.substring(0, clean.length() - 4).trim();
+        }
+        if (clean.isEmpty()) return;
+
+        allTokens.add(clean);
+        allTokens.add(clean.toUpperCase());
+        allTokens.add(clean.toLowerCase());
+        allTokens.add(clean.replace("-", "/"));
+        allTokens.add(clean.replace("/", "-"));
+        allTokens.add(clean.replace("-", "/").toUpperCase());
+        allTokens.add(clean.replace("/", "-").toUpperCase());
+
+        if (clean.contains("/") || clean.contains("-")) {
+            for (String part : clean.split("[/-]")) {
+                String p = part.trim();
+                if ((p.length() >= 4 && p.matches(".*\\d+.*")) || p.length() >= 6) {
+                    allTokens.add(p);
+                    allTokens.add(p.toUpperCase());
+                    allTokens.add(p.toLowerCase());
+                    allTokens.add(p.replace("-", "/"));
+                    allTokens.add(p.replace("/", "-"));
+                    allTokens.add(p.replace("-", "/").toUpperCase());
+                    allTokens.add(p.replace("/", "-").toUpperCase());
+                }
+            }
+        }
+    }
+
     private Map<String, String> prefetchUploadedCallDocuments(Collection<String> callNumbers, Collection<String> icNumbers) {
         if ((callNumbers == null || callNumbers.isEmpty()) && (icNumbers == null || icNumbers.isEmpty())) {
             return Collections.emptyMap();
@@ -1296,32 +1391,12 @@ public class IbsServiceImpl implements IbsService {
         Set<String> allTokens = new HashSet<>();
         if (callNumbers != null) {
             for (String cn : callNumbers) {
-                if (cn == null || cn.trim().isEmpty()) continue;
-                String clean = cn.trim();
-                if (clean.toLowerCase().endsWith(".pdf")) clean = clean.substring(0, clean.length() - 4).trim();
-                allTokens.add(clean);
-                allTokens.add(clean.replace("-", "/"));
-                allTokens.add(clean.replace("/", "-"));
+                addTokenVariants(allTokens, cn);
             }
         }
         if (icNumbers != null) {
             for (String ic : icNumbers) {
-                if (ic == null || ic.trim().isEmpty()) continue;
-                String clean = ic.trim();
-                if (clean.toLowerCase().endsWith(".pdf")) clean = clean.substring(0, clean.length() - 4).trim();
-                allTokens.add(clean);
-                allTokens.add(clean.replace("-", "/"));
-                allTokens.add(clean.replace("/", "-"));
-                if (clean.contains("/")) {
-                    for (String part : clean.split("/")) {
-                        String p = part.trim();
-                        if (p.length() >= 6 && p.matches(".*\\d+.*")) {
-                            allTokens.add(p);
-                            allTokens.add(p.replace("-", "/"));
-                            allTokens.add(p.replace("/", "-"));
-                        }
-                    }
-                }
+                addTokenVariants(allTokens, ic);
             }
         }
         allTokens.remove("");
@@ -1336,13 +1411,32 @@ public class IbsServiceImpl implements IbsService {
             try {
                 List<CaseLetterDocument> caseLetters = caseLetterDocumentRepository.findActiveByCallTokens(allTokens);
                 for (CaseLetterDocument cld : caseLetters) {
-                    if (cld.getCallNo() == null) continue;
-                    String cNo = cld.getCallNo().trim();
-                    String link = "https://api.ritesqasarthi.com/sarthi-backend/api/case-letter/view/" + cNo + ".pdf";
-                    resultMap.putIfAbsent(cNo, link);
-                    resultMap.putIfAbsent(cNo.toUpperCase(), link);
-                    resultMap.putIfAbsent(cNo.replace("-", "/"), link);
-                    resultMap.putIfAbsent(cNo.replace("/", "-"), link);
+                    String ref = (cld.getCallNo() != null && !cld.getCallNo().trim().isEmpty())
+                            ? cld.getCallNo().trim()
+                            : (cld.getIcNumber() != null ? cld.getIcNumber().trim() : null);
+                    if (ref == null) continue;
+                    String link = "https://api.ritesqasarthi.com/sarthi-backend/api/case-letter/view/" + ref + ".pdf";
+
+                    if (cld.getCallNo() != null && !cld.getCallNo().trim().isEmpty()) {
+                        String cNo = cld.getCallNo().trim();
+                        resultMap.putIfAbsent(cNo, link);
+                        resultMap.putIfAbsent(cNo.toUpperCase(), link);
+                        resultMap.putIfAbsent(cNo.toLowerCase(), link);
+                        resultMap.putIfAbsent(cNo.replace("-", "/"), link);
+                        resultMap.putIfAbsent(cNo.replace("/", "-"), link);
+                        resultMap.putIfAbsent(cNo.replace("-", "/").toUpperCase(), link);
+                        resultMap.putIfAbsent(cNo.replace("/", "-").toUpperCase(), link);
+                    }
+                    if (cld.getIcNumber() != null && !cld.getIcNumber().trim().isEmpty()) {
+                        String ic = cld.getIcNumber().trim();
+                        resultMap.putIfAbsent(ic, link);
+                        resultMap.putIfAbsent(ic.toUpperCase(), link);
+                        resultMap.putIfAbsent(ic.toLowerCase(), link);
+                        resultMap.putIfAbsent(ic.replace("-", "/"), link);
+                        resultMap.putIfAbsent(ic.replace("/", "-"), link);
+                        resultMap.putIfAbsent(ic.replace("-", "/").toUpperCase(), link);
+                        resultMap.putIfAbsent(ic.replace("/", "-").toUpperCase(), link);
+                    }
                 }
             } catch (Exception e) {
                 log.warn("Error prefetching case letters: {}", e.getMessage());
@@ -1360,6 +1454,7 @@ public class IbsServiceImpl implements IbsService {
                         String cNo = doc.getCallNo().trim();
                         resultMap.putIfAbsent(cNo, link);
                         resultMap.putIfAbsent(cNo.toUpperCase(), link);
+                        resultMap.putIfAbsent(cNo.toLowerCase(), link);
                         resultMap.putIfAbsent(cNo.replace("-", "/"), link);
                         resultMap.putIfAbsent(cNo.replace("/", "-"), link);
                     }
@@ -1367,6 +1462,7 @@ public class IbsServiceImpl implements IbsService {
                         String ic = doc.getIcNumber().trim();
                         resultMap.putIfAbsent(ic, link);
                         resultMap.putIfAbsent(ic.toUpperCase(), link);
+                        resultMap.putIfAbsent(ic.toLowerCase(), link);
                         resultMap.putIfAbsent(ic.replace("-", "/"), link);
                         resultMap.putIfAbsent(ic.replace("/", "-"), link);
                     }
@@ -1377,6 +1473,148 @@ public class IbsServiceImpl implements IbsService {
         }
 
         return resultMap;
+    }
+
+    private void enrichUploadedCallDocuments(Collection<IbsInspectionDto> dtos) {
+        if (dtos == null || dtos.isEmpty()) return;
+        Set<String> callNumbers = new HashSet<>();
+        Set<String> icNumbers = new HashSet<>();
+        for (IbsInspectionDto dto : dtos) {
+            if (dto == null || "C".equalsIgnoreCase(dto.getCallStatus())) continue;
+            if (dto.getCallNumber() != null && !dto.getCallNumber().isBlank()) {
+                callNumbers.add(dto.getCallNumber().trim());
+            }
+            if (dto.getIcNumber() != null && !dto.getIcNumber().isBlank()) {
+                icNumbers.add(dto.getIcNumber().trim());
+            }
+        }
+        if (callNumbers.isEmpty() && icNumbers.isEmpty()) return;
+
+        Map<String, String> docLinks = prefetchUploadedCallDocuments(callNumbers, icNumbers);
+        if (docLinks.isEmpty()) return;
+
+        for (IbsInspectionDto dto : dtos) {
+            if (dto == null || "C".equalsIgnoreCase(dto.getCallStatus())) continue;
+            String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
+            String icNo = dto.getIcNumber() != null ? dto.getIcNumber().trim() : "";
+
+            String docLink = docLinks.get(callNo);
+            if (docLink == null && !callNo.isEmpty()) docLink = docLinks.get(callNo.toUpperCase());
+            if (docLink == null && !callNo.isEmpty()) docLink = docLinks.get(callNo.replace("-", "/"));
+            if (docLink == null && !callNo.isEmpty()) docLink = docLinks.get(callNo.replace("/", "-"));
+            if (docLink == null && !icNo.isEmpty()) docLink = docLinks.get(icNo);
+            if (docLink == null && !icNo.isEmpty()) docLink = docLinks.get(icNo.toUpperCase());
+            if (docLink == null && !icNo.isEmpty()) docLink = docLinks.get(icNo.replace("-", "/"));
+            if (docLink == null && !icNo.isEmpty()) docLink = docLinks.get(icNo.replace("/", "-"));
+
+            if (docLink == null && callNo.contains("/")) {
+                for (String part : callNo.split("/")) {
+                    String p = part.trim();
+                    if (!p.isEmpty()) {
+                        docLink = docLinks.get(p);
+                        if (docLink == null) docLink = docLinks.get(p.toUpperCase());
+                        if (docLink == null) docLink = docLinks.get(p.replace("-", "/"));
+                        if (docLink == null) docLink = docLinks.get(p.replace("/", "-"));
+                        if (docLink != null) break;
+                    }
+                }
+            }
+            if (docLink == null && icNo.contains("/")) {
+                for (String part : icNo.split("/")) {
+                    String p = part.trim();
+                    if (!p.isEmpty()) {
+                        docLink = docLinks.get(p);
+                        if (docLink == null) docLink = docLinks.get(p.toUpperCase());
+                        if (docLink == null) docLink = docLinks.get(p.replace("-", "/"));
+                        if (docLink == null) docLink = docLinks.get(p.replace("/", "-"));
+                        if (docLink != null) break;
+                    }
+                }
+            }
+
+            if (docLink != null) {
+                dto.setUploadedInspectionCallDocument(docLink);
+            }
+        }
+    }
+
+    private void enrichLinkedParentIcs(Collection<IbsInspectionDto> dtos) {
+        if (dtos == null || dtos.isEmpty()) return;
+        Set<String> epCallNos = new HashSet<>();
+        Set<String> efCallNos = new HashSet<>();
+        Set<String> rpfCallNos = new HashSet<>();
+
+        for (IbsInspectionDto dto : dtos) {
+            if (dto == null || "C".equalsIgnoreCase(dto.getCallStatus())) continue;
+            String cNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
+            if (cNo.isBlank()) cNo = dto.getIcNumber() != null ? dto.getIcNumber().trim() : "";
+            if (cNo.isBlank()) continue;
+
+            String upper = cNo.toUpperCase();
+            if (upper.startsWith("EP") || upper.contains("EP-") || upper.contains("/EP")) {
+                epCallNos.add(cNo);
+                if (cNo.contains("/")) {
+                    for (String part : cNo.split("/")) {
+                        if (part.trim().toUpperCase().startsWith("EP")) epCallNos.add(part.trim());
+                    }
+                }
+            } else if (upper.startsWith("EF") || upper.contains("EF-") || upper.contains("/EF")) {
+                efCallNos.add(cNo);
+                if (cNo.contains("/")) {
+                    for (String part : cNo.split("/")) {
+                        if (part.trim().toUpperCase().startsWith("EF")) efCallNos.add(part.trim());
+                    }
+                }
+            } else if (upper.startsWith("RPF") || upper.contains("RPF-") || upper.contains("/RPF")) {
+                rpfCallNos.add(cNo);
+                if (cNo.contains("/")) {
+                    for (String part : cNo.split("/")) {
+                        if (part.trim().toUpperCase().startsWith("RPF")) rpfCallNos.add(part.trim());
+                    }
+                }
+            }
+        }
+
+        if (epCallNos.isEmpty() && efCallNos.isEmpty() && rpfCallNos.isEmpty()) return;
+
+        Map<String, String> batchLinkedIcs = prefetchLinkedParentIcNumbers(epCallNos, efCallNos, rpfCallNos);
+        if (batchLinkedIcs.isEmpty()) return;
+
+        for (IbsInspectionDto dto : dtos) {
+            if (dto == null || "C".equalsIgnoreCase(dto.getCallStatus())) continue;
+            String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
+            String icNo = dto.getIcNumber() != null ? dto.getIcNumber().trim() : "";
+
+            String linkedIc = batchLinkedIcs.get(callNo);
+            if (linkedIc == null && !callNo.isEmpty()) linkedIc = batchLinkedIcs.get(callNo.toUpperCase());
+            if (linkedIc == null && !icNo.isEmpty()) linkedIc = batchLinkedIcs.get(icNo);
+            if (linkedIc == null && !icNo.isEmpty()) linkedIc = batchLinkedIcs.get(icNo.toUpperCase());
+
+            if (linkedIc == null && callNo.contains("/")) {
+                for (String part : callNo.split("/")) {
+                    String p = part.trim();
+                    if (!p.isEmpty()) {
+                        linkedIc = batchLinkedIcs.get(p);
+                        if (linkedIc == null) linkedIc = batchLinkedIcs.get(p.toUpperCase());
+                        if (linkedIc != null) break;
+                    }
+                }
+            }
+            if (linkedIc == null && icNo.contains("/")) {
+                for (String part : icNo.split("/")) {
+                    String p = part.trim();
+                    if (!p.isEmpty()) {
+                        linkedIc = batchLinkedIcs.get(p);
+                        if (linkedIc == null) linkedIc = batchLinkedIcs.get(p.toUpperCase());
+                        if (linkedIc != null) break;
+                    }
+                }
+            }
+
+            if (linkedIc != null) {
+                dto.setIcLinkedForCurrentCall(linkedIc);
+            }
+        }
     }
 
     private String resolveUploadedCallDocument(String callNumber) {
@@ -1653,52 +1891,6 @@ public class IbsServiceImpl implements IbsService {
             groupedByCall.computeIfAbsent(callNumber, k -> new ArrayList<>()).add(row);
         }
 
-        // Eliminate N+1 queries by batch-prefetching parent IC links for this entire batch
-        Set<String> epCallNos = new HashSet<>();
-        Set<String> efCallNos = new HashSet<>();
-        Set<String> rpfCallNos = new HashSet<>();
-
-        for (String cNo : groupedByCall.keySet()) {
-            if (cNo == null || cNo.isBlank()) continue;
-            String upper = cNo.toUpperCase();
-            if (upper.startsWith("EP") || upper.contains("EP-")) {
-                epCallNos.add(cNo);
-                if (cNo.contains("/")) {
-                    for (String part : cNo.split("/")) {
-                        if (part.trim().toUpperCase().startsWith("EP")) epCallNos.add(part.trim());
-                    }
-                }
-            } else if (upper.startsWith("EF") || upper.contains("EF-")) {
-                efCallNos.add(cNo);
-                if (cNo.contains("/")) {
-                    for (String part : cNo.split("/")) {
-                        if (part.trim().toUpperCase().startsWith("EF")) efCallNos.add(part.trim());
-                    }
-                }
-            } else if (upper.startsWith("RPF") || upper.contains("RPF-")) {
-                rpfCallNos.add(cNo);
-                if (cNo.contains("/")) {
-                    for (String part : cNo.split("/")) {
-                        if (part.trim().toUpperCase().startsWith("RPF")) rpfCallNos.add(part.trim());
-                    }
-                }
-            }
-        }
-
-        Map<String, String> batchLinkedIcs = (epCallNos.isEmpty() && efCallNos.isEmpty() && rpfCallNos.isEmpty())
-                ? Collections.emptyMap()
-                : prefetchLinkedParentIcNumbers(epCallNos, efCallNos, rpfCallNos);
-
-        Set<String> allCandidateIcNos = new HashSet<>();
-        for (List<Object[]> rowsList : groupedByCall.values()) {
-            for (Object[] r : rowsList) {
-                if (r.length > 15 && r[15] != null) {
-                    allCandidateIcNos.add(safeString(r[15]));
-                }
-            }
-        }
-        Map<String, String> batchCallDocLinks = prefetchUploadedCallDocuments(groupedByCall.keySet(), allCandidateIcNos);
-
         for (Map.Entry<String, List<Object[]>> entry : groupedByCall.entrySet()) {
             String callNumber = entry.getKey();
             List<Object[]> candidateRows = entry.getValue();
@@ -1840,18 +2032,27 @@ public class IbsServiceImpl implements IbsService {
                             + ".pdf"
             );
 
-            String icNo = bestRow[15] != null ? safeString(bestRow[15]) : callNumber;
-            String callDocLink = batchCallDocLinks.get(callNumber);
-            if (callDocLink == null && !icNo.isEmpty()) {
-                callDocLink = batchCallDocLinks.get(icNo);
-            }
-            dto.setUploadedInspectionCallDocument(callDocLink);
+            boolean isCancelled = "C".equalsIgnoreCase(dto.getCallStatus())
+                    || (bestRow[5] != null && "C".equalsIgnoreCase(safeString(bestRow[5])));
 
-            String linkedIc = batchLinkedIcs.get(callNumber);
-            if (linkedIc == null && !icNo.isEmpty()) {
-                linkedIc = batchLinkedIcs.get(icNo);
+            String icNo = null;
+            if (!isCancelled) {
+                String chosenIc = bestRow[15] != null ? safeString(bestRow[15]).trim() : null;
+                if (chosenIc == null || !chosenIc.contains("/")) {
+                    for (Object[] r : candidateRows) {
+                        if (r != null && r.length > 15 && r[15] != null) {
+                            String c = safeString(r[15]).trim();
+                            if (c.contains("/")) {
+                                chosenIc = c;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (chosenIc != null && !chosenIc.isBlank() && !chosenIc.equalsIgnoreCase(callNumber) && chosenIc.contains("/")) {
+                    icNo = chosenIc;
+                }
             }
-            dto.setIcLinkedForCurrentCall(linkedIc);
 
             dto.setCallNumber(callNumber);
             dto.setIcNumber(icNo);
@@ -2466,4 +2667,171 @@ public class IbsServiceImpl implements IbsService {
         }
     }
 
+    /**
+     * Batch-enrich cancelled calls with employee code (Eliminates N+1 queries).
+     * 1. Fast-path: if employee code is already resolved (e.g. from SQL query), 0 queries are executed.
+     * 2. If any cancelled call has missing or numeric userId employee number, does at most 1 IN-batch query
+     *    on call_cancellation_details and 1 IN-batch query on user_master, then resolves entirely in-memory.
+     */
+    private void batchEnrichCancelledCallEmployeeCodes(Collection<IbsInspectionDto> dtos) {
+        if (dtos == null || dtos.isEmpty()) return;
+
+        List<IbsInspectionDto> targetDtos = new ArrayList<>();
+        Set<String> callNosToLookup = new HashSet<>();
+        Set<Integer> userIdsToFetch = new HashSet<>();
+
+        for (IbsInspectionDto dto : dtos) {
+            if (dto == null || !"C".equalsIgnoreCase(dto.getCallStatus())) continue;
+            // Certificate number (icNumber) must be null for cancelled calls
+            dto.setIcNumber(null);
+            String emp = dto.getIeEmployeeNumber();
+            boolean isNumericUserId = emp != null && emp.trim().matches("^\\d+$");
+            boolean isMissing = emp == null || emp.trim().isEmpty();
+
+            if (isNumericUserId) {
+                try {
+                    userIdsToFetch.add(Integer.parseInt(emp.trim()));
+                    targetDtos.add(dto);
+                } catch (Exception ignored) {}
+            } else if (isMissing) {
+                String cNo = extractCleanCallNo(dto);
+                if (!cNo.isEmpty()) {
+                    callNosToLookup.add(cNo);
+                    if (dto.getCallNumber() != null && !dto.getCallNumber().isBlank()) {
+                        callNosToLookup.add(dto.getCallNumber().trim());
+                    }
+                    if (dto.getIcNumber() != null && !dto.getIcNumber().isBlank()) {
+                        callNosToLookup.add(dto.getIcNumber().trim());
+                    }
+                    targetDtos.add(dto);
+                }
+            }
+        }
+
+        // Fast-path: all cancelled calls already have real employee codes from SQL -> 0 queries executed!
+        if (targetDtos.isEmpty()) {
+            return;
+        }
+
+        // Batch lookup call_cancellation_details in a single query with IN clause
+        Map<String, CallCancellationDetail> cdMap = new HashMap<>();
+        if (!callNosToLookup.isEmpty() && callCancellationDetailRepository != null) {
+            try {
+                List<CallCancellationDetail> cds = callCancellationDetailRepository.findByCallNumberIn(callNosToLookup);
+                if (cds != null) {
+                    for (CallCancellationDetail cd : cds) {
+                        if (cd == null || cd.getCallNumber() == null) continue;
+                        String cn = cd.getCallNumber().trim();
+                        cdMap.put(cn, cd);
+                        cdMap.put(cn.toUpperCase(), cd);
+                        if (cd.getActionBy() != null && cd.getActionBy() > 0) {
+                            userIdsToFetch.add(cd.getActionBy().intValue());
+                        }
+                        if (cd.getCreatedBy() != null && cd.getCreatedBy().trim().matches("^\\d+$")) {
+                            try {
+                                userIdsToFetch.add(Integer.parseInt(cd.getCreatedBy().trim()));
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error in batch fetching call_cancellation_details: {}", e.getMessage());
+            }
+        }
+
+        // Batch lookup user_master in a single query with IN clause
+        Map<Integer, String> userIdToEmpCode = new HashMap<>();
+        if (!userIdsToFetch.isEmpty() && userMasterRepository != null) {
+            try {
+                List<UserMaster> users = userMasterRepository.findByUserIdIn(new ArrayList<>(userIdsToFetch));
+                if (users != null) {
+                    for (UserMaster u : users) {
+                        if (u != null && u.getUserId() != null) {
+                            String resolved = resolveEmployeeCode(u);
+                            if (resolved != null && !resolved.isBlank()) {
+                                userIdToEmpCode.put(u.getUserId(), resolved);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error in batch fetching user_master by user IDs: {}", e.getMessage());
+            }
+        }
+
+        // In-memory assignment - zero extra queries!
+        for (IbsInspectionDto dto : targetDtos) {
+            String emp = dto.getIeEmployeeNumber();
+            if (emp != null && emp.trim().matches("^\\d+$")) {
+                try {
+                    int uid = Integer.parseInt(emp.trim());
+                    String resolved = userIdToEmpCode.get(uid);
+                    if (resolved != null && !resolved.isBlank()) {
+                        dto.setIeEmployeeNumber(resolved);
+                        continue;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            String cNo = extractCleanCallNo(dto);
+            CallCancellationDetail cd = cdMap.get(cNo);
+            if (cd == null && dto.getCallNumber() != null) cd = cdMap.get(dto.getCallNumber().trim());
+            if (cd == null && dto.getIcNumber() != null) cd = cdMap.get(dto.getIcNumber().trim());
+            if (cd != null) {
+                if (cd.getActionBy() != null && cd.getActionBy() > 0) {
+                    String resolved = userIdToEmpCode.get(cd.getActionBy().intValue());
+                    if (resolved != null && !resolved.isBlank()) {
+                        dto.setIeEmployeeNumber(resolved);
+                        continue;
+                    }
+                }
+                if (cd.getCreatedBy() != null && cd.getCreatedBy().trim().matches("^\\d+$")) {
+                    try {
+                        int uid = Integer.parseInt(cd.getCreatedBy().trim());
+                        String resolved = userIdToEmpCode.get(uid);
+                        if (resolved != null && !resolved.isBlank()) {
+                            dto.setIeEmployeeNumber(resolved);
+                            continue;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+    }
+
+    private String extractCleanCallNo(IbsInspectionDto dto) {
+        if (dto == null) return "";
+        String callNo = dto.getCallNumber();
+        if (callNo == null || callNo.trim().isEmpty()) {
+            callNo = dto.getIcNumber();
+        }
+        if (callNo == null) return "";
+        callNo = callNo.trim();
+        if (callNo.contains("/")) {
+            for (String part : callNo.split("/")) {
+                String p = part.trim();
+                if (p.startsWith("ER-") || p.startsWith("EP-") || p.startsWith("EF-")
+                        || p.startsWith("ER") || p.startsWith("EP") || p.startsWith("EF")
+                        || p.startsWith("RPP-") || p.startsWith("RPF-") || p.startsWith("RP")
+                        || p.startsWith("SF-") || p.startsWith("SF")) {
+                    return p;
+                }
+            }
+        }
+        return callNo;
+    }
+
+    private String resolveEmployeeCode(UserMaster user) {
+        if (user == null) return null;
+        if (user.getEmployeeCode() != null && !user.getEmployeeCode().trim().isEmpty()) {
+            return user.getEmployeeCode().trim();
+        }
+        if (user.getRitesEmployeeCode() != null) {
+            return String.valueOf(user.getRitesEmployeeCode()).trim();
+        }
+        if (user.getEmployeeId() != null && !user.getEmployeeId().trim().isEmpty()) {
+            return user.getEmployeeId().trim();
+        }
+        return null;
+    }
 }

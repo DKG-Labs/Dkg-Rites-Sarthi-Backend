@@ -14,11 +14,13 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
     @Query(value = """
             SELECT * FROM railpad_final_ic_edit
             WHERE ic_number = :icNumber
+               OR SUBSTRING_INDEX(SUBSTRING_INDEX(ic_number, '/', 2), '/', -1) = :icNumber
+               OR ic_number LIKE CONCAT('%/', :icNumber, '/%')
                OR ic_number LIKE CONCAT('%', :icNumber, '%')
                OR :icNumber LIKE CONCAT('%', ic_number, '%')
             ORDER BY id DESC LIMIT 1
             """, nativeQuery = true)
-    Optional<RailpadFinalIcEdit> findByIcNumber(String icNumber);
+    Optional<RailpadFinalIcEdit> findByIcNumber(@Param("icNumber") String icNumber);
 
     @Query(value = """
             SELECT
@@ -45,20 +47,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
                 COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,
                 ic.call_no                                              AS callNo,
-                COALESCE(
-                    NULLIF(ricd.certificate_no, ''),
-                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
-                    CONCAT(
-                        COALESCE(
-                            NULLIF(LEFT(TRIM(wt_assigned.rio), 1), ''),
-                            'C'
-                        ),
-                        '/',
-                        ic.call_no,
-                        '/',
-                        UPPER(COALESCE(NULLIF(um_assigned.short_name, ''), NULLIF(um.short_name, ''), 'IE'))
-                    )
-                )                                                       AS callNumber,
+                (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(rvp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
@@ -69,6 +58,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                        CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                     OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    OR CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
             LEFT JOIN (
                 SELECT rwt1.request_id, rwt1.assigned_to_user, rwt1.rio
                 FROM rail_workflow_transaction rwt1
@@ -95,17 +85,6 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                       CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                    ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT ricd1.call_no, ricd1.certificate_no
-                FROM rail_inspection_complete_details ricd1
-                INNER JOIN (
-                    SELECT call_no, MAX(id) AS max_id
-                    FROM rail_inspection_complete_details
-                    GROUP BY call_no
-                ) latest_ricd
-                    ON ricd1.id = latest_ricd.max_id
-            ) ricd
-                    ON CONVERT(ricd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -187,7 +166,6 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 f.created_at,
                 ic.call_no,
                 f.ic_number,
-                ricd.certificate_no,
                 wt_assigned.rio,
                 rvp.rio,
                 ic.total_qty
@@ -219,20 +197,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
                 COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,
                 ic.call_no                                             AS callNo,
-                COALESCE(
-                    NULLIF(ricd.certificate_no, ''),
-                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
-                    CONCAT(
-                        COALESCE(
-                            NULLIF(LEFT(TRIM(wt_assigned.rio), 1), ''),
-                            'C'
-                        ),
-                        '/',
-                        ic.call_no,
-                        '/',
-                        UPPER(COALESCE(NULLIF(um_assigned.short_name, ''), NULLIF(um.short_name, ''), 'IE'))
-                    )
-                )                                                       AS callNumber,
+                (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(rvp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
@@ -243,6 +208,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                        CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                     OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    OR CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
             LEFT JOIN (
                 SELECT rwt1.request_id, rwt1.assigned_to_user, rwt1.rio
                 FROM rail_workflow_transaction rwt1
@@ -266,18 +232,6 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                       CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT ricd1.call_no, ricd1.certificate_no
-                FROM rail_inspection_complete_details ricd1
-                INNER JOIN (
-                    SELECT call_no, MAX(id) AS max_id
-                    FROM rail_inspection_complete_details
-                    WHERE call_no IN (:callNumbers)
-                    GROUP BY call_no
-                ) latest_ricd
-                    ON ricd1.id = latest_ricd.max_id
-            ) ricd
-                    ON CONVERT(ricd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -305,7 +259,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             WHERE (
                 ic.call_no IN (:callNumbers)
                 OR f.ic_number IN (:callNumbers)
-                OR ricd.certificate_no IN (:callNumbers)
+                OR SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) IN (:callNumbers)
             )
             GROUP BY
                 ph.case_no,
@@ -328,7 +282,6 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 f.created_at,
                 ic.call_no,
                 f.ic_number,
-                ricd.certificate_no,
                 wt_assigned.rio,
                 rvp.rio,
                 ic.total_qty

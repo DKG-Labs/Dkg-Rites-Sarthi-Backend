@@ -469,12 +469,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 COALESCE(fr.total_accepted, 0)                          AS quantityPassed,
                 COALESCE(fr.total_rejected, 0)                          AS quantityRejected,
                 ic.ic_number                                            AS callNo,
-                COALESCE(
-                    NULLIF(icd.certificate_no, ''),
-                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
-                    NULLIF(f.ic_number, ''),
-                    ic.ic_number
-                )                                                       AS callNumber,
+                (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
@@ -566,7 +561,6 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
-                icd.certificate_no,
                 f.ic_number,
                 fr.offered_qty,
                 fr.total_accepted,
@@ -622,12 +616,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                     0
                 ) AS quantityRejected,
                 ic.ic_number                                            AS callNo,
-                COALESCE(
-                    NULLIF(icd.certificate_no, ''),
-                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
-                    NULLIF(f.ic_number, ''),
-                    ic.ic_number
-                )                                                       AS callNumber,
+                (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
@@ -716,7 +705,6 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
-                icd.certificate_no,
                 f.ic_number,
                 fr.offered_qty,
                 fr.total_accepted,

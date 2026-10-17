@@ -14,11 +14,13 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
     @Query(value = """
             SELECT * FROM sleeper_final_ic_edit
             WHERE ic_number = :icNumber
+               OR SUBSTRING_INDEX(SUBSTRING_INDEX(ic_number, '/', 2), '/', -1) = :icNumber
+               OR ic_number LIKE CONCAT('%/', :icNumber, '/%')
                OR ic_number LIKE CONCAT('%', :icNumber, '%')
                OR :icNumber LIKE CONCAT('%', ic_number, '%')
             ORDER BY id DESC LIMIT 1
             """, nativeQuery = true)
-    Optional<SleeperFinalIcEdit> findByIcNumber(String icNumber);
+    Optional<SleeperFinalIcEdit> findByIcNumber(@Param("icNumber") String icNumber);
 
     @Query(value = """
             SELECT
@@ -45,20 +47,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)         AS quantityPassed,
                 COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)         AS quantityRejected,
                 sic.call_no                                             AS callNo,
-                COALESCE(
-                    NULLIF(sicd.certificate_no, ''),
-                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
-                    CONCAT(
-                        COALESCE(
-                            NULLIF(LEFT(TRIM(wt_assigned.rio), 1), ''),
-                            'C'
-                        ),
-                        '/',
-                        sic.call_no,
-                        '/',
-                        UPPER(COALESCE(NULLIF(um_assigned.short_name, ''), NULLIF(um.short_name, ''), 'IE'))
-                    )
-                )                                                       AS callNumber,
+                (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(vp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
@@ -69,6 +58,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                        CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                     OR CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    OR CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
             LEFT JOIN (
                 SELECT swt1.request_id, swt1.assigned_to_user, swt1.rio
                 FROM sleeper_workflow_transaction swt1
@@ -95,17 +85,6 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                       CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT sicd1.call_no, sicd1.certificate_no
-                FROM sleeper_inspection_complete_details sicd1
-                INNER JOIN (
-                    SELECT call_no, MAX(id) AS max_id
-                    FROM sleeper_inspection_complete_details
-                    GROUP BY call_no
-                ) latest_sicd
-                    ON sicd1.id = latest_sicd.max_id
-            ) sicd
-                    ON CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -195,7 +174,6 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 f.created_at,
                 sic.call_no,
                 f.ic_number,
-                sicd.certificate_no,
                 wt_assigned.rio,
                 vp.rio,
                 sic.total_offered,
@@ -230,20 +208,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)         AS quantityPassed,
                 COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)         AS quantityRejected,
                 sic.call_no                                             AS callNo,
-                COALESCE(
-                    NULLIF(sicd.certificate_no, ''),
-                    (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULL END),
-                    CONCAT(
-                        COALESCE(
-                            NULLIF(LEFT(TRIM(wt_assigned.rio), 1), ''),
-                            'C'
-                        ),
-                        '/',
-                        sic.call_no,
-                        '/',
-                        UPPER(COALESCE(NULLIF(um_assigned.short_name, ''), NULLIF(um.short_name, ''), 'IE'))
-                    )
-                )                                                       AS callNumber,
+                (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(vp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
@@ -254,6 +219,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                        CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                     OR CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                        CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    OR CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
             LEFT JOIN (
                 SELECT swt1.request_id, swt1.assigned_to_user, swt1.rio
                 FROM sleeper_workflow_transaction swt1
@@ -281,18 +247,6 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                       CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN (
-                SELECT sicd1.call_no, sicd1.certificate_no
-                FROM sleeper_inspection_complete_details sicd1
-                INNER JOIN (
-                    SELECT call_no, MAX(id) AS max_id
-                    FROM sleeper_inspection_complete_details
-                    WHERE call_no IN (:callNumbers)
-                    GROUP BY call_no
-                ) latest_sicd
-                    ON sicd1.id = latest_sicd.max_id
-            ) sicd
-                    ON CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
                    ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT((CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -350,7 +304,6 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 f.created_at,
                 sic.call_no,
                 f.ic_number,
-                sicd.certificate_no,
                 wt_assigned.rio,
                 vp.rio,
                 sic.total_offered,

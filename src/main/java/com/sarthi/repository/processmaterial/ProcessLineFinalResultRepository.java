@@ -968,12 +968,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 COALESCE(pr.total_accepted, 0)                          AS quantityPassed,
                 COALESCE(pr.total_rejected, 0)                          AS quantityRejected,
                 ic.ic_number                                            AS callNo,
-                COALESCE(
-                    NULLIF(icd.certificate_no, ''),
-                    (CASE WHEN p.ic_number LIKE '%/%' THEN p.ic_number ELSE NULL END),
-                    NULLIF(p.ic_number, ''),
-                    ic.ic_number
-                )                                                       AS callNumber,
+                (CASE WHEN p.ic_number LIKE '%/%' THEN p.ic_number ELSE NULLIF(p.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
@@ -1065,7 +1060,6 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
-                icd.certificate_no,
                 p.ic_number,
                 pr.total_processed,
                 pr.total_accepted,
@@ -1125,12 +1119,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                     0
                 ) AS quantityRejected,
                 ic.ic_number                                            AS callNo,
-                COALESCE(
-                    NULLIF(icd.certificate_no, ''),
-                    (CASE WHEN p.ic_number LIKE '%/%' THEN p.ic_number ELSE NULL END),
-                    NULLIF(p.ic_number, ''),
-                    ic.ic_number
-                )                                                       AS callNumber,
+                (CASE WHEN p.ic_number LIKE '%/%' THEN p.ic_number ELSE NULLIF(p.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
@@ -1219,7 +1208,6 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
-                icd.certificate_no,
                 p.ic_number,
                 pr.total_processed,
                 pr.total_accepted,

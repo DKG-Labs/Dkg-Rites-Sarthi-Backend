@@ -648,12 +648,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 COALESCE(rmr.total_accepted, 0)                         AS quantityPassed,
                 COALESCE(rmr.total_rejected, 0)                         AS quantityRejected,
                 ic.ic_number                                            AS callNo,
-                COALESCE(
-                    NULLIF(icd.certificate_no, ''),
-                    (CASE WHEN rm.ic_number LIKE '%/%' THEN rm.ic_number ELSE NULL END),
-                    NULLIF(rm.ic_number, ''),
-                    ic.ic_number
-                )                                                       AS callNumber,
+                (CASE WHEN rm.ic_number LIKE '%/%' THEN rm.ic_number ELSE NULLIF(rm.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
@@ -746,7 +741,6 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
-                icd.certificate_no,
                 rm.ic_number,
                 rmr.offered_qty,
                 rmr.total_accepted,
@@ -786,12 +780,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 COALESCE(rmr.total_accepted, 0)                         AS quantityPassed,
                 COALESCE(rmr.total_rejected, 0)                         AS quantityRejected,
                 ic.ic_number                                            AS callNo,
-                COALESCE(
-                    NULLIF(icd.certificate_no, ''),
-                    (CASE WHEN rm.ic_number LIKE '%/%' THEN rm.ic_number ELSE NULL END),
-                    NULLIF(rm.ic_number, ''),
-                    ic.ic_number
-                )                                                       AS callNumber,
+                (CASE WHEN rm.ic_number LIKE '%/%' THEN rm.ic_number ELSE NULLIF(rm.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
@@ -875,7 +864,6 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 icd.created_on,
                 ic.updated_at,
                 ic.ic_number,
-                icd.certificate_no,
                 rm.ic_number,
                 rmr.offered_qty,
                 rmr.total_accepted,
