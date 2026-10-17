@@ -9,4 +9,6 @@ public class ImageCaptureDto {
     private Double longitude;
     private String timestamp;
     private String preview;
+    private String url;
+    private String photoUrl;
 }

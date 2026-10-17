@@ -12,7 +12,15 @@ import java.util.Optional;
 @Repository
 public interface SleeperFinalIcSaveChangesRepository extends JpaRepository<SleeperFinalIcSaveChanges, Long> {
 
-    @Query("SELECT s FROM SleeperFinalIcSaveChanges s WHERE LOWER(TRIM(s.icNumber)) = LOWER(TRIM(:icNumber)) ORDER BY s.id DESC")
+    @Query(value = """
+            SELECT * FROM sleeper_final_ic_save_changes
+            WHERE ic_number = :icNumber
+               OR SUBSTRING_INDEX(SUBSTRING_INDEX(ic_number, '/', 2), '/', -1) = :icNumber
+               OR ic_number LIKE CONCAT('%/', :icNumber, '/%')
+               OR ic_number LIKE CONCAT('%', :icNumber, '%')
+               OR :icNumber LIKE CONCAT('%', ic_number, '%')
+            ORDER BY id DESC
+            """, nativeQuery = true)
     List<SleeperFinalIcSaveChanges> findAllByIcNumberFlexible(@Param("icNumber") String icNumber);
 
     default Optional<SleeperFinalIcSaveChanges> findByIcNumber(String icNumber) {

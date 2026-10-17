@@ -36,6 +36,12 @@ public class AzureBlobStorageService {
     @Value("${azure.storage.connection-string}")
     private String connectionString;
 
+    @Value("${azure.storage.uat-connection-string:}")
+    private String uatConnectionString;
+
+    @Value("${azure.storage.prod-connection-string:}")
+    private String prodConnectionString;
+
     @Value("${azure.storage.container-name}")
     private String containerName;
 
@@ -664,27 +670,41 @@ public class AzureBlobStorageService {
             log.warn("Error reading from local uploads: {}", localEx.getMessage());
         }
 
-        // 2. Otherwise download from Azure
-        try {
-            BlobContainerClient targetContainer = getContainerClient(targetContainerName);
-            BlobClient blobClient = targetContainer.getBlobClient(fileName);
-
-            if (!blobClient.exists()) {
-                throw new RuntimeException("Image not found in container '" + targetContainerName + "': " + fileName);
-            }
-
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            blobClient.download(outputStream);
-
-            log.info("Downloaded image {} from container {} ({} bytes)",
-                    fileName, targetContainerName, outputStream.size());
-            return outputStream.toByteArray();
-
-        } catch (Exception e) {
-            log.error("Error downloading image {} from container {}: {}",
-                    fileName, targetContainerName, e.getMessage(), e);
-            throw new RuntimeException("Failed to download image from storage", e);
+        // 2. Download from Azure - test across all available connection strings (PROD, UAT, Primary)
+        java.util.List<String> connStrings = new java.util.ArrayList<>();
+        if (connectionString != null && !connectionString.trim().isEmpty()) {
+            connStrings.add(connectionString.trim());
         }
+        if (uatConnectionString != null && !uatConnectionString.trim().isEmpty() && !connStrings.contains(uatConnectionString.trim())) {
+            connStrings.add(uatConnectionString.trim());
+        }
+        if (prodConnectionString != null && !prodConnectionString.trim().isEmpty() && !connStrings.contains(prodConnectionString.trim())) {
+            connStrings.add(prodConnectionString.trim());
+        }
+
+        for (String conn : connStrings) {
+            try {
+                BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
+                        .connectionString(conn)
+                        .buildClient();
+                BlobContainerClient targetContainer = blobServiceClient.getBlobContainerClient(targetContainerName);
+                if (targetContainer != null && targetContainer.exists()) {
+                    BlobClient blobClient = targetContainer.getBlobClient(fileName);
+                    if (blobClient != null && blobClient.exists()) {
+                        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                        blobClient.download(outputStream);
+                        log.info("Downloaded image {} from container {} via Azure ({} bytes)",
+                                fileName, targetContainerName, outputStream.size());
+                        return outputStream.toByteArray();
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Could not download image {} from container {} with connection string: {}",
+                        fileName, targetContainerName, e.getMessage());
+            }
+        }
+
+        throw new RuntimeException("Image not found in container '" + targetContainerName + "': " + fileName);
     }
 
 
