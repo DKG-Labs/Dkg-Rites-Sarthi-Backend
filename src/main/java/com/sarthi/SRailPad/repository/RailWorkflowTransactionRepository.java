@@ -13,6 +13,7 @@ import java.util.List;
 public interface RailWorkflowTransactionRepository extends JpaRepository<RailWorkflowTransaction, Integer> {
 
     List<RailWorkflowTransaction> findByRequestIdOrderByWorkflowTransitionIdDesc(String requestId);
+    List<RailWorkflowTransaction> findByRequestIdAndStatus(String requestId, String status);
 
     boolean existsByRequestId(String requestId);
 
@@ -967,7 +968,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 SELECT request_id, MAX(workflow_transition_id) AS max_id
                 FROM rail_workflow_transaction
                 WHERE workflow_id IN (1, 2)
-                  AND (UPPER(COALESCE(status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(action, '')) = 'SEND_CALL_TO_IBS')
+                  AND (UPPER(COALESCE(status, '')) = 'IC_GENERATION' OR UPPER(COALESCE(action, '')) = 'IC_GENERATION')
                 GROUP BY request_id
             ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
             INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci

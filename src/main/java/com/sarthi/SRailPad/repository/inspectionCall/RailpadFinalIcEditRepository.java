@@ -28,7 +28,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 DATE(ic.created_at)                                     AS callDate,
                 COALESCE(CONVERT(pm.poi_code USING utf8mb4), CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
-                CAST(COALESCE(um_assigned.employee_code, um.employee_code, f.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
+                CAST(COALESCE(um_assigned.employee_code, um.employee_code, f.created_by) AS CHAR) AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'F'                                                     AS typeOfCall,
                 (CASE 
@@ -42,7 +42,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(f.created_at, ic.updated_at, ic.created_at)) AS icDate,
+                DATE(f.created_at)                                      AS icDate,
                 COALESCE(SUM(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
                 COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
                 COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,
@@ -133,9 +133,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             ) wt_latest
                     ON CONVERT(wt_latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             WHERE (
-                UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
-                OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'
-                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
@@ -178,7 +176,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 DATE(ic.created_at)                                    AS callDate,
                 COALESCE(CONVERT(pm.poi_code USING utf8mb4), CONVERT(rpp.poi_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS placeOfInspection,
                 COALESCE(CONVERT(pm.ibs_vendor_code USING utf8mb4), CONVERT(ic.plant_id USING utf8mb4)) AS ibsManufacturedCode,
-                CAST(COALESCE(um_assigned.employee_code, um.employee_code, f.created_by, ic.created_by) AS CHAR) AS ieEmployeeNumber,
+                CAST(COALESCE(um_assigned.employee_code, um.employee_code, f.created_by) AS CHAR) AS ieEmployeeNumber,
                 'A'                                                     AS callStatus,
                 'F'                                                     AS typeOfCall,
                 (CASE 
@@ -192,7 +190,7 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(f.created_at, ic.updated_at, ic.created_at)) AS icDate,
+                DATE(f.created_at)                                      AS icDate,
                 COALESCE(SUM(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
                 COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
                 COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,

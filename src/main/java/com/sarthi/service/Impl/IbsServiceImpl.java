@@ -18,6 +18,10 @@ import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmIcEdit;
 import com.sarthi.entity.CallCancellationDetail;
+import com.sarthi.entity.WorkflowTransition;
+import com.sarthi.entity.WorkflowDeleteHistory;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
+import com.sarthi.SRailPad.entity.RailWorkflowTransaction;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.*;
@@ -110,6 +114,11 @@ public class IbsServiceImpl implements IbsService {
     private final InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
     private final CallCancellationDetailRepository callCancellationDetailRepository;
+
+    private final WorkflowTransitionRepository workflowTransitionRepository;
+    private final com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
+    private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
+    private final WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
 
     @Override
     public AuthResponseDto integrationLogin(
@@ -719,54 +728,48 @@ public class IbsServiceImpl implements IbsService {
                 }
             }
 
-            // 2. Fetch pending candidate call numbers across ERC, Sleeper, and Railpad
-            Set<String> ercPending = new HashSet<>();
-            try {
-                for (String cn : inspectionCallsRepository.findPendingIbsCallNumbers()) {
-                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
-                        ercPending.add(cn.trim());
-                    }
-                }
-                for (String cn : inspectionCallsRepository.findPendingWorkflowCallNumbers()) {
-                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
-                        ercPending.add(cn.trim());
-                    }
-                }
-            } catch (Exception e) {
-                log.error("Error fetching ERC pending call numbers: {}", e.getMessage(), e);
-            }
+            // 2. Fetch pending candidate call numbers across ERC, Sleeper, and Railpad (parallel)
+            Set<String> ercPending = Collections.synchronizedSet(new HashSet<>());
+            Set<String> sleeperPending = Collections.synchronizedSet(new HashSet<>());
+            Set<String> railpadPending = Collections.synchronizedSet(new HashSet<>());
 
-            Set<String> sleeperPending = new HashSet<>();
-            try {
-                for (String cn : sleeperInspectionCallRepository.findPendingIbsCallNumbers()) {
-                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
-                        sleeperPending.add(cn.trim());
+            CompletableFuture<Void> cErc = CompletableFuture.runAsync(() -> {
+                try {
+                    for (String cn : inspectionCallsRepository.findPendingWorkflowCallNumbers()) {
+                        if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                            ercPending.add(cn.trim());
+                        }
                     }
+                } catch (Exception e) {
+                    log.error("Error fetching ERC pending call numbers: {}", e.getMessage(), e);
                 }
-                for (String cn : sleeperInspectionCallRepository.findPendingWorkflowCallNumbers()) {
-                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
-                        sleeperPending.add(cn.trim());
-                    }
-                }
-            } catch (Exception e) {
-                log.error("Error fetching Sleeper pending call numbers: {}", e.getMessage(), e);
-            }
+            });
 
-            Set<String> railpadPending = new HashSet<>();
-            try {
-                for (String cn : railInspectionCallRepository.findPendingIbsCallNumbers()) {
-                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
-                        railpadPending.add(cn.trim());
+            CompletableFuture<Void> cSleeper = CompletableFuture.runAsync(() -> {
+                try {
+                    for (String cn : sleeperInspectionCallRepository.findPendingWorkflowCallNumbers()) {
+                        if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                            sleeperPending.add(cn.trim());
+                        }
                     }
+                } catch (Exception e) {
+                    log.error("Error fetching Sleeper pending call numbers: {}", e.getMessage(), e);
                 }
-                for (String cn : railInspectionCallRepository.findPendingWorkflowCallNumbers()) {
-                    if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
-                        railpadPending.add(cn.trim());
+            });
+
+            CompletableFuture<Void> cRailpad = CompletableFuture.runAsync(() -> {
+                try {
+                    for (String cn : railInspectionCallRepository.findPendingWorkflowCallNumbers()) {
+                        if (cn != null && !cn.trim().isEmpty() && !successfulCalls.contains(cn.trim().toUpperCase())) {
+                            railpadPending.add(cn.trim());
+                        }
                     }
+                } catch (Exception e) {
+                    log.error("Error fetching Railpad pending call numbers: {}", e.getMessage(), e);
                 }
-            } catch (Exception e) {
-                log.error("Error fetching Railpad pending call numbers: {}", e.getMessage(), e);
-            }
+            });
+
+            CompletableFuture.allOf(cErc, cSleeper, cRailpad).join();
 
             long tCandidates = System.currentTimeMillis();
             log.info("[IBS-FETCH] Candidates pending registration: ERC={}, Sleeper={}, Railpad={} (took {} ms)",
@@ -2819,6 +2822,139 @@ public class IbsServiceImpl implements IbsService {
             }
         }
         return callNo;
+    }
+
+    @Override
+    @Transactional
+    public String revertIbsCallToCompleted(String callNumber, Integer deletedBy) {
+        if (callNumber == null || callNumber.isBlank()) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID,
+                    AppConstant.ERROR_TYPE_INVALID, "Call number is required."));
+        }
+
+        String upper = callNumber.toUpperCase().trim();
+        java.util.Date now = new java.util.Date();
+
+        if (upper.startsWith("SF-")) {
+            // Sleeper Final
+            List<SleeperWorkflowTransaction> records = sleeperWorkflowRepository
+                    .findByRequestIdAndStatus(callNumber.trim(), "SEND_CALL_TO_IBS");
+            if (records.isEmpty()) {
+                records = sleeperWorkflowRepository
+                        .findByRequestIdAndStatus(callNumber.trim(), "SENT_TO_IBS");
+            }
+            if (records.isEmpty()) {
+                throw new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID,
+                        AppConstant.ERROR_TYPE_INVALID,
+                        "No SEND_CALL_TO_IBS workflow transition found for: " + callNumber));
+            }
+            for (SleeperWorkflowTransaction swt : records) {
+                WorkflowDeleteHistory hist = new WorkflowDeleteHistory();
+                hist.setRequestId(swt.getRequestId());
+                hist.setRequestType("SLEEPER");
+                hist.setWorkflowTransitionId(swt.getWorkflowTransitionId() != null ? swt.getWorkflowTransitionId().intValue() : null);
+                hist.setWorkflowId(swt.getWorkflowId() != null ? swt.getWorkflowId().intValue() : null);
+                hist.setStatus(swt.getStatus());
+                hist.setJobStatus(swt.getJobStatus());
+                hist.setAction(swt.getAction());
+                hist.setCurrentRole(swt.getCurrentRole());
+                hist.setNextRole(swt.getNextRole());
+                hist.setRemarks(swt.getRemarks());
+                hist.setCreatedBy(swt.getCreatedBy() != null ? swt.getCreatedBy().intValue() : null);
+                hist.setAssignedToUser(swt.getAssignedToUser() != null ? swt.getAssignedToUser().intValue() : null);
+                hist.setRio(swt.getRio());
+                hist.setTransitionCreatedDate(swt.getCreatedDate() != null ? java.sql.Date.valueOf(swt.getCreatedDate().toLocalDate()) : null);
+                hist.setDeletedBy(deletedBy);
+                hist.setDeletedOn(now);
+                workflowDeleteHistoryRepository.save(hist);
+                sleeperWorkflowRepository.delete(swt);
+            }
+
+        } else if (upper.startsWith("RPP-") || upper.startsWith("RPF-")) {
+            // Railpad Process / Final
+            List<RailWorkflowTransaction> records = railWorkflowTransactionRepository
+                    .findByRequestIdAndStatus(callNumber.trim(), "SEND_CALL_TO_IBS");
+            if (records.isEmpty()) {
+                records = railWorkflowTransactionRepository
+                        .findByRequestIdAndStatus(callNumber.trim(), "SENT_TO_IBS");
+            }
+            if (records.isEmpty()) {
+                throw new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID,
+                        AppConstant.ERROR_TYPE_INVALID,
+                        "No SEND_CALL_TO_IBS workflow transition found for: " + callNumber));
+            }
+            for (RailWorkflowTransaction rwt : records) {
+                WorkflowDeleteHistory hist = new WorkflowDeleteHistory();
+                hist.setRequestId(rwt.getRequestId());
+                hist.setRequestType("RAILPAD");
+                hist.setWorkflowTransitionId(rwt.getWorkflowTransitionId() != null ? rwt.getWorkflowTransitionId().intValue() : null);
+                hist.setWorkflowId(rwt.getWorkflowId() != null ? rwt.getWorkflowId().intValue() : null);
+                hist.setStatus(rwt.getStatus());
+                hist.setJobStatus(rwt.getJobStatus());
+                hist.setAction(rwt.getAction());
+                hist.setCurrentRole(rwt.getCurrentRole());
+                hist.setNextRole(rwt.getNextRole());
+                hist.setRemarks(rwt.getRemarks());
+                hist.setCreatedBy(rwt.getCreatedBy() != null ? rwt.getCreatedBy().intValue() : null);
+                hist.setAssignedToUser(rwt.getAssignedToUser() != null ? rwt.getAssignedToUser().intValue() : null);
+                hist.setRio(rwt.getRio());
+                hist.setTransitionCreatedDate(rwt.getCreatedDate() != null ? java.sql.Date.valueOf(rwt.getCreatedDate().toLocalDate()) : null);
+                hist.setDeletedBy(deletedBy);
+                hist.setDeletedOn(now);
+                workflowDeleteHistoryRepository.save(hist);
+                railWorkflowTransactionRepository.delete(rwt);
+            }
+
+        } else {
+            // ERC — ER / EP / EF
+            List<WorkflowTransition> records = workflowTransitionRepository
+                    .findByRequestIdAndStatus(callNumber.trim(), "SEND_CALL_TO_IBS");
+            if (records.isEmpty()) {
+                records = workflowTransitionRepository
+                        .findByRequestIdAndStatus(callNumber.trim(), "SENT_TO_IBS");
+            }
+            if (records.isEmpty()) {
+                throw new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID,
+                        AppConstant.ERROR_TYPE_INVALID,
+                        "No SEND_CALL_TO_IBS workflow transition found for: " + callNumber));
+            }
+            for (WorkflowTransition wt : records) {
+                WorkflowDeleteHistory hist = new WorkflowDeleteHistory();
+                hist.setRequestId(wt.getRequestId());
+                hist.setRequestType("ERC");
+                hist.setWorkflowTransitionId(wt.getWorkflowTransitionId());
+                hist.setWorkflowId(wt.getWorkflowId());
+                hist.setTransitionId(wt.getTransitionId());
+                hist.setStatus(wt.getStatus());
+                hist.setJobStatus(wt.getJobStatus());
+                hist.setAction(wt.getAction());
+                hist.setCurrentRole(wt.getCurrentRole());
+                hist.setNextRole(wt.getNextRole());
+                hist.setCurrentRoleName(wt.getCurrentRoleName());
+                hist.setNextRoleName(wt.getNextRoleName());
+                hist.setRemarks(wt.getRemarks());
+                hist.setCreatedBy(wt.getCreatedBy());
+                hist.setModifiedBy(wt.getModifiedBy());
+                hist.setAssignedToUser(wt.getAssignedToUser());
+                hist.setProcessIeUserId(wt.getProcessIeUserId());
+                hist.setWorkflowSequence(wt.getWorkflowSequence());
+                hist.setRio(wt.getRio());
+                hist.setSwiftCode(wt.getSwiftCode());
+                hist.setPrimarySwift(wt.getPrimarySwift());
+                hist.setTransitionCreatedDate(wt.getCreatedDate());
+                hist.setDeletedBy(deletedBy);
+                hist.setDeletedOn(now);
+                workflowDeleteHistoryRepository.save(hist);
+                workflowTransitionRepository.delete(wt);
+            }
+        }
+
+        log.info("[IBS-REVERT] Reverted call {} to completed (deleted SEND_CALL_TO_IBS transition)", callNumber);
+        return "SUCCESS";
     }
 
     private String resolveEmployeeCode(UserMaster user) {

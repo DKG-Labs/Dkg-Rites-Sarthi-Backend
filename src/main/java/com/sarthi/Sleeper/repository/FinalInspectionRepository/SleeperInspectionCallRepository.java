@@ -1283,10 +1283,10 @@ ORDER BY um.employee_code
                 CAST(COALESCE(um_assigned.employee_code, um.employee_code, cd.created_by, wt.created_by, sic.created_by) AS CHAR) AS ieEmployeeNumber,
                 'C'                                                     AS callStatus,
                 'F'                                                     AS typeOfCall,
-                (CASE 
+                (CASE
                     WHEN sic.po_no LIKE '%/%' THEN TRIM(sic.po_no)
                     WHEN sic.sr_no LIKE '%/%' THEN TRIM(sic.sr_no)
-                    WHEN sic.sr_no IS NOT NULL AND TRIM(sic.sr_no) <> '' AND sic.po_no IS NOT NULL AND TRIM(sic.po_no) <> '' 
+                    WHEN sic.sr_no IS NOT NULL AND TRIM(sic.sr_no) <> '' AND sic.po_no IS NOT NULL AND TRIM(sic.po_no) <> ''
                         THEN CONCAT(TRIM(sic.po_no), '/', TRIM(sic.sr_no))
                     WHEN sic.sr_no IS NOT NULL AND TRIM(sic.sr_no) <> '' THEN TRIM(sic.sr_no)
                     WHEN sic.po_no IS NOT NULL AND TRIM(sic.po_no) <> '' THEN TRIM(sic.po_no)
@@ -1302,96 +1302,106 @@ ORDER BY um.employee_code
                 CAST(NULL AS CHAR)                                      AS callNumber,
                 COALESCE(cd.final_cancellation_charges, 0.0)            AS cancelCharges,
                 COALESCE(NULLIF(TRIM(vp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
-            FROM (
-                SELECT sic_base.*
-                FROM sleeper_inspection_call sic_base
-                WHERE UPPER(COALESCE(sic_base.status, '')) LIKE '%CANCEL%'
-                   OR UPPER(COALESCE(sic_base.status, '')) = 'BLOCKED'
-                   OR EXISTS (
-                       SELECT 1 FROM sleeper_call_cancellation_details cd_chk
-                       WHERE cd_chk.call_number COLLATE utf8mb4_unicode_ci = sic_base.call_no
-                   )
-                   OR EXISTS (
-                       SELECT 1 FROM sleeper_workflow_transaction wt_chk
-                       WHERE wt_chk.request_id COLLATE utf8mb4_unicode_ci = sic_base.call_no
-                         AND (UPPER(COALESCE(wt_chk.status, '')) LIKE '%CANCEL%' 
-                              OR UPPER(COALESCE(wt_chk.job_status, '')) LIKE '%CANCEL%' 
-                              OR UPPER(COALESCE(wt_chk.status, '')) = 'BLOCKED' 
-                              OR UPPER(COALESCE(wt_chk.job_status, '')) = 'BLOCKED')
-                   )
-            ) sic
-            LEFT JOIN sleeper_workflow_transaction wt_assigned
-                   ON wt_assigned.workflow_transition_id = (
-                       SELECT MAX(swt1.workflow_transition_id)
-                       FROM sleeper_workflow_transaction swt1
-                       WHERE swt1.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
-                         AND swt1.assigned_to_user IS NOT NULL
-                   )
+            FROM sleeper_inspection_call sic
+            LEFT JOIN (
+                SELECT DISTINCT call_number
+                FROM sleeper_call_cancellation_details
+            ) cd_exist ON cd_exist.call_number COLLATE utf8mb4_unicode_ci = sic.call_no
+            LEFT JOIN (
+                SELECT DISTINCT request_id
+                FROM sleeper_workflow_transaction
+                WHERE UPPER(COALESCE(status, '')) LIKE '%CANCEL%'
+                   OR UPPER(COALESCE(job_status, '')) LIKE '%CANCEL%'
+                   OR UPPER(COALESCE(status, '')) = 'BLOCKED'
+                   OR UPPER(COALESCE(job_status, '')) = 'BLOCKED'
+            ) wt_exist ON wt_exist.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
+            LEFT JOIN (
+                SELECT swt1.workflow_transition_id, swt1.request_id, swt1.assigned_to_user, swt1.rio
+                FROM sleeper_workflow_transaction swt1
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    FROM sleeper_workflow_transaction
+                    WHERE assigned_to_user IS NOT NULL
+                    GROUP BY request_id
+                ) latest_wt1 ON swt1.workflow_transition_id = latest_wt1.max_wt_id
+            ) wt_assigned ON wt_assigned.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
             LEFT JOIN vendor_plant vp
                    ON CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   OR CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(REPLACE(TRIM(vp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   OR CONVERT(REPLACE(TRIM(vp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                    ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN sleeper_inspection_complete_details sicd
-                   ON sicd.id = (
-                       SELECT MAX(sicd1.id)
-                       FROM sleeper_inspection_complete_details sicd1
-                       WHERE sicd1.call_no COLLATE utf8mb4_unicode_ci = sic.call_no
-                   )
-            LEFT JOIN sleeper_call_cancellation_details cd
-                   ON cd.id = (
-                       SELECT MAX(cd_sub.id)
-                       FROM sleeper_call_cancellation_details cd_sub
-                       WHERE cd_sub.call_number COLLATE utf8mb4_unicode_ci = sic.call_no
-                   )
-            LEFT JOIN sleeper_workflow_transaction wt
-                    ON wt.workflow_transition_id = (
-                        SELECT MAX(swt2.workflow_transition_id)
-                        FROM sleeper_workflow_transaction swt2
-                        WHERE swt2.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
-                          AND (UPPER(COALESCE(swt2.status, '')) LIKE '%CANCEL%' 
-                               OR UPPER(COALESCE(swt2.job_status, '')) LIKE '%CANCEL%' 
-                               OR UPPER(COALESCE(swt2.status, '')) = 'BLOCKED' 
-                               OR UPPER(COALESCE(swt2.job_status, '')) = 'BLOCKED')
-                    )
+            LEFT JOIN (
+                SELECT sicd1.id, sicd1.call_no, sicd1.certificate_no
+                FROM sleeper_inspection_complete_details sicd1
+                INNER JOIN (
+                    SELECT call_no, MAX(id) AS max_id
+                    FROM sleeper_inspection_complete_details
+                    GROUP BY call_no
+                ) latest_sicd ON sicd1.id = latest_sicd.max_id
+            ) sicd ON sicd.call_no COLLATE utf8mb4_unicode_ci = sic.call_no
+            LEFT JOIN (
+                SELECT cd_s.id, cd_s.call_number, cd_s.created_by, cd_s.created_date, cd_s.final_cancellation_charges
+                FROM sleeper_call_cancellation_details cd_s
+                INNER JOIN (
+                    SELECT call_number, MAX(id) AS max_id
+                    FROM sleeper_call_cancellation_details
+                    GROUP BY call_number
+                ) latest_cd ON cd_s.id = latest_cd.max_id
+            ) cd ON cd.call_number COLLATE utf8mb4_unicode_ci = sic.call_no
+            LEFT JOIN (
+                SELECT swt2.workflow_transition_id, swt2.request_id, swt2.created_by, swt2.created_date
+                FROM sleeper_workflow_transaction swt2
+                INNER JOIN (
+                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    FROM sleeper_workflow_transaction
+                    WHERE UPPER(COALESCE(status, '')) LIKE '%CANCEL%'
+                       OR UPPER(COALESCE(job_status, '')) LIKE '%CANCEL%'
+                       OR UPPER(COALESCE(status, '')) = 'BLOCKED'
+                       OR UPPER(COALESCE(job_status, '')) = 'BLOCKED'
+                    GROUP BY request_id
+                ) latest_wt2 ON swt2.workflow_transition_id = latest_wt2.max_wt_id
+            ) wt ON wt.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
             LEFT JOIN po_header ph
-                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT((CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(COALESCE(cd.created_by, wt.created_by) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sleeper_pincode_poi_mapping sppm
-                   ON CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   ON CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   OR CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                       CONVERT(CAST(sic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON (
                        CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                       OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                       OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci =
                           CONVERT(REPLACE(TRIM(sic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    )
                   AND pm.product_type = 'sleeper'
-            LEFT JOIN ibs_call_registration icr
-                    ON icr.id = (
-                        SELECT MAX(icr_sub.id)
-                        FROM ibs_call_registration icr_sub
-                        WHERE icr_sub.call_number COLLATE utf8mb4_unicode_ci = sic.call_no
-                    )
+            LEFT JOIN (
+                SELECT icr_s.id, icr_s.call_number, icr_s.status
+                FROM ibs_call_registration icr_s
+                INNER JOIN (
+                    SELECT call_number, MAX(id) AS max_id
+                    FROM ibs_call_registration
+                    GROUP BY call_number
+                ) latest_icr ON icr_s.id = latest_icr.max_id
+            ) icr ON icr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no
             WHERE (
-                UPPER(sic.status) LIKE '%CANCEL%'
-                OR UPPER(sic.status) = 'BLOCKED'
-                OR cd.call_number IS NOT NULL
-                OR wt.workflow_transition_id IS NOT NULL
+                UPPER(COALESCE(sic.status, '')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE(sic.status, '')) = 'BLOCKED'
+                OR cd_exist.call_number IS NOT NULL
+                OR wt_exist.request_id IS NOT NULL
             )
             AND (
                 icr.call_number IS NULL

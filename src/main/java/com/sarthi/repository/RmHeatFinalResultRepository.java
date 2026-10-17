@@ -643,8 +643,8 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(rm.book_no, '') AS CHAR)                  AS bkNumber,
                 CAST(COALESCE(rm.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(rm.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE((SELECT COALESCE(rmd.tc_quantity, rmd.total_offered_qty_mt, rmd.offered_qty_erc) FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), rmr.offered_qty, 0) AS quantityOffered,
+                DATE(rm.created_at)                                     AS icDate,
+                COALESCE((SELECT rmd.total_offered_qty_mt FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), 0) AS quantityOffered,
                 COALESCE(rmr.total_accepted, 0)                         AS quantityPassed,
                 COALESCE(rmr.total_rejected, 0)                         AS quantityRejected,
                 ic.ic_number                                            AS callNo,
@@ -713,9 +713,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'ER%'
             )
             AND (
-                UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
-                OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'
-                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
@@ -775,8 +773,8 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(rm.book_no, '') AS CHAR)                  AS bkNumber,
                 CAST(COALESCE(rm.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(rm.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE((SELECT COALESCE(rmd.tc_quantity, rmd.total_offered_qty_mt, rmd.offered_qty_erc) FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), rmr.offered_qty, 0) AS quantityOffered,
+                DATE(rm.created_at)                                     AS icDate,
+                COALESCE((SELECT rmd.total_offered_qty_mt FROM rm_inspection_details rmd WHERE rmd.ic_id = ic.id ORDER BY rmd.id DESC LIMIT 1), 0) AS quantityOffered,
                 COALESCE(rmr.total_accepted, 0)                         AS quantityPassed,
                 COALESCE(rmr.total_rejected, 0)                         AS quantityRejected,
                 ic.ic_number                                            AS callNo,

@@ -963,8 +963,8 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(p.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(p.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(p.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(NULLIF(pr.total_processed, 0), (SELECT SUM(pid.offered_qty) FROM process_inspection_details pid WHERE pid.ic_id = ic.id), 0) AS quantityOffered,
+                DATE(p.created_at)                                      AS icDate,
+                COALESCE(pr.total_processed, 0)                         AS quantityOffered,
                 COALESCE(pr.total_accepted, 0)                          AS quantityPassed,
                 COALESCE(pr.total_rejected, 0)                          AS quantityRejected,
                 ic.ic_number                                            AS callNo,
@@ -1032,9 +1032,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 OR UPPER(COALESCE(ic.ic_number, '')) LIKE 'EP%'
             )
             AND (
-                UPPER(COALESCE(ic.status, '')) LIKE '%SEND_CALL_TO_IBS%'
-                OR UPPER(COALESCE(ic.status, '')) LIKE '%SENT_TO_IBS%'
-                OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
+                UPPER(COALESCE(wt_latest.status, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SEND_CALL_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.status, '')) LIKE '%SENT_TO_IBS%'
                 OR UPPER(COALESCE(wt_latest.action, '')) LIKE '%SENT_TO_IBS%'
@@ -1097,14 +1095,8 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 END)                                                    AS poItemSerialNumber,
                 CAST(COALESCE(p.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(p.set_no, '') AS CHAR)                    AS setNumber,
-                DATE(COALESCE(p.created_at, icd.created_on, ic.updated_at, ic.created_at)) AS icDate,
-                COALESCE(
-                    NULLIF(pr.total_processed, 0),
-                    (SELECT COALESCE(SUM(piq.offered_qty), SUM(piq.manufacture_qty), SUM(piq.inspected_qty)) FROM process_ie_qty piq WHERE piq.request_id = ic.ic_number),
-                    (SELECT SUM(pid.offered_qty) FROM process_inspection_details pid WHERE pid.ic_id = ic.id),
-                    (SELECT icd_sub.call_qty FROM inspection_call_details icd_sub WHERE icd_sub.inspection_call_no = ic.ic_number ORDER BY icd_sub.id DESC LIMIT 1),
-                    0
-                ) AS quantityOffered,
+                DATE(p.created_at)                                      AS icDate,
+                COALESCE(pr.total_processed, 0)                         AS quantityOffered,
                 COALESCE(
                     NULLIF(pr.total_accepted, 0),
                     (SELECT SUM(COALESCE(piq.inspected_qty, piq.offered_qty, 0)) FROM process_ie_qty piq WHERE piq.request_id = ic.ic_number),
