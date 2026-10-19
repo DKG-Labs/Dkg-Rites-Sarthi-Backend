@@ -5,6 +5,7 @@ import com.sarthi.dto.rawmaterial.RmChemicalAnalysisDto;
 import com.sarthi.dto.rawmaterial.RmHeatQuantityDto;
 import com.sarthi.dto.ercdiversion.*;
 import com.sarthi.entity.InspectionCompleteDetails;
+import com.sarthi.entity.WorkflowTransition;
 import com.sarthi.entity.ercdiversion.*;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmHeatQuantity;
@@ -17,6 +18,7 @@ import com.sarthi.exception.ErrorDetails;
 import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.InspectionCompleteDetailsRepository;
+import com.sarthi.repository.WorkflowTransitionRepository;
 import com.sarthi.repository.ercdiversion.*;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
@@ -50,6 +52,12 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     private final RmHeatQuantityRepository heatQuantityRepository;
     private final RawMaterialInspectionService rawMaterialService;
     private final FinalInspectionLotDetailsRepository finalLotRepository;
+    private final WorkflowTransitionRepository workflowTransitionRepository;
+
+    private static final int DIVERSION_WORKFLOW_ID = 4;
+    private static final String ROLE_VENDOR = "1";
+    private static final String ROLE_CM = "5";
+    private static final String ROLE_SBU_HEAD = "8";
 
     @Override
     @Transactional(readOnly = true)
@@ -290,10 +298,16 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             entity.setRequestNo(generateRequestNo(entity.getStage()));
         }
         entity.setTotalDiversionQty(totalQty);
-        entity.setStatus(DiversionRequestStatus.SUBMITTED_TO_CM);
+        entity.setStatus(DiversionRequestStatus.PENDING_CM_APPROVAL);
 
         ErcDiversionRequest saved = requestRepository.save(entity);
-        saveHistory(saved, "VENDOR", dto.getVendorCode(), dto.getVendorCode(), "SUBMIT", "DRAFT", "SUBMITTED_TO_CM", dto.getVendorRemarks());
+        saveHistory(saved, "VENDOR", dto.getVendorCode(), dto.getVendorCode(), "SUBMIT_DIVERSION_REQUEST", "DRAFT", "PENDING_CM_APPROVAL", dto.getVendorRemarks());
+
+        // Insert into main WORKFLOW_TRANSITION table
+        saveWorkflowTransition(saved.getRequestNo(), "SUBMIT_DIVERSION_REQUEST", 1,
+                ROLE_VENDOR, ROLE_CM, "VENDOR", "CONTROLLING_MANAGER",
+                "PENDING_CM_APPROVAL", dto.getVendorRemarks(), dto.getVendorCode(),
+                dto.getCmUserId(), saved.getRioId());
 
         return mapEntityToDto(saved);
     }
@@ -324,7 +338,20 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     @Override
     @Transactional(readOnly = true)
     public List<DiversionRequestDto> getPendingRequestsForCm(String cmUserId) {
-        List<DiversionRequestStatus> statuses = List.of(DiversionRequestStatus.SUBMITTED_TO_CM);
+        List<DiversionRequestStatus> statuses = List.of(DiversionRequestStatus.PENDING_CM_APPROVAL);
+        return requestRepository.findByCmUserIdAndStatusInOrderByCreatedDateDesc(cmUserId, statuses)
+                .stream().map(this::mapEntityToDto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DiversionRequestDto> getApprovedRequestsForCm(String cmUserId) {
+        List<DiversionRequestStatus> statuses = List.of(
+                DiversionRequestStatus.PENDING_SBU_APPROVAL,
+                DiversionRequestStatus.SENT_TO_SBU_HEAD,
+                DiversionRequestStatus.CM_APPROVE_DIVERSION,
+                DiversionRequestStatus.SBU_HEAD_APPROVE_DIVERSION,
+                DiversionRequestStatus.BASKET_CREATED);
         return requestRepository.findByCmUserIdAndStatusInOrderByCreatedDateDesc(cmUserId, statuses)
                 .stream().map(this::mapEntityToDto).collect(Collectors.toList());
     }
@@ -332,7 +359,19 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     @Override
     @Transactional(readOnly = true)
     public List<DiversionRequestDto> getPendingRequestsForSbu(String rioId) {
-        List<DiversionRequestStatus> statuses = List.of(DiversionRequestStatus.APPROVED_BY_CM);
+        List<DiversionRequestStatus> statuses = List.of(
+                DiversionRequestStatus.PENDING_SBU_APPROVAL,
+                DiversionRequestStatus.SENT_TO_SBU_HEAD);
+        return requestRepository.findByRioIdAndStatusInOrderByCreatedDateDesc(rioId, statuses)
+                .stream().map(this::mapEntityToDto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DiversionRequestDto> getApprovedRequestsForSbu(String rioId) {
+        List<DiversionRequestStatus> statuses = List.of(
+                DiversionRequestStatus.SBU_HEAD_APPROVE_DIVERSION,
+                DiversionRequestStatus.BASKET_CREATED);
         return requestRepository.findByRioIdAndStatusInOrderByCreatedDateDesc(rioId, statuses)
                 .stream().map(this::mapEntityToDto).collect(Collectors.toList());
     }
@@ -347,42 +386,75 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         String fromStatus = req.getStatus().name();
         String toStatus;
 
-        switch (actionDto.getAction().toUpperCase()) {
-            case "APPROVE":
-                if (req.getStatus() == DiversionRequestStatus.SUBMITTED_TO_CM) {
-                    req.setStatus(DiversionRequestStatus.APPROVED_BY_CM);
-                    toStatus = "APPROVED_BY_CM";
-                } else if (req.getStatus() == DiversionRequestStatus.APPROVED_BY_CM) {
-                    req.setStatus(DiversionRequestStatus.APPROVED_BY_SBU);
-                    toStatus = "APPROVED_BY_SBU";
+        String wtFromRole, wtToRole, wtFromRoleName, wtToRoleName;
+        Integer assignedTo = actionDto.getAssignedToUserId();
 
-                    // Materialize into Basket
-                    materializeBasket(req);
-                    req.setStatus(DiversionRequestStatus.BASKET_CREATED);
-                    toStatus = "BASKET_CREATED";
-                } else {
+        switch (actionDto.getAction().toUpperCase()) {
+            case "CM_APPROVE_DIVERSION":
+                if (req.getStatus() != DiversionRequestStatus.PENDING_CM_APPROVAL) {
                     throw createException(1004, "Cannot approve in current status: " + req.getStatus());
                 }
+                req.setStatus(DiversionRequestStatus.PENDING_SBU_APPROVAL);
+                toStatus = "PENDING_SBU_APPROVAL";
+                wtFromRole = ROLE_CM; wtToRole = ROLE_SBU_HEAD;
+                wtFromRoleName = "CONTROLLING_MANAGER"; wtToRoleName = "SBU_HEAD";
                 break;
 
-            case "RETURN":
+            case "CM_SEND_TO_SBU_HEAD":
+                if (req.getStatus() != DiversionRequestStatus.PENDING_CM_APPROVAL) {
+                    throw createException(1004, "Cannot send to SBU Head in current status: " + req.getStatus());
+                }
+                req.setStatus(DiversionRequestStatus.SENT_TO_SBU_HEAD);
+                toStatus = "SENT_TO_SBU_HEAD";
+                wtFromRole = ROLE_CM; wtToRole = ROLE_SBU_HEAD;
+                wtFromRoleName = "CONTROLLING_MANAGER"; wtToRoleName = "SBU_HEAD";
+                break;
+
+            case "CM_RETURN_DIVERSION":
                 if (actionDto.getRemarks() == null || actionDto.getRemarks().trim().isEmpty()) {
                     throw createException(1005, "Return remarks are mandatory");
                 }
-                if (req.getStatus() == DiversionRequestStatus.SUBMITTED_TO_CM) {
-                    req.setStatus(DiversionRequestStatus.RETURNED_BY_CM);
-                    toStatus = "RETURNED_BY_CM";
-                } else if (req.getStatus() == DiversionRequestStatus.APPROVED_BY_CM) {
-                    req.setStatus(DiversionRequestStatus.RETURNED_BY_SBU);
-                    toStatus = "RETURNED_BY_SBU";
-                } else {
+                if (req.getStatus() != DiversionRequestStatus.PENDING_CM_APPROVAL) {
                     throw createException(1006, "Cannot return in current status: " + req.getStatus());
                 }
+                req.setStatus(DiversionRequestStatus.CM_RETURN_DIVERSION);
+                toStatus = "CM_RETURN_DIVERSION";
+                wtFromRole = ROLE_CM; wtToRole = ROLE_VENDOR;
+                wtFromRoleName = "CONTROLLING_MANAGER"; wtToRoleName = "VENDOR";
                 break;
 
+            case "SBU_HEAD_APPROVE_DIVERSION":
+                if (req.getStatus() != DiversionRequestStatus.PENDING_SBU_APPROVAL
+                        && req.getStatus() != DiversionRequestStatus.SENT_TO_SBU_HEAD) {
+                    throw createException(1004, "Cannot approve in current status: " + req.getStatus());
+                }
+                materializeBasket(req);
+                req.setStatus(DiversionRequestStatus.BASKET_CREATED);
+                toStatus = "BASKET_CREATED";
+                wtFromRole = ROLE_SBU_HEAD; wtToRole = ROLE_VENDOR;
+                wtFromRoleName = "SBU_HEAD"; wtToRoleName = "VENDOR";
+                break;
+
+            case "SBU_HEAD_RETURN_DIVERSION":
+                if (actionDto.getRemarks() == null || actionDto.getRemarks().trim().isEmpty()) {
+                    throw createException(1005, "Return remarks are mandatory");
+                }
+                if (req.getStatus() != DiversionRequestStatus.PENDING_SBU_APPROVAL
+                        && req.getStatus() != DiversionRequestStatus.SENT_TO_SBU_HEAD) {
+                    throw createException(1006, "Cannot return in current status: " + req.getStatus());
+                }
+                req.setStatus(DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION);
+                toStatus = "SBU_HEAD_RETURN_DIVERSION";
+                wtFromRole = ROLE_SBU_HEAD; wtToRole = ROLE_VENDOR;
+                wtFromRoleName = "SBU_HEAD"; wtToRoleName = "VENDOR";
+                break;
+
+            case "VENDOR_RESUBMIT_DIVERSION":
             case "RESUBMIT":
-                req.setStatus(DiversionRequestStatus.SUBMITTED_TO_CM);
-                toStatus = "SUBMITTED_TO_CM";
+                req.setStatus(DiversionRequestStatus.PENDING_CM_APPROVAL);
+                toStatus = "PENDING_CM_APPROVAL";
+                wtFromRole = ROLE_VENDOR; wtToRole = ROLE_CM;
+                wtFromRoleName = "VENDOR"; wtToRoleName = "CONTROLLING_MANAGER";
                 break;
 
             default:
@@ -391,6 +463,11 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
 
         ErcDiversionRequest saved = requestRepository.save(req);
         saveHistory(saved, actionDto.getRole(), actionDto.getUserId(), actionDto.getUserName(), actionDto.getAction(), fromStatus, toStatus, actionDto.getRemarks());
+
+        saveWorkflowTransition(saved.getRequestNo(), actionDto.getAction(), null,
+                wtFromRole, wtToRole, wtFromRoleName, wtToRoleName,
+                toStatus, actionDto.getRemarks(), actionDto.getUserId(),
+                assignedTo != null ? String.valueOf(assignedTo) : null, saved.getRioId());
 
         return mapEntityToDto(saved);
     }
@@ -433,6 +510,33 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .allocatedItems(allocatedItems)
                 .sourceHeatQuantities(sourceHeats)
                 .build();
+    }
+
+    private void saveWorkflowTransition(String requestId, String action, Integer transitionId,
+                                         String currentRole, String nextRole,
+                                         String currentRoleName, String nextRoleName,
+                                         String status, String remarks,
+                                         String createdByUserId, String assignedToUserId, String rio) {
+        WorkflowTransition wt = new WorkflowTransition();
+        wt.setWorkflowId(DIVERSION_WORKFLOW_ID);
+        wt.setRequestId(requestId);
+        wt.setAction(action);
+        wt.setTransitionId(transitionId != null ? transitionId : 0);
+        wt.setCurrentRole(currentRole);
+        wt.setNextRole(nextRole);
+        wt.setCurrentRoleName(currentRoleName);
+        wt.setNextRoleName(nextRoleName);
+        wt.setStatus(status);
+        wt.setRemarks(remarks);
+        if (createdByUserId != null) {
+            try { wt.setCreatedBy(Integer.parseInt(createdByUserId)); } catch (NumberFormatException ignored) {}
+        }
+        if (assignedToUserId != null) {
+            try { wt.setAssignedToUser(Integer.parseInt(assignedToUserId)); } catch (NumberFormatException ignored) {}
+        }
+        wt.setRio(rio);
+        wt.setJobStatus("OPEN");
+        workflowTransitionRepository.save(wt);
     }
 
     private BusinessException createNotFoundException(String message) {

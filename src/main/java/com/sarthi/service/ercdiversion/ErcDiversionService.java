@@ -24,7 +24,11 @@ public interface ErcDiversionService {
 
     List<DiversionRequestDto> getPendingRequestsForCm(String cmUserId);
 
+    List<DiversionRequestDto> getApprovedRequestsForCm(String cmUserId);
+
     List<DiversionRequestDto> getPendingRequestsForSbu(String rioId);
+
+    List<DiversionRequestDto> getApprovedRequestsForSbu(String rioId);
 
     DiversionRequestDto processWorkflowAction(WorkflowActionDto actionDto);
 

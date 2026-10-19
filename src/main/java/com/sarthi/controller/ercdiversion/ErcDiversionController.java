@@ -80,8 +80,21 @@ public class ErcDiversionController {
 
     @GetMapping("/cm/pending-requests")
     @Operation(summary = "Get pending requests for Controlling Manager")
-    public ResponseEntity<APIResponse> getPendingRequestsForCm(@RequestParam String cmUserId) {
+    public ResponseEntity<APIResponse> getPendingRequestsForCm(@RequestParam(required = false) String cmUserId) {
+        if (cmUserId == null || cmUserId.isBlank()) {
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(List.of()), HttpStatus.OK);
+        }
         List<DiversionRequestDto> list = diversionService.getPendingRequestsForCm(cmUserId);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
+    @GetMapping("/cm/approved-requests")
+    @Operation(summary = "Get approved/forwarded requests for Controlling Manager")
+    public ResponseEntity<APIResponse> getApprovedRequestsForCm(@RequestParam(required = false) String cmUserId) {
+        if (cmUserId == null || cmUserId.isBlank()) {
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(List.of()), HttpStatus.OK);
+        }
+        List<DiversionRequestDto> list = diversionService.getApprovedRequestsForCm(cmUserId);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
@@ -92,10 +105,57 @@ public class ErcDiversionController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
+    @GetMapping("/sbu/approved-requests")
+    @Operation(summary = "Get approved requests for SBU Head")
+    public ResponseEntity<APIResponse> getApprovedRequestsForSbu(@RequestParam String rioId) {
+        List<DiversionRequestDto> list = diversionService.getApprovedRequestsForSbu(rioId);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
     @PostMapping("/workflow/action")
-    @Operation(summary = "Process workflow action (Approve, Return, Resubmit)")
+    @Operation(summary = "Process workflow action")
     public ResponseEntity<APIResponse> processWorkflowAction(@RequestBody WorkflowActionDto actionDto) {
         log.info("Request: Workflow action: {} for request ID: {}", actionDto.getAction(), actionDto.getRequestId());
+        DiversionRequestDto updated = diversionService.processWorkflowAction(actionDto);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
+    }
+
+    @PostMapping("/cm/approve")
+    @Operation(summary = "CM approves diversion request")
+    public ResponseEntity<APIResponse> cmApprove(@RequestBody WorkflowActionDto actionDto) {
+        actionDto.setAction("CM_APPROVE_DIVERSION");
+        DiversionRequestDto updated = diversionService.processWorkflowAction(actionDto);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
+    }
+
+    @PostMapping("/cm/send-to-sbu")
+    @Operation(summary = "CM sends diversion request to SBU Head for approval")
+    public ResponseEntity<APIResponse> cmSendToSbu(@RequestBody WorkflowActionDto actionDto) {
+        actionDto.setAction("CM_SEND_TO_SBU_HEAD");
+        DiversionRequestDto updated = diversionService.processWorkflowAction(actionDto);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
+    }
+
+    @PostMapping("/cm/return")
+    @Operation(summary = "CM returns diversion request to vendor")
+    public ResponseEntity<APIResponse> cmReturn(@RequestBody WorkflowActionDto actionDto) {
+        actionDto.setAction("CM_RETURN_DIVERSION");
+        DiversionRequestDto updated = diversionService.processWorkflowAction(actionDto);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
+    }
+
+    @PostMapping("/sbu/approve")
+    @Operation(summary = "SBU Head approves diversion request")
+    public ResponseEntity<APIResponse> sbuApprove(@RequestBody WorkflowActionDto actionDto) {
+        actionDto.setAction("SBU_HEAD_APPROVE_DIVERSION");
+        DiversionRequestDto updated = diversionService.processWorkflowAction(actionDto);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
+    }
+
+    @PostMapping("/sbu/return")
+    @Operation(summary = "SBU Head returns diversion request to vendor")
+    public ResponseEntity<APIResponse> sbuReturn(@RequestBody WorkflowActionDto actionDto) {
+        actionDto.setAction("SBU_HEAD_RETURN_DIVERSION");
         DiversionRequestDto updated = diversionService.processWorkflowAction(actionDto);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
     }
