@@ -953,7 +953,21 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                     WHEN rwt.request_id LIKE 'RPRM%' THEN 'RM'
                     ELSE 'Process'
                 END AS stage,
-                DATE_FORMAT(rwt.created_date, '%Y-%m-%d') AS icIssuedDate,
+                DATE_FORMAT(COALESCE(
+                    CASE
+                        WHEN rwt.request_id LIKE 'RPP%' THEN (
+                            SELECT rpe.created_at FROM railpad_process_ic_edit rpe
+                            WHERE rpe.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(ricd.certificate_no, ic.call_no) COLLATE utf8mb4_unicode_ci
+                            ORDER BY rpe.id DESC LIMIT 1
+                        )
+                        WHEN rwt.request_id LIKE 'RPF%' THEN (
+                            SELECT rfe.created_at FROM railpad_final_ic_edit rfe
+                            WHERE rfe.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(ricd.certificate_no, ic.call_no) COLLATE utf8mb4_unicode_ci
+                            ORDER BY rfe.id DESC LIMIT 1
+                        )
+                    END,
+                    rwt.created_date
+                ), '%Y-%m-%d') AS icIssuedDate,
                 COALESCE(ph.item_cat_descr, 'Rail Pad') AS itemCatDescr,
                 rwt.created_date AS rawCreatedDate,
                 DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
