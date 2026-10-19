@@ -105,6 +105,8 @@ public class SecurityConfig {
                                 "/dashboard/images/**",
                                 "/api/ibs/**",
                                 "/api/Vendorsync/**",
+                                "/api/call-letter/**",
+                                "/call-letter/**",
                                 "/api/vendor/proxy-pdf",
                                 "/vendor/proxy-pdf"
                         ).permitAll()

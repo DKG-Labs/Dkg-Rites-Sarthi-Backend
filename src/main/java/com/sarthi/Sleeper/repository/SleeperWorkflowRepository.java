@@ -626,7 +626,13 @@ AND t.workflowTransitionId = (
             sic.call_no AS callNumber,
             COALESCE(sicd.certificate_no, CONCAT('C/', sic.call_no, '/NV')) AS icNumber,
             'Final' AS stage,
-            DATE_FORMAT(COALESCE(sicd.created_on, swt.created_date), '%Y-%m-%d') AS icIssuedDate,
+            DATE_FORMAT(COALESCE(
+                (SELECT sfie2.created_at FROM sleeper_final_ic_edit sfie2
+                 WHERE CONVERT(TRIM(sfie2.ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(COALESCE(sicd.certificate_no, sic.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                 ORDER BY sfie2.id DESC LIMIT 1),
+                sicd.created_on,
+                swt.created_date
+            ), '%Y-%m-%d') AS icIssuedDate,
             COALESCE(ph.item_cat_descr, 'PSC Mainline Sleeper') AS itemCatDescr,
             COALESCE(sicd.created_on, swt.created_date) AS rawCreatedDate,
             DATE_FORMAT(sic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,

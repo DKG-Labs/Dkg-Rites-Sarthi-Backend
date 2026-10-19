@@ -304,30 +304,25 @@ public class CallLetterServiceImpl implements CallLetterService {
         // Raw PO number stored on the IC (e.g. "26255265205057" or "60265359103833/001")
         String rawPoNo = ic.getPoNo();
         String rawPoSerialNo = ic.getPoSerialNo();
-        String poSerialNo = null;
-
-        if (rawPoSerialNo != null && !rawPoSerialNo.isBlank()) {
-            String[] parts = rawPoSerialNo.split("/");
-            poSerialNo = parts[parts.length - 1].trim(); // take last segment, e.g. "012"
-        } else if (rawPoNo != null && rawPoNo.contains("/")) {
-            String[] parts = rawPoNo.split("/");
-            poSerialNo = parts[parts.length - 1].trim();
-            rawPoNo = parts[0].trim();
-        }
-        logger.info("Resolved poNo: {}, poSerialNo: {} (raw: {})", rawPoNo, poSerialNo, rawPoSerialNo);
+        String barePoNo = extractBarePoNo(rawPoNo);
+        String poSerialNo = extractCleanSrNo(rawPoSerialNo, rawPoNo);
+        logger.info("Resolved poNo: {} (bare: {}), poSerialNo: {} (raw: {})", rawPoNo, barePoNo, poSerialNo, rawPoSerialNo);
 
         // -------------------------------------------------------
         // 2. Fetch PO Header
         // -------------------------------------------------------
-        if (rawPoNo != null) {
+        if (barePoNo != null) {
             try {
-                Optional<PoHeader> phOpt = poHeaderRepository.findFirstByPoNo(rawPoNo);
+                Optional<PoHeader> phOpt = poHeaderRepository.findFirstByPoNo(barePoNo);
+                if (phOpt.isEmpty() && !barePoNo.equals(rawPoNo)) {
+                    phOpt = poHeaderRepository.findFirstByPoNo(rawPoNo);
+                }
                 if (phOpt.isPresent()) {
                     PoHeader ph = phOpt.get();
                     dto.setRlyShortName(ph.getRlyShortName());
                     dto.setPoNo(ph.getPoNo());
-                    dto.setPurchaserDetail(ph.getPurchaserDetail());
-                    dto.setVendorName(ph.getFirmDetails());
+                    dto.setPurchaserDetail(cleanTildes(ph.getPurchaserDetail()));
+                    dto.setVendorName(cleanTildes(ph.getFirmDetails()));
                     dto.setCaseNo(ph.getCaseNo());
 
                     // Format PO date
@@ -352,8 +347,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                         dto.setPoValue(totalVal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString());
                     }
                 } else {
-                    logger.warn("No PoHeader found for poNo: {}", rawPoNo);
+                    logger.warn("No PoHeader found for poNo: {}", barePoNo);
                     dto.setPoNo(rawPoNo);
+                    dto.setRlyPoSr(buildRlyPoSr(null, rawPoNo, poSerialNo));
                 }
             } catch (Exception e) {
                 logger.error("Error fetching PoHeader for poNo: {}", rawPoNo, e);
@@ -364,21 +360,30 @@ public class CallLetterServiceImpl implements CallLetterService {
         // -------------------------------------------------------
         // 3. Fetch matching PO Item
         // -------------------------------------------------------
-        if (rawPoNo != null && poSerialNo != null) {
+        if (barePoNo != null && poSerialNo != null) {
             try {
-                Optional<PoItem> piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, poSerialNo);
-                logger.info("PoItem lookup for poNo={}, itemSrNo={} -> found={}", rawPoNo, poSerialNo, piOpt.isPresent());
+                Optional<PoItem> piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(barePoNo, poSerialNo);
+                if (piOpt.isEmpty() && poSerialNo.length() < 3) {
+                    try {
+                        String padded = String.format("%03d", Integer.parseInt(poSerialNo));
+                        piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(barePoNo, padded);
+                    } catch (Exception ignore) {}
+                }
+                if (piOpt.isEmpty() && !barePoNo.equals(rawPoNo)) {
+                    piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, poSerialNo);
+                }
+                logger.info("PoItem lookup for poNo={}, itemSrNo={} -> found={}", barePoNo, poSerialNo, piOpt.isPresent());
                 if (piOpt.isPresent()) {
                     PoItem pi = piOpt.get();
                     dto.setItemSrNo(pi.getItemSrNo());
-                    dto.setItemDesc(pi.getItemDesc());
+                    dto.setItemDesc(cleanTildes(pi.getItemDesc()));
                     dto.setPoQty(pi.getQty());
                     dto.setUom(pi.getUom());
                     String consignee = (pi.getImmsConsigneeName() != null && !pi.getImmsConsigneeName().isBlank())
                             ? pi.getImmsConsigneeName().trim()
                             : pi.getConsigneeDetail();
-                    dto.setConsigneeDetail(consignee);
-                    dto.setBillPayOffDesc(pi.getBillPayOffDesc());
+                    dto.setConsigneeDetail(cleanTildes(consignee));
+                    dto.setBillPayOffDesc(cleanTildes(pi.getBillPayOffDesc()));
 
                     // Format delivery dates
                     if (pi.getDeliveryDate() != null) {
@@ -598,16 +603,62 @@ public class CallLetterServiceImpl implements CallLetterService {
     }
 
     // -------------------------------------------------------
-    // Helper: build composite PO string
+    // Helpers: PO number sanitization & tilde cleaning
     // -------------------------------------------------------
+    private String extractBarePoNo(String poNo) {
+        if (poNo == null || poNo.isBlank()) return null;
+        String trimmed = poNo.trim();
+        if (trimmed.contains("/")) {
+            String[] parts = trimmed.split("/");
+            for (String part : parts) {
+                String clean = part.trim();
+                if (clean.matches("\\d{10,20}")) {
+                    return clean;
+                }
+            }
+            return parts[0].trim();
+        }
+        return trimmed;
+    }
+
+    private String extractCleanSrNo(String srNo, String rawPoNo) {
+        if (srNo != null && !srNo.isBlank()) {
+            String s = srNo.trim();
+            if (s.contains("/")) {
+                String[] p = s.split("/");
+                return p[p.length - 1].trim();
+            }
+            return s;
+        }
+        if (rawPoNo != null && rawPoNo.contains("/")) {
+            String[] p = rawPoNo.split("/");
+            if (p.length >= 3) {
+                return p[2].trim();
+            } else if (p.length == 2 && p[1].trim().length() <= 4) {
+                return p[1].trim();
+            }
+        }
+        return null;
+    }
+
+    private String cleanTildes(String s) {
+        if (s == null) return null;
+        return s.replace("~", ", ").replaceAll(",\\s*,", ",").replaceAll("\\s+", " ").trim();
+    }
+
     private String buildRlyPoSr(String rly, String poNo, String srNo) {
+        String barePo = extractBarePoNo(poNo);
+        String cleanSr = extractCleanSrNo(srNo, poNo);
+        String cleanRly = (rly != null && !rly.isBlank() && !"-".equals(rly.trim())) ? rly.trim() : null;
+
         StringBuilder sb = new StringBuilder();
-        if (rly != null && !rly.isBlank())
-            sb.append(rly).append(" / ");
-        if (poNo != null && !poNo.isBlank())
-            sb.append(poNo);
-        if (srNo != null && !srNo.isBlank())
-            sb.append(" / ").append(srNo);
+        if (cleanRly != null) {
+            sb.append(cleanRly).append(" / ");
+        }
+        sb.append(barePo != null ? barePo : (poNo != null ? poNo : "-"));
+        if (cleanSr != null) {
+            sb.append(" / ").append(cleanSr);
+        }
         return sb.toString();
     }
 
@@ -925,21 +976,26 @@ public class CallLetterServiceImpl implements CallLetterService {
         // PO Header & Item lookup
         String rawPoNo = sleeperCall.getPoNo();
         String rawSrNo = sleeperCall.getSrNo();
+        String barePoNo = extractBarePoNo(rawPoNo);
+        String cleanSrNo = extractCleanSrNo(rawSrNo, rawPoNo);
 
-        if (rawPoNo != null) {
+        if (barePoNo != null) {
             try {
-                Optional<PoHeader> phOpt = poHeaderRepository.findFirstByPoNo(rawPoNo);
+                Optional<PoHeader> phOpt = poHeaderRepository.findFirstByPoNo(barePoNo);
+                if (phOpt.isEmpty() && !barePoNo.equals(rawPoNo)) {
+                    phOpt = poHeaderRepository.findFirstByPoNo(rawPoNo);
+                }
                 if (phOpt.isPresent()) {
                     PoHeader ph = phOpt.get();
                     dto.setRlyShortName(ph.getRlyShortName());
                     dto.setPoNo(ph.getPoNo());
-                    dto.setPurchaserDetail(ph.getPurchaserDetail());
+                    dto.setPurchaserDetail(cleanTildes(ph.getPurchaserDetail()));
                     String resolvedCaseNo = resolveSleeperCaseNo(ph.getCaseNo(), dto.getRio());
                     dto.setCaseNo(resolvedCaseNo);
                     if (ph.getPoDate() != null) {
                         dto.setPoDate(ph.getPoDate().format(DATE_FMT));
                     }
-                    dto.setRlyPoSr(buildRlyPoSr(ph.getRlyShortName(), ph.getPoNo(), rawSrNo));
+                    dto.setRlyPoSr(buildRlyPoSr(ph.getRlyShortName(), ph.getPoNo(), cleanSrNo));
 
                     if (ph.getItems() != null && !ph.getItems().isEmpty()) {
                         int totalQty = ph.getItems().stream()
@@ -954,6 +1010,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     }
                 } else {
                     dto.setPoNo(rawPoNo);
+                    dto.setRlyPoSr(buildRlyPoSr(null, rawPoNo, cleanSrNo));
                 }
             } catch (Exception e) {
                 logger.error("Error fetching PoHeader for sleeper call: {}", rawPoNo, e);
@@ -961,19 +1018,22 @@ public class CallLetterServiceImpl implements CallLetterService {
             }
         }
 
-        if (rawPoNo != null && rawSrNo != null) {
+        if (barePoNo != null && cleanSrNo != null) {
             try {
-                Optional<PoItem> piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, rawSrNo);
-                if (piOpt.isEmpty() && rawSrNo.length() < 3) {
+                Optional<PoItem> piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(barePoNo, cleanSrNo);
+                if (piOpt.isEmpty() && cleanSrNo.length() < 3) {
                     try {
-                        String padded = String.format("%03d", Integer.parseInt(rawSrNo));
-                        piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, padded);
+                        String padded = String.format("%03d", Integer.parseInt(cleanSrNo));
+                        piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(barePoNo, padded);
                     } catch (Exception ignore) {}
+                }
+                if (piOpt.isEmpty() && !barePoNo.equals(rawPoNo)) {
+                    piOpt = poItemRepository.findFirstByPoHeader_PoNoAndItemSrNo(rawPoNo, cleanSrNo);
                 }
                 if (piOpt.isPresent()) {
                     PoItem pi = piOpt.get();
                     dto.setItemSrNo(pi.getItemSrNo());
-                    dto.setItemDesc(pi.getItemDesc());
+                    dto.setItemDesc(cleanTildes(pi.getItemDesc()));
                     dto.setPoQty(pi.getQty());
                     if (pi.getUom() != null && !pi.getUom().isBlank()) {
                         String itemUom = pi.getUom().trim();
@@ -993,8 +1053,8 @@ public class CallLetterServiceImpl implements CallLetterService {
                     String consignee = (pi.getImmsConsigneeName() != null && !pi.getImmsConsigneeName().isBlank())
                             ? pi.getImmsConsigneeName().trim()
                             : pi.getConsigneeDetail();
-                    dto.setConsigneeDetail(consignee);
-                    dto.setBillPayOffDesc(pi.getBillPayOffDesc());
+                    dto.setConsigneeDetail(cleanTildes(consignee));
+                    dto.setBillPayOffDesc(cleanTildes(pi.getBillPayOffDesc()));
                     if (pi.getDeliveryDate() != null) {
                         dto.setDeliveryDate(pi.getDeliveryDate().format(DATE_FMT));
                     }
@@ -1555,12 +1615,24 @@ public class CallLetterServiceImpl implements CallLetterService {
         // Calculate cumulative passed quantity
         try {
             List<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> allCalls = sleeperInspectionCallRepository.getCalls(rawPoNo, rawSrNo);
+            if ((allCalls == null || allCalls.isEmpty()) && barePoNo != null && !barePoNo.equals(rawPoNo)) {
+                allCalls = sleeperInspectionCallRepository.getCalls(barePoNo, cleanSrNo);
+            }
             int passedQty = 0;
             if (allCalls != null) {
                 for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall c : allCalls) {
-                    if ("Accepted".equalsIgnoreCase(c.getStatus()) || "Completed".equalsIgnoreCase(c.getStatus()) || "Verified".equalsIgnoreCase(c.getStatus())) {
+                    String st = c.getStatus() != null ? c.getStatus().trim().toUpperCase() : "";
+                    if (st.equals("ACCEPTED") || st.equals("COMPLETED") || st.equals("VERIFIED") ||
+                        st.contains("IBS") || st.contains("IC_ISSUE") || st.contains("CLOSED")) {
                         passedQty += (c.getTotalOffered() != null ? c.getTotalOffered() : 0);
                     }
+                }
+            }
+            if (passedQty == 0) {
+                String curSt = sleeperCall.getStatus() != null ? sleeperCall.getStatus().trim().toUpperCase() : "";
+                if (curSt.equals("ACCEPTED") || curSt.equals("COMPLETED") || curSt.equals("VERIFIED") ||
+                    curSt.contains("IBS") || curSt.contains("IC_ISSUE") || curSt.contains("CLOSED")) {
+                    passedQty = sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0;
                 }
             }
             dto.setFinalAcceptedQty(passedQty > 0 ? passedQty + " Nos." : "0 Nos.");
