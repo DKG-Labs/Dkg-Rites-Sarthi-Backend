@@ -2,22 +2,28 @@ package com.sarthi.service.Impl;
 
 import com.sarthi.dto.UnitDetailsDTO;
 import com.sarthi.dto.UnitDto;
+import com.sarthi.dto.VendorUnitDto;
+import com.sarthi.entity.IEFieldsMapping;
 import com.sarthi.entity.PincodePoIMapping;
+import com.sarthi.repository.IeFieldsMappingRepository;
 import com.sarthi.repository.PincodePoIMappingRepository;
 import com.sarthi.service.poiService;
-import jakarta.persistence.Access;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class PoiServiceImpl implements poiService {
-@Autowired
+    @Autowired
     private PincodePoIMappingRepository pincodePoIMappingRepository;
+
+    @Autowired
+    private IeFieldsMappingRepository ieFieldsMappingRepository;
 
     @Override
     public List<String> getCompanyList(String vendorCode) {
@@ -52,7 +58,7 @@ public class PoiServiceImpl implements poiService {
     }
 
     @Override
-    public List<PincodePoIMapping> getVendorUnits(String vendorCode) {
+    public List<VendorUnitDto> getVendorUnits(String vendorCode) {
         if (vendorCode == null || vendorCode.trim().isEmpty()) {
             return Collections.emptyList();
         }
@@ -61,6 +67,38 @@ public class PoiServiceImpl implements poiService {
         if (list.isEmpty() && cleanVendor.startsWith(":")) {
             list = pincodePoIMappingRepository.findByVendorCodeWithColonHandling(cleanVendor.substring(1));
         }
-        return list;
+
+        // Bulk-fetch RIO for all pinCodes from ie_fields_mapping (product=ERC)
+        List<String> pinCodes = list.stream()
+                .map(PincodePoIMapping::getPinCode)
+                .filter(p -> p != null && !p.isBlank())
+                .distinct()
+                .collect(Collectors.toList());
+        Map<String, String> pinToRio = ieFieldsMappingRepository
+                .findByPinCodeInAndProduct(pinCodes, "ERC")
+                .stream()
+                .collect(Collectors.toMap(
+                        IEFieldsMapping::getPinCode,
+                        IEFieldsMapping::getRio,
+                        (a, b) -> a));
+
+        return list.stream().map(p -> {
+            VendorUnitDto dto = new VendorUnitDto();
+            dto.setId(p.getId());
+            dto.setPinCode(p.getPinCode());
+            dto.setCompanyName(p.getCompanyName());
+            dto.setCin(p.getCin());
+            dto.setUnitName(p.getUnitName());
+            dto.setAddress(p.getAddress());
+            dto.setDistrict(p.getDistrict());
+            dto.setState(p.getState());
+            dto.setStatus(p.getStatus());
+            dto.setPoiCode(p.getPoiCode());
+            dto.setVendorCode(p.getVendorCode());
+            dto.setContactPerson(p.getContactPerson());
+            dto.setContactPersonNumber(p.getContactPersonNumber());
+            dto.setRio(p.getPinCode() != null ? pinToRio.get(p.getPinCode()) : null);
+            return dto;
+        }).collect(Collectors.toList());
     }
 }

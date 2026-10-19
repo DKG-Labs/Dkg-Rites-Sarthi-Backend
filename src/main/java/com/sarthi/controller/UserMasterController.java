@@ -294,4 +294,22 @@ public class UserMasterController {
         Map<String, Object> response = userService.migrateAllPlainTextPasswords();
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
     }
+
+    @GetMapping("/api/controlling-managers")
+    public ResponseEntity<Object> getControllingManagers() {
+        List<Map<String, Object>> result = userService.getControllingManagers();
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/ies-by-cm/{cmUserId}")
+    public ResponseEntity<Object> getIesByCm(@PathVariable Integer cmUserId) {
+        List<Map<String, Object>> result = userService.getIesByCm(cmUserId);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+    }
+
+    @GetMapping("/api/ies-by-rio")
+    public ResponseEntity<Object> getIesByRio(@RequestParam String rio) {
+        List<Map<String, Object>> result = userService.getIesByRio(rio);
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+    }
 }

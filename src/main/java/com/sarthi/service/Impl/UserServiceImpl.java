@@ -573,6 +573,7 @@ public class UserServiceImpl implements UserService {
         userDto.setProductType(userMaster.getProductType());
         userDto.setProfilePhotoPath(userMaster.getProfilePhotoPath());
         userDto.setStatus(userMaster.getStatus() != null ? userMaster.getStatus() : AppConstant.USER_STATUS);
+        userDto.setControllingManagerId(userMaster.getControllingManagerId());
 
         return userDto;
     }
@@ -3059,6 +3060,70 @@ public class UserServiceImpl implements UserService {
         } catch (Exception e) {
             System.err.println("Notice: Password auto-migration on startup encountered an issue: " + e.getMessage());
         }
+    }
+
+    @Override
+    public List<Map<String, Object>> getControllingManagers() {
+        return userMasterRepository.findByRoleNameContaining("Control Manager").stream()
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("userId", u.getUserId());
+                    m.put("fullName", u.getFullName() != null ? u.getFullName() : u.getUsername());
+                    m.put("employeeCode", u.getEmployeeCode());
+                    m.put("rio", u.getRio());
+                    return m;
+                }).collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public List<Map<String, Object>> getIesByCm(Integer cmUserId) {
+        return userMasterRepository.findByControllingManagerId(cmUserId).stream()
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("userId", u.getUserId());
+                    m.put("fullName", u.getFullName() != null ? u.getFullName() : u.getUsername());
+                    m.put("employeeCode", u.getEmployeeCode());
+                    m.put("rio", u.getRio());
+                    m.put("roleName", u.getRoleName());
+                    return m;
+                }).collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public List<Map<String, Object>> getIesByRio(String rio) {
+        List<String> ieRoles = List.of("IE", "Process IE", "Main IE", "Sleeper IE", "Rail Main IE", "Rail Process IE");
+        return userMasterRepository.findByRioAndRoleNameIn(rio, ieRoles).stream()
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("userId", u.getUserId());
+                    m.put("fullName", u.getFullName() != null ? u.getFullName() : u.getUsername());
+                    m.put("employeeCode", u.getEmployeeCode());
+                    m.put("rio", u.getRio());
+                    m.put("roleName", u.getRoleName());
+                    m.put("controllingManagerId", u.getControllingManagerId());
+                    return m;
+                }).collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public String saveCmIeMapping(Integer cmUserId, List<Integer> ieUserIds) {
+        List<com.sarthi.entity.UserMaster> ies = userMasterRepository.findByUserIdIn(ieUserIds);
+        for (com.sarthi.entity.UserMaster ie : ies) {
+            ie.setControllingManagerId(cmUserId);
+        }
+        userMasterRepository.saveAll(ies);
+        return "Mapped " + ies.size() + " IE(s) to CM successfully.";
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public String removeCmIeMapping(Integer ieUserId) {
+        com.sarthi.entity.UserMaster ie = userMasterRepository.findByUserId(ieUserId)
+                .orElseThrow(() -> new RuntimeException("IE user not found: " + ieUserId));
+        ie.setControllingManagerId(null);
+        userMasterRepository.save(ie);
+        return "IE removed from CM mapping successfully.";
     }
 }
 
