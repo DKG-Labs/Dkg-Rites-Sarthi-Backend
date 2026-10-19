@@ -22,12 +22,21 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallService {
 
     private final SleeperInspectionCallRepository inspectionCallRepository;
     private final SleeperWorkflowRepository sleeperWorkflowRepository;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SleeperInspectionCallServiceImpl(
+            SleeperInspectionCallRepository inspectionCallRepository,
+            SleeperWorkflowRepository sleeperWorkflowRepository,
+            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+        this.inspectionCallRepository = inspectionCallRepository;
+        this.sleeperWorkflowRepository = sleeperWorkflowRepository;
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     @Override
     @Transactional
