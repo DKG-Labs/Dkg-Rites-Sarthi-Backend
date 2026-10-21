@@ -2,6 +2,9 @@ package com.sarthi.service.Impl;
 
 import com.sarthi.dto.IcDtos.*;
 
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.entity.rawmaterial.*;
 import com.sarthi.repository.InspectionModificationHistoryRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
@@ -36,6 +39,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
     private final com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository;
     private final com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository;
     private final com.sarthi.service.WorkflowService workflowService;
+    private final com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository;
 
     @Autowired
     public InspectionCallServiceImpl(
@@ -45,7 +49,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
             InspectionModificationHistoryRepository modificationHistoryRepository,
             com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository,
             com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository,
-            com.sarthi.service.WorkflowService workflowService) {
+            com.sarthi.service.WorkflowService workflowService,
+            com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.icNumberGenerator = icNumberGenerator;
         this.inventoryEntryService = inventoryEntryService;
@@ -53,6 +58,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         this.heatQuantityRepository = heatQuantityRepository;
         this.rmChemicalAnalysisRepository = rmChemicalAnalysisRepository;
         this.workflowService = workflowService;
+        this.ibsPoiMappingRepository = ibsPoiMappingRepository;
     }
 
     @Override
@@ -62,6 +68,32 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         logger.info("========== CREATE RAW MATERIAL INSPECTION CALL ==========");
         logger.info("IC Request: {}", icRequest);
         logger.info("RM Details: {}", rmRequest);
+
+        // Block vendor if chargeable cancellation payment is pending
+        if (icRequest.getVendorId() != null && !icRequest.getVendorId().isBlank()
+                && workflowService.isPlantBlockedForCallRaising(null, icRequest.getVendorId())) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.INTER_SERVER_ERROR,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Call raising is blocked for vendor (" + icRequest.getVendorId()
+                    + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module."));
+        }
+
+        // Block if IBS Vendor Code is not configured for this place of inspection
+        if (icRequest.getPlaceOfInspection() != null && !icRequest.getPlaceOfInspection().isBlank()) {
+            java.util.Optional<com.sarthi.entity.IBS.SarthiIbsPoiMapping> ibsMapping =
+                    ibsPoiMappingRepository.findBestMatch(icRequest.getPlaceOfInspection(), "erc");
+            if (ibsMapping.isEmpty() || ibsMapping.get().getIbsVendorCode() == null
+                    || ibsMapping.get().getIbsVendorCode().isBlank()) {
+                throw new BusinessException(new ErrorDetails(
+                        AppConstant.INTER_SERVER_ERROR,
+                        AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                        AppConstant.ERROR_TYPE_ERROR,
+                        "Call raising is blocked: IBS Vendor Code is not configured for Place of Inspection ("
+                        + icRequest.getPlaceOfInspection() + "). Please contact RITES admin to update the IBS mapping."));
+            }
+        }
 
         InspectionCall inspectionCall = new InspectionCall();
 
