@@ -1,5 +1,8 @@
 package com.sarthi.Sleeper.service.Impl;
 
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallDetailDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallSubmitDto;
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.SleeperInspectionCallBatchDto;
@@ -10,6 +13,7 @@ import com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
 import com.sarthi.Sleeper.service.SleeperInspectionCallService;
+import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,20 +31,52 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
     private final SleeperInspectionCallRepository inspectionCallRepository;
     private final SleeperWorkflowRepository sleeperWorkflowRepository;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final SleeperWorkflowService sleeperWorkflowService;
+    private final com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     public SleeperInspectionCallServiceImpl(
             SleeperInspectionCallRepository inspectionCallRepository,
             SleeperWorkflowRepository sleeperWorkflowRepository,
-            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
+            SleeperWorkflowService sleeperWorkflowService,
+            com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.sleeperWorkflowRepository = sleeperWorkflowRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.sleeperWorkflowService = sleeperWorkflowService;
+        this.ibsPoiMappingRepository = ibsPoiMappingRepository;
     }
 
     @Override
     @Transactional
     public String submitInspectionCall(SleeperInspectionCallSubmitDto dto) {
+        // Block plant/vendor if chargeable cancellation payment is pending
+        if (dto.getPlantId() != null && !dto.getPlantId().isBlank()
+                && sleeperWorkflowService.isPlantBlockedForCallRaising(dto.getPlantId(), dto.getVendorCode())) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.INTER_SERVER_ERROR,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Call raising is blocked for plant (" + dto.getPlantId()
+                    + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module."));
+        }
+
+        // Block if IBS Vendor Code is not configured for this plant
+        if (dto.getPlantId() != null && !dto.getPlantId().isBlank()) {
+            java.util.Optional<com.sarthi.entity.IBS.SarthiIbsPoiMapping> ibsMapping =
+                    ibsPoiMappingRepository.findBestMatch(dto.getPlantId(), "sleeper");
+            if (ibsMapping.isEmpty() || ibsMapping.get().getIbsVendorCode() == null
+                    || ibsMapping.get().getIbsVendorCode().isBlank()) {
+                throw new BusinessException(new ErrorDetails(
+                        AppConstant.INTER_SERVER_ERROR,
+                        AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                        AppConstant.ERROR_TYPE_ERROR,
+                        "Call raising is blocked: IBS Vendor Code is not configured for Plant ("
+                        + dto.getPlantId() + "). Please contact RITES admin to update the IBS mapping."));
+            }
+        }
+
         SleeperInspectionCall call = new SleeperInspectionCall();
 
         // Generate unique callNo SF-MMddyy001 in IST (Indian Standard Time)

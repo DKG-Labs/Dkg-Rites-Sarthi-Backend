@@ -1,5 +1,8 @@
 package com.sarthi.SRailPad.service.Impl.inspectionCall;
 
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall;
 import com.sarthi.SRailPad.entity.RailWorkflowTransaction;
 import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionLot;
@@ -40,6 +43,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallAuditRepository railInspectionCallAuditRepository;
     private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
+    private final com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnProcessCallRepository railWithdrawnProcessCallRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailWithdrawnFinalCallRepository railWithdrawnFinalCallRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
@@ -131,8 +135,27 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         // Validate if plant is blocked due to pending cancellation charges
         if (call.getPlantId() != null
                 && railWorkflowService.isPlantBlockedForCallRaising(call.getPlantId(), call.getVendorCode())) {
-            throw new RuntimeException("Call raising is blocked for plant (" + call.getPlantId()
-                    + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module.");
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.INTER_SERVER_ERROR,
+                    AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                    AppConstant.ERROR_TYPE_ERROR,
+                    "Call raising is blocked for plant (" + call.getPlantId()
+                    + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module."));
+        }
+
+        // Block if IBS Vendor Code is not configured for this plant
+        if (call.getPlantId() != null && !call.getPlantId().isBlank()) {
+            java.util.Optional<com.sarthi.entity.IBS.SarthiIbsPoiMapping> ibsMapping =
+                    ibsPoiMappingRepository.findBestMatch(call.getPlantId(), "railpad");
+            if (ibsMapping.isEmpty() || ibsMapping.get().getIbsVendorCode() == null
+                    || ibsMapping.get().getIbsVendorCode().isBlank()) {
+                throw new BusinessException(new ErrorDetails(
+                        AppConstant.INTER_SERVER_ERROR,
+                        AppConstant.ERROR_TYPE_CODE_INTERNAL,
+                        AppConstant.ERROR_TYPE_ERROR,
+                        "Call raising is blocked: IBS Vendor Code is not configured for Plant ("
+                        + call.getPlantId() + "). Please contact RITES admin to update the IBS mapping."));
+            }
         }
 
         // Validate and initiate workflow BEFORE persisting to database
