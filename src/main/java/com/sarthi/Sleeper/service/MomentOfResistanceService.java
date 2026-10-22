@@ -17,6 +17,8 @@ public interface MomentOfResistanceService {
 
     List<MomentOfResistanceResponseDTO> getAll();
 
+    List<MomentOfResistanceResponseDTO> getByPlant(String plantId);
+
     void delete(Long id);
 
     public List<MomentOfResistanceResponseDTO> getRecordsByDate(

@@ -913,6 +913,35 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         return sleeperTypeMap;
     }
 
+    private Map<Long, String> buildSleeperTypeMapByIds(java.util.Collection<Long> ids) {
+        Map<Long, String> sleeperTypeMap = new HashMap<>();
+        for (Object[] row : repository.findStressDeclarationSleeperTypesByIds(ids)) {
+            if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                Long id = ((Number) row[0]).longValue();
+                String type = row[1].toString().trim();
+                if (!type.isEmpty()) {
+                    boolean isGrade = type.matches("^(?i)M\\s*-?\\s*\\d+.*");
+                    if (!sleeperTypeMap.containsKey(id) || (!isGrade && sleeperTypeMap.get(id).matches("^(?i)M\\s*-?\\s*\\d+.*"))) {
+                        sleeperTypeMap.put(id, type);
+                    }
+                }
+            }
+        }
+        for (Object[] row : repository.findLongLineDeclarationSleeperTypesByIds(ids)) {
+            if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                Long id = ((Number) row[0]).longValue();
+                String type = row[1].toString().trim();
+                if (!type.isEmpty()) {
+                    boolean isGrade = type.matches("^(?i)M\\s*-?\\s*\\d+.*");
+                    if (!sleeperTypeMap.containsKey(id) || (!isGrade && sleeperTypeMap.get(id).matches("^(?i)M\\s*-?\\s*\\d+.*"))) {
+                        sleeperTypeMap.put(id, type);
+                    }
+                }
+            }
+        }
+        return sleeperTypeMap;
+    }
+
     @Override
     public List<ProductionDeclarationResponseDto> getAll() {
 
@@ -932,6 +961,32 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 
         Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
 
+        return entities.stream()
+                .map(entity -> mapToResponse(entity, statusMap, sleeperTypeMap))
+                .toList();
+    }
+
+    @Override
+    public List<ProductionDeclarationResponseDto> getByPlant(String plantId) {
+        List<ProductionDeclaration> entities = repository.findByPlantId(plantId);
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> requestIds = entities.stream()
+                .map(e -> String.valueOf(e.getId()))
+                .toList();
+        List<Long> entityIds = entities.stream()
+                .map(ProductionDeclaration::getId)
+                .toList();
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findLatestStatusesByRequestIds(11L, requestIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
+                ));
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMapByIds(entityIds);
         return entities.stream()
                 .map(entity -> mapToResponse(entity, statusMap, sleeperTypeMap))
                 .toList();
@@ -1003,6 +1058,44 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         }
 
         Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
+
+        return entities.stream()
+                .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestByProdIdMap, sleeperTypeMap))
+                .toList();
+    }
+
+    @Override
+    public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusByPlant(String plantId) {
+
+        List<ProductionDeclaration> entities = repository.findByPlantId(plantId);
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> requestIds = entities.stream()
+                .map(e -> String.valueOf(e.getId()))
+                .toList();
+        List<Long> entityIds = entities.stream()
+                .map(ProductionDeclaration::getId)
+                .toList();
+
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findLatestStatusesByRequestIds(11L, requestIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
+                ));
+
+        Map<Long, com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest> waterCubeTestByProdIdMap = new java.util.HashMap<>();
+        for (com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest t : waterCubeStrengthTestRepository.findByPlantId(plantId)) {
+            if (t.getWaterCubeSampleDeclaration() != null && t.getWaterCubeSampleDeclaration().getProductionDeclarationId() != null) {
+                waterCubeTestByProdIdMap.put(t.getWaterCubeSampleDeclaration().getProductionDeclarationId(), t);
+            }
+        }
+
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMapByIds(entityIds);
 
         return entities.stream()
                 .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestByProdIdMap, sleeperTypeMap))

@@ -31,11 +31,14 @@ public class MoistureAnalysisEntryController {
         }
 
         @GetMapping("/all")
-        public ResponseEntity<Object> getAll() {
+        public ResponseEntity<Object> getAll(
+                @RequestParam(required = false) String plantId) {
 
             return new ResponseEntity<>(
                     ResponseBuilder.getSuccessResponse(
-                          moistureAnalysisEntryService.getAll()),
+                          (plantId != null && !plantId.isBlank())
+                              ? moistureAnalysisEntryService.getByPlant(plantId)
+                              : moistureAnalysisEntryService.getAll()),
                     HttpStatus.OK);
         }
 

@@ -36,4 +36,6 @@ public interface MomentOfResistanceRepository extends JpaRepository<MomentOfResi
         WHERE batch_number IN (:batchNumbers)
     """, nativeQuery = true)
     List<MomentOfResistance> findByBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
+
+    List<MomentOfResistance> findByPlantId(String plantId);
 }

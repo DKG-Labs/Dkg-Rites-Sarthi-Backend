@@ -108,6 +108,15 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<MoistureAnalysisResponseDTO> getByPlant(String plantId) {
+
+        return moistureAnalysisEntryRepository.findByPlantId(plantId)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
 
 
     @Override

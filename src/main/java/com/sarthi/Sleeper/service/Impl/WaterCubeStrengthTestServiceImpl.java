@@ -241,9 +241,15 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
 
     @Override
     public List<Map<String, Object>> getAll() {
-      //  return waterCubeStrengthTestRepository.findAll();
-
         return waterCubeStrengthTestRepository.findAll()
+                .stream()
+                .map(this::mapTestToDto)
+                .toList();
+    }
+
+    @Override
+    public List<Map<String, Object>> getByPlant(String plantId) {
+        return waterCubeStrengthTestRepository.findByPlantId(plantId)
                 .stream()
                 .map(this::mapTestToDto)
                 .toList();
