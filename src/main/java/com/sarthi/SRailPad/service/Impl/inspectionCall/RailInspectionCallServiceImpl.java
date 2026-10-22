@@ -143,18 +143,44 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                     + ") due to pending cancellation charges. Please clear outstanding payment in Payment Details module."));
         }
 
-        // Block if IBS Vendor Code is not configured for this plant
+        // Block if IBS Vendor Code is not configured — resolve POI code via railpad_pincode_poi_mapping first
         if (call.getPlantId() != null && !call.getPlantId().isBlank()) {
+            String rawPlantId = call.getPlantId();
+            String plantPrefix = (rawPlantId.contains("/"))
+                    ? rawPlantId.split("/")[0].replace(":", "").trim()
+                    : rawPlantId.replace(":", "").trim();
+            String cleanVendorCode = (call.getVendorCode() != null)
+                    ? call.getVendorCode().replace(":", "").trim() : "";
+
+            com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping poiMappingEntry = null;
+            if (!plantPrefix.isEmpty()) {
+                poiMappingEntry = railPadPincodePoIMappingRepository.findByVendorCode(plantPrefix)
+                        .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(":" + plantPrefix)
+                        .orElseGet(() -> {
+                            java.util.List<com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping> list =
+                                    railPadPincodePoIMappingRepository.findByPoiCode(plantPrefix);
+                            return (list != null && !list.isEmpty()) ? list.get(0) : null;
+                        }));
+            }
+            if (poiMappingEntry == null && !cleanVendorCode.isEmpty()) {
+                poiMappingEntry = railPadPincodePoIMappingRepository.findByVendorCode(cleanVendorCode)
+                        .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(":" + cleanVendorCode)
+                        .orElse(null));
+            }
+
+            String poiCode = (poiMappingEntry != null && poiMappingEntry.getPoiCode() != null)
+                    ? poiMappingEntry.getPoiCode().trim() : plantPrefix;
+
             java.util.Optional<com.sarthi.entity.IBS.SarthiIbsPoiMapping> ibsMapping =
-                    ibsPoiMappingRepository.findBestMatch(call.getPlantId(), "railpad");
+                    ibsPoiMappingRepository.findBestMatch(poiCode, "railpad");
             if (ibsMapping.isEmpty() || ibsMapping.get().getIbsVendorCode() == null
                     || ibsMapping.get().getIbsVendorCode().isBlank()) {
                 throw new BusinessException(new ErrorDetails(
                         AppConstant.INTER_SERVER_ERROR,
                         AppConstant.ERROR_TYPE_CODE_INTERNAL,
                         AppConstant.ERROR_TYPE_ERROR,
-                        "Call raising is blocked: IBS Vendor Code is not configured for Plant ("
-                        + call.getPlantId() + "). Please contact RITES admin to update the IBS mapping."));
+                        "Call raising is blocked: IBS Vendor Code is not configured for POI ("
+                        + poiCode + "). Please contact RITES admin to update the IBS mapping."));
             }
         }
 

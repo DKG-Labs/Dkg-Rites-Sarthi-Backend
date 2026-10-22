@@ -124,7 +124,8 @@ public class crisServiceImpl implements crisService {
 
                 if (items != null) {
                     for (PoItemDto m : items) {
-                        if (m.getITEM_SRNO() == null || m.getPL_NO() == null) continue;
+                        if (m.getITEM_SRNO() == null || m.getPL_NO() == null
+                                || m.getITEM_SRNO().contains("*") || m.getITEM_SRNO().equalsIgnoreCase("null")) continue;
                         PoItem item = buildPoItemFromDto(m, header);
                         item.setSourceSystem("FRONTEND");
                         itemRepo.save(item);
@@ -219,7 +220,8 @@ public class crisServiceImpl implements crisService {
                 // Update / Insert PoItems
                 if (items != null) {
                     for (PoItemDto m : items) {
-                        if (m.getITEM_SRNO() == null || m.getPL_NO() == null) continue;
+                        if (m.getITEM_SRNO() == null || m.getPL_NO() == null
+                                || m.getITEM_SRNO().contains("*") || m.getITEM_SRNO().equalsIgnoreCase("null")) continue;
                         PoItem existingItem = itemRepo.findByPoHeaderAndItemSrNo(header, m.getITEM_SRNO()).orElse(null);
                         if (existingItem != null) {
                             if (m.getPOKEY() != null && !m.getPOKEY().isBlank()) existingItem.setCaseNo(m.getPOKEY());
@@ -1055,18 +1057,15 @@ public class crisServiceImpl implements crisService {
             String maSrNo = d.getMaSrNo();
 
             // Determine effective item serial number:
-            // 1. If poSr is a real item serial number (not null, not blank, not "***", not "null"), use poSr.
-            // 2. Otherwise fall back to maSrNo (if maSrNo is a real item serial number, not null, not "***", not "000").
+            // Use poSr only. If poSr is "***" or blank, treat as wildcard → update ALL items under the PO.
+            // maSrNo fallback removed: a wildcard poSr means the amendment applies to all PO serial numbers.
             String effectiveSr = null;
             if (isValidSrNo(poSr)) {
                 effectiveSr = poSr.trim();
-            } else if (isValidSrNo(maSrNo)) {
-                effectiveSr = maSrNo.trim();
             }
 
-            // If both poSr and maSrNo are wildcard ("***") or null, it's a general amendment for ALL items under the PO
-            boolean isWildcard = (poSr == null || poSr.isBlank() || poSr.contains("*") || poSr.equalsIgnoreCase("ALL"))
-                    && (maSrNo == null || maSrNo.isBlank() || maSrNo.contains("*") || maSrNo.equals("000") || maSrNo.equalsIgnoreCase("null"));
+            // If poSr is wildcard ("***") or null/blank, the amendment applies to ALL items under the PO
+            boolean isWildcard = (poSr == null || poSr.isBlank() || poSr.contains("*") || poSr.equalsIgnoreCase("ALL"));
 
             // -------------------------------------------------------------
             // A. Delivery Period / Extended Delivery Date Update
