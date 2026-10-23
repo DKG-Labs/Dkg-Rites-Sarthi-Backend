@@ -15,8 +15,5 @@ public interface MoistureAnalysisEntryRepository extends JpaRepository<MoistureA
     @EntityGraph(attributePaths = {"sections"})
     List<MoistureAnalysisEntry> findAll();
 
-    @EntityGraph(attributePaths = {"sections"})
-    List<MoistureAnalysisEntry> findByPlantId(String plantId);
-
     List<MoistureAnalysisEntry> findTop5ByOrderByIdDesc();
 }

@@ -16,8 +16,6 @@ public interface MoistureAnalysisEntryService {
 
    public List<MoistureAnalysisResponseDTO> getAll();
 
-   public List<MoistureAnalysisResponseDTO> getByPlant(String plantId);
-
     public MoistureAnalysisResponseDTO getById(Long id);
 
    public MoistureAnalysisResponseDTO update(Long id, MoistureAnalysisRequestDTO dto);

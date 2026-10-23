@@ -454,21 +454,6 @@ AND s.workflowTransitionId IN (
     List<Object[]> findAllLatestStatuses(@Param("moduleId") Long moduleId);
 
     @Query("""
-SELECT s.requestId, s.status
-FROM SleeperWorkflowTransaction s
-WHERE s.moduleId = :moduleId
-AND s.requestId IN :requestIds
-AND s.workflowTransitionId IN (
-    SELECT MAX(s2.workflowTransitionId)
-    FROM SleeperWorkflowTransaction s2
-    WHERE s2.moduleId = :moduleId
-    AND s2.requestId IN :requestIds
-    GROUP BY s2.requestId
-)
-""")
-    List<Object[]> findLatestStatusesByRequestIds(@Param("moduleId") Long moduleId, @Param("requestIds") Collection<String> requestIds);
-
-    @Query("""
 SELECT t FROM SleeperWorkflowTransaction t
 WHERE t.requestId = :plantId
 AND t.moduleId = 1

@@ -15,7 +15,6 @@ public interface WaterCubeStrengthTestService {
     ResponseEntity<?> getTestResultById(Long id);
 
     public List<Map<String, Object>> getAll();
-    public List<Map<String, Object>> getByPlant(String plantId);
     public ResponseEntity<?> deleteTestResult(Long id);
     public ResponseEntity<?> updateTestResult(Long id, WaterCubeStrengthTestRequestDto requestDto);
     }

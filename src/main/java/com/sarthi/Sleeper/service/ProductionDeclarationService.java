@@ -21,8 +21,6 @@ public interface ProductionDeclarationService {
 
     List<ProductionDeclarationResponseDto> getAll();
 
-    List<ProductionDeclarationResponseDto> getByPlant(String plantId);
-
     public Page<ProductionDeclarationResponseDto> getAllProductions(int page, int size);
 
     List<ProductionDeclarationResponseDto> getByUser(Long userId);
@@ -48,6 +46,4 @@ public interface ProductionDeclarationService {
     public List<String> getSleepers(String batchNo, String benchNo, String sleeperType, String productionUnit);
 
     public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatus();
-
-    public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusByPlant(String plantId);
 }

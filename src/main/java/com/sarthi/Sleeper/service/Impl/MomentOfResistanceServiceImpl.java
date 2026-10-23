@@ -118,14 +118,6 @@ public class MomentOfResistanceServiceImpl implements MomentOfResistanceService 
                     .collect(Collectors.toList());
         }
 
-        @Override
-        public List<MomentOfResistanceResponseDTO> getByPlant(String plantId) {
-            return repository.findByPlantId(plantId)
-                    .stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
-        }
-
         /* ================= DELETE ================= */
 
         @Override

@@ -62,28 +62,22 @@ public class productionDeclarationController {
         }
 
         @GetMapping("/getAll")
-        public ResponseEntity<Object> getAll(
-                        @RequestParam(required = false) String plantId) {
+        public ResponseEntity<Object> getAll() {
 
                 return new ResponseEntity<>(
                                 ResponseBuilder.getSuccessResponse(
-                                                (plantId != null && !plantId.isBlank())
-                                                        ? service.getByPlant(plantId)
-                                                        : service.getAll()),
+                                                service.getAll()),
                                 HttpStatus.OK);
         }
 
 
 
         @GetMapping("/getAllVerifedWaterBatchs")
-        public ResponseEntity<Object> getAllWithWaterCubeStatus(
-                        @RequestParam(required = false) String plantId) {
+        public ResponseEntity<Object> getAllWithWaterCubeStatus() {
 
                 return new ResponseEntity<>(
                         ResponseBuilder.getSuccessResponse(
-                                (plantId != null && !plantId.isBlank())
-                                        ? service.getAllWithWaterCubeStatusByPlant(plantId)
-                                        : service.getAllWithWaterCubeStatus()),
+                                service.getAllWithWaterCubeStatus()),
                         HttpStatus.OK);
         }
         @GetMapping("/getAllProductions")

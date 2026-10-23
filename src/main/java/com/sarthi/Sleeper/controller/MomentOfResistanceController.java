@@ -68,13 +68,10 @@ public class MomentOfResistanceController {
     /* ================= GET ALL ================= */
 
     @GetMapping("/all")
-    public ResponseEntity<Object> getAll(
-            @RequestParam(required = false) String plantId) {
+    public ResponseEntity<Object> getAll() {
 
         List<MomentOfResistanceResponseDTO> list =
-                (plantId != null && !plantId.isBlank())
-                        ? service.getByPlant(plantId)
-                        : service.getAll();
+                service.getAll();
 
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(list),

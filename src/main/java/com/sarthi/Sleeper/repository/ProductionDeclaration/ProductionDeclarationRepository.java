@@ -44,28 +44,11 @@ WHERE b.sleeperType IS NOT NULL AND b.sleeperType <> ''
     List<Object[]> findStressDeclarationSleeperTypes();
 
     @Query("""
-SELECT c.declaration.id, b.sleeperType
-FROM ProductionBenchGroup b
-JOIN b.chamber c
-WHERE b.sleeperType IS NOT NULL AND b.sleeperType <> ''
-AND c.declaration.id IN :ids
-""")
-    List<Object[]> findStressDeclarationSleeperTypesByIds(@Param("ids") Collection<Long> ids);
-
-    @Query("""
 SELECT g.declaration.id, g.sleeperType
 FROM ProductionLongLineGang g
 WHERE g.sleeperType IS NOT NULL AND g.sleeperType <> ''
 """)
     List<Object[]> findLongLineDeclarationSleeperTypes();
-
-    @Query("""
-SELECT g.declaration.id, g.sleeperType
-FROM ProductionLongLineGang g
-WHERE g.sleeperType IS NOT NULL AND g.sleeperType <> ''
-AND g.declaration.id IN :ids
-""")
-    List<Object[]> findLongLineDeclarationSleeperTypesByIds(@Param("ids") Collection<Long> ids);
 
     ProductionDeclaration findFirstByBatchNumberOrderByIdDesc(String batchNumber);
 
@@ -227,8 +210,6 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
             WHERE d.id = :batchId
             """)
     ProductionDeclaration findBatchById(Long batchId);
-
-    List<ProductionDeclaration> findByPlantId(String plantId);
 
     List<ProductionDeclaration> findByCreatedBy(Long createdBy);
 

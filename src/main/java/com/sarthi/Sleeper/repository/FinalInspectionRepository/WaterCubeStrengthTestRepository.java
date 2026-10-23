@@ -17,9 +17,6 @@ public interface WaterCubeStrengthTestRepository extends JpaRepository<WaterCube
     List<WaterCubeStrengthTest> findAll();
 
     @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
-    List<WaterCubeStrengthTest> findByPlantId(String plantId);
-
-    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
     List<WaterCubeStrengthTest> findByCreatedBy(Long createdBy);
 
     @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})

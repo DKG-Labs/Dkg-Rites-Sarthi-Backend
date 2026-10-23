@@ -81,13 +81,9 @@ public class WaterCubeSampleController {
                 HttpStatus.OK);
     }
     @GetMapping("/getAllTests")
-    public ResponseEntity<Object> getAllTests(
-            @RequestParam(required = false) String plantId) {
+    public ResponseEntity<Object> getAllTests() {
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(
-                        (plantId != null && !plantId.isBlank())
-                                ? waterCubeStrengthTestService.getByPlant(plantId)
-                                : waterCubeStrengthTestService.getAll()),
+                ResponseBuilder.getSuccessResponse(waterCubeStrengthTestService.getAll()),
                 HttpStatus.OK);
     }
 
