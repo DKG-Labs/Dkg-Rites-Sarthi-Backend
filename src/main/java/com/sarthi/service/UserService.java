@@ -90,4 +90,14 @@ public interface UserService {
     LoginResponseDto verifyOtp(VerifyOtpRequestDto request);
 
     public Map<String, Object> migrateAllPlainTextPasswords();
+
+    List<Map<String, Object>> getControllingManagers();
+
+    List<Map<String, Object>> getIesByCm(Integer cmUserId);
+
+    List<Map<String, Object>> getIesByRio(String rio);
+
+    String saveCmIeMapping(Integer cmUserId, List<Integer> ieUserIds);
+
+    String removeCmIeMapping(Integer ieUserId);
 }

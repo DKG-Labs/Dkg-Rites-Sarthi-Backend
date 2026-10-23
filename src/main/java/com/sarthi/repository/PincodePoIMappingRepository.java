@@ -58,6 +58,7 @@ public interface PincodePoIMappingRepository extends JpaRepository<PincodePoIMap
                 SELECT DISTINCT p.companyName
                 FROM PincodePoIMapping p
                 WHERE p.vendorCode = :vendorCode
+                   OR TRIM(LEADING ':' FROM p.vendorCode) = TRIM(LEADING ':' FROM :vendorCode)
             """)
     List<String> findDistinctCompanyNamesByVendorCode(
             @Param("vendorCode") String vendorCode);
@@ -82,6 +83,26 @@ public interface PincodePoIMappingRepository extends JpaRepository<PincodePoIMap
     Optional<UnitDetailsDTO> findUnitDetails(
             @Param("companyName") String companyName,
             @Param("unitName") String unitName);
+
+    @Query("""
+                SELECT new com.sarthi.dto.UnitDetailsDTO(
+                    p.address,
+                    p.poiCode,
+                    p.pinCode
+                )
+                FROM PincodePoIMapping p
+                WHERE p.unitName = :unitName
+            """)
+    List<UnitDetailsDTO> findUnitDetailsByUnitNameOnly(
+            @Param("unitName") String unitName);
+
+    @Query("""
+                SELECT p
+                FROM PincodePoIMapping p
+                WHERE p.vendorCode = :vendorCode
+                   OR TRIM(LEADING ':' FROM p.vendorCode) = TRIM(LEADING ':' FROM :vendorCode)
+            """)
+    List<PincodePoIMapping> findByVendorCodeWithColonHandling(@Param("vendorCode") String vendorCode);
 
     @Query("SELECT DISTINCT p.companyName FROM PincodePoIMapping p WHERE p.poiCode IS NOT NULL AND p.poiCode <> ''")
     List<String> findAllDistinctCompanyNames();
