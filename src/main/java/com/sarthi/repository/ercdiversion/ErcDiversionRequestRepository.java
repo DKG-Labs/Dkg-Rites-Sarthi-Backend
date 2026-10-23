@@ -33,4 +33,17 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
 
     @Query("SELECT COUNT(r) FROM ErcDiversionRequest r WHERE r.stage = :stage AND YEAR(r.createdDate) = :year")
     long countByStageAndYear(@Param("stage") DiversionStage stage, @Param("year") int year);
+
+    @Query("SELECT COUNT(r) FROM ErcDiversionRequest r WHERE r.stage = :stage AND CAST(r.createdDate AS date) = :date")
+    long countByStageAndCreatedDate(@Param("stage") DiversionStage stage, @Param("date") java.time.LocalDate date);
+
+    boolean existsByRequestNo(String requestNo);
+
+    @Query("SELECT DISTINCT r.sourcePoSrNo FROM ErcDiversionRequest r " +
+           "WHERE r.vendorCode = :vendorCode " +
+           "AND r.diversionType = com.sarthi.enums.DiversionType.COMPLETE " +
+           "AND r.status NOT IN (com.sarthi.enums.DiversionRequestStatus.DRAFT, " +
+           "com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION)")
+    List<String> findCompleteSourceSrNos(@Param("vendorCode") String vendorCode);
 }

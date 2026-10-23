@@ -35,4 +35,6 @@ public interface ErcDiversionService {
     List<BasketItemDto> getAvailableBasketItems(String vendorCode, DiversionStage stage, String targetPoNo, String targetPoSrNo);
 
     CallSourceReferenceDto getCallSourceReference(Long callId);
+
+    List<String> getCompleteDiversionSourceSrNos(String vendorCode);
 }

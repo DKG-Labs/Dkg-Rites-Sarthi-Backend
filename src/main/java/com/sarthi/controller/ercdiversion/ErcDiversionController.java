@@ -1,20 +1,30 @@
 package com.sarthi.controller.ercdiversion;
 
+import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.sarthi.util.APIResponse;
 import com.sarthi.util.ResponseBuilder;
 import com.sarthi.dto.ercdiversion.*;
 import com.sarthi.enums.DiversionRequestStatus;
 import com.sarthi.enums.DiversionStage;
+import com.sarthi.repository.ercdiversion.ErcDiversionWorkflowHistoryRepository;
 import com.sarthi.service.ercdiversion.ErcDiversionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/erc/diversion")
@@ -24,6 +34,33 @@ import java.util.List;
 public class ErcDiversionController {
 
     private final ErcDiversionService diversionService;
+    private final ErcDiversionWorkflowHistoryRepository diversionHistoryRepository;
+
+    @Value("${azure.storage.connection-string}")
+    private String azureConnectionString;
+
+    @Value("${azure.storage.diversion-docs-container-name:sarthi-diversion-docs}")
+    private String diversionDocsContainer;
+
+    private volatile BlobContainerClient diversionBlobContainer;
+
+    private BlobContainerClient getDiversionContainer() {
+        if (diversionBlobContainer == null) {
+            synchronized (this) {
+                if (diversionBlobContainer == null) {
+                    BlobServiceClient client = new BlobServiceClientBuilder()
+                            .connectionString(azureConnectionString)
+                            .buildClient();
+                    String name = (diversionDocsContainer != null && !diversionDocsContainer.isBlank())
+                            ? diversionDocsContainer.trim() : "sarthi-diversion-docs";
+                    BlobContainerClient c = client.getBlobContainerClient(name);
+                    if (!c.exists()) c = client.createBlobContainer(name);
+                    diversionBlobContainer = c;
+                }
+            }
+        }
+        return diversionBlobContainer;
+    }
 
     @GetMapping("/eligible-source-ics")
     @Operation(summary = "Get eligible source ICs for diversion")
@@ -100,14 +137,20 @@ public class ErcDiversionController {
 
     @GetMapping("/sbu/pending-requests")
     @Operation(summary = "Get pending requests for SBU Head")
-    public ResponseEntity<APIResponse> getPendingRequestsForSbu(@RequestParam String rioId) {
+    public ResponseEntity<APIResponse> getPendingRequestsForSbu(@RequestParam(required = false) String rioId) {
+        if (rioId == null || rioId.isBlank()) {
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(List.of()), HttpStatus.OK);
+        }
         List<DiversionRequestDto> list = diversionService.getPendingRequestsForSbu(rioId);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
     @GetMapping("/sbu/approved-requests")
     @Operation(summary = "Get approved requests for SBU Head")
-    public ResponseEntity<APIResponse> getApprovedRequestsForSbu(@RequestParam String rioId) {
+    public ResponseEntity<APIResponse> getApprovedRequestsForSbu(@RequestParam(required = false) String rioId) {
+        if (rioId == null || rioId.isBlank()) {
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(List.of()), HttpStatus.OK);
+        }
         List<DiversionRequestDto> list = diversionService.getApprovedRequestsForSbu(rioId);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
@@ -171,10 +214,59 @@ public class ErcDiversionController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
+    @GetMapping("/complete-source-sr-nos")
+    @Operation(summary = "Get source PO SR numbers with COMPLETE diversion for a vendor")
+    public ResponseEntity<APIResponse> getCompleteDiversionSourceSrNos(@RequestParam String vendorCode) {
+        List<String> srNos = diversionService.getCompleteDiversionSourceSrNos(vendorCode);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(srNos), HttpStatus.OK);
+    }
+
     @GetMapping("/call-source-reference/{callId}")
     @Operation(summary = "Get Source IC historical test reference for IE inspection view")
     public ResponseEntity<APIResponse> getCallSourceReference(@PathVariable Long callId) {
         CallSourceReferenceDto ref = diversionService.getCallSourceReference(callId);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(ref), HttpStatus.OK);
+    }
+
+    @GetMapping("/history/{id}")
+    @Operation(summary = "Get workflow history for a diversion request")
+    public ResponseEntity<APIResponse> getDiversionHistory(@PathVariable Long id) {
+        List<com.sarthi.entity.ercdiversion.ErcDiversionWorkflowHistory> history =
+                diversionHistoryRepository.findByDiversionRequestIdOrderByCreatedDateAsc(id);
+        List<java.util.Map<String, Object>> result = history.stream().map(h -> {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("actionType", h.getAction());
+            m.put("actionTimestamp", h.getCreatedDate());
+            m.put("actorUsername", h.getActionUserName() != null ? h.getActionUserName() : h.getActionUserId());
+            m.put("actorRole", h.getActionRole());
+            m.put("fromStatus", h.getFromStatus());
+            m.put("toStatus", h.getToStatus());
+            m.put("actionRemarks", h.getRemarks());
+            return m;
+        }).collect(java.util.stream.Collectors.toList());
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
+    }
+
+    @PostMapping("/upload-railway-doc")
+    @Operation(summary = "Upload Railway Permission document for a diversion request")
+    public ResponseEntity<APIResponse> uploadRailwayDoc(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("error", "No file provided")), HttpStatus.BAD_REQUEST);
+            }
+            String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "railway_doc.pdf";
+            String blobName = "diversion/railway/" + UUID.randomUUID() + "_" + originalName.replaceAll("[^a-zA-Z0-9._\\-]", "_");
+
+            BlobClient blobClient = getDiversionContainer().getBlobClient(blobName);
+            try (InputStream is = file.getInputStream()) {
+                blobClient.upload(is, file.getSize(), true);
+            }
+            String url = blobClient.getBlobUrl();
+            log.info("Uploaded railway permission doc: {}", url);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("url", url, "blobName", blobName)), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Failed to upload railway permission doc", e);
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("error", "Upload failed: " + e.getMessage())), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

@@ -25,6 +25,7 @@ import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
 import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
 import com.sarthi.service.ercdiversion.ErcDiversionService;
 import com.sarthi.service.rawmaterial.RawMaterialInspectionService;
+import com.sarthi.util.IcNumberGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.Year;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -53,6 +54,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     private final RawMaterialInspectionService rawMaterialService;
     private final FinalInspectionLotDetailsRepository finalLotRepository;
     private final WorkflowTransitionRepository workflowTransitionRepository;
+    private final IcNumberGenerator icNumberGenerator;
 
     private static final int DIVERSION_WORKFLOW_ID = 4;
     private static final String ROLE_VENDOR = "1";
@@ -111,12 +113,21 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             }
         }
 
+        // Exclude ICs whose source PO SR no has been COMPLETELY diverted
+        Set<String> completeDivSrNos = cleanVendor != null
+                ? new HashSet<>(requestRepository.findCompleteSourceSrNos(cleanVendor))
+                : Collections.emptySet();
+
         List<SourceIcEligibilityDto> eligibleList = new ArrayList<>();
         for (Object[] row : rows) {
             String certNo = (String) row[0];
             String callNo = (String) row[1];
             String poNo = (String) row[2];
             String poSerialNo = (String) row[3];
+
+            if (poSerialNo != null && completeDivSrNos.contains(poSerialNo)) {
+                continue; // skip — material for this PO SR no has been completely diverted
+            }
             LocalDate icDate = null;
             if (row[4] instanceof java.sql.Date) {
                 icDate = ((java.sql.Date) row[4]).toLocalDate();
@@ -591,11 +602,27 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         historyRepository.save(history);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> getCompleteDiversionSourceSrNos(String vendorCode) {
+        return requestRepository.findCompleteSourceSrNos(vendorCode);
+    }
+
     private String generateRequestNo(DiversionStage stage) {
-        int year = Year.now().getValue();
-        String stageCode = stage == DiversionStage.RAW_MATERIAL ? "RM" : (stage == DiversionStage.PROCESS ? "PROC" : "FINAL");
-        long count = requestRepository.countByStageAndYear(stage, year) + 1;
-        return String.format("DIV/%s/%d/%05d", stageCode, year, count);
+        String typeOfCall = stage == DiversionStage.RAW_MATERIAL ? "Raw Material"
+                : stage == DiversionStage.PROCESS ? "Process" : "Final";
+        LocalDate today = LocalDate.now();
+
+        long regularCount = inspectionCallRepository.countByTypeOfCallAndCreatedDate(typeOfCall, today);
+        long diversionCount = requestRepository.countByStageAndCreatedDate(stage, today);
+        long seq = regularCount + diversionCount + 1;
+
+        String requestNo = icNumberGenerator.generateIcNumber(typeOfCall, seq);
+        while (inspectionCallRepository.existsByIcNumber(requestNo) || requestRepository.existsByRequestNo(requestNo)) {
+            seq++;
+            requestNo = icNumberGenerator.generateIcNumber(typeOfCall, seq);
+        }
+        return requestNo;
     }
 
     private String extractCallNo(String certNo) {
