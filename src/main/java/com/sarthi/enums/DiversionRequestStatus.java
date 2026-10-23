@@ -12,5 +12,6 @@ public enum DiversionRequestStatus {
     SBU_HEAD_RETURN_DIVERSION,
     RETURNED_TO_VENDOR,
     BASKET_CREATED,
-    COMPLETED
+    COMPLETED,
+    DELETED_BY_VENDOR
 }

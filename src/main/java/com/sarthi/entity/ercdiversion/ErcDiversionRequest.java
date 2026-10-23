@@ -107,6 +107,7 @@ public class ErcDiversionRequest extends BaseAuditEntity {
     @Column(name = "railway_permission_date", nullable = false)
     private LocalDate railwayPermissionDate;
 
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "railway_permission_doc_url", nullable = false, columnDefinition = "LONGTEXT")
     private String railwayPermissionDocUrl;
 
@@ -117,7 +118,7 @@ public class ErcDiversionRequest extends BaseAuditEntity {
     @Enumerated(EnumType.STRING)
     private DiversionRequestStatus status;
 
-    @OneToMany(mappedBy = "diversionRequest", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "diversionRequest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JsonManagedReference
     @Builder.Default
     private List<ErcDiversionItem> items = new ArrayList<>();

@@ -29,6 +29,7 @@ public class DiversionRequestDto {
     private String rioId;
     private String cmUserId;
     private String cmUserName;
+    private String cmEmployeeCode;
     private String sbuHeadUserId;
     private DiversionStage stage;
     private DiversionType diversionType;

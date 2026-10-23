@@ -37,4 +37,10 @@ public interface ErcDiversionService {
     CallSourceReferenceDto getCallSourceReference(Long callId);
 
     List<String> getCompleteDiversionSourceSrNos(String vendorCode);
+
+    String getRailwayDocUrl(Long id);
+
+    void deleteRequest(Long id);
+
+    DiversionRequestDto updateRequest(DiversionRequestDto dto);
 }

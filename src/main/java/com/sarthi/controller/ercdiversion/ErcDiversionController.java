@@ -221,6 +221,28 @@ public class ErcDiversionController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(srNos), HttpStatus.OK);
     }
 
+    @DeleteMapping("/request/{id}")
+    @Operation(summary = "Delete a diversion request (only DRAFT or returned statuses allowed)")
+    public ResponseEntity<APIResponse> deleteRequest(@PathVariable Long id) {
+        diversionService.deleteRequest(id);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("message", "Deleted successfully")), HttpStatus.OK);
+    }
+
+    @PutMapping("/request/{id}")
+    @Operation(summary = "Update a diversion request (only DRAFT or returned statuses allowed)")
+    public ResponseEntity<APIResponse> updateRequest(@PathVariable Long id, @RequestBody DiversionRequestDto dto) {
+        dto.setId(id);
+        DiversionRequestDto updated = diversionService.updateRequest(dto);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
+    }
+
+    @GetMapping("/doc-url/{id}")
+    @Operation(summary = "Get railway permission doc URL for a diversion request (fetches only the LONGTEXT column)")
+    public ResponseEntity<APIResponse> getRailwayDocUrl(@PathVariable Long id) {
+        String url = diversionService.getRailwayDocUrl(id);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("railwayPermissionDocUrl", url != null ? url : "")), HttpStatus.OK);
+    }
+
     @GetMapping("/call-source-reference/{callId}")
     @Operation(summary = "Get Source IC historical test reference for IE inspection view")
     public ResponseEntity<APIResponse> getCallSourceReference(@PathVariable Long callId) {
