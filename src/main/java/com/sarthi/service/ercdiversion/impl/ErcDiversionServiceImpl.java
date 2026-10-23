@@ -151,6 +151,10 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             BigDecimal alreadyDiverted = divertedMap.getOrDefault(certNo, BigDecimal.ZERO);
             BigDecimal available = totalAccepted.subtract(alreadyDiverted);
 
+            String ieName = row.length > 6 && row[6] != null ? row[6].toString() : null;
+            String certDocUrl = row.length > 7 && row[7] != null ? row[7].toString() : null;
+            String ieUserId = row.length > 8 && row[8] != null ? row[8].toString() : null;
+
             if (available.compareTo(BigDecimal.ZERO) > 0) {
                 eligibleList.add(SourceIcEligibilityDto.builder()
                         .certificateNo(certNo)
@@ -163,6 +167,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                         .totalDivertedQty(alreadyDiverted)
                         .availableBalanceQty(available)
                         .unitOfMeasurement(stage == DiversionStage.RAW_MATERIAL ? "MT" : "NOS")
+                        .ieName(ieName)
+                        .ieUserId(ieUserId)
+                        .certDocUrl(certDocUrl)
                         .build());
             }
         }
@@ -279,6 +286,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         if (entity.getRequestNo() == null || entity.getRequestNo().trim().isEmpty()) {
             entity.setRequestNo(generateRequestNo(entity.getStage()));
         }
+        if (entity.getDiversionNo() == null || entity.getDiversionNo().trim().isEmpty()) {
+            entity.setDiversionNo(generateDiversionNo(entity.getStage()));
+        }
         entity.setStatus(DiversionRequestStatus.DRAFT);
         ErcDiversionRequest saved = requestRepository.save(entity);
 
@@ -310,6 +320,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         ErcDiversionRequest entity = mapDtoToEntity(dto);
         if (entity.getRequestNo() == null || entity.getRequestNo().trim().isEmpty()) {
             entity.setRequestNo(generateRequestNo(entity.getStage()));
+        }
+        if (entity.getDiversionNo() == null || entity.getDiversionNo().trim().isEmpty()) {
+            entity.setDiversionNo(generateDiversionNo(entity.getStage()));
         }
         entity.setTotalDiversionQty(totalQty);
         entity.setStatus(DiversionRequestStatus.PENDING_CM_APPROVAL);
@@ -790,6 +803,18 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         return requestNo;
     }
 
+    private String generateDiversionNo(DiversionStage stage) {
+        String prefix = stage == DiversionStage.RAW_MATERIAL ? "DER"
+                : stage == DiversionStage.PROCESS ? "DEP" : "DEF";
+        long seq = requestRepository.countByStage(stage) + 1;
+        String diversionNo;
+        do {
+            diversionNo = String.format("%s-%03d", prefix, seq);
+            seq++;
+        } while (requestRepository.existsByDiversionNo(diversionNo));
+        return diversionNo;
+    }
+
     private String extractCallNo(String certNo) {
         if (certNo == null || certNo.trim().isEmpty()) return null;
         try {
@@ -811,6 +836,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         ErcDiversionRequest entity = ErcDiversionRequest.builder()
                 .id(dto.getId())
                 .requestNo(dto.getRequestNo())
+                .diversionNo(dto.getDiversionNo())
                 .vendorCode(dto.getVendorCode())
                 .companyId(dto.getCompanyId())
                 .companyName(dto.getCompanyName())
@@ -827,6 +853,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .sourceIcNo(dto.getSourceIcNo())
                 .sourceCallNo(dto.getSourceCallNo())
                 .sourceIcDate(dto.getSourceIcDate())
+                .sourceIeName(dto.getSourceIeName())
+                .sourceIeUserId(dto.getSourceIeUserId())
                 .targetPoNo(dto.getTargetPoNo())
                 .targetPoSrNo(dto.getTargetPoSrNo())
                 .totalDiversionQty(dto.getTotalDiversionQty() != null ? dto.getTotalDiversionQty() : BigDecimal.ZERO)
@@ -875,6 +903,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         return DiversionRequestDto.builder()
                 .id(entity.getId())
                 .requestNo(entity.getRequestNo())
+                .diversionNo(entity.getDiversionNo())
                 .vendorCode(entity.getVendorCode())
                 .companyId(entity.getCompanyId())
                 .companyName(entity.getCompanyName())
@@ -891,6 +920,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .sourceIcNo(entity.getSourceIcNo())
                 .sourceCallNo(entity.getSourceCallNo())
                 .sourceIcDate(entity.getSourceIcDate())
+                .sourceIeName(entity.getSourceIeName())
+                .sourceIeUserId(entity.getSourceIeUserId())
                 .targetPoNo(entity.getTargetPoNo())
                 .targetPoSrNo(entity.getTargetPoSrNo())
                 .totalDiversionQty(entity.getTotalDiversionQty())

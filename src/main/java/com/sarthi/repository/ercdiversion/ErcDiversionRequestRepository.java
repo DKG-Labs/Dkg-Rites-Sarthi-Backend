@@ -63,6 +63,11 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
 
     boolean existsByRequestNo(String requestNo);
 
+    boolean existsByDiversionNo(String diversionNo);
+
+    @Query("SELECT COUNT(r) FROM ErcDiversionRequest r WHERE r.stage = :stage")
+    long countByStage(@Param("stage") DiversionStage stage);
+
     @Query("SELECT r.railwayPermissionDocUrl FROM ErcDiversionRequest r WHERE r.id = :id")
     Optional<String> findRailwayDocUrlById(@Param("id") Long id);
 

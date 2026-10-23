@@ -195,62 +195,80 @@ List<Object[]> findCertificateNosByCallNos(
             nativeQuery = true)
     List<Object[]> findProcessIcNumbersWithDateByMultipleRmIcNumbers(@Param("rmCertificateNos") List<String> rmCertificateNos);
 
-    @Query(value = "SELECT DISTINCT " +
-            "icd.CERTIFICATE_NO, " +
-            "icd.CALL_NO, " +
+    @Query(value = "SELECT " +
+            "SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) AS certificate_no, " +
+            "SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) AS call_no, " +
             "ic.po_no, " +
             "ic.po_serial_no, " +
             "ic.actual_inspection_date, " +
-            "COALESCE((SELECT SUM(fr.weight_accepted_mt) FROM rm_heat_final_result fr WHERE fr.inspection_call_no = icd.CALL_NO), " +
-            "         (SELECT SUM(hq.qty_accepted) FROM rm_heat_quantities hq JOIN rm_inspection_details rmd ON hq.rm_detail_id = rmd.id WHERE rmd.ic_id = ic.id), 0.0) AS total_accepted " +
-            "FROM inspection_complete_details icd " +
-            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
-            "WHERE icd.CALL_NO LIKE 'ER-%' " +
+            "COALESCE((SELECT SUM(fr.weight_accepted_mt) FROM rm_heat_final_result fr WHERE fr.inspection_call_no = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1)), " +
+            "         (SELECT SUM(hq.qty_accepted) FROM rm_heat_quantities hq JOIN rm_inspection_details rmd ON hq.rm_detail_id = rmd.id WHERE rmd.ic_id = ic.id), 0.0) AS total_accepted, " +
+            "MAX(um.FULL_NAME) AS ie_name, " +
+            "MAX(cs.BLOB_URL) AS cert_doc_url, " +
+            "MAX(rie.created_by) AS ie_user_id " +
+            "FROM rm_ic_edit rie " +
+            "INNER JOIN inspection_calls ic ON ic.ic_number = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) " +
+            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = rie.created_by " +
+            "LEFT JOIN certificate_storage cs ON cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) " +
+            "WHERE rie.ic_number LIKE '%/ER-%/%' " +
             "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
             "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
-            "ORDER BY icd.CERTIFICATE_NO DESC",
+            "GROUP BY rie.ic_number, ic.id, ic.po_no, ic.po_serial_no, ic.actual_inspection_date " +
+            "ORDER BY rie.ic_number DESC",
             nativeQuery = true)
     List<Object[]> findEligibleRmSourceIcs(
             @Param("vendorCode") String vendorCode,
             @Param("plantParam") String plantParam
     );
 
-    @Query(value = "SELECT DISTINCT " +
-            "icd.CERTIFICATE_NO, " +
-            "icd.CALL_NO, " +
+    @Query(value = "SELECT " +
+            "SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) AS certificate_no, " +
+            "SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) AS call_no, " +
             "ic.po_no, " +
             "ic.po_serial_no, " +
             "ic.actual_inspection_date, " +
-            "COALESCE((SELECT SUM(pfr.total_accepted) FROM process_line_final_result pfr WHERE pfr.inspection_call_no = icd.CALL_NO), " +
+            "COALESCE((SELECT SUM(pfr.total_accepted) FROM process_line_final_result pfr WHERE pfr.inspection_call_no = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1)), " +
             "         (SELECT SUM(pid.qty_accepted) FROM process_inspection_details pid WHERE pid.ic_id = ic.id), " +
-            "         (SELECT SUM(pid2.offered_qty) FROM process_inspection_details pid2 WHERE pid2.ic_id = ic.id), 0.0) AS total_accepted " +
-            "FROM inspection_complete_details icd " +
-            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
-            "WHERE (icd.CALL_NO LIKE 'EP-%' OR ic.type_of_call LIKE '%PROCESS%') " +
+            "         (SELECT SUM(pid2.offered_qty) FROM process_inspection_details pid2 WHERE pid2.ic_id = ic.id), 0.0) AS total_accepted, " +
+            "MAX(um.FULL_NAME) AS ie_name, " +
+            "MAX(cs.BLOB_URL) AS cert_doc_url, " +
+            "MAX(pie.CREATED_BY) AS ie_user_id " +
+            "FROM PROCESS_IC_EDIT pie " +
+            "INNER JOIN inspection_calls ic ON ic.ic_number = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) " +
+            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = pie.CREATED_BY " +
+            "LEFT JOIN certificate_storage cs ON cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) " +
+            "WHERE pie.IC_NUMBER LIKE '%/EP-%/%' " +
             "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
             "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
-            "ORDER BY icd.CERTIFICATE_NO DESC",
+            "GROUP BY pie.IC_NUMBER, ic.id, ic.po_no, ic.po_serial_no, ic.actual_inspection_date " +
+            "ORDER BY pie.IC_NUMBER DESC",
             nativeQuery = true)
     List<Object[]> findEligibleProcessSourceIcs(
             @Param("vendorCode") String vendorCode,
             @Param("plantParam") String plantParam
     );
 
-    @Query(value = "SELECT DISTINCT " +
-            "icd.CERTIFICATE_NO, " +
-            "icd.CALL_NO, " +
+    @Query(value = "SELECT " +
+            "SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) AS certificate_no, " +
+            "SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) AS call_no, " +
             "ic.po_no, " +
             "ic.po_serial_no, " +
             "ic.actual_inspection_date, " +
             "COALESCE((SELECT SUM(fld.qty_accepted) FROM final_inspection_lot_details fld JOIN final_inspection_details fid ON fld.final_detail_id = fid.id WHERE fid.ic_id = ic.id), " +
             "         (SELECT fid2.total_accepted_qty FROM final_inspection_details fid2 WHERE fid2.ic_id = ic.id), " +
-            "         (SELECT fid3.total_offered_qty FROM final_inspection_details fid3 WHERE fid3.ic_id = ic.id), 0.0) AS total_accepted " +
-            "FROM inspection_complete_details icd " +
-            "INNER JOIN inspection_calls ic ON icd.CALL_NO = ic.ic_number " +
-            "WHERE (icd.CALL_NO LIKE 'EF-%' OR ic.type_of_call LIKE '%FINAL%') " +
+            "         (SELECT fid3.total_offered_qty FROM final_inspection_details fid3 WHERE fid3.ic_id = ic.id), 0.0) AS total_accepted, " +
+            "MAX(um.FULL_NAME) AS ie_name, " +
+            "MAX(cs.BLOB_URL) AS cert_doc_url, " +
+            "MAX(fie.CREATED_BY) AS ie_user_id " +
+            "FROM FINAL_IC_EDIT fie " +
+            "INNER JOIN inspection_calls ic ON ic.ic_number = SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) " +
+            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = fie.CREATED_BY " +
+            "LEFT JOIN certificate_storage cs ON cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) " +
+            "WHERE fie.IC_NUMBER LIKE '%/EF-%/%' " +
             "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
             "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
-            "ORDER BY icd.CERTIFICATE_NO DESC",
+            "GROUP BY fie.IC_NUMBER, ic.id, ic.po_no, ic.po_serial_no, ic.actual_inspection_date " +
+            "ORDER BY fie.IC_NUMBER DESC",
             nativeQuery = true)
     List<Object[]> findEligibleFinalSourceIcs(
             @Param("vendorCode") String vendorCode,

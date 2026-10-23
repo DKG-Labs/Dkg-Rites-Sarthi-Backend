@@ -20,6 +20,7 @@ import java.util.List;
 public class DiversionRequestDto {
     private Long id;
     private String requestNo;
+    private String diversionNo;
     private String vendorCode;
     private Long companyId;
     private String companyName;
@@ -39,6 +40,8 @@ public class DiversionRequestDto {
     private String sourceIcNo;
     private String sourceCallNo;
     private LocalDate sourceIcDate;
+    private String sourceIeName;
+    private String sourceIeUserId;
 
     private String targetPoNo;
     private String targetPoSrNo;

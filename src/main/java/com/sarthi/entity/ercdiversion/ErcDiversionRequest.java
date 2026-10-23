@@ -30,6 +30,9 @@ public class ErcDiversionRequest extends BaseAuditEntity {
     @Column(name = "request_no", unique = true, nullable = false, length = 50)
     private String requestNo;
 
+    @Column(name = "diversion_no", unique = true, length = 30)
+    private String diversionNo;
+
     @Column(name = "vendor_code", nullable = false, length = 50)
     private String vendorCode;
 
@@ -80,6 +83,12 @@ public class ErcDiversionRequest extends BaseAuditEntity {
 
     @Column(name = "source_ic_date")
     private LocalDate sourceIcDate;
+
+    @Column(name = "source_ie_name", length = 150)
+    private String sourceIeName;
+
+    @Column(name = "source_ie_user_id", length = 50)
+    private String sourceIeUserId;
 
     // Target Details
     @Column(name = "target_po_no", nullable = false, length = 50)

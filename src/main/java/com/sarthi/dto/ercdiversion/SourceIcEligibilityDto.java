@@ -23,4 +23,7 @@ public class SourceIcEligibilityDto {
     private BigDecimal totalDivertedQty;
     private BigDecimal availableBalanceQty;
     private String unitOfMeasurement;
+    private String ieName;
+    private String ieUserId;
+    private String certDocUrl;
 }
