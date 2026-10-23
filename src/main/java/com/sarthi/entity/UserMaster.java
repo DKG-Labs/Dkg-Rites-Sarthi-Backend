@@ -100,9 +100,6 @@ public class UserMaster implements UserDetails {
     @Column(name = "LAST_LOGIN_DATE")
     private LocalDateTime lastLoginDate;
 
-    @Column(name = "controlling_manager_id")
-    private Integer controllingManagerId;
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
 

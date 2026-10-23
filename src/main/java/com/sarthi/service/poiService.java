@@ -1,6 +1,5 @@
 package com.sarthi.service;
 import com.sarthi.dto.UnitDetailsDTO;
-import com.sarthi.dto.VendorUnitDto;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -12,5 +11,4 @@ public interface poiService {
 
     UnitDetailsDTO getUnitDetails(String companyName, String unitName);
 
-    List<VendorUnitDto> getVendorUnits(String vendorCode);
 }

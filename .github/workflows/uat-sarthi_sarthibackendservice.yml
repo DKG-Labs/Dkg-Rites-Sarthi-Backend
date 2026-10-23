@@ -28,14 +28,6 @@ jobs:
       #  run: mvn clean install
         run: mvn clean package -DskipTests
 
-      # pom.xml writes build output to ${user.home}/.build/sarthi-backend-target, not target/
-      - name: Copy jar into workspace target folder
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path target | Out-Null
-          Copy-Item "$env:USERPROFILE\.build\sarthi-backend-target\*.jar" -Destination target\
-          Get-ChildItem target\*.jar
-
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:

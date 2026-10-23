@@ -13,10 +13,6 @@ public interface MappingService {
     
 
     List<IeMappingResponseDto> getAllMappings();
-
+    
     void deleteMapping(String id);
-
-    String saveCmIeMapping(Integer cmUserId, List<Integer> ieUserIds);
-
-    String removeCmIeMapping(Integer ieUserId);
 }

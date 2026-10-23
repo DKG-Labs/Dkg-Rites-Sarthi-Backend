@@ -8,9 +8,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/mapping")
 @CrossOrigin("*")
@@ -80,35 +77,6 @@ public class MappingController {
                             "Failed to delete mapping: " + ex.getMessage()
                     ))
             );
-        }
-    }
-
-    @PostMapping("/cm-ie")
-    public ResponseEntity<Object> saveCmIeMapping(@RequestBody Map<String, Object> body) {
-        try {
-            Integer cmUserId = (Integer) body.get("cmUserId");
-            @SuppressWarnings("unchecked")
-            List<Integer> ieUserIds = (List<Integer>) body.get("ieUserIds");
-            String result = mappingService.saveCmIeMapping(cmUserId, ieUserIds);
-            return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(result));
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
-                            HttpStatus.INTERNAL_SERVER_ERROR.value(), 5000, "error",
-                            "Failed to save CM-IE mapping: " + ex.getMessage())));
-        }
-    }
-
-    @DeleteMapping("/cm-ie/{ieUserId}")
-    public ResponseEntity<Object> removeCmIeMapping(@PathVariable Integer ieUserId) {
-        try {
-            String result = mappingService.removeCmIeMapping(ieUserId);
-            return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(result));
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
-                            HttpStatus.INTERNAL_SERVER_ERROR.value(), 5000, "error",
-                            "Failed to remove CM-IE mapping: " + ex.getMessage())));
         }
     }
 

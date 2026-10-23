@@ -31,10 +31,6 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     java.util.List<UserMaster> findByRoleNameContaining(String roleName);
 
-    java.util.List<UserMaster> findByControllingManagerId(Integer controllingManagerId);
-
-    java.util.List<UserMaster> findByRioAndRoleNameIn(String rio, java.util.List<String> roleNames);
-
     @Query(value = """
         SELECT 
             um.USERID,
@@ -64,8 +60,7 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
             um.LOGIN_SECURITY_ENABLED,
             um.UPDATEDBY,
             um.UPDATEDDATE,
-            um.LAST_LOGIN_DATE,
-            um.controlling_manager_id
+            um.LAST_LOGIN_DATE
         FROM USER_MASTER um
     """, nativeQuery = true)
     java.util.List<UserMaster> findAllUsersOptimized();

@@ -72,7 +72,6 @@ public class SecurityConfig {
                                 "/api/auth/login/**",
                                 "/api/auth/loginBasedOnType",
                                 "/api/auth/verifyOtp",
-                                "/api/auth/authenticator/**",
                                 "/api/auth/forgot-password",
                                 "/sarthi-backend/api/auth/login",
                                 "/api/sarthi/authenticate",

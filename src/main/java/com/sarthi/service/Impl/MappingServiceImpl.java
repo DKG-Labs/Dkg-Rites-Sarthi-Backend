@@ -141,23 +141,6 @@ public class MappingServiceImpl implements MappingService {
             responseList.add(dto);
         }
 
-        // 1b. controlling_manager_id based CM-IE mappings
-        for (UserMaster u : allUsers) {
-            if (u.getControllingManagerId() == null) continue;
-            IeMappingResponseDto dto = new IeMappingResponseDto();
-            dto.setId("cmie_" + u.getUserId());
-            dto.setMappingType("IE to CM");
-            dto.setInspectingEngineer(u.getRoleName() != null ? u.getRoleName() : "IE");
-            dto.setStatus("Active");
-            dto.setIeName(u.getFullName() != null ? u.getFullName() : u.getUsername());
-            dto.setRio(u.getRio() != null ? u.getRio() : "-");
-            UserMaster cm = userByIdMap.get(u.getControllingManagerId());
-            dto.setCm(cm != null ? (cm.getFullName() != null ? cm.getFullName() : cm.getUsername()) : String.valueOf(u.getControllingManagerId()));
-            dto.setPoiCode("-");
-            dto.setPoiName("-");
-            responseList.add(dto);
-        }
-
         // 2. IePincodePoiMapping (IE to POI)
         List<com.sarthi.entity.IePincodePoiMapping> iePoiMappings = iePincodePoiMappingRepository.findAll();
         for (com.sarthi.entity.IePincodePoiMapping m : iePoiMappings) {
@@ -402,10 +385,7 @@ public class MappingServiceImpl implements MappingService {
     public void deleteMapping(String id) {
         if (id == null || id.isEmpty()) return;
 
-        if (id.startsWith("cmie_")) {
-            Integer ieUserId = Integer.parseInt(id.substring(5));
-            removeCmIeMapping(ieUserId);
-        } else if (id.startsWith("cm_")) {
+        if (id.startsWith("cm_")) {
             Long rawId = Long.parseLong(id.substring(3));
             userProductCmMappingRepository.deleteById(rawId);
         } else if (id.startsWith("poi_")) {
@@ -439,26 +419,5 @@ public class MappingServiceImpl implements MappingService {
         } catch (NumberFormatException e) {
             return 1L; // Default to system/admin ID if not a number
         }
-    }
-
-    @Override
-    @Transactional
-    public String saveCmIeMapping(Integer cmUserId, List<Integer> ieUserIds) {
-        List<UserMaster> ies = userMasterRepository.findByUserIdIn(ieUserIds);
-        for (UserMaster ie : ies) {
-            ie.setControllingManagerId(cmUserId);
-        }
-        userMasterRepository.saveAll(ies);
-        return "Mapped " + ies.size() + " IE(s) to CM successfully.";
-    }
-
-    @Override
-    @Transactional
-    public String removeCmIeMapping(Integer ieUserId) {
-        UserMaster ie = userMasterRepository.findByUserId(ieUserId)
-                .orElseThrow(() -> new RuntimeException("IE user not found: " + ieUserId));
-        ie.setControllingManagerId(null);
-        userMasterRepository.save(ie);
-        return "IE removed from CM mapping successfully.";
     }
 }
