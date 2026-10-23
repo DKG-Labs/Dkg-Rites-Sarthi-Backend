@@ -25,5 +25,14 @@ public class InspectionCompleteDetails {
 
     @Column(name = "CREATED_ON")
     private LocalDateTime createdOn;
+
+    @Column(name = "SOURCE_IC_NO", length = 100)
+    private String sourceIcNo;
+
+    @Column(name = "DIVERSION_REQUEST_NO", length = 50)
+    private String diversionRequestNo;
+
+    @Column(name = "IS_DIVERTED_IC")
+    private Boolean isDivertedIc = false;
 }
 

@@ -30,4 +30,5 @@ public class UserDto {
     private String productType;
     private String profilePhotoPath;
     private String status;
+    private Integer controllingManagerId;
 }
