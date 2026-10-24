@@ -2594,15 +2594,21 @@ private WorkflowTransitionDto mapWorkflowTransition(WorkflowTransition wt) {
       //  if(wt.getProcessIeUserId()!= null) {
     if(wt.getRequestId() != null && wt.getRequestId().startsWith("EP")){
             Integer processIe = wt.getProcessIeUserId();
-            String poi = i.getPlaceOfInspection();
+            String poi = i != null ? i.getPlaceOfInspection() : null;
 
             List<Integer> ieUsers = null;
+            if (poi != null) {
+                try {
+                    ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+                } catch (Exception e) {
+                    log.warn("Could not find process IE mapping for POI {}: {}", poi, e.getMessage());
+                }
+            }
 
-            ieUsers = getIeUsersByProcessIeAndPlaceOfInsp(processIe, poi);
+            if (ieUsers == null || ieUsers.isEmpty()) {
+                ieUsers = (processIe != null) ? Collections.singletonList(processIe) : Collections.emptyList();
+            }
 
-
-
-           // ieUsers.add(processIe);
             dto.setProcessIes(ieUsers);
         }
 
@@ -3777,7 +3783,7 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         // 4. Assemble DTOs
         final Map<Integer, UserMaster> finalUserMap = userMap;
         return workflowTransitionList.stream()
-                .sorted(Comparator.comparing(WorkflowTransition::getWorkflowSequence).reversed())
+                .sorted(Comparator.comparing(WorkflowTransition::getWorkflowSequence, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
                 .map(wt -> {
                     WorkflowTransitionDto dto = mapWorkflowTransition(wt);
                     // Resolve names using the fetched userMap
@@ -4073,6 +4079,12 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         Map<String, InspectionDataDto> icMap = inspectionCallRepository.findLiteByIcNumberIn(requestIds).stream()
                 .collect(Collectors.toMap(InspectionDataDto::icNumber, Function.identity(), (a, b) -> a));
 
+        // Fallback: for requestIds not found by the JOIN query (e.g. diversion calls whose PO serial format differs)
+        List<String> missingIds = requestIds.stream().filter(id -> !icMap.containsKey(id)).toList();
+        Map<String, InspectionCall> fallbackIcMap = missingIds.isEmpty() ? Collections.emptyMap() :
+                inspectionCallRepository.findByIcNumberIn(missingIds).stream()
+                        .collect(Collectors.toMap(InspectionCall::getIcNumber, Function.identity(), (a, b) -> a));
+
         List<String> poNos = icMap.values().stream()
                 .map(InspectionDataDto::poNo)
                 .filter(Objects::nonNull)
@@ -4152,7 +4164,13 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                     }
                 }
 
-                dto.setProcessIes(ieUsers != null ? ieUsers : Collections.emptyList());
+                if (ieUsers == null || ieUsers.isEmpty()) {
+                    ieUsers = (processIe != null) ? Collections.singletonList(processIe) : Collections.emptyList();
+                }
+                dto.setProcessIes(ieUsers);
+            } else if (wt.getProcessIeUserId() != null) {
+                // Diversion Process calls (non-EP prefix): directly assigned IE — populate processIes
+                dto.setProcessIes(Collections.singletonList(wt.getProcessIeUserId()));
             }
 
             if (i != null && "Final".equalsIgnoreCase(i.getTypeOfCall())) {
@@ -4204,6 +4222,27 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                                 .filter(m -> m.getStage().equals(stageCode) || m.getStage().contains(stageCode))
                                 .findFirst();
                         mapping.ifPresent(m -> dto.setRio(m.getRio()));
+                    }
+                }
+            } else {
+                // Fallback for calls not found by INNER JOIN (e.g. diversion calls)
+                InspectionCall fb = fallbackIcMap.get(wt.getRequestId());
+                if (fb != null) {
+                    PoHeader ph = fb.getPoNo() != null ? poHeaderRepository.findByPoNo(fb.getPoNo()).orElse(null) : null;
+                    String poNo = fb.getPoNo() != null ? fb.getPoNo() : "";
+                    String srNo = fb.getPoSerialNo() != null ? fb.getPoSerialNo() : "";
+                    if (!poNo.isEmpty() && srNo.startsWith(poNo + "/")) {
+                        srNo = srNo.substring(poNo.length() + 1);
+                    }
+                    dto.setPoNo((ph != null ? ph.getRlyShortName() : "") + " / " + poNo + " / " + srNo);
+                    dto.setIbsCaseNo(ph != null ? ph.getCaseNo() : "");
+                    if (fb.getVendorId() != null) {
+                        VendorMaster vm = vendorMasterRepository.findByVendorCode(fb.getVendorId()).orElse(null);
+                        dto.setVendorName(vm != null ? vm.getVendorName() : fb.getVendorId());
+                    }
+                    if (fb.getTypeOfCall() != null) {
+                        dto.setProductType("ERC-" + fb.getTypeOfCall());
+                        dto.setStage(fb.getTypeOfCall());
                     }
                 }
             }

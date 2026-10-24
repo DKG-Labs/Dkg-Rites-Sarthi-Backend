@@ -416,6 +416,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .createdBy(r[26] != null ? r[26].toString() : null)
                 .cmUserName(cmUser != null ? cmUser.getFullName() : null)
                 .cmEmployeeCode(cmUser != null ? cmUser.getEmployeeCode() : null)
+                .diversionNo(r.length > 27 ? (String) r[27] : null)
+                .sourceIeName(r.length > 28 ? (String) r[28] : null)
+                .sourceIeUserId(r.length > 29 ? (String) r[29] : null)
                 .items(Collections.emptyList())
                 .build();
     }
@@ -564,6 +567,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             divCall.setIcNumber(saved.getRequestNo());
             divCall.setDiversionRequestNo(saved.getRequestNo());
             divCall.setIsDivertedMaterial(true);
+            divCall.setIsModified(false);
+            divCall.setSourceIcNo(saved.getSourceIcNo());
             divCall.setCallCategory("DIVERTED_PASSED");
             divCall.setTypeOfCall(typeOfCall);
             divCall.setVendorId(saved.getVendorCode());
@@ -575,9 +580,12 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             // poNo/poSerialNo needed for findLiteByIcNumberIn JOIN with PoHeader
             divCall.setPoNo(saved.getTargetPoNo());
             divCall.setPoSerialNo(saved.getTargetPoSrNo());
+            divCall.setDesiredInspectionDate(java.time.LocalDate.now());
             divCall.setStatus("CM_APPROVED");
             divCall.setCreatedBy(saved.getVendorCode());
-            divCall.setCreatedAt(java.time.LocalDateTime.now());
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            divCall.setCreatedAt(now);
+            divCall.setUpdatedAt(now);
             inspectionCallRepository.save(divCall);
             log.info("Created inspection_calls row for diversion {} icNumber={} typeOfCall={}", saved.getRequestNo(), saved.getRequestNo(), typeOfCall);
 
@@ -605,6 +613,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 ieWt.setAssignedToUser(assignedTo);
             }
             ieWt.setJobStatus("OPEN");
+            ieWt.setWorkflowSequence(1);
             ieWt.setRio(saved.getRioId());
             workflowTransitionRepository.save(ieWt);
             log.info("Created INSPECTION_COMPLETE_CONFIRM WT for diversion {} typeOfCall={} userId={}", saved.getRequestNo(), typeOfCall, assignedTo);

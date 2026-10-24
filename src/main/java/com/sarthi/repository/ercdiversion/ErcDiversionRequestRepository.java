@@ -25,7 +25,8 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
            "r.rioId, r.cmUserId, r.stage, r.diversionType, r.sourcePoNo, r.sourcePoSrNo, r.sourceIcNo, " +
            "r.sourceCallNo, r.sourceIcDate, r.targetPoNo, r.targetPoSrNo, r.totalDiversionQty, " +
            "r.unitOfMeasurement, r.reasonCode, r.reasonRemarks, r.railwayPermissionNo, " +
-           "r.railwayPermissionDate, r.status, r.createdDate, r.createdBy " +
+           "r.railwayPermissionDate, r.status, r.createdDate, r.createdBy, " +
+           "r.diversionNo, r.sourceIeName, r.sourceIeUserId " +
            "FROM ErcDiversionRequest r WHERE r.cmUserId = :cmUserId AND r.status IN :statuses ORDER BY r.createdDate DESC")
     List<Object[]> findByCmUserIdAndStatusInLight(@Param("cmUserId") String cmUserId, @Param("statuses") List<DiversionRequestStatus> statuses);
 
@@ -33,7 +34,8 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
            "r.rioId, r.cmUserId, r.stage, r.diversionType, r.sourcePoNo, r.sourcePoSrNo, r.sourceIcNo, " +
            "r.sourceCallNo, r.sourceIcDate, r.targetPoNo, r.targetPoSrNo, r.totalDiversionQty, " +
            "r.unitOfMeasurement, r.reasonCode, r.reasonRemarks, r.railwayPermissionNo, " +
-           "r.railwayPermissionDate, r.status, r.createdDate, r.createdBy " +
+           "r.railwayPermissionDate, r.status, r.createdDate, r.createdBy, " +
+           "r.diversionNo, r.sourceIeName, r.sourceIeUserId " +
            "FROM ErcDiversionRequest r WHERE r.rioId = :rioId AND r.status IN :statuses ORDER BY r.createdDate DESC")
     List<Object[]> findByRioIdAndStatusInLight(@Param("rioId") String rioId, @Param("statuses") List<DiversionRequestStatus> statuses);
 
@@ -47,7 +49,8 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
            "r.rioId, r.cmUserId, r.stage, r.diversionType, r.sourcePoNo, r.sourcePoSrNo, r.sourceIcNo, " +
            "r.sourceCallNo, r.sourceIcDate, r.targetPoNo, r.targetPoSrNo, r.totalDiversionQty, " +
            "r.unitOfMeasurement, r.reasonCode, r.reasonRemarks, r.railwayPermissionNo, " +
-           "r.railwayPermissionDate, r.status, r.createdDate, r.createdBy " +
+           "r.railwayPermissionDate, r.status, r.createdDate, r.createdBy, " +
+           "r.diversionNo, r.sourceIeName, r.sourceIeUserId " +
            "FROM ErcDiversionRequest r WHERE r.vendorCode = :vendorCode AND r.status != com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR AND (:status IS NULL OR r.status = :status) ORDER BY r.createdDate DESC")
     List<Object[]> findByVendorAndOptionalStatusLight(@Param("vendorCode") String vendorCode, @Param("status") DiversionRequestStatus status);
 
