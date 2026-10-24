@@ -4244,6 +4244,14 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
                         dto.setProductType("ERC-" + fb.getTypeOfCall());
                         dto.setStage(fb.getTypeOfCall());
                     }
+                    if (wt.getRio() != null && !wt.getRio().isBlank()) {
+                        dto.setRio(wt.getRio());
+                    } else if (fb.getSourceIcNo() != null && fb.getSourceIcNo().contains("/")) {
+                        String prefix = fb.getSourceIcNo().split("/")[0].trim().toUpperCase();
+                        dto.setRio(!prefix.isEmpty() ? prefix : "ERIO");
+                    } else {
+                        dto.setRio("ERIO");
+                    }
                 }
             }
 
