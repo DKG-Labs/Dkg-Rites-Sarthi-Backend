@@ -16,7 +16,10 @@ import com.sarthi.enums.DiversionStage;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
+import com.sarthi.entity.certificate.CertificateStorage;
+import com.sarthi.repository.certificate.CertificateStorageRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
+import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.InspectionCompleteDetailsRepository;
 import com.sarthi.repository.WorkflowTransitionRepository;
 import com.sarthi.repository.ercdiversion.*;
@@ -58,6 +61,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     private final WorkflowTransitionRepository workflowTransitionRepository;
     private final IcNumberGenerator icNumberGenerator;
     private final UserMasterRepository userMasterRepository;
+    private final CertificateStorageRepository certificateStorageRepository;
+    private final ProcessLineFinalResultRepository processLineFinalResultRepository;
 
     private static final int DIVERSION_WORKFLOW_ID = 4;
     private static final String ROLE_VENDOR = "1";
@@ -155,6 +160,18 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             String certDocUrl = row.length > 7 && row[7] != null ? row[7].toString() : null;
             String ieUserId = row.length > 8 && row[8] != null ? row[8].toString() : null;
 
+            if (certDocUrl == null || certDocUrl.trim().isEmpty()) {
+                certDocUrl = certificateStorageRepository.findAllByCallNumber(callNo).stream()
+                        .map(CertificateStorage::getBlobUrl)
+                        .filter(url -> url != null && !url.trim().isEmpty())
+                        .findFirst()
+                        .orElseGet(() -> certificateStorageRepository.findAllByCallNumber(certNo).stream()
+                                .map(CertificateStorage::getBlobUrl)
+                                .filter(url -> url != null && !url.trim().isEmpty())
+                                .findFirst()
+                                .orElse(null));
+            }
+
             if (available.compareTo(BigDecimal.ZERO) > 0) {
                 eligibleList.add(SourceIcEligibilityDto.builder()
                         .certificateNo(certNo)
@@ -212,23 +229,85 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             }
         } else if (stage == DiversionStage.PROCESS) {
             InspectionCall call = inspectionCallRepository.findByIcNumber(callNo).orElse(null);
-            if (call != null && call.getProcessInspectionDetails() != null) {
+            if (call != null && call.getProcessInspectionDetails() != null && !call.getProcessInspectionDetails().isEmpty()) {
                 for (com.sarthi.entity.processmaterial.ProcessInspectionDetails pid : call.getProcessInspectionDetails()) {
-                    int accQty = pid.getQtyAccepted() != null ? pid.getQtyAccepted() : (pid.getOfferedQty() != null ? pid.getOfferedQty() : 0);
+                    String lotNo = pid.getLotNumber();
+                    String heatNo = pid.getHeatNumber();
+
+                    // Canonical Process IC calculation (shearing_manufactured - total_rejected)
+                    Integer procAccepted = processLineFinalResultRepository
+                            .sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(callNo, lotNo, heatNo);
+
+                    int accQty;
+                    if (procAccepted != null && procAccepted > 0) {
+                        accQty = procAccepted;
+                    } else {
+                        accQty = pid.getQtyAccepted() != null ? pid.getQtyAccepted() : (pid.getOfferedQty() != null ? pid.getOfferedQty() : 0);
+                    }
                     BigDecimal accepted = BigDecimal.valueOf(accQty);
-                    BigDecimal diverted = itemRepository.sumDivertedQuantityForSource(icNo, pid.getHeatNumber(), null, pid.getLotNumber());
-                    BigDecimal available = accepted.subtract(diverted);
+
+                    // Downstream consumed: Offered earlier in previous Final inspection calls for this heat & lot & source PO
+                    Integer offeredInFinal = finalLotRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+                            heatNo, lotNo, call.getPoNo(), call.getPoSerialNo());
+                    BigDecimal downstreamConsumed = offeredInFinal != null ? BigDecimal.valueOf(offeredInFinal) : BigDecimal.ZERO;
+
+                    // Previously approved diverted quantity for this source lot
+                    BigDecimal diverted = itemRepository.sumDivertedQuantityForSource(icNo, heatNo, null, lotNo);
+                    if (diverted == null) diverted = BigDecimal.ZERO;
+
+                    // Available Balance = Accepted in Process - Downstream Consumed in Final - Previously Diverted
+                    BigDecimal available = accepted.subtract(downstreamConsumed).subtract(diverted);
                     if (available.compareTo(BigDecimal.ZERO) < 0) available = BigDecimal.ZERO;
 
                     lineItems.add(SourceIcLineItemDto.builder()
-                            .lotNo(pid.getLotNumber())
-                            .heatNo(pid.getHeatNumber())
+                            .lotNo(lotNo)
+                            .heatNo(heatNo)
                             .acceptedQty(accepted)
-                            .downstreamConsumedQty(BigDecimal.ZERO)
+                            .downstreamConsumedQty(downstreamConsumed)
                             .previouslyDivertedQty(diverted)
                             .availableBalanceQty(available)
                             .unitOfMeasurement("NOS")
                             .build());
+                }
+            } else {
+                // Fallback: If processInspectionDetails is empty, load lots directly from process_line_final_result
+                List<com.sarthi.entity.processmaterial.ProcessLineFinalResult> pfrList =
+                        processLineFinalResultRepository.findByInspectionCallNo(callNo);
+                if (pfrList != null && !pfrList.isEmpty()) {
+                    Set<String> seenLotHeats = new HashSet<>();
+                    for (com.sarthi.entity.processmaterial.ProcessLineFinalResult pfr : pfrList) {
+                        String lotNo = pfr.getLotNumber();
+                        String heatNo = pfr.getHeatNumber();
+                        String lotKey = (lotNo != null ? lotNo : "") + "_" + (heatNo != null ? heatNo : "");
+                        if (!seenLotHeats.add(lotKey)) continue;
+
+                        Integer procAccepted = processLineFinalResultRepository
+                                .sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(callNo, lotNo, heatNo);
+                        int accQty = procAccepted != null ? procAccepted : 0;
+                        BigDecimal accepted = BigDecimal.valueOf(accQty);
+
+                        String poNo = call != null ? call.getPoNo() : pfr.getPoNo();
+                        String poSerialNo = call != null ? call.getPoSerialNo() : null;
+                        Integer offeredInFinal = finalLotRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+                                heatNo, lotNo, poNo, poSerialNo);
+                        BigDecimal downstreamConsumed = offeredInFinal != null ? BigDecimal.valueOf(offeredInFinal) : BigDecimal.ZERO;
+
+                        BigDecimal diverted = itemRepository.sumDivertedQuantityForSource(icNo, heatNo, null, lotNo);
+                        if (diverted == null) diverted = BigDecimal.ZERO;
+
+                        BigDecimal available = accepted.subtract(downstreamConsumed).subtract(diverted);
+                        if (available.compareTo(BigDecimal.ZERO) < 0) available = BigDecimal.ZERO;
+
+                        lineItems.add(SourceIcLineItemDto.builder()
+                                .lotNo(lotNo)
+                                .heatNo(heatNo)
+                                .acceptedQty(accepted)
+                                .downstreamConsumedQty(downstreamConsumed)
+                                .previouslyDivertedQty(diverted)
+                                .availableBalanceQty(available)
+                                .unitOfMeasurement("NOS")
+                                .build());
+                    }
                 }
             }
         } else if (stage == DiversionStage.FINAL) {
@@ -287,7 +366,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             entity.setRequestNo(generateRequestNo(entity.getStage()));
         }
         if (entity.getDiversionNo() == null || entity.getDiversionNo().trim().isEmpty()) {
-            entity.setDiversionNo(generateDiversionNo(entity.getStage()));
+            entity.setDiversionNo(generateDiversionNo(entity.getRequestNo()));
         }
         entity.setStatus(DiversionRequestStatus.DRAFT);
         ErcDiversionRequest saved = requestRepository.save(entity);
@@ -322,7 +401,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             entity.setRequestNo(generateRequestNo(entity.getStage()));
         }
         if (entity.getDiversionNo() == null || entity.getDiversionNo().trim().isEmpty()) {
-            entity.setDiversionNo(generateDiversionNo(entity.getStage()));
+            entity.setDiversionNo(generateDiversionNo(entity.getRequestNo()));
         }
         entity.setTotalDiversionQty(totalQty);
         entity.setStatus(DiversionRequestStatus.PENDING_CM_APPROVAL);
@@ -812,16 +891,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         return requestNo;
     }
 
-    private String generateDiversionNo(DiversionStage stage) {
-        String prefix = stage == DiversionStage.RAW_MATERIAL ? "DER"
-                : stage == DiversionStage.PROCESS ? "DEP" : "DEF";
-        long seq = requestRepository.countByStage(stage) + 1;
-        String diversionNo;
-        do {
-            diversionNo = String.format("%s-%03d", prefix, seq);
-            seq++;
-        } while (requestRepository.existsByDiversionNo(diversionNo));
-        return diversionNo;
+    private String generateDiversionNo(String requestNo) {
+        // DEP-1024260001 = "D" + "EP-1024260001"
+        return "D" + requestNo;
     }
 
     private String extractCallNo(String certNo) {

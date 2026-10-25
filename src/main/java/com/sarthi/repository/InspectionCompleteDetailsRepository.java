@@ -201,15 +201,20 @@ List<Object[]> findCertificateNosByCallNos(
             "ic.po_no, " +
             "ic.po_serial_no, " +
             "ic.actual_inspection_date, " +
-            "COALESCE((SELECT SUM(fr.weight_accepted_mt) FROM rm_heat_final_result fr WHERE fr.inspection_call_no = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1)), " +
+            "COALESCE((SELECT SUM(fr.weight_accepted_mt) FROM rm_heat_final_result fr WHERE fr.inspection_call_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci), " +
             "         (SELECT SUM(hq.qty_accepted) FROM rm_heat_quantities hq JOIN rm_inspection_details rmd ON hq.rm_detail_id = rmd.id WHERE rmd.ic_id = ic.id), 0.0) AS total_accepted, " +
             "MAX(um.FULL_NAME) AS ie_name, " +
             "MAX(cs.BLOB_URL) AS cert_doc_url, " +
             "MAX(rie.created_by) AS ie_user_id " +
             "FROM rm_ic_edit rie " +
-            "INNER JOIN inspection_calls ic ON ic.ic_number = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) " +
-            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = rie.created_by " +
-            "LEFT JOIN certificate_storage cs ON cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) " +
+            "INNER JOIN inspection_calls ic ON ic.ic_number COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci " +
+            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = rie.created_by COLLATE utf8mb4_unicode_ci " +
+            "LEFT JOIN certificate_storage cs ON (" +
+            "    cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = rie.ic_number COLLATE utf8mb4_unicode_ci " +
+            "    OR cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci " +
+            "    OR cs.IC_NUMBER COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci, '%') " +
+            "    OR cs.FILE_NAME COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', SUBSTRING_INDEX(SUBSTRING_INDEX(rie.ic_number, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci, '%') " +
+            ") " +
             "WHERE rie.ic_number LIKE '%/ER-%/%' " +
             "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
             "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
@@ -227,16 +232,22 @@ List<Object[]> findCertificateNosByCallNos(
             "ic.po_no, " +
             "ic.po_serial_no, " +
             "ic.actual_inspection_date, " +
-            "COALESCE((SELECT SUM(pfr.total_accepted) FROM process_line_final_result pfr WHERE pfr.inspection_call_no = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1)), " +
+            "COALESCE((SELECT GREATEST(0, COALESCE(SUM(pfr.shearing_manufactured), 0) - COALESCE(SUM(pfr.total_rejected), 0)) FROM process_line_final_result pfr WHERE pfr.inspection_call_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci), " +
+            "         (SELECT SUM(pfr2.total_accepted) FROM process_line_final_result pfr2 WHERE pfr2.inspection_call_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci), " +
             "         (SELECT SUM(pid.qty_accepted) FROM process_inspection_details pid WHERE pid.ic_id = ic.id), " +
             "         (SELECT SUM(pid2.offered_qty) FROM process_inspection_details pid2 WHERE pid2.ic_id = ic.id), 0.0) AS total_accepted, " +
             "MAX(um.FULL_NAME) AS ie_name, " +
             "MAX(cs.BLOB_URL) AS cert_doc_url, " +
             "MAX(pie.CREATED_BY) AS ie_user_id " +
             "FROM PROCESS_IC_EDIT pie " +
-            "INNER JOIN inspection_calls ic ON ic.ic_number = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) " +
-            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = pie.CREATED_BY " +
-            "LEFT JOIN certificate_storage cs ON cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) " +
+            "INNER JOIN inspection_calls ic ON ic.ic_number COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci " +
+            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = pie.CREATED_BY COLLATE utf8mb4_unicode_ci " +
+            "LEFT JOIN certificate_storage cs ON (" +
+            "    cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = pie.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
+            "    OR cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci " +
+            "    OR cs.IC_NUMBER COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci, '%') " +
+            "    OR cs.FILE_NAME COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', SUBSTRING_INDEX(SUBSTRING_INDEX(pie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci, '%') " +
+            ") " +
             "WHERE pie.IC_NUMBER LIKE '%/EP-%/%' " +
             "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
             "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +
@@ -261,9 +272,14 @@ List<Object[]> findCertificateNosByCallNos(
             "MAX(cs.BLOB_URL) AS cert_doc_url, " +
             "MAX(fie.CREATED_BY) AS ie_user_id " +
             "FROM FINAL_IC_EDIT fie " +
-            "INNER JOIN inspection_calls ic ON ic.ic_number = SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) " +
-            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = fie.CREATED_BY " +
-            "LEFT JOIN certificate_storage cs ON cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) " +
+            "INNER JOIN inspection_calls ic ON ic.ic_number COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci " +
+            "LEFT JOIN user_master um ON CAST(um.USERID AS CHAR) COLLATE utf8mb4_unicode_ci = fie.CREATED_BY COLLATE utf8mb4_unicode_ci " +
+            "LEFT JOIN certificate_storage cs ON (" +
+            "    cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = fie.IC_NUMBER COLLATE utf8mb4_unicode_ci " +
+            "    OR cs.IC_NUMBER COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci " +
+            "    OR cs.IC_NUMBER COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci, '%') " +
+            "    OR cs.FILE_NAME COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', SUBSTRING_INDEX(SUBSTRING_INDEX(fie.IC_NUMBER, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci, '%') " +
+            ") " +
             "WHERE fie.IC_NUMBER LIKE '%/EF-%/%' " +
             "AND (:vendorCode IS NULL OR ic.vendor_id = :vendorCode OR TRIM(LEADING ':' FROM ic.vendor_id) = TRIM(LEADING ':' FROM :vendorCode)) " +
             "AND (:plantParam IS NULL OR CAST(ic.unit_id AS CHAR) = :plantParam OR ic.unit_name = :plantParam) " +

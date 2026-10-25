@@ -997,13 +997,13 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 DATE_FORMAT(COALESCE(
                     CASE
                         WHEN ic.ic_number LIKE '%ER%' THEN (
-                            SELECT rie.created_at FROM rm_ic_edit rie WHERE rie.ic_number COLLATE utf8mb4_0900_ai_ci = COALESCE(icd.certificate_no, ic.ic_number) ORDER BY rie.id DESC LIMIT 1
+                            SELECT rie.created_at FROM rm_ic_edit rie WHERE rie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY rie.id DESC LIMIT 1
                         )
                         WHEN ic.ic_number LIKE '%EP%' THEN (
-                            SELECT pie.created_at FROM PROCESS_IC_EDIT pie WHERE pie.ic_number COLLATE utf8mb4_0900_ai_ci = COALESCE(icd.certificate_no, ic.ic_number) ORDER BY pie.id DESC LIMIT 1
+                            SELECT pie.created_at FROM PROCESS_IC_EDIT pie WHERE pie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY pie.id DESC LIMIT 1
                         )
                         WHEN ic.ic_number LIKE '%EF%' THEN (
-                            SELECT fie.created_at FROM FINAL_IC_EDIT fie WHERE fie.ic_number COLLATE utf8mb4_0900_ai_ci = COALESCE(icd.certificate_no, ic.ic_number) ORDER BY fie.id DESC LIMIT 1
+                            SELECT fie.created_at FROM FINAL_IC_EDIT fie WHERE fie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY fie.id DESC LIMIT 1
                         )
                     END,
                     wt.CREATEDDATE
