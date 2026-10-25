@@ -16,7 +16,10 @@ import com.sarthi.enums.DiversionStage;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.entity.finalmaterial.FinalInspectionLotDetails;
+import com.sarthi.entity.certificate.CertificateStorage;
+import com.sarthi.repository.certificate.CertificateStorageRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
+import com.sarthi.repository.processmaterial.ProcessLineFinalResultRepository;
 import com.sarthi.repository.InspectionCompleteDetailsRepository;
 import com.sarthi.repository.WorkflowTransitionRepository;
 import com.sarthi.repository.ercdiversion.*;
@@ -24,6 +27,8 @@ import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
 import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
 import com.sarthi.service.ercdiversion.ErcDiversionService;
+import com.sarthi.entity.UserMaster;
+import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.service.rawmaterial.RawMaterialInspectionService;
 import com.sarthi.util.IcNumberGenerator;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +60,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     private final FinalInspectionLotDetailsRepository finalLotRepository;
     private final WorkflowTransitionRepository workflowTransitionRepository;
     private final IcNumberGenerator icNumberGenerator;
+    private final UserMasterRepository userMasterRepository;
+    private final CertificateStorageRepository certificateStorageRepository;
+    private final ProcessLineFinalResultRepository processLineFinalResultRepository;
 
     private static final int DIVERSION_WORKFLOW_ID = 4;
     private static final String ROLE_VENDOR = "1";
@@ -148,6 +156,22 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             BigDecimal alreadyDiverted = divertedMap.getOrDefault(certNo, BigDecimal.ZERO);
             BigDecimal available = totalAccepted.subtract(alreadyDiverted);
 
+            String ieName = row.length > 6 && row[6] != null ? row[6].toString() : null;
+            String certDocUrl = row.length > 7 && row[7] != null ? row[7].toString() : null;
+            String ieUserId = row.length > 8 && row[8] != null ? row[8].toString() : null;
+
+            if (certDocUrl == null || certDocUrl.trim().isEmpty()) {
+                certDocUrl = certificateStorageRepository.findAllByCallNumber(callNo).stream()
+                        .map(CertificateStorage::getBlobUrl)
+                        .filter(url -> url != null && !url.trim().isEmpty())
+                        .findFirst()
+                        .orElseGet(() -> certificateStorageRepository.findAllByCallNumber(certNo).stream()
+                                .map(CertificateStorage::getBlobUrl)
+                                .filter(url -> url != null && !url.trim().isEmpty())
+                                .findFirst()
+                                .orElse(null));
+            }
+
             if (available.compareTo(BigDecimal.ZERO) > 0) {
                 eligibleList.add(SourceIcEligibilityDto.builder()
                         .certificateNo(certNo)
@@ -160,6 +184,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                         .totalDivertedQty(alreadyDiverted)
                         .availableBalanceQty(available)
                         .unitOfMeasurement(stage == DiversionStage.RAW_MATERIAL ? "MT" : "NOS")
+                        .ieName(ieName)
+                        .ieUserId(ieUserId)
+                        .certDocUrl(certDocUrl)
                         .build());
             }
         }
@@ -202,23 +229,85 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             }
         } else if (stage == DiversionStage.PROCESS) {
             InspectionCall call = inspectionCallRepository.findByIcNumber(callNo).orElse(null);
-            if (call != null && call.getProcessInspectionDetails() != null) {
+            if (call != null && call.getProcessInspectionDetails() != null && !call.getProcessInspectionDetails().isEmpty()) {
                 for (com.sarthi.entity.processmaterial.ProcessInspectionDetails pid : call.getProcessInspectionDetails()) {
-                    int accQty = pid.getQtyAccepted() != null ? pid.getQtyAccepted() : (pid.getOfferedQty() != null ? pid.getOfferedQty() : 0);
+                    String lotNo = pid.getLotNumber();
+                    String heatNo = pid.getHeatNumber();
+
+                    // Canonical Process IC calculation (shearing_manufactured - total_rejected)
+                    Integer procAccepted = processLineFinalResultRepository
+                            .sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(callNo, lotNo, heatNo);
+
+                    int accQty;
+                    if (procAccepted != null && procAccepted > 0) {
+                        accQty = procAccepted;
+                    } else {
+                        accQty = pid.getQtyAccepted() != null ? pid.getQtyAccepted() : (pid.getOfferedQty() != null ? pid.getOfferedQty() : 0);
+                    }
                     BigDecimal accepted = BigDecimal.valueOf(accQty);
-                    BigDecimal diverted = itemRepository.sumDivertedQuantityForSource(icNo, pid.getHeatNumber(), null, pid.getLotNumber());
-                    BigDecimal available = accepted.subtract(diverted);
+
+                    // Downstream consumed: Offered earlier in previous Final inspection calls for this heat & lot & source PO
+                    Integer offeredInFinal = finalLotRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+                            heatNo, lotNo, call.getPoNo(), call.getPoSerialNo());
+                    BigDecimal downstreamConsumed = offeredInFinal != null ? BigDecimal.valueOf(offeredInFinal) : BigDecimal.ZERO;
+
+                    // Previously approved diverted quantity for this source lot
+                    BigDecimal diverted = itemRepository.sumDivertedQuantityForSource(icNo, heatNo, null, lotNo);
+                    if (diverted == null) diverted = BigDecimal.ZERO;
+
+                    // Available Balance = Accepted in Process - Downstream Consumed in Final - Previously Diverted
+                    BigDecimal available = accepted.subtract(downstreamConsumed).subtract(diverted);
                     if (available.compareTo(BigDecimal.ZERO) < 0) available = BigDecimal.ZERO;
 
                     lineItems.add(SourceIcLineItemDto.builder()
-                            .lotNo(pid.getLotNumber())
-                            .heatNo(pid.getHeatNumber())
+                            .lotNo(lotNo)
+                            .heatNo(heatNo)
                             .acceptedQty(accepted)
-                            .downstreamConsumedQty(BigDecimal.ZERO)
+                            .downstreamConsumedQty(downstreamConsumed)
                             .previouslyDivertedQty(diverted)
                             .availableBalanceQty(available)
                             .unitOfMeasurement("NOS")
                             .build());
+                }
+            } else {
+                // Fallback: If processInspectionDetails is empty, load lots directly from process_line_final_result
+                List<com.sarthi.entity.processmaterial.ProcessLineFinalResult> pfrList =
+                        processLineFinalResultRepository.findByInspectionCallNo(callNo);
+                if (pfrList != null && !pfrList.isEmpty()) {
+                    Set<String> seenLotHeats = new HashSet<>();
+                    for (com.sarthi.entity.processmaterial.ProcessLineFinalResult pfr : pfrList) {
+                        String lotNo = pfr.getLotNumber();
+                        String heatNo = pfr.getHeatNumber();
+                        String lotKey = (lotNo != null ? lotNo : "") + "_" + (heatNo != null ? heatNo : "");
+                        if (!seenLotHeats.add(lotKey)) continue;
+
+                        Integer procAccepted = processLineFinalResultRepository
+                                .sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(callNo, lotNo, heatNo);
+                        int accQty = procAccepted != null ? procAccepted : 0;
+                        BigDecimal accepted = BigDecimal.valueOf(accQty);
+
+                        String poNo = call != null ? call.getPoNo() : pfr.getPoNo();
+                        String poSerialNo = call != null ? call.getPoSerialNo() : null;
+                        Integer offeredInFinal = finalLotRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+                                heatNo, lotNo, poNo, poSerialNo);
+                        BigDecimal downstreamConsumed = offeredInFinal != null ? BigDecimal.valueOf(offeredInFinal) : BigDecimal.ZERO;
+
+                        BigDecimal diverted = itemRepository.sumDivertedQuantityForSource(icNo, heatNo, null, lotNo);
+                        if (diverted == null) diverted = BigDecimal.ZERO;
+
+                        BigDecimal available = accepted.subtract(downstreamConsumed).subtract(diverted);
+                        if (available.compareTo(BigDecimal.ZERO) < 0) available = BigDecimal.ZERO;
+
+                        lineItems.add(SourceIcLineItemDto.builder()
+                                .lotNo(lotNo)
+                                .heatNo(heatNo)
+                                .acceptedQty(accepted)
+                                .downstreamConsumedQty(downstreamConsumed)
+                                .previouslyDivertedQty(diverted)
+                                .availableBalanceQty(available)
+                                .unitOfMeasurement("NOS")
+                                .build());
+                    }
                 }
             }
         } else if (stage == DiversionStage.FINAL) {
@@ -276,6 +365,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         if (entity.getRequestNo() == null || entity.getRequestNo().trim().isEmpty()) {
             entity.setRequestNo(generateRequestNo(entity.getStage()));
         }
+        if (entity.getDiversionNo() == null || entity.getDiversionNo().trim().isEmpty()) {
+            entity.setDiversionNo(generateDiversionNo(entity.getRequestNo()));
+        }
         entity.setStatus(DiversionRequestStatus.DRAFT);
         ErcDiversionRequest saved = requestRepository.save(entity);
 
@@ -307,6 +399,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         ErcDiversionRequest entity = mapDtoToEntity(dto);
         if (entity.getRequestNo() == null || entity.getRequestNo().trim().isEmpty()) {
             entity.setRequestNo(generateRequestNo(entity.getStage()));
+        }
+        if (entity.getDiversionNo() == null || entity.getDiversionNo().trim().isEmpty()) {
+            entity.setDiversionNo(generateDiversionNo(entity.getRequestNo()));
         }
         entity.setTotalDiversionQty(totalQty);
         entity.setStatus(DiversionRequestStatus.PENDING_CM_APPROVAL);
@@ -342,16 +437,76 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     @Override
     @Transactional(readOnly = true)
     public List<DiversionRequestDto> getVendorRequests(String vendorCode, DiversionRequestStatus status) {
-        return requestRepository.findByVendorAndOptionalStatus(vendorCode, status)
-                .stream().map(this::mapEntityToDto).collect(Collectors.toList());
+        return mapLightRows(requestRepository.findByVendorAndOptionalStatusLight(vendorCode, status));
+    }
+
+    private Map<Integer, UserMaster> buildUserMap(List<Object[]> rows) {
+        List<Integer> ids = rows.stream()
+                .map(r -> r[8] != null ? parseIntSafe(r[8].toString()) : null)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (ids.isEmpty()) return Collections.emptyMap();
+        Map<Integer, UserMaster> map = new HashMap<>();
+        userMasterRepository.findByUserIdIn(ids).forEach(u -> map.put(u.getUserId(), u));
+        return map;
+    }
+
+    private Integer parseIntSafe(String s) {
+        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return null; }
+    }
+
+    private List<DiversionRequestDto> mapLightRows(List<Object[]> rows) {
+        Map<Integer, UserMaster> userMap = buildUserMap(rows);
+        return rows.stream().map(r -> mapLightRowToDto(r, userMap)).collect(Collectors.toList());
+    }
+
+    private DiversionRequestDto mapLightRowToDto(Object[] r, Map<Integer, UserMaster> userMap) {
+        String cmUserIdStr = (String) r[8];
+        Integer cmUserIdInt = cmUserIdStr != null ? parseIntSafe(cmUserIdStr) : null;
+        UserMaster cmUser = cmUserIdInt != null ? userMap.get(cmUserIdInt) : null;
+        return DiversionRequestDto.builder()
+                .id(r[0] != null ? ((Number) r[0]).longValue() : null)
+                .requestNo((String) r[1])
+                .vendorCode((String) r[2])
+                .companyId(r[3] != null ? ((Number) r[3]).longValue() : null)
+                .companyName((String) r[4])
+                .plantId(r[5] != null ? ((Number) r[5]).longValue() : null)
+                .plantName((String) r[6])
+                .rioId((String) r[7])
+                .cmUserId((String) r[8])
+                .stage(r[9] != null ? DiversionStage.valueOf(r[9].toString()) : null)
+                .diversionType(r[10] != null ? com.sarthi.enums.DiversionType.valueOf(r[10].toString()) : null)
+                .sourcePoNo((String) r[11])
+                .sourcePoSrNo((String) r[12])
+                .sourceIcNo((String) r[13])
+                .sourceCallNo((String) r[14])
+                .sourceIcDate(r[15] != null ? (r[15] instanceof java.sql.Date ? ((java.sql.Date) r[15]).toLocalDate() : (LocalDate) r[15]) : null)
+                .targetPoNo((String) r[16])
+                .targetPoSrNo((String) r[17])
+                .totalDiversionQty(r[18] != null ? new java.math.BigDecimal(r[18].toString()) : null)
+                .unitOfMeasurement((String) r[19])
+                .reasonCode((String) r[20])
+                .reasonRemarks((String) r[21])
+                .railwayPermissionNo((String) r[22])
+                .railwayPermissionDate(r[23] != null ? (r[23] instanceof java.sql.Date ? ((java.sql.Date) r[23]).toLocalDate() : (LocalDate) r[23]) : null)
+                .status(r[24] != null ? DiversionRequestStatus.valueOf(r[24].toString()) : null)
+                .createdDate(r[25] != null ? (r[25] instanceof java.sql.Timestamp ? ((java.sql.Timestamp) r[25]).toLocalDateTime() : (java.time.LocalDateTime) r[25]) : null)
+                .createdBy(r[26] != null ? r[26].toString() : null)
+                .cmUserName(cmUser != null ? cmUser.getFullName() : null)
+                .cmEmployeeCode(cmUser != null ? cmUser.getEmployeeCode() : null)
+                .diversionNo(r.length > 27 ? (String) r[27] : null)
+                .sourceIeName(r.length > 28 ? (String) r[28] : null)
+                .sourceIeUserId(r.length > 29 ? (String) r[29] : null)
+                .items(Collections.emptyList())
+                .build();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DiversionRequestDto> getPendingRequestsForCm(String cmUserId) {
         List<DiversionRequestStatus> statuses = List.of(DiversionRequestStatus.PENDING_CM_APPROVAL);
-        return requestRepository.findByCmUserIdAndStatusInOrderByCreatedDateDesc(cmUserId, statuses)
-                .stream().map(this::mapEntityToDto).collect(Collectors.toList());
+        return mapLightRows(requestRepository.findByCmUserIdAndStatusInLight(cmUserId, statuses));
     }
 
     @Override
@@ -363,8 +518,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 DiversionRequestStatus.CM_APPROVE_DIVERSION,
                 DiversionRequestStatus.SBU_HEAD_APPROVE_DIVERSION,
                 DiversionRequestStatus.BASKET_CREATED);
-        return requestRepository.findByCmUserIdAndStatusInOrderByCreatedDateDesc(cmUserId, statuses)
-                .stream().map(this::mapEntityToDto).collect(Collectors.toList());
+        return mapLightRows(requestRepository.findByCmUserIdAndStatusInLight(cmUserId, statuses));
     }
 
     @Override
@@ -373,8 +527,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         List<DiversionRequestStatus> statuses = List.of(
                 DiversionRequestStatus.PENDING_SBU_APPROVAL,
                 DiversionRequestStatus.SENT_TO_SBU_HEAD);
-        return requestRepository.findByRioIdAndStatusInOrderByCreatedDateDesc(rioId, statuses)
-                .stream().map(this::mapEntityToDto).collect(Collectors.toList());
+        return mapLightRows(requestRepository.findByRioIdAndStatusInLight(rioId, statuses));
     }
 
     @Override
@@ -383,8 +536,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         List<DiversionRequestStatus> statuses = List.of(
                 DiversionRequestStatus.SBU_HEAD_APPROVE_DIVERSION,
                 DiversionRequestStatus.BASKET_CREATED);
-        return requestRepository.findByRioIdAndStatusInOrderByCreatedDateDesc(rioId, statuses)
-                .stream().map(this::mapEntityToDto).collect(Collectors.toList());
+        return mapLightRows(requestRepository.findByRioIdAndStatusInLight(rioId, statuses));
     }
 
     @Override
@@ -405,10 +557,11 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 if (req.getStatus() != DiversionRequestStatus.PENDING_CM_APPROVAL) {
                     throw createException(1004, "Cannot approve in current status: " + req.getStatus());
                 }
-                req.setStatus(DiversionRequestStatus.PENDING_SBU_APPROVAL);
-                toStatus = "PENDING_SBU_APPROVAL";
-                wtFromRole = ROLE_CM; wtToRole = ROLE_SBU_HEAD;
-                wtFromRoleName = "CONTROLLING_MANAGER"; wtToRoleName = "SBU_HEAD";
+                materializeBasket(req);
+                req.setStatus(DiversionRequestStatus.CM_APPROVE_DIVERSION);
+                toStatus = "CM_APPROVE_DIVERSION";
+                wtFromRole = ROLE_CM; wtToRole = ROLE_VENDOR;
+                wtFromRoleName = "CONTROLLING_MANAGER"; wtToRoleName = "VENDOR";
                 break;
 
             case "CM_SEND_TO_SBU_HEAD":
@@ -479,6 +632,71 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 wtFromRole, wtToRole, wtFromRoleName, wtToRoleName,
                 toStatus, actionDto.getRemarks(), actionDto.getUserId(),
                 assignedTo != null ? String.valueOf(assignedTo) : null, saved.getRioId());
+
+        // On CM approval: create inspection_calls + WT row so the call appears in the IE's Issuance of IC card
+        if ("CM_APPROVE_DIVERSION".equalsIgnoreCase(actionDto.getAction()) && assignedTo != null) {
+            DiversionStage stage = saved.getStage();
+            boolean isProcess = stage == DiversionStage.PROCESS;
+            boolean isFinal   = stage == DiversionStage.FINAL;
+            // typeOfCall must match values used in WorkflowServiceImpl: "Raw Material", "Process", "Final"
+            String typeOfCall = isProcess ? "Process" : isFinal ? "Final" : "Raw Material";
+
+            // 1. Create inspection_calls row — icNumber must match requestId in the WT row below
+            InspectionCall divCall = new InspectionCall();
+            divCall.setIcNumber(saved.getRequestNo());
+            divCall.setDiversionRequestNo(saved.getRequestNo());
+            divCall.setIsDivertedMaterial(true);
+            divCall.setIsModified(false);
+            divCall.setSourceIcNo(saved.getSourceIcNo());
+            divCall.setCallCategory("DIVERTED_PASSED");
+            divCall.setTypeOfCall(typeOfCall);
+            divCall.setVendorId(saved.getVendorCode());
+            if (saved.getCompanyId() != null) divCall.setCompanyId(saved.getCompanyId().intValue());
+            divCall.setCompanyName(saved.getCompanyName());
+            if (saved.getPlantId() != null) divCall.setUnitId(saved.getPlantId().intValue());
+            divCall.setUnitName(saved.getPlantName());
+            divCall.setUnitAddress(saved.getPlantAddress());
+            // poNo/poSerialNo needed for findLiteByIcNumberIn JOIN with PoHeader
+            divCall.setPoNo(saved.getTargetPoNo());
+            divCall.setPoSerialNo(saved.getTargetPoSrNo());
+            divCall.setDesiredInspectionDate(java.time.LocalDate.now());
+            divCall.setStatus("CM_APPROVED");
+            divCall.setCreatedBy(saved.getVendorCode());
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            divCall.setCreatedAt(now);
+            divCall.setUpdatedAt(now);
+            inspectionCallRepository.save(divCall);
+            log.info("Created inspection_calls row for diversion {} icNumber={} typeOfCall={}", saved.getRequestNo(), saved.getRequestNo(), typeOfCall);
+
+            // 2. Create WT row with status INSPECTION_COMPLETE_CONFIRM so findCompletedByUserRule picks it up
+            WorkflowTransition ieWt = new WorkflowTransition();
+            ieWt.setWorkflowId(DIVERSION_WORKFLOW_ID);
+            ieWt.setRequestId(saved.getRequestNo());
+            ieWt.setAction("ASSIGN_TO_IE");
+            ieWt.setTransitionId(0);
+            ieWt.setCurrentRole(ROLE_CM);
+            ieWt.setCurrentRoleName("CONTROLLING_MANAGER");
+            ieWt.setNextRole("3");
+            ieWt.setNextRoleName("IE");
+            ieWt.setStatus("INSPECTION_COMPLETE_CONFIRM");
+            ieWt.setRemarks("Diversion call assigned to " + typeOfCall + " IE");
+            if (actionDto.getUserId() != null) {
+                try { ieWt.setCreatedBy(Integer.parseInt(actionDto.getUserId())); } catch (NumberFormatException ignored) {}
+            }
+            // modifiedBy = IE userId so the frontend filter `modifiedBy === userId` passes
+            ieWt.setModifiedBy(assignedTo);
+            // EP (Process) uses processIeUserId for query matching; ER/EF use assignedToUser
+            if (isProcess) {
+                ieWt.setProcessIeUserId(assignedTo);
+            } else {
+                ieWt.setAssignedToUser(assignedTo);
+            }
+            ieWt.setJobStatus("OPEN");
+            ieWt.setWorkflowSequence(1);
+            ieWt.setRio(saved.getRioId());
+            workflowTransitionRepository.save(ieWt);
+            log.info("Created INSPECTION_COMPLETE_CONFIRM WT for diversion {} typeOfCall={} userId={}", saved.getRequestNo(), typeOfCall, assignedTo);
+        }
 
         return mapEntityToDto(saved);
     }
@@ -562,8 +780,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
 
     private void materializeBasket(ErcDiversionRequest req) {
         log.info("Materializing basket for approved diversion request: {}", req.getRequestNo());
-        for (ErcDiversionItem item : req.getItems()) {
-            ErcDivertedPassedBasket basket = ErcDivertedPassedBasket.builder()
+        List<ErcDivertedPassedBasket> baskets = req.getItems().stream().map(item ->
+            ErcDivertedPassedBasket.builder()
                     .diversionRequest(req)
                     .diversionItem(item)
                     .stage(req.getStage())
@@ -583,9 +801,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                     .consumedIcQty(BigDecimal.ZERO)
                     .availableBalanceQty(item.getDiversionQty())
                     .status(BasketStatus.AVAILABLE)
-                    .build();
-            basketRepository.save(basket);
-        }
+                    .build()
+        ).collect(Collectors.toList());
+        basketRepository.saveAll(baskets);
     }
 
     private void saveHistory(ErcDiversionRequest req, String role, String userId, String userName, String action, String fromStatus, String toStatus, String remarks) {
@@ -608,6 +826,54 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         return requestRepository.findCompleteSourceSrNos(vendorCode);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public String getRailwayDocUrl(Long id) {
+        return requestRepository.findRailwayDocUrlById(id).orElse(null);
+    }
+
+    private static final Set<DiversionRequestStatus> EDITABLE_STATUSES = Set.of(
+            DiversionRequestStatus.DRAFT,
+            DiversionRequestStatus.PENDING_CM_APPROVAL,
+            DiversionRequestStatus.CM_RETURN_DIVERSION,
+            DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION
+    );
+
+    @Override
+    @Transactional
+    public void deleteRequest(Long id) {
+        ErcDiversionRequest req = requestRepository.findById(id)
+                .orElseThrow(() -> createNotFoundException("Request not found: " + id));
+        if (!EDITABLE_STATUSES.contains(req.getStatus())) {
+            throw createException(1010, "Cannot delete request in status: " + req.getStatus());
+        }
+        // Soft delete — preserve history and audit trail
+        String prevStatus = req.getStatus().name();
+        req.setStatus(DiversionRequestStatus.DELETED_BY_VENDOR);
+        requestRepository.save(req);
+        saveHistory(req, "VENDOR", req.getVendorCode(), req.getVendorCode(), "DELETE_REQUEST", prevStatus, "DELETED_BY_VENDOR", "Request deleted by vendor");
+        log.info("Soft-deleted diversion request id={} requestNo={}", id, req.getRequestNo());
+    }
+
+    @Override
+    @Transactional
+    public DiversionRequestDto updateRequest(DiversionRequestDto dto) {
+        ErcDiversionRequest existing = requestRepository.findById(dto.getId())
+                .orElseThrow(() -> createNotFoundException("Request not found: " + dto.getId()));
+        if (!EDITABLE_STATUSES.contains(existing.getStatus())) {
+            throw createException(1011, "Cannot edit request in status: " + existing.getStatus());
+        }
+        // Preserve request number and vendor
+        dto.setRequestNo(existing.getRequestNo());
+        dto.setVendorCode(existing.getVendorCode());
+        // Keep DRAFT status on edit; resubmit is a separate action
+        dto.setStatus(existing.getStatus());
+        ErcDiversionRequest updated = mapDtoToEntity(dto);
+        ErcDiversionRequest saved = requestRepository.save(updated);
+        saveHistory(saved, "VENDOR", dto.getVendorCode(), dto.getVendorCode(), "EDIT_DRAFT", existing.getStatus().name(), existing.getStatus().name(), "Request edited by vendor");
+        return mapEntityToDto(saved);
+    }
+
     private String generateRequestNo(DiversionStage stage) {
         String typeOfCall = stage == DiversionStage.RAW_MATERIAL ? "Raw Material"
                 : stage == DiversionStage.PROCESS ? "Process" : "Final";
@@ -623,6 +889,11 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             requestNo = icNumberGenerator.generateIcNumber(typeOfCall, seq);
         }
         return requestNo;
+    }
+
+    private String generateDiversionNo(String requestNo) {
+        // DEP-1024260001 = "D" + "EP-1024260001"
+        return "D" + requestNo;
     }
 
     private String extractCallNo(String certNo) {
@@ -646,6 +917,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         ErcDiversionRequest entity = ErcDiversionRequest.builder()
                 .id(dto.getId())
                 .requestNo(dto.getRequestNo())
+                .diversionNo(dto.getDiversionNo())
                 .vendorCode(dto.getVendorCode())
                 .companyId(dto.getCompanyId())
                 .companyName(dto.getCompanyName())
@@ -662,6 +934,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .sourceIcNo(dto.getSourceIcNo())
                 .sourceCallNo(dto.getSourceCallNo())
                 .sourceIcDate(dto.getSourceIcDate())
+                .sourceIeName(dto.getSourceIeName())
+                .sourceIeUserId(dto.getSourceIeUserId())
                 .targetPoNo(dto.getTargetPoNo())
                 .targetPoSrNo(dto.getTargetPoSrNo())
                 .totalDiversionQty(dto.getTotalDiversionQty() != null ? dto.getTotalDiversionQty() : BigDecimal.ZERO)
@@ -710,6 +984,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         return DiversionRequestDto.builder()
                 .id(entity.getId())
                 .requestNo(entity.getRequestNo())
+                .diversionNo(entity.getDiversionNo())
                 .vendorCode(entity.getVendorCode())
                 .companyId(entity.getCompanyId())
                 .companyName(entity.getCompanyName())
@@ -726,6 +1001,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .sourceIcNo(entity.getSourceIcNo())
                 .sourceCallNo(entity.getSourceCallNo())
                 .sourceIcDate(entity.getSourceIcDate())
+                .sourceIeName(entity.getSourceIeName())
+                .sourceIeUserId(entity.getSourceIeUserId())
                 .targetPoNo(entity.getTargetPoNo())
                 .targetPoSrNo(entity.getTargetPoSrNo())
                 .totalDiversionQty(entity.getTotalDiversionQty())
@@ -734,7 +1011,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .reasonRemarks(entity.getReasonRemarks())
                 .railwayPermissionNo(entity.getRailwayPermissionNo())
                 .railwayPermissionDate(entity.getRailwayPermissionDate())
-                .railwayPermissionDocUrl(entity.getRailwayPermissionDocUrl())
+                // railwayPermissionDocUrl excluded — can be several MB (LONGTEXT); fetch via /doc-url/{id}
                 .vendorRemarks(entity.getVendorRemarks())
                 .status(entity.getStatus())
                 .createdDate(entity.getCreatedDate())

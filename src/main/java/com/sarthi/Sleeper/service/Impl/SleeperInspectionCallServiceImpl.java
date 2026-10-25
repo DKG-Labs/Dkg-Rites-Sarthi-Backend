@@ -231,66 +231,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setJobStatus(jobStatus);
             dto.setPlantId(call.getPlantId());
 
-            String uom = null;
-            try {
-                List<String> uomList = jdbcTemplate.query(
-                    "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? LIMIT 1",
-                    (rs, rowNum) -> rs.getString("uom"),
-                    call.getPoNo()
-                );
-                if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
-                    uom = uomList.get(0).trim();
-                }
-            } catch (Exception ignored) {}
-
-            if (uom == null || uom.isBlank()) {
-                String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
-                if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
-                    uom = "Set";
-                } else {
-                    uom = "Nos.";
-                }
-            }
-            dto.setUom(uom);
-
-            String icNo = null;
-            String icDate = null;
-            try {
-                List<java.util.Map<String, Object>> certList = jdbcTemplate.queryForList(
-                    "SELECT sicd.CERTIFICATE_NO, sicd.CREATED_ON FROM sleeper_inspection_complete_details sicd WHERE sicd.call_no = ? ORDER BY sicd.id DESC LIMIT 1",
-                    call.getCallNo()
-                );
-                if (certList != null && !certList.isEmpty()) {
-                    Object cNo = certList.get(0).get("CERTIFICATE_NO");
-                    Object cDt = certList.get(0).get("CREATED_ON");
-                    if (cNo != null && !cNo.toString().isBlank()) {
-                        icNo = cNo.toString().trim();
-                    }
-                    if (cDt != null) {
-                        icDate = cDt.toString();
-                    }
-                }
-                if (icNo == null || icNo.isBlank()) {
-                    List<java.util.Map<String, Object>> csList = jdbcTemplate.queryForList(
-                        "SELECT cs.IC_NUMBER, cs.CREATED_DATE FROM certificate_storage cs WHERE cs.IC_NUMBER LIKE ? OR cs.CALL_NO = ? ORDER BY cs.ID DESC LIMIT 1",
-                        "%" + call.getCallNo() + "%", call.getCallNo()
-                    );
-                    if (csList != null && !csList.isEmpty()) {
-                        Object cNo = csList.get(0).get("IC_NUMBER");
-                        Object cDt = csList.get(0).get("CREATED_DATE");
-                        if (cNo != null && !cNo.toString().isBlank()) {
-                            icNo = cNo.toString().trim();
-                        }
-                        if (cDt != null) {
-                            icDate = cDt.toString();
-                        }
-                    }
-                }
-            } catch (Exception ignored) {}
-
-            dto.setIcNo(icNo);
-            dto.setIcDate(icDate);
-
+            dto.setUom(resolveCallUom(call.getPoNo(), call.getSrNo(), call.getSleeperType()));
             return dto;
         }).collect(Collectors.toList());
     }
@@ -367,27 +308,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         dto.setPlantId(call.getPlantId());
         dto.setCreatedAt(call.getCreatedAt());
 
-        String detailUom = null;
-        try {
-            List<String> uomList = jdbcTemplate.query(
-                "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? LIMIT 1",
-                (rs, rowNum) -> rs.getString("uom"),
-                call.getPoNo()
-            );
-            if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
-                detailUom = uomList.get(0).trim();
-            }
-        } catch (Exception ignored) {}
-
-        if (detailUom == null || detailUom.isBlank()) {
-            String st = call.getSleeperType() != null ? call.getSleeperType().toUpperCase() : "";
-            if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
-                detailUom = "Set";
-            } else {
-                detailUom = "Nos.";
-            }
-        }
-        dto.setUom(detailUom);
+        dto.setUom(resolveCallUom(call.getPoNo(), call.getSrNo(), call.getSleeperType()));
 
         List<SleeperInspectionCallBatchDto> batchDtos = new ArrayList<>();
         if (call.getBatchesSelected() != null) {
@@ -511,5 +432,50 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
 
         inspectionCallRepository.save(call);
         return call.getCallNo();
+    }
+
+    private String resolveCallUom(String poNo, String srNo, String sleeperType) {
+        String uom = null;
+        if (poNo != null && !poNo.isBlank()) {
+            try {
+                String rawSr = (srNo != null) ? srNo.trim() : "";
+                String cleanSr = rawSr.contains("/") ? rawSr.substring(rawSr.lastIndexOf('/') + 1).trim() : rawSr;
+                String digits = cleanSr.replaceAll("[^0-9]", "");
+
+                List<String> uomList = jdbcTemplate.query(
+                    "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id " +
+                    "WHERE ph.po_no = ? AND (" +
+                    "   pi.item_sr_no = ? " +
+                    "   OR pi.item_sr_no = ? " +
+                    "   OR pi.item_sr_no = LPAD(?, 3, '0') " +
+                    (!digits.isEmpty() ? "   OR (pi.item_sr_no REGEXP '^[0-9]+$' AND CAST(pi.item_sr_no AS UNSIGNED) = " + Integer.parseInt(digits) + ")" : "") +
+                    ") LIMIT 1",
+                    (rs, rowNum) -> rs.getString("uom"),
+                    poNo.trim(), rawSr, cleanSr, digits.isEmpty() ? cleanSr : digits
+                );
+                if (uomList != null && !uomList.isEmpty() && uomList.get(0) != null && !uomList.get(0).isBlank()) {
+                    uom = uomList.get(0).trim();
+                } else {
+                    List<String> fallbackList = jdbcTemplate.query(
+                        "SELECT pi.uom FROM po_item pi JOIN po_header ph ON pi.po_header_id = ph.id WHERE ph.po_no = ? LIMIT 1",
+                        (rs, rowNum) -> rs.getString("uom"),
+                        poNo.trim()
+                    );
+                    if (fallbackList != null && !fallbackList.isEmpty() && fallbackList.get(0) != null && !fallbackList.get(0).isBlank()) {
+                        uom = fallbackList.get(0).trim();
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (uom == null || uom.isBlank()) {
+            String st = sleeperType != null ? sleeperType.toUpperCase() : "";
+            if (st.contains("SET") || st.contains("PNC") || st.contains("TURNOUT") || st.contains("4218") || st.contains("4865") || st.contains("9790") || st.contains("4732") || st.contains("DERAIL")) {
+                uom = "Set";
+            } else {
+                uom = "Nos.";
+            }
+        }
+        return uom;
     }
 }
