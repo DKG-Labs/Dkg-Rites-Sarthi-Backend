@@ -9,4 +9,5 @@ public interface AuthenticatorService {
     AuthSessionResponseDto initiateSession(InitiateAuthSessionRequestDto request, String ipAddress);
     AuthStatusResponseDto getSessionStatus(String sessionId);
     AuthStatusResponseDto verifyAuthenticator(VerifyAuthenticatorRequestDto request, String ipAddress);
+    boolean hasActiveLogin(String userId);
 }

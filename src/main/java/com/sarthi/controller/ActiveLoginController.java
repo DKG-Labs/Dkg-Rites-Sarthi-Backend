@@ -1,16 +1,16 @@
 package com.sarthi.controller;
 
-import com.sarthi.entity.mfa.AuthenticatorVerification;
 import com.sarthi.repository.mfa.AuthenticatorVerificationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/active-logins")
@@ -18,24 +18,37 @@ import java.util.stream.Collectors;
 public class ActiveLoginController {
 
     private static final String AUTHENTICATED = "AUTHENTICATED";
+    private static final int MAX_PAGE_SIZE = 100;
 
     @Autowired
     private AuthenticatorVerificationRepository verificationRepository;
 
     /**
      * GET /api/active-logins
-     * All rows of sarthi_authenticator_verifications with status = AUTHENTICATED.
-     * The selfie (LONGTEXT) is left out of the list; fetch it via /{id}/selfie.
+     * Rows of sarthi_authenticator_verifications with status = AUTHENTICATED that have not expired, newest first.
+     * Optional params: page (0-based, default 0), size (default 10, max 100), search (name).
+     * The selfie (LONGTEXT) is left out; fetch it via /{id}/selfie.
      */
     @GetMapping
-    public ResponseEntity<?> getActiveLogins() {
+    public ResponseEntity<?> getActiveLogins(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search) {
         try {
-            List<Map<String, Object>> rows = verificationRepository
-                    .findByStatusOrderByVerifiedAtDesc(AUTHENTICATED)
-                    .stream()
-                    .map(this::toRow)
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(rows);
+            int safePage = Math.max(page, 0);
+            int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+            String term = search == null ? "" : search.trim();
+
+            Page<AuthenticatorVerificationRepository.ActiveLoginRow> result = verificationRepository
+                    .findActiveLogins(AUTHENTICATED, LocalDateTime.now(), term, PageRequest.of(safePage, safeSize));
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("content", result.getContent());
+            body.put("page", result.getNumber());
+            body.put("size", result.getSize());
+            body.put("totalElements", result.getTotalElements());
+            body.put("totalPages", result.getTotalPages());
+            return ResponseEntity.ok(body);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Failed to fetch active logins: " + e.getMessage());
@@ -52,26 +65,5 @@ public class ActiveLoginController {
                     return ResponseEntity.ok((Object) body);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    private Map<String, Object> toRow(AuthenticatorVerification v) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", v.getId());
-        m.put("sessionId", v.getSessionId());
-        m.put("userId", v.getUserId());
-        m.put("userName", v.getUserName());
-        m.put("loginTransactionId", v.getLoginTransactionId());
-        m.put("latitude", v.getLatitude());
-        m.put("longitude", v.getLongitude());
-        m.put("accuracyMeters", v.getAccuracyMeters());
-        m.put("locationAddress", v.getLocationAddress());
-        m.put("hasSelfie", v.getSelfieImageUrl() != null && !v.getSelfieImageUrl().isEmpty());
-        m.put("deviceInfo", v.getDeviceInfo());
-        m.put("ipAddress", v.getIpAddress());
-        m.put("status", v.getStatus());
-        m.put("createdAt", v.getCreatedAt());
-        m.put("verifiedAt", v.getVerifiedAt());
-        m.put("expiresAt", v.getExpiresAt());
-        return m;
     }
 }

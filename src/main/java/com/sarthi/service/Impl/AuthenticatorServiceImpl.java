@@ -29,7 +29,8 @@ public class AuthenticatorServiceImpl implements AuthenticatorService {
     private final AuthenticatorVerificationRepository verificationRepository;
     private final ObjectMapper objectMapper;
 
-    private static final int SESSION_EXPIRY_SECONDS = 180; // 3 minutes
+    private static final int SESSION_EXPIRY_SECONDS = 180; // 3 minutes to scan the QR
+    private static final int ACTIVE_LOGIN_HOURS = 8; // a verified login skips the QR for this long
 
     @Override
     @Transactional
@@ -153,7 +154,10 @@ public class AuthenticatorServiceImpl implements AuthenticatorService {
             verification.setIpAddress(ipAddress);
         }
         verification.setStatus("AUTHENTICATED");
-        verification.setVerifiedAt(LocalDateTime.now());
+        LocalDateTime verifiedAt = LocalDateTime.now();
+        verification.setVerifiedAt(verifiedAt);
+        // From here expires_at means "this login is active until", not "QR valid until"
+        verification.setExpiresAt(verifiedAt.plusHours(ACTIVE_LOGIN_HOURS));
 
         verificationRepository.save(verification);
 
@@ -170,5 +174,10 @@ public class AuthenticatorServiceImpl implements AuthenticatorService {
                 .verifiedAt(verification.getVerifiedAt())
                 .message("Authentication verified successfully.")
                 .build();
+    }
+
+    @Override
+    public boolean hasActiveLogin(String userId) {
+        return verificationRepository.existsByUserIdAndStatusAndExpiresAtAfter(userId, "AUTHENTICATED", LocalDateTime.now());
     }
 }

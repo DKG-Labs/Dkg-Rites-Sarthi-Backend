@@ -12,6 +12,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @CrossOrigin
 @RestController
 @RequestMapping("/api/auth/authenticator")
@@ -33,6 +36,13 @@ public class AuthenticatorController {
     public ResponseEntity<Object> getSessionStatus(@PathVariable String sessionId) {
         AuthStatusResponseDto response = authenticatorService.getSessionStatus(sessionId);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(response), HttpStatus.OK);
+    }
+
+    @GetMapping("/active")
+    public ResponseEntity<Object> hasActiveLogin(@RequestParam String userId) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("active", authenticatorService.hasActiveLogin(userId));
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(body), HttpStatus.OK);
     }
 
     @PostMapping("/verify")
