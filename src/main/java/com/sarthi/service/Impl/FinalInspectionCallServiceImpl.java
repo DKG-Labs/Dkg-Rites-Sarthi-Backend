@@ -120,7 +120,8 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         LocalDate today = LocalDate.now();
         long dailySequence = inspectionCallRepository.countByTypeOfCallAndCreatedDate("Final", today) + 1;
         String icNumber = icNumberGenerator.generateIcNumber("Final", dailySequence);
-        while (inspectionCallRepository.existsByIcNumber(icNumber)) {
+        while (inspectionCallRepository.existsByIcNumber(icNumber)
+                || ercDiversionRequestRepository.existsByRequestNo(icNumber)) {
             dailySequence++;
             icNumber = icNumberGenerator.generateIcNumber("Final", dailySequence);
         }
