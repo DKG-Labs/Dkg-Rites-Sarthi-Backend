@@ -139,52 +139,42 @@ WHERE UPPER(TRIM(b.inspectionCall.callNo)) = UPPER(TRIM(:callNo))
 
     @Query(value = """
 
-SELECT 
+SELECT
     ph.rly_short_name AS rly,
-    ph.po_no AS poNo,
-    ph.po_date AS poDate,
-    ph.firm_details AS vendor,
-    ph.region_code AS region,
+    ph.po_no          AS poNo,
+    ph.po_date        AS poDate,
+    ph.firm_details   AS vendor,
+    ph.region_code    AS region,
 
-    -- 🔹 PO QTY
-    (SELECT COALESCE(SUM(pi.qty),0)
-     FROM po_item pi
-     WHERE pi.po_header_id = ph.id) AS poQty,
-
-    -- 🔹 ACCEPTED
-    (SELECT COALESCE(SUM(ibs.total_accepted),0)
-     FROM ie_batch_summary ibs
-     JOIN sleeper_inspection_call sic
-          ON ibs.call_no COLLATE utf8mb4_unicode_ci
-           = sic.call_no COLLATE utf8mb4_unicode_ci
-     WHERE sic.po_no COLLATE utf8mb4_unicode_ci
-           = ph.po_no COLLATE utf8mb4_unicode_ci) AS accQty,
-
-    -- 🔹 REJECTED
-    (SELECT COALESCE(SUM(ibs.total_rejected),0)
-     FROM ie_batch_summary ibs
-     JOIN sleeper_inspection_call sic
-          ON ibs.call_no COLLATE utf8mb4_unicode_ci
-           = sic.call_no COLLATE utf8mb4_unicode_ci
-     WHERE sic.po_no COLLATE utf8mb4_unicode_ci
-           = ph.po_no COLLATE utf8mb4_unicode_ci) AS totalRejected,
-
-    -- 🔹 OFFERED
-    (SELECT COALESCE(SUM(ibs.total_offered),0)
-     FROM ie_batch_summary ibs
-     JOIN sleeper_inspection_call sic
-          ON ibs.call_no COLLATE utf8mb4_unicode_ci
-           = sic.call_no COLLATE utf8mb4_unicode_ci
-     WHERE sic.po_no COLLATE utf8mb4_unicode_ci
-           = ph.po_no COLLATE utf8mb4_unicode_ci) AS totalOffered,
-
-    -- 🔹 UOM
-    (SELECT pi.uom
-     FROM po_item pi
-     WHERE pi.po_header_id = ph.id
-     LIMIT 1) AS uom
+    COALESCE(pi_agg.poQty, 0)          AS poQty,
+    pi_agg.uom                          AS uom,
+    COALESCE(ibs_agg.accQty, 0)        AS accQty,
+    COALESCE(ibs_agg.totalRejected, 0) AS totalRejected,
+    COALESCE(ibs_agg.totalOffered, 0)  AS totalOffered
 
 FROM po_header ph
+
+LEFT JOIN (
+    SELECT po_header_id,
+           SUM(qty)  AS poQty,
+           MIN(uom)  AS uom
+    FROM po_item
+    GROUP BY po_header_id
+) pi_agg ON pi_agg.po_header_id = ph.id
+
+LEFT JOIN (
+    SELECT sic.po_no,
+           SUM(ibs.total_accepted) AS accQty,
+           SUM(ibs.total_rejected) AS totalRejected,
+           SUM(ibs.total_offered)  AS totalOffered
+    FROM ie_batch_summary ibs
+    JOIN sleeper_inspection_call sic
+         ON ibs.call_no COLLATE utf8mb4_unicode_ci
+          = sic.call_no COLLATE utf8mb4_unicode_ci
+    GROUP BY sic.po_no
+) ibs_agg
+    ON ibs_agg.po_no COLLATE utf8mb4_unicode_ci
+     = ph.po_no      COLLATE utf8mb4_unicode_ci
 
 WHERE ph.item_cat_descr = 'PSC Mainline Sleeper'
   AND DATE(ph.po_date) BETWEEN :startDate AND :endDate

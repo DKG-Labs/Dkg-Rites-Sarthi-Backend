@@ -35,6 +35,7 @@ public class ErcDiversionController {
 
     private final ErcDiversionService diversionService;
     private final ErcDiversionWorkflowHistoryRepository diversionHistoryRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Value("${azure.storage.connection-string}")
     private String azureConnectionString;
@@ -410,5 +411,82 @@ public class ErcDiversionController {
             log.error("Failed to upload railway permission doc", e);
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("error", "Upload failed: " + e.getMessage())), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @GetMapping("/get-ic-number")
+    @Operation(summary = "Fetch IC Number of a call from IC edit tables")
+    public ResponseEntity<APIResponse> getIcNumber(
+            @RequestParam("callNo") String callNo,
+            @RequestParam(value = "stage", required = false) String stage) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("error", "callNo is required")), HttpStatus.BAD_REQUEST);
+        }
+        String cleanCall = callNo.trim();
+        if (cleanCall.contains("/") && cleanCall.length() > cleanCall.indexOf('/') + 1) {
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("callNo", cleanCall, "icNumber", cleanCall)), HttpStatus.OK);
+        }
+
+        String resolvedIc = resolveIcFromEditTables(cleanCall, stage);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of(
+                "callNo", cleanCall,
+                "icNumber", resolvedIc != null ? resolvedIc : cleanCall
+        )), HttpStatus.OK);
+    }
+
+    private String resolveIcFromEditTables(String callNo, String stage) {
+        java.util.List<String> tables = new java.util.ArrayList<>();
+        if ("PROCESS".equalsIgnoreCase(stage) || "STAGE_II_MANUFACTURING".equalsIgnoreCase(stage)) {
+            tables.add("process_ic_edit");
+            tables.add("rm_ic_edit");
+            tables.add("final_ic_edit");
+        } else if ("RAW_MATERIAL".equalsIgnoreCase(stage) || "STAGE_I_RAW_MATERIAL".equalsIgnoreCase(stage)) {
+            tables.add("rm_ic_edit");
+            tables.add("process_ic_edit");
+            tables.add("final_ic_edit");
+        } else if ("FINAL".equalsIgnoreCase(stage) || "STAGE_III_FINISHED".equalsIgnoreCase(stage)) {
+            tables.add("final_ic_edit");
+            tables.add("sleeper_final_ic_edit");
+            tables.add("process_ic_edit");
+            tables.add("rm_ic_edit");
+        } else {
+            tables.add("process_ic_edit");
+            tables.add("rm_ic_edit");
+            tables.add("final_ic_edit");
+            tables.add("sleeper_final_ic_edit");
+        }
+        tables.add("railpad_process_ic_edit");
+        tables.add("railpad_final_ic_edit");
+
+        for (String table : tables) {
+            try {
+                String sql = "SELECT ic_number FROM " + table + " " +
+                             "WHERE ic_number = ? " +
+                             "   OR SUBSTRING_INDEX(SUBSTRING_INDEX(ic_number, '/', 2), '/', -1) = ? " +
+                             "   OR ic_number LIKE CONCAT('%/', ?, '/%') " +
+                             "   OR ic_number LIKE CONCAT('%', ?, '%') " +
+                             "ORDER BY id DESC LIMIT 1";
+                java.util.List<String> list = jdbcTemplate.query(sql, (rs, rowNum) -> rs.getString("ic_number"), callNo, callNo, callNo, callNo);
+                if (list != null && !list.isEmpty() && list.get(0) != null && !list.get(0).isBlank()) {
+                    log.info("Resolved IC Number '{}' for call '{}' from table '{}'", list.get(0), callNo, table);
+                    return list.get(0).trim();
+                }
+            } catch (Exception ex) {
+                log.debug("Error querying table {} for call {}: {}", table, callNo, ex.getMessage());
+            }
+        }
+
+        try {
+            String csSql = "SELECT ic_number FROM certificate_storage " +
+                           "WHERE ic_number LIKE CONCAT('%/', ?, '/%') " +
+                           "   OR ic_number LIKE CONCAT('%', ?, '%') " +
+                           "   OR file_name LIKE CONCAT('%', ?, '%') " +
+                           "ORDER BY id DESC LIMIT 1";
+            java.util.List<String> list = jdbcTemplate.query(csSql, (rs, rowNum) -> rs.getString("ic_number"), callNo, callNo, callNo);
+            if (list != null && !list.isEmpty() && list.get(0) != null && !list.get(0).isBlank()) {
+                return list.get(0).trim();
+            }
+        } catch (Exception ignored) {}
+
+        return null;
     }
 }

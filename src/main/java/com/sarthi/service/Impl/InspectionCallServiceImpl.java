@@ -8,6 +8,7 @@ import com.sarthi.exception.ErrorDetails;
 import com.sarthi.entity.rawmaterial.*;
 import com.sarthi.repository.InspectionModificationHistoryRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
+import com.sarthi.repository.ercdiversion.ErcDiversionRequestRepository;
 import com.sarthi.service.InspectionCallService;
 import com.sarthi.service.InventoryEntryService;
 import com.sarthi.util.IcNumberGenerator;
@@ -40,6 +41,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
     private final com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository;
     private final com.sarthi.service.WorkflowService workflowService;
     private final com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository;
+    private final ErcDiversionRequestRepository ercDiversionRequestRepository;
 
     @Autowired
     public InspectionCallServiceImpl(
@@ -50,7 +52,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
             com.sarthi.repository.rawmaterial.RmHeatQuantityRepository heatQuantityRepository,
             com.sarthi.repository.rawmaterial.RmChemicalAnalysisRepository rmChemicalAnalysisRepository,
             com.sarthi.service.WorkflowService workflowService,
-            com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository) {
+            com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository,
+            ErcDiversionRequestRepository ercDiversionRequestRepository) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.icNumberGenerator = icNumberGenerator;
         this.inventoryEntryService = inventoryEntryService;
@@ -59,6 +62,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         this.rmChemicalAnalysisRepository = rmChemicalAnalysisRepository;
         this.workflowService = workflowService;
         this.ibsPoiMappingRepository = ibsPoiMappingRepository;
+        this.ercDiversionRequestRepository = ercDiversionRequestRepository;
     }
 
     @Override
@@ -101,7 +105,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         LocalDate today = LocalDate.now();
         long dailySequence = inspectionCallRepository.countByTypeOfCallAndCreatedDate("Raw Material", today) + 1;
         String icNumber = icNumberGenerator.generateIcNumber("Raw Material", dailySequence);
-        while (inspectionCallRepository.existsByIcNumber(icNumber)) {
+        while (inspectionCallRepository.existsByIcNumber(icNumber)
+                || ercDiversionRequestRepository.existsByRequestNo(icNumber)) {
             dailySequence++;
             icNumber = icNumberGenerator.generateIcNumber("Raw Material", dailySequence);
         }

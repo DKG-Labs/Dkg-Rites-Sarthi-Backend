@@ -111,7 +111,9 @@ public class SecurityConfig {
                                 "/api/vendor/proxy-pdf",
                                 "/vendor/proxy-pdf",
                                 "/api/erc/diversion/view-doc/**",
-                                "/erc/diversion/view-doc/**"
+                                "/erc/diversion/view-doc/**",
+                                "/api/erc/diversion/get-ic-number",
+                                "/erc/diversion/get-ic-number"
                         ).permitAll()
 
                         // 5. ALL OTHER APIS REQUIRE STRICT TOKEN AUTHENTICATION
