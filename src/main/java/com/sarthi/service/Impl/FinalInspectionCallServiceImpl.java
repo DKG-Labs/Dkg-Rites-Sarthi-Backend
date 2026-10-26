@@ -13,6 +13,7 @@ import com.sarthi.repository.InspectionCompleteDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotDetailsRepository;
 import com.sarthi.repository.finalmaterial.FinalProcessIcMappingRepository;
+import com.sarthi.repository.ercdiversion.ErcDiversionRequestRepository;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.FinalInspectionCallService;
@@ -64,6 +65,16 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
 
     @Autowired
     private com.sarthi.service.WorkflowService workflowService;
+
+    // Cert format: {RIO}/{callNo}/{ieShort}  e.g. N/EP-0907260002/S.K.P
+    private static String extractCallNoFromCert(String certNo) {
+        if (certNo == null) return certNo;
+        String[] parts = certNo.split("/");
+        return parts.length >= 2 ? parts[1] : certNo;
+    }
+
+    @Autowired
+    private ErcDiversionRequestRepository ercDiversionRequestRepository;
 
     private Optional<InspectionCall> findInspectionCallByCertOrCallNo(String certOrCallNo) {
         if (certOrCallNo == null || certOrCallNo.trim().isEmpty()) {
@@ -343,7 +354,8 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         List<Object[]> results = inspectionCompleteDetailsRepository
                 .findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
         logger.info("Found {} RM IC certificate numbers", results.size());
-        return results.stream()
+
+        List<RmIcCertWithDateDto> allIcs = results.stream()
                 .map(row -> {
                         String certNo = (String) row[0];
                         LocalDateTime date = null;
@@ -357,6 +369,21 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                         return new RmIcCertWithDateDto(certNo, date);
                 })
                 .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
+                .collect(Collectors.toList());
+
+        if (allIcs.isEmpty()) return allIcs;
+
+        List<String> callNos = allIcs.stream()
+                .map(dto -> extractCallNoFromCert(dto.getCertificateNo()))
+                .collect(Collectors.toList());
+        List<String> divertedCallNos = ercDiversionRequestRepository.findDivertedSourceIcNos(callNos);
+
+        if (!divertedCallNos.isEmpty()) {
+            logger.info("Excluding {} diverted RM IC(s): {}", divertedCallNos.size(), divertedCallNos);
+        }
+
+        return allIcs.stream()
+                .filter(dto -> !divertedCallNos.contains(extractCallNoFromCert(dto.getCertificateNo())))
                 .collect(Collectors.toList());
     }
 
@@ -408,7 +435,8 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         List<Object[]> results = inspectionCompleteDetailsRepository
                 .findProcessIcNumbersWithDateByMultipleRmIcNumbers(rmCertificateNos);
         logger.info("Found {} Process IC certificate numbers", results.size());
-        return results.stream()
+
+        List<ProcessIcCertWithDateDto> allIcs = results.stream()
                 .map(row -> {
                         String certNo = (String) row[0];
                         LocalDateTime date = null;
@@ -422,6 +450,22 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                         return new ProcessIcCertWithDateDto(certNo, date);
                 })
                 .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
+                .collect(Collectors.toList());
+
+        if (allIcs.isEmpty()) return allIcs;
+
+        // Exclude ICs that are already used as source in an active diversion request
+        List<String> callNos = allIcs.stream()
+                .map(dto -> extractCallNoFromCert(dto.getCertificateNo()))
+                .collect(Collectors.toList());
+        List<String> divertedCallNos = ercDiversionRequestRepository.findDivertedSourceIcNos(callNos);
+
+        if (!divertedCallNos.isEmpty()) {
+            logger.info("Excluding {} diverted Process IC(s): {}", divertedCallNos.size(), divertedCallNos);
+        }
+
+        return allIcs.stream()
+                .filter(dto -> !divertedCallNos.contains(extractCallNoFromCert(dto.getCertificateNo())))
                 .collect(Collectors.toList());
     }
 

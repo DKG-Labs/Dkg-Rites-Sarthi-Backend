@@ -2,9 +2,12 @@ package com.sarthi.controller;
 
 import com.sarthi.dto.crisDtos.UdmRejectionDTO;
 import com.sarthi.service.Impl.UdmRejectionService;
+import com.sarthi.service.Impl.UdmRejectionSyncService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +20,9 @@ public class UdmRejectionController {
 
     @Autowired
     private UdmRejectionService udmRejectionService;
+
+    @Autowired
+    private UdmRejectionSyncService udmRejectionSyncService;
 
     /**
      * GET /api/udm-rejections
@@ -35,6 +41,28 @@ public class UdmRejectionController {
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Failed to fetch UDM rejections: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * POST /api/udm-rejections/sync?date=YYYY-MM-DD
+     * Manually trigger a sync for a specific date (backfill).
+     */
+    @PostMapping("/sync")
+    public ResponseEntity<?> syncDate(@RequestParam(required = false) String date) {
+        try {
+            LocalDate syncDate = (date != null && !date.isBlank())
+                    ? LocalDate.parse(date)
+                    : LocalDate.now().minusDays(1);
+            int count = udmRejectionSyncService.syncForDate(syncDate);
+            Map<String, Object> result = new HashMap<>();
+            result.put("date", syncDate.toString());
+            result.put("recordsSaved", count);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Sync failed: " + e.getMessage());
             return ResponseEntity.status(500).body(error);
         }
     }

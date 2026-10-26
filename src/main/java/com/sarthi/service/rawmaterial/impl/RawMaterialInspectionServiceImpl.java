@@ -9,6 +9,7 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.InspectionCompleteDetailsRepository;
 import com.sarthi.repository.RmHeatFinalResultRepository;
+import com.sarthi.repository.ercdiversion.ErcDiversionRequestRepository;
 import com.sarthi.repository.rawmaterial.*;
 import com.sarthi.service.rawmaterial.RawMaterialInspectionService;
 import org.slf4j.Logger;
@@ -38,6 +39,7 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
         private final InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository;
         private final RmHeatFinalResultRepository rmHeatFinalResultRepository;
         private final RmChemicalAnalysisRepository rmChemicalAnalysisRepository;
+        private final ErcDiversionRequestRepository ercDiversionRequestRepository;
 
         @Autowired
         public RawMaterialInspectionServiceImpl(
@@ -46,13 +48,22 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                         RmHeatQuantityRepository heatQuantityRepository,
                         InspectionCompleteDetailsRepository inspectionCompleteDetailsRepository,
                         RmHeatFinalResultRepository rmHeatFinalResultRepository,
-                        RmChemicalAnalysisRepository rmChemicalAnalysisRepository) {
+                        RmChemicalAnalysisRepository rmChemicalAnalysisRepository,
+                        ErcDiversionRequestRepository ercDiversionRequestRepository) {
                 this.inspectionCallRepository = inspectionCallRepository;
                 this.rmDetailsRepository = rmDetailsRepository;
                 this.heatQuantityRepository = heatQuantityRepository;
                 this.inspectionCompleteDetailsRepository = inspectionCompleteDetailsRepository;
                 this.rmHeatFinalResultRepository = rmHeatFinalResultRepository;
                 this.rmChemicalAnalysisRepository = rmChemicalAnalysisRepository;
+                this.ercDiversionRequestRepository = ercDiversionRequestRepository;
+        }
+
+        // Cert format: {RIO}/{callNo}/{ieShort}  e.g. N/ER-0720260004/KK
+        private static String extractCallNoFromCert(String certNo) {
+                if (certNo == null) return certNo;
+                String[] parts = certNo.split("/");
+                return parts.length >= 2 ? parts[1] : certNo;
         }
 
         /* ==================== Inspection Call Operations ==================== */
@@ -137,7 +148,7 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                         results = inspectionCompleteDetailsRepository.findAllCompletedRmIcsWithDate();
                 }
 
-                return results.stream()
+                List<RmIcCertWithDateDto> allIcs = results.stream()
                                 .map(row -> {
                                         String certNo = (String) row[0];
                                         LocalDateTime date = null;
@@ -151,6 +162,21 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                                         return new RmIcCertWithDateDto(certNo, date);
                                 })
                                 .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
+                                .collect(Collectors.toList());
+
+                if (allIcs.isEmpty()) return allIcs;
+
+                List<String> callNos = allIcs.stream()
+                                .map((RmIcCertWithDateDto dto) -> extractCallNoFromCert(dto.getCertificateNo()))
+                                .collect(Collectors.toList());
+                List<String> divertedCallNos = ercDiversionRequestRepository.findDivertedSourceIcNos(callNos);
+
+                if (!divertedCallNos.isEmpty()) {
+                        logger.info("Excluding {} diverted RM IC(s): {}", divertedCallNos.size(), divertedCallNos);
+                }
+
+                return allIcs.stream()
+                                .filter(dto -> !divertedCallNos.contains(extractCallNoFromCert(dto.getCertificateNo())))
                                 .collect(Collectors.toList());
         }
 

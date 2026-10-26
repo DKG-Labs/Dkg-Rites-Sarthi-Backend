@@ -109,7 +109,9 @@ public class SecurityConfig {
                                 "/api/call-letter/**",
                                 "/call-letter/**",
                                 "/api/vendor/proxy-pdf",
-                                "/vendor/proxy-pdf"
+                                "/vendor/proxy-pdf",
+                                "/api/erc/diversion/view-doc/**",
+                                "/erc/diversion/view-doc/**"
                         ).permitAll()
 
                         // 5. ALL OTHER APIS REQUIRE STRICT TOKEN AUTHENTICATION
