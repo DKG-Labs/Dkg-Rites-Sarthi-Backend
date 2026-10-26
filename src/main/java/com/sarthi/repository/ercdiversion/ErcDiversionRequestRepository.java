@@ -71,6 +71,16 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
     @Query("SELECT COUNT(r) FROM ErcDiversionRequest r WHERE r.stage = :stage")
     long countByStage(@Param("stage") DiversionStage stage);
 
+    @Query("SELECT DISTINCT r.sourceIcNo FROM ErcDiversionRequest r " +
+           "WHERE r.sourceIcNo IN :icNumbers " +
+           "AND r.status NOT IN (" +
+           "com.sarthi.enums.DiversionRequestStatus.DRAFT, " +
+           "com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.RETURNED_TO_VENDOR, " +
+           "com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR)")
+    List<String> findDivertedSourceIcNos(@Param("icNumbers") List<String> icNumbers);
+
     @Query("SELECT r.railwayPermissionDocUrl FROM ErcDiversionRequest r WHERE r.id = :id")
     Optional<String> findRailwayDocUrlById(@Param("id") Long id);
 

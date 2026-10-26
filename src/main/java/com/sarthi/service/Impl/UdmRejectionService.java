@@ -1,80 +1,72 @@
 package com.sarthi.service.Impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarthi.dto.crisDtos.UdmRejectionDTO;
+import com.sarthi.entity.UdmRejection;
+import com.sarthi.repository.UdmRejectionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class UdmRejectionService {
 
     @Autowired
-    private CrisAuthServic authService;
+    private UdmRejectionRepository repository;
 
-    @Value("${cris.base-url}")
-    private String baseUrl;
-
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    /**
-     * Fetch consignee rejections from CRIS IREPS API.
-     * The API accepts {"rejDate": "YYYY-MM-DD"} as the minimum request body.
-     * Client-side filtering (poNo, vendorCode, type) is applied after fetch.
-     */
     public List<UdmRejectionDTO> getConsigneeRejections(String rejDate, String poNo,
                                                          String vendorCode, String type) {
-        String url = baseUrl + "/purchase/getConsigneeRejections";
+        LocalDate date = parseDate(rejDate);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(authService.getToken());
+        List<UdmRejection> records = repository.findByFetchedDate(date);
 
-        // CRIS API requires rejDate — default to 6 months ago if not provided
-        String effectiveDate = (rejDate != null && !rejDate.isBlank())
-                ? rejDate
-                : LocalDate.now().minusMonths(6).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-        Map<String, String> body = new HashMap<>();
-        body.put("rejDate", effectiveDate);
-
-        HttpEntity<?> request = new HttpEntity<>(body, headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
-            Map<String, Object> responseBody = response.getBody();
-            if (responseBody == null) return Collections.emptyList();
-
-            Object dataObj = responseBody.get("data");
-            if (!(dataObj instanceof List)) return Collections.emptyList();
-
-            List<UdmRejectionDTO> all = objectMapper.convertValue(
-                    dataObj, new TypeReference<List<UdmRejectionDTO>>() {});
-
-            // Apply optional client-side filters
-            return all.stream()
+        return records.stream()
                 .filter(r -> poNo == null || poNo.isBlank() ||
                         (r.getPoNumber() != null && r.getPoNumber().contains(poNo)))
                 .filter(r -> vendorCode == null || vendorCode.isBlank() ||
                         (r.getVendorCode() != null && r.getVendorCode().contains(vendorCode)))
                 .filter(r -> type == null || type.isBlank() ||
                         type.equalsIgnoreCase(r.getTypeOfRejection()))
-                .collect(java.util.stream.Collectors.toList());
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
 
-        } catch (Exception e) {
-            System.err.println("UDM Rejection API error: " + e.getMessage());
-            return Collections.emptyList();
+    private LocalDate parseDate(String rejDate) {
+        if (rejDate != null && !rejDate.isBlank()) {
+            try {
+                return LocalDate.parse(rejDate.trim(), DateTimeFormatter.ISO_LOCAL_DATE);
+            } catch (Exception ignored) {}
         }
+        return LocalDate.now().minusDays(1);
+    }
+
+    private UdmRejectionDTO toDto(UdmRejection e) {
+        UdmRejectionDTO dto = new UdmRejectionDTO();
+        dto.setPoNumber(e.getPoNumber());
+        dto.setPoDate(e.getPoDate() != null ? e.getPoDate().toString() : null);
+        dto.setPlNumber(e.getPlNumber());
+        dto.setPoSerialNumber(e.getPoSerialNumber());
+        dto.setRejectionNumber(e.getRejectionNumber());
+        dto.setRejectionDate(e.getRejectionDate() != null ? e.getRejectionDate().toString() : null);
+        dto.setTypeOfRejection(e.getTypeOfRejection());
+        dto.setRejectedQty(e.getRejectedQty() != null ? e.getRejectedQty().toPlainString() : null);
+        dto.setUom(e.getUom());
+        dto.setReasonForRejection(e.getReasonForRejection());
+        dto.setRejectionValue(e.getRejectionValue() != null ? e.getRejectionValue().toPlainString() : null);
+        dto.setStatus(e.getStatus());
+        dto.setItemDescription(e.getItemDescription());
+        dto.setIcNumber(e.getIcNumber());
+        dto.setIcDate(e.getIcDate() != null ? e.getIcDate().toString() : null);
+        dto.setInspectionAgency(e.getInspectionAgency());
+        dto.setVendorCode(e.getVendorCode());
+        dto.setVendorName(e.getVendorName());
+        dto.setConsignee(e.getConsignee());
+        dto.setMaterialReceivedDate(e.getMaterialReceivedDate() != null ? e.getMaterialReceivedDate().toString() : null);
+        dto.setSource(e.getSource());
+        dto.setPdfPath(e.getPdfPath());
+        return dto;
     }
 }

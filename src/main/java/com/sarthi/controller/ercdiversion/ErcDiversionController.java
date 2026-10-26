@@ -236,11 +236,131 @@ public class ErcDiversionController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updated), HttpStatus.OK);
     }
 
+    @GetMapping(value = {"/view-doc/{id}", "/view-doc/{id}.pdf"}, produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "View / stream railway permission doc as PDF")
+    public ResponseEntity<byte[]> viewRailwayDoc(@PathVariable Long id) {
+        try {
+            byte[] pdfBytes = downloadRailwayDocBytes(id);
+            if (pdfBytes == null || pdfBytes.length == 0) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            }
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"Railway_Permission_" + id + ".pdf\"")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                    .contentLength(pdfBytes.length)
+                    .body(pdfBytes);
+        } catch (Exception e) {
+            log.warn("Error viewing Railway Permission Doc for request {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+    }
+
+    @GetMapping(value = {"/download-doc/{id}", "/download-doc/{id}.pdf"}, produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download railway permission doc as PDF")
+    public ResponseEntity<byte[]> downloadRailwayDoc(@PathVariable Long id) {
+        try {
+            byte[] pdfBytes = downloadRailwayDocBytes(id);
+            if (pdfBytes == null || pdfBytes.length == 0) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            }
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"Railway_Permission_" + id + ".pdf\"")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                    .contentLength(pdfBytes.length)
+                    .body(pdfBytes);
+        } catch (Exception e) {
+            log.warn("Error downloading Railway Permission Doc for request {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+    }
+
     @GetMapping("/doc-url/{id}")
-    @Operation(summary = "Get railway permission doc URL for a diversion request (fetches only the LONGTEXT column)")
+    @Operation(summary = "Get railway permission doc URL and signed data for a diversion request")
     public ResponseEntity<APIResponse> getRailwayDocUrl(@PathVariable Long id) {
-        String url = diversionService.getRailwayDocUrl(id);
-        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(Map.of("railwayPermissionDocUrl", url != null ? url : "")), HttpStatus.OK);
+        String rawUrl = diversionService.getRailwayDocUrl(id);
+        String viewUrl = "/api/erc/diversion/view-doc/" + id + ".pdf";
+        String base64Data = null;
+        try {
+            byte[] bytes = downloadRailwayDocBytes(id);
+            if (bytes != null && bytes.length > 0) {
+                base64Data = java.util.Base64.getEncoder().encodeToString(bytes);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to generate base64 for railway doc {}: {}", id, e.getMessage());
+        }
+
+        Map<String, Object> resp = new java.util.HashMap<>();
+        resp.put("railwayPermissionDocUrl", viewUrl);
+        resp.put("viewUrl", viewUrl);
+        resp.put("signedData", base64Data != null ? base64Data : "");
+        resp.put("rawBlobUrl", rawUrl != null ? rawUrl : "");
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(resp), HttpStatus.OK);
+    }
+
+    private byte[] downloadRailwayDocBytes(Long id) {
+        String docUrl = diversionService.getRailwayDocUrl(id);
+        if (docUrl == null || docUrl.trim().isEmpty()) {
+            return null;
+        }
+        String cleanUrl = docUrl.trim();
+
+        // 1. If stored as Base64 data URL
+        if (cleanUrl.startsWith("data:")) {
+            try {
+                String b64 = cleanUrl.contains(",") ? cleanUrl.split(",")[1] : cleanUrl;
+                return java.util.Base64.getDecoder().decode(b64.trim());
+            } catch (Exception e) {
+                log.warn("Failed to decode base64 doc for diversion request {}: {}", id, e.getMessage());
+            }
+        }
+
+        // 2. Download from Azure container (sarthi-diversion-docs)
+        try {
+            String blobName = null;
+            String containerName = (diversionDocsContainer != null && !diversionDocsContainer.isBlank())
+                    ? diversionDocsContainer.trim() : "sarthi-diversion-docs";
+
+            if (cleanUrl.contains(containerName + "/")) {
+                blobName = cleanUrl.substring(cleanUrl.indexOf(containerName + "/") + containerName.length() + 1);
+            } else if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+                try {
+                    java.net.URI uri = new java.net.URI(cleanUrl);
+                    String path = uri.getPath();
+                    if (path.startsWith("/")) path = path.substring(1);
+                    int slashIdx = path.indexOf('/');
+                    if (slashIdx >= 0) {
+                        blobName = path.substring(slashIdx + 1);
+                    } else {
+                        blobName = path;
+                    }
+                } catch (Exception ignored) {}
+            } else {
+                blobName = cleanUrl;
+            }
+
+            if (blobName != null && !blobName.isBlank()) {
+                String decodedName = java.net.URLDecoder.decode(blobName, java.nio.charset.StandardCharsets.UTF_8);
+                BlobContainerClient container = getDiversionContainer();
+
+                BlobClient blobClient = container.getBlobClient(decodedName);
+                if (!blobClient.exists() && !decodedName.equals(blobName)) {
+                    blobClient = container.getBlobClient(blobName);
+                }
+
+                if (blobClient.exists()) {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    blobClient.downloadStream(out);
+                    log.info("Downloaded railway permission doc for request {} ({} bytes)", id, out.size());
+                    return out.toByteArray();
+                } else {
+                    log.warn("Blob '{}' (or '{}') does not exist in container '{}'", decodedName, blobName, containerName);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to download railway doc from Azure for request {}: {}", id, e.getMessage(), e);
+        }
+
+        return null;
     }
 
     @GetMapping("/call-source-reference/{callId}")

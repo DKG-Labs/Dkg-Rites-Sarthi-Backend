@@ -490,6 +490,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .reasonRemarks((String) r[21])
                 .railwayPermissionNo((String) r[22])
                 .railwayPermissionDate(r[23] != null ? (r[23] instanceof java.sql.Date ? ((java.sql.Date) r[23]).toLocalDate() : (LocalDate) r[23]) : null)
+                .railwayPermissionDocUrl(r[22] != null && r[0] != null ? "/api/erc/diversion/view-doc/" + ((Number) r[0]).longValue() + ".pdf" : null)
                 .status(r[24] != null ? DiversionRequestStatus.valueOf(r[24].toString()) : null)
                 .createdDate(r[25] != null ? (r[25] instanceof java.sql.Timestamp ? ((java.sql.Timestamp) r[25]).toLocalDateTime() : (java.time.LocalDateTime) r[25]) : null)
                 .createdBy(r[26] != null ? r[26].toString() : null)
@@ -1011,7 +1012,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .reasonRemarks(entity.getReasonRemarks())
                 .railwayPermissionNo(entity.getRailwayPermissionNo())
                 .railwayPermissionDate(entity.getRailwayPermissionDate())
-                // railwayPermissionDocUrl excluded — can be several MB (LONGTEXT); fetch via /doc-url/{id}
+                .railwayPermissionDocUrl(entity.getRailwayPermissionDocUrl() != null && !entity.getRailwayPermissionDocUrl().isEmpty()
+                        ? "/api/erc/diversion/view-doc/" + entity.getId() + ".pdf" : null)
                 .vendorRemarks(entity.getVendorRemarks())
                 .status(entity.getStatus())
                 .createdDate(entity.getCreatedDate())
