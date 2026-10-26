@@ -1,3 +1,6 @@
+
+
+
 -- =====================================================================
 -- TABLE: sarthi_authenticator_verifications
 -- PURPOSE: Store SARTHI Authenticator QR sessions, GPS coordinates, and live selfies
