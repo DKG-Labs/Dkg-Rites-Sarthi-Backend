@@ -44,6 +44,38 @@ public class RailVisualInspectionController {
         }
     }
 
+    @GetMapping("/list")
+    public ResponseEntity<?> getListByParam(
+            @RequestParam String plantId,
+            @RequestParam String vendorCode,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        try {
+            List<RailVisualInspectionDto> list = service.getList(plantId, vendorCode, fromDate, toDate);
+            return new ResponseEntity<>(list, HttpStatus.OK);
+        } catch (Exception e) {
+            Map<String, String> response = new HashMap<>();
+            response.put("error", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/{plantPart1}/{plantPart2}/{vendorCode}")
+    public ResponseEntity<?> getListWithSlashPlant(
+            @PathVariable String plantPart1,
+            @PathVariable String plantPart2,
+            @PathVariable String vendorCode) {
+        String plantId = plantPart1 + "/" + plantPart2;
+        try {
+            List<RailVisualInspectionDto> list = service.getList(plantId, vendorCode);
+            return new ResponseEntity<>(list, HttpStatus.OK);
+        } catch (Exception e) {
+            Map<String, String> response = new HashMap<>();
+            response.put("error", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @GetMapping("/{plantId}/{vendorCode}")
     public ResponseEntity<?> getList(@PathVariable String plantId, @PathVariable String vendorCode) {
         try {

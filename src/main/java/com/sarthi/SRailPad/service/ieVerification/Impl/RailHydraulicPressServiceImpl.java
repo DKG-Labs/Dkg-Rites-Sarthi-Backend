@@ -61,6 +61,31 @@ public class RailHydraulicPressServiceImpl implements RailHydraulicPressService 
     }
 
     @Override
+    public List<RailHydraulicPressResponseDto> getByPlant(String plantId, LocalDate fromDate, LocalDate toDate) {
+        String cleanPlantId = (plantId != null && plantId.startsWith(":")) ? plantId.substring(1) : plantId;
+        String colonPlantId = (plantId != null && !plantId.startsWith(":")) ? ":" + plantId : plantId;
+
+        List<RailHydraulicPress> list = repository.findAllByPlantIdOrderByCreatedDateDesc(plantId);
+        if (list.isEmpty() && cleanPlantId != null && !cleanPlantId.equals(plantId)) {
+            list = repository.findAllByPlantIdOrderByCreatedDateDesc(cleanPlantId);
+        } else if (list.isEmpty() && colonPlantId != null && !colonPlantId.equals(plantId)) {
+            list = repository.findAllByPlantIdOrderByCreatedDateDesc(colonPlantId);
+        }
+
+        return list.stream()
+                .filter(e -> {
+                    LocalDate d = e.getCastingDate() != null ? e.getCastingDate()
+                                : (e.getCreatedDate() != null ? e.getCreatedDate().toLocalDate() : null);
+                    if (d == null) return true;
+                    if (fromDate != null && d.isBefore(fromDate)) return false;
+                    if (toDate != null && d.isAfter(toDate)) return false;
+                    return true;
+                })
+                .map(this::buildResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public void delete(Long id) {
         repository.deleteById(id);

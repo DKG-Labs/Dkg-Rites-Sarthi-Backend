@@ -50,9 +50,11 @@ public class RailRheometerTestController {
     @GetMapping("/list")
     public ResponseEntity<?> getRheometerTestList(
             @RequestParam String plantId,
-            @RequestParam String vendorCode) {
+            @RequestParam String vendorCode,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
         try {
-            List<RailRheometerTestDto> list = service.getRheometerTestByPlantAndVendor(plantId, vendorCode);
+            List<RailRheometerTestDto> list = service.getRheometerTestByPlantAndVendor(plantId, vendorCode, fromDate, toDate);
             return new ResponseEntity<>(list, HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);

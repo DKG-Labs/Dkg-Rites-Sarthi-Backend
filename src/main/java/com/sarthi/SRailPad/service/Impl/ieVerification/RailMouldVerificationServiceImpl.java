@@ -78,13 +78,40 @@ public class RailMouldVerificationServiceImpl implements RailMouldVerificationSe
 
     @Override
     public List<RailMouldVerificationDto> getMouldVerifications(String plantId, String vendorCode) {
+        return getMouldVerifications(plantId, vendorCode, null, null);
+    }
+
+    @Override
+    public List<RailMouldVerificationDto> getMouldVerifications(String plantId, String vendorCode, String fromDate, String toDate) {
         try {
+            String cleanPlantId = (plantId != null && plantId.startsWith(":")) ? plantId.substring(1) : plantId;
+            String colonPlantId = (plantId != null && !plantId.startsWith(":")) ? ":" + plantId : plantId;
+
             List<RailMouldVerification> entities = repository.findByPlantIdAndVendorCodeOrderByCreatedDateDesc(plantId, vendorCode);
-            return entities.stream().map(entity -> {
-                RailMouldVerificationDto dto = new RailMouldVerificationDto();
-                BeanUtils.copyProperties(entity, dto);
-                return dto;
-            }).collect(Collectors.toList());
+            if ((entities == null || entities.isEmpty()) && cleanPlantId != null && !cleanPlantId.equals(plantId)) {
+                entities = repository.findByPlantIdAndVendorCodeOrderByCreatedDateDesc(cleanPlantId, vendorCode);
+            } else if ((entities == null || entities.isEmpty()) && colonPlantId != null && !colonPlantId.equals(plantId)) {
+                entities = repository.findByPlantIdAndVendorCodeOrderByCreatedDateDesc(colonPlantId, vendorCode);
+            }
+
+            if (entities == null) return java.util.Collections.emptyList();
+
+            return entities.stream()
+                .filter(entity -> {
+                    String d = entity.getCastingDate();
+                    if ((d == null || d.isBlank()) && entity.getCreatedDate() != null) {
+                        d = entity.getCreatedDate().toLocalDate().toString();
+                    }
+                    if (d == null) return true;
+                    if (fromDate != null && !fromDate.isBlank() && d.compareTo(fromDate) < 0) return false;
+                    if (toDate != null && !toDate.isBlank() && d.compareTo(toDate) > 0) return false;
+                    return true;
+                })
+                .map(entity -> {
+                    RailMouldVerificationDto dto = new RailMouldVerificationDto();
+                    BeanUtils.copyProperties(entity, dto);
+                    return dto;
+                }).collect(Collectors.toList());
         } catch (Exception e) {
             throw new RuntimeException("An error occurred while fetching Mould Verification records.");
         }

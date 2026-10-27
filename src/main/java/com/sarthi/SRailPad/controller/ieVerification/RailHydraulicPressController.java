@@ -48,6 +48,15 @@ public class RailHydraulicPressController {
         return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(response));
     }
 
+    @GetMapping("/list")
+    public ResponseEntity<APIResponse> getByPlant(
+            @RequestParam String plantId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        List<RailHydraulicPressResponseDto> response = service.getByPlant(plantId, fromDate, toDate);
+        return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(response));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<APIResponse> delete(@PathVariable Long id) {
         service.delete(id);

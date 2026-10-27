@@ -10,5 +10,6 @@ public interface RailHydraulicPressService {
     RailHydraulicPressResponseDto update(Long id, RailHydraulicPressRequestDto dto);
     RailHydraulicPressResponseDto getById(Long id);
     List<RailHydraulicPressResponseDto> getByShiftAndDate(String plantId, String shift, LocalDate castingDate);
+    List<RailHydraulicPressResponseDto> getByPlant(String plantId, LocalDate fromDate, LocalDate toDate);
     void delete(Long id);
 }

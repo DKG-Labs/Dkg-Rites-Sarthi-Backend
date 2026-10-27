@@ -10,5 +10,6 @@ public interface RailMixingKneaderMillService {
     RailMixingKneaderMillResponseDto update(Long id, RailMixingKneaderMillRequestDto dto);
     RailMixingKneaderMillResponseDto getById(Long id);
     List<RailMixingKneaderMillResponseDto> getByShiftAndDate(String plantId, String shift, LocalDate castingDate);
+    List<RailMixingKneaderMillResponseDto> getByPlant(String plantId, LocalDate fromDate, LocalDate toDate);
     void delete(Long id);
 }
