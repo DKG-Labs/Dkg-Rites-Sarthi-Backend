@@ -1510,9 +1510,19 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
             // Process Demoulding Defective Sleepers from pre-fetched map
             List<DemouldingInspection> demouldings = demouldingsByBatchNo.getOrDefault(currentBatchNo, Collections.emptyList());
+            // Same batch no. can be declared several times with different sleeper types: match on this declaration's own types
+            Set<String> declSleeperTypes = allProdSleepers.stream()
+                    .map(ProductionSleeper::getSleeperType)
+                    .filter(t -> t != null && !t.isBlank())
+                    .map(String::trim)
+                    .collect(Collectors.toSet());
             for (DemouldingInspection di : demouldings) {
                 // Sleeper type match check
-                if (!isSleeperTypeMatch(targetSleeperType, di.getSleeperType())) {
+                if (!declSleeperTypes.isEmpty()) {
+                    if (declSleeperTypes.stream().noneMatch(t -> isSleeperTypeMatch(t, di.getSleeperType()))) {
+                        continue;
+                    }
+                } else if (!isSleeperTypeMatch(targetSleeperType, di.getSleeperType())) {
                     continue;
                 }
 
