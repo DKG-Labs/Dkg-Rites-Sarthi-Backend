@@ -21,6 +21,7 @@ public interface UserService {
 
    // public LoginResponseDto loginBasedOnType(LoginRequestBasedTypeDto loginDto);
     public Object loginBasedOnType(LoginRequestBasedTypeDto loginDto);
+    public com.sarthi.service.Impl.OtpService.OtpResult sendForgotPasswordOtp(String identifier);
     public void forgotPassword(ForgotPasswordRequestDto requestDto);
 
     public Object mapProcessIe(Long userId,

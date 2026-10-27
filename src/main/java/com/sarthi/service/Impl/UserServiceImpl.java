@@ -1895,14 +1895,98 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private UserProfileAuditRepository userProfileAuditRepository;
 
+    @Override
+    public OtpService.OtpResult sendForgotPasswordOtp(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Please enter your Employee Code or Username"));
+        }
+        String cleanId = identifier.trim();
+        if (cleanId.startsWith(":") || cleanId.toLowerCase().startsWith("ven_") || cleanId.toLowerCase().startsWith("vendor")) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Forgot password is only available for IE (Inspection Engineers). Vendors cannot reset password here."));
+        }
+
+        UserMaster user = userMasterRepository.findFirstByUserName(cleanId)
+                .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                        404, 404, "ERROR", "User not found for Employee Code or Username: " + cleanId))));
+
+        if (user.getRoleName() != null && user.getRoleName().toLowerCase().contains("vendor")) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Forgot password is only available for IE (Inspection Engineers). Vendors cannot reset password here."));
+        }
+
+        return otpService.generateAndSendOtp(user);
+    }
+
     @Transactional
     @Override
     public void forgotPassword(ForgotPasswordRequestDto requestDto) {
         String identifier = requestDto.getIdentifier();
-        UserMaster user = userMasterRepository.findFirstByUserName(identifier)
-                .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(identifier)
+        if (identifier == null || identifier.trim().isEmpty()) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Identifier cannot be empty"));
+        }
+        if (requestDto.getNewPassword() == null || requestDto.getNewPassword().trim().isEmpty()) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "New password cannot be empty"));
+        }
+        if (requestDto.getNewPassword().length() < 6) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Password must be at least 6 characters long"));
+        }
+
+        String cleanId = identifier.trim();
+        UserMaster user = userMasterRepository.findFirstByUserName(cleanId)
+                .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanId)
                 .orElseThrow(() -> new BusinessException(new ErrorDetails(
-                        404, 404, "ERROR", "User not found for " + identifier))));
+                        404, 404, "ERROR", "User not found for " + cleanId))));
+
+        // Verify OTP
+        Long otpId;
+        try {
+            otpId = Long.parseLong(requestDto.getTransactionId());
+        } catch (Exception e) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Invalid OTP transaction ID."));
+        }
+
+        LoginOtp loginOtp = loginOtpRepository.findById(otpId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(
+                        AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Invalid or expired OTP.")));
+
+        if (!Long.valueOf(user.getUserId()).equals(loginOtp.getUserId())) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "OTP transaction does not match this user."));
+        }
+
+        if (Boolean.TRUE.equals(loginOtp.getUsed())) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "OTP has already been used. Please request a new OTP."));
+        }
+
+        if (LocalDateTime.now().isAfter(loginOtp.getExpiresAt())) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "OTP has expired. Please request a new OTP."));
+        }
+
+        if (loginOtp.getAttemptCount() != null && loginOtp.getAttemptCount() >= 5) {
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Maximum OTP attempts exceeded. Please request a new OTP."));
+        }
+
+        boolean otpCorrect = requestDto.getOtp() != null && requestDto.getOtp().trim().equals(loginOtp.getOtp());
+        if (!otpCorrect) {
+            loginOtp.setAttemptCount((loginOtp.getAttemptCount() == null ? 0 : loginOtp.getAttemptCount()) + 1);
+            loginOtpRepository.save(loginOtp);
+            throw new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID, AppConstant.ERROR_TYPE_INVALID, "Invalid OTP. Please check the code and try again."));
+        }
+
+        // Mark OTP as used
+        loginOtp.setUsed(true);
+        loginOtpRepository.save(loginOtp);
 
         user.setPassword(com.sarthi.util.PasswordEncryptionUtil.encrypt(requestDto.getNewPassword()));
         userMasterRepository.save(user);
@@ -1914,7 +1998,7 @@ public class UserServiceImpl implements UserService {
         auditLog.setOldValues("[REDACTED]");
         auditLog.setNewValues("[REDACTED]");
         auditLog.setTimestamp(LocalDateTime.now());
-        auditLog.setIpAddress("0.0.0.0"); // placeholder or could be pulled from context
+        auditLog.setIpAddress("0.0.0.0");
         
         userProfileAuditRepository.save(auditLog);
     }
