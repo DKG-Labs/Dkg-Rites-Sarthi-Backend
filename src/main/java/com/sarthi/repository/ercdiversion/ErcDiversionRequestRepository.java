@@ -91,4 +91,14 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
            "com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION, " +
            "com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION)")
     List<String> findCompleteSourceSrNos(@Param("vendorCode") String vendorCode);
+
+    @Query("SELECT DISTINCT r.sourceIcNo FROM ErcDiversionRequest r " +
+           "WHERE r.vendorCode = :vendorCode " +
+           "AND r.diversionType = com.sarthi.enums.DiversionType.COMPLETE " +
+           "AND r.status NOT IN (com.sarthi.enums.DiversionRequestStatus.DRAFT, " +
+           "com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.RETURNED_TO_VENDOR, " +
+           "com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR)")
+    List<String> findCompleteDivertedSourceIcNos(@Param("vendorCode") String vendorCode);
 }

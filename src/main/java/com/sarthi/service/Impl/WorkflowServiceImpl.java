@@ -623,24 +623,63 @@ public class WorkflowServiceImpl implements WorkflowService {
                         )
                 ));
 
-            TransitionMaster transition = transitionMasterRepository
-                    .findById(current.getTransitionId())
-                    .orElseThrow(() -> new BusinessException(
-                            new ErrorDetails(
-                                    AppConstant.ERROR_CODE_RESOURCE,
-                                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                    AppConstant.ERROR_TYPE_VALIDATION,
-                                    "transition not found"
-                            )
-                    ));
+        // GENERATE_IC action (Issuance of IC Tab: Update status so IC form can proceed)
+        if (req.getAction() != null && req.getAction().equalsIgnoreCase("GENERATE_IC")) {
+            current.setStatus("GENERATE_IC");
+            current.setAction("GENERATE_IC");
+            if (req.getActionBy() != null) {
+                current.setModifiedBy(req.getActionBy());
+            }
+            if (req.getRemarks() != null && !req.getRemarks().isBlank()) {
+                current.setRemarks(req.getRemarks());
+            }
+            workflowTransitionRepository.save(current);
+            return mapWorkflowTransition(current);
+        }
 
-        // GLOBAL CANCELLATION HANDLER (Handles cancellation at any stage: Workflow 1 or Workflow 2)
+        // DSC_SIGN_IC action (E-Signed Certificate: Complete the call and move to Completed Calls)
+        if (req.getAction() != null && req.getAction().equalsIgnoreCase("DSC_SIGN_IC")) {
+            WorkflowTransition signed = new WorkflowTransition();
+            signed.setWorkflowId(current.getWorkflowId());
+            signed.setTransitionId(current.getTransitionId() != null ? current.getTransitionId() : 0);
+            signed.setRequestId(current.getRequestId());
+            signed.setStatus("DSC_SIGN_IC");
+            signed.setAction("DSC_SIGN_IC");
+            signed.setJobStatus("COMPLETED");
+            signed.setRemarks(req.getRemarks() != null && !req.getRemarks().isBlank() ? req.getRemarks() : "IC Signed with DSC");
+            signed.setCreatedDate(new Date());
+            signed.setCreatedBy(current.getCreatedBy());
+            signed.setModifiedBy(req.getActionBy());
+            signed.setAssignedToUser(current.getAssignedToUser());
+            signed.setProcessIeUserId(current.getProcessIeUserId());
+            signed.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+            signed.setCurrentRoleName(current.getNextRoleName() != null ? current.getNextRoleName() : current.getCurrentRoleName());
+            signed.setRio(current.getRio());
+            signed.setSwiftCode(current.getSwiftCode());
+            signed.setPrimarySwift(current.getPrimarySwift());
+            signed.setWorkflowSequence((current.getWorkflowSequence() != null ? current.getWorkflowSequence() : 1) + 1);
+            workflowTransitionRepository.save(signed);
+            return mapWorkflowTransition(signed);
+        }
+
+        // Safe TransitionMaster lookup: only lookup if transitionId is valid (> 0)
+        TransitionMaster transition = null;
+        if (current.getTransitionId() != null && current.getTransitionId() > 0) {
+            transition = transitionMasterRepository.findById(current.getTransitionId()).orElse(null);
+        }
+
+        // GLOBAL CANCELLATION HANDLER (Handles cancellation at any stage: Workflow 1, Workflow 2, or Workflow 4)
         if ((req.getAction() != null && req.getAction().equalsIgnoreCase("VERIFY_MATERIAL_AVAILABILITY")
                 && "NO".equalsIgnoreCase(req.getMaterialAvailable()))
                 || (req.getAction() != null && req.getAction().equalsIgnoreCase("CANCEL_CALL"))
                 || (req.getAction() != null && req.getAction().equalsIgnoreCase("CANCEL"))
                 || (req.getAction() != null && req.getAction().equalsIgnoreCase("CANCELLED"))) {
             return handleCallCancellation(current, req);
+        }
+
+        // DIVERSION WORKFLOW (ID = 4)
+        if (current.getWorkflowId() != null && current.getWorkflowId() == 4) {
+            return mapWorkflowTransition(current);
         }
 
         // IE WORKFLOW (ID = 2)

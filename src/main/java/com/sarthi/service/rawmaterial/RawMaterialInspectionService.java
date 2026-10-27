@@ -94,6 +94,8 @@ public interface RawMaterialInspectionService {
      */
     List<RmIcCertWithDateDto> getCompletedRmIcNumbers(String poSerialNo);
 
+    List<RmIcCertWithDateDto> getCompletedRmIcNumbers(String poSerialNo, String callCategory);
+
     /**
      * Get heat numbers for a specific RM IC number
      * Fetches from rm_heat_quantities table based on the RM IC's ic_id

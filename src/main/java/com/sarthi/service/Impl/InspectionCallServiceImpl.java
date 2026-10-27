@@ -141,6 +141,22 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         inspectionCall.setCreatedAt(LocalDateTime.now());
         inspectionCall.setUpdatedAt(LocalDateTime.now());
 
+        String nature = icRequest.getCallNature() != null ? icRequest.getCallNature()
+                : ("DIVERTED".equalsIgnoreCase(icRequest.getCallCategory()) ? "DIVERTED" : "FRESH");
+        inspectionCall.setCallNature(nature);
+        if (icRequest.getCallCategory() != null) {
+            inspectionCall.setCallCategory(icRequest.getCallCategory());
+        }
+        inspectionCall.setIsDivertedMaterial("DIVERTED".equalsIgnoreCase(nature)
+                || "DIVERTED".equalsIgnoreCase(icRequest.getCallCategory())
+                || Boolean.TRUE.equals(icRequest.getIsDivertedMaterial()));
+        if (icRequest.getDiversionRequestNo() != null) {
+            inspectionCall.setDiversionRequestNo(icRequest.getDiversionRequestNo());
+        }
+        if (icRequest.getSourceIcNo() != null) {
+            inspectionCall.setSourceIcNo(icRequest.getSourceIcNo());
+        }
+
         // ================== RM INSPECTION DETAILS ==================
         RmInspectionDetails rmDetails = new RmInspectionDetails();
         rmDetails.setInspectionCall(inspectionCall);

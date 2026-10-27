@@ -27,6 +27,7 @@ public class FinalCertificateDto {
     
     private String bookNo;
     private String setNo;
+    private Boolean isDivertedMaterial;
     
     /* ==================== Installment Information ==================== */
     

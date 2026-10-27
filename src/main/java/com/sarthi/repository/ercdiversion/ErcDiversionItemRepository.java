@@ -20,7 +20,12 @@ public interface ErcDiversionItemRepository extends JpaRepository<ErcDiversionIt
            "AND (:heatNo IS NULL OR i.heatNo = :heatNo) " +
            "AND (:tcNo IS NULL OR i.tcNo = :tcNo) " +
            "AND (:lotNo IS NULL OR i.lotNo = :lotNo) " +
-           "AND r.status IN ('SUBMITTED_TO_CM', 'APPROVED_BY_CM', 'APPROVED_BY_SBU', 'BASKET_CREATED', 'COMPLETED')")
+           "AND r.status NOT IN (" +
+           "com.sarthi.enums.DiversionRequestStatus.DRAFT, " +
+           "com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.RETURNED_TO_VENDOR, " +
+           "com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR)")
     BigDecimal sumDivertedQuantityForSource(
             @Param("sourceIcNo") String sourceIcNo,
             @Param("heatNo") String heatNo,
@@ -31,7 +36,12 @@ public interface ErcDiversionItemRepository extends JpaRepository<ErcDiversionIt
     @Query("SELECT r.sourceIcNo, COALESCE(SUM(i.diversionQty), 0) FROM ErcDiversionItem i " +
            "JOIN i.diversionRequest r " +
            "WHERE r.sourceIcNo IN :sourceIcNos " +
-           "AND r.status IN ('SUBMITTED_TO_CM', 'APPROVED_BY_CM', 'APPROVED_BY_SBU', 'BASKET_CREATED', 'COMPLETED') " +
+           "AND r.status NOT IN (" +
+           "com.sarthi.enums.DiversionRequestStatus.DRAFT, " +
+           "com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.RETURNED_TO_VENDOR, " +
+           "com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR) " +
            "GROUP BY r.sourceIcNo")
     List<Object[]> sumDivertedQuantitiesBySourceIcNos(@Param("sourceIcNos") List<String> sourceIcNos);
 }

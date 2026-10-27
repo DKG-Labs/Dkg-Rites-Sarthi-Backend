@@ -78,7 +78,10 @@ public class InspectionCall {
     private Boolean isModified;
 
     @Column(name = "call_category", length = 30)
-    private String callCategory; // FRESH, DIVERTED_PASSED
+    private String callCategory; // DIVERTED_PASSED (Set when CM approves)
+
+    @Column(name = "call_nature", length = 30)
+    private String callNature; // FRESH, DIVERTED (Selected when raising call)
 
     @Column(name = "is_diverted_material")
     private Boolean isDivertedMaterial = false;

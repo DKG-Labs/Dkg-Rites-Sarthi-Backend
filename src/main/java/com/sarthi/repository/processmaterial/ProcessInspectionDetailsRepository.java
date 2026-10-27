@@ -174,17 +174,26 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
      * Find heat numbers by lot number and RM IC certificate
      * Returns heat numbers for a specific lot that matches the RM IC certificate
      */
-    @Query(value = "SELECT pid.heat_number " +
-            "FROM process_inspection_details pid " +
-            "LEFT JOIN inspection_calls ic ON pid.ic_id = ic.id " +
-            "LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.CALL_NO " +
-            "LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = pid.ic_id " +
-            "WHERE TRIM(pid.lot_number) = TRIM(:lotNumber) " +
-            "AND (:rmCertificateNo IS NULL OR :rmCertificateNo = '' OR TRIM(pid.rm_ic_number) = TRIM(:rmCertificateNo) OR TRIM(prim.rm_ic_number) = TRIM(:rmCertificateNo)) " +
-            "AND (:processCertificateNo IS NULL OR :processCertificateNo = '' OR TRIM(ic.ic_number) = TRIM(:processCertificateNo) OR TRIM(icd.CERTIFICATE_NO) = TRIM(:processCertificateNo)) " +
-            "AND pid.heat_number IS NOT NULL AND pid.heat_number <> '' " +
-            "GROUP BY pid.heat_number, pid.ic_id " +
-            "ORDER BY pid.ic_id DESC",
+    @Query(value = "SELECT heat_no FROM (" +
+            "  SELECT pid.heat_number AS heat_no, pid.ic_id AS sort_id " +
+            "  FROM process_inspection_details pid " +
+            "  LEFT JOIN inspection_calls ic ON pid.ic_id = ic.id " +
+            "  LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.CALL_NO " +
+            "  LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = pid.ic_id " +
+            "  WHERE TRIM(pid.lot_number) = TRIM(:lotNumber) " +
+            "    AND (:rmCertificateNo IS NULL OR :rmCertificateNo = '' OR TRIM(pid.rm_ic_number) = TRIM(:rmCertificateNo) OR TRIM(prim.rm_ic_number) = TRIM(:rmCertificateNo)) " +
+            "    AND (:processCertificateNo IS NULL OR :processCertificateNo = '' OR TRIM(ic.ic_number) = TRIM(:processCertificateNo) OR TRIM(icd.CERTIFICATE_NO) = TRIM(:processCertificateNo)) " +
+            "    AND pid.heat_number IS NOT NULL AND pid.heat_number <> '' " +
+            "  UNION " +
+            "  SELECT item.heat_no AS heat_no, 0 AS sort_id " +
+            "  FROM erc_material_diversion_item item " +
+            "  INNER JOIN erc_material_diversion_request req ON item.diversion_request_id = req.id " +
+            "  LEFT JOIN inspection_complete_details icd_div ON icd_div.CALL_NO = req.request_no " +
+            "  WHERE TRIM(item.lot_no) = TRIM(:lotNumber) " +
+            "    AND (:processCertificateNo IS NULL OR :processCertificateNo = '' OR TRIM(req.request_no) = TRIM(:processCertificateNo) OR TRIM(icd_div.CERTIFICATE_NO) = TRIM(:processCertificateNo)) " +
+            "    AND item.heat_no IS NOT NULL AND item.heat_no <> '' " +
+            ") heat_tbl " +
+            "ORDER BY sort_id DESC",
             nativeQuery = true)
     List<String> findHeatNumbersByLotNumber(
             @Param("lotNumber") String lotNumber,
@@ -195,15 +204,24 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
      * Find lot numbers by multiple RM IC certificates and multiple Process IC certificates
      * Returns all unique lot numbers that match any combination of the specified certificates
      */
-    @Query(value = "SELECT DISTINCT pid.lot_number " +
-            "FROM process_inspection_details pid " +
-            "INNER JOIN inspection_calls ic ON pid.ic_id = ic.id " +
-            "INNER JOIN inspection_complete_details icd_process ON ic.ic_number = icd_process.CALL_NO " +
-            "LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic.id " +
-            "WHERE (TRIM(pid.rm_ic_number) IN :rmCertificateNos OR TRIM(prim.rm_ic_number) IN :rmCertificateNos) " +
-            "AND icd_process.CERTIFICATE_NO IN :processCertificateNos " +
-            "AND pid.lot_number IS NOT NULL " +
-            "ORDER BY pid.lot_number",
+    @Query(value = "SELECT DISTINCT lot_num FROM (" +
+            "  SELECT DISTINCT pid.lot_number AS lot_num " +
+            "  FROM process_inspection_details pid " +
+            "  INNER JOIN inspection_calls ic ON pid.ic_id = ic.id " +
+            "  LEFT JOIN inspection_complete_details icd_process ON ic.ic_number = icd_process.CALL_NO " +
+            "  LEFT JOIN process_rm_ic_mapping prim ON prim.process_ic_id = ic.id " +
+            "  WHERE ('ALL' IN :rmCertificateNos OR TRIM(pid.rm_ic_number) IN :rmCertificateNos OR TRIM(prim.rm_ic_number) IN :rmCertificateNos) " +
+            "    AND (icd_process.CERTIFICATE_NO IN :processCertificateNos OR ic.ic_number IN :processCertificateNos) " +
+            "    AND pid.lot_number IS NOT NULL " +
+            "  UNION " +
+            "  SELECT DISTINCT item.lot_no AS lot_num " +
+            "  FROM erc_material_diversion_item item " +
+            "  INNER JOIN erc_material_diversion_request req ON item.diversion_request_id = req.id " +
+            "  LEFT JOIN inspection_complete_details icd_div ON icd_div.CALL_NO = req.request_no " +
+            "  WHERE (icd_div.CERTIFICATE_NO IN :processCertificateNos OR req.request_no IN :processCertificateNos) " +
+            "    AND item.lot_no IS NOT NULL " +
+            ") lot_tbl " +
+            "ORDER BY lot_num",
             nativeQuery = true)
     List<String> findLotNumbersByMultipleRmAndProcessIcNumbers(
             @Param("rmCertificateNos") List<String> rmCertificateNos,

@@ -121,9 +121,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             }
         }
 
-        // Exclude ICs whose source PO SR no has been COMPLETELY diverted
-        Set<String> completeDivSrNos = cleanVendor != null
-                ? new HashSet<>(requestRepository.findCompleteSourceSrNos(cleanVendor))
+        // Exclude ICs that have been COMPLETELY diverted
+        Set<String> completeDivIcs = cleanVendor != null
+                ? new HashSet<>(requestRepository.findCompleteDivertedSourceIcNos(cleanVendor))
                 : Collections.emptySet();
 
         List<SourceIcEligibilityDto> eligibleList = new ArrayList<>();
@@ -133,8 +133,8 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             String poNo = (String) row[2];
             String poSerialNo = (String) row[3];
 
-            if (poSerialNo != null && completeDivSrNos.contains(poSerialNo)) {
-                continue; // skip — material for this PO SR no has been completely diverted
+            if ((certNo != null && completeDivIcs.contains(certNo)) || (callNo != null && completeDivIcs.contains(callNo))) {
+                continue; // skip — this specific IC has been completely diverted
             }
             LocalDate icDate = null;
             if (row[4] instanceof java.sql.Date) {
@@ -642,8 +642,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             // typeOfCall must match values used in WorkflowServiceImpl: "Raw Material", "Process", "Final"
             String typeOfCall = isProcess ? "Process" : isFinal ? "Final" : "Raw Material";
 
-            // 1. Create inspection_calls row — icNumber must match requestId in the WT row below
-            InspectionCall divCall = new InspectionCall();
+            // 1. Create or update inspection_calls row — icNumber must match requestId in the WT row below
+            InspectionCall divCall = inspectionCallRepository.findByIcNumber(saved.getRequestNo())
+                    .orElse(new InspectionCall());
             divCall.setIcNumber(saved.getRequestNo());
             divCall.setDiversionRequestNo(saved.getRequestNo());
             divCall.setIsDivertedMaterial(true);
@@ -664,10 +665,12 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             divCall.setStatus("CM_APPROVED");
             divCall.setCreatedBy(saved.getVendorCode());
             java.time.LocalDateTime now = java.time.LocalDateTime.now();
-            divCall.setCreatedAt(now);
+            if (divCall.getCreatedAt() == null) {
+                divCall.setCreatedAt(now);
+            }
             divCall.setUpdatedAt(now);
             inspectionCallRepository.save(divCall);
-            log.info("Created inspection_calls row for diversion {} icNumber={} typeOfCall={}", saved.getRequestNo(), saved.getRequestNo(), typeOfCall);
+            log.info("Saved inspection_calls row for diversion {} icNumber={} typeOfCall={}", saved.getRequestNo(), saved.getRequestNo(), typeOfCall);
 
             // 2. Create WT row with status INSPECTION_COMPLETE_CONFIRM so findCompletedByUserRule picks it up
             WorkflowTransition ieWt = new WorkflowTransition();

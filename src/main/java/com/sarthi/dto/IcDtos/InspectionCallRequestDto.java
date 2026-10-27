@@ -30,4 +30,11 @@ public class InspectionCallRequestDto {
     private String remarks;
     private String createdBy;
     private String updatedBy;
+
+    // ---- CALL CATEGORY / DIVERSION / NATURE ----
+    private String callCategory;
+    private String callNature;
+    private Boolean isDivertedMaterial;
+    private String diversionRequestNo;
+    private String sourceIcNo;
 }

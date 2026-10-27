@@ -46,6 +46,11 @@ public class InspectionCallDto {
     /* ==================== Additional Info ==================== */
 
     private String remarks;
+    private String callCategory;
+    private String callNature;
+    private Boolean isDivertedMaterial;
+    private String diversionRequestNo;
+    private String sourceIcNo;
 
     /* ==================== Audit Fields ==================== */
 

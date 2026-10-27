@@ -27,7 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -155,28 +158,28 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         inspectionCall.setCreatedAt(LocalDateTime.now());
         inspectionCall.setUpdatedAt(LocalDateTime.now());
 
+        String nature = icRequest.getCallNature() != null ? icRequest.getCallNature()
+                : ("DIVERTED".equalsIgnoreCase(icRequest.getCallCategory()) ? "DIVERTED" : "FRESH");
+        inspectionCall.setCallNature(nature);
+        if (icRequest.getCallCategory() != null) {
+            inspectionCall.setCallCategory(icRequest.getCallCategory());
+        }
+        inspectionCall.setIsDivertedMaterial("DIVERTED".equalsIgnoreCase(nature)
+                || "DIVERTED".equalsIgnoreCase(icRequest.getCallCategory())
+                || Boolean.TRUE.equals(icRequest.getIsDivertedMaterial()));
+        if (icRequest.getDiversionRequestNo() != null) {
+            inspectionCall.setDiversionRequestNo(icRequest.getDiversionRequestNo());
+        }
+        if (icRequest.getSourceIcNo() != null) {
+            inspectionCall.setSourceIcNo(icRequest.getSourceIcNo());
+        }
+
         inspectionCall = inspectionCallRepository.save(inspectionCall);
         logger.info("✅ Final Inspection Call saved with ID: {}", inspectionCall.getId());
 
         // ================== 2. CREATE FINAL INSPECTION DETAILS ==================
         FinalInspectionDetails finalInspectionDetails = new FinalInspectionDetails();
         finalInspectionDetails.setInspectionCall(inspectionCall);
-
-        // ---- Resolve RM IC numbers (support both single and multi-select) ----
-        List<String> rmIcList = (finalDetails.getRmIcNumbers() != null && !finalDetails.getRmIcNumbers().isEmpty())
-                ? finalDetails.getRmIcNumbers()
-                : (finalDetails.getRmIcNumber() != null ? List.of(finalDetails.getRmIcNumber()) : List.of());
-
-        String rmIcNumbersCsv = rmIcList.stream().collect(Collectors.joining(","));
-        finalInspectionDetails.setRmIcNumber(rmIcNumbersCsv);
-
-        // Set primary RM IC ID using the first IC in the list
-        Optional<InspectionCall> rmIcOpt = rmIcList.isEmpty()
-                ? Optional.empty()
-                : findInspectionCallByCertOrCallNo(rmIcList.get(0));
-        if (rmIcOpt.isPresent()) {
-            finalInspectionDetails.setRmIcId(rmIcOpt.get().getId().longValue());
-        }
 
         // ---- Resolve Process IC numbers (support both single and multi-select) ----
         List<String> processIcList = (finalDetails.getProcessIcNumbers() != null
@@ -194,6 +197,34 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                 : findInspectionCallByCertOrCallNo(processIcList.get(0));
         if (processIcOpt.isPresent()) {
             finalInspectionDetails.setProcessIcId(processIcOpt.get().getId().longValue());
+        }
+
+        // ---- Resolve RM IC numbers (support both single and multi-select) ----
+        List<String> rmIcList = (finalDetails.getRmIcNumbers() != null && !finalDetails.getRmIcNumbers().isEmpty())
+                ? finalDetails.getRmIcNumbers()
+                : (finalDetails.getRmIcNumber() != null ? List.of(finalDetails.getRmIcNumber()) : List.of());
+
+        // For diverted calls: if no RM IC is provided by vendor, auto-resolve from the selected Process IC
+        if (rmIcList.isEmpty() && !processIcList.isEmpty() &&
+                (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial())
+                        || "DIVERTED".equalsIgnoreCase(inspectionCall.getCallCategory())
+                        || "DIVERTED_PASSED".equalsIgnoreCase(inspectionCall.getCallCategory()))) {
+            List<String> autoRm = inspectionCompleteDetailsRepository.findRmIcsByProcessCertificateNo(processIcList.get(0));
+            if (autoRm != null && !autoRm.isEmpty()) {
+                rmIcList = autoRm;
+                logger.info("Auto-resolved RM ICs for diverted final call: {}", rmIcList);
+            }
+        }
+
+        String rmIcNumbersCsv = rmIcList.stream().collect(Collectors.joining(","));
+        finalInspectionDetails.setRmIcNumber(rmIcNumbersCsv);
+
+        // Set primary RM IC ID using the first IC in the list
+        Optional<InspectionCall> rmIcOpt = rmIcList.isEmpty()
+                ? Optional.empty()
+                : findInspectionCallByCertOrCallNo(rmIcList.get(0));
+        if (rmIcOpt.isPresent()) {
+            finalInspectionDetails.setRmIcId(rmIcOpt.get().getId().longValue());
         }
 
         finalInspectionDetails.setCompanyId(finalDetails.getCompanyId());
@@ -351,28 +382,50 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
 
     @Override
     public List<RmIcCertWithDateDto> getRmIcCertificateNumbers(String poSerialNo) {
-        logger.info("Fetching RM IC certificate numbers for PO Serial No: {}", poSerialNo);
-        List<Object[]> results = inspectionCompleteDetailsRepository
-                .findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+        return getRmIcCertificateNumbers(poSerialNo, null);
+    }
+
+    @Override
+    public List<RmIcCertWithDateDto> getRmIcCertificateNumbers(String poSerialNo, String callCategory) {
+        logger.info("Fetching RM IC certificate numbers for PO Serial No: {}, callCategory: {}", poSerialNo, callCategory);
+        List<Object[]> results;
+        boolean isDiverted = "DIVERTED".equalsIgnoreCase(callCategory);
+
+        if (isDiverted) {
+            results = inspectionCompleteDetailsRepository
+                    .findDivertedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+        } else if ("FRESH".equalsIgnoreCase(callCategory)) {
+            results = inspectionCompleteDetailsRepository
+                    .findFreshCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+        } else {
+            results = inspectionCompleteDetailsRepository
+                    .findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+        }
         logger.info("Found {} RM IC certificate numbers", results.size());
 
-        List<RmIcCertWithDateDto> allIcs = results.stream()
-                .map(row -> {
-                        String certNo = (String) row[0];
-                        LocalDateTime date = null;
-                        if (row[1] != null) {
-                                if (row[1] instanceof java.sql.Timestamp) {
-                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
-                                } else if (row[1] instanceof LocalDateTime) {
-                                        date = (LocalDateTime) row[1];
-                                }
-                        }
-                        return new RmIcCertWithDateDto(certNo, date);
-                })
-                .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
-                .collect(Collectors.toList());
+        Map<String, RmIcCertWithDateDto> certMap = new LinkedHashMap<>();
+        for (Object[] row : results) {
+            String certNo = (String) row[0];
+            if (certNo == null || certNo.trim().isEmpty()) continue;
+            certNo = certNo.trim();
+            LocalDateTime date = null;
+            if (row[1] != null) {
+                if (row[1] instanceof java.sql.Timestamp) {
+                    date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                } else if (row[1] instanceof LocalDateTime) {
+                    date = (LocalDateTime) row[1];
+                }
+            }
+            final LocalDateTime fDate = date;
+            certMap.merge(certNo, new RmIcCertWithDateDto(certNo, fDate), (existing, replace) -> {
+                if (existing.getCreatedAt() == null) return replace;
+                if (replace.getCreatedAt() == null) return existing;
+                return replace.getCreatedAt().isAfter(existing.getCreatedAt()) ? replace : existing;
+            });
+        }
+        List<RmIcCertWithDateDto> allIcs = new ArrayList<>(certMap.values());
 
-        if (allIcs.isEmpty()) return allIcs;
+        if (allIcs.isEmpty() || isDiverted) return allIcs;
 
         List<String> callNos = allIcs.stream()
                 .map(dto -> extractCallNoFromCert(dto.getCertificateNo()))
@@ -386,6 +439,42 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         return allIcs.stream()
                 .filter(dto -> !divertedCallNos.contains(extractCallNoFromCert(dto.getCertificateNo())))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ProcessIcCertWithDateDto> getDivertedProcessIcCertificateNumbers(String poSerialNo) {
+        logger.info("Fetching Diverted Process IC certificate numbers for PO Serial No: {}", poSerialNo);
+        List<Object[]> results = inspectionCompleteDetailsRepository
+                .findDivertedProcessIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+        logger.info("Found {} Diverted Process IC certificate numbers", results.size());
+
+        Map<String, ProcessIcCertWithDateDto> processCertMap = new LinkedHashMap<>();
+        for (Object[] row : results) {
+            String certNo = (String) row[0];
+            if (certNo == null || certNo.trim().isEmpty()) continue;
+            certNo = certNo.trim();
+            LocalDateTime date = null;
+            if (row[1] != null) {
+                if (row[1] instanceof java.sql.Timestamp) {
+                    date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                } else if (row[1] instanceof LocalDateTime) {
+                    date = (LocalDateTime) row[1];
+                }
+            }
+            final LocalDateTime fDate = date;
+            processCertMap.merge(certNo, new ProcessIcCertWithDateDto(certNo, fDate), (existing, replace) -> {
+                if (existing.getCreatedAt() == null) return replace;
+                if (replace.getCreatedAt() == null) return existing;
+                return replace.getCreatedAt().isAfter(existing.getCreatedAt()) ? replace : existing;
+            });
+        }
+        return new ArrayList<>(processCertMap.values());
+    }
+
+    @Override
+    public List<String> getRmIcsByProcessCertificate(String processCertificateNo) {
+        logger.info("Fetching RM ICs for Process certificate: {}", processCertificateNo);
+        return inspectionCompleteDetailsRepository.findRmIcsByProcessCertificateNo(processCertificateNo);
     }
 
     @Override
