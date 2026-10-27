@@ -72,6 +72,12 @@ public interface FinalInspectionCallService {
      */
     List<RmIcCertWithDateDto> getRmIcCertificateNumbers(String poSerialNo);
 
+    List<RmIcCertWithDateDto> getRmIcCertificateNumbers(String poSerialNo, String callCategory);
+
+    List<ProcessIcCertWithDateDto> getDivertedProcessIcCertificateNumbers(String poSerialNo);
+
+    List<String> getRmIcsByProcessCertificate(String processCertificateNo);
+
     /**
      * Get Process IC certificate numbers by RM IC certificate
      * Returns CERTIFICATE_NO (e.g., "N/EP-01170002/RAJK") for Process ICs that used

@@ -154,10 +154,12 @@ public class RawMaterialInspectionController {
      * GET /api/raw-material/completed-rm-ics?poSerialNo=xxx
      */
     @GetMapping("/completed-rm-ics")
-    @Operation(summary = "Get completed RM ICs", description = "Fetches completed RM IC certificate numbers from inspection_complete_details table filtered by ER prefix and optionally by PO Serial Number")
-    public ResponseEntity<APIResponse> getCompletedRmIcNumbers(@RequestParam(required = false) String poSerialNo) {
-        logger.info("Request: Get completed RM IC certificate numbers for PO Serial No: {}", poSerialNo);
-        List<RmIcCertWithDateDto> completedRmIcs = rmService.getCompletedRmIcNumbers(poSerialNo);
+    @Operation(summary = "Get completed RM ICs", description = "Fetches completed RM IC certificate numbers from inspection_complete_details table filtered by ER prefix, optionally by PO Serial Number and callCategory (FRESH/DIVERTED)")
+    public ResponseEntity<APIResponse> getCompletedRmIcNumbers(
+            @RequestParam(required = false) String poSerialNo,
+            @RequestParam(required = false) String callCategory) {
+        logger.info("Request: Get completed RM IC certificate numbers for PO Serial No: {}, callCategory: {}", poSerialNo, callCategory);
+        List<RmIcCertWithDateDto> completedRmIcs = rmService.getCompletedRmIcNumbers(poSerialNo, callCategory);
         logger.info("Found {} completed RM IC certificate numbers", completedRmIcs.size());
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(completedRmIcs), HttpStatus.OK);
     }

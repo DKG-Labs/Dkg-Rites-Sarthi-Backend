@@ -187,9 +187,21 @@ public class CertificateServiceImpl implements CertificateService {
     private RawMaterialCertificateDto buildCertificateDto(InspectionCall inspectionCall) {
         logger.info("Building certificate DTO for IC: {}", inspectionCall.getIcNumber());
 
+        // Determine effective call number for test results:
+        String effectiveCallNo = inspectionCall.getIcNumber();
+        if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null && !inspectionCall.getSourceIcNo().isBlank()) {
+            effectiveCallNo = extractCallNo(inspectionCall.getSourceIcNo());
+        }
+
         // 2. Fetch RM Inspection Details
         RmInspectionDetails rmDetails = rmInspectionDetailsRepository.findByIcId(inspectionCall.getId())
                 .orElse(null);
+        if (rmDetails == null && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
+            Optional<InspectionCall> sourceCallOpt = inspectionCallRepository.findByIcNumber(effectiveCallNo);
+            if (sourceCallOpt.isPresent()) {
+                rmDetails = rmInspectionDetailsRepository.findByIcId(sourceCallOpt.get().getId()).orElse(null);
+            }
+        }
 
         // 3. Fetch Heat Quantities
         List<RmHeatQuantity> heatQuantities = new ArrayList<>();
@@ -199,7 +211,10 @@ public class CertificateServiceImpl implements CertificateService {
 
         // 4. Fetch Heat Final Results
         List<RmHeatFinalResult> heatResults = rmHeatFinalResultRepository
-                .findByInspectionCallNo(inspectionCall.getIcNumber());
+                .findByInspectionCallNo(effectiveCallNo);
+        if (heatResults.isEmpty() && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
+            heatResults = rmHeatFinalResultRepository.findByInspectionCallNo(inspectionCall.getIcNumber());
+        }
 
         // 5. Fetch PO Header and Items
         PoHeader poHeader = poHeaderRepository.findByPoNo(inspectionCall.getPoNo()).orElse(null);
@@ -212,6 +227,9 @@ public class CertificateServiceImpl implements CertificateService {
         MainPoInformation mainPoInfo = mainPoInformationRepository
                 .findByInspectionCallNo(inspectionCall.getIcNumber())
                 .orElse(null);
+        if (mainPoInfo == null && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
+            mainPoInfo = mainPoInformationRepository.findByInspectionCallNo(effectiveCallNo).orElse(null);
+        }
 
         if (mainPoInfo != null) {
             logger.info("✅ Section A data found for IC: {}", inspectionCall.getIcNumber());
@@ -225,7 +243,10 @@ public class CertificateServiceImpl implements CertificateService {
         calculateOfferedInstallment(inspectionCall.getPoNo());
         calculatePassedInstallment(inspectionCall.getPoNo());
 
-        List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
+        List<LocalDate> visitDates = getVisitDates(effectiveCallNo);
+        if (visitDates.isEmpty() && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
+            visitDates = getVisitDates(inspectionCall.getIcNumber());
+        }
 
         // 10. Build Certificate DTO
         RawMaterialCertificateDto dto = RawMaterialCertificateDto.builder()
@@ -264,6 +285,12 @@ public class CertificateServiceImpl implements CertificateService {
                 .inspectingEngineer("") // Keep blank for now (DSC signature)
                 .heatDetails(buildHeatDetails(heatQuantities, heatResults))
                 .build();
+
+        dto.setIsDivertedMaterial(Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()));
+        if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null) {
+            String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
+            dto.setRemarks((dto.getRemarks() != null ? dto.getRemarks() : "") + divNote);
+        }
 
         // Merge saved draft edits if available, else fallback to final edits
         Optional<RmIcSaveChanges> rmIcSaveChangesOpt = rmIcSaveChangesRepository
@@ -1102,6 +1129,28 @@ public class CertificateServiceImpl implements CertificateService {
         return "";
     }
 
+    private String extractCallNo(String certNo) {
+        if (certNo == null || certNo.trim().isEmpty()) {
+            return null;
+        }
+        String clean = certNo.trim();
+        try {
+            Optional<InspectionCompleteDetails> icd = inspectionCompleteDetailsRepository.findByCertificateNo(clean);
+            if (icd.isPresent() && icd.get().getCallNo() != null && !icd.get().getCallNo().trim().isEmpty()) {
+                return icd.get().getCallNo().trim();
+            }
+        } catch (Exception e) {
+            logger.debug("Could not find call number for certificate {}: {}", clean, e.getMessage());
+        }
+        if (clean.contains("/")) {
+            String[] parts = clean.split("/");
+            if (parts.length >= 2 && !parts[1].trim().isEmpty()) {
+                return parts[1].trim();
+            }
+        }
+        return clean;
+    }
+
     /*
      * ==================== PROCESS MATERIAL CERTIFICATE METHODS
      * ====================
@@ -1153,9 +1202,20 @@ public class CertificateServiceImpl implements CertificateService {
         inspectionCompleteDetailsRepository
                 .findByCallNo(inspectionCall.getIcNumber());
 
+        // Determine effective call number for test results:
+        // If it's a diverted call, tests were performed under source_ic_no (or source call)!
+        String effectiveCallNo = inspectionCall.getIcNumber();
+        if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null && !inspectionCall.getSourceIcNo().isBlank()) {
+            effectiveCallNo = extractCallNo(inspectionCall.getSourceIcNo());
+        }
+
         // 5. Fetch Process Line Final Results (for lot details)
         List<ProcessLineFinalResult> lineFinalResults = processLineFinalResultRepository
-                .findByInspectionCallNo(inspectionCall.getIcNumber());
+                .findByInspectionCallNo(effectiveCallNo);
+        if (lineFinalResults.isEmpty() && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
+            lineFinalResults = processLineFinalResultRepository
+                    .findByInspectionCallNo(inspectionCall.getIcNumber());
+        }
 
         // 6. Build Lot Details
         List<ProcessMaterialCertificateDto.LotDetailDto> lots = buildProcessLotDetails(lineFinalResults);
@@ -1206,6 +1266,14 @@ public class CertificateServiceImpl implements CertificateService {
                 .sealingPattern(buildProcessSealingPattern())
                 .inspectingEngineer("") // Keep blank for now (DSC signature)
                 .build();
+
+        dto.setIsDivertedMaterial(Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()));
+        if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null) {
+            String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
+            if (dto.getReference() != null && !dto.getReference().contains("diverted from")) {
+                dto.setReference(dto.getReference() + divNote);
+            }
+        }
 
         // Merge saved draft edits if available, else fallback to final edits
         Optional<ProcessIcSaveChanges> processIcSaveChangesOpt = processIcSaveChangesRepository
@@ -1533,6 +1601,31 @@ public class CertificateServiceImpl implements CertificateService {
                     .collect(Collectors.toList());
         }
 
+        if (rmIcNumbers.isEmpty() && Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial())
+                && inspectionCall.getSourceIcNo() != null && !inspectionCall.getSourceIcNo().isBlank()) {
+            String sourceCallNo = extractCallNo(inspectionCall.getSourceIcNo());
+            if (sourceCallNo != null && !sourceCallNo.isBlank()) {
+                Optional<InspectionCall> sourceCallOpt = inspectionCallRepository.findByIcNumber(sourceCallNo);
+                if (sourceCallOpt.isPresent()) {
+                    List<ProcessInspectionDetails> srcDetails = processInspectionDetailsRepository.findByIcId(
+                            Long.valueOf(sourceCallOpt.get().getId()));
+                    if (srcDetails != null) {
+                        rmIcNumbers = srcDetails.stream()
+                                .map(ProcessInspectionDetails::getRmIcNumber)
+                                .filter(ic -> ic != null && !ic.trim().isEmpty())
+                                .distinct()
+                                .collect(Collectors.toList());
+                    }
+                }
+            }
+            if (rmIcNumbers.isEmpty()) {
+                String upperSource = inspectionCall.getSourceIcNo().toUpperCase();
+                if (upperSource.contains("ER-") || upperSource.contains("/ER") || upperSource.startsWith("ER")) {
+                    rmIcNumbers.add(inspectionCall.getSourceIcNo().trim());
+                }
+            }
+        }
+
         StringBuilder sb = new StringBuilder();
         sb.append("Quantity ").append(qtyWords)
                 .append(" Nos. cleared for next/final stage after completion of process inspection as per PIO detailed under Annexure-A of Rly. Bd. Letter No. 2024/RS (G)/779/12 (E3482675) Dtd.06.01.2025 conducted by RITES Process IEs team (")
@@ -1618,6 +1711,23 @@ public class CertificateServiceImpl implements CertificateService {
             FinalInspectionDetails finalDetails) {
         logger.info("Building final certificate DTO for IC: {}", inspectionCall.getIcNumber());
 
+        // Determine effective call number for test results:
+        String effectiveCallNo = inspectionCall.getIcNumber();
+        if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null && !inspectionCall.getSourceIcNo().isBlank()) {
+            effectiveCallNo = extractCallNo(inspectionCall.getSourceIcNo());
+        }
+
+        // If finalDetails is null and this is a diverted call, fallback to source call's finalDetails
+        if (finalDetails == null && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
+            finalDetails = finalInspectionDetailsRepository.findByIcNumberWithCall(effectiveCallNo).orElse(null);
+            if (finalDetails == null) {
+                Optional<InspectionCall> sourceCallOpt = inspectionCallRepository.findByIcNumber(effectiveCallNo);
+                if (sourceCallOpt.isPresent()) {
+                    finalDetails = finalInspectionDetailsRepository.findByIcId(Long.valueOf(sourceCallOpt.get().getId())).orElse(null);
+                }
+            }
+        }
+
         // 2. Fetch Final Inspection Lot Details
         List<FinalInspectionLotDetails> lotDetails = new ArrayList<>();
         if (finalDetails != null) {
@@ -1633,6 +1743,9 @@ public class CertificateServiceImpl implements CertificateService {
         MainPoInformation mainPoInfo = mainPoInformationRepository
                 .findByInspectionCallNo(inspectionCall.getIcNumber())
                 .orElse(null);
+        if (mainPoInfo == null && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
+            mainPoInfo = mainPoInformationRepository.findByInspectionCallNo(effectiveCallNo).orElse(null);
+        }
 
         // 5. Load Sections Pre-calculated
         String poNo = inspectionCall.getPoNo();
@@ -1806,6 +1919,12 @@ public class CertificateServiceImpl implements CertificateService {
                 .ercType(inspectionCall.getErcType())
                 .lotDetails(buildFinalLotDetails(lotDetails))
                 .build();
+
+        dto.setIsDivertedMaterial(Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()));
+        if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null) {
+            String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
+            dto.setRemarks((dto.getRemarks() != null ? dto.getRemarks() : "") + divNote);
+        }
         end = System.currentTimeMillis();
         logger.info("Built FinalCertificateDto for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
 

@@ -8,6 +8,7 @@ import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.repository.processmaterial.ProcessInspectionDetailsRepository;
 import com.sarthi.repository.processmaterial.ProcessRmIcMappingRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
+import com.sarthi.repository.ercdiversion.ErcDiversionRequestRepository;
 import com.sarthi.service.ProcessInspectionCallService;
 import com.sarthi.service.InspectionCallService;
 import com.sarthi.util.IcNumberGenerator;
@@ -34,6 +35,7 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
     private final IcNumberGenerator icNumberGenerator;
     private final InspectionCallService inspectionCallService;
     private final com.sarthi.service.WorkflowService workflowService;
+    private final ErcDiversionRequestRepository ercDiversionRequestRepository;
 
     @Autowired
     public ProcessInspectionCallServiceImpl(
@@ -42,13 +44,15 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
             ProcessRmIcMappingRepository processMappingRepository,
             IcNumberGenerator icNumberGenerator,
             InspectionCallService inspectionCallService,
-            com.sarthi.service.WorkflowService workflowService) {
+            com.sarthi.service.WorkflowService workflowService,
+            ErcDiversionRequestRepository ercDiversionRequestRepository) {
         this.inspectionCallRepository = inspectionCallRepository;
         this.processDetailsRepository = processDetailsRepository;
         this.processMappingRepository = processMappingRepository;
         this.icNumberGenerator = icNumberGenerator;
         this.inspectionCallService = inspectionCallService;
         this.workflowService = workflowService;
+        this.ercDiversionRequestRepository = ercDiversionRequestRepository;
     }
 
     @Override
@@ -67,7 +71,8 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
         LocalDate today = LocalDate.now();
         long dailySequence = inspectionCallRepository.countByTypeOfCallAndCreatedDate("Process", today) + 1;
         String icNumber = icNumberGenerator.generateIcNumber("Process", dailySequence);
-        while (inspectionCallRepository.existsByIcNumber(icNumber)) {
+        while (inspectionCallRepository.existsByIcNumber(icNumber)
+                || ercDiversionRequestRepository.existsByRequestNo(icNumber)) {
             dailySequence++;
             icNumber = icNumberGenerator.generateIcNumber("Process", dailySequence);
         }
@@ -105,6 +110,22 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
         inspectionCall.setUpdatedBy(icRequest.getUpdatedBy());
         inspectionCall.setCreatedAt(LocalDateTime.now());
         inspectionCall.setUpdatedAt(LocalDateTime.now());
+
+        String nature = icRequest.getCallNature() != null ? icRequest.getCallNature()
+                : ("DIVERTED".equalsIgnoreCase(icRequest.getCallCategory()) ? "DIVERTED" : "FRESH");
+        inspectionCall.setCallNature(nature);
+        if (icRequest.getCallCategory() != null) {
+            inspectionCall.setCallCategory(icRequest.getCallCategory());
+        }
+        inspectionCall.setIsDivertedMaterial("DIVERTED".equalsIgnoreCase(nature)
+                || "DIVERTED".equalsIgnoreCase(icRequest.getCallCategory())
+                || Boolean.TRUE.equals(icRequest.getIsDivertedMaterial()));
+        if (icRequest.getDiversionRequestNo() != null) {
+            inspectionCall.setDiversionRequestNo(icRequest.getDiversionRequestNo());
+        }
+        if (icRequest.getSourceIcNo() != null) {
+            inspectionCall.setSourceIcNo(icRequest.getSourceIcNo());
+        }
 
         // Save inspection call first to get the ID
         inspectionCall = inspectionCallRepository.save(inspectionCall);

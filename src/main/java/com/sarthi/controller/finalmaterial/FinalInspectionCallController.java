@@ -277,12 +277,40 @@ public class FinalInspectionCallController {
      * GET /api/final-material/rm-ic-certificates?poSerialNo=xxx
      */
     @GetMapping("/rm-ic-certificates")
-    @Operation(summary = "Get RM IC certificate numbers", description = "Get RM IC certificate numbers from completed inspections, filtered by PO Serial Number")
-    public ResponseEntity<Object> getRmIcCertificates(@RequestParam String poSerialNo) {
-        logger.info("Fetching RM IC certificate numbers for PO Serial No: {}", poSerialNo);
-        List<RmIcCertWithDateDto> certificateNumbers = finalInspectionCallService.getRmIcCertificateNumbers(poSerialNo);
+    @Operation(summary = "Get RM IC certificate numbers", description = "Get RM IC certificate numbers from completed inspections, filtered by PO Serial Number and optionally callCategory")
+    public ResponseEntity<Object> getRmIcCertificates(
+            @RequestParam String poSerialNo,
+            @RequestParam(required = false) String callCategory) {
+        logger.info("Fetching RM IC certificate numbers for PO Serial No: {}, callCategory: {}", poSerialNo, callCategory);
+        List<RmIcCertWithDateDto> certificateNumbers = finalInspectionCallService.getRmIcCertificateNumbers(poSerialNo, callCategory);
         logger.info("Found {} RM IC certificate numbers", certificateNumbers.size());
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(certificateNumbers), HttpStatus.OK);
+    }
+
+    /**
+     * Get Diverted Process IC certificate numbers for target PO Serial Number
+     * GET /api/final-material/diverted-process-ics?poSerialNo=xxx
+     */
+    @GetMapping("/diverted-process-ics")
+    @Operation(summary = "Get Diverted Process IC certificates", description = "Get Diverted Process IC certificate numbers for target PO Serial Number")
+    public ResponseEntity<Object> getDivertedProcessIcs(@RequestParam String poSerialNo) {
+        logger.info("Fetching Diverted Process IC certificate numbers for PO Serial No: {}", poSerialNo);
+        List<ProcessIcCertWithDateDto> certificateNumbers = finalInspectionCallService
+                .getDivertedProcessIcCertificateNumbers(poSerialNo);
+        logger.info("Found {} Diverted Process IC certificate numbers", certificateNumbers.size());
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(certificateNumbers), HttpStatus.OK);
+    }
+
+    /**
+     * Get RM IC certificate numbers associated with a Process IC
+     * GET /api/final-material/rm-ic-by-process?processCertificateNo=xxx
+     */
+    @GetMapping("/rm-ic-by-process")
+    @Operation(summary = "Get RM ICs by Process IC", description = "Get RM IC certificate numbers associated with a given Process IC")
+    public ResponseEntity<Object> getRmIcsByProcessCertificate(@RequestParam String processCertificateNo) {
+        logger.info("Fetching RM IC certificate numbers for Process certificate: {}", processCertificateNo);
+        List<String> rmCerts = finalInspectionCallService.getRmIcsByProcessCertificate(processCertificateNo);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(rmCerts), HttpStatus.OK);
     }
 
     /**

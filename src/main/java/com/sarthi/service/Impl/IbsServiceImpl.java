@@ -17,6 +17,7 @@ import com.sarthi.entity.processmaterial.ProcessIcEdit;
 import com.sarthi.entity.processmaterial.ProcessLineFinalResult;
 import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.entity.rawmaterial.RmIcEdit;
+import com.sarthi.entity.InspectionCompleteDetails;
 import com.sarthi.entity.CallCancellationDetail;
 import com.sarthi.entity.WorkflowTransition;
 import com.sarthi.entity.WorkflowDeleteHistory;
@@ -967,6 +968,13 @@ public class IbsServiceImpl implements IbsService {
             log.info("[IBS-FETCH] getAllGeneratedIcCalls completed in {} ms returning {} calls",
                     System.currentTimeMillis() - overallStart, uniqueCalls.size());
 
+            // RM calls have no previous stage, so ic_linked_for_current_call must strictly be null
+            for (IbsInspectionDto dto : uniqueCalls.values()) {
+                if (dto != null && isRawMaterialCall(dto)) {
+                    dto.setIcLinkedForCurrentCall(null);
+                }
+            }
+
             return new ArrayList<>(uniqueCalls.values());
         } catch (Throwable t) {
             log.error("Error in getAllGeneratedIcCalls: {}", t.getMessage(), t);
@@ -1187,6 +1195,7 @@ public class IbsServiceImpl implements IbsService {
             if (matchedRegIds.contains(reg.getId())) continue;
             String cNo = reg.getCallNumber() != null ? reg.getCallNumber().trim() : "";
             if (cNo.isEmpty() || uniqueCalls.containsKey(cNo) || uniqueCalls.containsKey(cNo.toUpperCase())) continue;
+            if (isRmCallString(cNo)) continue;
             String upper = cNo.toUpperCase();
             if (upper.startsWith("EP") || upper.contains("EP-")) fallbackEpCallNos.add(cNo);
             else if (upper.startsWith("EF") || upper.contains("EF-")) fallbackEfCallNos.add(cNo);
@@ -1225,8 +1234,16 @@ public class IbsServiceImpl implements IbsService {
             );
             String docLink = completedDocLinks.get(callNo);
             dto.setUploadedInspectionCallDocument(docLink);
-            if (fallbackLinkedIcs.containsKey(callNo)) {
+            String upperCall = callNo.toUpperCase();
+            if (isRawMaterialCall(dto) || isRmCallString(callNo)
+                    || upperCall.startsWith("ER") || upperCall.contains("ER-") || upperCall.contains("/ER")
+                    || "RM".equalsIgnoreCase(dto.getTypeOfCall())
+                    || "RAW MATERIAL".equalsIgnoreCase(dto.getTypeOfCall())) {
+                dto.setIcLinkedForCurrentCall(null);
+            } else if (fallbackLinkedIcs.containsKey(callNo)) {
                 dto.setIcLinkedForCurrentCall(fallbackLinkedIcs.get(callNo));
+            } else if (fallbackLinkedIcs.containsKey(callNo.toUpperCase())) {
+                dto.setIcLinkedForCurrentCall(fallbackLinkedIcs.get(callNo.toUpperCase()));
             }
             dto.setIsBlocked(0);
             dto.setCancellationCharges(0.0);
@@ -1236,6 +1253,13 @@ public class IbsServiceImpl implements IbsService {
 
         // Batch-enrich cancelled calls: zero N+1 queries (batched via IN-clause or fast-path in-memory)
         batchEnrichCancelledCallEmployeeCodes(uniqueCalls.values());
+
+        // Strictly enforce null linked IC for any RM calls
+        for (IbsInspectionDto dto : uniqueCalls.values()) {
+            if (dto != null && isRawMaterialCall(dto)) {
+                dto.setIcLinkedForCurrentCall(null);
+            }
+        }
 
         return new ArrayList<>(uniqueCalls.values());
     }
@@ -1541,17 +1565,66 @@ public class IbsServiceImpl implements IbsService {
         }
     }
 
+    private boolean isRawMaterialCall(IbsInspectionDto dto) {
+        if (dto == null) return false;
+        String typeOfCall = dto.getTypeOfCall() != null ? dto.getTypeOfCall().trim().toUpperCase() : "";
+        if ("RM".equals(typeOfCall) || "RAW MATERIAL".equals(typeOfCall)
+                || typeOfCall.contains("RAW MATERIAL") || typeOfCall.contains("RAW_MATERIAL")) {
+            return true;
+        }
+        String callNo = dto.getCallNumber() != null ? dto.getCallNumber() : "";
+        if (isRmCallString(callNo)) {
+            return true;
+        }
+        String icNo = dto.getIcNumber() != null ? dto.getIcNumber() : "";
+        if (isRmCallString(icNo)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isRmCallString(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        String s = raw.trim().toUpperCase().replaceAll("\\s+", "");
+        if (s.startsWith("ER-") || s.contains("ER-") || s.contains("/ER-") || s.contains("-ER-")) {
+            return true;
+        }
+        if (s.startsWith("ER") && s.length() > 2 && Character.isDigit(s.charAt(2))) {
+            return true;
+        }
+        if (s.contains("/ER") && (s.contains("/ER/") || s.matches(".*\\/ER\\d+.*"))) {
+            return true;
+        }
+        if (s.contains("/")) {
+            for (String part : s.split("/")) {
+                String p = part.trim();
+                if (p.startsWith("ER-") || (p.startsWith("ER") && p.length() > 2 && Character.isDigit(p.charAt(2)))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private void enrichLinkedParentIcs(Collection<IbsInspectionDto> dtos) {
         if (dtos == null || dtos.isEmpty()) return;
+
+        // Raw material calls (e.g. ER-123) have no parent inspection stage, so linked IC must strictly be null
+        for (IbsInspectionDto dto : dtos) {
+            if (dto != null && isRawMaterialCall(dto)) {
+                dto.setIcLinkedForCurrentCall(null);
+            }
+        }
+
         Set<String> epCallNos = new HashSet<>();
         Set<String> efCallNos = new HashSet<>();
         Set<String> rpfCallNos = new HashSet<>();
 
         for (IbsInspectionDto dto : dtos) {
-            if (dto == null || "C".equalsIgnoreCase(dto.getCallStatus())) continue;
+            if (dto == null || "C".equalsIgnoreCase(dto.getCallStatus()) || isRawMaterialCall(dto)) continue;
             String cNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
             if (cNo.isBlank()) cNo = dto.getIcNumber() != null ? dto.getIcNumber().trim() : "";
-            if (cNo.isBlank()) continue;
+            if (cNo.isBlank() || isRmCallString(cNo)) continue;
 
             String upper = cNo.toUpperCase();
             if (upper.startsWith("EP") || upper.contains("EP-") || upper.contains("/EP")) {
@@ -1585,8 +1658,16 @@ public class IbsServiceImpl implements IbsService {
 
         for (IbsInspectionDto dto : dtos) {
             if (dto == null || "C".equalsIgnoreCase(dto.getCallStatus())) continue;
+            if (isRawMaterialCall(dto)) {
+                dto.setIcLinkedForCurrentCall(null);
+                continue;
+            }
             String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
             String icNo = dto.getIcNumber() != null ? dto.getIcNumber().trim() : "";
+            if (isRmCallString(callNo) || isRmCallString(icNo)) {
+                dto.setIcLinkedForCurrentCall(null);
+                continue;
+            }
 
             String linkedIc = batchLinkedIcs.get(callNo);
             if (linkedIc == null && !callNo.isEmpty()) linkedIc = batchLinkedIcs.get(callNo.toUpperCase());
@@ -1725,8 +1806,12 @@ public class IbsServiceImpl implements IbsService {
 
         // 1. ERC Process (EP) -> Raw Material IC (starts with ER)
         if (epCallNos != null && !epCallNos.isEmpty() && processRmIcMappingRepository != null) {
-            try {
-                List<Object[]> rows = processRmIcMappingRepository.findBatchRmIcByProcessCallNos(epCallNos);
+            Set<String> cleanEpCallNos = epCallNos.stream()
+                    .filter(c -> !isRmCallString(c))
+                    .collect(Collectors.toSet());
+            if (!cleanEpCallNos.isEmpty()) {
+                try {
+                    List<Object[]> rows = processRmIcMappingRepository.findBatchRmIcByProcessCallNos(cleanEpCallNos);
                 if (rows != null) {
                     for (Object[] r : rows) {
                         if (r == null || r.length < 2) continue;
@@ -1747,6 +1832,10 @@ public class IbsServiceImpl implements IbsService {
                 }
             } catch (Exception e) {
                 log.warn("Error in batch prefetching EP linked RM IC numbers: {}", e.getMessage());
+            }
+
+                // Diverted call fallback for any EP calls that did not resolve an RM IC
+                resolveDivertedEpCalls(cleanEpCallNos, rawMap, callsToResolveSet);
             }
         }
 
@@ -1775,6 +1864,9 @@ public class IbsServiceImpl implements IbsService {
             } catch (Exception e) {
                 log.warn("Error in batch prefetching EF linked Process IC numbers: {}", e.getMessage());
             }
+
+            // Diverted call fallback for any EF calls that did not resolve a Process IC
+            resolveDivertedEfCalls(efCallNos, rawMap, callsToResolveSet);
         }
 
         // 3. Railpad Final (RPF) -> Process IC (starts with RPP)
@@ -1845,10 +1937,36 @@ public class IbsServiceImpl implements IbsService {
                     log.warn("Error resolving railpad certificate numbers: {}", e.getMessage());
                 }
             }
+
+            // Fallback lookup via RmIcEditRepository and ProcessIcEditRepository for remaining plain call numbers
+            for (String cn : callsToResolveSet) {
+                if (cn == null || cn.isBlank() || certLookupMap.containsKey(cn.toUpperCase())) continue;
+                String upperCn = cn.toUpperCase();
+                if (upperCn.startsWith("ER") && rmIcEditRepository != null) {
+                    try {
+                        Optional<RmIcEdit> rieOpt = rmIcEditRepository.findByIcNumber(cn.trim());
+                        if (rieOpt.isPresent() && rieOpt.get().getIcNumber() != null && !rieOpt.get().getIcNumber().isBlank()) {
+                            String cert = rieOpt.get().getIcNumber().trim();
+                            certLookupMap.put(cn.toUpperCase(), cert);
+                            certLookupMap.put(cn, cert);
+                        }
+                    } catch (Exception ignored) {}
+                } else if (upperCn.startsWith("EP") && processIcEditRepository != null) {
+                    try {
+                        Optional<ProcessIcEdit> pieOpt = processIcEditRepository.findByIcNumber(cn.trim());
+                        if (pieOpt.isPresent() && pieOpt.get().getIcNumber() != null && !pieOpt.get().getIcNumber().isBlank()) {
+                            String cert = pieOpt.get().getIcNumber().trim();
+                            certLookupMap.put(cn.toUpperCase(), cert);
+                            certLookupMap.put(cn, cert);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
         }
 
         // 5. Populate final result map with full certificate numbers
         for (Map.Entry<String, Set<String>> entry : rawMap.entrySet()) {
+            if (isRmCallString(entry.getKey())) continue;
             Set<String> resolvedCertNums = new LinkedHashSet<>();
             for (String token : entry.getValue()) {
                 if (token.contains("/")) {
@@ -1871,6 +1989,306 @@ public class IbsServiceImpl implements IbsService {
         }
 
         return resultMap;
+    }
+
+    private String extractCallNo(String certNo) {
+        if (certNo == null || certNo.trim().isEmpty()) {
+            return null;
+        }
+        String clean = certNo.trim();
+        if (clean.toLowerCase().endsWith(".pdf")) {
+            clean = clean.substring(0, clean.length() - 4).trim();
+        }
+        try {
+            if (inspectionCompleteDetailsRepository != null) {
+                Optional<InspectionCompleteDetails> icd = inspectionCompleteDetailsRepository.findByCertificateNo(clean);
+                if (icd.isPresent() && icd.get().getCallNo() != null && !icd.get().getCallNo().trim().isEmpty()) {
+                    return icd.get().getCallNo().trim();
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not find call number for certificate {}: {}", clean, e.getMessage());
+        }
+        if (clean.contains("/")) {
+            String[] parts = clean.split("/");
+            for (String p : parts) {
+                String trimmed = p.trim();
+                String upper = trimmed.toUpperCase();
+                if (upper.startsWith("EP-") || upper.startsWith("ER-") || upper.startsWith("EF-")
+                        || upper.startsWith("RPP-") || upper.startsWith("RPF-") || upper.startsWith("SF-")) {
+                    return trimmed;
+                }
+            }
+            if (parts.length >= 2 && !parts[1].trim().isEmpty()) {
+                return parts[1].trim();
+            }
+        }
+        return clean;
+    }
+
+    private void resolveDivertedEpCalls(Set<String> epCallNos, Map<String, Set<String>> rawMap, Set<String> callsToResolveSet) {
+        if (inspectionCallsRepository == null || epCallNos == null || epCallNos.isEmpty()) return;
+
+        try {
+            List<String> unresolvedCalls = epCallNos.stream()
+                    .filter(c -> c != null && !c.isBlank() && !isRmCallString(c) && !rawMap.containsKey(c.trim()) && !rawMap.containsKey(c.trim().toUpperCase()))
+                    .map(String::trim)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            if (unresolvedCalls.isEmpty()) return;
+
+            List<InspectionCall> calls = inspectionCallsRepository.findByIcNumberIn(unresolvedCalls);
+            if (calls == null || calls.isEmpty()) return;
+
+            for (InspectionCall call : calls) {
+                if (call == null) continue;
+                boolean isDiverted = Boolean.TRUE.equals(call.getIsDivertedMaterial())
+                        || (call.getSourceIcNo() != null && !call.getSourceIcNo().isBlank())
+                        || "DIVERTED_PASSED".equalsIgnoreCase(call.getCallCategory());
+
+                if (!isDiverted) continue;
+
+                String callNo = call.getIcNumber() != null ? call.getIcNumber().trim() : "";
+                String sourceIcNo = call.getSourceIcNo() != null ? call.getSourceIcNo().trim() : "";
+                if (callNo.isEmpty() || sourceIcNo.isEmpty()) continue;
+
+                log.info("[IBS-FETCH] Resolving linked RM IC for diverted call {} with sourceIcNo={}", callNo, sourceIcNo);
+
+                // Case 1: sourceIcNo itself is already an RM IC (starts with ER or contains ER)
+                String upperSource = sourceIcNo.toUpperCase();
+                if (upperSource.contains("ER-") || upperSource.contains("/ER") || upperSource.startsWith("ER")) {
+                    String token = extractCallToken(sourceIcNo, "ER");
+                    if (token != null && !token.isEmpty()) {
+                        rawMap.computeIfAbsent(callNo, k -> new LinkedHashSet<>()).add(token);
+                        if (!token.contains("/")) {
+                            callsToResolveSet.add(token);
+                        }
+                        continue;
+                    }
+                }
+
+                // Case 2: sourceIcNo is a Process IC -> find RM IC linked to that source Process IC
+                Set<String> foundRmIcs = findLinkedRmIcsForProcessSource(sourceIcNo, 0);
+                if (foundRmIcs != null && !foundRmIcs.isEmpty()) {
+                    for (String rmVal : foundRmIcs) {
+                        String token = extractCallToken(rmVal, "ER");
+                        if (token != null && !token.isEmpty()) {
+                            rawMap.computeIfAbsent(callNo, k -> new LinkedHashSet<>()).add(token);
+                            if (!token.contains("/")) {
+                                callsToResolveSet.add(token);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error resolving diverted EP calls linked RM IC: {}", e.getMessage(), e);
+        }
+    }
+
+    private Set<String> findLinkedRmIcsForProcessSource(String sourceIcNo, int depth) {
+        Set<String> result = new LinkedHashSet<>();
+        if (sourceIcNo == null || sourceIcNo.isBlank() || depth > 5) {
+            return result;
+        }
+
+        String sourceCallNo = extractCallNo(sourceIcNo);
+        if (sourceCallNo == null || sourceCallNo.isBlank()) {
+            sourceCallNo = sourceIcNo.trim();
+        }
+
+        // 1. Check process_rm_ic_mapping
+        if (processRmIcMappingRepository != null) {
+            List<String> candidates = new ArrayList<>();
+            candidates.add(sourceCallNo);
+            if (!sourceCallNo.equalsIgnoreCase(sourceIcNo.trim())) {
+                candidates.add(sourceIcNo.trim());
+            }
+            try {
+                List<Object[]> rows = processRmIcMappingRepository.findBatchRmIcByProcessCallNos(candidates);
+                if (rows != null) {
+                    for (Object[] r : rows) {
+                        if (r == null || r.length < 2) continue;
+                        String rmVal = safeString(r[1]);
+                        if (rmVal != null && !rmVal.isBlank()) {
+                            for (String p : rmVal.split("[,;]+")) {
+                                if (!p.trim().isEmpty()) {
+                                    result.add(p.trim());
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error querying processRmIcMappingRepository for source {}: {}", sourceCallNo, e.getMessage());
+            }
+        }
+
+        // 2. Check process_inspection_details
+        if (result.isEmpty() && inspectionCallsRepository != null && processInspectionDetailsRepository != null) {
+            try {
+                Optional<InspectionCall> srcCallOpt = inspectionCallsRepository.findByIcNumber(sourceCallNo);
+                if (srcCallOpt.isPresent()) {
+                    InspectionCall srcCall = srcCallOpt.get();
+                    List<ProcessInspectionDetails> pids = processInspectionDetailsRepository.findByIcId(
+                            Long.valueOf(srcCall.getId()));
+                    if (pids != null) {
+                        for (ProcessInspectionDetails pid : pids) {
+                            String rmVal = pid.getRmIcNumber();
+                            if (rmVal != null && !rmVal.isBlank()) {
+                                for (String p : rmVal.split("[,;]+")) {
+                                    if (!p.trim().isEmpty()) {
+                                        result.add(p.trim());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Diversion chain recursion
+                    if (result.isEmpty() && (Boolean.TRUE.equals(srcCall.getIsDivertedMaterial()) || srcCall.getSourceIcNo() != null)) {
+                        String parentSource = srcCall.getSourceIcNo();
+                        if (parentSource != null && !parentSource.isBlank() && !parentSource.equalsIgnoreCase(sourceIcNo)) {
+                            result.addAll(findLinkedRmIcsForProcessSource(parentSource, depth + 1));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error checking processInspectionDetailsRepository for source {}: {}", sourceCallNo, e.getMessage());
+            }
+        }
+
+        return result;
+    }
+
+    private void resolveDivertedEfCalls(Set<String> efCallNos, Map<String, Set<String>> rawMap, Set<String> callsToResolveSet) {
+        if (inspectionCallsRepository == null || efCallNos == null || efCallNos.isEmpty()) return;
+
+        try {
+            List<String> unresolvedCalls = efCallNos.stream()
+                    .filter(c -> c != null && !c.isBlank() && !rawMap.containsKey(c.trim()) && !rawMap.containsKey(c.trim().toUpperCase()))
+                    .map(String::trim)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            if (unresolvedCalls.isEmpty()) return;
+
+            List<InspectionCall> calls = inspectionCallsRepository.findByIcNumberIn(unresolvedCalls);
+            if (calls == null || calls.isEmpty()) return;
+
+            for (InspectionCall call : calls) {
+                if (call == null) continue;
+                boolean isDiverted = Boolean.TRUE.equals(call.getIsDivertedMaterial())
+                        || (call.getSourceIcNo() != null && !call.getSourceIcNo().isBlank())
+                        || "DIVERTED_PASSED".equalsIgnoreCase(call.getCallCategory());
+
+                if (!isDiverted) continue;
+
+                String callNo = call.getIcNumber() != null ? call.getIcNumber().trim() : "";
+                String sourceIcNo = call.getSourceIcNo() != null ? call.getSourceIcNo().trim() : "";
+                if (callNo.isEmpty() || sourceIcNo.isEmpty()) continue;
+
+                log.info("[IBS-FETCH] Resolving linked Process IC for diverted Final call {} with sourceIcNo={}", callNo, sourceIcNo);
+
+                String upperSource = sourceIcNo.toUpperCase();
+                if (upperSource.contains("EP-") || upperSource.contains("/EP") || upperSource.startsWith("EP")) {
+                    String token = extractCallToken(sourceIcNo, "EP");
+                    if (token != null && !token.isEmpty()) {
+                        rawMap.computeIfAbsent(callNo, k -> new LinkedHashSet<>()).add(token);
+                        if (!token.contains("/")) {
+                            callsToResolveSet.add(token);
+                        }
+                        continue;
+                    }
+                }
+
+                Set<String> foundProcIcs = findLinkedProcessIcsForFinalSource(sourceIcNo, 0);
+                if (foundProcIcs != null && !foundProcIcs.isEmpty()) {
+                    for (String procVal : foundProcIcs) {
+                        String token = extractCallToken(procVal, "EP");
+                        if (token != null && !token.isEmpty()) {
+                            rawMap.computeIfAbsent(callNo, k -> new LinkedHashSet<>()).add(token);
+                            if (!token.contains("/")) {
+                                callsToResolveSet.add(token);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error resolving diverted EF calls linked Process IC: {}", e.getMessage(), e);
+        }
+    }
+
+    private Set<String> findLinkedProcessIcsForFinalSource(String sourceIcNo, int depth) {
+        Set<String> result = new LinkedHashSet<>();
+        if (sourceIcNo == null || sourceIcNo.isBlank() || depth > 5) {
+            return result;
+        }
+
+        String sourceCallNo = extractCallNo(sourceIcNo);
+        if (sourceCallNo == null || sourceCallNo.isBlank()) {
+            sourceCallNo = sourceIcNo.trim();
+        }
+
+        if (finalProcessIcMappingRepository != null) {
+            List<String> candidates = new ArrayList<>();
+            candidates.add(sourceCallNo);
+            if (!sourceCallNo.equalsIgnoreCase(sourceIcNo.trim())) {
+                candidates.add(sourceIcNo.trim());
+            }
+            try {
+                List<Object[]> rows = finalProcessIcMappingRepository.findBatchProcessIcByFinalCallNos(candidates);
+                if (rows != null) {
+                    for (Object[] r : rows) {
+                        if (r == null || r.length < 2) continue;
+                        String procVal = safeString(r[1]);
+                        if (procVal != null && !procVal.isBlank()) {
+                            for (String p : procVal.split("[,;]+")) {
+                                if (!p.trim().isEmpty()) {
+                                    result.add(p.trim());
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error querying finalProcessIcMappingRepository for source {}: {}", sourceCallNo, e.getMessage());
+            }
+        }
+
+        if (result.isEmpty() && inspectionCallsRepository != null && finalInspectionDetailsRepository != null) {
+            try {
+                Optional<InspectionCall> srcCallOpt = inspectionCallsRepository.findByIcNumber(sourceCallNo);
+                if (srcCallOpt.isPresent()) {
+                    InspectionCall srcCall = srcCallOpt.get();
+                    Optional<FinalInspectionDetails> fidOpt = finalInspectionDetailsRepository.findByIcId(
+                            Long.valueOf(srcCall.getId()));
+                    if (fidOpt.isPresent()) {
+                        String procVal = fidOpt.get().getProcessIcNumber();
+                        if (procVal != null && !procVal.isBlank()) {
+                            for (String p : procVal.split("[,;]+")) {
+                                if (!p.trim().isEmpty()) {
+                                    result.add(p.trim());
+                                }
+                            }
+                        }
+                    }
+
+                    if (result.isEmpty() && (Boolean.TRUE.equals(srcCall.getIsDivertedMaterial()) || srcCall.getSourceIcNo() != null)) {
+                        String parentSource = srcCall.getSourceIcNo();
+                        if (parentSource != null && !parentSource.isBlank() && !parentSource.equalsIgnoreCase(sourceIcNo)) {
+                            result.addAll(findLinkedProcessIcsForFinalSource(parentSource, depth + 1));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error checking finalInspectionDetailsRepository for source {}: {}", sourceCallNo, e.getMessage());
+            }
+        }
+
+        return result;
     }
 
     private List<IbsInspectionDto> mapResult(

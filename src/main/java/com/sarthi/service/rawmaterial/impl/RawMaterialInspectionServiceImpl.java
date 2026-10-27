@@ -19,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
@@ -136,35 +138,58 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
 
         @Override
         public List<RmIcCertWithDateDto> getCompletedRmIcNumbers(String poSerialNo) {
-                logger.info("Fetching completed RM IC certificate numbers for PO Serial No: {}", poSerialNo);
+                return getCompletedRmIcNumbers(poSerialNo, null);
+        }
+
+        @Override
+        public List<RmIcCertWithDateDto> getCompletedRmIcNumbers(String poSerialNo, String callCategory) {
+                logger.info("Fetching completed RM IC certificate numbers for PO Serial No: {}, callCategory: {}", poSerialNo, callCategory);
 
                 List<Object[]> results;
+                boolean isDiverted = "DIVERTED".equalsIgnoreCase(callCategory);
+
                 if (poSerialNo != null && !poSerialNo.trim().isEmpty()) {
-                        logger.info("Using PO Serial-filtered query for PO Serial No: {}", poSerialNo);
-                        results = inspectionCompleteDetailsRepository
-                                        .findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+                        if (isDiverted) {
+                                logger.info("Using PO Serial-filtered query for Diverted RM ICs: {}", poSerialNo);
+                                results = inspectionCompleteDetailsRepository
+                                                .findDivertedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+                        } else if ("FRESH".equalsIgnoreCase(callCategory)) {
+                                logger.info("Using PO Serial-filtered query for Fresh RM ICs: {}", poSerialNo);
+                                results = inspectionCompleteDetailsRepository
+                                                .findFreshCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+                        } else {
+                                logger.info("Using PO Serial-filtered query for PO Serial No: {}", poSerialNo);
+                                results = inspectionCompleteDetailsRepository
+                                                .findCompletedRmIcCertificateNumbersWithDateByPoSerialNo(poSerialNo);
+                        }
                 } else {
                         logger.info("No PO Serial filter provided, fetching all ER ICs");
                         results = inspectionCompleteDetailsRepository.findAllCompletedRmIcsWithDate();
                 }
 
-                List<RmIcCertWithDateDto> allIcs = results.stream()
-                                .map(row -> {
-                                        String certNo = (String) row[0];
-                                        LocalDateTime date = null;
-                                        if (row[1] != null) {
-                                                if (row[1] instanceof java.sql.Timestamp) {
-                                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
-                                                } else if (row[1] instanceof LocalDateTime) {
-                                                        date = (LocalDateTime) row[1];
-                                                }
-                                        }
-                                        return new RmIcCertWithDateDto(certNo, date);
-                                })
-                                .filter(dto -> dto.getCertificateNo() != null && !dto.getCertificateNo().isEmpty())
-                                .collect(Collectors.toList());
+                Map<String, RmIcCertWithDateDto> certMap = new LinkedHashMap<>();
+                for (Object[] row : results) {
+                        String certNo = (String) row[0];
+                        if (certNo == null || certNo.trim().isEmpty()) continue;
+                        certNo = certNo.trim();
+                        LocalDateTime date = null;
+                        if (row[1] != null) {
+                                if (row[1] instanceof java.sql.Timestamp) {
+                                        date = ((java.sql.Timestamp) row[1]).toLocalDateTime();
+                                } else if (row[1] instanceof LocalDateTime) {
+                                        date = (LocalDateTime) row[1];
+                                }
+                        }
+                        final LocalDateTime fDate = date;
+                        certMap.merge(certNo, new RmIcCertWithDateDto(certNo, fDate), (existing, replace) -> {
+                                if (existing.getCreatedAt() == null) return replace;
+                                if (replace.getCreatedAt() == null) return existing;
+                                return replace.getCreatedAt().isAfter(existing.getCreatedAt()) ? replace : existing;
+                        });
+                }
+                List<RmIcCertWithDateDto> allIcs = new ArrayList<>(certMap.values());
 
-                if (allIcs.isEmpty()) return allIcs;
+                if (allIcs.isEmpty() || isDiverted) return allIcs;
 
                 List<String> callNos = allIcs.stream()
                                 .map((RmIcCertWithDateDto dto) -> extractCallNoFromCert(dto.getCertificateNo()))
@@ -326,6 +351,11 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                                 .unitName(entity.getUnitName())
                                 .unitAddress(entity.getUnitAddress())
                                 .remarks(entity.getRemarks())
+                                .callCategory(entity.getCallCategory())
+                                .callNature(entity.getCallNature())
+                                .isDivertedMaterial(entity.getIsDivertedMaterial())
+                                .diversionRequestNo(entity.getDiversionRequestNo())
+                                .sourceIcNo(entity.getSourceIcNo())
                                 .createdBy(entity.getCreatedBy())
                                 .updatedBy(entity.getUpdatedBy())
                                 .createdAt(String.valueOf(entity.getCreatedAt()))
