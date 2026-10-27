@@ -43,13 +43,39 @@ public class RailVisualInspectionServiceImpl implements RailVisualInspectionServ
 
     @Override
     public List<RailVisualInspectionDto> getList(String plantId, String vendorCode) {
+        return getList(plantId, vendorCode, null, null);
+    }
+
+    @Override
+    public List<RailVisualInspectionDto> getList(String plantId, String vendorCode, String fromDate, String toDate) {
         try {
-            return repository.findByPlantIdAndVendorCodeOrderByTimestampDesc(plantId, vendorCode)
-                    .stream()
+            String cleanPlantId = (plantId != null && plantId.startsWith(":")) ? plantId.substring(1) : plantId;
+            String colonPlantId = (plantId != null && !plantId.startsWith(":")) ? ":" + plantId : plantId;
+
+            List<RailVisualInspection> list = repository.findByPlantIdAndVendorCodeOrderByTimestampDesc(plantId, vendorCode);
+            if ((list == null || list.isEmpty()) && cleanPlantId != null && !cleanPlantId.equals(plantId)) {
+                list = repository.findByPlantIdAndVendorCodeOrderByTimestampDesc(cleanPlantId, vendorCode);
+            } else if ((list == null || list.isEmpty()) && colonPlantId != null && !colonPlantId.equals(plantId)) {
+                list = repository.findByPlantIdAndVendorCodeOrderByTimestampDesc(colonPlantId, vendorCode);
+            }
+
+            if (list == null) return java.util.Collections.emptyList();
+
+            return list.stream()
+                    .filter(e -> {
+                        String d = e.getCastingDate();
+                        if ((d == null || d.isBlank()) && e.getTimestamp() != null && e.getTimestamp().length() >= 10) {
+                            d = e.getTimestamp().substring(0, 10);
+                        }
+                        if (d == null) return true;
+                        if (fromDate != null && !fromDate.isBlank() && d.compareTo(fromDate) < 0) return false;
+                        if (toDate != null && !toDate.isBlank() && d.compareTo(toDate) > 0) return false;
+                        return true;
+                    })
                     .map(this::mapEntityToDto)
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch visual inspections: " + e.getMessage());
+            return java.util.Collections.emptyList();
         }
     }
 

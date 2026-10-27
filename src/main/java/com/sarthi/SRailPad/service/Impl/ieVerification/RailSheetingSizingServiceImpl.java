@@ -78,11 +78,35 @@ public class RailSheetingSizingServiceImpl implements RailSheetingSizingService 
 
     @Override
     public List<RailSheetingSizingDto> getSheetingSizingByPlantAndVendor(String plantId, String vendorCode) {
+        return getSheetingSizingByPlantAndVendor(plantId, vendorCode, null, null);
+    }
+
+    @Override
+    public List<RailSheetingSizingDto> getSheetingSizingByPlantAndVendor(String plantId, String vendorCode, String fromDate, String toDate) {
+        String cleanPlantId = (plantId != null && plantId.startsWith(":")) ? plantId.substring(1) : plantId;
+        String colonPlantId = (plantId != null && !plantId.startsWith(":")) ? ":" + plantId : plantId;
+
         List<RailSheetingSizing> list = repository.findByPlantIdAndVendorCodeOrderByCreatedDateDesc(plantId, vendorCode);
-        return list.stream().map(entity -> {
-            RailSheetingSizingDto dto = new RailSheetingSizingDto();
-            BeanUtils.copyProperties(entity, dto);
-            return dto;
-        }).collect(Collectors.toList());
+        if ((list == null || list.isEmpty()) && cleanPlantId != null && !cleanPlantId.equals(plantId)) {
+            list = repository.findByPlantIdAndVendorCodeOrderByCreatedDateDesc(cleanPlantId, vendorCode);
+        } else if ((list == null || list.isEmpty()) && colonPlantId != null && !colonPlantId.equals(plantId)) {
+            list = repository.findByPlantIdAndVendorCodeOrderByCreatedDateDesc(colonPlantId, vendorCode);
+        }
+
+        if (list == null) return java.util.Collections.emptyList();
+
+        return list.stream()
+                .filter(entity -> {
+                    String d = entity.getCreatedDate() != null ? entity.getCreatedDate().toLocalDate().toString() : null;
+                    if (d == null) return true;
+                    if (fromDate != null && !fromDate.isBlank() && d.compareTo(fromDate) < 0) return false;
+                    if (toDate != null && !toDate.isBlank() && d.compareTo(toDate) > 0) return false;
+                    return true;
+                })
+                .map(entity -> {
+                    RailSheetingSizingDto dto = new RailSheetingSizingDto();
+                    BeanUtils.copyProperties(entity, dto);
+                    return dto;
+                }).collect(Collectors.toList());
     }
 }

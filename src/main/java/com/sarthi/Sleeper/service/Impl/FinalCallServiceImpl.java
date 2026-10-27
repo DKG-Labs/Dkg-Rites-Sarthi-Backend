@@ -667,7 +667,10 @@ public class FinalCallServiceImpl implements FinalCallService {
 
         // Save / Update batch results
         if (dto.getBatches() != null && !dto.getBatches().isEmpty()) {
-            // Remove existing batch results if any
+            // Remove existing batch results through the owning collection (orphanRemoval), so stale rows are not re-persisted by the cascade
+            if (saved.getBatchResults() != null) {
+                saved.getBatchResults().clear();
+            }
             sleeperBatchResultRepository.deleteBySleeperFinalResultId(saved.getId());
             sleeperBatchResultRepository.flush();
 
@@ -703,6 +706,9 @@ public class FinalCallServiceImpl implements FinalCallService {
                 batchEntities.add(bEntity);
             }
             sleeperBatchResultRepository.saveAll(batchEntities);
+            if (saved.getBatchResults() != null) {
+                saved.getBatchResults().addAll(batchEntities);
+            }
         }
 
         return saved;

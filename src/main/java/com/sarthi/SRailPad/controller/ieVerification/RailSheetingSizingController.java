@@ -50,9 +50,11 @@ public class RailSheetingSizingController {
     @GetMapping("/list")
     public ResponseEntity<?> getSheetingSizingList(
             @RequestParam String plantId,
-            @RequestParam String vendorCode) {
+            @RequestParam String vendorCode,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
         try {
-            List<RailSheetingSizingDto> list = service.getSheetingSizingByPlantAndVendor(plantId, vendorCode);
+            List<RailSheetingSizingDto> list = service.getSheetingSizingByPlantAndVendor(plantId, vendorCode, fromDate, toDate);
             return new ResponseEntity<>(list, HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);

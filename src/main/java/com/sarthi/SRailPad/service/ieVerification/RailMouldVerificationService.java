@@ -13,4 +13,6 @@ public interface RailMouldVerificationService {
     void deleteMouldVerification(Long id);
 
     List<RailMouldVerificationDto> getMouldVerifications(String plantId, String vendorCode);
+
+    List<RailMouldVerificationDto> getMouldVerifications(String plantId, String vendorCode, String fromDate, String toDate);
 }

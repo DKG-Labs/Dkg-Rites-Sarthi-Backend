@@ -4,6 +4,7 @@ import com.sarthi.dto.crisDtos.UdmRejectionDTO;
 import com.sarthi.entity.UdmRejection;
 import com.sarthi.repository.UdmRejectionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -19,9 +20,14 @@ public class UdmRejectionService {
 
     public List<UdmRejectionDTO> getConsigneeRejections(String rejDate, String poNo,
                                                          String vendorCode, String type) {
-        LocalDate date = parseDate(rejDate);
-
-        List<UdmRejection> records = repository.findByFetchedDate(date);
+        List<UdmRejection> records;
+        if (rejDate != null && !rejDate.isBlank()) {
+            LocalDate date = LocalDate.parse(rejDate.trim(), DateTimeFormatter.ISO_LOCAL_DATE);
+            records = repository.findByFetchedDate(date);
+        } else {
+            records = repository.findAll(
+                Sort.by(Sort.Direction.DESC, "fetchedDate", "rejectionDate"));
+        }
 
         return records.stream()
                 .filter(r -> poNo == null || poNo.isBlank() ||
@@ -32,15 +38,6 @@ public class UdmRejectionService {
                         type.equalsIgnoreCase(r.getTypeOfRejection()))
                 .map(this::toDto)
                 .collect(Collectors.toList());
-    }
-
-    private LocalDate parseDate(String rejDate) {
-        if (rejDate != null && !rejDate.isBlank()) {
-            try {
-                return LocalDate.parse(rejDate.trim(), DateTimeFormatter.ISO_LOCAL_DATE);
-            } catch (Exception ignored) {}
-        }
-        return LocalDate.now().minusDays(1);
     }
 
     private UdmRejectionDTO toDto(UdmRejection e) {

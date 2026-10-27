@@ -15,4 +15,6 @@ public interface RailSheetingSizingService {
     RailSheetingSizingDto getSheetingSizingById(Long id);
     
     List<RailSheetingSizingDto> getSheetingSizingByPlantAndVendor(String plantId, String vendorCode);
+    
+    List<RailSheetingSizingDto> getSheetingSizingByPlantAndVendor(String plantId, String vendorCode, String fromDate, String toDate);
 }

@@ -4,6 +4,7 @@ import com.sarthi.SRailPad.dto.plantDeclaration.ApprovedAshSGRequestDto;
 import com.sarthi.SRailPad.dto.plantDeclaration.ApprovedAshSGResponseDto;
 import com.sarthi.SRailPad.service.plantDeclaration.RailApprovedAshSGService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,8 +29,13 @@ public class RailApprovedAshSGController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApprovedAshSGResponseDto> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(service.getById(id));
+    public ResponseEntity<?> getById(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(service.getById(id));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(java.util.Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/vendor/{vendorCode}")

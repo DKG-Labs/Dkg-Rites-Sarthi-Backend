@@ -1719,30 +1719,38 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
 
+        // Frontend may send a comma-separated multi-role string (e.g. "Rail Main IE, IE").
+        // Split and find whether "Rail Main IE" is one of the roles.
+        boolean isMainIE = java.util.Arrays.stream(roleName.split(","))
+                .map(String::trim)
+                .anyMatch(r -> r.equalsIgnoreCase("Rail Main IE"));
+        // Use the canonical single role name for DB queries
+        String dbRoleName = isMainIE ? "Rail Main IE" : roleName.split(",")[0].trim();
+
         if (workflowId != null || moduleId != null) {
-            if (roleName.equalsIgnoreCase("Rail Main IE")) {
+            if (isMainIE) {
                 list = railWorkflowTransactionRepository
-                        .findLatestByRoleAndPlantIdAndWorkflowId(roleName, cleanPlantId, workflowId, moduleId, assignedTo);
+                        .findLatestByRoleAndPlantIdAndWorkflowId(dbRoleName, cleanPlantId, workflowId, moduleId, assignedTo);
             } else {
                 list = railWorkflowTransactionRepository
-                        .findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(roleName, cleanPlantId, workflowId, moduleId, assignedTo);
+                        .findLastPendingRequestsByRoleAndPlantIdAndWorkflowId(dbRoleName, cleanPlantId, workflowId, moduleId, assignedTo);
             }
         } else {
             if (cleanPlantId != null) {
-                if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                if (isMainIE) {
                     list = railWorkflowTransactionRepository
-                            .findLatestByRoleAndPlantId(roleName, cleanPlantId, assignedTo);
+                            .findLatestByRoleAndPlantId(dbRoleName, cleanPlantId, assignedTo);
                 } else {
                     list = railWorkflowTransactionRepository
-                            .findLastPendingRequestsByRoleAndPlantId(roleName, cleanPlantId, assignedTo);
+                            .findLastPendingRequestsByRoleAndPlantId(dbRoleName, cleanPlantId, assignedTo);
                 }
             } else {
-                if (roleName.equalsIgnoreCase("Rail Main IE")) {
+                if (isMainIE) {
                     list = railWorkflowTransactionRepository
-                            .findLatestByRole(roleName, assignedTo);
+                            .findLatestByRole(dbRoleName, assignedTo);
                 } else {
                     list = railWorkflowTransactionRepository
-                            .findLastPendingRequestsByRole(roleName, assignedTo);
+                            .findLastPendingRequestsByRole(dbRoleName, assignedTo);
                 }
             }
         }
@@ -1757,7 +1765,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         if (assignedTo != null) {
             result = result.stream()
-                    .filter(dto -> dto.getAssignedToUser() != null && dto.getAssignedToUser().equals(assignedTo))
+                    .filter(dto ->
+                        // unassigned (CREATE state) — visible to any IE of the right role mapped to the plant
+                        dto.getAssignedToUser() == null ||
+                        // or explicitly assigned to this IE
+                        dto.getAssignedToUser().equals(assignedTo)
+                    )
                     .toList();
         }
 

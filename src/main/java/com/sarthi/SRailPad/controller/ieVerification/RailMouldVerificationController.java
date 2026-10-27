@@ -69,9 +69,13 @@ public class RailMouldVerificationController {
     }
 
     @GetMapping("/list")
-    public ResponseEntity<?> getMouldVerifications(@RequestParam String plantId, @RequestParam String vendorCode) {
+    public ResponseEntity<?> getMouldVerifications(
+            @RequestParam String plantId,
+            @RequestParam String vendorCode,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
         try {
-            List<RailMouldVerificationDto> dtoList = service.getMouldVerifications(plantId, vendorCode);
+            List<RailMouldVerificationDto> dtoList = service.getMouldVerifications(plantId, vendorCode, fromDate, toDate);
             return ResponseEntity.ok(dtoList);
         } catch (RuntimeException e) {
             Map<String, String> response = new HashMap<>();

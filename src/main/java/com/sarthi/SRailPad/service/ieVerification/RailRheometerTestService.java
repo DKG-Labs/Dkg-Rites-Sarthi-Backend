@@ -15,4 +15,6 @@ public interface RailRheometerTestService {
     RailRheometerTestDto getRheometerTestById(Long id);
 
     List<RailRheometerTestDto> getRheometerTestByPlantAndVendor(String plantId, String vendorCode);
+
+    List<RailRheometerTestDto> getRheometerTestByPlantAndVendor(String plantId, String vendorCode, String fromDate, String toDate);
 }

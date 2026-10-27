@@ -107,7 +107,11 @@ public class RailApprovedAshSGServiceImpl implements RailApprovedAshSGService {
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
+        // Remove all workflow transactions and history for this record before deleting the entity
+        String requestId = String.valueOf(id);
+        workflowTransactionRepository.deleteByRequestIdAndModuleId(requestId, MODULE_ID);
         repository.deleteById(id);
     }
 
