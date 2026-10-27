@@ -56,6 +56,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.sarthi.entity.ercdiversion.ErcDiversionRequest;
+import com.sarthi.entity.ercdiversion.ErcDiversionCallAllocation;
+import com.sarthi.repository.ercdiversion.ErcDiversionRequestRepository;
+import com.sarthi.repository.ercdiversion.ErcDiversionCallAllocationRepository;
+import com.sarthi.repository.PincodePoIMappingRepository;
+import com.sarthi.repository.SarthiIbsPoiMappingRepository;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -120,6 +127,10 @@ public class IbsServiceImpl implements IbsService {
     private final com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
     private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
     private final WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
+    private final ErcDiversionRequestRepository ercDiversionRequestRepository;
+    private final ErcDiversionCallAllocationRepository ercDiversionCallAllocationRepository;
+    private final PincodePoIMappingRepository pincodePoIMappingRepository;
+    private final SarthiIbsPoiMappingRepository sarthiIbsPoiMappingRepository;
 
     @Override
     public AuthResponseDto integrationLogin(
@@ -962,6 +973,9 @@ public class IbsServiceImpl implements IbsService {
             batchEnrichCancelledCallEmployeeCodes(uniqueCalls.values());
             long tCancelEmp = System.currentTimeMillis();
 
+            // Enrich diverted calls data (placeOfInspection, ibsManufacturedCode, quantities)
+            enrichDivertedCallsData(uniqueCalls.values());
+
             log.info("[IBS-FETCH] Breakdown: Candidates={} ms, Futures={} ms, LinkedIcs={} ms, Docs={} ms, CancelEmp={} ms, Total={} ms",
                     (tCandidates - overallStart), (tFuturesEnd - tFuturesStart), (tLinkedIcs - tEnrichStart), (tDocs - tLinkedIcs), (tCancelEmp - tDocs), (tCancelEmp - overallStart));
 
@@ -1121,6 +1135,9 @@ public class IbsServiceImpl implements IbsService {
         // Single-batch enrich parent IC links for completed calls
         enrichLinkedParentIcs(uniqueCalls.values());
 
+        // Enrich diverted calls data (placeOfInspection, ibsManufacturedCode, quantities)
+        enrichDivertedCallsData(uniqueCalls.values());
+
         Set<Long> matchedRegIds = new HashSet<>();
         Set<String> completedCallTokens = new HashSet<>();
         Set<String> completedIcTokens = new HashSet<>();
@@ -1253,6 +1270,9 @@ public class IbsServiceImpl implements IbsService {
 
         // Batch-enrich cancelled calls: zero N+1 queries (batched via IN-clause or fast-path in-memory)
         batchEnrichCancelledCallEmployeeCodes(uniqueCalls.values());
+
+        // Enrich diverted calls data (placeOfInspection, ibsManufacturedCode, quantities)
+        enrichDivertedCallsData(uniqueCalls.values());
 
         // Strictly enforce null linked IC for any RM calls
         for (IbsInspectionDto dto : uniqueCalls.values()) {
@@ -2289,6 +2309,574 @@ public class IbsServiceImpl implements IbsService {
         }
 
         return result;
+    }
+
+    private void enrichDivertedCallsData(Collection<IbsInspectionDto> dtos) {
+        if (dtos == null || dtos.isEmpty()) return;
+
+        List<IbsInspectionDto> candidates = new ArrayList<>();
+        Set<String> callNos = new HashSet<>();
+        Map<String, IbsInspectionDto> callDtoMap = new HashMap<>();
+
+        for (IbsInspectionDto dto : dtos) {
+            if (dto == null) continue;
+            String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
+            if (callNo.isEmpty() && dto.getIcNumber() != null) {
+                callNo = extractCallNo(dto.getIcNumber());
+            }
+            if (callNo == null || callNo.isEmpty()) continue;
+
+            callDtoMap.put(callNo, dto);
+            callDtoMap.put(callNo.toUpperCase(), dto);
+            candidates.add(dto);
+            callNos.add(callNo);
+            if (callNo.contains("/")) {
+                for (String p : callNo.split("/")) {
+                    if (!p.trim().isEmpty()) {
+                        callNos.add(p.trim());
+                        callDtoMap.putIfAbsent(p.trim(), dto);
+                        callDtoMap.putIfAbsent(p.trim().toUpperCase(), dto);
+                    }
+                }
+            }
+        }
+
+        if (callNos.isEmpty()) return;
+
+        List<InspectionCall> icList = Collections.emptyList();
+        if (inspectionCallsRepository != null) {
+            try {
+                icList = inspectionCallsRepository.findByIcNumberIn(new ArrayList<>(callNos));
+            } catch (Exception e) {
+                log.warn("Error fetching inspection calls for diverted calls: {}", e.getMessage());
+            }
+        }
+        Map<String, InspectionCall> icMap = new HashMap<>();
+        if (icList != null) {
+            for (InspectionCall ic : icList) {
+                if (ic != null && ic.getIcNumber() != null) {
+                    icMap.put(ic.getIcNumber().trim(), ic);
+                    icMap.put(ic.getIcNumber().trim().toUpperCase(), ic);
+                }
+            }
+        }
+
+        Map<String, ErcDiversionRequest> divMap = new HashMap<>();
+        if (ercDiversionRequestRepository != null) {
+            for (String cNo : callNos) {
+                try {
+                    Optional<ErcDiversionRequest> reqOpt = ercDiversionRequestRepository.findByRequestNo(cNo);
+                    reqOpt.ifPresent(req -> {
+                        divMap.put(cNo, req);
+                        divMap.put(cNo.toUpperCase(), req);
+                    });
+                } catch (Exception ignored) {}
+            }
+        }
+
+        for (IbsInspectionDto dto : candidates) {
+            String callNo = dto.getCallNumber() != null ? dto.getCallNumber().trim() : "";
+            if (callNo.isEmpty() && dto.getIcNumber() != null) {
+                callNo = extractCallNo(dto.getIcNumber());
+            }
+            if (callNo == null || callNo.isEmpty()) continue;
+
+            InspectionCall call = icMap.get(callNo);
+            if (call == null) call = icMap.get(callNo.toUpperCase());
+            if (call == null && inspectionCallsRepository != null) {
+                try {
+                    call = inspectionCallsRepository.findByIcNumber(callNo).orElse(null);
+                    if (call != null) icMap.put(callNo, call);
+                } catch (Exception ignored) {}
+            }
+
+            ErcDiversionRequest divReq = divMap.get(callNo);
+            if (divReq == null) divReq = divMap.get(callNo.toUpperCase());
+            if (divReq == null && call != null && call.getDiversionRequestNo() != null && !call.getDiversionRequestNo().isBlank()) {
+                String dNo = call.getDiversionRequestNo().trim();
+                divReq = divMap.get(dNo);
+                if (divReq == null && ercDiversionRequestRepository != null) {
+                    try {
+                        divReq = ercDiversionRequestRepository.findByRequestNo(dNo).orElse(null);
+                        if (divReq != null) divMap.put(dNo, divReq);
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            boolean isDiverted = (divReq != null)
+                    || (call != null && (Boolean.TRUE.equals(call.getIsDivertedMaterial())
+                        || (call.getSourceIcNo() != null && !call.getSourceIcNo().isBlank())
+                        || (call.getDiversionRequestNo() != null && !call.getDiversionRequestNo().isBlank())
+                        || "DIVERTED_PASSED".equalsIgnoreCase(call.getCallCategory())));
+
+            if (!isDiverted) continue;
+
+            log.info("[IBS-FETCH] Enriching diverted call {}", callNo);
+
+            // Determine Source IC Call Number
+            String srcCallNo = null;
+            if (divReq != null && divReq.getSourceCallNo() != null && !divReq.getSourceCallNo().isBlank()) {
+                srcCallNo = divReq.getSourceCallNo().trim();
+            } else if (call != null && call.getSourceIcNo() != null && !call.getSourceIcNo().isBlank()) {
+                srcCallNo = extractCallNo(call.getSourceIcNo());
+            } else if (divReq != null && divReq.getSourceIcNo() != null && !divReq.getSourceIcNo().isBlank()) {
+                srcCallNo = extractCallNo(divReq.getSourceIcNo());
+            }
+            if (srcCallNo != null) {
+                while (srcCallNo.startsWith(":")) srcCallNo = srcCallNo.substring(1).trim();
+            }
+
+            // A. Enrich Quantities (Fetch Offered, Passed, Rejected from Source IC)
+            boolean quantitiesResolved = false;
+            if (srcCallNo != null && !srcCallNo.isBlank()) {
+                // Check if source call is already in memory DTOs
+                IbsInspectionDto srcDto = callDtoMap.get(srcCallNo);
+                if (srcDto == null) srcDto = callDtoMap.get(srcCallNo.toUpperCase());
+                if (srcDto != null && srcDto.getQuantityOffered() != null && srcDto.getQuantityOffered() > 0) {
+                    dto.setQuantityOffered(srcDto.getQuantityOffered());
+                    dto.setQuantityPassed(srcDto.getQuantityPassed());
+                    dto.setQuantityRejected(srcDto.getQuantityRejected() != null ? srcDto.getQuantityRejected() : 0.0);
+                    quantitiesResolved = true;
+                    log.info("[IBS-FETCH] Set source IC {} quantities from existing DTO for diverted call {}: offered={}, passed={}, rejected={}",
+                            srcCallNo, callNo, dto.getQuantityOffered(), dto.getQuantityPassed(), dto.getQuantityRejected());
+                } else {
+                    double[] srcQtys = fetchSourceIcQuantities(srcCallNo);
+                    if (srcQtys != null && (srcQtys[0] > 0 || srcQtys[1] > 0 || srcQtys[2] > 0)) {
+                        dto.setQuantityOffered(srcQtys[0]);
+                        dto.setQuantityPassed(srcQtys[1]);
+                        dto.setQuantityRejected(srcQtys[2]);
+                        quantitiesResolved = true;
+                        log.info("[IBS-FETCH] Set source IC {} quantities for diverted call {}: offered={}, passed={}, rejected={}",
+                                srcCallNo, callNo, srcQtys[0], srcQtys[1], srcQtys[2]);
+                    }
+                }
+            }
+
+            // Fallback: If source IC quantities were not found, use diversion quantity
+            if (!quantitiesResolved && (dto.getQuantityOffered() == null || dto.getQuantityOffered() == 0.0)) {
+                Double divertedQty = null;
+                if (divReq != null && divReq.getTotalDiversionQty() != null) {
+                    divertedQty = divReq.getTotalDiversionQty().doubleValue();
+                }
+                if (divertedQty == null && ercDiversionCallAllocationRepository != null) {
+                    try {
+                        List<ErcDiversionCallAllocation> allocs = ercDiversionCallAllocationRepository.findByCallNo(callNo);
+                        if (allocs != null && !allocs.isEmpty()) {
+                            double sum = allocs.stream()
+                                    .map(ErcDiversionCallAllocation::getAllocatedQty)
+                                    .filter(Objects::nonNull)
+                                    .mapToDouble(BigDecimal::doubleValue)
+                                    .sum();
+                            if (sum > 0) divertedQty = sum;
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (divertedQty != null && divertedQty > 0) {
+                    dto.setQuantityOffered(divertedQty);
+                    dto.setQuantityPassed(divertedQty);
+                    dto.setQuantityRejected(0.0);
+                }
+            }
+
+            // B. Enrich Place of Inspection
+            String poi = dto.getPlaceOfInspection();
+            if (poi != null) {
+                while (poi.startsWith(":")) poi = poi.substring(1).trim();
+            }
+            boolean isCleanPoi = poi != null && !poi.trim().isEmpty() && !poi.contains(",") && poi.trim().length() <= 20;
+            if (!isCleanPoi) {
+                poi = null;
+                if (call != null && call.getPlaceOfInspection() != null && !call.getPlaceOfInspection().isBlank()) {
+                    String candidate = call.getPlaceOfInspection().trim();
+                    while (candidate.startsWith(":")) candidate = candidate.substring(1).trim();
+                    if (!candidate.contains(",") && candidate.length() <= 20) {
+                        poi = candidate;
+                    }
+                }
+                if ((poi == null || poi.isEmpty()) && srcCallNo != null && !srcCallNo.isEmpty()) {
+                    InspectionCall srcCall = icMap.get(srcCallNo);
+                    if (srcCall == null && inspectionCallsRepository != null) {
+                        try {
+                            srcCall = inspectionCallsRepository.findByIcNumber(srcCallNo).orElse(null);
+                        } catch (Exception ignored) {}
+                    }
+                    if (srcCall != null && srcCall.getPlaceOfInspection() != null && !srcCall.getPlaceOfInspection().isBlank()) {
+                        poi = srcCall.getPlaceOfInspection().trim();
+                    }
+                }
+                if ((poi == null || poi.isEmpty()) && pincodePoIMappingRepository != null) {
+                    String compName = (call != null && call.getCompanyName() != null) ? call.getCompanyName()
+                            : (divReq != null ? divReq.getCompanyName() : null);
+                    String unitName = (call != null && call.getUnitName() != null) ? call.getUnitName()
+                            : (divReq != null ? divReq.getPlantName() : null);
+                    if (compName != null && unitName != null) {
+                        try {
+                            var m = pincodePoIMappingRepository.findByCompanyNameAndUnitName(compName, unitName);
+                            if (m.isPresent() && m.get().getPoiCode() != null && !m.get().getPoiCode().isBlank()) {
+                                poi = m.get().getPoiCode().trim();
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                    if ((poi == null || poi.isEmpty())) {
+                        String vCode = (call != null && call.getVendorId() != null) ? call.getVendorId()
+                                : (divReq != null ? divReq.getVendorCode() : null);
+                        if (vCode != null && !vCode.isBlank()) {
+                            try {
+                                var list = pincodePoIMappingRepository.findByVendorCodeWithColonHandling(vCode);
+                                if (list != null && !list.isEmpty() && list.get(0).getPoiCode() != null) {
+                                    poi = list.get(0).getPoiCode().trim();
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+
+                if (poi != null && !poi.isEmpty()) {
+                    while (poi.startsWith(":")) poi = poi.substring(1).trim();
+                    dto.setPlaceOfInspection(poi);
+                    if (call != null && (call.getPlaceOfInspection() == null || call.getPlaceOfInspection().isBlank())) {
+                        call.setPlaceOfInspection(poi);
+                        try {
+                            inspectionCallsRepository.save(call);
+                            log.info("[IBS-FETCH] Backfilled placeOfInspection={} for call {}", poi, callNo);
+                        } catch (Exception e) {
+                            log.warn("Could not backfill placeOfInspection on call {}: {}", callNo, e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            // C. Enrich IBS Manufactured Code
+            if (dto.getIbsManufacturedCode() == null || dto.getIbsManufacturedCode().trim().isEmpty()) {
+                String poiForIbs = dto.getPlaceOfInspection();
+                if (poiForIbs != null && !poiForIbs.isBlank() && sarthiIbsPoiMappingRepository != null) {
+                    try {
+                        var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(poiForIbs, "erc");
+                        if (ibsOpt.isPresent() && ibsOpt.get().getIbsVendorCode() != null && !ibsOpt.get().getIbsVendorCode().isBlank()) {
+                            dto.setIbsManufacturedCode(ibsOpt.get().getIbsVendorCode().trim());
+                        } else {
+                            var fallbackOpt = sarthiIbsPoiMappingRepository.findBestMatch(poiForIbs, null);
+                            if (fallbackOpt.isPresent() && fallbackOpt.get().getIbsVendorCode() != null && !fallbackOpt.get().getIbsVendorCode().isBlank()) {
+                                dto.setIbsManufacturedCode(fallbackOpt.get().getIbsVendorCode().trim());
+                            } else {
+                                dto.setIbsManufacturedCode(poiForIbs);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Error looking up IBS manufactured code for POI {}: {}", poiForIbs, e.getMessage());
+                    }
+                }
+            }
+        }
+    }
+
+    private double[] fetchSourceIcQuantities(String srcCallNo) {
+        if (srcCallNo == null || srcCallNo.trim().isEmpty()) {
+            return null;
+        }
+        String cleanSrc = extractCallNo(srcCallNo);
+        if (cleanSrc == null || cleanSrc.trim().isEmpty()) {
+            cleanSrc = srcCallNo.trim();
+        }
+        cleanSrc = cleanSrc.trim();
+        while (cleanSrc.startsWith(":")) cleanSrc = cleanSrc.substring(1).trim();
+
+        List<String> searchNos = new ArrayList<>();
+        searchNos.add(cleanSrc);
+        if (!searchNos.contains(cleanSrc.toUpperCase())) searchNos.add(cleanSrc.toUpperCase());
+        if (cleanSrc.contains("/")) {
+            for (String p : cleanSrc.split("/")) {
+                String pt = p.trim();
+                if (!pt.isEmpty() && !searchNos.contains(pt)) searchNos.add(pt);
+                if (!pt.isEmpty() && !searchNos.contains(pt.toUpperCase())) searchNos.add(pt.toUpperCase());
+            }
+        }
+
+        String upperSrc = cleanSrc.toUpperCase();
+
+        try {
+            // 1. ERC Process Call (EP-)
+            if (upperSrc.startsWith("EP") || upperSrc.contains("EP-") || upperSrc.contains("/EP")) {
+                if (processLineFinalResultRepository != null) {
+                    try {
+                        List<Object[]> rows = processLineFinalResultRepository.getProcessCompletedInspectionCalls(searchNos);
+                        if (rows != null && !rows.isEmpty()) {
+                            for (Object[] r : rows) {
+                                Double off = safeQuantity(r[11]);
+                                Double pass = safeQuantity(r[12]);
+                                Double rej = safeQuantity(r[13]);
+                                if (off > 0 || pass > 0 || rej > 0) {
+                                    log.info("[IBS-FETCH] Resolved source IC {} quantities from getProcessCompletedInspectionCalls: offered={}, passed={}, rejected={}",
+                                            cleanSrc, off, pass, rej);
+                                    return new double[]{off, pass, rej};
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error in getProcessCompletedInspectionCalls for source {}: {}", cleanSrc, e.getMessage());
+                    }
+
+                    try {
+                        List<ProcessLineFinalResult> plResults = Collections.emptyList();
+                        for (String sNo : searchNos) {
+                            plResults = processLineFinalResultRepository.findByInspectionCallNo(sNo);
+                            if (plResults != null && !plResults.isEmpty()) break;
+                        }
+                        if (plResults != null && !plResults.isEmpty()) {
+                            double totalOffered = 0.0;
+                            double totalPassed = 0.0;
+                            double totalRejected = 0.0;
+                            for (ProcessLineFinalResult pl : plResults) {
+                                double off = pl.getTotalManufactured() != null && pl.getTotalManufactured() > 0
+                                        ? pl.getTotalManufactured().doubleValue()
+                                        : (pl.getOfferedQty() != null ? pl.getOfferedQty().doubleValue() : 0.0);
+                                double rej = pl.getTotalRejected() != null ? pl.getTotalRejected().doubleValue() : 0.0;
+                                double pass = pl.getTotalAccepted() != null && pl.getTotalAccepted() > 0
+                                        ? pl.getTotalAccepted().doubleValue()
+                                        : Math.max(0.0, off - rej);
+                                totalOffered += off;
+                                totalPassed += pass;
+                                totalRejected += rej;
+                            }
+                            if (totalOffered > 0 || totalPassed > 0 || totalRejected > 0) {
+                                log.info("[IBS-FETCH] Resolved source IC {} quantities from findByInspectionCallNo: offered={}, passed={}, rejected={}",
+                                        cleanSrc, totalOffered, totalPassed, totalRejected);
+                                return new double[]{totalOffered, totalPassed, totalRejected};
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error in processLineFinalResultRepository.findByInspectionCallNo for {}: {}", cleanSrc, e.getMessage());
+                    }
+
+                    if (inspectionCallsRepository != null && processInspectionDetailsRepository != null) {
+                        try {
+                            InspectionCall sc = null;
+                            for (String sNo : searchNos) {
+                                sc = inspectionCallsRepository.findByIcNumber(sNo).orElse(null);
+                                if (sc != null) break;
+                            }
+                            if (sc != null) {
+                                List<ProcessInspectionDetails> pids = processInspectionDetailsRepository.findByIcId(sc.getId());
+                                if (pids != null && !pids.isEmpty()) {
+                                    double pOff = 0.0;
+                                    double pPass = 0.0;
+                                    double pRej = 0.0;
+                                    for (ProcessInspectionDetails pid : pids) {
+                                        pOff += pid.getOfferedQty() != null ? pid.getOfferedQty().doubleValue() : 0.0;
+                                        pPass += pid.getQtyAccepted() != null ? pid.getQtyAccepted().doubleValue() : 0.0;
+                                        pRej += pid.getQtyRejected() != null ? pid.getQtyRejected().doubleValue() : 0.0;
+                                    }
+                                    if (pOff > 0 || pPass > 0 || pRej > 0) {
+                                        if (pPass == 0 && pRej == 0 && pOff > 0) pPass = pOff;
+                                        log.info("[IBS-FETCH] Resolved source IC {} quantities from ProcessInspectionDetails: offered={}, passed={}, rejected={}",
+                                                cleanSrc, pOff, pPass, pRej);
+                                        return new double[]{pOff, pPass, pRej};
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+
+            // 2. ERC Raw Material Call (ER-)
+            if (upperSrc.startsWith("ER") || upperSrc.contains("ER-") || upperSrc.contains("/ER")) {
+                if (rmHeatFinalResultRepository != null) {
+                    try {
+                        List<Object[]> rows = rmHeatFinalResultRepository.getRmCompletedInspectionCalls(searchNos);
+                        if (rows != null && !rows.isEmpty()) {
+                            for (Object[] r : rows) {
+                                Double off = safeQuantity(r[11]);
+                                Double pass = safeQuantity(r[12]);
+                                Double rej = safeQuantity(r[13]);
+                                if (off > 0 || pass > 0 || rej > 0) {
+                                    log.info("[IBS-FETCH] Resolved source IC {} quantities from getRmCompletedInspectionCalls: offered={}, passed={}, rejected={}",
+                                            cleanSrc, off, pass, rej);
+                                    return new double[]{off, pass, rej};
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error in getRmCompletedInspectionCalls for source {}: {}", cleanSrc, e.getMessage());
+                    }
+
+                    try {
+                        List<RmHeatFinalResult> rmResults = Collections.emptyList();
+                        for (String sNo : searchNos) {
+                            rmResults = rmHeatFinalResultRepository.findByInspectionCallNo(sNo);
+                            if (rmResults != null && !rmResults.isEmpty()) break;
+                        }
+                        if (rmResults != null && !rmResults.isEmpty()) {
+                            Map<String, Double> heatOfferedMap = new HashMap<>();
+                            double totalPassed = 0.0;
+                            double totalRejected = 0.0;
+                            for (RmHeatFinalResult rm : rmResults) {
+                                String heatNo = rm.getHeatNo() != null ? rm.getHeatNo().trim() : "";
+                                double off = rm.getTotalQtyOfferedMt() != null ? rm.getTotalQtyOfferedMt().doubleValue() : 0.0;
+                                double acc = rm.getAcceptedQtyMt() != null ? rm.getAcceptedQtyMt().doubleValue() : 0.0;
+                                double rej = rm.getWeightRejectedMt() != null ? rm.getWeightRejectedMt().doubleValue() : 0.0;
+                                heatOfferedMap.putIfAbsent(heatNo, off);
+                                totalPassed += acc;
+                                totalRejected += rej;
+                            }
+                            double totalOffered = heatOfferedMap.values().stream().mapToDouble(Double::doubleValue).sum();
+                            if (totalOffered > 0 || totalPassed > 0 || totalRejected > 0) {
+                                log.info("[IBS-FETCH] Resolved source IC {} quantities from findByInspectionCallNo (RM): offered={}, passed={}, rejected={}",
+                                        cleanSrc, totalOffered, totalPassed, totalRejected);
+                                return new double[]{totalOffered, totalPassed, totalRejected};
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error in rmHeatFinalResultRepository.findByInspectionCallNo for {}: {}", cleanSrc, e.getMessage());
+                    }
+                }
+            }
+
+            // 3. ERC Final Call (EF-)
+            if (upperSrc.startsWith("EF") || upperSrc.contains("EF-") || upperSrc.contains("/EF")) {
+                if (finalCumulativeResultsRepository != null) {
+                    try {
+                        List<Object[]> rows = finalCumulativeResultsRepository.getFinalCompletedInspectionCalls(searchNos);
+                        if (rows != null && !rows.isEmpty()) {
+                            for (Object[] r : rows) {
+                                Double off = safeQuantity(r[11]);
+                                Double pass = safeQuantity(r[12]);
+                                Double rej = safeQuantity(r[13]);
+                                if (off > 0 || pass > 0 || rej > 0) {
+                                    log.info("[IBS-FETCH] Resolved source IC {} quantities from getFinalCompletedInspectionCalls: offered={}, passed={}, rejected={}",
+                                            cleanSrc, off, pass, rej);
+                                    return new double[]{off, pass, rej};
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error in getFinalCompletedInspectionCalls for source {}: {}", cleanSrc, e.getMessage());
+                    }
+
+                    try {
+                        for (String sNo : searchNos) {
+                            var resOpt = finalCumulativeResultsRepository.findByInspectionCallNo(sNo);
+                            if (resOpt.isPresent()) {
+                                var fr = resOpt.get();
+                                double off = fr.getQtyNowOffered() != null ? fr.getQtyNowOffered().doubleValue() : 0.0;
+                                double pass = fr.getQtyNowPassed() != null ? fr.getQtyNowPassed().doubleValue() : 0.0;
+                                double rej = fr.getQtyNowRejected() != null ? fr.getQtyNowRejected().doubleValue() : 0.0;
+                                if (off > 0 || pass > 0 || rej > 0) {
+                                    log.info("[IBS-FETCH] Resolved source IC {} quantities from findByInspectionCallNo (Final): offered={}, passed={}, rejected={}",
+                                            cleanSrc, off, pass, rej);
+                                    return new double[]{off, pass, rej};
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error in finalCumulativeResultsRepository.findByInspectionCallNo for {}: {}", cleanSrc, e.getMessage());
+                    }
+                }
+            }
+
+            // 4. Railpad Process (RPP-)
+            if (upperSrc.startsWith("RPP") || upperSrc.contains("RPP-")) {
+                if (railpadProcessIcEditRepository != null) {
+                    try {
+                        List<Object[]> rows = railpadProcessIcEditRepository.getRailpadProcessCompletedInspectionCalls(searchNos);
+                        if (rows != null && !rows.isEmpty()) {
+                            for (Object[] r : rows) {
+                                Double off = safeQuantity(r[11]);
+                                Double pass = safeQuantity(r[12]);
+                                Double rej = safeQuantity(r[13]);
+                                if (off > 0 || pass > 0 || rej > 0) {
+                                    return new double[]{off, pass, rej};
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // 5. Railpad Final (RPF-)
+            if (upperSrc.startsWith("RPF") || upperSrc.contains("RPF-")) {
+                if (railpadFinalIcEditRepository != null) {
+                    try {
+                        List<Object[]> rows = railpadFinalIcEditRepository.getRailpadFinalCompletedInspectionCalls(searchNos);
+                        if (rows != null && !rows.isEmpty()) {
+                            for (Object[] r : rows) {
+                                Double off = safeQuantity(r[11]);
+                                Double pass = safeQuantity(r[12]);
+                                Double rej = safeQuantity(r[13]);
+                                if (off > 0 || pass > 0 || rej > 0) {
+                                    return new double[]{off, pass, rej};
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // 6. Sleeper Final (SF-)
+            if (upperSrc.startsWith("SF") || upperSrc.contains("SF-")) {
+                if (sleeperFinalIcEditRepository != null) {
+                    try {
+                        List<Object[]> rows = sleeperFinalIcEditRepository.getSleeperFinalCompletedInspectionCalls(searchNos);
+                        if (rows != null && !rows.isEmpty()) {
+                            for (Object[] r : rows) {
+                                Double off = safeQuantity(r[11]);
+                                Double pass = safeQuantity(r[12]);
+                                Double rej = safeQuantity(r[13]);
+                                if (off > 0 || pass > 0 || rej > 0) {
+                                    return new double[]{off, pass, rej};
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // 7. Generic Fallback: InspectionCall details (Final, Process, RM)
+            if (inspectionCallsRepository != null) {
+                try {
+                    InspectionCall sc = null;
+                    for (String sNo : searchNos) {
+                        sc = inspectionCallsRepository.findByIcNumber(sNo).orElse(null);
+                        if (sc != null) break;
+                    }
+                    if (sc != null) {
+                        if (sc.getFinalInspectionDetails() != null) {
+                            var fid = sc.getFinalInspectionDetails();
+                            double off = fid.getTotalOfferedQty() != null ? fid.getTotalOfferedQty().doubleValue() : 0.0;
+                            double pass = fid.getTotalAcceptedQty() != null ? fid.getTotalAcceptedQty().doubleValue() : 0.0;
+                            double rej = fid.getTotalRejectedQty() != null ? fid.getTotalRejectedQty().doubleValue() : 0.0;
+                            if (off > 0 || pass > 0 || rej > 0) {
+                                return new double[]{off, pass, rej};
+                            }
+                        }
+                        if (sc.getProcessInspectionDetails() != null && !sc.getProcessInspectionDetails().isEmpty()) {
+                            double pOff = 0.0;
+                            double pPass = 0.0;
+                            double pRej = 0.0;
+                            for (var pid : sc.getProcessInspectionDetails()) {
+                                pOff += pid.getOfferedQty() != null ? pid.getOfferedQty().doubleValue() : 0.0;
+                                pPass += pid.getQtyAccepted() != null ? pid.getQtyAccepted().doubleValue() : 0.0;
+                                pRej += pid.getQtyRejected() != null ? pid.getQtyRejected().doubleValue() : 0.0;
+                            }
+                            if (pOff > 0 || pPass > 0 || pRej > 0) {
+                                return new double[]{pOff, pPass, pRej};
+                            }
+                        }
+                        if (sc.getRmInspectionDetails() != null) {
+                            var rmd = sc.getRmInspectionDetails();
+                            double off = rmd.getTotalOfferedQtyMt() != null ? rmd.getTotalOfferedQtyMt().doubleValue() : 0.0;
+                            if (off > 0) {
+                                return new double[]{off, off, 0.0};
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            log.warn("Error fetching source IC quantities for {}: {}", cleanSrc, e.getMessage());
+        }
+
+        return null;
     }
 
     private List<IbsInspectionDto> mapResult(

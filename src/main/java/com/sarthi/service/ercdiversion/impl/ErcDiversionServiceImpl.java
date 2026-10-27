@@ -63,6 +63,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     private final UserMasterRepository userMasterRepository;
     private final CertificateStorageRepository certificateStorageRepository;
     private final ProcessLineFinalResultRepository processLineFinalResultRepository;
+    private final com.sarthi.repository.PincodePoIMappingRepository pincodePoIMappingRepository;
 
     private static final int DIVERSION_WORKFLOW_ID = 4;
     private static final String ROLE_VENDOR = "1";
@@ -658,6 +659,49 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             if (saved.getPlantId() != null) divCall.setUnitId(saved.getPlantId().intValue());
             divCall.setUnitName(saved.getPlantName());
             divCall.setUnitAddress(saved.getPlantAddress());
+
+            // Resolve place_of_inspection from source call or plant mapping
+            String resolvedPoi = null;
+            String srcCallNo = saved.getSourceCallNo();
+            if (srcCallNo == null && saved.getSourceIcNo() != null) {
+                String cleanIc = saved.getSourceIcNo().trim();
+                for (String p : cleanIc.split("/")) {
+                    String up = p.trim().toUpperCase();
+                    if (up.startsWith("ER-") || up.startsWith("EP-") || up.startsWith("EF-")) {
+                        srcCallNo = p.trim();
+                        break;
+                    }
+                }
+            }
+            if (srcCallNo != null) {
+                Optional<InspectionCall> srcCallOpt = inspectionCallRepository.findByIcNumber(srcCallNo);
+                if (srcCallOpt.isPresent() && srcCallOpt.get().getPlaceOfInspection() != null && !srcCallOpt.get().getPlaceOfInspection().isBlank()) {
+                    resolvedPoi = srcCallOpt.get().getPlaceOfInspection().trim();
+                }
+            }
+            if (resolvedPoi == null && saved.getCompanyName() != null && saved.getPlantName() != null && pincodePoIMappingRepository != null) {
+                try {
+                    var m = pincodePoIMappingRepository.findByCompanyNameAndUnitName(saved.getCompanyName(), saved.getPlantName());
+                    if (m.isPresent() && m.get().getPoiCode() != null && !m.get().getPoiCode().isBlank()) {
+                        resolvedPoi = m.get().getPoiCode().trim();
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (resolvedPoi == null && saved.getVendorCode() != null && pincodePoIMappingRepository != null) {
+                try {
+                    var list = pincodePoIMappingRepository.findByVendorCodeWithColonHandling(saved.getVendorCode());
+                    if (list != null && !list.isEmpty() && list.get(0).getPoiCode() != null) {
+                        resolvedPoi = list.get(0).getPoiCode().trim();
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (resolvedPoi != null) {
+                while (resolvedPoi.startsWith(":")) {
+                    resolvedPoi = resolvedPoi.substring(1).trim();
+                }
+                divCall.setPlaceOfInspection(resolvedPoi);
+            }
+
             // poNo/poSerialNo needed for findLiteByIcNumberIn JOIN with PoHeader
             divCall.setPoNo(saved.getTargetPoNo());
             divCall.setPoSerialNo(saved.getTargetPoSrNo());

@@ -679,6 +679,68 @@ public class WorkflowServiceImpl implements WorkflowService {
 
         // DIVERSION WORKFLOW (ID = 4)
         if (current.getWorkflowId() != null && current.getWorkflowId() == 4) {
+            // SEND_CALL_TO_IBS for Diverted calls: Mark call as CLOSED and update status
+            if (req.getAction() != null && (req.getAction().equalsIgnoreCase("SEND_CALL_TO_IBS")
+                    || req.getAction().equalsIgnoreCase("Send call to ibs")
+                    || req.getAction().equalsIgnoreCase("SEND CALL TO IBS")
+                    || req.getAction().equalsIgnoreCase("SENT_TO_IBS"))) {
+                String reqId = (req.getRequestId() != null && !req.getRequestId().isBlank())
+                        ? req.getRequestId().trim() : current.getRequestId();
+                WorkflowTransition ibsTransition = new WorkflowTransition();
+                ibsTransition.setWorkflowId(current.getWorkflowId());
+                ibsTransition.setTransitionId(current.getTransitionId() != null ? current.getTransitionId() : 0);
+                ibsTransition.setRequestId(reqId);
+                ibsTransition.setStatus("SEND_CALL_TO_IBS");
+                ibsTransition.setAction("SEND_CALL_TO_IBS");
+                ibsTransition.setJobStatus("CLOSED");
+                ibsTransition.setNextRole(null);
+                ibsTransition.setNextRoleName(null);
+                ibsTransition.setRemarks(req.getRemarks() != null && !req.getRemarks().isBlank()
+                        ? req.getRemarks() : "Send call to IBS confirmed by IE");
+                ibsTransition.setCreatedDate(new Date());
+                ibsTransition.setCreatedBy(current.getCreatedBy());
+                ibsTransition.setModifiedBy(req.getActionBy());
+                ibsTransition.setAssignedToUser(current.getAssignedToUser());
+                ibsTransition.setProcessIeUserId(current.getProcessIeUserId());
+                ibsTransition.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
+                ibsTransition.setCurrentRoleName(current.getNextRoleName() != null ? current.getNextRoleName() : current.getCurrentRoleName());
+                ibsTransition.setRio(current.getRio());
+                ibsTransition.setSwiftCode(current.getSwiftCode());
+                ibsTransition.setPrimarySwift(current.getPrimarySwift());
+                ibsTransition.setWorkflowSequence((current.getWorkflowSequence() != null ? current.getWorkflowSequence() : 1) + 1);
+                workflowTransitionRepository.save(ibsTransition);
+
+                // Sync with InspectionCall entity status
+                try {
+                    Optional<InspectionCall> icOpt = inspectionCallRepository.findByIcNumber(reqId);
+                    if (icOpt.isPresent()) {
+                        InspectionCall icCall = icOpt.get();
+                        icCall.setStatus("SEND_CALL_TO_IBS");
+                        inspectionCallRepository.save(icCall);
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to update InspectionCall status to SEND_CALL_TO_IBS: ", ex);
+                }
+
+                // Sync with IBS registration if ibsCallRegistrationRepository exists
+                try {
+                    if (ibsCallRegistrationRepository != null) {
+                        var ibsList = ibsCallRegistrationRepository.findByCallNumber(reqId);
+                        if (ibsList != null && !ibsList.isEmpty()) {
+                            var ibsEntry = ibsList.get(0);
+                            ibsEntry.setStatus("SUCCESS");
+                            ibsEntry.setReason(req.getRemarks() != null ? req.getRemarks() : "Call sent to IBS by IE");
+                            ibsEntry.setAcknowledgedAt(java.time.LocalDateTime.now());
+                            ibsCallRegistrationRepository.save(ibsEntry);
+                        }
+                    }
+                } catch (Exception ex) {
+                    log.warn("Could not update IBS registration for call {}: {}", reqId, ex.getMessage());
+                }
+
+                return mapWorkflowTransition(ibsTransition);
+            }
+
             return mapWorkflowTransition(current);
         }
 
