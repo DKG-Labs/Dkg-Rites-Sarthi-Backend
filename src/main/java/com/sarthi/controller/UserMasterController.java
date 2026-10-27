@@ -75,6 +75,12 @@ public class UserMasterController {
                 ResponseBuilder.getSuccessResponse(res),
                 HttpStatus.OK);
     }
+    @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<Object> sendForgotPasswordOtp(@RequestBody ForgotPasswordRequestDto requestDto) {
+        com.sarthi.service.Impl.OtpService.OtpResult res = userService.sendForgotPasswordOtp(requestDto.getIdentifier());
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
+    }
+
     @PostMapping("/forgot-password")
     public ResponseEntity<Object> forgotPassword(@RequestBody ForgotPasswordRequestDto requestDto) {
         userService.forgotPassword(requestDto);
