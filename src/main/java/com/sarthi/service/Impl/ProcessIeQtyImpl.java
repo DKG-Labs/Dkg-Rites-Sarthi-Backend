@@ -358,6 +358,9 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                 return dto;
         }
 
+        @Autowired(required = false)
+        private com.sarthi.repository.ercdiversion.ErcDiversionItemRepository ercDiversionItemRepository;
+
         @Override
         public int getAcceptedQtyForLot(String requestId, String lotNumber, String heatNo) {
                 if (lotNumber == null || lotNumber.isBlank()) {
@@ -366,7 +369,46 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                 // Strictly follow Process IC logic: calculate accepted quantity from process_line_final_result (single query, no N+1, no fallbacks)
                 Integer procAccepted = processLineFinalResultRepository
                                 .sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(requestId, lotNumber, heatNo);
-                return procAccepted != null ? procAccepted : 0;
+                if (procAccepted != null && procAccepted > 0) {
+                        return procAccepted;
+                }
+
+                // Diverted call fallback: Check erc_material_diversion_item for diverted lots/heats
+                if (requestId != null && !requestId.isBlank()) {
+                        String cleanReqId = requestId.trim();
+                        if (cleanReqId.matches("^[A-Z]/.*")) {
+                                String[] parts = cleanReqId.split("/");
+                                if (parts.length >= 2) {
+                                        cleanReqId = parts[1];
+                                }
+                        }
+                        if (ercDiversionItemRepository != null) {
+                                try {
+                                        BigDecimal divQty = ercDiversionItemRepository
+                                                        .sumDivertedQuantityByTargetCallNoAndLotAndHeat(cleanReqId, lotNumber.trim(), heatNo != null ? heatNo.trim() : null);
+                                        if (divQty != null && divQty.compareTo(BigDecimal.ZERO) > 0) {
+                                                return divQty.intValue();
+                                        }
+                                } catch (Exception ignored) {}
+                        }
+
+                        // Also check source IC if inspection call has source_ic_no
+                        try {
+                                java.util.Optional<InspectionCall> callOpt = inspectionCallRepository.findByIcNumber(cleanReqId);
+                                if (callOpt.isPresent() && callOpt.get().getSourceIcNo() != null && !callOpt.get().getSourceIcNo().isBlank()) {
+                                        String srcIc = callOpt.get().getSourceIcNo().trim();
+                                        String[] parts = srcIc.split("/");
+                                        String srcCall = parts.length >= 2 ? parts[1] : srcIc;
+                                        Integer srcAccepted = processLineFinalResultRepository
+                                                        .sumAcceptedQtyByCallNoAndLotNumberAndHeatNo(srcCall, lotNumber, heatNo);
+                                        if (srcAccepted != null && srcAccepted > 0) {
+                                                return srcAccepted;
+                                        }
+                                }
+                        } catch (Exception ignored) {}
+                }
+
+                return 0;
         }
 
 }

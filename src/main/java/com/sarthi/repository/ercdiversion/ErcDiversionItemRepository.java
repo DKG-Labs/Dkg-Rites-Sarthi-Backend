@@ -44,4 +44,17 @@ public interface ErcDiversionItemRepository extends JpaRepository<ErcDiversionIt
            "com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR) " +
            "GROUP BY r.sourceIcNo")
     List<Object[]> sumDivertedQuantitiesBySourceIcNos(@Param("sourceIcNos") List<String> sourceIcNos);
+
+    @Query(value = "SELECT COALESCE(SUM(i.diversion_qty), 0) FROM erc_material_diversion_item i " +
+           "JOIN erc_material_diversion_request r ON i.diversion_request_id = r.id " +
+           "LEFT JOIN inspection_calls ic ON (ic.diversion_request_no COLLATE utf8mb4_unicode_ci = r.request_no COLLATE utf8mb4_unicode_ci OR ic.ic_number COLLATE utf8mb4_unicode_ci = r.request_no COLLATE utf8mb4_unicode_ci) " +
+           "WHERE (r.request_no = :callNo OR r.diversion_no = :callNo OR ic.ic_number = :callNo) " +
+           "AND (:lotNo IS NULL OR :lotNo = '' OR TRIM(i.lot_no) = TRIM(:lotNo)) " +
+           "AND (:heatNo IS NULL OR :heatNo = '' OR TRIM(i.heat_no) = TRIM(:heatNo))",
+           nativeQuery = true)
+    BigDecimal sumDivertedQuantityByTargetCallNoAndLotAndHeat(
+            @Param("callNo") String callNo,
+            @Param("lotNo") String lotNo,
+            @Param("heatNo") String heatNo
+    );
 }
