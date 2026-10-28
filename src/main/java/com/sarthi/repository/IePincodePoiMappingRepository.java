@@ -72,4 +72,6 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
     int updateEmployeeCodeByPoiCode(String poiCode, String oldEmpCode, String newEmpCode);
 
     boolean existsByPoiCodeAndEmployeeCode(String poiCode, String employeeCode);
+
+    boolean existsByPoiCodeAndEmployeeCodeAndIeType(String poiCode, String employeeCode, String ieType);
 }

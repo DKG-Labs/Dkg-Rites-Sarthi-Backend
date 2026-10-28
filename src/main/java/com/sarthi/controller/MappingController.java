@@ -1,6 +1,8 @@
 package com.sarthi.controller;
 
 import com.sarthi.dto.ProcessIeMappingRequestDto;
+import com.sarthi.repository.IePincodePoiMappingRepository;
+import com.sarthi.repository.PoiProcessIeMappingRepository;
 import com.sarthi.util.ResponseBuilder;
 import com.sarthi.service.MappingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,12 @@ public class MappingController {
 
     @Autowired
     private MappingService mappingService;
+
+    @Autowired
+    private IePincodePoiMappingRepository iePincodePoiMappingRepository;
+
+    @Autowired
+    private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
 
     @PostMapping("/processIe")
     public ResponseEntity<Object> createMappingProcessIe(
@@ -97,6 +105,25 @@ public class MappingController {
                             HttpStatus.INTERNAL_SERVER_ERROR.value(), 5000, "error",
                             "Failed to save CM-IE mapping: " + ex.getMessage())));
         }
+    }
+
+    @GetMapping("/check-duplicate")
+    public ResponseEntity<Object> checkDuplicateErcMain(
+            @RequestParam String empCode,
+            @RequestParam String poiCode,
+            @RequestParam(required = false, defaultValue = "") String ieType) {
+        boolean exists = iePincodePoiMappingRepository
+                .existsByPoiCodeAndEmployeeCodeAndIeType(poiCode, empCode, ieType);
+        return ResponseEntity.ok(Map.of("exists", exists));
+    }
+
+    @GetMapping("/check-duplicate-process")
+    public ResponseEntity<Object> checkDuplicateErcProcess(
+            @RequestParam String empCode,
+            @RequestParam String poiCode) {
+        boolean exists = poiProcessIeMappingRepository
+                .existsByPoiCodeAndEmployeeCode(poiCode, empCode);
+        return ResponseEntity.ok(Map.of("exists", exists));
     }
 
     @DeleteMapping("/cm-ie/{ieUserId}")

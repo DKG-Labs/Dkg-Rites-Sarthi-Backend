@@ -117,6 +117,15 @@ public class RailFinalLoadTestServiceImpl implements RailFinalLoadTestService {
         entity.setMPad4R1(dto.getMPad4R1()); entity.setMPad4R2(dto.getMPad4R2()); entity.setMPad4R3(dto.getMPad4R3()); entity.setMPad4R4(dto.getMPad4R4());
         entity.setMPad4R5(dto.getMPad4R5()); entity.setMPad4R6(dto.getMPad4R6()); entity.setMPad4R7(dto.getMPad4R7()); entity.setMPad4R8(dto.getMPad4R8());
 
+        entity.setPad1Result(dto.getPad1Result());
+        entity.setPad2Result(dto.getPad2Result());
+        entity.setPad1D1(dto.getPad1D1());
+        entity.setPad1D2(dto.getPad1D2());
+        entity.setPad2D1(dto.getPad2D1());
+        entity.setPad2D2(dto.getPad2D2());
+        entity.setPad1Difference(dto.getPad1Difference());
+        entity.setPad2Difference(dto.getPad2Difference());
+
         entity.setLoadStatus(dto.getLoadStatus());
         entity.setNotOkCount(dto.getNotOkCount());
         entity.setRemarks(dto.getRemarks());
@@ -173,6 +182,15 @@ public class RailFinalLoadTestServiceImpl implements RailFinalLoadTestService {
         dto.setMPad4L5(entity.getMPad4L5()); dto.setMPad4L6(entity.getMPad4L6()); dto.setMPad4L7(entity.getMPad4L7()); dto.setMPad4L8(entity.getMPad4L8());
         dto.setMPad4R1(entity.getMPad4R1()); dto.setMPad4R2(entity.getMPad4R2()); dto.setMPad4R3(entity.getMPad4R3()); dto.setMPad4R4(entity.getMPad4R4());
         dto.setMPad4R5(entity.getMPad4R5()); dto.setMPad4R6(entity.getMPad4R6()); dto.setMPad4R7(entity.getMPad4R7()); dto.setMPad4R8(entity.getMPad4R8());
+
+        dto.setPad1Result(entity.getPad1Result());
+        dto.setPad2Result(entity.getPad2Result());
+        dto.setPad1D1(entity.getPad1D1());
+        dto.setPad1D2(entity.getPad1D2());
+        dto.setPad2D1(entity.getPad2D1());
+        dto.setPad2D2(entity.getPad2D2());
+        dto.setPad1Difference(entity.getPad1Difference());
+        dto.setPad2Difference(entity.getPad2Difference());
 
         dto.setLoadStatus(entity.getLoadStatus());
         dto.setNotOkCount(entity.getNotOkCount());

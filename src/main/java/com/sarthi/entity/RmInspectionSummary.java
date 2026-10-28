@@ -41,6 +41,9 @@ public class RmInspectionSummary {
     @Column(name = "product_model", length = 20)
     private String productModel;
 
+    @Column(name = "divisor", precision = 10, scale = 4)
+    private BigDecimal divisor;
+
     @Column(name = "po_no", length = 50)
     private String poNo;
 

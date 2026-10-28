@@ -53,6 +53,15 @@ public class RailFinalLoadTestRequestDto {
     private String mPad4R1; private String mPad4R2; private String mPad4R3; private String mPad4R4;
     private String mPad4R5; private String mPad4R6; private String mPad4R7; private String mPad4R8;
 
+    private String pad1Result;
+    private String pad2Result;
+    private String pad1D1;
+    private String pad1D2;
+    private String pad2D1;
+    private String pad2D2;
+    private String pad1Difference;
+    private String pad2Difference;
+
     private String loadStatus;
     private Integer notOkCount;
     private String remarks;

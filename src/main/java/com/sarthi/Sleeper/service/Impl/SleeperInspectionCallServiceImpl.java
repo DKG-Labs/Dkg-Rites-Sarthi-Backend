@@ -79,16 +79,16 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
 
         SleeperInspectionCall call = new SleeperInspectionCall();
 
-        // Generate unique callNo SF-MMddyy001 in IST (Indian Standard Time)
+        // Generate unique callNo SF-yyMMddNN in IST (Indian Standard Time)
         LocalDateTime now = LocalDateTime.now(java.time.ZoneId.of("Asia/Kolkata"));
-        String datePart = now.format(DateTimeFormatter.ofPattern("MMddyy"));
+        String datePart = now.format(DateTimeFormatter.ofPattern("yyMMdd"));
         String prefix = "SF-" + datePart;
-        
+
         long seq = 1;
-        while (inspectionCallRepository.existsByCallNo(String.format("%s%03d", prefix, seq))) {
+        while (inspectionCallRepository.existsByCallNo(String.format("%s%02d", prefix, seq))) {
             seq++;
         }
-        call.setCallNo(String.format("%s%03d", prefix, seq));
+        call.setCallNo(String.format("%s%02d", prefix, seq));
 
         call.setPoNo(dto.getPoNo());
         call.setSrNo(dto.getSrNo());

@@ -89,25 +89,25 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         // Determine prefix based on call type
         String prefix = "PROCESS".equalsIgnoreCase(call.getCallType()) ? "RPP-" : "RPF-";
 
-        // Generate Call No: PREFIX-MMDDYY001
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("MMddyy"));
+        // Generate Call No: PREFIX-yyMMddNN
+        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
         String pattern = prefix + datePart + "%";
         Optional<String> lastCallNo = repository.findLastCallNoByPattern(pattern);
 
         int seq = 1;
         if (lastCallNo.isPresent()) {
             try {
-                String lastSeqStr = lastCallNo.get().substring(lastCallNo.get().length() - 3);
+                String lastSeqStr = lastCallNo.get().substring(lastCallNo.get().length() - 2);
                 seq = Integer.parseInt(lastSeqStr) + 1;
             } catch (Exception e) {
                 System.err.println("Error parsing sequence from last call no: " + lastCallNo.get());
             }
         }
 
-        String generatedCallNo = String.format("%s%s%03d", prefix, datePart, seq);
+        String generatedCallNo = String.format("%s%s%02d", prefix, datePart, seq);
         while (repository.existsByCallNo(generatedCallNo) || railWorkflowTransactionRepository.existsByRequestId(generatedCallNo)) {
             seq++;
-            generatedCallNo = String.format("%s%s%03d", prefix, datePart, seq);
+            generatedCallNo = String.format("%s%s%02d", prefix, datePart, seq);
         }
         call.setCallNo(generatedCallNo);
 

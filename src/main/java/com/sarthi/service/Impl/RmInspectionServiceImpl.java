@@ -230,6 +230,9 @@ public class RmInspectionServiceImpl implements RmInspectionService {
             summary.setNumberOfBundles(pre.getNumberOfBundles());
             summary.setNumberOfErc(pre.getNumberOfErc());
             summary.setProductModel(pre.getProductModel());
+            if (pre.getDivisor() != null) {
+                summary.setDivisor(java.math.BigDecimal.valueOf(pre.getDivisor()));
+            }
             summary.setPoNo(pre.getPoNo());
             summary.setPoDate(parseDate(pre.getPoDate()));
             summary.setVendorName(pre.getVendorName());
@@ -763,6 +766,9 @@ public class RmInspectionServiceImpl implements RmInspectionService {
             preData.setNumberOfBundles(summary.getNumberOfBundles());
             preData.setNumberOfErc(summary.getNumberOfErc());
             preData.setProductModel(summary.getProductModel());
+            if (summary.getDivisor() != null) {
+                preData.setDivisor(summary.getDivisor().doubleValue());
+            }
             preData.setPoNo(summary.getPoNo());
             preData.setPoDate(formatDate(summary.getPoDate()));
             preData.setVendorName(summary.getVendorName());
@@ -1050,6 +1056,9 @@ public class RmInspectionServiceImpl implements RmInspectionService {
                     dto.setNumberOfBundles(summary.getNumberOfBundles());
                     dto.setNumberOfErc(summary.getNumberOfErc());
                     dto.setProductModel(summary.getProductModel());
+                    if (summary.getDivisor() != null) {
+                        dto.setDivisor(summary.getDivisor().doubleValue());
+                    }
                     dto.setPoNo(summary.getPoNo());
                     dto.setPoDate(formatDate(summary.getPoDate()));
                     dto.setVendorName(summary.getVendorName());

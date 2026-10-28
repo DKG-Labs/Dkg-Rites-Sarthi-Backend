@@ -160,6 +160,30 @@ public class RailFinalLoadTest extends BaseEntity {
     @Column(name = "m_pad4_r7") private String mPad4R7;
     @Column(name = "m_pad4_r8") private String mPad4R8;
 
+    @Column(name = "pad1_result")
+    private String pad1Result;
+
+    @Column(name = "pad2_result")
+    private String pad2Result;
+
+    @Column(name = "pad1_d1")
+    private String pad1D1;
+
+    @Column(name = "pad1_d2")
+    private String pad1D2;
+
+    @Column(name = "pad2_d1")
+    private String pad2D1;
+
+    @Column(name = "pad2_d2")
+    private String pad2D2;
+
+    @Column(name = "pad1_difference")
+    private String pad1Difference;
+
+    @Column(name = "pad2_difference")
+    private String pad2Difference;
+
     @Column(name = "load_status")
     private String loadStatus;
 
