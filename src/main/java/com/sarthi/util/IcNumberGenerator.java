@@ -7,20 +7,20 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * Utility class for generating IC Numbers
- * New Format: E[TYPE]-[MMDDYY][NNNN]
+ * Format: E[TYPE]-[YYMMDD][NN]
  * Where:
  * - E = Fixed prefix representing "ERC"
  * - [TYPE] = Single letter (R=Raw Material, P=Process, F=Final)
- * - [MMDDYY] = Current month, date, and 2-digit year (zero-padded)
- * - [NNNN] = Sequential serial number (4 digits, zero-padded, resets daily)
+ * - [YYMMDD] = 2-digit year, month, day (zero-padded)
+ * - [NN] = Sequential serial number (2 digits, zero-padded, resets daily)
  *
- * Examples: ER-0106260001, EP-0106260001, EF-0106260001
+ * Examples: ER-26102801, EP-26102801, EF-26102801
  */
 @Component
 public class IcNumberGenerator {
 
     private static final String ERC_PREFIX = "E";
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MMddyy");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyMMdd");
 
     /**
      * Generate IC Number for a given type and sequence
@@ -33,8 +33,8 @@ public class IcNumberGenerator {
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DATE_FORMATTER);
 
-        // Format: E + TYPE + - + MMDDYY + NNNN
-        return String.format("%s%s-%s%04d", ERC_PREFIX, typeCode, dateStr, sequence);
+        // Format: E + TYPE + - + YYMMDD + NN
+        return String.format("%s%s-%s%02d", ERC_PREFIX, typeCode, dateStr, sequence);
     }
 
     /**
@@ -61,8 +61,8 @@ public class IcNumberGenerator {
      * @return Array with [typeCode, month, day, sequence]
      */
     public String[] parseIcNumber(String icNumber) {
-        if (icNumber == null || (icNumber.length() != 11 && icNumber.length() != 13)) {
-            throw new IllegalArgumentException("Invalid IC number format. Expected format: E[TYPE]-[MMDD][NNNN] or E[TYPE]-[MMDDYY][NNNN]");
+        if (icNumber == null || icNumber.length() != 11) {
+            throw new IllegalArgumentException("Invalid IC number format. Expected format: E[TYPE]-[YYMMDD][NN]");
         }
 
         if (!icNumber.startsWith(ERC_PREFIX)) {
@@ -73,12 +73,14 @@ public class IcNumberGenerator {
             throw new IllegalArgumentException("IC number must have hyphen at position 3");
         }
 
+        // Format: E[TYPE]-[YY][MM][DD][NN]  e.g. ER-26102801
         String typeCode = icNumber.substring(1, 2);
-        String month = icNumber.substring(3, 5);
-        String day = icNumber.substring(5, 7);
-        String sequence = (icNumber.length() == 13) ? icNumber.substring(9, 13) : icNumber.substring(7, 11);
+        String yy = icNumber.substring(3, 5);
+        String mm = icNumber.substring(5, 7);
+        String dd = icNumber.substring(7, 9);
+        String sequence = icNumber.substring(9, 11);
 
-        return new String[]{typeCode, month, day, sequence};
+        return new String[]{typeCode, yy, mm, dd, sequence};
     }
 
     /**

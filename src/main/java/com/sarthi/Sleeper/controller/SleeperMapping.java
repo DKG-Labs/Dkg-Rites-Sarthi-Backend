@@ -1,6 +1,7 @@
 package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.mapping.*;
+import com.sarthi.Sleeper.repository.SleeperPoiIeMappingRepository;
 import com.sarthi.Sleeper.service.mappingService;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.ResponseBuilder;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/sleeper-mapping")
@@ -17,6 +19,9 @@ public class SleeperMapping {
 
     @Autowired
     private mappingService  mappingService;
+
+    @Autowired
+    private SleeperPoiIeMappingRepository sleeperPoiIeMappingRepository;
 
     @GetMapping("/sleeper-plants/{vendorCode}")
     public ResponseEntity<List<String>> getPlantIdsByVendorCode(
@@ -121,6 +126,17 @@ public class SleeperMapping {
                 ),
                 HttpStatus.OK
         );
+    }
+
+    @GetMapping("/check-duplicate")
+    public ResponseEntity<Object> checkDuplicateSleeper(
+            @RequestParam Integer userId,
+            @RequestParam String plantId,
+            @RequestParam String poiCode,
+            @RequestParam String ieType) {
+        boolean exists = sleeperPoiIeMappingRepository
+                .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(poiCode, plantId, userId, ieType);
+        return ResponseEntity.ok(Map.of("exists", exists));
     }
 
 

@@ -15,6 +15,7 @@ public class RmPreInspectionDataDto {
     private Integer numberOfBundles;
     private Integer numberOfErc;
     private String productModel;
+    private Double divisor;
     private String poNo;
     private String poDate;
     private String vendorName;
