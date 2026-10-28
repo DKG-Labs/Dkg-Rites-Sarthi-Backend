@@ -29,9 +29,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -515,6 +517,13 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         logger.info("Fetching heat numbers for lot number: {}, RM certificate: {}, Process certificate: {}", lotNumber, rmCertificateNo, processCertificateNo);
         List<String> heatNumbers = processInspectionDetailsRepository.findHeatNumbersByLotNumber(lotNumber,
                 rmCertificateNo, processCertificateNo);
+        if (heatNumbers.isEmpty() && processCertificateNo != null && !processCertificateNo.isEmpty()) {
+            String extractedCallNo = extractCallNoFromCert(processCertificateNo);
+            if (!processCertificateNo.equals(extractedCallNo)) {
+                heatNumbers = processInspectionDetailsRepository.findHeatNumbersByLotNumber(lotNumber,
+                        rmCertificateNo, extractedCallNo);
+            }
+        }
         logger.info("Found {} heat numbers", heatNumbers.size());
         return heatNumbers;
     }
@@ -564,8 +573,18 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                                                                         List<String> processCertificateNos) {
         logger.info("Fetching lot numbers for multiple RM certificates: {} and Process certificates: {}",
                 rmCertificateNos, processCertificateNos);
+        List<String> cleanProcCerts = (processCertificateNos != null) ? processCertificateNos : java.util.Collections.emptyList();
+        Set<String> expandedProcessCerts = new LinkedHashSet<>(cleanProcCerts);
+        for (String cert : cleanProcCerts) {
+            if (cert != null) {
+                String callNo = extractCallNoFromCert(cert);
+                if (callNo != null && !callNo.trim().isEmpty()) {
+                    expandedProcessCerts.add(callNo.trim());
+                }
+            }
+        }
         List<String> lotNumbers = processInspectionDetailsRepository
-                .findLotNumbersByMultipleRmAndProcessIcNumbers(rmCertificateNos, processCertificateNos);
+                .findLotNumbersByMultipleRmAndProcessIcNumbers(rmCertificateNos, new ArrayList<>(expandedProcessCerts));
         logger.info("Found {} lot numbers", lotNumbers.size());
         return lotNumbers;
     }
