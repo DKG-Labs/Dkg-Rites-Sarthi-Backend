@@ -23,4 +23,9 @@ public interface MoistureAnalysisEntryService {
     void delete(Long id);
 
     public List<MoistureAnalysisListDTO> getLastFiveMoistureRecords();
+
+    public List<com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO> getAllLite(String plantId, Integer days);
+
+    public com.sarthi.Sleeper.dto.PagedResponse<com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO> getPage(
+            String plantId, Integer days, Integer page, Integer size);
 }

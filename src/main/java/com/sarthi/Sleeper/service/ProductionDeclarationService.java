@@ -21,6 +21,13 @@ public interface ProductionDeclarationService {
 
     List<ProductionDeclarationResponseDto> getAll();
 
+    List<ProductionDeclarationResponseDto> getAllLite(String plantId, Integer days);
+
+    List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusLite(String plantId, Integer days);
+
+    com.sarthi.Sleeper.dto.PagedResponse<ProductionDeclarationResponseDto> getPage(
+            String plantId, Integer days, Integer page, Integer size);
+
     public Page<ProductionDeclarationResponseDto> getAllProductions(int page, int size);
 
     List<ProductionDeclarationResponseDto> getByUser(Long userId);

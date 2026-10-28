@@ -201,6 +201,80 @@ public class MoistureAnalysisEntryServiceImpl implements MoistureAnalysisEntrySe
     }
 
 
+    @Override
+    public List<com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO> getAllLite(String plantId, Integer days) {
+
+        String normPlant = null;
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+        }
+        java.time.LocalDate fromDate = (days != null && days > 0)
+                ? java.time.LocalDate.now().minusDays(days)
+                : null;
+
+        return moistureAnalysisEntryRepository.findForList(normPlant, fromDate)
+                .stream()
+                .map(this::toLite)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public com.sarthi.Sleeper.dto.PagedResponse<com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO> getPage(
+            String plantId, Integer days, Integer page, Integer size) {
+
+        String normPlant = null;
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+        }
+        java.time.LocalDate fromDate = (days != null && days > 0)
+                ? java.time.LocalDate.now().minusDays(days)
+                : null;
+        int p = com.sarthi.Sleeper.dto.PagedResponse.clampPage(page);
+        int sz = com.sarthi.Sleeper.dto.PagedResponse.clampSize(size);
+
+        org.springframework.data.domain.Page<Long> idPage = moistureAnalysisEntryRepository
+                .findIdsForPage(normPlant, fromDate, org.springframework.data.domain.PageRequest.of(p, sz));
+
+        java.util.List<Long> ids = idPage.getContent();
+        java.util.Map<Long, MoistureAnalysisEntry> byId = new java.util.HashMap<>();
+        if (!ids.isEmpty()) {
+            moistureAnalysisEntryRepository.findByIdIn(ids).forEach(e -> byId.put(e.getId(), e));
+        }
+
+        // keep the newest-first order of the id page
+        List<com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO> content = ids.stream()
+                .map(byId::get)
+                .filter(java.util.Objects::nonNull)
+                .map(this::toLite)
+                .collect(Collectors.toList());
+
+        return new com.sarthi.Sleeper.dto.PagedResponse<>(content, p, sz, idPage.getTotalElements());
+    }
+
+    private com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO toLite(MoistureAnalysisEntry e) {
+        com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO dto =
+                new com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO();
+        dto.setId(e.getId());
+        dto.setEntryDate(CommonUtils.convertDateToString(e.getEntryDate()));
+        dto.setShift(e.getShift());
+        dto.setEntryTime(e.getEntryTime());
+        dto.setBatchNo(e.getBatchNo());
+        dto.setPlantId(e.getPlantId());
+        dto.setTotalFreeMoisture(e.getTotalFreeMoisture());
+        dto.setAdjustedWaterWt(e.getAdjustedWaterWt());
+        dto.setStatus(e.getStatus());
+        if (e.getSections() != null) {
+            dto.setSections(e.getSections().stream().map(s -> {
+                com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO.Section sd =
+                        new com.sarthi.Sleeper.dto.MoistureAnalysisLiteDTO.Section();
+                sd.setSectionType(s.getSectionType());
+                sd.setFreeMoisturePercent(s.getFreeMoisturePercent());
+                return sd;
+            }).toList());
+        }
+        return dto;
+    }
+
     private MoistureAnalysisResponseDTO mapToResponse(MoistureAnalysisEntry e) {
 
         MoistureAnalysisResponseDTO dto = new MoistureAnalysisResponseDTO();

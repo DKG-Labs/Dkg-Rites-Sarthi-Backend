@@ -2593,6 +2593,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     }
 
     @Override
+    // Runs outside any caller transaction: getCancelledCallsForPayment swallows repository errors, and inside
+    // submitInspectionCall's transaction a swallowed error still marks it rollback-only and loses the save.
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public boolean isPlantBlockedForCallRaising(String plantId, String vendorCode) {
         List<SleeperCancelledPaymentCallDto> list = getCancelledCallsForPayment(plantId, vendorCode);
         for (SleeperCancelledPaymentCallDto item : list) {

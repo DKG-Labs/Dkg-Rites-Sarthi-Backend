@@ -16,6 +16,46 @@ public interface WaterCubeStrengthTestRepository extends JpaRepository<WaterCube
     @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
     List<WaterCubeStrengthTest> findAll();
 
+    // plantId must already be normalised (colons/spaces removed, lower-case) or null
+    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
+    @Query("SELECT w FROM WaterCubeStrengthTest w " +
+            "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(w.plantId, ':', ''), ' ', '')) = :plantId) " +
+            "AND (:fromDate IS NULL OR w.createdDate >= :fromDate) " +
+            "ORDER BY w.id ASC")
+    List<WaterCubeStrengthTest> findForList(
+            @org.springframework.data.repository.query.Param("plantId") String plantId,
+            @org.springframework.data.repository.query.Param("fromDate") java.time.LocalDateTime fromDate);
+
+    // Page the ids first (a collection fetch can't be paged in the database), then load those rows
+    @Query(value = "SELECT w.id FROM WaterCubeStrengthTest w " +
+            "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(w.plantId, ':', ''), ' ', '')) = :plantId) " +
+            "AND (:fromDate IS NULL OR w.createdDate >= :fromDate) " +
+            "ORDER BY w.id DESC",
+            countQuery = "SELECT COUNT(w) FROM WaterCubeStrengthTest w " +
+            "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(w.plantId, ':', ''), ' ', '')) = :plantId) " +
+            "AND (:fromDate IS NULL OR w.createdDate >= :fromDate)")
+    org.springframework.data.domain.Page<Long> findIdsForPage(
+            @org.springframework.data.repository.query.Param("plantId") String plantId,
+            @org.springframework.data.repository.query.Param("fromDate") java.time.LocalDateTime fromDate,
+            org.springframework.data.domain.Pageable pageable);
+
+    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
+    List<WaterCubeStrengthTest> findByIdIn(java.util.Collection<Long> ids);
+
+    // Only what the verified-batches list needs, oldest first so a later test overrides an earlier one
+    interface WaterCubeConditionView {
+        Long getProductionDeclarationId();
+        Boolean getCondition2();
+        Integer getMrSamplesRequired();
+    }
+
+    @Query("SELECT w.waterCubeSampleDeclaration.productionDeclarationId AS productionDeclarationId, " +
+            "w.condition2 AS condition2, w.mrSamplesRequired AS mrSamplesRequired " +
+            "FROM WaterCubeStrengthTest w " +
+            "WHERE w.waterCubeSampleDeclaration.productionDeclarationId IS NOT NULL " +
+            "ORDER BY w.id ASC")
+    List<WaterCubeConditionView> findConditionViews();
+
     @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
     List<WaterCubeStrengthTest> findByCreatedBy(Long createdBy);
 

@@ -179,6 +179,71 @@ public class BenchMouldInspectionServiceImpl
                 .toList();
     }
 
+    @Override
+    public List<BenchMouldInspectionResponseDto> getAllLite(Integer days) {
+        List<BenchMouldInspection> list = (days != null && days > 0)
+                ? repository.findByCheckingDateGreaterThanEqualOrderByIdAsc(java.time.LocalDate.now().minusDays(days))
+                : repository.findAll();
+        if (list.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        java.util.List<Integer> userIds = list.stream()
+                .map(BenchMouldInspection::getCreatedBy)
+                .filter(java.util.Objects::nonNull)
+                .map(s -> {
+                    try { return Integer.parseInt(s.trim()); } catch (Exception e) { return null; }
+                })
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        java.util.Map<Integer, String> userMap = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            userMasterRepository.findByUserIdIn(userIds).forEach(u -> userMap.put(u.getUserId(), u.getUsername()));
+        }
+
+        return list.stream()
+                .map(entity -> mapToResponseWithUserMap(entity, userMap))
+                .toList();
+    }
+
+    @Override
+    public com.sarthi.Sleeper.dto.PagedResponse<BenchMouldInspectionResponseDto> getPage(
+            Integer days, Integer page, Integer size) {
+
+        int p = com.sarthi.Sleeper.dto.PagedResponse.clampPage(page);
+        int sz = com.sarthi.Sleeper.dto.PagedResponse.clampSize(size);
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                p, sz, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
+        java.time.LocalDate fromDate = (days != null && days > 0)
+                ? java.time.LocalDate.now().minusDays(days)
+                : java.time.LocalDate.of(1970, 1, 1);
+
+        org.springframework.data.domain.Page<BenchMouldInspection> result =
+                repository.findByCheckingDateGreaterThanEqual(fromDate, pageable);
+
+        List<BenchMouldInspection> list = result.getContent();
+        java.util.List<Integer> userIds = list.stream()
+                .map(BenchMouldInspection::getCreatedBy)
+                .filter(java.util.Objects::nonNull)
+                .map(s -> {
+                    try { return Integer.parseInt(s.trim()); } catch (Exception e) { return null; }
+                })
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        java.util.Map<Integer, String> userMap = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            userMasterRepository.findByUserIdIn(userIds).forEach(u -> userMap.put(u.getUserId(), u.getUsername()));
+        }
+
+        List<BenchMouldInspectionResponseDto> content = list.stream()
+                .map(entity -> mapToResponseWithUserMap(entity, userMap))
+                .toList();
+        return new com.sarthi.Sleeper.dto.PagedResponse<>(content, p, sz, result.getTotalElements());
+    }
+
     private BenchMouldInspectionResponseDto mapToResponseWithUserMap(
             BenchMouldInspection entity,
             java.util.Map<Integer, String> userMap) {

@@ -39,6 +39,32 @@ public class MoistureAnalysisEntryController {
                     HttpStatus.OK);
         }
 
+        // Slim list for screens: optional plantId and last-N-days window
+        @GetMapping("/list")
+        public ResponseEntity<Object> getAllLite(
+                @RequestParam(required = false) String plantId,
+                @RequestParam(required = false) Integer days) {
+
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(
+                          moistureAnalysisEntryService.getAllLite(plantId, days)),
+                    HttpStatus.OK);
+        }
+
+        // Paged slim list, newest first: page is zero-based, size is capped at 25
+        @GetMapping("/page")
+        public ResponseEntity<Object> getPage(
+                @RequestParam(required = false) String plantId,
+                @RequestParam(required = false) Integer days,
+                @RequestParam(required = false) Integer page,
+                @RequestParam(required = false) Integer size) {
+
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(
+                          moistureAnalysisEntryService.getPage(plantId, days, page, size)),
+                    HttpStatus.OK);
+        }
+
         @PutMapping("/update/{id}")
         public ResponseEntity<Object> update(
                 @PathVariable Long id,
