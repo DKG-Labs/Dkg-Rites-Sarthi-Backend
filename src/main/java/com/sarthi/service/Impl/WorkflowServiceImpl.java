@@ -280,7 +280,8 @@ public class WorkflowServiceImpl implements WorkflowService {
 
                    validateFinalIeAction(
                            last.getWorkflowTransitionId(),
-                           createdBy
+                           createdBy,
+                           last.getAssignedToUser()
                    );
                }else {
                    if (last.getAssignedToUser() == null ||
@@ -469,11 +470,18 @@ public class WorkflowServiceImpl implements WorkflowService {
 
 
     private void validateFinalIeAction(
-            String requestId,
-            Integer actionBy
+            Integer workflowTransitionId,
+            Integer actionBy,
+            Integer assignedToUser
     ) {
         boolean allowed = finalIeMappingRepository
-                .existsByRequestIdAndIeUserId(requestId, actionBy);
+                .existsByWorkflowTransitionIdAndIeUserId(workflowTransitionId, actionBy);
+
+        // Fallback: if no FinalIeMapping row exists for this transition (e.g. DSC_SIGN_IC
+        // transition was created without copying rows), check assigned_to_user directly.
+        if (!allowed && assignedToUser != null) {
+            allowed = assignedToUser.equals(actionBy);
+        }
 
         if (!allowed) {
             throw new InvalidInputException(
@@ -657,15 +665,11 @@ public class WorkflowServiceImpl implements WorkflowService {
             signed.setWorkflowSequence((current.getWorkflowSequence() != null ? current.getWorkflowSequence() : 1) + 1);
             workflowTransitionRepository.save(signed);
 
-            // Propagate FinalIeMapping to the new DSC_SIGN_IC transition so future
-            // auth checks (SEND_CALL_TO_IBS) can find the assigned IE user.
-            List<com.sarthi.entity.FinalIeMapping> prevMappings =
-                    finalIeMappingRepository.findByWorkflowTransitionId(current.getWorkflowTransitionId());
-            for (com.sarthi.entity.FinalIeMapping prev : prevMappings) {
-                com.sarthi.entity.FinalIeMapping copy = new com.sarthi.entity.FinalIeMapping();
-                copy.setWorkflowTransitionId(signed.getWorkflowTransitionId());
-                copy.setIeUserId(prev.getIeUserId());
-                finalIeMappingRepository.save(copy);
+            if (signed.getAssignedToUser() != null) {
+                FinalIeMapping fm = new FinalIeMapping();
+                fm.setWorkflowTransitionId(signed.getWorkflowTransitionId());
+                fm.setIeUserId(signed.getAssignedToUser());
+                finalIeMappingRepository.save(fm);
             }
 
             return mapWorkflowTransition(signed);
@@ -820,8 +824,9 @@ public class WorkflowServiceImpl implements WorkflowService {
             }else if (call.getTypeOfCall().equalsIgnoreCase("FINAL")) {
 
                 validateFinalIeAction(
-                        last.getRequestId(),
-                        req.getActionBy()
+                        last.getWorkflowTransitionId(),
+                        req.getActionBy(),
+                        last.getAssignedToUser()
                 );
             }else if (last.getAssignedToUser() == null ||
                     !last.getAssignedToUser().equals(req.getActionBy())) {
