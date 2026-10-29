@@ -1296,4 +1296,30 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
     List<Object[]> sumProcessQtyByCallNosAndHeatNo(
             @Param("callNos") List<String> callNos,
             @Param("heatNo") String heatNo);
+
+    @Query(value = """
+        SELECT COALESCE(SUM(p.total_rejected), 0)
+        FROM process_line_final_result p
+        LEFT JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
+        WHERE ic.place_of_inspection = :poiCode
+          AND DATE(COALESCE(p.date_of_inspection, p.created_at)) <= :toDate
+    """, nativeQuery = true)
+    Long sumRejectedByPoiUpToDate(@Param("poiCode") String poiCode,
+                                   @Param("toDate") LocalDate toDate);
+
+    @Query(value = """
+        SELECT
+            plfr.date_of_inspection                                              AS entryDate,
+            plfr.shift                                                           AS shift,
+            plfr.line_no                                                         AS unitLineShedNo,
+            COALESCE(SUM(plfr.total_rejected), 0)                               AS rejectedQty,
+            MAX(COALESCE(um.full_name, um.short_name, um.employee_code))        AS ieName
+        FROM process_line_final_result plfr
+        JOIN inspection_calls ic ON plfr.inspection_call_no = ic.ic_number
+        LEFT JOIN user_master um ON um.userid = plfr.created_by
+        WHERE ic.place_of_inspection = :poiCode
+        GROUP BY plfr.date_of_inspection, plfr.shift, plfr.line_no
+        ORDER BY plfr.date_of_inspection DESC
+    """, nativeQuery = true)
+    List<Object[]> findProcessRejectionRowsByPoiCode(@Param("poiCode") String poiCode);
 }

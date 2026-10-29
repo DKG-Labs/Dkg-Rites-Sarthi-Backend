@@ -78,6 +78,45 @@ public class AzureBlobStorageService {
         return uploadBase64File(base64Data, fileName, this.containerName);
     }
 
+    public String uploadBase64File(String base64Data, String fileName, String targetContainerName, int targetKB) {
+        // Temporarily redirect to the main upload with a custom target size by wrapping
+        // We do this without duplicating logic: swap compression target via a thread-local approach
+        // is complex; instead we inline a targeted variant here.
+        try {
+            if (base64Data.contains(",")) {
+                base64Data = base64Data.split(",")[1];
+            }
+
+            boolean isImage = fileName.toLowerCase().endsWith(".jpg")
+                    || fileName.toLowerCase().endsWith(".jpeg")
+                    || fileName.toLowerCase().endsWith(".png");
+
+            byte[] decodedBytes = decodeBase64(base64Data);
+
+            if (isImage) {
+                decodedBytes = compressToTargetSize(decodedBytes, targetKB);
+            }
+
+            if (isLocalOrInvalidAzure()) {
+                return saveToLocalUploads(fileName, decodedBytes);
+            }
+
+            try {
+                ByteArrayInputStream inputStream = new ByteArrayInputStream(decodedBytes);
+                BlobClient blobClient = getContainerClient(targetContainerName).getBlobClient(fileName);
+                blobClient.upload(inputStream, decodedBytes.length, true);
+                return blobClient.getBlobUrl();
+            } catch (Exception azureEx) {
+                log.warn("Azure upload failed ({}), saving locally: {}", azureEx.getMessage(), fileName);
+                return saveToLocalUploads(fileName, decodedBytes);
+            }
+
+        } catch (Exception e) {
+            log.error("Error uploading file: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to upload file to storage", e);
+        }
+    }
+
 
 
     public byte[] decodeBase64(String base64) {

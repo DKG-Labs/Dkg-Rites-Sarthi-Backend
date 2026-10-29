@@ -74,4 +74,15 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
     boolean existsByPoiCodeAndEmployeeCode(String poiCode, String employeeCode);
 
     boolean existsByPoiCodeAndEmployeeCodeAndIeType(String poiCode, String employeeCode, String ieType);
+
+    @Query("SELECT DISTINCT m.poiCode FROM IePincodePoiMapping m WHERE m.employeeCode = :employeeCode")
+    List<String> findDistinctPoiCodesByEmployeeCode(@Param("employeeCode") String employeeCode);
+
+    @Query(value = """
+        SELECT DISTINCT ipm.poi_code AS poiCode, ppm.company_name AS companyName, ppm.unit_name AS unitName
+        FROM ie_pincode_poi_mapping ipm
+        LEFT JOIN pincode_poi_mapping ppm ON ppm.poi_code = ipm.poi_code
+        WHERE ipm.employee_code = :employeeCode
+    """, nativeQuery = true)
+    List<Object[]> findPlantInfoByEmployeeCode(@Param("employeeCode") String employeeCode);
 }

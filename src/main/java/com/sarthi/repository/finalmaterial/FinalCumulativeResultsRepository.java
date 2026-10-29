@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import java.time.LocalDate;
@@ -742,4 +743,28 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
     List<Object[]> findMonthlyFinalRejectionTrend(
             @Param("startDate") java.time.LocalDateTime startDate,
             @Param("endDate") java.time.LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT COALESCE(SUM(fcr.qty_now_rejected), 0)
+        FROM final_cumulative_results fcr
+        LEFT JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+        WHERE ic.place_of_inspection = :poiCode
+          AND DATE(COALESCE(fcr.date_of_inspection, fcr.created_at)) <= :toDate
+    """, nativeQuery = true)
+    Long sumRejectedByPoiUpToDate(@Param("poiCode") String poiCode,
+                                   @Param("toDate") LocalDate toDate);
+
+    @Query(value = """
+        SELECT
+            fcr.date_of_inspection                                        AS entryDate,
+            COALESCE(SUM(fcr.qty_now_rejected), 0)                       AS rejectedQty,
+            MAX(COALESCE(um.full_name, um.short_name, um.employee_code)) AS ieName
+        FROM final_cumulative_results fcr
+        JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+        LEFT JOIN user_master um ON um.userid = fcr.created_by
+        WHERE ic.place_of_inspection = :poiCode
+        GROUP BY fcr.date_of_inspection
+        ORDER BY fcr.date_of_inspection DESC
+    """, nativeQuery = true)
+    List<Object[]> findFinalRejectionRowsByPoiCode(@Param("poiCode") String poiCode);
 }
