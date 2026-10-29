@@ -43,9 +43,27 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(f.created_at)                                      AS icDate,
-                COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0) AS quantityOffered,
-                COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)         AS quantityPassed,
-                COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)         AS quantityRejected,
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
+                    THEN COALESCE(CAST(sfr.offered_sets_quantity AS SIGNED), CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
+                    ELSE COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
+                END                                                     AS quantityOffered,
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
+                    THEN COALESCE(CAST(sfr.accepted_sets_quantity AS SIGNED), CAST(sfr.total_accepted AS SIGNED), 0)
+                    ELSE COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)
+                END                                                     AS quantityPassed,
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
+                    THEN COALESCE(CAST(sfr.rejected_sets_quantity AS SIGNED), CAST(sfr.total_rejected AS SIGNED), 0)
+                    ELSE COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)
+                END                                                     AS quantityRejected,
                 sic.call_no                                             AS callNo,
                 (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
@@ -92,7 +110,8 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
-                SELECT sfr1.call_number, sfr1.total_offered_quantity, sfr1.total_accepted, sfr1.total_rejected
+                SELECT sfr1.call_number, sfr1.total_offered_quantity, sfr1.total_accepted, sfr1.total_rejected,
+                       sfr1.offered_sets_quantity, sfr1.accepted_sets_quantity, sfr1.rejected_sets_quantity, sfr1.sleeper_type
                 FROM sleeper_final_result sfr1
                 INNER JOIN (
                     SELECT call_number, MAX(id) AS max_id
@@ -102,6 +121,10 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                     ON sfr1.id = latest_sfr.max_id
             ) sfr
                    ON CONVERT(sfr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
+                CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            )
             LEFT JOIN (
                 SELECT icr1.*
                 FROM ibs_call_registration icr1
@@ -177,7 +200,12 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 sic.total_offered,
                 sfr.total_offered_quantity,
                 sfr.total_accepted,
-                sfr.total_rejected
+                sfr.total_rejected,
+                sfr.offered_sets_quantity,
+                sfr.accepted_sets_quantity,
+                sfr.rejected_sets_quantity,
+                sfr.sleeper_type,
+                pi.uom
             """, nativeQuery = true)
     List<Object[]> getSleeperFinalInspectionCalls();
 
@@ -202,9 +230,27 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(f.created_at)                                      AS icDate,
-                COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0) AS quantityOffered,
-                COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)         AS quantityPassed,
-                COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)         AS quantityRejected,
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
+                    THEN COALESCE(CAST(sfr.offered_sets_quantity AS SIGNED), CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
+                    ELSE COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
+                END                                                     AS quantityOffered,
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
+                    THEN COALESCE(CAST(sfr.accepted_sets_quantity AS SIGNED), CAST(sfr.total_accepted AS SIGNED), 0)
+                    ELSE COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)
+                END                                                     AS quantityPassed,
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
+                         OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
+                    THEN COALESCE(CAST(sfr.rejected_sets_quantity AS SIGNED), CAST(sfr.total_rejected AS SIGNED), 0)
+                    ELSE COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)
+                END                                                     AS quantityRejected,
                 sic.call_no                                             AS callNo,
                 (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
@@ -264,7 +310,8 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                    )
                   AND pm.product_type = 'sleeper'
             LEFT JOIN (
-                SELECT sfr1.call_number, sfr1.total_offered_quantity, sfr1.total_accepted, sfr1.total_rejected
+                SELECT sfr1.call_number, sfr1.total_offered_quantity, sfr1.total_accepted, sfr1.total_rejected,
+                       sfr1.offered_sets_quantity, sfr1.accepted_sets_quantity, sfr1.rejected_sets_quantity, sfr1.sleeper_type
                 FROM sleeper_final_result sfr1
                 INNER JOIN (
                     SELECT call_number, MAX(id) AS max_id
@@ -275,6 +322,10 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                     ON sfr1.id = latest_sfr.max_id
             ) sfr
                    ON CONVERT(sfr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
+                CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            )
             WHERE sic.call_no IN (:callNumbers)
               AND UPPER(COALESCE(sic.status, '')) NOT LIKE '%CANCEL%'
               AND NOT EXISTS (
@@ -307,7 +358,12 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 sic.total_offered,
                 sfr.total_offered_quantity,
                 sfr.total_accepted,
-                sfr.total_rejected
+                sfr.total_rejected,
+                sfr.offered_sets_quantity,
+                sfr.accepted_sets_quantity,
+                sfr.rejected_sets_quantity,
+                sfr.sleeper_type,
+                pi.uom
             """, nativeQuery = true)
     List<Object[]> getSleeperFinalCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 }

@@ -26,4 +26,15 @@ public interface PoiProcessIeMappingRepository extends JpaRepository<PoiProcessI
     boolean existsByPoiCodeAndEmployeeCode(String poiCode, String employeeCode);
 
     List<PoiProcessIeMapping> findByPoiCode(String poiCode);
+
+    @Query("SELECT DISTINCT p.poiCode FROM PoiProcessIeMapping p WHERE p.employeeCode = :employeeCode")
+    List<String> findDistinctPoiCodesByEmployeeCode(@Param("employeeCode") String employeeCode);
+
+    @Query(value = """
+        SELECT DISTINCT pim.poi_code AS poiCode, ppm.company_name AS companyName, ppm.unit_name AS unitName
+        FROM poi_process_ie_mapping pim
+        LEFT JOIN pincode_poi_mapping ppm ON ppm.poi_code = pim.poi_code
+        WHERE pim.employee_code = :employeeCode
+    """, nativeQuery = true)
+    List<Object[]> findPlantInfoByEmployeeCode(@Param("employeeCode") String employeeCode);
 }
