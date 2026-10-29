@@ -469,14 +469,11 @@ public class WorkflowServiceImpl implements WorkflowService {
 
 
     private void validateFinalIeAction(
-            Integer workflowTransitionId,
+            String requestId,
             Integer actionBy
     ) {
         boolean allowed = finalIeMappingRepository
-                .existsByWorkflowTransitionIdAndIeUserId(
-                        workflowTransitionId,
-                        actionBy
-                );
+                .existsByRequestIdAndIeUserId(requestId, actionBy);
 
         if (!allowed) {
             throw new InvalidInputException(
@@ -659,6 +656,18 @@ public class WorkflowServiceImpl implements WorkflowService {
             signed.setPrimarySwift(current.getPrimarySwift());
             signed.setWorkflowSequence((current.getWorkflowSequence() != null ? current.getWorkflowSequence() : 1) + 1);
             workflowTransitionRepository.save(signed);
+
+            // Propagate FinalIeMapping to the new DSC_SIGN_IC transition so future
+            // auth checks (SEND_CALL_TO_IBS) can find the assigned IE user.
+            List<com.sarthi.entity.FinalIeMapping> prevMappings =
+                    finalIeMappingRepository.findByWorkflowTransitionId(current.getWorkflowTransitionId());
+            for (com.sarthi.entity.FinalIeMapping prev : prevMappings) {
+                com.sarthi.entity.FinalIeMapping copy = new com.sarthi.entity.FinalIeMapping();
+                copy.setWorkflowTransitionId(signed.getWorkflowTransitionId());
+                copy.setIeUserId(prev.getIeUserId());
+                finalIeMappingRepository.save(copy);
+            }
+
             return mapWorkflowTransition(signed);
         }
 
@@ -811,7 +820,7 @@ public class WorkflowServiceImpl implements WorkflowService {
             }else if (call.getTypeOfCall().equalsIgnoreCase("FINAL")) {
 
                 validateFinalIeAction(
-                        last.getWorkflowTransitionId(),
+                        last.getRequestId(),
                         req.getActionBy()
                 );
             }else if (last.getAssignedToUser() == null ||
