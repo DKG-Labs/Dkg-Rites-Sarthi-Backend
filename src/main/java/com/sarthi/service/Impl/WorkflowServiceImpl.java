@@ -280,7 +280,8 @@ public class WorkflowServiceImpl implements WorkflowService {
 
                    validateFinalIeAction(
                            last.getWorkflowTransitionId(),
-                           createdBy
+                           createdBy,
+                           last.getAssignedToUser()
                    );
                }else {
                    if (last.getAssignedToUser() == null ||
@@ -470,13 +471,17 @@ public class WorkflowServiceImpl implements WorkflowService {
 
     private void validateFinalIeAction(
             Integer workflowTransitionId,
-            Integer actionBy
+            Integer actionBy,
+            Integer assignedToUser
     ) {
         boolean allowed = finalIeMappingRepository
-                .existsByWorkflowTransitionIdAndIeUserId(
-                        workflowTransitionId,
-                        actionBy
-                );
+                .existsByWorkflowTransitionIdAndIeUserId(workflowTransitionId, actionBy);
+
+        // Fallback: if no FinalIeMapping row exists for this transition (e.g. DSC_SIGN_IC
+        // transition was created without copying rows), check assigned_to_user directly.
+        if (!allowed && assignedToUser != null) {
+            allowed = assignedToUser.equals(actionBy);
+        }
 
         if (!allowed) {
             throw new InvalidInputException(
@@ -659,6 +664,14 @@ public class WorkflowServiceImpl implements WorkflowService {
             signed.setPrimarySwift(current.getPrimarySwift());
             signed.setWorkflowSequence((current.getWorkflowSequence() != null ? current.getWorkflowSequence() : 1) + 1);
             workflowTransitionRepository.save(signed);
+
+            if (signed.getAssignedToUser() != null) {
+                FinalIeMapping fm = new FinalIeMapping();
+                fm.setWorkflowTransitionId(signed.getWorkflowTransitionId());
+                fm.setIeUserId(signed.getAssignedToUser());
+                finalIeMappingRepository.save(fm);
+            }
+
             return mapWorkflowTransition(signed);
         }
 
@@ -812,7 +825,8 @@ public class WorkflowServiceImpl implements WorkflowService {
 
                 validateFinalIeAction(
                         last.getWorkflowTransitionId(),
-                        req.getActionBy()
+                        req.getActionBy(),
+                        last.getAssignedToUser()
                 );
             }else if (last.getAssignedToUser() == null ||
                     !last.getAssignedToUser().equals(req.getActionBy())) {
