@@ -13,6 +13,10 @@ public interface ScrapEntryService {
 
     Integer getPendingQty(String poiCode, LocalDate toDate);
 
+    List<BoardSummaryRowDto> getBoardSummary(String productType);
+
+    RejectionBreakupDto getRejectionBreakup(String poiCode, LocalDate date, String stage, String shift, String lineName);
+
     ScrapEntryResponseDto addEntry(ScrapEntryRequestDto req);
 
     ScrapEntryResponseDto updateEntry(Integer id, ScrapEntryUpdateDto req);

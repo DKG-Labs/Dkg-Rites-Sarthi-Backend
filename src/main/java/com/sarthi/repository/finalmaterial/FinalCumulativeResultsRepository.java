@@ -767,4 +767,25 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
         ORDER BY fcr.date_of_inspection DESC
     """, nativeQuery = true)
     List<Object[]> findFinalRejectionRowsByPoiCode(@Param("poiCode") String poiCode);
+
+    @Query(value = """
+        SELECT ic.place_of_inspection AS poiCode,
+               COALESCE(SUM(fcr.qty_now_rejected), 0) AS totalRejected
+        FROM final_cumulative_results fcr
+        JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+        WHERE ic.place_of_inspection IS NOT NULL
+        GROUP BY ic.place_of_inspection
+    """, nativeQuery = true)
+    List<Object[]> sumFinalRejectedGroupByPoi();
+
+    @Query(value = """
+        SELECT DISTINCT fcr.inspection_call_no
+        FROM final_cumulative_results fcr
+        JOIN inspection_calls ic ON fcr.inspection_call_no = ic.ic_number
+        WHERE ic.place_of_inspection = :poiCode
+          AND fcr.date_of_inspection = :date
+    """, nativeQuery = true)
+    List<String> findCallNosByPoiAndDate(
+            @Param("poiCode") String poiCode,
+            @Param("date") java.time.LocalDate date);
 }

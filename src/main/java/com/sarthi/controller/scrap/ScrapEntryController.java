@@ -18,6 +18,22 @@ public class ScrapEntryController {
     @Autowired
     private ScrapEntryService scrapEntryService;
 
+    @GetMapping("/board-summary")
+    public ResponseEntity<List<BoardSummaryRowDto>> getBoardSummary(
+            @RequestParam(required = false, defaultValue = "ERC") String productType) {
+        return ResponseEntity.ok(scrapEntryService.getBoardSummary(productType));
+    }
+
+    @GetMapping("/rejection-breakup")
+    public ResponseEntity<RejectionBreakupDto> getRejectionBreakup(
+            @RequestParam String poiCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam String stage,
+            @RequestParam(required = false) String shift,
+            @RequestParam(required = false) String lineName) {
+        return ResponseEntity.ok(scrapEntryService.getRejectionBreakup(poiCode, date, stage, shift, lineName));
+    }
+
     @GetMapping("/plants")
     public ResponseEntity<List<PlantInfoDto>> getMappedPlants(
             @RequestParam Integer ieUserId,
