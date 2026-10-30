@@ -7775,6 +7775,12 @@ public class reportsImpl implements reports {
                                                 .forgingRejectionPercent(forgingRejPct)
                                                 .quenchingRejectionPercent(quenchingRejPct)
                                                 .temperingRejectionPercent(temperingRejPct)
+                                                .shearingRejected(shearingRejected)
+                                                .turningRejected(turningRejected)
+                                                .mpiRejected(mpiRejected)
+                                                .forgingRejected(forgingRejected)
+                                                .quenchingRejected(quenchingRejected)
+                                                .temperingRejected(temperingRejected)
                                                 .build());
                         }
                 }

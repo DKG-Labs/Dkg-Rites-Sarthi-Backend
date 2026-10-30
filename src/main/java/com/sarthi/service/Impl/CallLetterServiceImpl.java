@@ -1517,6 +1517,14 @@ public class CallLetterServiceImpl implements CallLetterService {
                     } else if (mfSleepersByBatch.containsKey(cleanBatch)) {
                         mfSleepersDistinct.addAll(mfSleepersByBatch.get(cleanBatch));
                     }
+                    // MF tables carry no sleeper type, so the same batch number on the same day/plant can hold
+                    // samples of another sleeper type. Keep only samples that belong to THIS call's batch.
+                    java.util.Set<String> ownSleepers = new java.util.HashSet<>();
+                    for (String s : goodSleepersList) ownSleepers.add(s.trim().toUpperCase());
+                    for (String s : rawBadSleepersList) ownSleepers.add(s.trim().toUpperCase());
+                    if (!ownSleepers.isEmpty()) {
+                        mfSleepersDistinct.removeIf(s -> !ownSleepers.contains(s.trim().toUpperCase()));
+                    }
                     List<String> mfSleepersList = new java.util.ArrayList<>(mfSleepersDistinct);
                     String mfNoStr = String.join(", ", mfSleepersList);
                     int mftCount = mfSleepersList.size();

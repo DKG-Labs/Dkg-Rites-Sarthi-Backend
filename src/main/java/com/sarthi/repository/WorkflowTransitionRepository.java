@@ -1014,27 +1014,35 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 COALESCE(
                     CASE
                         WHEN ic.ic_number LIKE '%ER%' THEN (
-                            SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
-                            FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1
+                            COALESCE(
+                                (SELECT NULLIF(SUM(COALESCE(r.accepted_qty_mt, r.weight_accepted_mt, 0)), 0)
+                                 FROM rm_heat_final_result r
+                                 WHERE r.inspection_call_no = ic.ic_number OR r.inspection_call_no = icd.certificate_no),
+                                (SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
+                                 FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1)
+                            )
                         )
                         WHEN ic.ic_number LIKE '%EP%' THEN (
-                            SELECT SUM(pid.offered_qty)
-                            FROM process_inspection_details pid WHERE pid.ic_id = ic.id
+                            COALESCE(
+                                (SELECT NULLIF(SUM(COALESCE(p.total_accepted, p.tempering_accepted, 0)), 0)
+                                 FROM process_line_final_result p
+                                 WHERE p.inspection_call_no = ic.ic_number OR p.inspection_call_no = icd.certificate_no),
+                                (SELECT NULLIF(SUM(pid.qty_accepted), 0)
+                                 FROM process_inspection_details pid WHERE pid.ic_id = ic.id),
+                                (SELECT SUM(pid.offered_qty)
+                                 FROM process_inspection_details pid WHERE pid.ic_id = ic.id)
+                            )
                         )
                         WHEN ic.ic_number LIKE '%EF%' THEN (
-                            SELECT 
-                                CASE 
-                                    WHEN LOWER(COALESCE(
-                                        (SELECT pi2.uom FROM po_item pi2 WHERE (pi2.po_header_id = ph.id OR pi2.case_no = ph.case_no) ORDER BY (pi2.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi2.item_sr_no = ic.po_serial_no) DESC, pi2.id ASC LIMIT 1),
-                                        'nos'
-                                    )) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons')
-                                    THEN COALESCE(
-                                        (SELECT fcr.qty_now_offered FROM final_cumulative_results fcr WHERE fcr.inspection_call_no = ic.ic_number OR fcr.inspection_call_no = icd.certificate_no OR fcr.inspection_call_no LIKE CONCAT('%', ic.ic_number, '%') LIMIT 1),
-                                        fid.total_offered_qty
-                                    )
-                                    ELSE fid.total_offered_qty
-                                END
-                            FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1
+                            COALESCE(
+                                (SELECT NULLIF(SUM(COALESCE(fcr.qty_now_passed, 0)), 0)
+                                 FROM final_cumulative_results fcr
+                                 WHERE fcr.inspection_call_no = ic.ic_number OR fcr.inspection_call_no = icd.certificate_no OR fcr.inspection_call_no LIKE CONCAT('%', ic.ic_number, '%')),
+                                (SELECT NULLIF(fid.total_accepted_qty, 0)
+                                 FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1),
+                                (SELECT fid.total_offered_qty
+                                 FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1)
+                            )
                         )
                     END,
                     (SELECT icd2.call_qty FROM inspection_call_details icd2 WHERE icd2.inspection_call_no = ic.ic_number ORDER BY icd2.id DESC LIMIT 1),

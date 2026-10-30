@@ -880,7 +880,7 @@ Page<Object[]> fetchManufacturerSummary(
     @Query(value = """
 
 SELECT
-    poi.company_name AS manufacturer,
+    COALESCE(ic.company_name, poi.company_name) AS manufacturer,
     DATE_FORMAT(ic.created_at, '%Y-%m') AS month,
 
     -- PROCESS TOTALS
@@ -933,7 +933,7 @@ SELECT
 
 FROM inspection_calls ic
 
-JOIN pincode_poi_mapping poi
+LEFT JOIN pincode_poi_mapping poi
     ON poi.poi_code = ic.place_of_inspection
 
 -- AGGREGATED PL (NO INFLATION)
@@ -1018,10 +1018,10 @@ LEFT JOIN (
 ) fd ON fd.inspection_call_no = ic.ic_number
 
 WHERE ic.created_at BETWEEN :startDate AND :endDate
-  AND poi.company_name = :companyName
+  AND COALESCE(ic.company_name, poi.company_name) = :companyName
 
-GROUP BY 
-    poi.company_name,
+GROUP BY
+    COALESCE(ic.company_name, poi.company_name),
     DATE_FORMAT(ic.created_at, '%Y-%m')
 
 ORDER BY month
@@ -2580,7 +2580,7 @@ WHERE ic.created_at BETWEEN :startDate AND :endDate
                     JOIN inspection_calls ic_f ON fid.ic_id = ic_f.id
                     WHERE ic_f.po_no = ic.po_no
                 ), 0) AS totalFinalInspected,
-                COUNT(DISTINCT CASE WHEN ic.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED', 'IC_ISSUED') THEN ic.id END) AS openInspectionCalls
+                COUNT(DISTINCT CASE WHEN ic.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED', 'IC_ISSUED', 'SEND_CALL_TO_IBS') THEN ic.id END) AS openInspectionCalls
             FROM inspection_calls ic
             LEFT JOIN po_header ph ON ph.po_no = ic.po_no
             WHERE (ic.company_name = :companyName OR ic.company_name LIKE CONCAT('%', :companyName, '%'))
@@ -2625,7 +2625,7 @@ WHERE ic.created_at BETWEEN :startDate AND :endDate
                 ic.place_of_inspection AS placeOfInspection
             FROM inspection_calls ic
             WHERE ic.po_no = :poNo 
-              AND ic.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED', 'IC_ISSUED')
+              AND ic.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED', 'IC_ISSUED', 'SEND_CALL_TO_IBS')
             ORDER BY ic.created_at DESC
             """, nativeQuery = true)
     List<Object[]> getPoOpenCalls(@Param("poNo") String poNo);

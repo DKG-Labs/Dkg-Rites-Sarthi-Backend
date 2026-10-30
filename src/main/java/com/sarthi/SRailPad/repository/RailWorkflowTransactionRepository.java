@@ -973,7 +973,13 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                 CASE
                     WHEN (rwt.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%') AND UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%' 
-                        THEN CONCAT(COALESCE(ic.no_of_sets, 0), ' Set')
+                        THEN CONCAT(COALESCE(
+                            (SELECT NULLIF(SUM(rfl.accepted_qty), 0) FROM rail_final_inspection_lot_results rfl WHERE rfl.call_no = ic.call_no),
+                            ic.no_of_sets, 0), ' Set')
+                    WHEN (rwt.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%')
+                        THEN CONCAT(COALESCE(
+                            (SELECT NULLIF(SUM(rfl.accepted_qty), 0) FROM rail_final_inspection_lot_results rfl WHERE rfl.call_no = ic.call_no),
+                            ic.total_qty, 0), ' Nos')
                     ELSE CONCAT(COALESCE(ic.total_qty, 0), ' Nos')
                 END AS callQty,
                 ic.rail_pad_type AS railpadType
