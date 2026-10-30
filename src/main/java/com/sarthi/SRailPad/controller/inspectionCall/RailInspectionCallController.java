@@ -163,6 +163,12 @@ public class RailInspectionCallController {
             }
         }
 
+        // Resolve case number based on plant RIO (comma-separated case numbers — pick the one matching this plant's RIO)
+        if (summary.getRio() != null && !summary.getRio().isBlank() && !"N/A".equalsIgnoreCase(summary.getRio())) {
+            String resolvedCaseNo = resolveRailPadCaseNo(summary.getCaseNo(), summary.getRio());
+            summary.setCaseNo(resolvedCaseNo != null ? resolvedCaseNo : "N/A");
+        }
+
         // Ensure placeOfInspection fallback to call plantId if null or empty
         if (summary.getPlaceOfInspection() == null || summary.getPlaceOfInspection().isBlank() || "N/A".equalsIgnoreCase(summary.getPlaceOfInspection())) {
             summary.setPlaceOfInspection(call.getPlantId());
@@ -317,6 +323,27 @@ public class RailInspectionCallController {
                     HttpStatus.BAD_REQUEST
             );
         }
+    }
+
+    /**
+     * Picks the comma-separated case number part that matches the plant's RIO first letter.
+     * Returns null if no matching part found (PO does not belong to this RIO).
+     */
+    private String resolveRailPadCaseNo(String rawCaseNo, String rio) {
+        if (rawCaseNo == null || rawCaseNo.trim().isEmpty() || "N/A".equalsIgnoreCase(rawCaseNo.trim())) {
+            return rawCaseNo;
+        }
+        String[] parts = rawCaseNo.trim().split(",");
+        if (rio != null && !rio.trim().isEmpty()) {
+            String firstLetter = rio.trim().substring(0, 1).toUpperCase();
+            for (String part : parts) {
+                String p = part.trim();
+                if (p.toUpperCase().startsWith(firstLetter)) {
+                    return p;
+                }
+            }
+        }
+        return null;
     }
 
     @PostMapping("/withdraw")

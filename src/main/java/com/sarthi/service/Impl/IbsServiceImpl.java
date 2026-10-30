@@ -497,9 +497,8 @@ public class IbsServiceImpl implements IbsService {
 
         IbsInspectionDto dto = new IbsInspectionDto();
 
-        dto.setCaseNumber(
-                poHeader.getCaseNo()
-        );
+        // ERC does not require RIO-based case number resolution — use raw case number
+        dto.setCaseNumber(poHeader.getCaseNo());
 
         dto.setCallDate(
                 inspectionCall.getDesiredInspectionDate()
@@ -2904,26 +2903,30 @@ public class IbsServiceImpl implements IbsService {
             String callNumber = entry.getKey();
             List<Object[]> candidateRows = entry.getValue();
 
+            // ERC does not require RIO-based case number resolution — only Sleeper and RailPad do
             Character rioInitial = null;
-            for (Object[] r : candidateRows) {
-                String rowRio = (r.length > 18 && r[18] != null) ? safeString(r[18]) : null;
-                String icNumber = r[15] != null ? safeString(r[15]) : null;
-                String poi = safeString(r[2]);
-                rioInitial = getRioInitial(rowRio, icNumber, poi, productType);
-                if (rioInitial != null) {
-                    break;
+            if (!"ERC".equalsIgnoreCase(productType)) {
+                for (Object[] r : candidateRows) {
+                    String rowRio = (r.length > 18 && r[18] != null) ? safeString(r[18]) : null;
+                    String icNumber = r[15] != null ? safeString(r[15]) : null;
+                    String poi = safeString(r[2]);
+                    rioInitial = getRioInitial(rowRio, icNumber, poi, productType);
+                    if (rioInitial != null) {
+                        break;
+                    }
                 }
             }
 
             Object[] bestRow = null;
             String resolvedCaseNo = null;
 
-            // 1. Look for a candidate row whose case number starts with rioInitial
+            // 1. For Sleeper/RailPad: match case number (single or comma-separated) by RIO initial
             if (rioInitial != null) {
                 for (Object[] r : candidateRows) {
                     String rawCase = safeString(r[0]);
                     if (rawCase != null && !rawCase.trim().isEmpty()) {
-                        String[] parts = rawCase.trim().split("[,/;]+");
+                        // Split on comma only — slashes may be part of the case number itself
+                        String[] parts = rawCase.trim().split(",");
                         for (String part : parts) {
                             String p = part.trim();
                             if (p.toUpperCase().startsWith(String.valueOf(rioInitial))) {
@@ -2939,12 +2942,12 @@ public class IbsServiceImpl implements IbsService {
                 }
             }
 
-            // 2. If no candidate matched RIO initial, pick first candidate with non-empty case number
+            // 2. Fallback: pick first non-empty case number part (for ERC or when RIO lookup fails)
             if (bestRow == null) {
                 for (Object[] r : candidateRows) {
                     String rawCase = safeString(r[0]);
                     if (rawCase != null && !rawCase.trim().isEmpty()) {
-                        String[] parts = rawCase.trim().split("[,/;]+");
+                        String[] parts = rawCase.trim().split(",");
                         for (String part : parts) {
                             String p = part.trim();
                             if (!p.isEmpty()) {
@@ -3095,11 +3098,8 @@ public class IbsServiceImpl implements IbsService {
             return "";
         }
         String trimmed = rawCaseNo.trim();
-        if (!trimmed.contains(",") && !trimmed.contains("/") && !trimmed.contains(";")) {
-            return trimmed;
-        }
+        String[] parts = trimmed.split(",");
 
-        String[] parts = trimmed.split("[,/;]+");
         if (rio != null && !rio.trim().isEmpty()) {
             String cleanRio = rio.trim().toUpperCase();
             String firstLetter = cleanRio.substring(0, 1);

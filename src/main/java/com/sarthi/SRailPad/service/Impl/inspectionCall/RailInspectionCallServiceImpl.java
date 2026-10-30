@@ -1022,8 +1022,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setUom(uom);
         dto.setQuantityNowPassedInWords(passedWordsTemplate);
         dto.setNoOfItemsChecked("ONE");
-        dto.setDateOfCall(call.getInspectionDate() != null
-                ? call.getInspectionDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        dto.setDateOfCall(call.getCreatedAt() != null
+                ? call.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                 : "");
         dto.setNoOfVisits(visitsCount);
         dto.setDateOfInspection(datesString);

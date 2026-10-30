@@ -40,6 +40,10 @@ public class VendorPoServiceImpl implements VendorPoService {
     @Autowired
     private com.sarthi.Sleeper.repository.VendorPlantRepository vendorPlantRepository;
 
+    @Autowired
+    private com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
+
+
     @Override
     public List<VendorPoHeaderResponseDto> getPoListByVendorCode(String vendorCode, String vendorType) {
         return getPoListByVendorCode(vendorCode, vendorType, null);
@@ -51,6 +55,7 @@ public class VendorPoServiceImpl implements VendorPoService {
 
         String type = null;
         boolean isSleeper = false;
+        boolean isRailPad = false;
         if (vendorType != null && !vendorType.trim().isEmpty()) {
             String vt = vendorType.trim();
             if (vt.equalsIgnoreCase("ERC") || vt.equalsIgnoreCase("Elastic Rail Clips")) {
@@ -61,6 +66,7 @@ public class VendorPoServiceImpl implements VendorPoService {
             } else if (vt.equalsIgnoreCase("Rail Pads") || vt.equalsIgnoreCase("RailPad")
                     || vt.equalsIgnoreCase("Rail Pad") || vt.equalsIgnoreCase("RailPads")) {
                 type = "Rail Pads";
+                isRailPad = true;
             } else {
                 type = vt;
             }
@@ -83,23 +89,23 @@ public class VendorPoServiceImpl implements VendorPoService {
             }
         }
 
-        // For Sleeper POs only, resolve the RIO from the active plantId (or vendor plant)
-        String sleeperRio = null;
+        // Resolve RIO from the active plantId for Sleeper and RailPad POs (used for case number resolution)
+        String resolvedRio = null;
         if (isSleeper && vendorPlantRepository != null) {
             try {
                 if (plantId != null && !plantId.trim().isEmpty()) {
                     var plantOpt = vendorPlantRepository.findByPlantId(plantId.trim());
                     if (plantOpt.isPresent() && plantOpt.get().getRio() != null) {
-                        sleeperRio = plantOpt.get().getRio();
+                        resolvedRio = plantOpt.get().getRio();
                     } else {
                         var matching = vendorPlantRepository.findMatchingPlants(plantId.trim());
                         if (matching != null && !matching.isEmpty() && matching.get(0).getRio() != null) {
-                            sleeperRio = matching.get(0).getRio();
+                            resolvedRio = matching.get(0).getRio();
                         }
                     }
                 }
-                // If not found by plantId, fallback to vendor plants by vendorCode
-                if (sleeperRio == null && vendorCode != null && !vendorCode.trim().isEmpty()) {
+                // Fallback to vendor plants by vendorCode
+                if (resolvedRio == null && vendorCode != null && !vendorCode.trim().isEmpty()) {
                     var plants = vendorPlantRepository.findByVendorCode(vendorCode.trim());
                     if (plants == null || plants.isEmpty()) {
                         String altCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : ":" + vendorCode;
@@ -108,7 +114,7 @@ public class VendorPoServiceImpl implements VendorPoService {
                     if (plants != null && !plants.isEmpty()) {
                         for (var vp : plants) {
                             if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
-                                sleeperRio = vp.getRio();
+                                resolvedRio = vp.getRio();
                                 break;
                             }
                         }
@@ -117,7 +123,35 @@ public class VendorPoServiceImpl implements VendorPoService {
             } catch (Exception e) {
                 logger.warn("Error resolving plant RIO for Sleeper POs: {}", e.getMessage());
             }
-            logger.info("[DB Debug] Resolved Sleeper RIO: {} for plantId: {}, vendorCode: {}", sleeperRio, plantId, vendorCode);
+            logger.info("[DB Debug] Resolved Sleeper RIO: {} for plantId: {}, vendorCode: {}", resolvedRio, plantId, vendorCode);
+        } else if (isRailPad && railVendorPlantsRepository != null) {
+            try {
+                if (plantId != null && !plantId.trim().isEmpty()) {
+                    var plantOpt = railVendorPlantsRepository.findByPlantId(plantId.trim());
+                    if (plantOpt.isPresent() && plantOpt.get().getRio() != null) {
+                        resolvedRio = plantOpt.get().getRio();
+                    }
+                }
+                // Fallback to vendor plants by vendorCode
+                if (resolvedRio == null && vendorCode != null && !vendorCode.trim().isEmpty()) {
+                    var plants = railVendorPlantsRepository.findByVendorCode(vendorCode.trim());
+                    if (plants == null || plants.isEmpty()) {
+                        String altCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : ":" + vendorCode;
+                        plants = railVendorPlantsRepository.findByVendorCode(altCode);
+                    }
+                    if (plants != null && !plants.isEmpty()) {
+                        for (var vp : plants) {
+                            if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                                resolvedRio = vp.getRio();
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Error resolving plant RIO for RailPad POs: {}", e.getMessage());
+            }
+            logger.info("[DB Debug] Resolved RailPad RIO: {} for plantId: {}, vendorCode: {}", resolvedRio, plantId, vendorCode);
         }
 
         // Fetch all inspection calls for this vendor (combining both with & without colon variants)
@@ -167,9 +201,10 @@ public class VendorPoServiceImpl implements VendorPoService {
 
         final List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> finalVendorCalls = vendorCalls;
         final java.util.Map<String, List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults>> finalLotResultsByCallNo = lotResultsByCallNo;
-        final boolean finalIsSleeper = isSleeper;
-        final String finalSleeperRio = sleeperRio;
-        return poHeaders.stream().map(po -> mapToHeaderDto(po, finalVendorCalls, finalLotResultsByCallNo, finalIsSleeper, finalSleeperRio)).toList();
+        final String finalResolvedRio = resolvedRio;
+        return poHeaders.stream()
+                .map(po -> mapToHeaderDto(po, finalVendorCalls, finalLotResultsByCallNo, finalResolvedRio))
+                .toList();
     }
 
     public String getPdfPathByRawPoNo(String rawPoNo) {
@@ -214,8 +249,11 @@ public class VendorPoServiceImpl implements VendorPoService {
                     return p;
                 }
             }
+            // No part matches this RIO — show N/A
+            return "N/A";
         }
 
+        // No RIO provided — return first non-empty part
         for (String part : parts) {
             String p = part.trim();
             if (!p.isEmpty()) {
@@ -228,8 +266,7 @@ public class VendorPoServiceImpl implements VendorPoService {
     private VendorPoHeaderResponseDto mapToHeaderDto(PoHeader poHeader,
             List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls,
             java.util.Map<String, List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults>> lotResultsByCallNo,
-            boolean isSleeper,
-            String sleeperRio) {
+            String resolvedRio) {
 
         VendorPoHeaderResponseDto dto = new VendorPoHeaderResponseDto();
 
@@ -253,9 +290,9 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setStatus(poHeader.getPoStatus());
         dto.setPdfPath(poHeader.getPdfPath());
 
-        // Sleeper Case No resolution vs other vendor types (ERC / RailPad)
-        if (isSleeper) {
-            dto.setCaseNo(resolveSleeperCaseNo(poHeader.getCaseNo(), sleeperRio));
+        // Case No resolution: for Sleeper and RailPad, pick the comma-separated part matching the plant's RIO
+        if (resolvedRio != null) {
+            dto.setCaseNo(resolveSleeperCaseNo(poHeader.getCaseNo(), resolvedRio));
         } else {
             dto.setCaseNo(poHeader.getCaseNo());
         }
