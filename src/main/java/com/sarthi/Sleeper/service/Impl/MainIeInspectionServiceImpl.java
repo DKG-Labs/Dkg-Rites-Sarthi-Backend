@@ -432,6 +432,28 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             Set<String> mfDistinct = new java.util.LinkedHashSet<>();
             if (mfSleepersByBatch.containsKey(rawBatchNo)) mfDistinct.addAll(mfSleepersByBatch.get(rawBatchNo));
             if (mfSleepersByBatch.containsKey(cleanBatch)) mfDistinct.addAll(mfSleepersByBatch.get(cleanBatch));
+
+            // MF tables carry no sleeper type, so the same batch number on the same day/plant can hold
+            // samples of another sleeper type. Keep only samples that belong to THIS call's batch.
+            Set<String> ownSleepers = new HashSet<>();
+            for (String s : accepted) ownSleepers.add(s.trim().toUpperCase());
+            for (String s : rejected) ownSleepers.add(s.trim().toUpperCase());
+            if (declaration != null && declaration.getChambers() != null) {
+                for (var ch : declaration.getChambers()) {
+                    if (ch.getBenchGroups() == null) continue;
+                    for (var bg : ch.getBenchGroups()) {
+                        if (bg.getSleepers() == null) continue;
+                        for (var ps : bg.getSleepers()) {
+                            if (ps.getSleeperNo() != null && !ps.getSleeperNo().isBlank()) {
+                                ownSleepers.add(ps.getSleeperNo().trim().toUpperCase());
+                            }
+                        }
+                    }
+                }
+            }
+            if (!ownSleepers.isEmpty()) {
+                mfDistinct.removeIf(s -> !ownSleepers.contains(s.trim().toUpperCase()));
+            }
             dto.setMfSleepers(new ArrayList<>(mfDistinct));
 
             response.add(dto);
