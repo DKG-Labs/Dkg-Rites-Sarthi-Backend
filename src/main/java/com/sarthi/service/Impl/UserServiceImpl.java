@@ -3211,7 +3211,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<Map<String, Object>> getIesByRio(String rio) {
-        List<String> ieRoles = List.of("IE", "Process IE", "Main IE", "Sleeper IE", "Rail Main IE", "Rail Process IE");
+        List<String> ieRoles = List.of("IE", "Process IE", "Main IE", "Sleeper IE", "Sleeper Process IE", "Rail Main IE", "Rail Process IE");
         return userMasterRepository.findByRioAndRoleNameIn(rio, ieRoles).stream()
                 .map(u -> {
                     Map<String, Object> m = new HashMap<>();
