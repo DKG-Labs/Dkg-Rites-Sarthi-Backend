@@ -1322,4 +1322,47 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
         ORDER BY plfr.date_of_inspection DESC
     """, nativeQuery = true)
     List<Object[]> findProcessRejectionRowsByPoiCode(@Param("poiCode") String poiCode);
+
+
+
+    @Query(value = """
+        SELECT ic.place_of_inspection AS poiCode,
+               COALESCE(SUM(plfr.total_rejected), 0) AS totalRejected
+        FROM process_line_final_result plfr
+        JOIN inspection_calls ic ON plfr.inspection_call_no = ic.ic_number
+        WHERE ic.place_of_inspection IS NOT NULL
+        GROUP BY ic.place_of_inspection
+    """, nativeQuery = true)
+    List<Object[]> sumProcessRejectedGroupByPoi();
+
+    @Query(value = """
+        SELECT DISTINCT plfr.inspection_call_no
+        FROM process_line_final_result plfr
+        JOIN inspection_calls ic ON plfr.inspection_call_no = ic.ic_number
+        WHERE ic.place_of_inspection = :poiCode
+          AND plfr.date_of_inspection = :date
+          AND plfr.shift = :shift
+          AND plfr.line_no = :lineName
+    """, nativeQuery = true)
+    List<String> findCallNumbersByPoiDateShiftLine(
+            @Param("poiCode") String poiCode,
+            @Param("date") LocalDate date,
+            @Param("shift") String shift,
+            @Param("lineName") String lineName);
+
+    @Query(value = """
+        SELECT plfr.*
+        FROM process_line_final_result plfr
+        JOIN inspection_calls ic ON plfr.inspection_call_no = ic.ic_number
+        WHERE ic.place_of_inspection = :poiCode
+          AND plfr.date_of_inspection = :date
+          AND plfr.shift = :shift
+          AND plfr.line_no = :lineName
+    """, nativeQuery = true)
+    List<ProcessLineFinalResult> findResultsByPoiDateShiftLine(
+            @Param("poiCode") String poiCode,
+            @Param("date") LocalDate date,
+            @Param("shift") String shift,
+            @Param("lineName") String lineName);
+
 }

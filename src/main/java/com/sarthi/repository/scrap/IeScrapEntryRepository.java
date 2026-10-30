@@ -31,4 +31,18 @@ public interface IeScrapEntryRepository extends JpaRepository<IeScrapEntry, Inte
     Long countTodayEntries();
 
     boolean existsByScrapVerificationId(String scrapVerificationId);
+
+
+
+    @Query(value = """
+        SELECT poi_code AS poiCode,
+               COALESCE(SUM(no_of_pieces_scrapped), 0) AS totalScrapped,
+               MAX(scrapping_date) AS lastScrappingDate
+        FROM ie_scrap_entry
+        WHERE status = 'ACTIVE'
+          AND poi_code IS NOT NULL
+        GROUP BY poi_code
+    """, nativeQuery = true)
+    List<Object[]> sumScrappedGroupByPoi();
+
 }

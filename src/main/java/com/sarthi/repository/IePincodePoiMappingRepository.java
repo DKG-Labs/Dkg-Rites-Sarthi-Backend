@@ -85,4 +85,14 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
         WHERE ipm.employee_code = :employeeCode
     """, nativeQuery = true)
     List<Object[]> findPlantInfoByEmployeeCode(@Param("employeeCode") String employeeCode);
+
+
+
+    @Query(value = """
+        SELECT DISTINCT ppm.poi_code AS poiCode, ppm.company_name AS companyName, ppm.unit_name AS unitName
+        FROM pincode_poi_mapping ppm
+        WHERE ppm.poi_code IN (:poiCodes)
+    """, nativeQuery = true)
+    List<Object[]> findAllPlantInfoForPois(@Param("poiCodes") List<String> poiCodes);
+
 }

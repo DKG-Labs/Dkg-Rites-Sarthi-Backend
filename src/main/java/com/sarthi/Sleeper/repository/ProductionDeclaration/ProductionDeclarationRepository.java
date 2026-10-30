@@ -26,6 +26,26 @@ import java.util.Optional;
 @Repository
 public interface ProductionDeclarationRepository extends JpaRepository<ProductionDeclaration, Long> {
 
+    // plantId must already be normalised (colons/spaces removed, lower-case) or null
+    @Query("SELECT p FROM ProductionDeclaration p " +
+            "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(p.plantId, ':', ''), ' ', '')) = :plantId) " +
+            "AND (:fromDate IS NULL OR p.castingDate >= :fromDate) " +
+            "ORDER BY p.id ASC")
+    List<ProductionDeclaration> findForList(@Param("plantId") String plantId,
+                                            @Param("fromDate") java.time.LocalDate fromDate);
+
+    @Query(value = "SELECT p FROM ProductionDeclaration p " +
+            "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(p.plantId, ':', ''), ' ', '')) = :plantId) " +
+            "AND (:fromDate IS NULL OR p.castingDate >= :fromDate) " +
+            "ORDER BY p.id DESC",
+            countQuery = "SELECT COUNT(p) FROM ProductionDeclaration p " +
+            "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(p.plantId, ':', ''), ' ', '')) = :plantId) " +
+            "AND (:fromDate IS NULL OR p.castingDate >= :fromDate)")
+    org.springframework.data.domain.Page<ProductionDeclaration> findPageForList(
+            @Param("plantId") String plantId,
+            @Param("fromDate") java.time.LocalDate fromDate,
+            org.springframework.data.domain.Pageable pageable);
+
     @Query("SELECT COALESCE(SUM(p.totalCastedSleepers), 0L) FROM ProductionDeclaration p")
     Long getTotalProductionCount();
 
@@ -303,7 +323,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
                   WHERE w2.request_id = p.id
                     AND w2.module_id = 11
               )
-            ORDER BY p.id DESC
+            ORDER BY p.id ASC
             LIMIT 1
             """, nativeQuery = true)
     ProductionDeclaration findByBatchNumber(@Param("batchNo") String batchNo);

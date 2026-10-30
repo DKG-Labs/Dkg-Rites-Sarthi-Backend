@@ -249,6 +249,111 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
                 .toList();
     }
 
+    @Override
+    public List<Map<String, Object>> getAllLite(String plantId, Integer days) {
+
+        String normPlant = null;
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+        }
+        java.time.LocalDateTime fromDate = (days != null && days > 0)
+                ? java.time.LocalDateTime.now().minusDays(days)
+                : null;
+
+        return waterCubeStrengthTestRepository.findForList(normPlant, fromDate)
+                .stream()
+                .map(this::mapTestToLiteDto)
+                .toList();
+    }
+
+    @Override
+    public com.sarthi.Sleeper.dto.PagedResponse<Map<String, Object>> getPage(
+            String plantId, Integer days, Integer page, Integer size) {
+
+        String normPlant = null;
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+        }
+        java.time.LocalDateTime fromDate = (days != null && days > 0)
+                ? java.time.LocalDateTime.now().minusDays(days)
+                : null;
+        int p = com.sarthi.Sleeper.dto.PagedResponse.clampPage(page);
+        int sz = com.sarthi.Sleeper.dto.PagedResponse.clampSize(size);
+
+        org.springframework.data.domain.Page<Long> idPage = waterCubeStrengthTestRepository
+                .findIdsForPage(normPlant, fromDate, org.springframework.data.domain.PageRequest.of(p, sz));
+
+        List<Long> ids = idPage.getContent();
+        Map<Long, WaterCubeStrengthTest> byId = new java.util.HashMap<>();
+        if (!ids.isEmpty()) {
+            waterCubeStrengthTestRepository.findByIdIn(ids).forEach(t -> byId.put(t.getId(), t));
+        }
+
+        // keep the newest-first order of the id page
+        List<Map<String, Object>> content = ids.stream()
+                .map(byId::get)
+                .filter(java.util.Objects::nonNull)
+                .map(this::mapTestToLiteDto)
+                .toList();
+
+        return new com.sarthi.Sleeper.dto.PagedResponse<>(content, p, sz, idPage.getTotalElements());
+    }
+
+    // Same shape as mapTestToDto; kept as a separate method so the list endpoints can be slimmed later.
+    private java.util.Map<String, Object> mapTestToLiteDto(WaterCubeStrengthTest test) {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        map.put("id", test.getId());
+        map.put("waterCubeSampleDeclarationId", test.getWaterCubeSampleDeclaration() != null ? test.getWaterCubeSampleDeclaration().getId() : null);
+        map.put("productionDeclarationId", test.getWaterCubeSampleDeclaration() != null ? test.getWaterCubeSampleDeclaration().getProductionDeclarationId() : null);
+        map.put("batchNumber", test.getBatchNumber());
+        map.put("concreteGrade", test.getConcreteGrade());
+        map.put("castingDate", test.getCastingDate());
+        map.put("shift", test.getShift());
+        map.put("lineNo", test.getLineNo());
+        map.put("fckTarget", test.getFckTarget());
+        map.put("ageDays", test.getAgeDays());
+        map.put("vendorCode", test.getVendorCode());
+        map.put("plantId", test.getPlantId());
+        map.put("s1Avg", test.getS1Avg());
+        map.put("s2Avg", test.getS2Avg());
+        map.put("avgX", test.getAvgX());
+        map.put("minY", test.getMinY());
+        map.put("s1Variation", test.getS1Variation());
+        map.put("s2Variation", test.getS2Variation());
+        map.put("condition1", test.getCondition1());
+        map.put("condition2", test.getCondition2());
+        map.put("condition3", test.getCondition3());
+        map.put("mrSamplesRequired", test.getMrSamplesRequired());
+        map.put("finalTestResult", test.getFinalTestResult());
+        map.put("createdBy", test.getCreatedBy());
+        map.put("createdDate", test.getCreatedDate());
+
+        List<java.util.Map<String, Object>> detailsList = new ArrayList<>();
+        String testDate = null;
+        if (test.getDetails() != null) {
+            for (WaterCubeStrengthDetail d : test.getDetails()) {
+                java.util.Map<String, Object> dm = new java.util.HashMap<>();
+                // id is needed by the edit flow to update the existing cube rows
+                dm.put("id", d.getId());
+                dm.put("sampleNumber", d.getSampleNumber());
+                dm.put("cubeIndex", d.getCubeIndex());
+                dm.put("cubeId", d.getCubeId());
+                dm.put("weightKg", d.getWeightKg());
+                dm.put("loadKn", d.getLoadKn());
+                dm.put("strengthNmm2", d.getStrengthNmm2());
+                dm.put("testingDate", d.getTestingDate());
+                dm.put("testingTime", d.getTestingTime() != null ? d.getTestingTime().toString() : null);
+                detailsList.add(dm);
+                if (testDate == null && d.getTestingDate() != null && !d.getTestingDate().isEmpty()) {
+                    testDate = d.getTestingDate();
+                }
+            }
+        }
+        map.put("testDate", testDate);
+        map.put("details", detailsList);
+        return map;
+    }
+
     private java.util.Map<String, Object> mapTestToDto(WaterCubeStrengthTest test) {
         java.util.Map<String, Object> map = new java.util.HashMap<>();
         map.put("id", test.getId());

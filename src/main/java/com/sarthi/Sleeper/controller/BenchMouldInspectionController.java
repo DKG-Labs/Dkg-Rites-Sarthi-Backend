@@ -61,6 +61,26 @@ public class BenchMouldInspectionController {
 
 
 
+    // Same response as /get-all but limited to the last N days (by checking date)
+    @GetMapping("/get-page")
+    public ResponseEntity<Object> getPage(
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        benchMouldInspectionService.getPage(days, page, size)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/get-all-lite")
+    public ResponseEntity<Object> getAllLite(@RequestParam(required = false) Integer days) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        benchMouldInspectionService.getAllLite(days)),
+                HttpStatus.OK);
+    }
+
     @GetMapping("/get-all")
     public ResponseEntity<Object> getAll() {
 

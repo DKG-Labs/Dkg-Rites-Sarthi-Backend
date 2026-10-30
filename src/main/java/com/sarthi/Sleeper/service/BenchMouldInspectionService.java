@@ -19,5 +19,10 @@ public interface BenchMouldInspectionService {
 
     List<BenchMouldInspectionResponseDto> getAll();
 
+    List<BenchMouldInspectionResponseDto> getAllLite(Integer days);
+
+    com.sarthi.Sleeper.dto.PagedResponse<BenchMouldInspectionResponseDto> getPage(
+            Integer days, Integer page, Integer size);
+
     void delete(Long id);
 }

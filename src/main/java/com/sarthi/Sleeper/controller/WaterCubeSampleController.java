@@ -87,6 +87,28 @@ public class WaterCubeSampleController {
                 HttpStatus.OK);
     }
 
+    // Slim list for screens: optional plantId and last-N-days window
+    @GetMapping("/getAllTestsPage")
+    public ResponseEntity<Object> getAllTestsPage(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(
+                        waterCubeStrengthTestService.getPage(plantId, days, page, size)),
+                HttpStatus.OK);
+    }
+
+    @GetMapping("/getAllTestsLite")
+    public ResponseEntity<Object> getAllTestsLite(
+            @RequestParam(required = false) String plantId,
+            @RequestParam(required = false) Integer days) {
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(waterCubeStrengthTestService.getAllLite(plantId, days)),
+                HttpStatus.OK);
+    }
+
     @PutMapping("/updateTest/{id}")
     public ResponseEntity<Object> updateTest(
             @PathVariable Long id,

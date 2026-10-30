@@ -937,6 +937,73 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                 .toList();
     }
 
+    @Override
+    public List<ProductionDeclarationResponseDto> getAllLite(String plantId, Integer days) {
+
+        String normPlant = null;
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+        }
+        LocalDate fromDate = (days != null && days > 0) ? LocalDate.now().minusDays(days) : null;
+
+        List<ProductionDeclaration> entities = repository.findForList(normPlant, fromDate);
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllLatestStatuses(11L)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
+                ));
+
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
+
+        return entities.stream()
+                .map(entity -> mapToResponse(entity, statusMap, sleeperTypeMap))
+                .toList();
+    }
+
+    @Override
+    public com.sarthi.Sleeper.dto.PagedResponse<ProductionDeclarationResponseDto> getPage(
+            String plantId, Integer days, Integer page, Integer size) {
+
+        String normPlant = null;
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+        }
+        LocalDate fromDate = (days != null && days > 0) ? LocalDate.now().minusDays(days) : null;
+        int p = com.sarthi.Sleeper.dto.PagedResponse.clampPage(page);
+        int sz = com.sarthi.Sleeper.dto.PagedResponse.clampSize(size);
+
+        org.springframework.data.domain.Page<ProductionDeclaration> result = repository
+                .findPageForList(normPlant, fromDate, org.springframework.data.domain.PageRequest.of(p, sz));
+
+        if (result.isEmpty()) {
+            return new com.sarthi.Sleeper.dto.PagedResponse<>(
+                    Collections.emptyList(), p, sz, result.getTotalElements());
+        }
+
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllLatestStatuses(11L)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
+                ));
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
+
+        List<ProductionDeclarationResponseDto> content = result.getContent().stream()
+                .map(entity -> mapToResponse(entity, statusMap, sleeperTypeMap))
+                .toList();
+
+        return new com.sarthi.Sleeper.dto.PagedResponse<>(content, p, sz, result.getTotalElements());
+    }
+
     private ProductionDeclarationResponseDto mapToResponse(
             ProductionDeclaration entity,
             Map<String, String> statusMap,
@@ -1006,6 +1073,56 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 
         return entities.stream()
                 .map(entity -> mapToResponseWithWaterCube(entity, statusMap, waterCubeTestByProdIdMap, sleeperTypeMap))
+                .toList();
+    }
+
+    @Override
+    public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusLite(String plantId, Integer days) {
+
+        String normPlant = null;
+        if (plantId != null && !plantId.trim().isEmpty()) {
+            normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+        }
+        LocalDate fromDate = (days != null && days > 0) ? LocalDate.now().minusDays(days) : null;
+
+        List<ProductionDeclaration> entities = repository.findForList(normPlant, fromDate);
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<String, String> statusMap = sleeperWorkflowRepository
+                .findAllLatestStatuses(11L)
+                .stream()
+                .collect(Collectors.toMap(
+                        obj -> String.valueOf(obj[0]),
+                        obj -> String.valueOf(obj[1]),
+                        (a, b) -> a
+                ));
+
+        // productionDeclarationId -> its water cube conditions (a later test overrides an earlier one)
+        Map<Long, WaterCubeStrengthTestRepository.WaterCubeConditionView> conditionByProdId = new java.util.HashMap<>();
+        for (WaterCubeStrengthTestRepository.WaterCubeConditionView v : waterCubeStrengthTestRepository.findConditionViews()) {
+            conditionByProdId.put(v.getProductionDeclarationId(), v);
+        }
+
+        Map<Long, String> sleeperTypeMap = buildSleeperTypeMap();
+
+        return entities.stream()
+                .map(entity -> {
+                    ProductionDeclarationResponseDto response = mapToResponse(entity, statusMap, sleeperTypeMap);
+                    WaterCubeStrengthTestRepository.WaterCubeConditionView wc = conditionByProdId.get(entity.getId());
+                    if (wc != null) {
+                        boolean cond2 = Boolean.TRUE.equals(wc.getCondition2());
+                        response.setWaterCubeTestStatus(true);
+                        response.setCondition2(cond2);
+                        response.setMrSamplesRequired(wc.getMrSamplesRequired() != null ? wc.getMrSamplesRequired() : (cond2 ? 2 : 1));
+                    } else {
+                        response.setWaterCubeTestStatus(false);
+                        response.setCondition2(false);
+                        response.setMrSamplesRequired(1);
+                    }
+                    return response;
+                })
                 .toList();
     }
 

@@ -72,6 +72,18 @@ public class productionDeclarationController {
 
 
 
+        // Filtered list: optional plantId and last-N-days (by casting date) window
+        @GetMapping("/getAllLite")
+        public ResponseEntity<Object> getAllLite(
+                        @RequestParam(required = false) String plantId,
+                        @RequestParam(required = false) Integer days) {
+
+                return new ResponseEntity<>(
+                                ResponseBuilder.getSuccessResponse(
+                                                service.getAllLite(plantId, days)),
+                                HttpStatus.OK);
+        }
+
         @GetMapping("/getAllVerifedWaterBatchs")
         public ResponseEntity<Object> getAllWithWaterCubeStatus() {
 
@@ -80,6 +92,30 @@ public class productionDeclarationController {
                                 service.getAllWithWaterCubeStatus()),
                         HttpStatus.OK);
         }
+        @GetMapping("/getAllVerifedWaterBatchsLite")
+        public ResponseEntity<Object> getAllWithWaterCubeStatusLite(
+                @RequestParam(required = false) String plantId,
+                @RequestParam(required = false) Integer days) {
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                service.getAllWithWaterCubeStatusLite(plantId, days)),
+                        HttpStatus.OK);
+        }
+
+        @GetMapping("/getAllPage")
+        public ResponseEntity<Object> getAllPage(
+                @RequestParam(required = false) String plantId,
+                @RequestParam(required = false) Integer days,
+                @RequestParam(required = false) Integer page,
+                @RequestParam(required = false) Integer size) {
+
+                return new ResponseEntity<>(
+                        ResponseBuilder.getSuccessResponse(
+                                service.getPage(plantId, days, page, size)),
+                        HttpStatus.OK);
+        }
+
         @GetMapping("/getAllProductions")
         public ResponseEntity<Object> getAllProductions(  @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "50") int size) {
