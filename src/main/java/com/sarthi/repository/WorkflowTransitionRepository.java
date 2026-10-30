@@ -45,6 +45,27 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);
 
+    /**
+     * Final ICs issued per PO: calls (EF-) whose latest workflow status is SEND_CALL_TO_IBS,
+     * the same rule the IC Issued card uses.
+     */
+    @Query(value = """
+            SELECT ic.po_no AS poNo,
+                   COUNT(DISTINCT ic.ic_number) AS icCount
+            FROM workflow_transition wt
+            INNER JOIN (
+                SELECT requestid, MAX(workflowtransitionid) latest_id
+                FROM workflow_transition
+                GROUP BY requestid
+            ) x ON wt.workflowtransitionid = x.latest_id
+            INNER JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
+            WHERE wt.STATUS = 'SEND_CALL_TO_IBS'
+            AND wt.REQUESTID LIKE 'EF-%'
+            AND ic.po_no IN (:poNos)
+            GROUP BY ic.po_no
+            """, nativeQuery = true)
+    List<Object[]> countFinalIcIssuedByPoNos(@Param("poNos") java.util.Collection<String> poNos);
+
     @Query(value = "SELECT * FROM WORKFLOW_TRANSITION WHERE WORKFLOWTRANSITIONID IN (" +
             "  SELECT MAX(wt.WORKFLOWTRANSITIONID) " +
             "  FROM WORKFLOW_TRANSITION wt " +

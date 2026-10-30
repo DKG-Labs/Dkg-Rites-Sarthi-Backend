@@ -4287,6 +4287,23 @@ public class reportsImpl implements reports {
                         }
                 }
 
+                // Final ICs issued (sent to IBS) per PO, only reported for ERC
+                Map<String, Long> icIssuedByPo = new HashMap<>();
+                if (isErc && !poNos.isEmpty()) {
+                        try {
+                                List<Object[]> icRows = workflowTransitionRepository.countFinalIcIssuedByPoNos(poNos);
+                                if (icRows != null) {
+                                        for (Object[] r : icRows) {
+                                                if (r[0] != null && r[1] != null) {
+                                                        icIssuedByPo.put(r[0].toString().trim(), ((Number) r[1]).longValue());
+                                                }
+                                        }
+                                }
+                        } catch (Exception ex) {
+                                log.error("Error in countFinalIcIssuedByPoNos: {}", ex.getMessage(), ex);
+                        }
+                }
+
                 // 3. Construct DTOs in O(N) using the in-memory map
                 List<PoIssuedDetailDto> list = new ArrayList<>();
                 for (Object[] row : rawList) {
@@ -4320,8 +4337,10 @@ public class reportsImpl implements reports {
                         long balanceQty = Math.max(poQty - acceptedQty, 0L);
                         String pdfPath = (row.length > 6 && row[6] != null) ? row[6].toString() : null;
 
+                        Long icIssuedCount = isErc ? icIssuedByPo.getOrDefault(poNo.trim(), 0L) : null;
                         PoIssuedDetailDto dto = new PoIssuedDetailDto(
-                                        rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty, pdfPath);
+                                        rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty, pdfPath,
+                                        icIssuedCount);
                         list.add(dto);
                 }
                 return list;
@@ -6326,35 +6345,34 @@ public class reportsImpl implements reports {
                         String railpadType = (isRailPad && row.length > 12 && row[12] != null) ? row[12].toString() : "";
                         String poUom = (!isRailPad && row.length > 12 && row[12] != null) ? row[12].toString() : "";
 
-                        String callQty = formatCallQtyWithUom(rawQty, callNo, stage, railpadType, poUom);
+                        // A PO ordered in MT can still carry a piece count as the accepted quantity (e.g. 107340 on a
+                        // 267.94 Mts. item). Such a quantity is in Nos, not MT, so keep it as Nos (raw material stays MT).
+                        boolean pieceQtyOnMtPo = false;
+                        if (!isRailPad && !isSleeper && rawQty != null) {
+                                String u = poUom == null ? "" : poUom.trim().toLowerCase();
+                                boolean mtPo = u.equals("mt") || u.equals("mts") || u.equals("mts.") || u.equals("metric ton")
+                                                || u.equals("ton") || u.equals("tons");
+                                String callUpper = callNo == null ? "" : callNo.toUpperCase();
+                                boolean isRmCall = callUpper.startsWith("ER") || callUpper.contains("ER-") || callUpper.contains("ER/")
+                                                || stage.toLowerCase().contains("rm");
+                                try {
+                                        pieceQtyOnMtPo = mtPo && !isRmCall && Double.parseDouble(rawQty.toString().trim()) > 500;
+                                } catch (Exception ignored) {}
+                        }
+
+                        String callQty = pieceQtyOnMtPo
+                                        ? Math.round(Double.parseDouble(rawQty.toString().trim())) + " Nos"
+                                        : formatCallQtyWithUom(rawQty, callNo, stage, railpadType, poUom);
                         String callQtySet = "-";
                         String callQtyNos = "-";
 
+                        // Show each IC only in the unit it was issued in: MT/Set in the first column, Nos in the second.
+                        // No cross-conversion, so the other column stays "-".
                         if (callQty != null && !"-".equals(callQty)) {
                                 if (callQty.endsWith("MT") || callQty.endsWith("Set") || callQty.endsWith("Sets")) {
                                         callQtySet = callQty;
-                                        if (callQty.endsWith("MT")) {
-                                                try {
-                                                        double mt = Double.parseDouble(callQty.replace("MT", "").trim());
-                                                        long approxNos = Math.round((mt * 1000.0) / 1.088);
-                                                        callQtyNos = String.format("%,d Nos", approxNos);
-                                                } catch (Exception ignored) {
-                                                        callQtyNos = "-";
-                                                }
-                                        }
                                 } else {
                                         callQtyNos = callQty;
-                                        try {
-                                                String cleanNum = callQty.replaceAll("(?i)nos\\.?", "").replaceAll(",", "").trim();
-                                                double numVal = Double.parseDouble(cleanNum);
-                                                boolean isErc = (callNo != null && (callNo.toUpperCase().startsWith("EF") || callNo.toUpperCase().startsWith("EP") || callNo.toUpperCase().startsWith("ER")))
-                                                                || (!filterProduct.isEmpty() && filterProduct.contains("erc"))
-                                                                || (itemCatDescr != null && (itemCatDescr.toLowerCase().contains("clip") || itemCatDescr.toLowerCase().contains("erc")));
-                                                if (isErc && numVal >= 100) {
-                                                        double mtVal = Math.round((numVal * 1.088 / 1000.0) * 1000.0) / 1000.0;
-                                                        callQtySet = String.format(java.util.Locale.US, "%.3f MT", mtVal);
-                                                }
-                                        } catch (Exception ignored) {}
                                 }
                         }
 

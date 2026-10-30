@@ -265,7 +265,8 @@ public class SummaryServiceImpl implements SummaryService {
 
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<Object[]> dbPage = inspectionCallRepository.fetchManufacturerSummary(startDate, endDate,
+        // One row per manufacturer and UoM (Nos. / MT), based on calls sent to IBS inside the date range
+        Page<Object[]> dbPage = inspectionCallRepository.fetchManufacturerSummaryByUom(startDate, endDate,
                 pageable);
 
         List<MonthlyAnalysisDTO> content = dbPage.getContent()

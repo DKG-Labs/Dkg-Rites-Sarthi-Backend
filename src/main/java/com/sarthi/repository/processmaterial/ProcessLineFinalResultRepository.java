@@ -486,7 +486,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             )
             AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-            AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
+            AND wf.STATUS = 'SEND_CALL_TO_IBS'
         """, nativeQuery = true)
     Long sumTemperingManufacturedWithFilters(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
@@ -515,7 +515,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             AND p.tempering_manufactured > 0
             AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-            AND wf.STATUS IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
+            AND wf.STATUS = 'SEND_CALL_TO_IBS'
         """, nativeQuery = true)
     Long countDistinctProductionDaysWithFilters(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
@@ -684,10 +684,7 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                 AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                AND (
-                    DATE(COALESCE(wf.CREATEDDATE, p.date_of_inspection, p.created_at)) BETWEEN :startDate AND :endDate
-                    OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
-                )
+                AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     List<Object[]> sumProcessAcceptedAndRejectedRevisedLogic(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
