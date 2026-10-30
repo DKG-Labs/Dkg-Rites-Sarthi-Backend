@@ -354,9 +354,13 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
 
     @Query(value = """
                 SELECT
-                    SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton') THEN 0 ELSE COALESCE(f.qty_now_passed, 0) END),
+                    SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton')
+                             THEN CASE WHEN COALESCE(f.qty_now_passed, 0) > 500 THEN COALESCE(f.qty_now_passed, 0) ELSE 0 END
+                             ELSE COALESCE(f.qty_now_passed, 0) END),
                     SUM(COALESCE(f.qty_now_rejected, 0)),
-                    SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton') THEN COALESCE(f.qty_now_passed, 0) ELSE 0.0 END)
+                    SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton')
+                             THEN CASE WHEN COALESCE(f.qty_now_passed, 0) > 500 THEN 0.0 ELSE COALESCE(f.qty_now_passed, 0) END
+                             ELSE 0.0 END)
                 FROM inspection_calls ic
                 INNER JOIN po_header ph ON ic.po_no = ph.po_no
                 LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (pi.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi.item_sr_no = ic.po_serial_no)
@@ -373,10 +377,7 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                 AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                AND (
-                    DATE(COALESCE(wf.CREATEDDATE, f.date_of_inspection, f.created_at)) BETWEEN :startDate AND :endDate
-                    OR (CASE WHEN f.date_of_inspection IS NOT NULL THEN DATE(f.date_of_inspection) ELSE DATE(f.created_at) END) BETWEEN :startDate AND :endDate
-                )
+                AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     List<Object[]> sumFinalAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,

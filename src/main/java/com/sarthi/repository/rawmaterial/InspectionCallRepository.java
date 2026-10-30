@@ -426,8 +426,17 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                     WHERE r.inspection_call_no IN (
                         SELECT ic2.ic_number
                         FROM inspection_calls ic2
+                        INNER JOIN (
+                            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                            FROM WORKFLOW_TRANSITION w
+                            INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                        FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+                              ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                        ) wf2 ON wf2.REQUESTID = ic2.ic_number
                         WHERE ic2.po_no = ic.po_no
-                          AND ic2.created_at BETWEEN :startDate AND :endDate
+                          AND wf2.STATUS = 'SEND_CALL_TO_IBS'
+                          AND (:startDate IS NULL OR DATE(wf2.CREATEDDATE) >= :startDate)
+                          AND (:endDate IS NULL OR DATE(wf2.CREATEDDATE) <= :endDate)
                     )
                 ),0) AS monthlyRm,
 
@@ -437,8 +446,17 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                                            WHERE pl.inspection_call_no IN (
                                                SELECT ic2.ic_number
                                                FROM inspection_calls ic2
+                                               INNER JOIN (
+                                                   SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                                                   FROM WORKFLOW_TRANSITION w
+                                                   INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                                               FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+                                                     ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                                               ) wf2 ON wf2.REQUESTID = ic2.ic_number
                                                WHERE ic2.po_no = ic.po_no
-                                                 AND ic2.created_at BETWEEN :startDate AND :endDate
+                                                 AND wf2.STATUS = 'SEND_CALL_TO_IBS'
+                                                 AND (:startDate IS NULL OR DATE(wf2.CREATEDDATE) >= :startDate)
+                                                 AND (:endDate IS NULL OR DATE(wf2.CREATEDDATE) <= :endDate)
                                            )
                                        ),0) AS monthlyProcess,
 
@@ -448,17 +466,34 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                     WHERE f.inspection_call_no IN (
                         SELECT ic2.ic_number
                         FROM inspection_calls ic2
+                        INNER JOIN (
+                            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                            FROM WORKFLOW_TRANSITION w
+                            INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                        FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+                              ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                        ) wf2 ON wf2.REQUESTID = ic2.ic_number
                         WHERE ic2.po_no = ic.po_no
-                          AND ic2.created_at BETWEEN :startDate AND :endDate
+                          AND wf2.STATUS = 'SEND_CALL_TO_IBS'
+                          AND (:startDate IS NULL OR DATE(wf2.CREATEDDATE) >= :startDate)
+                          AND (:endDate IS NULL OR DATE(wf2.CREATEDDATE) <= :endDate)
                     )
                 ),0) AS monthlyFinal,
 
-                --  TOTAL FINAL WITHOUT DATE FILTER
+                --  TOTAL FINAL WITHOUT DATE FILTER (calls sent to IBS only)
                COALESCE((
                                               SELECT SUM(f.qty_now_passed)
                                               FROM final_cumulative_results f
                                               WHERE f.po_no COLLATE utf8mb4_unicode_ci
                                                     LIKE CONCAT('%', ic.po_no, '%')
+                                                AND f.inspection_call_no IN (
+                                                    SELECT w3.REQUESTID
+                                                    FROM WORKFLOW_TRANSITION w3
+                                                    INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                                                FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l3
+                                                      ON w3.REQUESTID = l3.REQUESTID AND w3.WORKFLOWTRANSITIONID = l3.max_id
+                                                    WHERE w3.STATUS = 'SEND_CALL_TO_IBS'
+                                                )
                                           ),0) AS totalFinalInspected,
                 ph.po_date AS poDate
 
@@ -470,9 +505,17 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
                 LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
                 LEFT JOIN po_header ph_sub ON ph_sub.po_no = ic_sub.po_no
+                INNER JOIN (
+                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                    FROM WORKFLOW_TRANSITION w
+                    INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+                      ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                ) wf_sub ON wf_sub.REQUESTID = ic_sub.ic_number
 
-                WHERE (:startDate IS NULL OR ic_sub.created_at >= :startDate)
-                  AND (:endDate IS NULL OR ic_sub.created_at <= :endDate)
+                WHERE wf_sub.STATUS = 'SEND_CALL_TO_IBS'
+                  AND (:startDate IS NULL OR DATE(wf_sub.CREATEDDATE) >= :startDate)
+                  AND (:endDate IS NULL OR DATE(wf_sub.CREATEDDATE) <= :endDate)
                   AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
                   AND (:zone IS NULL OR :zone = '' OR ph_sub.rly_short_name = :zone)
                   AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
@@ -487,8 +530,16 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
                 LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
                 LEFT JOIN po_header ph_sub ON ph_sub.po_no = ic_sub.po_no
-                WHERE (:startDate IS NULL OR ic_sub.created_at >= :startDate)
-                  AND (:endDate IS NULL OR ic_sub.created_at <= :endDate)
+                INNER JOIN (
+                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                    FROM WORKFLOW_TRANSITION w
+                    INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+                      ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                ) wf_sub ON wf_sub.REQUESTID = ic_sub.ic_number
+                WHERE wf_sub.STATUS = 'SEND_CALL_TO_IBS'
+                  AND (:startDate IS NULL OR DATE(wf_sub.CREATEDDATE) >= :startDate)
+                  AND (:endDate IS NULL OR DATE(wf_sub.CREATEDDATE) <= :endDate)
                   AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
                   AND (:zone IS NULL OR :zone = '' OR ph_sub.rly_short_name = :zone)
                   AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
@@ -779,6 +830,162 @@ Page<Object[]> fetchManufacturerSummary(
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             Pageable pageable);
+
+    /**
+     * Monthly Analysis of Units: one row per manufacturer (vendor) and UoM (Nos. first, then MT).
+     * PO count and PO quantity are the vendor's POs in that UoM. Manufactured / inspected / rejected come
+     * only from calls whose latest workflow status is SEND_CALL_TO_IBS, dated inside the range.
+     * Column order must match SummaryServiceImpl.mapMonthlyAnalysisRow.
+     */
+    @Query(value = """
+    SELECT
+        v.company_name AS manufacturer,
+        v.rio AS rio,
+        COALESCE(a.manufactured, 0) AS manufactured,
+        COALESCE(a.inspected, 0) AS inspected,
+        COALESCE(a.rejected, 0) AS rejected,
+        COALESCE(a.rm_rejected, 0) AS rmRejected,
+        COALESCE(a.process_rejected, 0) AS processRejected,
+        COALESCE(a.final_rejected, 0) AS finalRejected,
+        pu.no_of_pos AS noOfPos,
+        pu.po_qty AS poQty,
+        pu.uom AS uom
+    FROM (
+        SELECT DISTINCT poi_v.company_name AS company_name, ie_v.rio AS rio, poi_v.vendor_code AS vendor_code
+        FROM inspection_calls icv
+        JOIN pincode_poi_mapping poi_v ON poi_v.poi_code = icv.place_of_inspection
+        LEFT JOIN ie_fields_mapping ie_v ON ie_v.pin_code = poi_v.pin_code AND ie_v.product = 'ERC'
+        INNER JOIN (
+            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+            FROM WORKFLOW_TRANSITION w
+            INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                        FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+              ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+        ) wfv ON wfv.REQUESTID = icv.ic_number
+        WHERE wfv.STATUS = 'SEND_CALL_TO_IBS'
+          AND (:startDate IS NULL OR DATE(wfv.CREATEDDATE) >= :startDate)
+          AND (:endDate IS NULL OR DATE(wfv.CREATEDDATE) <= :endDate)
+    ) v
+    INNER JOIN (
+        SELECT phu.vendor_code AS vendor_code,
+               CASE WHEN LOWER(TRIM(piu.uom)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                    WHEN LOWER(TRIM(piu.uom)) LIKE 'set%' THEN 'Set'
+                    ELSE 'Nos.' END AS uom,
+               COUNT(DISTINCT phu.id) AS no_of_pos,
+               COALESCE(SUM(piu.qty), 0) AS po_qty
+        FROM po_header phu
+        JOIN po_item piu ON piu.po_header_id = phu.id
+        GROUP BY phu.vendor_code,
+                 CASE WHEN LOWER(TRIM(piu.uom)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                      WHEN LOWER(TRIM(piu.uom)) LIKE 'set%' THEN 'Set'
+                      ELSE 'Nos.' END
+    ) pu ON pu.vendor_code = v.vendor_code
+    LEFT JOIN (
+        SELECT cx.vendor_code AS vendor_code,
+               cx.uom AS uom,
+               SUM(cx.manufactured) AS manufactured,
+               SUM(cx.inspected) AS inspected,
+               SUM(cx.rejected) AS rejected,
+               SUM(cx.rm_rejected) AS rm_rejected,
+               SUM(cx.process_rejected) AS process_rejected,
+               SUM(cx.final_rejected) AS final_rejected
+        FROM (
+            SELECT c0.vendor_code AS vendor_code,
+                   CASE WHEN LOWER(TRIM(c0.uom_raw)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                        WHEN LOWER(TRIM(c0.uom_raw)) LIKE 'set%' THEN 'Set'
+                        ELSE 'Nos.' END AS uom,
+                   c0.manufactured AS manufactured,
+                   c0.inspected AS inspected,
+                   c0.rejected AS rejected,
+                   c0.rm_rejected AS rm_rejected,
+                   c0.process_rejected AS process_rejected,
+                   c0.final_rejected AS final_rejected
+            FROM (
+                SELECT poi_c.vendor_code AS vendor_code,
+                       COALESCE(
+                           (SELECT pi2.uom FROM po_item pi2
+                             WHERE pi2.po_header_id = phc.id
+                               AND (pi2.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi2.item_sr_no = ic.po_serial_no)
+                             ORDER BY pi2.id LIMIT 1),
+                           (SELECT pi3.uom FROM po_item pi3
+                             WHERE pi3.po_header_id = phc.id ORDER BY pi3.id LIMIT 1),
+                           ''
+                       ) AS uom_raw,
+                       CASE WHEN cf.offered IS NOT NULL THEN cf.offered ELSE COALESCE(cp.manu, 0) END AS manufactured,
+                       COALESCE(cf.passed, 0) AS inspected,
+                       COALESCE(cf.rejected, 0) AS rejected,
+                       COALESCE(cr.rm_rej, 0) AS rm_rejected,
+                       COALESCE(cp.rej, 0) AS process_rejected,
+                       COALESCE(cf.rejected, 0) AS final_rejected
+                FROM inspection_calls ic
+                JOIN pincode_poi_mapping poi_c ON poi_c.poi_code = ic.place_of_inspection
+                INNER JOIN (
+                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                    FROM WORKFLOW_TRANSITION w
+                    INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                                FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+                      ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                ) wfc ON wfc.REQUESTID = ic.ic_number
+                LEFT JOIN po_header phc ON phc.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+                LEFT JOIN (SELECT inspection_call_no,
+                                  SUM(qty_now_offered) AS offered,
+                                  SUM(qty_now_passed) AS passed,
+                                  SUM(qty_now_rejected) AS rejected
+                           FROM final_cumulative_results GROUP BY inspection_call_no) cf
+                       ON cf.inspection_call_no = ic.ic_number
+                LEFT JOIN (SELECT inspection_call_no, SUM(weight_rejected_mt) AS rm_rej
+                           FROM rm_heat_final_result GROUP BY inspection_call_no) cr
+                       ON cr.inspection_call_no = ic.ic_number
+                LEFT JOIN (SELECT REQUEST_ID, SUM(manufacture_qty) AS manu, SUM(rejected_qty) AS rej
+                           FROM process_ie_qty GROUP BY REQUEST_ID) cp
+                       ON cp.REQUEST_ID = ic.ic_number
+                WHERE wfc.STATUS = 'SEND_CALL_TO_IBS'
+                  AND (:startDate IS NULL OR DATE(wfc.CREATEDDATE) >= :startDate)
+                  AND (:endDate IS NULL OR DATE(wfc.CREATEDDATE) <= :endDate)
+            ) c0
+        ) cx
+        GROUP BY cx.vendor_code, cx.uom
+    ) a ON a.vendor_code = v.vendor_code AND a.uom = pu.uom
+    ORDER BY v.company_name,
+             CASE pu.uom WHEN 'Nos.' THEN 0 WHEN 'MT' THEN 1 ELSE 2 END
+    """,
+            countQuery = """
+    SELECT COUNT(*)
+    FROM (
+        SELECT DISTINCT poi_v.company_name AS company_name, ie_v.rio AS rio, poi_v.vendor_code AS vendor_code
+        FROM inspection_calls icv
+        JOIN pincode_poi_mapping poi_v ON poi_v.poi_code = icv.place_of_inspection
+        LEFT JOIN ie_fields_mapping ie_v ON ie_v.pin_code = poi_v.pin_code AND ie_v.product = 'ERC'
+        INNER JOIN (
+            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+            FROM WORKFLOW_TRANSITION w
+            INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                        FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+              ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+        ) wfv ON wfv.REQUESTID = icv.ic_number
+        WHERE wfv.STATUS = 'SEND_CALL_TO_IBS'
+          AND (:startDate IS NULL OR DATE(wfv.CREATEDDATE) >= :startDate)
+          AND (:endDate IS NULL OR DATE(wfv.CREATEDDATE) <= :endDate)
+    ) v
+    INNER JOIN (
+        SELECT phu.vendor_code AS vendor_code,
+               CASE WHEN LOWER(TRIM(piu.uom)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                    WHEN LOWER(TRIM(piu.uom)) LIKE 'set%' THEN 'Set'
+                    ELSE 'Nos.' END AS uom
+        FROM po_header phu
+        JOIN po_item piu ON piu.po_header_id = phu.id
+        GROUP BY phu.vendor_code,
+                 CASE WHEN LOWER(TRIM(piu.uom)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                      WHEN LOWER(TRIM(piu.uom)) LIKE 'set%' THEN 'Set'
+                      ELSE 'Nos.' END
+    ) pu ON pu.vendor_code = v.vendor_code
+    """,
+            nativeQuery = true)
+    Page<Object[]> fetchManufacturerSummaryByUom(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
+
   /*  @Query(value = """
             SELECT DISTINCT ic.ic_number
             FROM inspection_calls ic

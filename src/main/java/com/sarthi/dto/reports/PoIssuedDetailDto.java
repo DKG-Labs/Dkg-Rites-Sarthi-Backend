@@ -18,4 +18,6 @@ public class PoIssuedDetailDto {
     private Long acceptedQtyAfterFinalInspection;
     private Long balanceQuantity;
     private String pdfPath;
+    // Number of Final ICs issued (call sent to IBS) against this PO; null where the product does not report it
+    private Long icIssuedCount;
 }

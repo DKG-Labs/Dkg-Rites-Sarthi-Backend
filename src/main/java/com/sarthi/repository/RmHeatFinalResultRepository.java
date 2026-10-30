@@ -492,10 +492,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                         WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                         AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                        AND (
-                            DATE(COALESCE(wf.CREATEDDATE, r.date_of_inspection, r.created_at)) BETWEEN :startDate AND :endDate
-                            OR (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
-                        )
+                        AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
                     ),
                     (
                         SELECT COALESCE(SUM(sub.no_of_erc_finished), 0)
@@ -519,10 +516,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                             AND wf.STATUS = 'SEND_CALL_TO_IBS'
                             AND (UPPER(TRIM(r.overall_status)) = 'REJECTED' OR UPPER(TRIM(r.status)) = 'REJECTED')
-                            AND (
-                                DATE(COALESCE(wf.CREATEDDATE, r.date_of_inspection, r.created_at)) BETWEEN :startDate AND :endDate
-                                OR (CASE WHEN r.date_of_inspection IS NOT NULL THEN DATE(r.date_of_inspection) ELSE DATE(r.created_at) END) BETWEEN :startDate AND :endDate
-                            )
+                            AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
                             GROUP BY r.inspection_call_no
                         ) sub
                     )
