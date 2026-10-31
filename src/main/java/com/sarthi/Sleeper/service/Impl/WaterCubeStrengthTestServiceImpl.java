@@ -251,16 +251,34 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
 
     @Override
     public List<Map<String, Object>> getAllLite(String plantId, Integer days) {
+        return getAllLite(plantId, days, null, null);
+    }
+
+    // An explicit casting-date range takes precedence over the last-N-days window (which is by test entry date)
+    @Override
+    public List<Map<String, Object>> getAllLite(String plantId, Integer days,
+            java.time.LocalDate fromDate, java.time.LocalDate toDate) {
 
         String normPlant = null;
         if (plantId != null && !plantId.trim().isEmpty()) {
             normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
         }
-        java.time.LocalDateTime fromDate = (days != null && days > 0)
+        if (fromDate != null || toDate != null) {
+            return waterCubeStrengthTestRepository.findForListByCasting(
+                            normPlant,
+                            fromDate,
+                            toDate,
+                            fromDate != null ? fromDate.atStartOfDay() : null,
+                            toDate != null ? toDate.plusDays(1).atStartOfDay() : null)
+                    .stream()
+                    .map(this::mapTestToLiteDto)
+                    .toList();
+        }
+        java.time.LocalDateTime fromDateTime = (days != null && days > 0)
                 ? java.time.LocalDateTime.now().minusDays(days)
                 : null;
 
-        return waterCubeStrengthTestRepository.findForList(normPlant, fromDate)
+        return waterCubeStrengthTestRepository.findForList(normPlant, fromDateTime)
                 .stream()
                 .map(this::mapTestToLiteDto)
                 .toList();

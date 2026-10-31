@@ -26,6 +26,21 @@ public interface WaterCubeStrengthTestRepository extends JpaRepository<WaterCube
             @org.springframework.data.repository.query.Param("plantId") String plantId,
             @org.springframework.data.repository.query.Param("fromDate") java.time.LocalDateTime fromDate);
 
+    // Filtered by the casting date of the sample declaration; a test whose declaration is missing
+    // falls back to the date it was entered
+    @EntityGraph(attributePaths = {"details", "waterCubeSampleDeclaration"})
+    @Query("SELECT w FROM WaterCubeStrengthTest w LEFT JOIN w.waterCubeSampleDeclaration d " +
+            "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(w.plantId, ':', ''), ' ', '')) = :plantId) " +
+            "AND (:fromDate IS NULL OR d.castingDate >= :fromDate OR (d.castingDate IS NULL AND w.createdDate >= :fromDateTime)) " +
+            "AND (:toDate IS NULL OR d.castingDate <= :toDate OR (d.castingDate IS NULL AND w.createdDate < :toDateTime)) " +
+            "ORDER BY w.id ASC")
+    List<WaterCubeStrengthTest> findForListByCasting(
+            @org.springframework.data.repository.query.Param("plantId") String plantId,
+            @org.springframework.data.repository.query.Param("fromDate") java.time.LocalDate fromDate,
+            @org.springframework.data.repository.query.Param("toDate") java.time.LocalDate toDate,
+            @org.springframework.data.repository.query.Param("fromDateTime") java.time.LocalDateTime fromDateTime,
+            @org.springframework.data.repository.query.Param("toDateTime") java.time.LocalDateTime toDateTime);
+
     // Page the ids first (a collection fetch can't be paged in the database), then load those rows
     @Query(value = "SELECT w.id FROM WaterCubeStrengthTest w " +
             "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(w.plantId, ':', ''), ' ', '')) = :plantId) " +

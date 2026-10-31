@@ -427,11 +427,18 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                         SELECT ic2.ic_number
                         FROM inspection_calls ic2
                         INNER JOIN (
-                            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                            SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                             FROM WORKFLOW_TRANSITION w
                             INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                                         FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
                               ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                            LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                                   ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                                   ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                                   ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
                         ) wf2 ON wf2.REQUESTID = ic2.ic_number
                         WHERE ic2.po_no = ic.po_no
                           AND wf2.STATUS = 'SEND_CALL_TO_IBS'
@@ -447,11 +454,18 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                                                SELECT ic2.ic_number
                                                FROM inspection_calls ic2
                                                INNER JOIN (
-                                                   SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                                                   SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                                                    FROM WORKFLOW_TRANSITION w
                                                    INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                                                                FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
                                                      ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                                                   LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                                                   LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                                                          ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                                                   LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                                                          ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                                                   LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                                                          ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
                                                ) wf2 ON wf2.REQUESTID = ic2.ic_number
                                                WHERE ic2.po_no = ic.po_no
                                                  AND wf2.STATUS = 'SEND_CALL_TO_IBS'
@@ -467,11 +481,18 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                         SELECT ic2.ic_number
                         FROM inspection_calls ic2
                         INNER JOIN (
-                            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                            SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                             FROM WORKFLOW_TRANSITION w
                             INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                                         FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
                               ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                            LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                                   ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                                   ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                                   ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
                         ) wf2 ON wf2.REQUESTID = ic2.ic_number
                         WHERE ic2.po_no = ic.po_no
                           AND wf2.STATUS = 'SEND_CALL_TO_IBS'
@@ -506,11 +527,18 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
                 LEFT JOIN po_header ph_sub ON ph_sub.po_no = ic_sub.po_no
                 INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                    SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                     FROM WORKFLOW_TRANSITION w
                     INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                                 FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
                       ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                    LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                           ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                           ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                           ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
                 ) wf_sub ON wf_sub.REQUESTID = ic_sub.ic_number
 
                 WHERE wf_sub.STATUS = 'SEND_CALL_TO_IBS'
@@ -531,11 +559,18 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
                 LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
                 LEFT JOIN po_header ph_sub ON ph_sub.po_no = ic_sub.po_no
                 INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                    SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                     FROM WORKFLOW_TRANSITION w
                     INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                                 FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
                       ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                    LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                           ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                           ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                           ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
                 ) wf_sub ON wf_sub.REQUESTID = ic_sub.ic_number
                 WHERE wf_sub.STATUS = 'SEND_CALL_TO_IBS'
                   AND (:startDate IS NULL OR DATE(wf_sub.CREATEDDATE) >= :startDate)
@@ -856,11 +891,18 @@ Page<Object[]> fetchManufacturerSummary(
         JOIN pincode_poi_mapping poi_v ON poi_v.poi_code = icv.place_of_inspection
         LEFT JOIN ie_fields_mapping ie_v ON ie_v.pin_code = poi_v.pin_code AND ie_v.product = 'ERC'
         INNER JOIN (
-            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+            SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
             FROM WORKFLOW_TRANSITION w
             INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                         FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
               ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+            LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                   ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                   ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                   ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
         ) wfv ON wfv.REQUESTID = icv.ic_number
         WHERE wfv.STATUS = 'SEND_CALL_TO_IBS'
           AND (:startDate IS NULL OR DATE(wfv.CREATEDDATE) >= :startDate)
@@ -920,11 +962,18 @@ Page<Object[]> fetchManufacturerSummary(
                 FROM inspection_calls ic
                 JOIN pincode_poi_mapping poi_c ON poi_c.poi_code = ic.place_of_inspection
                 INNER JOIN (
-                    SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                    SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                     FROM WORKFLOW_TRANSITION w
                     INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                                 FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
                       ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+                    LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                           ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                           ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                    LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                           ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
                 ) wfc ON wfc.REQUESTID = ic.ic_number
                 LEFT JOIN po_header phc ON phc.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
                 LEFT JOIN (SELECT inspection_call_no,
@@ -957,11 +1006,18 @@ Page<Object[]> fetchManufacturerSummary(
         JOIN pincode_poi_mapping poi_v ON poi_v.poi_code = icv.place_of_inspection
         LEFT JOIN ie_fields_mapping ie_v ON ie_v.pin_code = poi_v.pin_code AND ie_v.product = 'ERC'
         INNER JOIN (
-            SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+            SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
             FROM WORKFLOW_TRANSITION w
             INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                         FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
               ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+            LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                   ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                   ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                   ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
         ) wfv ON wfv.REQUESTID = icv.ic_number
         WHERE wfv.STATUS = 'SEND_CALL_TO_IBS'
           AND (:startDate IS NULL OR DATE(wfv.CREATEDDATE) >= :startDate)

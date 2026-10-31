@@ -6327,8 +6327,10 @@ public class reportsImpl implements reports {
                         rawList = sleeperWorkflowRepository.findSleeperDownloadIcAnnexuresReportRaw(
                                         vendorPlantCode, zonalRailway, startDate, endDate);
                 } else {
+                        // ERC: the date range applies to the IC date shown in the list (when the IC was generated),
+                        // so it is applied below instead of to the date the call was sent to IBS
                         rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(
-                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                                        vendorPlantCode, zonalRailway, null, null);
                 }
 
                 List<com.sarthi.dto.reports.IcAnnexuresReportDto> resultList = new java.util.ArrayList<>();
@@ -6336,7 +6338,20 @@ public class reportsImpl implements reports {
                         return resultList;
                 }
 
+                boolean filterByIcDate = !isRailPad && !isSleeper && (startDate != null || endDate != null);
+
                 for (Object[] row : rawList) {
+                        if (filterByIcDate) {
+                                try {
+                                        java.time.LocalDate icDate = java.time.LocalDate.parse(row[7].toString().substring(0, 10));
+                                        if ((startDate != null && icDate.isBefore(startDate))
+                                                        || (endDate != null && icDate.isAfter(endDate))) {
+                                                continue;
+                                        }
+                                } catch (Exception ignored) {
+                                        // an unreadable IC date is kept rather than hidden
+                                }
+                        }
                         String itemCatDescr = row[8] != null ? row[8].toString() : "";
                         String callSubmissionDateTime = row.length > 10 && row[10] != null ? formatSubmissionDateOnly(row[10]) : "-";
                         Object rawQty = row.length > 11 && row[11] != null ? row[11] : null;
@@ -6360,8 +6375,14 @@ public class reportsImpl implements reports {
                                 } catch (Exception ignored) {}
                         }
 
+                        // Pieces on an MT PO are shown in MT (1.088 kg per clip), as printed on the IC
+                        // e.g. 92,440 Nos -> 100.575 MT
                         String callQty = pieceQtyOnMtPo
-                                        ? Math.round(Double.parseDouble(rawQty.toString().trim())) + " Nos"
+                                        ? new java.math.BigDecimal(rawQty.toString().trim())
+                                                        .multiply(new java.math.BigDecimal("1.088"))
+                                                        .divide(new java.math.BigDecimal("1000"))
+                                                        .setScale(3, java.math.RoundingMode.HALF_UP)
+                                                        .stripTrailingZeros().toPlainString() + " MT"
                                         : formatCallQtyWithUom(rawQty, callNo, stage, railpadType, poUom);
                         String callQtySet = "-";
                         String callQtyNos = "-";

@@ -472,17 +472,23 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                 INNER JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
                 INNER JOIN po_header ph ON ic.po_no = ph.po_no
                 INNER JOIN (
-                SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                 FROM WORKFLOW_TRANSITION w
                 INNER JOIN (
                     SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                     FROM WORKFLOW_TRANSITION
                     GROUP BY REQUESTID
                 ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+                LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                       ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                       ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                       ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
             ) wf ON wf.REQUESTID = ic.ic_number
             WHERE (
-                DATE(COALESCE(wf.CREATEDDATE, p.date_of_inspection, p.created_at)) BETWEEN :startDate AND :endDate
-                OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+                DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
             )
             AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
@@ -500,17 +506,23 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
             INNER JOIN inspection_calls ic ON p.inspection_call_no = ic.ic_number
             INNER JOIN po_header ph ON ic.po_no = ph.po_no
             INNER JOIN (
-                SELECT w.REQUESTID, w.STATUS, w.CREATEDDATE
+                SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
                 FROM WORKFLOW_TRANSITION w
                 INNER JOIN (
                     SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
                     FROM WORKFLOW_TRANSITION
                     GROUP BY REQUESTID
                 ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
+                LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                       ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                       ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                       ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
             ) wf ON wf.REQUESTID = ic.ic_number
             WHERE (
-                DATE(COALESCE(wf.CREATEDDATE, p.date_of_inspection, p.created_at)) BETWEEN :startDate AND :endDate
-                OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN DATE(p.date_of_inspection) ELSE DATE(p.created_at) END) BETWEEN :startDate AND :endDate
+                DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
             )
             AND p.tempering_manufactured > 0
             AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
@@ -681,10 +693,13 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                         GROUP BY REQUESTID
                     ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
                 ) wf ON wf.REQUESTID = ic.ic_number
+                LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = ic.ic_number
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ied
+                       ON ied.ic_no = COALESCE(icd.cert_no, ic.ic_number) COLLATE utf8mb4_unicode_ci
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                 AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
+                AND DATE(COALESCE(ied.ic_dt, wf.CREATEDDATE)) BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     List<Object[]> sumProcessAcceptedAndRejectedRevisedLogic(
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,

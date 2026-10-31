@@ -489,10 +489,13 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                                 GROUP BY REQUESTID
                             ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
                         ) wf ON wf.REQUESTID = ic.ic_number
+                        LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = ic.ic_number
+                        LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) ied
+                               ON ied.ic_no = COALESCE(icd.cert_no, ic.ic_number) COLLATE utf8mb4_unicode_ci
                         WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                         AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                         AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                        AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
+                        AND DATE(COALESCE(ied.ic_dt, wf.CREATEDDATE)) BETWEEN :startDate AND :endDate
                     ),
                     (
                         SELECT COALESCE(SUM(sub.no_of_erc_finished), 0)
@@ -512,11 +515,14 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                                     GROUP BY REQUESTID
                                 ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
                             ) wf ON wf.REQUESTID = ic.ic_number
+                            LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = ic.ic_number
+                            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) ied
+                                   ON ied.ic_no = COALESCE(icd.cert_no, ic.ic_number) COLLATE utf8mb4_unicode_ci
                             WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                             AND wf.STATUS = 'SEND_CALL_TO_IBS'
                             AND (UPPER(TRIM(r.overall_status)) = 'REJECTED' OR UPPER(TRIM(r.status)) = 'REJECTED')
-                            AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
+                            AND DATE(COALESCE(ied.ic_dt, wf.CREATEDDATE)) BETWEEN :startDate AND :endDate
                             GROUP BY r.inspection_call_no
                         ) sub
                     )

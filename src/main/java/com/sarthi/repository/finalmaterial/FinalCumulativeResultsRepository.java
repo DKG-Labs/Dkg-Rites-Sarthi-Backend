@@ -355,11 +355,11 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
     @Query(value = """
                 SELECT
                     SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton')
-                             THEN CASE WHEN COALESCE(f.qty_now_passed, 0) > 500 THEN COALESCE(f.qty_now_passed, 0) ELSE 0 END
+                             THEN 0
                              ELSE COALESCE(f.qty_now_passed, 0) END),
                     SUM(COALESCE(f.qty_now_rejected, 0)),
                     SUM(CASE WHEN LOWER(COALESCE(pi.uom, 'nos')) IN ('mt', 'mts', 'mts.', 'metric ton')
-                             THEN CASE WHEN COALESCE(f.qty_now_passed, 0) > 500 THEN 0.0 ELSE COALESCE(f.qty_now_passed, 0) END
+                             THEN CASE WHEN COALESCE(f.qty_now_passed, 0) > 500 THEN COALESCE(f.qty_now_passed, 0) * 1.088 / 1000 ELSE COALESCE(f.qty_now_passed, 0) END
                              ELSE 0.0 END)
                 FROM inspection_calls ic
                 INNER JOIN po_header ph ON ic.po_no = ph.po_no
@@ -374,10 +374,13 @@ public interface FinalCumulativeResultsRepository extends JpaRepository<FinalCum
                         GROUP BY REQUESTID
                     ) latest ON w.REQUESTID = latest.REQUESTID AND w.WORKFLOWTRANSITIONID = latest.max_id
                 ) wf ON wf.REQUESTID = ic.ic_number
+                LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = ic.ic_number
+                LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) ied
+                       ON ied.ic_no = COALESCE(icd.cert_no, ic.ic_number) COLLATE utf8mb4_unicode_ci
                 WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
                 AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
                 AND wf.STATUS = 'SEND_CALL_TO_IBS'
-                AND DATE(wf.CREATEDDATE) BETWEEN :startDate AND :endDate
+                AND DATE(COALESCE(ied.ic_dt, wf.CREATEDDATE)) BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     List<Object[]> sumFinalAcceptedAndRejectedRevisedLogic(
             @Param("startDate") java.time.LocalDate startDate,

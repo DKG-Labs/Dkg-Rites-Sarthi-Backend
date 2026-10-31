@@ -939,14 +939,22 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 
     @Override
     public List<ProductionDeclarationResponseDto> getAllLite(String plantId, Integer days) {
+        return getAllLite(plantId, days, null, null);
+    }
+
+    // An explicit casting-date range (from/to) takes precedence over the last-N-days window
+    @Override
+    public List<ProductionDeclarationResponseDto> getAllLite(String plantId, Integer days,
+            LocalDate from, LocalDate to) {
 
         String normPlant = null;
         if (plantId != null && !plantId.trim().isEmpty()) {
             normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
         }
-        LocalDate fromDate = (days != null && days > 0) ? LocalDate.now().minusDays(days) : null;
+        LocalDate fromDate = from != null ? from
+                : (days != null && days > 0 && to == null) ? LocalDate.now().minusDays(days) : null;
 
-        List<ProductionDeclaration> entities = repository.findForList(normPlant, fromDate);
+        List<ProductionDeclaration> entities = repository.findForList(normPlant, fromDate, to);
         if (entities.isEmpty()) {
             return Collections.emptyList();
         }
@@ -1078,14 +1086,22 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 
     @Override
     public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusLite(String plantId, Integer days) {
+        return getAllWithWaterCubeStatusLite(plantId, days, null, null);
+    }
+
+    // An explicit casting-date range (from/to) takes precedence over the last-N-days window
+    @Override
+    public List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusLite(String plantId, Integer days,
+            LocalDate from, LocalDate to) {
 
         String normPlant = null;
         if (plantId != null && !plantId.trim().isEmpty()) {
             normPlant = plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
         }
-        LocalDate fromDate = (days != null && days > 0) ? LocalDate.now().minusDays(days) : null;
+        LocalDate fromDate = from != null ? from
+                : (days != null && days > 0 && to == null) ? LocalDate.now().minusDays(days) : null;
 
-        List<ProductionDeclaration> entities = repository.findForList(normPlant, fromDate);
+        List<ProductionDeclaration> entities = repository.findForList(normPlant, fromDate, to);
         if (entities.isEmpty()) {
             return Collections.emptyList();
         }

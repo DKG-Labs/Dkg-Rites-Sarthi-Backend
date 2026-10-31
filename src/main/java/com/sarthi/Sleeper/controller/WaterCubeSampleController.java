@@ -103,9 +103,11 @@ public class WaterCubeSampleController {
     @GetMapping("/getAllTestsLite")
     public ResponseEntity<Object> getAllTestsLite(
             @RequestParam(required = false) String plantId,
-            @RequestParam(required = false) Integer days) {
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(waterCubeStrengthTestService.getAllLite(plantId, days)),
+                ResponseBuilder.getSuccessResponse(waterCubeStrengthTestService.getAllLite(plantId, days, fromDate, toDate)),
                 HttpStatus.OK);
     }
 
