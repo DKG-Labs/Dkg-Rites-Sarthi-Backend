@@ -33,11 +33,26 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             ) x ON wt.workflowtransitionid = x.latest_id
             JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
             JOIN po_header ph ON ic.po_no = ph.po_no
+            LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = ic.ic_number
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                   ON red.ic_no = COALESCE(icd.cert_no, ic.ic_number) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                   ON ped.ic_no = COALESCE(icd.cert_no, ic.ic_number) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                   ON fed.ic_no = COALESCE(icd.cert_no, ic.ic_number) COLLATE utf8mb4_unicode_ci
             WHERE wt.STATUS = 'SEND_CALL_TO_IBS'
             AND (:poiCode IS NULL OR :poiCode = '' OR ic.place_of_inspection = :poiCode)
             AND (:rlyShortName IS NULL OR :rlyShortName = '' OR ph.rly_short_name = :rlyShortName)
-            AND (:startDate IS NULL OR :startDate = '' OR wt.CREATEDDATE >= :startDate)
-            AND (:endDate IS NULL OR :endDate = '' OR wt.CREATEDDATE <= :endDate)
+            AND (:startDate IS NULL OR :startDate = '' OR COALESCE(
+                    CASE WHEN wt.REQUESTID LIKE 'ER-%' THEN red.ic_dt
+                         WHEN wt.REQUESTID LIKE 'EP-%' THEN ped.ic_dt
+                         WHEN wt.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END,
+                    wt.CREATEDDATE) >= :startDate)
+            AND (:endDate IS NULL OR :endDate = '' OR COALESCE(
+                    CASE WHEN wt.REQUESTID LIKE 'ER-%' THEN red.ic_dt
+                         WHEN wt.REQUESTID LIKE 'EP-%' THEN ped.ic_dt
+                         WHEN wt.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END,
+                    wt.CREATEDDATE) <= :endDate)
             """, nativeQuery = true)
     Map<String, Object> getIcIssuedCounts(
             @Param("poiCode") String poiCode,
@@ -1035,38 +1050,21 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 COALESCE(
                     CASE
                         WHEN ic.ic_number LIKE '%ER%' THEN (
-                            COALESCE(
-                                (SELECT NULLIF(SUM(COALESCE(r.accepted_qty_mt, r.weight_accepted_mt, 0)), 0)
-                                 FROM rm_heat_final_result r
-                                 WHERE r.inspection_call_no = ic.ic_number OR r.inspection_call_no = icd.certificate_no),
-                                (SELECT COALESCE(rm.tc_quantity, rm.total_offered_qty_mt, rm.offered_qty_erc)
-                                 FROM rm_inspection_details rm WHERE rm.ic_id = ic.id ORDER BY rm.id DESC LIMIT 1)
-                            )
+                            SELECT NULLIF(SUM(COALESCE(r.accepted_qty_mt, r.weight_accepted_mt, 0)), 0)
+                            FROM rm_heat_final_result r
+                            WHERE r.inspection_call_no = ic.ic_number OR r.inspection_call_no = icd.certificate_no
                         )
                         WHEN ic.ic_number LIKE '%EP%' THEN (
-                            COALESCE(
-                                (SELECT NULLIF(SUM(COALESCE(p.total_accepted, p.tempering_accepted, 0)), 0)
-                                 FROM process_line_final_result p
-                                 WHERE p.inspection_call_no = ic.ic_number OR p.inspection_call_no = icd.certificate_no),
-                                (SELECT NULLIF(SUM(pid.qty_accepted), 0)
-                                 FROM process_inspection_details pid WHERE pid.ic_id = ic.id),
-                                (SELECT SUM(pid.offered_qty)
-                                 FROM process_inspection_details pid WHERE pid.ic_id = ic.id)
-                            )
+                            SELECT NULLIF(SUM(COALESCE(p.total_accepted, p.tempering_accepted, 0)), 0)
+                            FROM process_line_final_result p
+                            WHERE p.inspection_call_no = ic.ic_number OR p.inspection_call_no = icd.certificate_no
                         )
                         WHEN ic.ic_number LIKE '%EF%' THEN (
-                            COALESCE(
-                                (SELECT NULLIF(SUM(COALESCE(fcr.qty_now_passed, 0)), 0)
-                                 FROM final_cumulative_results fcr
-                                 WHERE fcr.inspection_call_no = ic.ic_number OR fcr.inspection_call_no = icd.certificate_no OR fcr.inspection_call_no LIKE CONCAT('%', ic.ic_number, '%')),
-                                (SELECT NULLIF(fid.total_accepted_qty, 0)
-                                 FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1),
-                                (SELECT fid.total_offered_qty
-                                 FROM final_inspection_details fid WHERE fid.ic_id = ic.id ORDER BY fid.id DESC LIMIT 1)
-                            )
+                            SELECT NULLIF(SUM(COALESCE(fcr.qty_now_passed, 0)), 0)
+                            FROM final_cumulative_results fcr
+                            WHERE fcr.inspection_call_no = ic.ic_number OR fcr.inspection_call_no = icd.certificate_no OR fcr.inspection_call_no LIKE CONCAT('%', ic.ic_number, '%')
                         )
                     END,
-                    (SELECT icd2.call_qty FROM inspection_call_details icd2 WHERE icd2.inspection_call_no = ic.ic_number ORDER BY icd2.id DESC LIMIT 1),
                     0
                 ) AS callQty,
                 COALESCE(
