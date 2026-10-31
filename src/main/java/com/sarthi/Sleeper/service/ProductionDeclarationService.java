@@ -25,6 +25,12 @@ public interface ProductionDeclarationService {
 
     List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusLite(String plantId, Integer days);
 
+    List<ProductionDeclarationResponseDto> getAllLite(String plantId, Integer days,
+            java.time.LocalDate from, java.time.LocalDate to);
+
+    List<ProductionDeclarationResponseDto> getAllWithWaterCubeStatusLite(String plantId, Integer days,
+            java.time.LocalDate from, java.time.LocalDate to);
+
     com.sarthi.Sleeper.dto.PagedResponse<ProductionDeclarationResponseDto> getPage(
             String plantId, Integer days, Integer page, Integer size);
 

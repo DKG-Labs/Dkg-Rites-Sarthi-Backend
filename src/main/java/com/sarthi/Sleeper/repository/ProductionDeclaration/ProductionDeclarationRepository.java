@@ -30,9 +30,11 @@ public interface ProductionDeclarationRepository extends JpaRepository<Productio
     @Query("SELECT p FROM ProductionDeclaration p " +
             "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(p.plantId, ':', ''), ' ', '')) = :plantId) " +
             "AND (:fromDate IS NULL OR p.castingDate >= :fromDate) " +
+            "AND (:toDate IS NULL OR p.castingDate <= :toDate) " +
             "ORDER BY p.id ASC")
     List<ProductionDeclaration> findForList(@Param("plantId") String plantId,
-                                            @Param("fromDate") java.time.LocalDate fromDate);
+                                            @Param("fromDate") java.time.LocalDate fromDate,
+                                            @Param("toDate") java.time.LocalDate toDate);
 
     @Query(value = "SELECT p FROM ProductionDeclaration p " +
             "WHERE (:plantId IS NULL OR LOWER(REPLACE(REPLACE(p.plantId, ':', ''), ' ', '')) = :plantId) " +

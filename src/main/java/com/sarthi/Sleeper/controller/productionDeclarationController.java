@@ -76,11 +76,13 @@ public class productionDeclarationController {
         @GetMapping("/getAllLite")
         public ResponseEntity<Object> getAllLite(
                         @RequestParam(required = false) String plantId,
-                        @RequestParam(required = false) Integer days) {
+                        @RequestParam(required = false) Integer days,
+                        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate toDate) {
 
                 return new ResponseEntity<>(
                                 ResponseBuilder.getSuccessResponse(
-                                                service.getAllLite(plantId, days)),
+                                                service.getAllLite(plantId, days, fromDate, toDate)),
                                 HttpStatus.OK);
         }
 
@@ -95,11 +97,13 @@ public class productionDeclarationController {
         @GetMapping("/getAllVerifedWaterBatchsLite")
         public ResponseEntity<Object> getAllWithWaterCubeStatusLite(
                 @RequestParam(required = false) String plantId,
-                @RequestParam(required = false) Integer days) {
+                @RequestParam(required = false) Integer days,
+                @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate toDate) {
 
                 return new ResponseEntity<>(
                         ResponseBuilder.getSuccessResponse(
-                                service.getAllWithWaterCubeStatusLite(plantId, days)),
+                                service.getAllWithWaterCubeStatusLite(plantId, days, fromDate, toDate)),
                         HttpStatus.OK);
         }
 

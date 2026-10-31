@@ -20,6 +20,8 @@ public interface WaterCubeStrengthTestService {
             String plantId, Integer days, Integer page, Integer size);
 
     public List<Map<String, Object>> getAllLite(String plantId, Integer days);
+    public List<Map<String, Object>> getAllLite(String plantId, Integer days,
+            java.time.LocalDate fromDate, java.time.LocalDate toDate);
     public ResponseEntity<?> deleteTestResult(Long id);
     public ResponseEntity<?> updateTestResult(Long id, WaterCubeStrengthTestRequestDto requestDto);
     }
