@@ -15,6 +15,7 @@ import java.util.Optional;
 public interface AuthenticatorVerificationRepository extends JpaRepository<AuthenticatorVerification, Long> {
     Optional<AuthenticatorVerification> findBySessionId(String sessionId);
     Optional<AuthenticatorVerification> findTopByUserIdOrderByCreatedAtDesc(String userId);
+    Optional<AuthenticatorVerification> findTopByUserIdAndStatusOrderByCreatedAtDesc(String userId, String status);
     boolean existsByUserIdAndStatusAndExpiresAtAfter(String userId, String status, LocalDateTime now);
 
     /** Row for the Active Login list. Leaves out the selfie (LONGTEXT) so the list stays fast. */
@@ -44,14 +45,15 @@ public interface AuthenticatorVerificationRepository extends JpaRepository<Authe
             + "v.deviceInfo as deviceInfo, v.ipAddress as ipAddress, v.status as status, "
             + "v.createdAt as createdAt, v.verifiedAt as verifiedAt, v.expiresAt as expiresAt "
             + "from AuthenticatorVerification v "
-            + "where v.status = :status and v.expiresAt > :now "
+            + "where v.status = :status and v.verifiedAt >= :fromDt and v.verifiedAt <= :toDt "
             + "and (:search = '' or lower(v.userName) like lower(concat('%', :search, '%'))) "
             + "order by v.verifiedAt desc, v.id desc",
             countQuery = "select count(v) from AuthenticatorVerification v "
-            + "where v.status = :status and v.expiresAt > :now "
+            + "where v.status = :status and v.verifiedAt >= :fromDt and v.verifiedAt <= :toDt "
             + "and (:search = '' or lower(v.userName) like lower(concat('%', :search, '%')))")
     Page<ActiveLoginRow> findActiveLogins(@Param("status") String status,
-                                          @Param("now") LocalDateTime now,
+                                          @Param("fromDt") LocalDateTime fromDt,
+                                          @Param("toDt") LocalDateTime toDt,
                                           @Param("search") String search,
                                           Pageable pageable);
 }

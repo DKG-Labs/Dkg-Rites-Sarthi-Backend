@@ -108,6 +108,9 @@ WHERE g.sleeperType IS NOT NULL AND g.sleeperType <> ''
     @Query(value = "SELECT * FROM production_declaration WHERE batch_number IN (:batchNos) ORDER BY id DESC", nativeQuery = true)
     List<ProductionDeclaration> findAllByBatchNumbers(@Param("batchNos") Collection<String> batchNos);
 
+    @Query(value = "SELECT * FROM production_declaration WHERE TRIM(batch_number) IN (:batchNos) ORDER BY id DESC", nativeQuery = true)
+    List<ProductionDeclaration> findAllByTrimmedBatchNumbers(@Param("batchNos") Collection<String> batchNos);
+
     @Query(value = "SELECT * FROM production_declaration WHERE LOWER(TRIM(batch_number)) = LOWER(TRIM(:batchNo)) OR LOWER(TRIM(batch_number)) = LOWER(TRIM(:cleanBatch)) OR LOWER(batch_number) LIKE LOWER(CONCAT('%', :cleanBatch, '%')) OR LOWER(batch_number) LIKE LOWER(CONCAT('%', :batchNo, '%')) ORDER BY id DESC LIMIT 1", nativeQuery = true)
     ProductionDeclaration findLatestByBatchNoFlexible(@Param("batchNo") String batchNo, @Param("cleanBatch") String cleanBatch);
 

@@ -33,6 +33,9 @@ public interface reports {
         public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDate,
                         String endDate);
 
+        public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDate,
+                        String endDate, String product);
+
         public List<PoIssuedDetailDto> getPoIssuedDetails(String itemCatDescr, String vendorPlantCode,
                         String zonalRailway, String startDate, String endDate);
 

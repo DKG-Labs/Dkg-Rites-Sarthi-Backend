@@ -20,6 +20,7 @@ where r.vendorCode = :vendorCode
     );
 
     Optional<RailVendorPlants> findByPlantId(String plantId);
+    java.util.List<RailVendorPlants> findByPlantIdIn(java.util.List<String> plantIds);
     java.util.List<RailVendorPlants> findByVendorCode(String vendorCode);
     Optional<RailVendorPlants> findByCompanyNameAndPlantName(String companyName, String plantName);
     java.util.List<RailVendorPlants> findByVendorId(Long vendorId);

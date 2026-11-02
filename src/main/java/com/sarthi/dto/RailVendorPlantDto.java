@@ -15,4 +15,6 @@ public class RailVendorPlantDto {
     private String ibsVendorCode;
     private String plantAddress;
     private String status = "Active";
+    private java.math.BigDecimal latitude;
+    private java.math.BigDecimal longitude;
 }

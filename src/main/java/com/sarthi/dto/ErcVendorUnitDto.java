@@ -17,4 +17,6 @@ public class ErcVendorUnitDto {
     private String ibsVendorCode;
     private String rio;
     private String status = "Active";
+    private java.math.BigDecimal latitude;
+    private java.math.BigDecimal longitude;
 }

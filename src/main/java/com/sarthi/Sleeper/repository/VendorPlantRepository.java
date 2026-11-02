@@ -16,6 +16,7 @@ import java.util.Optional;
 @Repository
 public interface VendorPlantRepository extends JpaRepository<VendorPlant, Long> {
     List<VendorPlant> findByVendorCode(String vendorCode);
+    List<VendorPlant> findByPlantIdIn(List<String> plantIds);
 
     Optional<VendorPlant> findByPlantId(String plantId);
 

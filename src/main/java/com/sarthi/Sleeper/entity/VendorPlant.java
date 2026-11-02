@@ -32,4 +32,10 @@ public class VendorPlant {
 
     @Column(name = "plant_address", length = 500)
     private String plantAddress;
+
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private java.math.BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private java.math.BigDecimal longitude;
 }

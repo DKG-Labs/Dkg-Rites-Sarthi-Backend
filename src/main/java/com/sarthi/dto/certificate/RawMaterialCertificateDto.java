@@ -29,7 +29,8 @@ public class RawMaterialCertificateDto {
     private String bookNo;
     private String setNo;
     private Boolean isDivertedMaterial;
-    
+    private String diversionType;
+
     /* ==================== Installment Information ==================== */
     
     /**

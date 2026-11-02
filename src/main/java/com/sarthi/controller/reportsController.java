@@ -258,11 +258,12 @@ public class reportsController {
                         @RequestParam(required = false) String vendorPlantCode,
                         @RequestParam(required = false) String zonalRailway,
                         @RequestParam(required = false) String startDate,
-                        @RequestParam(required = false) String endDate) {
+                        @RequestParam(required = false) String endDate,
+                        @RequestParam(required = false) String product) {
                 return new ResponseEntity<Object>(
                                 ResponseBuilder.getSuccessResponse(
                                                 reportService.getDashboardSummary(vendorPlantCode, zonalRailway,
-                                                                startDate, endDate)),
+                                                                startDate, endDate, product)),
                                 HttpStatus.OK);
         }
 

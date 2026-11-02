@@ -691,7 +691,9 @@ public class DashboardServiceImpl implements DashboardService {
 
     public List<MprDTO> getMpr(LocalDate startDate, LocalDate endDate) {
 
-        List<MprProjection> data = inspectionCallRepository.getMprData(startDate, endDate);
+        // One row per PO and unit of measurement
+        List<com.sarthi.Sleeper.dto.SleeperDashboardDtos.MprUomProjection> data =
+                inspectionCallRepository.getMprDataByUom(startDate, endDate);
 
         AtomicInteger counter = new AtomicInteger(1);
 
@@ -707,6 +709,7 @@ public class DashboardServiceImpl implements DashboardService {
                     d.getRly(),
                     d.getPoNo(),
                     d.getManufacturer(),
+                    d.getUom(),
                     poQty,
                     d.getDispatchedInPeriod(),
                     totalDispatched,
@@ -912,11 +915,10 @@ public class DashboardServiceImpl implements DashboardService {
             LocalDate fromDate,
             LocalDate toDate) {
 
-        List<Object[]> rows =
-                inspectionTestHeaderRepository.getDefectReasonDistributions(
-                        fromDate,
-                        toDate
-                );
+        List<Long> pdIds = closedIcPdIds(fromDate, toDate);
+        List<Object[]> rows = pdIds.isEmpty()
+                ? new ArrayList<>()
+                : inspectionTestHeaderRepository.getDefectReasonDistributionsByPdIds(pdIds);
 
         Map<String, Long> groupedDefects = new LinkedHashMap<>();
 
@@ -1082,19 +1084,56 @@ public class DashboardServiceImpl implements DashboardService {
         return response;
     }  */
 
+    /** Production declarations of the batches in closed ICs (latest status SEND_CALL_TO_IBS, IC date inside the range). */
+    private List<Long> closedIcPdIds(LocalDate fromDate, LocalDate toDate) {
+        // Batches of the closed ICs (latest status SEND_CALL_TO_IBS, IC date inside the range)
+        List<Object[]> closedBatches = inspectionTestHeaderRepository.getClosedIcBatches(fromDate, toDate);
+
+        java.util.function.Function<Object, String> clean = o -> o == null ? "" : o.toString().trim().toLowerCase();
+        java.util.function.Function<Object, String> plantKey =
+                o -> o == null ? "" : o.toString().replace(":", "").trim().toLowerCase();
+
+        java.util.Set<String> batchNos = new java.util.HashSet<>();
+        java.util.Set<String> wanted = new java.util.HashSet<>();   // batch|casting date|plant
+        for (Object[] cb : closedBatches) {
+            if (cb[0] == null) continue;
+            batchNos.add(cb[0].toString());
+            batchNos.add(cb[0].toString().trim());
+            String castDay = String.valueOf(cb[1]).trim();
+            if (castDay.length() > 10) castDay = castDay.substring(0, 10);
+            wanted.add(clean.apply(cb[0]) + "|" + castDay + "|" + plantKey.apply(cb[2]));
+        }
+
+        // 2. The production declarations of those batches
+        List<Long> pdIds = new ArrayList<>();
+        if (!batchNos.isEmpty()) {
+            for (com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration pd
+                    : productionDeclarationRepository.findAllByTrimmedBatchNumbers(batchNos)) {
+                String key = clean.apply(pd.getBatchNumber()) + "|"
+                        + (pd.getCastingDate() == null ? "null" : pd.getCastingDate().toString())
+                        + "|" + plantKey.apply(pd.getPlantId());
+                if (wanted.contains(key)) pdIds.add(pd.getId());
+            }
+        }
+
+        return pdIds;
+    }
+
     @Override
     public ParetoAnalysisResponseDto getParetoAnalysis(
             LocalDate fromDate,
             LocalDate toDate) {
 
-        List<Object[]> rows =
-                inspectionTestHeaderRepository.getParetoAnalysis(
-                        fromDate,
-                        toDate
-                );
+        List<Long> pdIds = closedIcPdIds(fromDate, toDate);
+
+        // 3. Rejection reasons of those batches
+        List<Object[]> rows = pdIds.isEmpty()
+                ? new ArrayList<>()
+                : inspectionTestHeaderRepository.getParetoAnalysis(pdIds);
 
         Map<String, Long> groupedDefects =
                 new LinkedHashMap<>();
+        Map<String, String> displayName = new HashMap<>();
 
         for (Object[] row : rows) {
 
@@ -1105,7 +1144,9 @@ public class DashboardServiceImpl implements DashboardService {
             Long count =
                     ((Number) row[1]).longValue();
 
-            String category = "Others";
+            // A reason that matches none of the groups below keeps its own name instead of going into "Others"
+            String rawReason = row[0] == null ? "" : row[0].toString().trim();
+            String category = rawReason.isEmpty() ? "Unspecified" : rawReason;
 
             if (reason.contains("surface defect")
                     || reason.contains("surface damage")) {
@@ -1134,7 +1175,7 @@ public class DashboardServiceImpl implements DashboardService {
 
                 category = "Outer Gauge";
             }
-            else if (reason.contains("rail seat")) {
+            else if (reason.contains("rail seat") && !reason.contains("slope")) {
 
                 category = "Rail Seat";
             }
@@ -1210,8 +1251,10 @@ public class DashboardServiceImpl implements DashboardService {
                 category = "FTC";
             }
 
+            // Reasons that differ only in letter case are one bar
+            final String finalCategory = category;
             groupedDefects.merge(
-                    category,
+                    displayName.computeIfAbsent(finalCategory.toLowerCase(), k -> finalCategory),
                     count,
                     Long::sum
             );
@@ -1856,10 +1899,26 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
 
+        /** One report row: a plant and a sleeper category. */
+        private static class QualityRow {
+            String plantKey = "";
+            String rawPlantId = "";
+            String category = "Mainline";
+            long produced, inspected, icQty, rejectedInProcess;
+            long dimension, endDamage, honeycomb, dowel, other;
+            final java.util.Set<String> calls = new java.util.HashSet<>();
+            String lastIcDay = "";
+        }
+
+        private static long qNum(Object o) {
+            return o instanceof Number ? ((Number) o).longValue() : 0L;
+        }
+
         @Override
         public List<QualitySleeperReportDto> getQualitySleeperReport(
                 String startDate,
-                String endDate) {
+                String endDate,
+                String zone) {
 
             DateTimeFormatter formatter =
                     DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -1874,16 +1933,170 @@ public class DashboardServiceImpl implements DashboardService {
                             ? LocalDate.parse(endDate, formatter)
                             : LocalDate.now();
 
-            List<QualitySleeperReportProjection> reportData =
+            java.util.function.Function<Object, String> norm = o -> o == null ? "" : o.toString().trim().toLowerCase();
+            java.util.function.Function<Object, String> plantKey =
+                    o -> o == null ? "" : o.toString().replace(":", "").trim().toLowerCase();
+            java.util.function.Function<Object, String> day = o -> {
+                String s = o == null ? "" : String.valueOf(o).trim();
+                return s.length() > 10 ? s.substring(0, 10) : s;
+            };
+            java.util.function.Function<Object, String> category = o -> {
+                String s = o == null ? "" : o.toString().trim();
+                return s.isEmpty() ? "Mainline" : s;
+            };
 
-                    productionDeclarationRepository.getQualitySleeperReport(
-                          start,
-                           end);
+            // Plants: railway zone and the name to show for the CSP
+            java.util.Map<String, String[]> plants = new java.util.HashMap<>();   // zone, plant name, company, raw id
+            for (Object[] r : inspectionTestHeaderRepository.getPlantZones()) {
+                String k = plantKey.apply(r[0]);
+                if (k.isEmpty()) continue;
+                String[] cur = plants.computeIfAbsent(k, x -> new String[] { "", "", "", r[0].toString().trim() });
+                if (cur[0].isBlank() && r[1] != null) cur[0] = r[1].toString().trim();
+                if (cur[1].isBlank() && r[2] != null) cur[1] = r[2].toString().trim();
+                if (cur[2].isBlank() && r[3] != null) cur[2] = r[3].toString().trim();
+            }
 
+            java.util.Map<String, QualityRow> rows = new java.util.HashMap<>();
+            java.util.function.BiFunction<String, String, QualityRow> rowOf = (rawPlant, cat) -> {
+                String pk = plantKey.apply(rawPlant);
+                return rows.computeIfAbsent(pk + "|" + cat.toLowerCase(), x -> {
+                    QualityRow q = new QualityRow();
+                    q.plantKey = pk;
+                    q.rawPlantId = rawPlant == null ? "" : rawPlant.trim();
+                    q.category = cat;
+                    return q;
+                });
+            };
 
-            return reportData.stream()
-                    .map(this::mapToDto)
-                    .toList();
+            // 1. Closed ICs (latest status SEND_CALL_TO_IBS, IC date inside the range)
+            List<Object[]> closed = inspectionTestHeaderRepository.getClosedIcBatchRows(start, end);
+
+            java.util.Set<String> batchNos = new java.util.HashSet<>();
+            for (Object[] r : closed) {
+                if (r[1] == null) continue;
+                batchNos.add(r[1].toString());
+                batchNos.add(r[1].toString().trim());
+            }
+
+            // Their production declarations (batch number + casting date + plant)
+            java.util.Map<String, Long> pdByKey = new java.util.HashMap<>();
+            if (!batchNos.isEmpty()) {
+                for (com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration pd
+                        : productionDeclarationRepository.findAllByTrimmedBatchNumbers(batchNos)) {
+                    String key = norm.apply(pd.getBatchNumber()) + "|"
+                            + (pd.getCastingDate() == null ? "" : pd.getCastingDate().toString())
+                            + "|" + plantKey.apply(pd.getPlantId());
+                    pdByKey.putIfAbsent(key, pd.getId());
+                    pdByKey.putIfAbsent(norm.apply(pd.getBatchNumber()) + "|" + plantKey.apply(pd.getPlantId()), pd.getId());
+                }
+            }
+            java.util.List<Long> pdIds = new ArrayList<>(new java.util.HashSet<>(pdByKey.values()));
+
+            java.util.Map<Long, String> categoryByPd = new java.util.HashMap<>();
+            java.util.Map<Long, long[]> defectsByPd = new java.util.HashMap<>();
+            if (!pdIds.isEmpty()) {
+                for (Object[] r : inspectionTestHeaderRepository.getSleeperCategoryByPdIds(pdIds)) {
+                    categoryByPd.put(qNum(r[0]), category.apply(r[1]));
+                }
+                for (Object[] r : inspectionTestHeaderRepository.getFinalDefectCountsByPdIds(pdIds)) {
+                    defectsByPd.put(qNum(r[0]), new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]) });
+                }
+            }
+
+            java.util.Map<String, Long> demouldingByBatch = new java.util.HashMap<>();
+            if (!batchNos.isEmpty()) {
+                for (Object[] r : inspectionTestHeaderRepository.getDemouldingRejectionsByBatch(batchNos)) {
+                    demouldingByBatch.merge(norm.apply(r[0]) + "|" + day.apply(r[1]) + "|" + plantKey.apply(r[2]),
+                            qNum(r[3]), Long::sum);
+                    demouldingByBatch.merge(norm.apply(r[0]) + "|" + plantKey.apply(r[2]), qNum(r[3]), Long::sum);
+                }
+            }
+
+            // 2. Offered quantity, accepted quantity, calls and last IC date per plant and category;
+            //    rejections are counted once per batch
+            java.util.Set<String> countedBatch = new java.util.HashSet<>();
+            java.util.Set<String> countedPd = new java.util.HashSet<>();
+            for (Object[] r : closed) {
+                String key = norm.apply(r[1]) + "|" + day.apply(r[2]) + "|" + plantKey.apply(r[3]);
+                String looseKey = norm.apply(r[1]) + "|" + plantKey.apply(r[3]);
+                Long pdId = pdByKey.get(key);
+                if (pdId == null) pdId = pdByKey.get(looseKey);
+                String cat = pdId != null ? categoryByPd.getOrDefault(pdId, "Mainline") : "Mainline";
+                QualityRow q = rowOf.apply(r[3] == null ? null : r[3].toString(), cat);
+
+                q.inspected += qNum(r[4]);
+                q.icQty += qNum(r[5]);
+                if (r[0] != null) q.calls.add(r[0].toString().trim());
+                String icDay = day.apply(r[6]);
+                if (icDay.compareTo(q.lastIcDay) > 0) q.lastIcDay = icDay;
+
+                String rowKey = q.plantKey + "|" + cat.toLowerCase();
+                if (countedBatch.add(rowKey + "|" + key)) {
+                    q.rejectedInProcess += demouldingByBatch.containsKey(key)
+                            ? demouldingByBatch.get(key) : demouldingByBatch.getOrDefault(looseKey, 0L);
+                }
+                if (pdId != null && countedPd.add(rowKey + "|" + pdId)) {
+                    long[] d = defectsByPd.get(pdId);
+                    if (d != null) {
+                        q.dimension += d[0];
+                        q.endDamage += d[1];
+                        q.honeycomb += d[2];
+                        q.dowel += d[3];
+                        q.other += d[4];
+                    }
+                }
+            }
+
+            // 3. Sleepers produced: verified declarations cast inside the range
+            for (Object[] r : inspectionTestHeaderRepository.getProducedByPlantCategory(start, end)) {
+                QualityRow q = rowOf.apply(r[0] == null ? null : r[0].toString(), category.apply(r[1]));
+                q.produced += qNum(r[2]);
+            }
+
+            // 4. Build the report rows, filtered by the selected zone
+            boolean zoneFilter = zone != null && !zone.isBlank() && !"all".equalsIgnoreCase(zone.trim());
+            java.time.format.DateTimeFormatter shown = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            List<QualitySleeperReportDto> result = new ArrayList<>();
+            for (QualityRow q : rows.values()) {
+                String[] plant = plants.get(q.plantKey);
+                String railway = plant != null && !plant[0].isBlank() ? plant[0] : "Unmapped";
+                if (zoneFilter && !railway.equalsIgnoreCase(zone.trim())) continue;
+
+                // The part after "/" is the plant name; when it is only a number, use the plant / company name
+                String raw = plant != null ? plant[3] : q.rawPlantId;
+                String suffix = raw.contains("/") ? raw.substring(raw.lastIndexOf('/') + 1).trim() : raw.trim();
+                String cspName = suffix;
+                if (suffix.isEmpty() || suffix.matches("\\d+")) {
+                    String named = plant != null ? (!plant[1].isBlank() ? plant[1] : plant[2]) : "";
+                    if (!named.isBlank()) cspName = named;
+                }
+
+                long totalDefects = q.dimension + q.endDamage + q.honeycomb + q.dowel + q.other;
+                QualitySleeperReportDto dto = new QualitySleeperReportDto();
+                dto.setRailwayZone(railway);
+                dto.setPlantId(raw);
+                dto.setCspName(cspName);
+                dto.setSleeperType(q.category);
+                dto.setTotalProducedSleepers(q.produced);
+                dto.setNoOfSleeperInspectedInProcess(q.inspected);
+                dto.setNoOfSleeperRejectedInProcess(q.rejectedInProcess);
+                dto.setForDimensionToeGauge(q.dimension);
+                dto.setForEndDamage(q.endDamage);
+                dto.setHoneyCombingSurfaceDefectCrack(q.honeycomb);
+                dto.setMissingDowel(q.dowel);
+                dto.setOtherDefectsInsertSinkTilt(q.other);
+                dto.setTotalRejectedDefects(totalDefects);
+                dto.setRejectionPercentage(q.produced > 0 ? Math.round(totalDefects * 10000.0 / q.produced) / 100.0 : 0.0);
+                dto.setIcIssuedQty(q.icQty);
+                dto.setIcIssuedCount((long) q.calls.size());
+                dto.setLastIcDate(q.lastIcDay.isEmpty() ? "-" : LocalDate.parse(q.lastIcDay).format(shown));
+                result.add(dto);
+            }
+            result.sort(java.util.Comparator
+                    .comparing(QualitySleeperReportDto::getRailwayZone, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(QualitySleeperReportDto::getCspName, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(QualitySleeperReportDto::getSleeperType, String.CASE_INSENSITIVE_ORDER));
+            return result;
         }
 
 
@@ -1946,6 +2159,19 @@ public class DashboardServiceImpl implements DashboardService {
         return inspectionCallRepository.getSleeperIcData(callNo);
     }
 
+    /** Runs one summary query and logs how long it took; a failing query gives null so the others still count. */
+    private static <T> T timedSummaryQuery(String name, java.util.function.Supplier<T> query) {
+        long t0 = System.currentTimeMillis();
+        try {
+            return query.get();
+        } catch (Exception ex) {
+            System.err.println("[SleeperSummary] " + name + " failed: " + ex.getMessage());
+            return null;
+        } finally {
+            System.out.println("[SleeperSummary] " + name + " took " + (System.currentTimeMillis() - t0) + " ms");
+        }
+    }
+
     @Override
     public java.util.Map<String, Object> getSleeperDashboardSummary(String vendor, String zone, String startDate, String endDate) {
         boolean hasVendor = vendor != null && !vendor.isBlank() && !"all".equalsIgnoreCase(vendor.trim());
@@ -1967,6 +2193,8 @@ public class DashboardServiceImpl implements DashboardService {
         long finalAcceptedSet = 0L;
         long finalRejectedNos = 0L;
         long finalRejectedSet = 0L;
+        long icDays = 0L;                       // distinct IC dates inside the range
+        long sleeperAvgProductionPerDay = 0L;
 
         String sDate = hasStartDate ? startDate.trim() : null;
         String eDate = hasEndDate ? endDate.trim() : null;
@@ -1997,11 +2225,28 @@ public class DashboardServiceImpl implements DashboardService {
             long totalOfferedNos = 0L;
             long totalOfferedSet = 0L;
 
+            // The four independent queries run at the same time instead of one after the other
+            final String fv = v;
+            final String fz = z;
+            final String fsDate = sDate;
+            final String feDate = eDate;
+            final java.time.LocalDateTime fStart = startLdt;
+            final java.time.LocalDateTime fEnd = endLdt;
+            java.util.concurrent.CompletableFuture<List<Object[]>> cfFinal = java.util.concurrent.CompletableFuture.supplyAsync(
+                    () -> timedSummaryQuery("final accepted", () -> sleeperFinalResultRepository.getSleeperFinalSummaryFiltered(fv, fz, fsDate, feDate)));
+            java.util.concurrent.CompletableFuture<Long> cfIc = java.util.concurrent.CompletableFuture.supplyAsync(
+                    () -> timedSummaryQuery("ic issued", () -> sleeperWorkflowRepository.countSleeperIcIssuedFiltered(fv, fz, fStart, fEnd)));
+            java.util.concurrent.CompletableFuture<Long> cfDemould = java.util.concurrent.CompletableFuture.supplyAsync(
+                    () -> timedSummaryQuery("process rejected", () -> demouldingDefectiveSleeperRepository.countDemouldingDefectsForIssuedIcsFiltered(fv, fz, fsDate, feDate)));
+            java.util.concurrent.CompletableFuture<List<Object[]>> cfStatus = java.util.concurrent.CompletableFuture.supplyAsync(
+                    () -> timedSummaryQuery("call status", () -> sleeperWorkflowRepository.getSleeperInspectionCallStatusDetailsFiltered("ALL", "ALL", fv, fz, fStart, fEnd)));
+
             // 1. Direct Final Summary calculation (checking PO zone, vendor & date)
             try {
-                List<Object[]> finalSummaryRows = sleeperFinalResultRepository.getSleeperFinalSummaryFiltered(v, z, sDate, eDate);
+                List<Object[]> finalSummaryRows = cfFinal.join();
                 if (finalSummaryRows != null && !finalSummaryRows.isEmpty() && finalSummaryRows.get(0) != null) {
                     Object[] row = finalSummaryRows.get(0);
+                    if (row.length > 6 && row[6] != null) icDays = ((Number) row[6]).longValue();
                     finalAcceptedNos = row[0] != null ? ((Number) row[0]).longValue() : 0L;
                     finalAcceptedSet = row[1] != null ? ((Number) row[1]).longValue() : 0L;
                     finalRejectedNos = row[2] != null ? ((Number) row[2]).longValue() : 0L;
@@ -2017,7 +2262,7 @@ public class DashboardServiceImpl implements DashboardService {
 
             // 2. Direct IC Issued Count (checking PO zone, vendor & date)
             try {
-                Long icCount = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(v, z, startLdt, endLdt);
+                Long icCount = cfIc.join();
                 sleeperIcIssued = icCount != null ? icCount : 0L;
             } catch (Exception ex) {
                 System.err.println("Error in countSleeperIcIssuedFiltered: " + ex.getMessage());
@@ -2026,7 +2271,7 @@ public class DashboardServiceImpl implements DashboardService {
 
             // 3. Process and Production derived from Issued ICs
             try {
-                Long demouldDefects = demouldingDefectiveSleeperRepository.countDemouldingDefectsForIssuedIcsFiltered(v, z, sDate, eDate);
+                Long demouldDefects = cfDemould.join();
                 rejectedInProcess = demouldDefects != null ? demouldDefects : 0L;
             } catch (Exception ex) {
                 System.err.println("Error in countDemouldingDefectsForIssuedIcsFiltered: " + ex.getMessage());
@@ -2044,11 +2289,13 @@ public class DashboardServiceImpl implements DashboardService {
             long totalRejected = rejectedInProcess + rejectedInFinal;
             rejectionPercentage = totalProduction > 0 ? (totalRejected * 100.0) / totalProduction : 0.0;
 
+            // Average production per day = production of the ICs in the range / days on which ICs were issued
+            sleeperAvgProductionPerDay = (totalProduction > 0 && icDays > 0)
+                    ? Math.round((double) totalProduction / icDays) : 0L;
+
             // 4. Inspection Call Status (Pending, Under Inspection)
             try {
-                List<Object[]> callStatusRows = sleeperWorkflowRepository.getSleeperInspectionCallStatusDetailsFiltered(
-                        "ALL", "ALL", v, z, startLdt, endLdt
-                );
+                List<Object[]> callStatusRows = cfStatus.join();
                 if (callStatusRows != null) {
                     for (Object[] callRow : callStatusRows) {
                         String mainStatus = callRow.length > 7 && callRow[7] != null ? callRow[7].toString().trim() : "";
@@ -2115,6 +2362,7 @@ public class DashboardServiceImpl implements DashboardService {
         result.put("pendingCalls", pending);
         result.put("underInspectionCalls", underInspection);
         result.put("totalProduction", totalProduction);
+        result.put("sleeperAvgProductionPerDay", sleeperAvgProductionPerDay);
         result.put("sleeperIcIssued", sleeperIcIssued);
         result.put("finalAcceptedNos", finalAcceptedNos);
         result.put("finalAcceptedSet", finalAcceptedSet);

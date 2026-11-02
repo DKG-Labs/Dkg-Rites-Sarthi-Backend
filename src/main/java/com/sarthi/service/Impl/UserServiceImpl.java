@@ -2184,6 +2184,8 @@ public class UserServiceImpl implements UserService {
                 mapping.setContactPersonNumber(cleanPhone != null && !cleanPhone.isEmpty() ? cleanPhone : null);
                 mapping.setVendorCode(vendorCodeFormatted);
                 mapping.setStatus(unitDto.getStatus() != null ? unitDto.getStatus() : "Active");
+                mapping.setLatitude(unitDto.getLatitude());
+                mapping.setLongitude(unitDto.getLongitude());
 
                 if (mapping.getPoiCode() == null || mapping.getPoiCode().trim().isEmpty()) {
                     if (unitDto.getPoiCode() != null && !unitDto.getPoiCode().trim().isEmpty()) {
@@ -2322,6 +2324,8 @@ public class UserServiceImpl implements UserService {
                 }
                 uDto.setIbsVendorCode(ibsCode);
                 uDto.setStatus(u.getStatus() != null ? u.getStatus() : "Active");
+                uDto.setLatitude(u.getLatitude());
+                uDto.setLongitude(u.getLongitude());
 
                 // Resolve RIO
                 if (u.getPinCode() != null && !u.getPinCode().trim().isEmpty()) {
@@ -2491,8 +2495,14 @@ public class UserServiceImpl implements UserService {
             spm = sleeperPincodePoIMappingRepository.findByVendorCode(userMaster.getUserId().toString());
         }
         if (spm == null) {
-            spm = sleeperPincodePoIMappingRepository.findByCompanyNameAndUnitName(cleanCompanyName, dto.getUnitName() != null ? dto.getUnitName().trim() : cleanCompanyName)
-                    .orElse(new com.sarthi.Sleeper.entity.SleeperPincodePoIMapping());
+            String currentVendorRef = userMaster.getUserId() != null ? userMaster.getUserId().toString() : vendorCodeFormatted;
+            com.sarthi.Sleeper.entity.SleeperPincodePoIMapping foundSpm =
+                    sleeperPincodePoIMappingRepository.findByCompanyNameAndUnitName(cleanCompanyName, dto.getUnitName() != null ? dto.getUnitName().trim() : cleanCompanyName)
+                            .orElse(null);
+            // Only reuse the record if it belongs to the same vendor — prevents overwriting another vendor's unit with the same company name
+            spm = (foundSpm != null && currentVendorRef.equals(foundSpm.getVendorCode()))
+                    ? foundSpm
+                    : new com.sarthi.Sleeper.entity.SleeperPincodePoIMapping();
         }
 
         String unitName = (dto.getUnitName() != null && !dto.getUnitName().trim().isEmpty())
@@ -2566,8 +2576,13 @@ public class UserServiceImpl implements UserService {
                     vp = vendorPlantRepository.findByPlantId(plantDto.getPlantId().trim()).orElse(null);
                 }
                 if (vp == null) {
-                    vp = vendorPlantRepository.findByCompanyNameAndPlantName(cleanCompanyName, plantName)
-                            .orElse(new com.sarthi.Sleeper.entity.VendorPlant());
+                    com.sarthi.Sleeper.entity.VendorPlant foundVp =
+                            vendorPlantRepository.findByCompanyNameAndPlantName(cleanCompanyName, plantName).orElse(null);
+                    // Only reuse if it belongs to the same vendor — prevents overwriting another vendor's plant
+                    vp = (foundVp != null && userMaster.getUserId() != null
+                            && userMaster.getUserId().longValue() == (foundVp.getVendorId() != null ? foundVp.getVendorId() : -1L))
+                            ? foundVp
+                            : new com.sarthi.Sleeper.entity.VendorPlant();
                 }
 
                 vp.setVendorCode(vendorCodeFormatted);
@@ -2580,6 +2595,8 @@ public class UserServiceImpl implements UserService {
                 vp.setContactPerson(plantDto.getContactPerson() != null ? plantDto.getContactPerson().trim() : null);
                 vp.setContactPersonNumber(cleanPhone);
                 vp.setPlantAddress(plantDto.getPlantAddress() != null ? plantDto.getPlantAddress().trim() : null);
+                vp.setLatitude(plantDto.getLatitude());
+                vp.setLongitude(plantDto.getLongitude());
                 if (userMaster.getUserId() != null) {
                     vp.setVendorId(userMaster.getUserId().longValue());
                 }
@@ -2737,6 +2754,8 @@ public class UserServiceImpl implements UserService {
                 pDto.setContactPerson(vp.getContactPerson());
                 pDto.setContactPersonNumber(vp.getContactPersonNumber());
                 pDto.setPlantAddress(vp.getPlantAddress());
+                pDto.setLatitude(vp.getLatitude());
+                pDto.setLongitude(vp.getLongitude());
 
                 String ibsCode = null;
                 if (vp.getPlantId() != null && !vp.getPlantId().trim().isEmpty()) {
@@ -2859,8 +2878,13 @@ public class UserServiceImpl implements UserService {
             rpm = railPadPincodePoIMappingRepository.findByVendorCode(userMaster.getUserId().toString()).orElse(null);
         }
         if (rpm == null) {
-            rpm = railPadPincodePoIMappingRepository.findByCompanyNameAndUnitName(cleanCompanyName, dto.getUnitName() != null ? dto.getUnitName().trim() : cleanCompanyName)
-                    .orElse(new com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping());
+            com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping foundRpm =
+                    railPadPincodePoIMappingRepository.findByCompanyNameAndUnitName(cleanCompanyName, dto.getUnitName() != null ? dto.getUnitName().trim() : cleanCompanyName)
+                            .orElse(null);
+            // Only reuse if it belongs to the same vendor — prevents overwriting another vendor's unit
+            rpm = (foundRpm != null && (vendorCodeFormatted.equals(foundRpm.getVendorCode()) || cleanVendorCode.equals(foundRpm.getVendorCode())))
+                    ? foundRpm
+                    : new com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping();
         }
 
         String unitName = (dto.getUnitName() != null && !dto.getUnitName().trim().isEmpty())
@@ -2938,8 +2962,12 @@ public class UserServiceImpl implements UserService {
                     vp = railVendorPlantsRepository.findByPlantId(plantDto.getPlantId().trim()).orElse(null);
                 }
                 if (vp == null) {
-                    vp = railVendorPlantsRepository.findByCompanyNameAndPlantName(cleanCompanyName, plantName)
-                            .orElse(new com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants());
+                    com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants foundRvp =
+                            railVendorPlantsRepository.findByCompanyNameAndPlantName(cleanCompanyName, plantName).orElse(null);
+                    // Only reuse if it belongs to the same vendor — prevents overwriting another vendor's plant
+                    vp = (foundRvp != null && (vendorCodeFormatted.equals(foundRvp.getVendorCode()) || cleanVendorCode.equals(foundRvp.getVendorCode())))
+                            ? foundRvp
+                            : new com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants();
                 }
 
                 vp.setVendorCode(vendorCodeFormatted);
@@ -2952,6 +2980,8 @@ public class UserServiceImpl implements UserService {
                 vp.setContactPerson(plantDto.getContactPerson() != null ? plantDto.getContactPerson().trim() : null);
                 vp.setContactPersonNumber(cleanPhone);
                 vp.setPlantAddress(plantDto.getPlantAddress() != null ? plantDto.getPlantAddress().trim() : null);
+                vp.setLatitude(plantDto.getLatitude());
+                vp.setLongitude(plantDto.getLongitude());
                 vp.setStatus(plantDto.getStatus() != null ? plantDto.getStatus() : "Active");
                 if (userMaster.getUserId() != null) {
                     vp.setVendorId(userMaster.getUserId().longValue());
@@ -3077,7 +3107,18 @@ public class UserServiceImpl implements UserService {
         if (rpm == null && compName != null && !compName.trim().isEmpty()) {
             List<com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping> byComp = railPadPincodePoIMappingRepository.findByCompanyName(compName.trim());
             if (byComp != null && !byComp.isEmpty()) {
-                rpm = byComp.get(0);
+                // Only reuse a record that belongs to THIS vendor — prevents loading another vendor's unit with the same company name
+                final String finalEmpCode = empCode;
+                final Integer finalUserId = userId;
+                rpm = byComp.stream()
+                        .filter(r -> {
+                            String vc = r.getVendorCode();
+                            if (vc == null) return false;
+                            if (finalEmpCode != null && (finalEmpCode.equals(vc) || finalEmpCode.replaceAll("^:", "").equals(vc))) return true;
+                            return finalUserId != null && finalUserId.toString().equals(vc);
+                        })
+                        .findFirst()
+                        .orElse(null);
             }
         }
         if (rpm != null) {
@@ -3120,6 +3161,8 @@ public class UserServiceImpl implements UserService {
                 pDto.setContactPerson(vp.getContactPerson());
                 pDto.setContactPersonNumber(vp.getContactPersonNumber());
                 pDto.setPlantAddress(vp.getPlantAddress());
+                pDto.setLatitude(vp.getLatitude());
+                pDto.setLongitude(vp.getLongitude());
 
                 String ibsCode = null;
                 if (vp.getPlantId() != null && !vp.getPlantId().trim().isEmpty()) {
