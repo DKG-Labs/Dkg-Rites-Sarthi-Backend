@@ -57,6 +57,40 @@ public interface FinalInspectionLotDetailsRepository extends JpaRepository<Final
             @Param("poNo") String poNo,
             @Param("poSerialNo") String poSerialNo);
 
+    /**
+     * Sum offered qty for a heat+lot+PO only for Final ICs that have been IC-issued
+     * (latest workflow step is SEND_CALL_TO_IBS). Used for diversion available-balance
+     * calculation so that pending/in-progress Final calls do not reduce the balance.
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(l.offered_qty), 0)
+        FROM final_inspection_lot_details l
+        JOIN final_inspection_details f ON l.final_detail_id = f.id
+        JOIN inspection_calls i ON f.ic_id = i.id
+        JOIN (
+            SELECT wt.REQUESTID, MAX(wt.WORKFLOWTRANSITIONID) AS max_id
+            FROM workflow_transition wt
+            WHERE wt.WORKFLOWID = 1
+            GROUP BY wt.REQUESTID
+        ) latest ON latest.REQUESTID = i.ic_number
+        JOIN workflow_transition wt_latest
+            ON wt_latest.REQUESTID = i.ic_number
+            AND wt_latest.WORKFLOWTRANSITIONID = latest.max_id
+        WHERE l.heat_number = :heatNumber
+          AND l.lot_number = :lotNumber
+          AND (:poNo IS NULL OR i.po_no = :poNo)
+          AND (:poSerialNo IS NULL OR i.po_serial_no = :poSerialNo)
+          AND (
+              UPPER(COALESCE(wt_latest.STATUS, '')) = 'SEND_CALL_TO_IBS'
+              OR UPPER(COALESCE(wt_latest.ACTION, '')) = 'SEND_CALL_TO_IBS'
+          )
+        """, nativeQuery = true)
+    Integer sumIssuedOfferedQtyByHeatNumberAndLotNumberAndPo(
+            @Param("heatNumber") String heatNumber,
+            @Param("lotNumber") String lotNumber,
+            @Param("poNo") String poNo,
+            @Param("poSerialNo") String poSerialNo);
+
     @Query("""
 SELECT
     i.icNumber,

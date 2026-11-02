@@ -123,7 +123,7 @@ AND UPPER(TRIM(w.finalTestResult)) LIKE 'PASS%'
     @Query(value = """
         SELECT *
         FROM water_cube_strength_test
-        WHERE batch_number IN (:batchNumbers)
+        WHERE TRIM(batch_number) IN (:batchNumbers)
     """, nativeQuery = true)
     List<WaterCubeStrengthTest> findByBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
 

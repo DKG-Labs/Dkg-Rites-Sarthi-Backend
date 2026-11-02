@@ -1089,7 +1089,7 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 COALESCE(
                     CASE
                         WHEN ic.ic_number LIKE '%ER%' THEN (
-                            SELECT NULLIF(SUM(COALESCE(r.accepted_qty_mt, r.weight_accepted_mt, 0)), 0)
+                            SELECT NULLIF(SUM(COALESCE(r.weight_accepted_mt, 0)), 0)
                             FROM rm_heat_final_result r
                             WHERE r.inspection_call_no = ic.ic_number OR r.inspection_call_no = icd.certificate_no
                         )

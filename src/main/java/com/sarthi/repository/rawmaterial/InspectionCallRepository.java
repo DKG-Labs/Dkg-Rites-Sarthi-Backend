@@ -587,6 +587,153 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
             @Param("vendor") String vendor,
             Pageable pageable);
 
+    /** Latest workflow row per call; CREATEDDATE is the IC date (IC edit date, falling back to the IBS date). */
+    String LATEST_WF_WITH_IC_DATE = """
+            SELECT w.REQUESTID, w.STATUS, COALESCE(CASE WHEN w.REQUESTID LIKE 'ER-%' THEN red.ic_dt WHEN w.REQUESTID LIKE 'EP-%' THEN ped.ic_dt WHEN w.REQUESTID LIKE 'EF-%' THEN fed.ic_dt END, w.CREATEDDATE) AS CREATEDDATE
+            FROM WORKFLOW_TRANSITION w
+            INNER JOIN (SELECT REQUESTID, MAX(WORKFLOWTRANSITIONID) AS max_id
+                        FROM WORKFLOW_TRANSITION GROUP BY REQUESTID) l
+              ON w.REQUESTID = l.REQUESTID AND w.WORKFLOWTRANSITIONID = l.max_id
+            LEFT JOIN (SELECT call_no, MAX(certificate_no) AS cert_no FROM inspection_complete_details GROUP BY call_no) icd ON icd.call_no = w.REQUESTID
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM rm_ic_edit GROUP BY ic_number) red
+                   ON red.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM PROCESS_IC_EDIT GROUP BY ic_number) ped
+                   ON ped.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT ic_number COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM FINAL_IC_EDIT GROUP BY ic_number) fed
+                   ON fed.ic_no = COALESCE(icd.cert_no, w.REQUESTID) COLLATE utf8mb4_unicode_ci
+            """;
+
+    /** The POs with at least one IC (by IC date) in the range, after the RIO / zone / vendor filters. */
+    String PO_SET_FOR_MONTHLY_PROGRESS = """
+            SELECT DISTINCT ic_sub.po_no AS po_no
+            FROM inspection_calls ic_sub
+            JOIN pincode_poi_mapping p ON p.poi_code = ic_sub.place_of_inspection
+            LEFT JOIN ie_pincode_poi_mapping ipm ON ipm.poi_code = p.poi_code AND ipm.ie_type = 'PRIMARY'
+            LEFT JOIN ie_profile ip ON ip.employee_code = ipm.employee_code
+            LEFT JOIN po_header ph_sub ON ph_sub.po_no = ic_sub.po_no
+            INNER JOIN (
+            """ + LATEST_WF_WITH_IC_DATE + """
+            ) wf_sub ON wf_sub.REQUESTID = ic_sub.ic_number
+            WHERE wf_sub.STATUS = 'SEND_CALL_TO_IBS'
+              AND (:startDate IS NULL OR DATE(wf_sub.CREATEDDATE) >= :startDate)
+              AND (:endDate IS NULL OR DATE(wf_sub.CREATEDDATE) <= :endDate)
+              AND (:rio IS NULL OR :rio = '' OR UPPER(ip.rio) = UPPER(:rio))
+              AND (:zone IS NULL OR :zone = '' OR ph_sub.rly_short_name = :zone)
+              AND (:vendor IS NULL OR :vendor = '' OR p.company_name = :vendor)
+            """;
+
+    /** PO quantity per PO header and unit of measurement (MT / Set / Nos.). */
+    String PO_QTY_BY_UOM = """
+            SELECT phu.id AS ph_id,
+                   CASE WHEN LOWER(TRIM(piu.uom)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                        WHEN LOWER(TRIM(piu.uom)) LIKE 'set%' THEN 'Set'
+                        ELSE 'Nos.' END AS uom,
+                   COALESCE(SUM(piu.qty), 0) AS po_qty
+            FROM po_header phu
+            JOIN po_item piu ON piu.po_header_id = phu.id
+            GROUP BY phu.id,
+                     CASE WHEN LOWER(TRIM(piu.uom)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                          WHEN LOWER(TRIM(piu.uom)) LIKE 'set%' THEN 'Set'
+                          ELSE 'Nos.' END
+            """;
+
+    /**
+     * PO Wise Monthly Progress, one row per PO and unit of measurement.
+     * Columns: rly, po_no, firm, po_qty, rm_accepted, process_accepted, final_accepted, total_final_accepted, po_date, uom.
+     * Raw material accepted is always MT, process accepted is always Nos, and final accepted follows the PO unit
+     * (MT rows convert piece counts above 500 at 1.088 kg per piece, Nos / Set rows stay as stored).
+     * Range columns use the IC date, the total covers all Final ICs of the PO and unit.
+     */
+    @Query(value = """
+            SELECT ph.rly_short_name,
+                   ps.po_no,
+                   ph.firm_details,
+                   COALESCE(pu.po_qty, 0) AS poQty,
+                   COALESCE(a.rm_acc, 0) AS rmAccepted,
+                   COALESCE(a.proc_acc, 0) AS processAccepted,
+                   COALESCE(a.final_acc, 0) AS finalAccepted,
+                   COALESCE(a.total_final, 0) AS totalFinalAccepted,
+                   ph.po_date AS poDate,
+                   pu.uom AS uom
+            FROM (
+            """ + PO_SET_FOR_MONTHLY_PROGRESS + """
+            ) ps
+            JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = ps.po_no COLLATE utf8mb4_unicode_ci
+            JOIN (
+            """ + PO_QTY_BY_UOM + """
+            ) pu ON pu.ph_id = ph.id
+            LEFT JOIN (
+                SELECT c.po_no AS po_no,
+                       c.uom AS uom,
+                       SUM(CASE WHEN (:startDate IS NULL OR DATE(c.ic_dt) >= :startDate) AND (:endDate IS NULL OR DATE(c.ic_dt) <= :endDate)
+                                THEN COALESCE(c.rm_acc, 0) ELSE 0 END) AS rm_acc,
+                       SUM(CASE WHEN (:startDate IS NULL OR DATE(c.ic_dt) >= :startDate) AND (:endDate IS NULL OR DATE(c.ic_dt) <= :endDate)
+                                THEN COALESCE(c.proc_acc, 0)
+                                ELSE 0 END) AS proc_acc,
+                       SUM(CASE WHEN (:startDate IS NULL OR DATE(c.ic_dt) >= :startDate) AND (:endDate IS NULL OR DATE(c.ic_dt) <= :endDate)
+                                THEN (CASE WHEN c.uom = 'MT' AND COALESCE(c.final_acc, 0) > 500 THEN c.final_acc * 1.088 / 1000 ELSE COALESCE(c.final_acc, 0) END)
+                                ELSE 0 END) AS final_acc,
+                       SUM(CASE WHEN c.uom = 'MT' AND COALESCE(c.final_acc, 0) > 500 THEN c.final_acc * 1.088 / 1000 ELSE COALESCE(c.final_acc, 0) END) AS total_final
+                FROM (
+                    SELECT c0.po_no AS po_no,
+                           CASE WHEN LOWER(TRIM(c0.uom_raw)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                                WHEN LOWER(TRIM(c0.uom_raw)) LIKE 'set%' THEN 'Set'
+                                ELSE 'Nos.' END AS uom,
+                           c0.ic_dt AS ic_dt,
+                           c0.rm_acc AS rm_acc,
+                           c0.proc_acc AS proc_acc,
+                           c0.final_acc AS final_acc
+                    FROM (
+                        SELECT ic.po_no AS po_no,
+                               wfc.CREATEDDATE AS ic_dt,
+                               COALESCE(
+                                   (SELECT pi2.uom FROM po_item pi2
+                                     WHERE pi2.po_header_id = phc.id
+                                       AND (pi2.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi2.item_sr_no = ic.po_serial_no)
+                                     ORDER BY pi2.id LIMIT 1),
+                                   (SELECT pi3.uom FROM po_item pi3 WHERE pi3.po_header_id = phc.id ORDER BY pi3.id LIMIT 1),
+                                   ''
+                               ) AS uom_raw,
+                               cr.rm_acc AS rm_acc,
+                               cp.proc_acc AS proc_acc,
+                               cf.final_acc AS final_acc
+                        FROM inspection_calls ic
+                        INNER JOIN (
+            """ + LATEST_WF_WITH_IC_DATE + """
+                        ) wfc ON wfc.REQUESTID = ic.ic_number AND wfc.STATUS = 'SEND_CALL_TO_IBS'
+                        LEFT JOIN po_header phc ON phc.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+                        LEFT JOIN (SELECT inspection_call_no, SUM(weight_accepted_mt) AS rm_acc
+                                   FROM rm_heat_final_result GROUP BY inspection_call_no) cr
+                               ON cr.inspection_call_no = ic.ic_number
+                        LEFT JOIN (SELECT inspection_call_no, SUM(COALESCE(total_accepted, tempering_accepted, 0)) AS proc_acc
+                                   FROM process_line_final_result GROUP BY inspection_call_no) cp
+                               ON cp.inspection_call_no = ic.ic_number
+                        LEFT JOIN (SELECT inspection_call_no, SUM(qty_now_passed) AS final_acc
+                                   FROM final_cumulative_results GROUP BY inspection_call_no) cf
+                               ON cf.inspection_call_no = ic.ic_number
+                    ) c0
+                ) c
+                GROUP BY c.po_no, c.uom
+            ) a ON a.po_no COLLATE utf8mb4_unicode_ci = ps.po_no COLLATE utf8mb4_unicode_ci AND a.uom = pu.uom
+            ORDER BY ps.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 WHEN 'MT' THEN 1 ELSE 2 END
+            """, countQuery = """
+            SELECT COUNT(*)
+            FROM (
+            """ + PO_SET_FOR_MONTHLY_PROGRESS + """
+            ) ps
+            JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = ps.po_no COLLATE utf8mb4_unicode_ci
+            JOIN (
+            """ + PO_QTY_BY_UOM + """
+            ) pu ON pu.ph_id = ph.id
+            """, nativeQuery = true)
+    Page<Object[]> fetchPoWiseProgressByUom(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("rio") String rio,
+            @Param("zone") String zone,
+            @Param("vendor") String vendor,
+            Pageable pageable);
+
     @Query(value = """
 SELECT
 
@@ -876,7 +1023,7 @@ Page<Object[]> fetchManufacturerSummary(
     SELECT
         v.company_name AS manufacturer,
         v.rio AS rio,
-        COALESCE(a.manufactured, 0) AS manufactured,
+        COALESCE(m.manufactured, 0) AS manufactured,
         COALESCE(a.inspected, 0) AS inspected,
         COALESCE(a.rejected, 0) AS rejected,
         COALESCE(a.rm_rejected, 0) AS rmRejected,
@@ -907,6 +1054,15 @@ Page<Object[]> fetchManufacturerSummary(
         WHERE wfv.STATUS = 'SEND_CALL_TO_IBS'
           AND (:startDate IS NULL OR DATE(wfv.CREATEDDATE) >= :startDate)
           AND (:endDate IS NULL OR DATE(wfv.CREATEDDATE) <= :endDate)
+        UNION
+        SELECT DISTINCT poi_s.company_name AS company_name, ie_s.rio AS rio, poi_s.vendor_code AS vendor_code
+        FROM process_line_final_result ps
+        JOIN inspection_calls ics ON ics.ic_number = ps.inspection_call_no
+        JOIN pincode_poi_mapping poi_s ON poi_s.poi_code = ics.place_of_inspection
+        LEFT JOIN ie_fields_mapping ie_s ON ie_s.pin_code = poi_s.pin_code AND ie_s.product = 'ERC'
+        WHERE COALESCE(ps.shearing_manufactured, 0) > 0
+          AND (:startDate IS NULL OR DATE(ps.date_of_inspection) >= :startDate)
+          AND (:endDate IS NULL OR DATE(ps.date_of_inspection) <= :endDate)
     ) v
     INNER JOIN (
         SELECT phu.vendor_code AS vendor_code,
@@ -953,8 +1109,8 @@ Page<Object[]> fetchManufacturerSummary(
                              WHERE pi3.po_header_id = phc.id ORDER BY pi3.id LIMIT 1),
                            ''
                        ) AS uom_raw,
-                       CASE WHEN cf.offered IS NOT NULL THEN cf.offered ELSE COALESCE(cp.manu, 0) END AS manufactured,
-                       COALESCE(cf.passed, 0) AS inspected,
+                       COALESCE(cps.shearing_acc, 0) AS manufactured,
+                       COALESCE(cps.total_proc, 0) AS inspected,
                        COALESCE(cf.rejected, 0) AS rejected,
                        COALESCE(cr.rm_rej, 0) AS rm_rejected,
                        COALESCE(cp.rej, 0) AS process_rejected,
@@ -988,6 +1144,11 @@ Page<Object[]> fetchManufacturerSummary(
                 LEFT JOIN (SELECT REQUEST_ID, SUM(manufacture_qty) AS manu, SUM(rejected_qty) AS rej
                            FROM process_ie_qty GROUP BY REQUEST_ID) cp
                        ON cp.REQUEST_ID = ic.ic_number
+                LEFT JOIN (SELECT inspection_call_no,
+                                  SUM(COALESCE(shearing_accepted, 0)) AS shearing_acc,
+                                  SUM(COALESCE(total_manufactured, 0)) AS total_proc
+                           FROM process_line_final_result GROUP BY inspection_call_no) cps
+                       ON cps.inspection_call_no = ic.ic_number
                 WHERE wfc.STATUS = 'SEND_CALL_TO_IBS'
                   AND (:startDate IS NULL OR DATE(wfc.CREATEDDATE) >= :startDate)
                   AND (:endDate IS NULL OR DATE(wfc.CREATEDDATE) <= :endDate)
@@ -995,6 +1156,37 @@ Page<Object[]> fetchManufacturerSummary(
         ) cx
         GROUP BY cx.vendor_code, cx.uom
     ) a ON a.vendor_code = v.vendor_code AND a.uom = pu.uom
+    LEFT JOIN (
+        SELECT mm.vendor_code AS vendor_code,
+               mm.uom AS uom,
+               SUM(mm.shearing) AS manufactured
+        FROM (
+            SELECT m0.vendor_code AS vendor_code,
+                   CASE WHEN LOWER(TRIM(m0.uom_raw)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                        WHEN LOWER(TRIM(m0.uom_raw)) LIKE 'set%' THEN 'Set'
+                        ELSE 'Nos.' END AS uom,
+                   m0.shearing AS shearing
+            FROM (
+                SELECT poi_m.vendor_code AS vendor_code,
+                       COALESCE(
+                           (SELECT pi2.uom FROM po_item pi2
+                             WHERE pi2.po_header_id = phm.id
+                               AND (pi2.item_sr_no = SUBSTRING_INDEX(icm.po_serial_no, '/', -1) OR pi2.item_sr_no = icm.po_serial_no)
+                             ORDER BY pi2.id LIMIT 1),
+                           (SELECT pi3.uom FROM po_item pi3 WHERE pi3.po_header_id = phm.id ORDER BY pi3.id LIMIT 1),
+                           ''
+                       ) AS uom_raw,
+                       COALESCE(pm.shearing_manufactured, 0) AS shearing
+                FROM process_line_final_result pm
+                JOIN inspection_calls icm ON icm.ic_number = pm.inspection_call_no
+                JOIN pincode_poi_mapping poi_m ON poi_m.poi_code = icm.place_of_inspection
+                LEFT JOIN po_header phm ON phm.po_no COLLATE utf8mb4_unicode_ci = icm.po_no COLLATE utf8mb4_unicode_ci
+                WHERE (:startDate IS NULL OR DATE(pm.date_of_inspection) >= :startDate)
+                  AND (:endDate IS NULL OR DATE(pm.date_of_inspection) <= :endDate)
+            ) m0
+        ) mm
+        GROUP BY mm.vendor_code, mm.uom
+    ) m ON m.vendor_code = v.vendor_code AND m.uom = pu.uom
     ORDER BY v.company_name,
              CASE pu.uom WHEN 'Nos.' THEN 0 WHEN 'MT' THEN 1 ELSE 2 END
     """,
@@ -1022,6 +1214,15 @@ Page<Object[]> fetchManufacturerSummary(
         WHERE wfv.STATUS = 'SEND_CALL_TO_IBS'
           AND (:startDate IS NULL OR DATE(wfv.CREATEDDATE) >= :startDate)
           AND (:endDate IS NULL OR DATE(wfv.CREATEDDATE) <= :endDate)
+        UNION
+        SELECT DISTINCT poi_s.company_name AS company_name, ie_s.rio AS rio, poi_s.vendor_code AS vendor_code
+        FROM process_line_final_result ps
+        JOIN inspection_calls ics ON ics.ic_number = ps.inspection_call_no
+        JOIN pincode_poi_mapping poi_s ON poi_s.poi_code = ics.place_of_inspection
+        LEFT JOIN ie_fields_mapping ie_s ON ie_s.pin_code = poi_s.pin_code AND ie_s.product = 'ERC'
+        WHERE COALESCE(ps.shearing_manufactured, 0) > 0
+          AND (:startDate IS NULL OR DATE(ps.date_of_inspection) >= :startDate)
+          AND (:endDate IS NULL OR DATE(ps.date_of_inspection) <= :endDate)
     ) v
     INNER JOIN (
         SELECT phu.vendor_code AS vendor_code,

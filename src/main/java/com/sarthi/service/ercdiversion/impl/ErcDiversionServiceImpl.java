@@ -247,8 +247,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                     }
                     BigDecimal accepted = BigDecimal.valueOf(accQty);
 
-                    // Downstream consumed: Offered earlier in previous Final inspection calls for this heat & lot & source PO
-                    Integer offeredInFinal = finalLotRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+                    // Downstream consumed: qty offered in IC-issued Final calls for this heat & lot & source PO.
+                    // Only IC-issued calls count — pending/in-progress Final calls must not reduce the diversion balance.
+                    Integer offeredInFinal = finalLotRepository.sumIssuedOfferedQtyByHeatNumberAndLotNumberAndPo(
                             heatNo, lotNo, call.getPoNo(), call.getPoSerialNo());
                     BigDecimal downstreamConsumed = offeredInFinal != null ? BigDecimal.valueOf(offeredInFinal) : BigDecimal.ZERO;
 
@@ -289,7 +290,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
 
                         String poNo = call != null ? call.getPoNo() : pfr.getPoNo();
                         String poSerialNo = call != null ? call.getPoSerialNo() : null;
-                        Integer offeredInFinal = finalLotRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
+                        Integer offeredInFinal = finalLotRepository.sumIssuedOfferedQtyByHeatNumberAndLotNumberAndPo(
                                 heatNo, lotNo, poNo, poSerialNo);
                         BigDecimal downstreamConsumed = offeredInFinal != null ? BigDecimal.valueOf(offeredInFinal) : BigDecimal.ZERO;
 
