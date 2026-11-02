@@ -81,6 +81,45 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             """, nativeQuery = true)
     List<Object[]> countFinalIcIssuedByPoNos(@Param("poNos") java.util.Collection<String> poNos);
 
+    /**
+     * Final ICs issued per PO for Rail Pad.
+     * Uses rail_workflow_transaction (Rail Pad's own workflow table, workflow_id=2).
+     * rail_inspection_call.po_no stores "barePoNo/ZONE/item" so the first SUBSTRING_INDEX segment
+     * gives the bare PO number — same extraction logic used by the accepted-qty query.
+     */
+    @Query(value = """
+            SELECT
+                CASE WHEN ric.po_no LIKE '%/%'
+                    THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ric.po_no, '/', 1)), ' ', -1)
+                    ELSE ric.po_no
+                END AS barePoNo,
+                COUNT(DISTINCT ric.call_no) AS icCount
+            FROM rail_workflow_transaction rwt
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction
+                WHERE workflow_id = 2
+                GROUP BY request_id
+            ) latest ON rwt.request_id = latest.request_id
+                AND rwt.workflow_transition_id = latest.max_id
+            INNER JOIN rail_inspection_call ric
+                ON rwt.request_id COLLATE utf8mb4_unicode_ci = ric.call_no COLLATE utf8mb4_unicode_ci
+            WHERE (
+                UPPER(COALESCE(rwt.status, '')) = 'SEND_CALL_TO_IBS'
+                OR UPPER(COALESCE(rwt.action, '')) = 'SEND_CALL_TO_IBS'
+            )
+            AND rwt.request_id LIKE 'RPF-%'
+            AND CASE WHEN ric.po_no LIKE '%/%'
+                THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ric.po_no, '/', 1)), ' ', -1)
+                ELSE ric.po_no
+            END IN (:poNos)
+            GROUP BY CASE WHEN ric.po_no LIKE '%/%'
+                THEN SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(ric.po_no, '/', 1)), ' ', -1)
+                ELSE ric.po_no
+            END
+            """, nativeQuery = true)
+    List<Object[]> countFinalIcIssuedByRailPadPoNos(@Param("poNos") java.util.Collection<String> poNos);
+
     @Query(value = "SELECT * FROM WORKFLOW_TRANSITION WHERE WORKFLOWTRANSITIONID IN (" +
             "  SELECT MAX(wt.WORKFLOWTRANSITIONID) " +
             "  FROM WORKFLOW_TRANSITION wt " +

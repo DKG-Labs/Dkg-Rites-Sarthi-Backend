@@ -16,7 +16,7 @@ public interface ErcDiversionItemRepository extends JpaRepository<ErcDiversionIt
 
     @Query("SELECT COALESCE(SUM(i.diversionQty), 0) FROM ErcDiversionItem i " +
            "JOIN i.diversionRequest r " +
-           "WHERE r.sourceIcNo = :sourceIcNo " +
+           "WHERE (r.sourceIcNo = :sourceIcNo OR r.sourceCallNo = :sourceIcNo OR :sourceIcNo LIKE CONCAT('%', r.sourceCallNo, '%') OR r.sourceIcNo LIKE CONCAT('%', :sourceIcNo, '%')) " +
            "AND (:heatNo IS NULL OR i.heatNo = :heatNo) " +
            "AND (:tcNo IS NULL OR i.tcNo = :tcNo) " +
            "AND (:lotNo IS NULL OR i.lotNo = :lotNo) " +

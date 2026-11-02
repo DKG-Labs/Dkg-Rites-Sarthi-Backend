@@ -322,6 +322,15 @@ public class ProcessIeQtyImpl implements ProcessIeQtyService {
                                 sealingType = exactResult.getSealingType();
                                 steelStampNumber = exactResult.getSteelStampNumber();
                                 hologramDetails = exactResult.getHologramDetails();
+                                String icLookup = !rmCallCandidates.isEmpty() ? rmCallCandidates.get(0) : cleanCallPattern;
+                                if (icLookup != null && !icLookup.isBlank() && ercDiversionItemRepository != null) {
+                                        BigDecimal divSum = ercDiversionItemRepository.sumDivertedQuantityForSource(icLookup, heatNo, null, null);
+                                        if (divSum != null && divSum.compareTo(BigDecimal.ZERO) > 0) {
+                                                weightAcceptedMt = weightAcceptedMt.subtract(divSum);
+                                                if (weightAcceptedMt.compareTo(BigDecimal.ZERO) < 0) weightAcceptedMt = BigDecimal.ZERO;
+                                                rmAcceptedQty = weightAcceptedMt.multiply(new BigDecimal("1000")).divide(new BigDecimal("1.14"), 0, java.math.RoundingMode.HALF_UP);
+                                        }
+                                }
                         }
                 }
 

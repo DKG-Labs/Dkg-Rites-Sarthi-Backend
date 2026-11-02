@@ -389,7 +389,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         BigDecimal totalQty = BigDecimal.ZERO;
         for (DiversionItemDto item : dto.getItems()) {
             if (item.getDiversionQty() == null || item.getDiversionQty().compareTo(BigDecimal.ZERO) <= 0) {
-                throw createException(1002, "Diversion quantity must be greater than zero");
+                continue;
             }
             if (item.getAvailableBalanceQty() != null && item.getDiversionQty().compareTo(item.getAvailableBalanceQty()) > 0) {
                 throw createException(1003, "Diversion quantity cannot exceed available balance for heat: " + item.getHeatNo());
@@ -403,6 +403,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         }
         if (entity.getDiversionNo() == null || entity.getDiversionNo().trim().isEmpty()) {
             entity.setDiversionNo(generateDiversionNo(entity.getRequestNo()));
+        }
+        if (totalQty.compareTo(BigDecimal.ZERO) <= 0) {
+            throw createException(1002, "Total diversion quantity must be greater than zero");
         }
         entity.setTotalDiversionQty(totalQty);
         entity.setStatus(DiversionRequestStatus.PENDING_CM_APPROVAL);
@@ -998,7 +1001,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .build();
 
         if (dto.getItems() != null) {
-            List<ErcDiversionItem> items = dto.getItems().stream().map(itemDto -> ErcDiversionItem.builder()
+            List<ErcDiversionItem> items = dto.getItems().stream()
+                    .filter(itemDto -> itemDto.getDiversionQty() != null && itemDto.getDiversionQty().compareTo(BigDecimal.ZERO) > 0)
+                    .map(itemDto -> ErcDiversionItem.builder()
                     .id(itemDto.getId())
                     .diversionRequest(entity)
                     .heatNo(itemDto.getHeatNo())
