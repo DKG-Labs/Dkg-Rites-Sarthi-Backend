@@ -1327,6 +1327,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 expandedBatchNumbers.add("w-" + stripped);
             }
         }
+        // Some tables store the batch number with a trailing space (e.g. 'NR 131 '), and on a collation that does not
+        // ignore trailing spaces an IN lookup on the trimmed value misses it, so look up the padded value too
+        for (String b : new HashSet<>(expandedBatchNumbers)) {
+            expandedBatchNumbers.add(b + " ");
+        }
 
         // ── Bulk Upfront Fetch 3: Inspection Test Results for all batches ────
         List<InspectionTestResult> allResults = resultRepository.findAllResultsByBatchIds(batchIds);
