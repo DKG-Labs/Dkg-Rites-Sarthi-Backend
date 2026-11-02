@@ -86,7 +86,8 @@ public interface DashboardService {
 
     List<QualitySleeperReportDto> getQualitySleeperReport(
             String startDate,
-            String endDate);
+            String endDate,
+            String zone);
 
     public SleeperIcProjection getSleeperIcData(String callNo);
 

@@ -255,6 +255,94 @@ WHERE ph.item_cat_descr = 'PSC Mainline Sleeper'
           @Param("startDate") LocalDate startDate,
           @Param("endDate") LocalDate endDate);
 
+  /**
+   * PO wise monthly progress, one row per PO and unit of measurement (Nos. / Set).
+   * Accepted quantity comes from the final result of the calls whose latest status is SEND_CALL_TO_IBS;
+   * the period column counts the ICs issued in the date range, the total counts all ICs of the PO and unit.
+   */
+  @Query(value = """
+SELECT
+    ph.rly_cd AS rly,
+    ph.po_no AS poNo,
+    ph.vendor_details AS manufacturer,
+    CAST(pu.po_qty AS SIGNED) AS poQty,
+    CAST(COALESCE(a.period_acc, 0) AS SIGNED) AS dispatchedInPeriod,
+    CAST(COALESCE(a.total_acc, 0) AS SIGNED) AS totalDispatched,
+    pu.uom AS uom
+FROM po_header ph
+INNER JOIN (
+    SELECT pi.po_header_id AS ph_id,
+           CASE WHEN LOWER(TRIM(pi.uom)) LIKE 'set%' THEN 'Set' ELSE 'Nos.' END AS uom,
+           COALESCE(SUM(pi.qty), 0) AS po_qty
+    FROM po_item pi
+    GROUP BY pi.po_header_id,
+             CASE WHEN LOWER(TRIM(pi.uom)) LIKE 'set%' THEN 'Set' ELSE 'Nos.' END
+) pu ON pu.ph_id = ph.id
+LEFT JOIN (
+    SELECT c.ph_id AS ph_id,
+           c.uom AS uom,
+           SUM(c.acc) AS total_acc,
+           SUM(CASE WHEN DATE(c.ic_dt) BETWEEN :startDate AND :endDate THEN c.acc ELSE 0 END) AS period_acc
+    FROM (
+        SELECT ph2.id AS ph_id,
+               CASE WHEN LOWER(TRIM(COALESCE(
+                        (SELECT pi2.uom FROM po_item pi2
+                          WHERE pi2.po_header_id = ph2.id
+                            AND (CONVERT(pi2.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR CONVERT(pi2.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR CONVERT(pi2.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                          ORDER BY pi2.id LIMIT 1),
+                        (SELECT pi3.uom FROM po_item pi3 WHERE pi3.po_header_id = ph2.id ORDER BY pi3.id LIMIT 1),
+                        ''))) LIKE 'set%' THEN 'Set' ELSE 'Nos.' END AS uom,
+               COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date) AS ic_dt,
+               CASE WHEN LOWER(TRIM(COALESCE(
+                        (SELECT pi4.uom FROM po_item pi4
+                          WHERE pi4.po_header_id = ph2.id
+                            AND (CONVERT(pi4.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR CONVERT(pi4.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR CONVERT(pi4.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                          ORDER BY pi4.id LIMIT 1),
+                        (SELECT pi5.uom FROM po_item pi5 WHERE pi5.po_header_id = ph2.id ORDER BY pi5.id LIMIT 1),
+                        ''))) LIKE 'set%'
+                    THEN COALESCE(sfr.acc_sets, sfr.acc_nos, 0)
+                    ELSE COALESCE(sfr.acc_nos, sfr.acc_sets, 0) END AS acc
+        FROM sleeper_inspection_call sic
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        INNER JOIN sleeper_workflow_transaction swt
+                ON swt.workflow_transition_id = latest.max_id
+               AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
+        INNER JOIN po_header ph2
+                ON (CONVERT(ph2.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                 OR CONVERT(ph2.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN (
+            SELECT CONVERT(TRIM(call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_no,
+                   SUM(total_accepted) AS acc_nos,
+                   SUM(accepted_sets_quantity) AS acc_sets
+            FROM sleeper_final_result
+            GROUP BY CONVERT(TRIM(call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) sfr ON sfr.call_no = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (
+            SELECT CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_no, MIN(certificate_no) AS cert_no, MIN(created_on) AS created_on
+            FROM sleeper_inspection_complete_details
+            GROUP BY CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) sicd ON sicd.call_no = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM sleeper_final_ic_edit GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.cert_no, sic.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE ph2.item_cat_descr = 'PSC Mainline Sleeper'
+    ) c
+    GROUP BY c.ph_id, c.uom
+) a ON a.ph_id = ph.id AND a.uom = pu.uom
+WHERE ph.item_cat_descr = 'PSC Mainline Sleeper'
+ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
+""", nativeQuery = true)
+  List<com.sarthi.Sleeper.dto.SleeperDashboardDtos.MprUomProjection> getMprDataByUom(
+          @Param("startDate") LocalDate startDate,
+          @Param("endDate") LocalDate endDate);
+
     @Query(value = """
 
 SELECT

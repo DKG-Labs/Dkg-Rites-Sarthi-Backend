@@ -202,7 +202,8 @@ public class SleeperDashboard {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate
     ) {
-        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
+        // Default range: the current month
+        LocalDate start = CommonUtils.parseDateFlexible(startDate, LocalDate.now().withDayOfMonth(1));
         LocalDate end = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
 
         return new ResponseEntity<>(
@@ -392,9 +393,10 @@ public class SleeperDashboard {
     @GetMapping("/quality-sleeper")
     public ResponseEntity<Object> getQualitySleeper(
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String zone) {
 
-        List<QualitySleeperReportDto>  list = dashboardService.getQualitySleeperReport(startDate,endDate);
+        List<QualitySleeperReportDto>  list = dashboardService.getQualitySleeperReport(startDate, endDate, zone);
 
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }

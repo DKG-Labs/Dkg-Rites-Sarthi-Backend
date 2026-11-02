@@ -184,6 +184,8 @@ WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '
             OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
             OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN (SELECT CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_no, MIN(certificate_no) AS cert_no, MIN(created_on) AS created_on FROM sleeper_inspection_complete_details GROUP BY CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci) sicd ON sicd.call_no = CONVERT(TRIM(ibs.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM sleeper_final_ic_edit GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.cert_no, ibs.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         INNER JOIN demoulding_inspection di ON (
             di.batch_no = ibs.batch_no
             AND di.casting_date = ibs.date_casted
@@ -207,7 +209,7 @@ WHERE (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '
           AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR
                UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
           AND (:startDate IS NULL OR :startDate = '' OR :endDate IS NULL OR :endDate = '' OR
-               DATE(COALESCE(swt.created_date, di.inspection_date)) BETWEEN :startDate AND :endDate)
+               DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date, di.inspection_date)) BETWEEN :startDate AND :endDate)
     """, nativeQuery = true)
     Long countDemouldingDefectsForIssuedIcsFiltered(
             @Param("vendorPlantCode") String vendorPlantCode,

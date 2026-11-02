@@ -2779,6 +2779,14 @@ public class reportsImpl implements reports {
 
         public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDateStr,
                         String endDateStr) {
+                return getDashboardSummary(vendorPlantCode, zonalRailway, startDateStr, endDateStr, null);
+        }
+
+        /** product "Sleeper" / "RailPad" skips the heavy ERC card queries, which those tabs do not show. */
+        public DashboardSummaryDto getDashboardSummary(String vendorPlantCode, String zonalRailway, String startDateStr,
+                        String endDateStr, String product) {
+                String prod = product == null ? "" : product.replaceAll("\\s+", "").toLowerCase();
+                final boolean skipErc = prod.equals("sleeper") || prod.equals("railpad");
                 String vCode = vendorPlantCode == null ? "" : vendorPlantCode;
                 String zCode = zonalRailway == null ? "" : zonalRailway;
 
@@ -2799,23 +2807,33 @@ public class reportsImpl implements reports {
                 CompletableFuture<Double> cfQtyMt = CompletableFuture.supplyAsync(() -> poItemRepository
                                 .sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", null, null, vCode, zCode));
 
-                CompletableFuture<List<Object[]>> cfFinalResults = CompletableFuture.supplyAsync(() -> {
+                CompletableFuture<List<Object[]>> cfFinalResults = skipErc
+                                ? CompletableFuture.completedFuture((List<Object[]>) null)
+                                : CompletableFuture.supplyAsync(() -> {
                         return finalCumulativeResultsRepository.sumFinalAcceptedAndRejectedRevisedLogic(
                                         parsedStartDate, parsedEndDate, vCode, zCode);
                 });
 
-                CompletableFuture<Double> cfAvgProd = CompletableFuture.supplyAsync(
+                CompletableFuture<Double> cfAvgProd = skipErc
+                                ? CompletableFuture.completedFuture(0.0)
+                                : CompletableFuture.supplyAsync(
                                 () -> getAvgProductionPerDayWithFilters(parsedStartDate, parsedEndDate, vCode, zCode));
 
-                CompletableFuture<Double> cfProcRej = CompletableFuture.supplyAsync(
+                CompletableFuture<Double> cfProcRej = skipErc
+                                ? CompletableFuture.completedFuture(0.0)
+                                : CompletableFuture.supplyAsync(
                                 () -> calculateProcessRejectionPercentageRevisedLogicWithFilters(parsedStartDate,
                                                 parsedEndDate, vCode, zCode));
 
-                CompletableFuture<List<Object[]>> cfFinalRejResults = CompletableFuture.supplyAsync(
+                CompletableFuture<List<Object[]>> cfFinalRejResults = skipErc
+                                ? CompletableFuture.completedFuture((List<Object[]>) null)
+                                : CompletableFuture.supplyAsync(
                                 () -> finalCumulativeResultsRepository.sumFinalRejectionWithFilters(parsedStartDate,
                                                 parsedEndDate, vCode, zCode));
 
-                CompletableFuture<List<Object[]>> cfRmRejResults = CompletableFuture.supplyAsync(
+                CompletableFuture<List<Object[]>> cfRmRejResults = skipErc
+                                ? CompletableFuture.completedFuture((List<Object[]>) null)
+                                : CompletableFuture.supplyAsync(
                                 () -> rmHeatFinalResultRepository.sumRmRejectionWithFilters(parsedStartDate,
                                                 parsedEndDate, vCode, zCode));
 

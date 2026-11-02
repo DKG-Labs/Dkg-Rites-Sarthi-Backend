@@ -11,7 +11,15 @@ public class QualitySleeperReportDto {
 
     private String plantId;
 
+    // Plant (CSP) name to show instead of the number after the slash of the plant id
+    private String cspName;
+
     private String sleeperType;
+
+    // IC based figures
+    private Long icIssuedQty;
+    private Long icIssuedCount;
+    private String lastIcDate;
 
 
     // PRODUCTION

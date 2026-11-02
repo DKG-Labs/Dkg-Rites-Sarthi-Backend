@@ -971,6 +971,50 @@ ORDER BY defect_count DESC
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
+    /** Same as above, but for the production declarations of the closed ICs; repeat rejections are left out. */
+    @Query(value = """
+            SELECT defects.category, defects.defect_reason, COUNT(*) AS defect_count
+            FROM (
+                SELECT CASE WHEN dm.reason_type = 'VISUAL' THEN 'Visual (Demoulding)' ELSE 'Dimension (Demoulding)' END AS category,
+                       dm.defect_reason
+                FROM (
+                    SELECT pd.id AS batch_id, dds.visual_reason AS defect_reason, 'VISUAL' AS reason_type
+                    FROM demoulding_defective_sleepers dds
+                    INNER JOIN demoulding_inspection di ON di.id = dds.inspection_id
+                    INNER JOIN production_declaration pd
+                       ON TRIM(pd.batch_number) COLLATE utf8mb4_unicode_ci = TRIM(di.batch_no) COLLATE utf8mb4_unicode_ci
+                    WHERE pd.id IN (:pdIds)
+                      AND dds.visual_reason IS NOT NULL AND dds.visual_reason <> ''
+                    UNION ALL
+                    SELECT pd.id AS batch_id, dds.dim_reason AS defect_reason, 'DIMENSION' AS reason_type
+                    FROM demoulding_defective_sleepers dds
+                    INNER JOIN demoulding_inspection di ON di.id = dds.inspection_id
+                    INNER JOIN production_declaration pd
+                       ON TRIM(pd.batch_number) COLLATE utf8mb4_unicode_ci = TRIM(di.batch_no) COLLATE utf8mb4_unicode_ci
+                    WHERE pd.id IN (:pdIds)
+                      AND dds.dim_reason IS NOT NULL AND dds.dim_reason <> ''
+                ) dm
+
+                UNION ALL
+
+                SELECT CASE WHEN itr.module_id = 1 THEN 'Final (Visual)'
+                            WHEN itr.module_id = 2 THEN 'Final (Critical)'
+                            WHEN itr.module_id = 3 THEN 'Final (Non-Critical)' END AS category,
+                       itr.rejection_reason AS defect_reason
+                FROM inspection_test_result itr
+                INNER JOIN inspection_test_header ith ON ith.id = itr.test_header_id
+                WHERE ith.batch_id IN (:pdIds)
+                  AND itr.module_id IN (1,2,3)
+                  AND itr.result = 'REJECTED'
+                  AND itr.rejection_reason IS NOT NULL AND itr.rejection_reason <> ''
+                  AND LOWER(itr.rejection_reason) NOT LIKE 'previously rejected%'
+            ) defects
+            GROUP BY defects.category, defects.defect_reason
+            ORDER BY defect_count DESC
+            """, nativeQuery = true)
+    List<Object[]> getDefectReasonDistributionsByPdIds(
+            @Param("pdIds") java.util.Collection<Long> pdIds);
+
     /*
      * @Query(value = """
      * 
@@ -1172,8 +1216,9 @@ ORDER BY defect_count DESC
                 INNER JOIN production_declaration pd
                     ON pd.batch_number COLLATE utf8mb4_unicode_ci
                      = di.batch_no COLLATE utf8mb4_unicode_ci
+                    AND di.casting_date = pd.casting_date
 
-                WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+                WHERE pd.id IN (:pdIds)
 
                   AND dds.visual_reason IS NOT NULL
                   AND dds.visual_reason <> ''
@@ -1203,8 +1248,9 @@ ORDER BY defect_count DESC
                 INNER JOIN production_declaration pd
                     ON pd.batch_number COLLATE utf8mb4_unicode_ci
                      = di.batch_no COLLATE utf8mb4_unicode_ci
+                    AND di.casting_date = pd.casting_date
 
-                WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+                WHERE pd.id IN (:pdIds)
 
                   AND dds.dim_reason IS NOT NULL
                   AND dds.dim_reason <> ''
@@ -1234,7 +1280,7 @@ ORDER BY defect_count DESC
                 INNER JOIN production_declaration pd
                     ON pd.id = ith.batch_id
 
-                WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+                WHERE pd.id IN (:pdIds)
 
                   AND itr.module_id = 1
                   AND itr.result = 'REJECTED'
@@ -1257,7 +1303,7 @@ ORDER BY defect_count DESC
                 INNER JOIN production_declaration pd
                     ON pd.id = ith.batch_id
 
-                WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+                WHERE pd.id IN (:pdIds)
 
                   AND itr.module_id = 2
                   AND itr.result = 'REJECTED'
@@ -1280,7 +1326,7 @@ ORDER BY defect_count DESC
                 INNER JOIN production_declaration pd
                     ON pd.id = ith.batch_id
 
-                WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+                WHERE pd.id IN (:pdIds)
 
                   AND itr.module_id = 3
                   AND itr.result = 'REJECTED'
@@ -1295,8 +1341,170 @@ ORDER BY defect_count DESC
 
             """, nativeQuery = true)
     List<Object[]> getParetoAnalysis(
+            @Param("pdIds") java.util.Collection<Long> pdIds);
+
+    /**
+     * Batches (batch number, casting date, plant) of the calls whose latest status is SEND_CALL_TO_IBS and whose
+     * IC date is inside the range. The caller maps them to production declarations.
+     */
+    @Query(value = """
+            SELECT DISTINCT ibs.batch_no, ibs.date_casted, ibs.plant_id
+            FROM ie_batch_summary ibs
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM sleeper_workflow_transaction
+                WHERE workflow_id = 2
+                GROUP BY request_id
+            ) latest ON CONVERT(TRIM(ibs.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(latest.request_id) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            INNER JOIN sleeper_workflow_transaction swt ON latest.request_id = swt.request_id AND latest.max_id = swt.workflow_transition_id
+            LEFT JOIN (SELECT CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_no, MIN(certificate_no) AS cert_no, MIN(created_on) AS created_on
+                       FROM sleeper_inspection_complete_details
+                       GROUP BY CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci) sicd
+                   ON sicd.call_no = CONVERT(TRIM(ibs.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt
+                       FROM sleeper_final_ic_edit
+                       GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied
+                   ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.cert_no, ibs.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            WHERE swt.workflow_id = 2
+              AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
+              AND DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) BETWEEN :fromDate AND :toDate
+            """, nativeQuery = true)
+    List<Object[]> getClosedIcBatches(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
+
+    // ===== Quality of PSC Sleepers Report (closed ICs, by IC date) =====
+
+    /** One row per call and batch of the closed ICs (latest status SEND_CALL_TO_IBS, IC date inside the range). */
+    @Query(value = """
+            SELECT ibs.call_no, ibs.batch_no, ibs.date_casted, ibs.plant_id,
+                   ibs.total_offered, ibs.total_accepted,
+                   DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) AS ic_day
+            FROM ie_batch_summary ibs
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM sleeper_workflow_transaction
+                WHERE workflow_id = 2
+                GROUP BY request_id
+            ) latest ON CONVERT(TRIM(ibs.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(latest.request_id) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            INNER JOIN sleeper_workflow_transaction swt ON latest.request_id = swt.request_id AND latest.max_id = swt.workflow_transition_id
+            LEFT JOIN (SELECT CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_no, MIN(certificate_no) AS cert_no, MIN(created_on) AS created_on
+                       FROM sleeper_inspection_complete_details
+                       GROUP BY CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci) sicd
+                   ON sicd.call_no = CONVERT(TRIM(ibs.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt
+                       FROM sleeper_final_ic_edit
+                       GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied
+                   ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.cert_no, ibs.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            WHERE swt.workflow_id = 2
+              AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
+              AND DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) BETWEEN :fromDate AND :toDate
+            """, nativeQuery = true)
+    List<Object[]> getClosedIcBatchRows(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    /** Sleeper category (Mainline / Turnout / ...) of each production declaration, from its bench groups or gangs. */
+    @Query(value = """
+            SELECT t.pd_id, MIN(t.cat) AS cat
+            FROM (
+                SELECT ch.declaration_id AS pd_id, bg.sleeper_category AS cat
+                FROM production_bench_group bg
+                JOIN production_stress_chamber ch ON ch.id = bg.chamber_id
+                WHERE ch.declaration_id IN (:pdIds)
+                UNION ALL
+                SELECT g.declaration_id AS pd_id, g.sleeper_category AS cat
+                FROM production_longline_gang g
+                WHERE g.declaration_id IN (:pdIds)
+            ) t
+            GROUP BY t.pd_id
+            """, nativeQuery = true)
+    List<Object[]> getSleeperCategoryByPdIds(@Param("pdIds") java.util.Collection<Long> pdIds);
+
+    /** Final-inspection rejections per batch by defect group: dimension, end damage, honeycomb/surface/crack, dowel, other. */
+    @Query(value = """
+            SELECT t.batch_id AS pd_id,
+                   COUNT(DISTINCT CASE WHEN t.grp = 1 THEN t.sleeper_id END) AS dimension_toe_gauge,
+                   COUNT(DISTINCT CASE WHEN t.grp = 2 THEN t.sleeper_id END) AS end_damage,
+                   COUNT(DISTINCT CASE WHEN t.grp = 3 THEN t.sleeper_id END) AS honeycomb_surface_crack,
+                   COUNT(DISTINCT CASE WHEN t.grp = 4 THEN t.sleeper_id END) AS missing_dowel,
+                   COUNT(DISTINCT CASE WHEN t.grp = 5 THEN t.sleeper_id END) AS other_defects
+            FROM (
+                SELECT ith.batch_id, itr.sleeper_id,
+                       CASE
+                         WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%dowel%' THEN 4
+                         WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%end damage%' THEN 2
+                         WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%honey%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%surface%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%crack%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%void%' THEN 3
+                         WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%dimension%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%rail seat%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%gauge%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%toe%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%length%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%width%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%height%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%depth%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%slope%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%twist%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%camber%' THEN 1
+                         ELSE 5
+                       END AS grp
+                FROM inspection_test_header ith
+                JOIN inspection_test_result itr ON itr.test_header_id = ith.id
+                WHERE ith.batch_id IN (:pdIds)
+                  AND itr.active = 1
+                  AND itr.result = 'REJECTED'
+                  AND LOWER(COALESCE(itr.rejection_reason, '')) NOT LIKE 'previously rejected%'
+            ) t
+            GROUP BY t.batch_id
+            """, nativeQuery = true)
+    List<Object[]> getFinalDefectCountsByPdIds(@Param("pdIds") java.util.Collection<Long> pdIds);
+
+    /** Sleepers rejected in process inspection (demoulding) per batch. */
+    @Query(value = """
+            SELECT di.batch_no, di.casting_date, di.plant_id, COUNT(dds.id) AS rejected
+            FROM demoulding_inspection di
+            JOIN demoulding_defective_sleepers dds ON dds.inspection_id = di.id
+            WHERE TRIM(di.batch_no) IN (:batchNos)
+              AND (TRIM(COALESCE(dds.visual_reason, '')) <> '' OR TRIM(COALESCE(dds.dim_reason, '')) <> '')
+            GROUP BY di.batch_no, di.casting_date, di.plant_id
+            """, nativeQuery = true)
+    List<Object[]> getDemouldingRejectionsByBatch(@Param("batchNos") java.util.Collection<String> batchNos);
+
+    /** Sleepers produced per plant and sleeper category: verified (workflow Completed) declarations cast inside the range. */
+    @Query(value = """
+            SELECT p.plant_id, p.cat, SUM(p.n) AS produced
+            FROM (
+                SELECT pd.id AS pd_id, pd.plant_id AS plant_id,
+                       COALESCE(pd.total_casted_sleepers, 0) AS n,
+                       COALESCE(NULLIF(TRIM(COALESCE(MIN(bg.sleeper_category), MIN(g.sleeper_category))), ''), 'Mainline') AS cat
+                FROM production_declaration pd
+                JOIN (SELECT CONVERT(request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS rid, MAX(workflow_transition_id) AS max_id
+                      FROM sleeper_workflow_transaction
+                      WHERE module_id = 11
+                      GROUP BY CONVERT(request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci) lw
+                     ON lw.rid = CAST(pd.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
+                JOIN sleeper_workflow_transaction w ON w.workflow_transition_id = lw.max_id AND LOWER(w.status) = 'completed'
+                LEFT JOIN production_stress_chamber ch ON ch.declaration_id = pd.id
+                LEFT JOIN production_bench_group bg ON bg.chamber_id = ch.id
+                LEFT JOIN production_longline_gang g ON g.declaration_id = pd.id
+                WHERE pd.casting_date BETWEEN :fromDate AND :toDate
+                GROUP BY pd.id, pd.plant_id, pd.total_casted_sleepers
+            ) p
+            GROUP BY p.plant_id, p.cat
+            """, nativeQuery = true)
+    List<Object[]> getProducedByPlantCategory(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    /** Railway zone and names of every plant. */
+    @Query(value = """
+            SELECT vp.plant_id, vp.zonal_railway, vp.plant_name, vp.company_name
+            FROM vendor_plant vp
+            """, nativeQuery = true)
+    List<Object[]> getPlantZones();
 
     @Query(value = """
 

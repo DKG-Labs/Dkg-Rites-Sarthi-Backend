@@ -667,6 +667,7 @@ AND t.workflowTransitionId = (
         )
         LEFT JOIN sleeper_final_result sfr ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM sleeper_final_ic_edit GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.certificate_no, sic.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE swt.workflow_id = 2
           AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
@@ -687,8 +688,8 @@ AND t.workflowTransitionId = (
                REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
           AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR 
                UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
-          AND (:startDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) >= :startDate)
-          AND (:endDate IS NULL OR DATE(COALESCE(sicd.created_on, swt.created_date)) <= :endDate)
+          AND (:startDate IS NULL OR DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) >= :startDate)
+          AND (:endDate IS NULL OR DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) <= :endDate)
         ORDER BY rawCreatedDate DESC
     """, nativeQuery = true)
     List<Object[]> findSleeperDownloadIcAnnexuresReportRaw(
@@ -712,6 +713,7 @@ AND t.workflowTransitionId = (
         LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM sleeper_final_ic_edit GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.certificate_no, sic.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         WHERE swt.workflow_id = 2
           AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
           AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
@@ -732,7 +734,7 @@ AND t.workflowTransitionId = (
                REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
           AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR 
                UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
-          AND (:startDate IS NULL OR :endDate IS NULL OR COALESCE(sicd.created_on, swt.created_date, sic.created_at) BETWEEN :startDate AND :endDate)
+          AND (:startDate IS NULL OR :endDate IS NULL OR COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date, sic.created_at) BETWEEN :startDate AND :endDate)
     """, nativeQuery = true)
     Long countSleeperIcIssuedFiltered(
             @Param("vendorPlantCode") String vendorPlantCode,
