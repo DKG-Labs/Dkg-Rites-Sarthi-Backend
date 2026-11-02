@@ -4287,11 +4287,13 @@ public class reportsImpl implements reports {
                         }
                 }
 
-                // Final ICs issued (sent to IBS) per PO, only reported for ERC
+                // Final ICs issued (sent to IBS) per PO, reported for ERC and Rail Pad
                 Map<String, Long> icIssuedByPo = new HashMap<>();
-                if (isErc && !poNos.isEmpty()) {
+                if ((isErc || isRailpad) && !poNos.isEmpty()) {
                         try {
-                                List<Object[]> icRows = workflowTransitionRepository.countFinalIcIssuedByPoNos(poNos);
+                                List<Object[]> icRows = isErc
+                                        ? workflowTransitionRepository.countFinalIcIssuedByPoNos(poNos)
+                                        : workflowTransitionRepository.countFinalIcIssuedByRailPadPoNos(poNos);
                                 if (icRows != null) {
                                         for (Object[] r : icRows) {
                                                 if (r[0] != null && r[1] != null) {
@@ -4337,7 +4339,7 @@ public class reportsImpl implements reports {
                         long balanceQty = Math.max(poQty - acceptedQty, 0L);
                         String pdfPath = (row.length > 6 && row[6] != null) ? row[6].toString() : null;
 
-                        Long icIssuedCount = isErc ? icIssuedByPo.getOrDefault(poNo.trim(), 0L) : null;
+                        Long icIssuedCount = (isErc || isRailpad) ? icIssuedByPo.getOrDefault(poNo.trim(), 0L) : null;
                         PoIssuedDetailDto dto = new PoIssuedDetailDto(
                                         rly, poNo, poDate, vendorDetails, poQty, uom, acceptedQty, balanceQty, pdfPath,
                                         icIssuedCount);

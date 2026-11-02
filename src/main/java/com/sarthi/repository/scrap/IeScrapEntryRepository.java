@@ -30,6 +30,9 @@ public interface IeScrapEntryRepository extends JpaRepository<IeScrapEntry, Inte
     @Query("SELECT COUNT(e) FROM IeScrapEntry e WHERE e.scrappingDate = CURRENT_DATE")
     Long countTodayEntries();
 
+    @Query(value = "SELECT MAX(CAST(SUBSTRING(scrap_verification_id, 10) AS UNSIGNED)) FROM ie_scrap_entry WHERE scrap_verification_id LIKE :prefix", nativeQuery = true)
+    Long maxSeqForPrefix(@Param("prefix") String prefix);
+
     boolean existsByScrapVerificationId(String scrapVerificationId);
 
     @Query(value = """

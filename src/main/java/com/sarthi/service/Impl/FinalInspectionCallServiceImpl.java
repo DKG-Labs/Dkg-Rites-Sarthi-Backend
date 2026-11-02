@@ -71,6 +71,9 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
     @Autowired
     private com.sarthi.service.WorkflowService workflowService;
 
+    @Autowired
+    private com.sarthi.repository.ercdiversion.ErcDiversionItemRepository ercDiversionItemRepository;
+
     // Cert format: {RIO}/{callNo}/{ieShort}  e.g. N/EP-0907260002/S.K.P
     private static String extractCallNoFromCert(String certNo) {
         if (certNo == null) return certNo;
@@ -603,7 +606,15 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         Integer quantity = finalInspectionLotDetailsRepository.sumOfferedQtyByHeatNumberAndLotNumberAndPo(
                 heatNo, lotNumber, cleanPoNo, cleanPoSerialNo);
         logger.info("Offered earlier quantity: {}", quantity);
-        return quantity != null ? quantity : 0;
+        int finalOffered = quantity != null ? quantity : 0;
+        if (ercDiversionItemRepository != null && (lotNumber != null || heatNo != null)) {
+            java.math.BigDecimal diverted = ercDiversionItemRepository.sumDivertedQuantityForSource(
+                    cleanPoNo, heatNo, null, lotNumber);
+            if (diverted != null && diverted.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                finalOffered += diverted.intValue();
+            }
+        }
+        return finalOffered;
     }
 
     @Override

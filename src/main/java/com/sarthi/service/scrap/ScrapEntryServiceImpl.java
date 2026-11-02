@@ -636,8 +636,10 @@ public class ScrapEntryServiceImpl implements ScrapEntryService {
 
     private String generateVerificationId() {
         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-        Long count = scrapEntryRepo.countTodayEntries();
-        return "SC-" + date + String.format("%02d", count + 1);
+        String prefix = "SC-" + date + "%";
+        Long maxSeq = scrapEntryRepo.maxSeqForPrefix(prefix);
+        long next = (maxSeq == null ? 0L : maxSeq) + 1;
+        return "SC-" + date + String.format("%02d", next);
     }
 
     private ScrapEntryResponseDto toResponseDto(IeScrapEntry entry, List<String> imageUrls) {
