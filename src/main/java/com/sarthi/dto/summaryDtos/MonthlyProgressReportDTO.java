@@ -14,6 +14,9 @@ public class MonthlyProgressReportDTO {
 
     private Double poQty;
 
+    // Unit of measurement of this row: Nos., Set or MT (a PO with two units has one row per unit)
+    private String uom;
+
     private Double monthlyRm;
     private Double monthlyProcess;
     private Double monthlyFinal;

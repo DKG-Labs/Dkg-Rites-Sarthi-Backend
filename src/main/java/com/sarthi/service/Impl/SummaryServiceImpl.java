@@ -117,9 +117,10 @@ public class SummaryServiceImpl implements SummaryService {
 
         Pageable pageable = PageRequest.of(page, size);
 
-        // Step 1: Get PO level data using repository
-        Page<Object[]> poPage = inspectionCallRepository.fetchMonthlyProgress(startDate, endDate, rio, zone, vendor,
-                pageable);
+        // One row per PO and unit of measurement; quantities are accepted quantities in that unit,
+        // based on the IC date of the calls
+        Page<Object[]> poPage = inspectionCallRepository.fetchPoWiseProgressByUom(startDate, endDate, rio, zone,
+                vendor, pageable);
 
 
 
@@ -239,7 +240,8 @@ public class SummaryServiceImpl implements SummaryService {
         dto.setMonthlyFinal(monthlyFinal);
         dto.setTotalFinalInspected(totalFinal);
 
-        dto.setPoBalance(poQty - totalFinal);
+        dto.setPoBalance(Math.round((poQty - totalFinal) * 1000.0) / 1000.0);
+        dto.setUom(row.length > 9 && row[9] != null ? row[9].toString() : "");
 
         if (row.length > 8 && row[8] != null) {
             if (row[8] instanceof java.sql.Timestamp) {

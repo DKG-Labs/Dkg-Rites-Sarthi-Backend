@@ -33,7 +33,7 @@ public interface MomentOfResistanceRepository extends JpaRepository<MomentOfResi
     @Query(value = """
         SELECT *
         FROM moment_of_resistance
-        WHERE batch_number IN (:batchNumbers)
+        WHERE TRIM(batch_number) IN (:batchNumbers)
     """, nativeQuery = true)
     List<MomentOfResistance> findByBatchNumbersIn(@org.springframework.data.repository.query.Param("batchNumbers") java.util.Collection<String> batchNumbers);
 }
