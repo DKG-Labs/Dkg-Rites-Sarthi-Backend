@@ -500,13 +500,13 @@ AND t.workflowTransitionId = (
             DATE_FORMAT(pi.delivery_date, '%d/%m/%Y') AS dpDate,
             CASE
                 WHEN swt.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD') OR UPPER(COALESCE(swt.job_status, '')) IN ('INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD') THEN 'Under Inspection'
-                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' THEN 'Completed'
+                WHEN UPPER(COALESCE(swt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'COMPLETED') OR UPPER(COALESCE(swt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'COMPLETED') OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION' THEN 'Completed'
                 WHEN UPPER(COALESCE(swt.job_status, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.action, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.status, '')) LIKE '%CANCEL%' THEN 'Cancelled'
                 ELSE 'Pending'
             END AS status,
             CASE
                 WHEN swt.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE', 'WITHHELD') OR UPPER(COALESCE(swt.job_status, '')) IN ('INITIATED', 'PO_VERIFICATION', 'PAUSED', 'WITHHELD') THEN 'Under Inspection'
-                WHEN UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS' THEN 'Completed'
+                WHEN UPPER(COALESCE(swt.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'COMPLETED') OR UPPER(COALESCE(swt.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'COMPLETED') OR UPPER(COALESCE(swt.job_status, '')) = 'IC_GENERATION' THEN 'Completed'
                 WHEN UPPER(COALESCE(swt.job_status, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.action, '')) LIKE '%CANCEL%' OR UPPER(COALESCE(swt.status, '')) LIKE '%CANCEL%' THEN 'Cancelled'
                 ELSE 'Pending'
             END AS mainStatus,
