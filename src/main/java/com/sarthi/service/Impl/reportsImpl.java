@@ -2798,14 +2798,17 @@ public class reportsImpl implements reports {
 
                 // ── Run all independent DB queries in PARALLEL to reduce latency
                 // ──────────────
+                String sDate = (startDateStr != null && !startDateStr.trim().isEmpty()) ? startDateStr : null;
+                String eDate = (endDateStr != null && !endDateStr.trim().isEmpty()) ? endDateStr : null;
+
                 CompletableFuture<Long> cfPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
-                                .countFilteredPoByItemCatDescr("Elastic Rail Clips", null, null, vCode, zCode));
+                                .countFilteredPoByItemCatDescr("Elastic Rail Clips", sDate, eDate, vCode, zCode));
 
                 CompletableFuture<Long> cfQtyNos = CompletableFuture.supplyAsync(() -> poItemRepository
-                                .sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", null, null, vCode, zCode));
+                                .sumFilteredQtyByItemCatDescrAndUomNos("Elastic Rail Clips", sDate, eDate, vCode, zCode));
 
                 CompletableFuture<Double> cfQtyMt = CompletableFuture.supplyAsync(() -> poItemRepository
-                                .sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", null, null, vCode, zCode));
+                                .sumFilteredQtyByItemCatDescrAndUomMt("Elastic Rail Clips", sDate, eDate, vCode, zCode));
 
                 CompletableFuture<List<Object[]>> cfFinalResults = skipErc
                                 ? CompletableFuture.completedFuture((List<Object[]>) null)
@@ -2837,9 +2840,6 @@ public class reportsImpl implements reports {
                                 () -> rmHeatFinalResultRepository.sumRmRejectionWithFilters(parsedStartDate,
                                                 parsedEndDate, vCode, zCode));
 
-                String sDate = (startDateStr != null && !startDateStr.trim().isEmpty()) ? startDateStr : null;
-                String eDate = (endDateStr != null && !endDateStr.trim().isEmpty()) ? endDateStr : null;
-
                 CompletableFuture<Long> cfSleeperPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
                                 .countFilteredPoByItemCatDescr("PSC Mainline Sleeper", sDate, eDate, vCode, zCode));
 
@@ -2856,17 +2856,17 @@ public class reportsImpl implements reports {
                 });
 
                 CompletableFuture<Long> cfRailPadPoIssued = CompletableFuture.supplyAsync(() -> poHeaderRepository
-                                .countFilteredPoByItemCatDescr("Rail Pads", null, null, vCode, zCode));
+                                .countFilteredPoByItemCatDescr("Rail Pads", sDate, eDate, vCode, zCode));
 
                 CompletableFuture<Long> cfRailPadQtyNos = CompletableFuture.supplyAsync(() -> {
-                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Rail Pads", null,
-                                        null, vCode, zCode);
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomNos("Rail Pads", sDate,
+                                        eDate, vCode, zCode);
                         return res != null ? res : 0L;
                 });
 
                 CompletableFuture<Long> cfRailPadQtySet = CompletableFuture.supplyAsync(() -> {
-                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomSet("Rail Pads", null,
-                                        null, vCode, zCode);
+                        Long res = poItemRepository.sumFilteredQtyByItemCatDescrAndUomSet("Rail Pads", sDate,
+                                        eDate, vCode, zCode);
                         return res != null ? res : 0L;
                 });
 
