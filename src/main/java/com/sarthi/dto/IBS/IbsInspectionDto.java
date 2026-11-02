@@ -64,4 +64,5 @@ public class IbsInspectionDto {
     private Integer version;
     private String billingStatus;
     private java.time.LocalDateTime acknowledgedAt;
+    private String diversionType;
 }

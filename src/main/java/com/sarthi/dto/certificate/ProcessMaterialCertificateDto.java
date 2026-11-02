@@ -29,7 +29,8 @@ public class ProcessMaterialCertificateDto {
     private String setNo;
     private String placeOfInspection;
     private Boolean isDivertedMaterial;
-    
+    private String diversionType;
+
     /* ==================== Installment Information ==================== */
     
     /**

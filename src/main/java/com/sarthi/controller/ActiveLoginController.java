@@ -33,14 +33,23 @@ public class ActiveLoginController {
     public ResponseEntity<?> getActiveLogins(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
         try {
             int safePage = Math.max(page, 0);
             int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
             String term = search == null ? "" : search.trim();
 
+            LocalDateTime fromDt = from != null && !from.isEmpty()
+                    ? java.time.LocalDate.parse(from).atStartOfDay()
+                    : LocalDateTime.now().minusMonths(1);
+            LocalDateTime toDt = to != null && !to.isEmpty()
+                    ? java.time.LocalDate.parse(to).atTime(23, 59, 59)
+                    : LocalDateTime.now();
+
             Page<AuthenticatorVerificationRepository.ActiveLoginRow> result = verificationRepository
-                    .findActiveLogins(AUTHENTICATED, LocalDateTime.now(), term, PageRequest.of(safePage, safeSize));
+                    .findActiveLogins(AUTHENTICATED, fromDt, toDt, term, PageRequest.of(safePage, safeSize));
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("content", result.getContent());

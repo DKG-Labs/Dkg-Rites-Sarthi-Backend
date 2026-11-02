@@ -55,6 +55,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.sarthi.entity.finalmaterial.FinalInspectionLotResults;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotResultsRepository;
+import com.sarthi.repository.ercdiversion.ErcDiversionRequestRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -155,6 +156,9 @@ public class CertificateServiceImpl implements CertificateService {
 
     @Autowired(required = false)
     private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcEditRepository sleeperFinalIcEditRepository;
+
+    @Autowired(required = false)
+    private ErcDiversionRequestRepository ercDiversionRequestRepository;
 
     @Autowired(required = false)
     private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcSaveChangesRepository sleeperFinalIcSaveChangesRepository;
@@ -287,6 +291,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .build();
 
         dto.setIsDivertedMaterial(Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()));
+        dto.setDiversionType(resolveDiversionType(inspectionCall));
         if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null) {
             String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
             dto.setRemarks((dto.getRemarks() != null ? dto.getRemarks() : "") + divNote);
@@ -1097,6 +1102,19 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Format LocalDate to dd/MM/yyyy
      */
+    private String resolveDiversionType(InspectionCall call) {
+        if (!Boolean.TRUE.equals(call.getIsDivertedMaterial())) return null;
+        if (call.getDiversionRequestNo() != null && !call.getDiversionRequestNo().isBlank()
+                && ercDiversionRequestRepository != null) {
+            try {
+                return ercDiversionRequestRepository.findByRequestNo(call.getDiversionRequestNo().trim())
+                        .map(r -> r.getDiversionType() != null ? r.getDiversionType().name() : null)
+                        .orElse(null);
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
     private String formatDate(LocalDate date) {
         return date != null ? date.format(DATE_FORMATTER) : "";
     }
@@ -1268,6 +1286,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .build();
 
         dto.setIsDivertedMaterial(Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()));
+        dto.setDiversionType(resolveDiversionType(inspectionCall));
         if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null) {
             String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
             if (dto.getReference() != null && !dto.getReference().contains("diverted from")) {
@@ -1921,6 +1940,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .build();
 
         dto.setIsDivertedMaterial(Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()));
+        dto.setDiversionType(resolveDiversionType(inspectionCall));
         if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null) {
             String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
             dto.setRemarks((dto.getRemarks() != null ? dto.getRemarks() : "") + divNote);

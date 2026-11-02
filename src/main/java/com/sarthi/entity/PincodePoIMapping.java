@@ -47,5 +47,11 @@ public class PincodePoIMapping {
 
     @Column(name = "contact_person_number", length = 20)
     private String contactPersonNumber;
+
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private java.math.BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private java.math.BigDecimal longitude;
 }
 

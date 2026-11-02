@@ -61,4 +61,10 @@ public class RailVendorPlants {
 
     @Column(name = "updated_date")
     private LocalDateTime updatedDate;
+
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private java.math.BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private java.math.BigDecimal longitude;
 }

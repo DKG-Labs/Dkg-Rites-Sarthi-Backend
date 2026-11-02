@@ -2412,6 +2412,11 @@ public class IbsServiceImpl implements IbsService {
 
             log.info("[IBS-FETCH] Enriching diverted call {}", callNo);
 
+            // Set diversion type (PARTIAL / COMPLETE)
+            if (divReq != null && divReq.getDiversionType() != null) {
+                dto.setDiversionType(divReq.getDiversionType().name());
+            }
+
             // Determine Source IC Call Number
             String srcCallNo = null;
             if (divReq != null && divReq.getSourceCallNo() != null && !divReq.getSourceCallNo().isBlank()) {
