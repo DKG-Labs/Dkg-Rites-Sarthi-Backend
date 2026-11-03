@@ -1082,20 +1082,62 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     }
 
     @Override
-    public List<RailInspectionCall> getProcessCallsByTypeDrawingAndPlant(String railPadType, String drawingNo,
+    public List<RailInspectionCall> getProcessCallsByTypeDrawingAndPlant(String railPadType, String drawingNo, String plantId) {
+        return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
+    }
+
+    /*
             String plantId) {
         return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
     }
 
+    private boolean isPoSrMatching(RailInspectionCall c, String targetPoSr) {
+        if (targetPoSr == null || targetPoSr.isBlank()) {
+            return true;
+        }
+        if (c == null) {
+            return false;
+        }
+        String cSr = c.getPoSr();
+        if ((cSr == null || cSr.isBlank()) && c.getPoNo() != null && c.getPoNo().contains("/")) {
+            String[] parts = c.getPoNo().split("/");
+            if (parts.length > 1) {
+                cSr = parts[1].trim();
+            }
+        }
+        if (cSr == null || cSr.isBlank()) {
+            return false;
+        }
+        cSr = cSr.trim();
+        String tSr = targetPoSr.trim();
+        if (cSr.equalsIgnoreCase(tSr)) {
+            return true;
+        }
+        try {
+            return Integer.parseInt(cSr) == Integer.parseInt(tSr);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    */
     @Override
     public List<RailInspectionCall> getProcessCalls(String railPadType, String drawingNo, String plantId, String poNo,
             String poSr) {
         String cleanPoNo = (poNo != null && poNo.contains("/")) ? poNo.split("/")[0].trim()
                 : (poNo != null ? poNo.trim() : null);
+        String cleanPoSr = (poSr != null && !poSr.isBlank()) ? poSr.trim() : null;
+        if (cleanPoSr == null && poNo != null && poNo.contains("/")) {
+            String[] parts = poNo.split("/");
+            if (parts.length > 1 && !parts[1].isBlank()) {
+                cleanPoSr = parts[1].trim();
+            }
+        }
 
         if (cleanPoNo != null && !cleanPoNo.isEmpty()) {
             List<RailInspectionCompleteDetails> completeDetails = railInspectionCompleteDetailsRepository
-                    .findProcessCallsByPoNoAndSr(cleanPoNo, "");
+                    .findProcessCallsByPoNoAndSr(cleanPoNo, cleanPoSr != null ? cleanPoSr : "");
             if (completeDetails != null && !completeDetails.isEmpty()) {
                 List<String> callNos = completeDetails.stream()
                         .map(RailInspectionCompleteDetails::getCallNo)
@@ -1106,13 +1148,61 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 if (!callNos.isEmpty()) {
                     List<RailInspectionCall> calls = repository.findByCallNoIn(callNos);
                     if (calls != null && !calls.isEmpty()) {
-                        return calls;
+                        if (cleanPoSr != null && !cleanPoSr.isBlank()) {
+                            final String targetSr = cleanPoSr;
+                            calls = calls.stream().filter(c -> isPoSrMatching(c, targetSr)).toList();
+                        }
+                        if (!calls.isEmpty()) {
+                            return calls;
+                        }
                     }
                 }
             }
-            return repository.findProcessCalls(railPadType, drawingNo, plantId, cleanPoNo, "");
+            List<RailInspectionCall> fallbackCalls = repository.findProcessCalls(railPadType, drawingNo, plantId, cleanPoNo, cleanPoSr != null ? cleanPoSr : "");
+            if ((fallbackCalls == null || fallbackCalls.isEmpty()) && cleanPoSr != null && !cleanPoSr.isBlank()) {
+                try {
+                    int srInt = Integer.parseInt(cleanPoSr);
+                    String altSr = cleanPoSr.startsWith("0") ? String.valueOf(srInt) : String.format("%03d", srInt);
+                    fallbackCalls = repository.findProcessCalls(railPadType, drawingNo, plantId, cleanPoNo, altSr);
+                } catch (Exception ignored) {
+                }
+            }
+            if (fallbackCalls != null && cleanPoSr != null && !cleanPoSr.isBlank()) {
+                final String targetSr = cleanPoSr;
+                fallbackCalls = fallbackCalls.stream().filter(c -> isPoSrMatching(c, targetSr)).toList();
+            }
+            return fallbackCalls != null ? fallbackCalls : new ArrayList<>();
         }
         return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
+    }
+
+    private boolean isPoSrMatching(RailInspectionCall c, String targetPoSr) {
+        if (targetPoSr == null || targetPoSr.isBlank()) {
+            return true;
+        }
+        if (c == null) {
+            return false;
+        }
+        String cSr = c.getPoSr();
+        if ((cSr == null || cSr.isBlank()) && c.getPoNo() != null && c.getPoNo().contains("/")) {
+            String[] parts = c.getPoNo().split("/");
+            if (parts.length > 1) {
+                cSr = parts[1].trim();
+            }
+        }
+        if (cSr == null || cSr.isBlank()) {
+            return false;
+        }
+        cSr = cSr.trim();
+        String tSr = targetPoSr.trim();
+        if (cSr.equalsIgnoreCase(tSr)) {
+            return true;
+        }
+        try {
+            return Integer.parseInt(cSr) == Integer.parseInt(tSr);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override

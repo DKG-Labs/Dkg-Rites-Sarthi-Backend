@@ -127,7 +127,7 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
           AND (:railPadType IS NULL OR :railPadType = '' OR c.railPadType = :railPadType OR :railPadType LIKE '%NCRGRSP%' OR c.railPadType LIKE '%NCRGRSP%') 
           AND (:drawingNo IS NULL OR :drawingNo = '' OR d.drawingNo = :drawingNo)
           AND (:poNo IS NULL OR :poNo = '' OR c.poNo = :poNo OR c.poNo LIKE CONCAT(:poNo, '/%'))
-          AND (:poSr IS NULL OR :poSr = '' OR c.poSr = :poSr OR LTRIM(RTRIM(c.poSr)) = LTRIM(RTRIM(:poSr)))
+          AND (:poSr IS NULL OR :poSr = '' OR c.poSr = :poSr OR LTRIM(RTRIM(c.poSr)) = LTRIM(RTRIM(:poSr)) OR c.poNo LIKE CONCAT('%/', :poSr) OR c.poNo LIKE CONCAT('%/0', :poSr) OR c.poNo LIKE CONCAT('%/00', :poSr))
     """)
     List<RailInspectionCall> findProcessCalls(
         @Param("railPadType") String railPadType, 
