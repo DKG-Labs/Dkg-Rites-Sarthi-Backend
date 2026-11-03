@@ -262,7 +262,7 @@ WHERE ph.item_cat_descr = 'PSC Mainline Sleeper'
    */
   @Query(value = """
 SELECT
-    ph.rly_cd AS rly,
+    COALESCE(NULLIF(TRIM(ph.rly_short_name), ''), ph.rly_cd) AS rly,
     ph.po_no AS poNo,
     ph.vendor_details AS manufacturer,
     CAST(pu.po_qty AS SIGNED) AS poQty,

@@ -427,7 +427,6 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             Set<String> etDistinct = new java.util.LinkedHashSet<>();
             if (etSleepersByBatch.containsKey(rawBatchNo)) etDistinct.addAll(etSleepersByBatch.get(rawBatchNo));
             if (etSleepersByBatch.containsKey(cleanBatch)) etDistinct.addAll(etSleepersByBatch.get(cleanBatch));
-            dto.setEtSleepers(new ArrayList<>(etDistinct));
 
             Set<String> mfDistinct = new java.util.LinkedHashSet<>();
             if (mfSleepersByBatch.containsKey(rawBatchNo)) mfDistinct.addAll(mfSleepersByBatch.get(rawBatchNo));
@@ -453,7 +452,10 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             }
             if (!ownSleepers.isEmpty()) {
                 mfDistinct.removeIf(s -> !ownSleepers.contains(s.trim().toUpperCase()));
+                // ET records are also keyed by batch number only, so apply the same ownership check
+                etDistinct.removeIf(s -> !ownSleepers.contains(s.trim().toUpperCase()));
             }
+            dto.setEtSleepers(new ArrayList<>(etDistinct));
             dto.setMfSleepers(new ArrayList<>(mfDistinct));
 
             response.add(dto);

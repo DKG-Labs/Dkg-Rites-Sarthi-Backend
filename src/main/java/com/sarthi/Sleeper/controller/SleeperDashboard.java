@@ -413,20 +413,81 @@ public class SleeperDashboard {
      * Supports optional vendor, zonal railway, and date range filtering.
      * GET /api/sleeper-dashboard/summary?vendor={vendor}&zone={zone}&startDate={startDate}&endDate={endDate}
      */
+    // The summary runs several heavy queries but changes slowly, so identical requests share one result for a few
+    // minutes; requests that arrive while it is being computed wait for that same computation instead of repeating it.
+    private static final long SUMMARY_CACHE_TTL_MS = 10 * 60 * 1000L;
+    private static final int SUMMARY_CACHE_MAX_ENTRIES = 200;
+
+    private record SummaryCacheEntry(long createdAt, java.util.concurrent.CompletableFuture<Object> result) {}
+
+    private final java.util.concurrent.ConcurrentHashMap<String, SummaryCacheEntry> summaryCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String summaryCacheKey(String vendor, String zone, String startDate, String endDate) {
+        return String.join("|", String.valueOf(vendor), String.valueOf(zone),
+                String.valueOf(startDate), String.valueOf(endDate));
+    }
+
+    /**
+     * Keeps the dashboard's default view (current financial year, all vendors and zones) ready, so opening the
+     * dashboard never waits on the heavy queries. The new result replaces the old one only once it is finished.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(initialDelay = 5000, fixedDelay = 4 * 60 * 1000L)
+    public void warmDefaultSummary() {
+        try {
+            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+            int fyStartYear = today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1;
+            String start = java.time.LocalDate.of(fyStartYear, 4, 1).toString();
+            String end = today.toString();
+            Object value = ResponseBuilder.getSuccessResponse(
+                    dashboardService.getSleeperDashboardSummary(null, null, start, end));
+            summaryCache.put(summaryCacheKey(null, null, start, end),
+                    new SummaryCacheEntry(System.currentTimeMillis(),
+                            java.util.concurrent.CompletableFuture.completedFuture(value)));
+        } catch (Exception e) {
+            System.err.println("[SleeperSummary] warm-up failed: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/summary")
     public ResponseEntity<Object> getSleeperDashboardSummary(
             @RequestParam(required = false) String vendor,
             @RequestParam(required = false) String zone,
             @RequestParam(required = false) String plantId,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false, defaultValue = "false") boolean refresh) throws Exception {
         String effectiveVendor = (vendor != null && !vendor.isBlank()) ? vendor : plantId;
-        return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(
-                        dashboardService.getSleeperDashboardSummary(effectiveVendor, zone, startDate, endDate)
-                ),
-                HttpStatus.OK
-        );
+        String key = summaryCacheKey(effectiveVendor, zone, startDate, endDate);
+
+        if (summaryCache.size() > SUMMARY_CACHE_MAX_ENTRIES) {
+            summaryCache.clear();
+        }
+
+        long now = System.currentTimeMillis();
+        java.util.concurrent.atomic.AtomicBoolean owner = new java.util.concurrent.atomic.AtomicBoolean(false);
+        SummaryCacheEntry entry = summaryCache.compute(key, (k, old) -> {
+            boolean reusable = old != null && !refresh
+                    && now - old.createdAt() < SUMMARY_CACHE_TTL_MS
+                    && !old.result().isCompletedExceptionally();
+            if (reusable) {
+                return old;
+            }
+            owner.set(true);
+            return new SummaryCacheEntry(now, new java.util.concurrent.CompletableFuture<>());
+        });
+
+        if (owner.get()) {
+            try {
+                entry.result().complete(ResponseBuilder.getSuccessResponse(
+                        dashboardService.getSleeperDashboardSummary(effectiveVendor, zone, startDate, endDate)));
+            } catch (Exception e) {
+                entry.result().completeExceptionally(e);
+                summaryCache.remove(key, entry);
+                throw e;
+            }
+        }
+        return new ResponseEntity<>(entry.result().get(), HttpStatus.OK);
     }
 
     @Autowired(required = false)

@@ -1286,6 +1286,7 @@ ORDER BY defect_count DESC
                   AND itr.result = 'REJECTED'
                   AND itr.rejection_reason IS NOT NULL
                   AND itr.rejection_reason <> ''
+                  AND LOWER(itr.rejection_reason) NOT LIKE 'previously rejected%'
 
                 UNION ALL
 
@@ -1309,6 +1310,7 @@ ORDER BY defect_count DESC
                   AND itr.result = 'REJECTED'
                   AND itr.rejection_reason IS NOT NULL
                   AND itr.rejection_reason <> ''
+                  AND LOWER(itr.rejection_reason) NOT LIKE 'previously rejected%'
 
                 UNION ALL
 
@@ -1332,6 +1334,7 @@ ORDER BY defect_count DESC
                   AND itr.result = 'REJECTED'
                   AND itr.rejection_reason IS NOT NULL
                   AND itr.rejection_reason <> ''
+                  AND LOWER(itr.rejection_reason) NOT LIKE 'previously rejected%'
 
             ) defects
 
@@ -1375,10 +1378,14 @@ ORDER BY defect_count DESC
 
     // ===== Quality of PSC Sleepers Report (closed ICs, by IC date) =====
 
-    /** One row per call and batch of the closed ICs (latest status SEND_CALL_TO_IBS, IC date inside the range). */
+    /**
+     * One row per call and batch of the closed ICs (latest status SEND_CALL_TO_IBS, IC date inside the range).
+     * offered_now / passed are this batch's own figures; total_offered / total_accepted hold the whole CALL's totals
+     * repeated on every batch row, so summing them over batches multiplies them by the number of batches.
+     */
     @Query(value = """
             SELECT ibs.call_no, ibs.batch_no, ibs.date_casted, ibs.plant_id,
-                   ibs.total_offered, ibs.total_accepted,
+                   ibs.offered_now, ibs.passed,
                    DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) AS ic_day
             FROM ie_batch_summary ibs
             INNER JOIN (
@@ -1461,6 +1468,17 @@ ORDER BY defect_count DESC
             GROUP BY t.batch_id
             """, nativeQuery = true)
     List<Object[]> getFinalDefectCountsByPdIds(@Param("pdIds") java.util.Collection<Long> pdIds);
+
+    /** Accepted quantity of the IC itself per call: numbers (acc_nos) and, for turnouts, sets (acc_sets). */
+    @Query(value = """
+            SELECT TRIM(sfr.call_number) AS call_no,
+                   COALESCE(SUM(sfr.total_accepted), 0) AS acc_nos,
+                   COALESCE(SUM(sfr.accepted_sets_quantity), 0) AS acc_sets
+            FROM sleeper_final_result sfr
+            WHERE TRIM(sfr.call_number) IN (:callNos)
+            GROUP BY TRIM(sfr.call_number)
+            """, nativeQuery = true)
+    List<Object[]> getFinalAcceptedByCalls(@Param("callNos") java.util.Collection<String> callNos);
 
     /** Sleepers rejected in process inspection (demoulding) per batch. */
     @Query(value = """
