@@ -1281,6 +1281,17 @@ Page<Object[]> fetchManufacturerSummary(
         """, nativeQuery = true)
   List<String> findIcNumbersByUserId(@Param("userId") Long userId);
 
+  /** All process (EP) inspection call numbers, newest first. Used by the admin Process Defect Summary. */
+  @Query(value = """
+        SELECT ic.ic_number
+        FROM inspection_calls ic
+        WHERE ic.type_of_call = 'process'
+          AND ic.ic_number IS NOT NULL AND ic.ic_number <> ''
+        GROUP BY ic.ic_number
+        ORDER BY MAX(ic.id) DESC
+        """, nativeQuery = true)
+  List<String> findAllProcessIcNumbers();
+
     @Query(value = """
     SELECT place_of_inspection 
     FROM inspection_calls 

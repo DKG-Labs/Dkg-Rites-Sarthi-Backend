@@ -30,7 +30,7 @@ public class AuthenticatorServiceImpl implements AuthenticatorService {
     private final ObjectMapper objectMapper;
 
     private static final int SESSION_EXPIRY_SECONDS = 180; // 3 minutes to scan the QR
-    private static final int ACTIVE_LOGIN_HOURS = 8; // a verified login skips the QR for this long
+    private static final int ACTIVE_LOGIN_HOURS = 12; // same as jwt.token.validity (12h); a verified login skips the QR for this long
 
     @Override
     @Transactional

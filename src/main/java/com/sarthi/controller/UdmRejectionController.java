@@ -7,9 +7,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.sarthi.entity.UdmSyncLog;
+import com.sarthi.entity.UserMaster;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,15 +57,18 @@ public class UdmRejectionController {
      * Manually trigger a sync for a specific date (backfill).
      */
     @PostMapping("/sync")
-    public ResponseEntity<?> syncDate(@RequestParam(required = false) String date) {
+    public ResponseEntity<?> syncDate(@RequestParam(required = false) String date,
+                                      @AuthenticationPrincipal Object principal) {
         try {
             LocalDate syncDate = (date != null && !date.isBlank())
                     ? LocalDate.parse(date)
                     : LocalDate.now().minusDays(1);
-            int count = udmRejectionSyncService.syncForDate(syncDate);
-            Map<String, Object> result = new HashMap<>();
+            UdmSyncLog log = udmRejectionSyncService.runSync(syncDate, UdmSyncLog.TRIGGER_MANUAL, describeUser(principal));
+
+            // "date" and "recordsSaved" kept as before; status/reason added so the screen can show failures
+            Map<String, Object> result = new HashMap<>(toJson(log));
             result.put("date", syncDate.toString());
-            result.put("recordsSaved", count);
+            result.put("recordsSaved", nz(log.getRecordsNew()) + nz(log.getRecordsUpdated()));
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -66,6 +76,61 @@ public class UdmRejectionController {
             return ResponseEntity.status(500).body(error);
         }
     }
+
+    /**
+     * GET /api/udm-rejections/sync-history?limit=50
+     * Latest sync runs (scheduler and manual), newest first, with counts and the failure reason.
+     */
+    @GetMapping("/sync-history")
+    public ResponseEntity<?> getSyncHistory(@RequestParam(defaultValue = "50") int limit) {
+        try {
+            List<Map<String, Object>> rows = udmRejectionSyncService.getSyncHistory(limit).stream()
+                    .map(UdmRejectionController::toJson)
+                    .toList();
+            return ResponseEntity.ok(rows);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to fetch sync history: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    private static Map<String, Object> toJson(UdmSyncLog l) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", l.getId());
+        m.put("syncDate", l.getSyncDate() != null ? l.getSyncDate().toString() : null);
+        m.put("triggerType", l.getTriggerType());
+        m.put("triggeredBy", l.getTriggeredBy());
+        m.put("startedAt", withZone(l.getStartedAt()));
+        m.put("finishedAt", withZone(l.getFinishedAt()));
+        m.put("durationMs", l.getDurationMs());
+        m.put("status", l.getStatus());
+        m.put("recordsReceived", l.getRecordsReceived());
+        m.put("recordsNew", l.getRecordsNew());
+        m.put("recordsUpdated", l.getRecordsUpdated());
+        m.put("recordsFailed", l.getRecordsFailed());
+        m.put("errorMessage", l.getErrorMessage());
+        return m;
+    }
+
+    /** Server-local time with its offset (e.g. +05:30), so the browser can show it in IST. */
+    private static String withZone(LocalDateTime t) {
+        return t == null ? null : t.atZone(ZoneId.systemDefault()).toOffsetDateTime().toString();
+    }
+
+    private static String describeUser(Object principal) {
+        if (principal instanceof UserMaster u) {
+            String name = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername();
+            String code = u.getEmployeeCode();
+            return code != null && !code.isBlank() && !code.equals(name) ? name + " (" + code + ")" : name;
+        }
+        if (principal instanceof org.springframework.security.core.userdetails.UserDetails d) {
+            return d.getUsername();
+        }
+        return null;
+    }
+
+    private static int nz(Integer v) { return v != null ? v : 0; }
 
     @GetMapping("/summary")
     public ResponseEntity<?> getSummary(@RequestParam(required = false) String rejDate) {

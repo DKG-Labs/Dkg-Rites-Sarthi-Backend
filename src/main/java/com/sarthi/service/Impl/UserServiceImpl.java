@@ -2079,12 +2079,9 @@ public class UserServiceImpl implements UserService {
                     .orElseGet(() -> userMasterRepository.findFirstByUserName(cleanVendorCode)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanVendorCode)
-                    .orElseGet(() -> {
-                        if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
-                            return userMasterRepository.findFirstByEmail(dto.getEmail().trim()).orElse(new UserMaster());
-                        }
-                        return new UserMaster();
-                    }))));
+                    // No email fallback: a different vendor code is a different vendor,
+                    // even when the email/company details are the same.
+                    .orElseGet(UserMaster::new))));
             if (userMaster.getUserId() == null) {
                 userMaster.setCreatedDate(LocalDateTime.now());
             }
@@ -2421,12 +2418,9 @@ public class UserServiceImpl implements UserService {
                     .orElseGet(() -> userMasterRepository.findFirstByUserName(cleanVendorCode)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanVendorCode)
-                    .orElseGet(() -> {
-                        if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
-                            return userMasterRepository.findFirstByEmail(dto.getEmail().trim()).orElse(new UserMaster());
-                        }
-                        return new UserMaster();
-                    }))));
+                    // No email fallback: a different vendor code is a different vendor,
+                    // even when the email/company details are the same.
+                    .orElseGet(UserMaster::new))));
             if (userMaster.getUserId() == null) {
                 userMaster.setCreatedDate(LocalDateTime.now());
             }
@@ -2574,6 +2568,10 @@ public class UserServiceImpl implements UserService {
                 }
                 if (vp == null && plantDto.getPlantId() != null && !plantDto.getPlantId().trim().isEmpty()) {
                     vp = vendorPlantRepository.findByPlantId(plantDto.getPlantId().trim()).orElse(null);
+                }
+                // Never take over a plant that belongs to another vendor
+                if (vp != null && !isOwnPlant(vp.getVendorId(), vp.getVendorCode(), userMaster, vendorCodeFormatted)) {
+                    throw plantOwnedByOtherVendor(vp.getPlantId(), vp.getVendorCode());
                 }
                 if (vp == null) {
                     com.sarthi.Sleeper.entity.VendorPlant foundVp =
@@ -2797,12 +2795,9 @@ public class UserServiceImpl implements UserService {
                     .orElseGet(() -> userMasterRepository.findFirstByUserName(cleanVendorCode)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(vendorCodeFormatted)
                     .orElseGet(() -> userMasterRepository.findFirstByEmployeeCode(cleanVendorCode)
-                    .orElseGet(() -> {
-                        if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
-                            return userMasterRepository.findFirstByEmail(dto.getEmail().trim()).orElse(new UserMaster());
-                        }
-                        return new UserMaster();
-                    }))));
+                    // No email fallback: a different vendor code is a different vendor,
+                    // even when the email/company details are the same.
+                    .orElseGet(UserMaster::new))));
             if (userMaster.getUserId() == null) {
                 userMaster.setCreatedDate(LocalDateTime.now());
             }
@@ -2912,6 +2907,7 @@ public class UserServiceImpl implements UserService {
         railPadPincodePoIMappingRepository.save(rpm);
 
         // 5. Save Multiple Plants into RAIL_VENDOR_PLANT
+        Set<Long> savedPlantIds = new HashSet<>();
         if (dto.getPlants() != null && !dto.getPlants().isEmpty()) {
             Set<String> seenPlantIds = new HashSet<>();
             Set<String> seenPlantNames = new HashSet<>();
@@ -2961,6 +2957,10 @@ public class UserServiceImpl implements UserService {
                 if (vp == null && plantDto.getPlantId() != null && !plantDto.getPlantId().trim().isEmpty()) {
                     vp = railVendorPlantsRepository.findByPlantId(plantDto.getPlantId().trim()).orElse(null);
                 }
+                // Never take over a plant that belongs to another vendor
+                if (vp != null && !isOwnPlant(vp.getVendorId(), vp.getVendorCode(), userMaster, vendorCodeFormatted)) {
+                    throw plantOwnedByOtherVendor(vp.getPlantId(), vp.getVendorCode());
+                }
                 if (vp == null) {
                     com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants foundRvp =
                             railVendorPlantsRepository.findByCompanyNameAndPlantName(cleanCompanyName, plantName).orElse(null);
@@ -2990,7 +2990,8 @@ public class UserServiceImpl implements UserService {
                     vp.setCreatedDate(LocalDateTime.now());
                 }
                 vp.setUpdatedDate(LocalDateTime.now());
-                railVendorPlantsRepository.save(vp);
+                vp = railVendorPlantsRepository.save(vp);
+                savedPlantIds.add(vp.getId());
 
                 // Sync IBS Vendor Code in sarthi_ibs_poi_mapping
                 if (plantId != null && !plantId.trim().isEmpty()) {
@@ -3020,12 +3021,50 @@ public class UserServiceImpl implements UserService {
             }
         }
 
+        // 6. Remove plants that belong to this vendor but were dropped from the submitted list.
+        // Skipped when no plants were saved, so an empty/missing list never wipes everything.
+        if (!savedPlantIds.isEmpty()) {
+            Map<Long, com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> existingPlants = new HashMap<>();
+            if (userMaster.getUserId() != null) {
+                railVendorPlantsRepository.findByVendorId(userMaster.getUserId().longValue())
+                        .forEach(p -> existingPlants.put(p.getId(), p));
+            }
+            railVendorPlantsRepository.findByVendorCode(vendorCodeFormatted)
+                    .forEach(p -> existingPlants.put(p.getId(), p));
+            railVendorPlantsRepository.findByVendorCode(vendorCodeFormatted.substring(1))
+                    .forEach(p -> existingPlants.put(p.getId(), p));
+
+            List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> removed = existingPlants.values().stream()
+                    .filter(p -> !savedPlantIds.contains(p.getId()))
+                    .toList();
+            if (!removed.isEmpty()) {
+                railVendorPlantsRepository.deleteAll(removed);
+            }
+        }
+
         Map<String, Object> result = new HashMap<>();
         result.put("userId", userMaster.getUserId());
         result.put("userName", userMaster.getUsername());
         result.put("employeeCode", userMaster.getEmployeeCode());
         result.put("message", "Railpad Vendor registered successfully!");
         return result;
+    }
+
+    /** True when an existing plant row belongs to the vendor being saved (by user id, or by vendor code for older rows). */
+    private boolean isOwnPlant(Long plantVendorId, String plantVendorCode, UserMaster userMaster, String vendorCodeFormatted) {
+        if (plantVendorId != null && userMaster.getUserId() != null) {
+            return plantVendorId == userMaster.getUserId().longValue();
+        }
+        if (plantVendorCode == null || plantVendorCode.isBlank()) {
+            return true; // orphan row with no owner, safe to claim
+        }
+        String code = plantVendorCode.trim().replaceAll("^:", "");
+        return code.equals(vendorCodeFormatted.replaceAll("^:", ""));
+    }
+
+    private BusinessException plantOwnedByOtherVendor(String plantId, String ownerVendorCode) {
+        return new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE, AppConstant.ERROR_TYPE_CODE_RESOURCE, AppConstant.ERROR_TYPE_VALIDATION,
+                "Plant ID '" + plantId + "' is already registered to vendor " + ownerVendorCode + ". Please use a different Plant ID."));
     }
 
     private synchronized String generateNextRailpadPoiCode() {

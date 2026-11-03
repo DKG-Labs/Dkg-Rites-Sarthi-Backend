@@ -2417,6 +2417,15 @@ public class reportsImpl implements reports {
                 List<FourthLevelInspectionDto> resultList = new ArrayList<>();
                 Map<String, String> userEmpCodeCache = new HashMap<>();
 
+                // Load every defect table once for this call; per-shift sums are done in memory below
+                Map<String, List<ProcessShearingData>> shearingByShift = groupByLotShift(processShearingDataRepository.findByInspectionCallNo(callId), ProcessShearingData::getLotNo, ProcessShearingData::getShift);
+                Map<String, List<ProcessTurningData>> turningByShift = groupByLotShift(processTurningDataRepository.findByInspectionCallNo(callId), ProcessTurningData::getLotNo, ProcessTurningData::getShift);
+                Map<String, List<ProcessQuenchingData>> quenchingByShift = groupByLotShift(processQuenchingDataRepository.findByInspectionCallNo(callId), ProcessQuenchingData::getLotNo, ProcessQuenchingData::getShift);
+                Map<String, List<ProcessTemperingData>> temperingByShift = groupByLotShift(processTemperingDataRepository.findByInspectionCallNo(callId), ProcessTemperingData::getLotNo, ProcessTemperingData::getShift);
+                Map<String, List<ProcessForgingData>> forgingByShift = groupByLotShift(processForgingDataRepository.findByInspectionCallNo(callId), ProcessForgingData::getLotNo, ProcessForgingData::getShift);
+                Map<String, List<ProcessFinalCheckData>> finalCheckByShift = groupByLotShift(processFinalCheckDataRepository.findByInspectionCallNo(callId), ProcessFinalCheckData::getLotNo, ProcessFinalCheckData::getShift);
+                Map<String, List<ProcessTestingFinishingData>> testingByShift = groupByLotShift(processTestingFinishingDataRepository.findByInspectionCallNo(callId), ProcessTestingFinishingData::getLotNo, ProcessTestingFinishingData::getShift);
+
                 for (ProcessLineFinalResult p : processList) {
 
                         if (p.getLotNumber() == null || p.getShift() == null) {
@@ -2505,177 +2514,95 @@ public class reportsImpl implements reports {
                         LocalDateTime startDate = createdAt.minusMinutes(2);
                         LocalDateTime endDate = createdAt.plusMinutes(2);
                         String lineNo = p.getLineNo();
+                        String lot = p.getLotNumber();
+                        String sh = p.getShift();
+
+                        // Rows of each defect table for this shift, picked from the per-call bulk loads above
+                        // (same filter as the old SUM queries: lot, shift, line if set, created_at within +/-2 min)
+                        List<ProcessShearingData> shR = pickShiftRows(shearingByShift, lot, sh, lineNo, ProcessShearingData::getLineNo, ProcessShearingData::getCreatedAt, startDate, endDate);
+                        List<ProcessTurningData> tuR = pickShiftRows(turningByShift, lot, sh, lineNo, ProcessTurningData::getLineNo, ProcessTurningData::getCreatedAt, startDate, endDate);
+                        List<ProcessQuenchingData> quR = pickShiftRows(quenchingByShift, lot, sh, lineNo, ProcessQuenchingData::getLineNo, ProcessQuenchingData::getCreatedAt, startDate, endDate);
+                        List<ProcessTemperingData> teR = pickShiftRows(temperingByShift, lot, sh, lineNo, ProcessTemperingData::getLineNo, ProcessTemperingData::getCreatedAt, startDate, endDate);
+                        List<ProcessForgingData> foR = pickShiftRows(forgingByShift, lot, sh, lineNo, ProcessForgingData::getLineNo, ProcessForgingData::getCreatedAt, startDate, endDate);
+                        List<ProcessFinalCheckData> fcR = pickShiftRows(finalCheckByShift, lot, sh, lineNo, ProcessFinalCheckData::getLineNo, ProcessFinalCheckData::getCreatedAt, startDate, endDate);
+                        List<ProcessTestingFinishingData> tfR = pickShiftRows(testingByShift, lot, sh, lineNo, ProcessTestingFinishingData::getLineNo, ProcessTestingFinishingData::getCreatedAt, startDate, endDate);
 
                         // ================= SHEARING DEFECTS =================
 
-                        List<Object[]> list = processShearingDataRepository.getShearingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Object[] sums = (list != null && !list.isEmpty()) ? list.get(0) : null;
-
                         ShearingDefectsDto shearing = new ShearingDefectsDto();
-                        shearing.setLengthOfCutBar(0);
-                        shearing.setOvalityImproperDiaAtEnd(0);
-                        shearing.setSharpEdges(0);
-                        shearing.setCrackedEdges(0);
-
-                        if (sums != null && sums.length == 4) {
-                                shearing.setLengthOfCutBar(((Number) sums[0]).intValue());
-                                shearing.setOvalityImproperDiaAtEnd(((Number) sums[1]).intValue());
-                                shearing.setSharpEdges(((Number) sums[2]).intValue());
-                                shearing.setCrackedEdges(((Number) sums[3]).intValue());
-                        }
+                        shearing.setLengthOfCutBar(sumOf(shR, ProcessShearingData::getLengthCutBarRejected));
+                        shearing.setOvalityImproperDiaAtEnd(sumOf(shR, ProcessShearingData::getImproperDiaRejected));
+                        shearing.setSharpEdges(sumOf(shR, ProcessShearingData::getSharpEdgesRejected));
+                        shearing.setCrackedEdges(sumOf(shR, ProcessShearingData::getCrackedEdgesRejected));
                         dto.setShearingDefects(shearing);
 
                         // ================= TURNING DEFECTS =================
 
-                        List<Object[]> tList = processTurningDataRepository.getTurningSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Object[] tSums = (tList != null && !tList.isEmpty()) ? tList.get(0) : null;
-
                         TurningDefectsDto turning = new TurningDefectsDto();
-                        turning.setParallelLength(0);
-                        turning.setFullTurningLength(0);
-                        turning.setTurningDia(0);
-
-                        if (tSums != null && tSums.length == 3) {
-                                turning.setParallelLength(((Number) tSums[0]).intValue());
-                                turning.setFullTurningLength(((Number) tSums[1]).intValue());
-                                turning.setTurningDia(((Number) tSums[2]).intValue());
-                        }
+                        turning.setParallelLength(sumOf(tuR, ProcessTurningData::getParallelLengthRejected));
+                        turning.setFullTurningLength(sumOf(tuR, ProcessTurningData::getFullTurningLengthRejected));
+                        turning.setTurningDia(sumOf(tuR, ProcessTurningData::getTurningDiaRejected));
                         dto.setTurningDefects(turning);
 
                         // ================= QUENCHING DEFECTS =================
 
-                        Integer quenchingHardness = processQuenchingDataRepository.getQuenchingHardnessSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
+                        int qBoxGauge = sumOf(quR, ProcessQuenchingData::getBoxGaugeRejected);
+                        int qFlat = sumOf(quR, ProcessQuenchingData::getFlatBearingAreaRejected);
+                        int qFall = sumOf(quR, ProcessQuenchingData::getFallingGaugeRejected);
 
                         QuenchingDefectsDto quenching = new QuenchingDefectsDto();
-                        quenching.setQuenchingHardness(quenchingHardness != null ? quenchingHardness : 0);
-
-                        Integer qBoxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        quenching.setBoxGaugeRejected(qBoxGauge != null ? qBoxGauge : 0);
-
-                        Integer qFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        quenching.setFlatBearingAreaRejected(qFlat != null ? qFlat : 0);
-
-                        Integer qFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        quenching.setFallingGaugeRejected(qFall != null ? qFall : 0);
-
+                        quenching.setQuenchingHardness(sumOf(quR, ProcessQuenchingData::getQuenchingHardnessRejected));
+                        quenching.setBoxGaugeRejected(qBoxGauge);
+                        quenching.setFlatBearingAreaRejected(qFlat);
+                        quenching.setFallingGaugeRejected(qFall);
                         dto.setQuenchingDefects(quenching);
 
                         // ================= TEMPERING DEFECTS =================
 
-                        List<Object[]> temperingList = processTemperingDataRepository.getTemperingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Object[] temperingSums = (temperingList != null && !temperingList.isEmpty()) ? temperingList.get(0) : null;
-
                         TemperingDefectsDto tempering = new TemperingDefectsDto();
-                        tempering.setTemperingTemp(0);
-                        tempering.setTemperingDuration(0);
-
-                        if (temperingSums != null && temperingSums.length == 2) {
-                                tempering.setTemperingTemp(((Number) temperingSums[0]).intValue());
-                                tempering.setTemperingDuration(((Number) temperingSums[1]).intValue());
-                        }
+                        tempering.setTemperingTemp(sumOf(teR, ProcessTemperingData::getTemperingTemperatureRejected));
+                        tempering.setTemperingDuration(sumOf(teR, ProcessTemperingData::getTemperingDurationRejected));
                         dto.setTemperingDefects(tempering);
 
                         // ================= FORGING DEFECTS =================
 
-                        List<Object[]> fList = processForgingDataRepository.getForgingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Object[] fSums = (fList != null && !fList.isEmpty()) ? fList.get(0) : null;
-
                         ForgingDefectsDto forging = new ForgingDefectsDto();
-                        forging.setForgingTemperature(0);
-                        forging.setForgingStabilisationRejection(0);
-                        forging.setImproperForging(0);
-                        forging.setForgingMarksNotches(0);
-
-                        if (fSums != null && fSums.length == 4) {
-                                forging.setForgingTemperature(((Number) fSums[0]).intValue());
-                                forging.setForgingStabilisationRejection(((Number) fSums[1]).intValue());
-                                forging.setImproperForging(((Number) fSums[2]).intValue());
-                                forging.setForgingMarksNotches(((Number) fSums[3]).intValue());
-                        }
+                        forging.setForgingTemperature(sumOf(foR, ProcessForgingData::getForgingTempRejected));
+                        forging.setForgingStabilisationRejection(sumOf(foR, ProcessForgingData::getForgingStabilisationRejectionRejected));
+                        forging.setImproperForging(sumOf(foR, ProcessForgingData::getImproperForgingRejected));
+                        forging.setForgingMarksNotches(sumOf(foR, ProcessForgingData::getForgingDefectRejected));
                         dto.setForgingDefects(forging);
 
                         // ================= VISUAL DEFECTS =================
 
-                        List<Object[]> vList = processFinalCheckDataRepository.getVisualDefectsSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Object[] visualSums = (vList != null && !vList.isEmpty()) ? vList.get(0) : null;
-
                         VisualDefectsDto visual = new VisualDefectsDto();
-                        visual.setSurfaceDefect(0);
-                        visual.setMarking(0);
-                        visual.setEmbossingDefect(0);
-
-                        if (visualSums != null && visualSums.length == 2) {
-                                visual.setSurfaceDefect(((Number) visualSums[0]).intValue());
-                                visual.setMarking(((Number) visualSums[1]).intValue());
-                        }
-
-                        Integer forgingEmbossing = processForgingDataRepository.getForgingEmbossingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Integer finalEmbossing = processFinalCheckDataRepository.getFinalEmbossingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        visual.setEmbossingDefect((forgingEmbossing != null ? forgingEmbossing : 0)
-                                        + (finalEmbossing != null ? finalEmbossing : 0));
+                        visual.setSurfaceDefect(sumOf(fcR, ProcessFinalCheckData::getSurfaceDefectRejected));
+                        visual.setMarking(sumOf(fcR, ProcessFinalCheckData::getMarkingRejected));
+                        visual.setEmbossingDefect(sumOf(foR, ProcessForgingData::getEmbossingDefectRejected)
+                                        + sumOf(fcR, ProcessFinalCheckData::getEmbossingDefectRejected));
                         dto.setVisualDefects(visual);
 
                         // ================= TESTING DEFECTS =================
 
-                        Integer temperingHardness = processFinalCheckDataRepository.getTemperingHardnessSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        List<Object[]> tfList = processTestingFinishingDataRepository.getTestingFinishingSumByDate(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Object[] tfSums = (tfList != null && !tfList.isEmpty()) ? tfList.get(0) : null;
-
                         TestingDefectsDto testing = new TestingDefectsDto();
-                        testing.setTemperingHardness(temperingHardness != null ? temperingHardness : 0);
-                        testing.setToeLoad(0);
-                        testing.setWeight(0);
-
-                        if (tfSums != null && tfSums.length == 4) {
-                                testing.setToeLoad(((Number) tfSums[0]).intValue());
-                                testing.setWeight(((Number) tfSums[1]).intValue());
-                        }
+                        testing.setTemperingHardness(sumOf(fcR, ProcessFinalCheckData::getTemperingHardnessRejected));
+                        testing.setToeLoad(sumOf(tfR, ProcessTestingFinishingData::getToeLoadRejected));
+                        testing.setWeight(sumOf(tfR, ProcessTestingFinishingData::getWeightRejected));
                         dto.setTestingDefects(testing);
 
                         // ================= FINISHING DEFECTS =================
 
                         FinishingDefectsDto finishing = new FinishingDefectsDto();
-                        finishing.setPaintIdentification(0);
-                        finishing.setErcCoating(0);
-
-                        if (tfSums != null && tfSums.length == 4) {
-                                finishing.setPaintIdentification(((Number) tfSums[2]).intValue());
-                                finishing.setErcCoating(((Number) tfSums[3]).intValue());
-                        }
+                        finishing.setPaintIdentification(sumOf(tfR, ProcessTestingFinishingData::getPaintIdentificationRejected));
+                        finishing.setErcCoating(sumOf(tfR, ProcessTestingFinishingData::getErcCoatingRejected));
                         dto.setFinishingDefects(finishing);
 
                         // ================= DIMENSIONAL DEFECTS =================
 
-                        Integer boxGauge = processQuenchingDataRepository.getQuenchingBoxGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Integer finalBox = processFinalCheckDataRepository.getFinalBoxGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Integer quenchFlat = processQuenchingDataRepository.getQuenchingFlatBearingSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Integer quenchFall = processQuenchingDataRepository.getQuenchingFallingGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Integer finalFlat = processFinalCheckDataRepository.getFinalFlatBearingSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-                        Integer finalFall = processFinalCheckDataRepository.getFinalFallingGaugeSum(
-                                        callId, p.getLotNumber(), p.getShift(), lineNo, startDate, endDate);
-
                         DimensionalDefectsDto dimensional = new DimensionalDefectsDto();
-                        dimensional.setBoxGauge((boxGauge != null ? boxGauge : 0) + (finalBox != null ? finalBox : 0));
-                        dimensional.setFlatBearingArea((quenchFlat != null ? quenchFlat : 0) + (finalFlat != null ? finalFlat : 0));
-                        dimensional.setFallingGauge((quenchFall != null ? quenchFall : 0) + (finalFall != null ? finalFall : 0));
+                        dimensional.setBoxGauge(qBoxGauge + sumOf(fcR, ProcessFinalCheckData::getBoxGaugeRejected));
+                        dimensional.setFlatBearingArea(qFlat + sumOf(fcR, ProcessFinalCheckData::getFlatBearingAreaRejected));
+                        dimensional.setFallingGauge(qFall + sumOf(fcR, ProcessFinalCheckData::getFallingGaugeRejected));
                         dto.setDimensionalDefects(dimensional);
 
                         if (hasAnyDefectOrProductionData(dto)) {
@@ -2688,6 +2615,57 @@ public class reportsImpl implements reports {
                 return resultList;
 
         }
+
+        // ---- Bulk-load helpers for getFourthLevelReport (avoid one SUM query per shift per defect) ----
+
+        /**
+         * Normalises a value the way MySQL '=' compares it under utf8mb4_unicode_ci:
+         * case-insensitive and trailing spaces ignored (leading spaces still count).
+         */
+        private static String sqlKey(String v) {
+                return v == null ? null : v.replaceAll("\\s+$", "").toLowerCase();
+        }
+
+        /** Groups a call's defect rows by lot + shift; rows with no lot or shift never matched the old queries. */
+        private static <T> Map<String, List<T>> groupByLotShift(List<T> rows,
+                        java.util.function.Function<T, String> lotFn, java.util.function.Function<T, String> shiftFn) {
+                Map<String, List<T>> map = new HashMap<>();
+                if (rows == null) return map;
+                for (T r : rows) {
+                        String lot = sqlKey(lotFn.apply(r));
+                        String shift = sqlKey(shiftFn.apply(r));
+                        if (lot == null || shift == null) continue;
+                        map.computeIfAbsent(lot + "|" + shift, k -> new ArrayList<>()).add(r);
+                }
+                return map;
+        }
+
+        /** Same filter as the old queries: lot, shift, (lineNo IS NULL OR line_no = lineNo), created_at BETWEEN start AND end. */
+        private static <T> List<T> pickShiftRows(Map<String, List<T>> byShift, String lot, String shift, String lineNo,
+                        java.util.function.Function<T, String> lineFn, java.util.function.Function<T, LocalDateTime> createdFn,
+                        LocalDateTime start, LocalDateTime end) {
+                List<T> candidates = byShift.get(sqlKey(lot) + "|" + sqlKey(shift));
+                if (candidates == null || candidates.isEmpty()) return Collections.emptyList();
+                String line = sqlKey(lineNo);
+                List<T> out = new ArrayList<>();
+                for (T r : candidates) {
+                        if (line != null && !line.equals(sqlKey(lineFn.apply(r)))) continue;
+                        LocalDateTime c = createdFn.apply(r);
+                        if (c == null || c.isBefore(start) || c.isAfter(end)) continue;
+                        out.add(r);
+                }
+                return out;
+        }
+
+        private static <T> int sumOf(List<T> rows, java.util.function.Function<T, Integer> fn) {
+                int total = 0;
+                for (T r : rows) {
+                        Integer v = fn.apply(r);
+                        if (v != null) total += v;
+                }
+                return total;
+        }
+
 
         private boolean hasAnyDefectOrProductionData(FourthLevelInspectionDto dto) {
                 if (dto == null) return false;
@@ -8161,14 +8139,25 @@ public class reportsImpl implements reports {
         }
 
         @Override
+        public List<String> getAllProcessIcNumbers() {
+                List<String> icNumbers = inspectionCallRepository.findAllProcessIcNumbers();
+                return icNumbers != null ? icNumbers : new ArrayList<>();
+        }
+
+        @Override
         public void updateProcessDefectSummary(Long finalResultId, ProcessDefectSummaryUpdateRequest request) {
+                updateProcessDefectSummary(finalResultId, request, false);
+        }
+
+        @Override
+        public void updateProcessDefectSummary(Long finalResultId, ProcessDefectSummaryUpdateRequest request, boolean adminOverride) {
                 ProcessLineFinalResult p = processLineFinalResultRepository.findById(finalResultId)
                                 .orElseThrow(() -> new RuntimeException("Process Line Final Result not found for ID: " + finalResultId));
 
                 LocalDate createdDate = p.getCreatedAt() != null ? p.getCreatedAt().toLocalDate() : p.getDateOfInspection();
                 LocalDate today = LocalDate.now();
                 LocalDate yesterday = today.minusDays(1);
-                if (createdDate != null && !createdDate.isEqual(today) && !createdDate.isEqual(yesterday)) {
+                if (!adminOverride && createdDate != null && !createdDate.isEqual(today) && !createdDate.isEqual(yesterday)) {
                         throw new RuntimeException("Editing is disabled for records created before yesterday (Record date: " + createdDate + "). Only records created today or yesterday are allowed.");
                 }
 
@@ -8179,7 +8168,7 @@ public class reportsImpl implements reports {
                 String createdBy = p.getCreatedBy();
                 String updatedBy = (request.getUpdatedBy() != null && !request.getUpdatedBy().trim().isEmpty()) ? request.getUpdatedBy().trim() : createdBy;
 
-                if (updatedBy != null && !updatedBy.trim().isEmpty() && createdBy != null && !createdBy.trim().isEmpty()) {
+                if (!adminOverride && updatedBy != null && !updatedBy.trim().isEmpty() && createdBy != null && !createdBy.trim().isEmpty()) {
                         if (!isSameUser(updatedBy, createdBy)) {
                                 throw new RuntimeException("Unauthorized: You can only edit your own shift records.");
                         }
@@ -8485,13 +8474,18 @@ public class reportsImpl implements reports {
 
         @Override
         public void deleteProcessDefectSummary(Long finalResultId, String userId) {
+                deleteProcessDefectSummary(finalResultId, userId, false);
+        }
+
+        @Override
+        public void deleteProcessDefectSummary(Long finalResultId, String userId, boolean adminOverride) {
                 ProcessLineFinalResult p = processLineFinalResultRepository.findById(finalResultId)
                                 .orElseThrow(() -> new RuntimeException("Process Line Final Result not found for ID: " + finalResultId));
 
                 LocalDate createdDate = p.getCreatedAt() != null ? p.getCreatedAt().toLocalDate() : p.getDateOfInspection();
                 LocalDate today = LocalDate.now();
                 LocalDate yesterday = today.minusDays(1);
-                if (createdDate != null && !createdDate.isEqual(today) && !createdDate.isEqual(yesterday)) {
+                if (!adminOverride && createdDate != null && !createdDate.isEqual(today) && !createdDate.isEqual(yesterday)) {
                         throw new RuntimeException("Deleting is disabled for records created before yesterday (Record date: " + createdDate + "). Only records created today or yesterday are allowed.");
                 }
 
@@ -8501,7 +8495,7 @@ public class reportsImpl implements reports {
                 String lotNo = p.getLotNumber();
                 String createdBy = p.getCreatedBy();
 
-                if (userId != null && !userId.trim().isEmpty() && createdBy != null && !createdBy.trim().isEmpty()) {
+                if (!adminOverride && userId != null && !userId.trim().isEmpty() && createdBy != null && !createdBy.trim().isEmpty()) {
                         if (!isSameUser(userId, createdBy)) {
                                 throw new RuntimeException("Unauthorized: You can only delete your own shift records.");
                         }
