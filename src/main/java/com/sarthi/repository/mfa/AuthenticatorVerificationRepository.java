@@ -4,7 +4,9 @@ import com.sarthi.entity.mfa.AuthenticatorVerification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -45,15 +47,23 @@ public interface AuthenticatorVerificationRepository extends JpaRepository<Authe
             + "v.deviceInfo as deviceInfo, v.ipAddress as ipAddress, v.status as status, "
             + "v.createdAt as createdAt, v.verifiedAt as verifiedAt, v.expiresAt as expiresAt "
             + "from AuthenticatorVerification v "
-            + "where v.status = :status and v.verifiedAt >= :fromDt and v.verifiedAt <= :toDt "
-            + "and (:search = '' or lower(v.userName) like lower(concat('%', :search, '%'))) "
-            + "order by v.verifiedAt desc, v.id desc",
-            countQuery = "select count(v) from AuthenticatorVerification v "
-            + "where v.status = :status and v.verifiedAt >= :fromDt and v.verifiedAt <= :toDt "
-            + "and (:search = '' or lower(v.userName) like lower(concat('%', :search, '%')))")
-    Page<ActiveLoginRow> findActiveLogins(@Param("status") String status,
-                                          @Param("fromDt") LocalDateTime fromDt,
-                                          @Param("toDt") LocalDateTime toDt,
-                                          @Param("search") String search,
-                                          Pageable pageable);
+            + "where v.status = :status and v.expiresAt > :now "
+            + "order by v.id desc")
+    /**
+     * Every currently valid login (authenticated, not expired, not logged out), newest first.
+     * One simple filter, no sub-queries: the caller keeps the latest row per user and pages in memory.
+     * This is a small set (people logged in right now), and the selfie column is left out.
+     */
+    java.util.List<ActiveLoginRow> findAllActive(@Param("status") String status,
+                                                 @Param("now") LocalDateTime now);
+
+    /** Ends every still-active session of a user (called on logout). */
+    @Modifying
+    @Transactional
+    @Query("update AuthenticatorVerification v set v.status = :newStatus "
+            + "where v.userId in :userIds and v.status = :status and v.expiresAt > :now")
+    int endActiveSessions(@Param("userIds") java.util.Collection<String> userIds,
+                          @Param("status") String status,
+                          @Param("newStatus") String newStatus,
+                          @Param("now") LocalDateTime now);
 }

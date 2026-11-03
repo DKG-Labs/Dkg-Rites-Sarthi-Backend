@@ -207,17 +207,39 @@ public class reportsController {
         @PutMapping("/process-defect-summary/{finalResultId}")
         public ResponseEntity<Object> updateProcessDefectSummary(
                         @PathVariable Long finalResultId,
-                        @RequestBody ProcessDefectSummaryUpdateRequest request) {
-                reportService.updateProcessDefectSummary(finalResultId, request);
+                        @RequestBody ProcessDefectSummaryUpdateRequest request,
+                        @org.springframework.security.core.annotation.AuthenticationPrincipal Object principal) {
+                reportService.updateProcessDefectSummary(finalResultId, request, isAdmin(principal));
                 return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse("Process defect summary updated successfully"), HttpStatus.OK);
         }
 
         @DeleteMapping("/process-defect-summary/{finalResultId}")
         public ResponseEntity<Object> deleteProcessDefectSummary(
                         @PathVariable Long finalResultId,
-                        @RequestParam(required = false) String userId) {
-                reportService.deleteProcessDefectSummary(finalResultId, userId);
+                        @RequestParam(required = false) String userId,
+                        @org.springframework.security.core.annotation.AuthenticationPrincipal Object principal) {
+                reportService.deleteProcessDefectSummary(finalResultId, userId, isAdmin(principal));
                 return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse("Process defect summary deleted successfully"), HttpStatus.OK);
+        }
+
+        /** All process (EP) call numbers; admin only. */
+        @GetMapping("/process/ic-numbers-all")
+        public ResponseEntity<Object> getAllProcessIcNumbers(
+                        @org.springframework.security.core.annotation.AuthenticationPrincipal Object principal) {
+                if (!isAdmin(principal)) {
+                        return new ResponseEntity<Object>(
+                                        ResponseBuilder.getErrorResponse(new ErrorDetails(403, 403, "FORBIDDEN", "Only admin can view all process calls")),
+                                        HttpStatus.FORBIDDEN);
+                }
+                return new ResponseEntity<Object>(reportService.getAllProcessIcNumbers(), HttpStatus.OK);
+        }
+
+        /** Admin role is read from the logged-in user (JWT), never from request parameters. */
+        private boolean isAdmin(Object principal) {
+                if (!(principal instanceof com.sarthi.entity.UserMaster user) || user.getRoleName() == null) return false;
+                return java.util.Arrays.stream(user.getRoleName().split(","))
+                                .map(r -> r.trim().toUpperCase())
+                                .anyMatch(r -> r.equals("ADMIN") || r.equals("RITES ADMIN") || r.equals("RITES_ADMIN") || r.equals("SUPER ADMIN") || r.equals("SUPER_ADMIN"));
         }
 
         @GetMapping("/process-defect-summary/lookup")

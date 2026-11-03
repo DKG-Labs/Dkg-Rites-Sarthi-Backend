@@ -210,6 +210,14 @@ public interface reports {
 
         public void updateProcessDefectSummary(Long finalResultId, ProcessDefectSummaryUpdateRequest request);
 
+        /** adminOverride skips the "today/yesterday only" and "own shift only" checks. */
+        public void updateProcessDefectSummary(Long finalResultId, ProcessDefectSummaryUpdateRequest request, boolean adminOverride);
+
+        public void deleteProcessDefectSummary(Long finalResultId, String userId, boolean adminOverride);
+
+        /** All process (EP) call numbers, for the admin Process Defect Summary. */
+        public List<String> getAllProcessIcNumbers();
+
         public void deleteProcessDefectSummary(Long finalResultId, String userId);
         public Long lookupProcessFinalResultId(String callNo, String shift, String lotNo, String lineNo);
 }

@@ -1115,6 +1115,154 @@ public class CertificateServiceImpl implements CertificateService {
         return null;
     }
 
+    /**
+     * Share of the source IC that was diverted, from the diversion request linked to the IC:
+     * per heat = diversionQty / acceptedQty of the request items, overall = total diverted / total accepted.
+     * Null when the IC isn't diverted or the request can't be read.
+     */
+    private static final class DiversionRatios {
+        final Map<String, double[]> perHeat = new HashMap<>(); // heatNo -> {diverted, accepted}
+        Double overall;
+
+        /** Ratio for a lot: its heat's ratio when it matches, otherwise the overall ratio. */
+        Double ratioFor(String lotHeatNo) {
+            if (lotHeatNo != null) {
+                String lotHeat = lotHeatNo.toUpperCase();
+                for (Map.Entry<String, double[]> e : perHeat.entrySet()) {
+                    // Lot heat can be a combined label like "BPHN-08 - KM999"
+                    if ((lotHeat.equals(e.getKey()) || lotHeat.contains(e.getKey())) && e.getValue()[1] > 0) {
+                        return Math.min(1.0, e.getValue()[0] / e.getValue()[1]);
+                    }
+                }
+            }
+            return overall;
+        }
+    }
+
+    /**
+     * @param fallbackAcceptedTotal source accepted quantity to divide by when the request items don't carry it
+     */
+    private DiversionRatios loadDiversionRatios(InspectionCall call, double fallbackAcceptedTotal) {
+        if (!Boolean.TRUE.equals(call.getIsDivertedMaterial())
+                || call.getDiversionRequestNo() == null || call.getDiversionRequestNo().isBlank()
+                || ercDiversionRequestRepository == null) {
+            return null;
+        }
+        com.sarthi.entity.ercdiversion.ErcDiversionRequest request;
+        try {
+            request = ercDiversionRequestRepository.findByRequestNo(call.getDiversionRequestNo().trim()).orElse(null);
+        } catch (Exception e) {
+            logger.warn("Could not load diversion request {}: {}", call.getDiversionRequestNo(), e.getMessage());
+            return null;
+        }
+        if (request == null) return null;
+
+        DiversionRatios ratios = new DiversionRatios();
+        double itemsDiverted = 0, itemsAccepted = 0;
+        if (request.getItems() != null) {
+            for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : request.getItems()) {
+                double diverted = item.getDiversionQty() != null ? item.getDiversionQty().doubleValue() : 0;
+                double accepted = item.getAcceptedQty() != null ? item.getAcceptedQty().doubleValue() : 0;
+                itemsDiverted += diverted;
+                itemsAccepted += accepted;
+                if (item.getHeatNo() != null && !item.getHeatNo().isBlank()) {
+                    ratios.perHeat.merge(item.getHeatNo().trim().toUpperCase(), new double[]{diverted, accepted},
+                            (a, b) -> new double[]{a[0] + b[0], a[1] + b[1]});
+                }
+            }
+        }
+        double totalDiverted = itemsDiverted > 0 ? itemsDiverted
+                : (request.getTotalDiversionQty() != null ? request.getTotalDiversionQty().doubleValue() : 0);
+        double totalAccepted = itemsAccepted > 0 ? itemsAccepted : fallbackAcceptedTotal;
+        ratios.overall = (totalDiverted > 0 && totalAccepted > 0) ? Math.min(1.0, totalDiverted / totalAccepted) : null;
+        return ratios;
+    }
+
+    /**
+     * Process certificate of a diverted IC: the lots are the source IC's full quantities, so scale each
+     * to the diverted share (e.g. 10,000 of 20,000 accepted -> 50%). Whole numbers only;
+     * accepted = processed - rejected so each row adds up. Full diversions stay unchanged.
+     */
+    private void applyDiversionRatio(InspectionCall call, List<ProcessMaterialCertificateDto.LotDetailDto> lots) {
+        if (lots == null || lots.isEmpty()) return;
+        DiversionRatios ratios = loadDiversionRatios(call,
+                lots.stream().mapToDouble(l -> l.getAcceptedQty() != null ? l.getAcceptedQty() : 0).sum());
+        if (ratios == null) return;
+
+        for (ProcessMaterialCertificateDto.LotDetailDto lot : lots) {
+            Double ratio = ratios.ratioFor(lot.getHeatNo());
+            if (ratio == null || ratio >= 1.0) continue;
+            int processed = (int) Math.round((lot.getTotalProcessed() != null ? lot.getTotalProcessed() : 0) * ratio);
+            int rejected = (int) Math.round((lot.getRejectedQty() != null ? lot.getRejectedQty() : 0) * ratio);
+            lot.setTotalProcessed(processed);
+            lot.setRejectedQty(Math.min(rejected, processed));
+            lot.setAcceptedQty(Math.max(0, processed - lot.getRejectedQty()));
+        }
+        logger.info("Scaled process certificate lots for diverted IC {} (request {}, overall ratio {})",
+                call.getIcNumber(), call.getDiversionRequestNo(), ratios.overall);
+    }
+
+    /**
+     * Final certificate of a diverted IC. Lot rows come from the source IC, where accepted was not
+     * stored per lot, so accepted = offered - that lot's rejected. Then, for a partial diversion, every
+     * lot and the "now" totals are scaled to the diverted share (whole numbers).
+     */
+    private void applyFinalDiversion(InspectionCall call, FinalCertificateDto dto, Map<String, Integer> rejectedByLot) {
+        List<FinalCertificateDto.LotDetailDto> lots = dto.getLotDetails() != null ? dto.getLotDetails() : new ArrayList<>();
+
+        for (FinalCertificateDto.LotDetailDto lot : lots) {
+            int offered = lot.getOfferedQty() != null ? lot.getOfferedQty() : 0;
+            if ((lot.getAcceptedQty() == null || lot.getAcceptedQty() == 0) && offered > 0) {
+                int rej = lot.getLotNo() != null && rejectedByLot.containsKey(lot.getLotNo().trim())
+                        ? rejectedByLot.get(lot.getLotNo().trim())
+                        : (lot.getRejectedQty() != null ? lot.getRejectedQty() : 0);
+                lot.setRejectedQty(Math.min(rej, offered));
+                lot.setAcceptedQty(offered - lot.getRejectedQty());
+            }
+        }
+
+        double passedNow = dto.getQtyNowPassed() != null ? dto.getQtyNowPassed() : 0;
+        DiversionRatios ratios = loadDiversionRatios(call, passedNow);
+        boolean scaled = false;
+        if (ratios != null) {
+            for (FinalCertificateDto.LotDetailDto lot : lots) {
+                Double ratio = ratios.ratioFor(lot.getHeatNo());
+                if (ratio == null || ratio >= 1.0) continue;
+                int offered = (int) Math.round((lot.getOfferedQty() != null ? lot.getOfferedQty() : 0) * ratio);
+                int rejected = (int) Math.round((lot.getRejectedQty() != null ? lot.getRejectedQty() : 0) * ratio);
+                lot.setOfferedQty(offered);
+                lot.setRejectedQty(Math.min(rejected, offered));
+                lot.setAcceptedQty(offered - lot.getRejectedQty());
+                scaled = true;
+            }
+            if (lots.isEmpty() && ratios.overall != null && ratios.overall < 1.0) {
+                double r = ratios.overall;
+                double offered = Math.round((dto.getQtyNowOffered() != null ? dto.getQtyNowOffered() : 0) * r);
+                double rejected = Math.min(offered, Math.round((dto.getQtyNowRejected() != null ? dto.getQtyNowRejected() : 0) * r));
+                dto.setQtyNowOffered(offered);
+                dto.setQtyNowRejected(rejected);
+                dto.setQtyNowPassed(offered - rejected);
+            }
+        }
+
+        // Keep the header totals equal to the lot rows when the rows were changed
+        if (!lots.isEmpty() && (scaled || passedNow <= 0)) {
+            dto.setQtyNowOffered((double) lots.stream().mapToInt(l -> l.getOfferedQty() != null ? l.getOfferedQty() : 0).sum());
+            dto.setQtyNowRejected((double) lots.stream().mapToInt(l -> l.getRejectedQty() != null ? l.getRejectedQty() : 0).sum());
+            dto.setQtyNowPassed((double) lots.stream().mapToInt(l -> l.getAcceptedQty() != null ? l.getAcceptedQty() : 0).sum());
+        }
+        for (FinalCertificateDto.LotDetailDto lot : lots) {
+            lot.setStatus(lot.getRejectedQty() != null && lot.getRejectedQty() > 0 ? "PARTIAL" : "ACCEPTED");
+        }
+
+        double onOrder = dto.getQtyOnOrder() != null ? dto.getQtyOnOrder() : 0;
+        double passedPrev = dto.getQtyPassedPreviously() != null ? dto.getQtyPassedPreviously() : 0;
+        dto.setQtyStillDue(Math.max(0.0, onOrder - passedPrev - (dto.getQtyNowPassed() != null ? dto.getQtyNowPassed() : 0)));
+        logger.info("Final certificate of diverted IC {}: now offered {}, passed {}, rejected {} (ratio {})",
+                call.getIcNumber(), dto.getQtyNowOffered(), dto.getQtyNowPassed(), dto.getQtyNowRejected(),
+                ratios != null ? ratios.overall : null);
+    }
+
     private String formatDate(LocalDate date) {
         return date != null ? date.format(DATE_FORMATTER) : "";
     }
@@ -1230,6 +1378,8 @@ public class CertificateServiceImpl implements CertificateService {
         // 5. Fetch Process Line Final Results (for lot details)
         List<ProcessLineFinalResult> lineFinalResults = processLineFinalResultRepository
                 .findByInspectionCallNo(effectiveCallNo);
+        // True only when a diverted IC's lots come from the source IC's results
+        boolean lotsFromSource = !effectiveCallNo.equals(inspectionCall.getIcNumber()) && !lineFinalResults.isEmpty();
         if (lineFinalResults.isEmpty() && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
             lineFinalResults = processLineFinalResultRepository
                     .findByInspectionCallNo(inspectionCall.getIcNumber());
@@ -1237,6 +1387,13 @@ public class CertificateServiceImpl implements CertificateService {
 
         // 6. Build Lot Details
         List<ProcessMaterialCertificateDto.LotDetailDto> lots = buildProcessLotDetails(lineFinalResults);
+
+        // Diverted IC: lots taken from the source IC are its full quantities, so scale them to the
+        // share actually diverted (e.g. 10,000 of 20,000 accepted -> 50%).
+        // Normal ICs, and diverted ICs with their own results, are left unchanged.
+        if (lotsFromSource) {
+            applyDiversionRatio(inspectionCall, lots);
+        }
 
         // 6. Load Sections Pre-calculated
         calculateOfferedInstallment(inspectionCall.getPoNo());
@@ -1729,6 +1886,8 @@ public class CertificateServiceImpl implements CertificateService {
     private FinalCertificateDto buildFinalCertificateDto(InspectionCall inspectionCall,
             FinalInspectionDetails finalDetails) {
         logger.info("Building final certificate DTO for IC: {}", inspectionCall.getIcNumber());
+        // Whether this IC has its own final inspection (checked before any fallback to the source IC)
+        final boolean hasOwnFinalDetails = finalDetails != null;
 
         // Determine effective call number for test results:
         String effectiveCallNo = inspectionCall.getIcNumber();
@@ -1827,6 +1986,22 @@ public class CertificateServiceImpl implements CertificateService {
                 ? finalDetails.getTotalRejectedQty().doubleValue()
                 : 0.0;
 
+        // Diverted IC with no inspection of its own: the results are recorded under the source IC.
+        // Take only the "now" quantities from the source; "previously" belongs to this IC's own (target) PO.
+        // Any other IC (normal, or diverted but inspected itself) keeps the original flow unchanged.
+        final boolean divertedFromSource = !effectiveCallNo.equals(inspectionCall.getIcNumber())
+                && !hasOwnFinalDetails
+                && finalInspectionLotResultsRepository.findByInspectionCallNo(inspectionCall.getIcNumber()).isEmpty();
+        final String resultsCallNo = divertedFromSource ? effectiveCallNo : inspectionCall.getIcNumber();
+        if (cumulativeResults == null && divertedFromSource) {
+            FinalCumulativeResults sourceCum = finalCumulativeResultsRepository.findByInspectionCallNo(effectiveCallNo).orElse(null);
+            if (sourceCum != null) {
+                if (sourceCum.getQtyNowOffered() != null) qtyNowOffered = sourceCum.getQtyNowOffered().doubleValue();
+                if (sourceCum.getQtyNowPassed() != null) qtyNowPassed = sourceCum.getQtyNowPassed().doubleValue();
+                if (sourceCum.getQtyNowRejected() != null) qtyNowRejected = sourceCum.getQtyNowRejected().doubleValue();
+            }
+        }
+
         if (cumulativeResults != null) {
             offeredPrev = cumulativeResults.getCummQtyOfferedPreviously() != null
                     ? cumulativeResults.getCummQtyOfferedPreviously().doubleValue()
@@ -1852,12 +2027,33 @@ public class CertificateServiceImpl implements CertificateService {
             logger.info("Summed previous quantities for {} in {} ms", poSerialNo, (qEnd - qStart));
         }
 
-        Integer totalErcUsed = finalInspectionLotResultsRepository.sumErcUsedForTestingByInspectionCallNo(inspectionCall.getIcNumber());
+        Integer totalErcUsed = finalInspectionLotResultsRepository.sumErcUsedForTestingByInspectionCallNo(resultsCallNo);
         int ercUsed = totalErcUsed != null ? totalErcUsed : 0;
+
+        // Per-lot rejected counts from the lot results (used for diverted ICs, whose own records are empty)
+        Map<String, Integer> rejectedByLot = new HashMap<>();
+        if (divertedFromSource) {
+            for (FinalInspectionLotResults r : finalInspectionLotResultsRepository.findByInspectionCallNo(resultsCallNo)) {
+                if (r.getLotNo() != null) {
+                    rejectedByLot.merge(r.getLotNo().trim(), r.getTotalRejectedQty() != null ? r.getTotalRejectedQty() : 0, Integer::sum);
+                }
+            }
+            // Passed was never stored for the source: it is offered - rejected
+            if (qtyNowPassed <= 0 && qtyNowOffered > 0) {
+                double rej = qtyNowRejected > 0 ? qtyNowRejected
+                        : rejectedByLot.values().stream().mapToInt(Integer::intValue).sum();
+                qtyNowRejected = rej;
+                qtyNowPassed = Math.max(0.0, qtyNowOffered - rej);
+            }
+        }
+
         double qtyStillDue = Math.max(0.0, qtyOnOrder - passedPrev - qtyNowPassed);
 
         long start = System.currentTimeMillis();
         List<LocalDate> visitDates = getVisitDates(inspectionCall.getIcNumber());
+        if (visitDates.isEmpty() && divertedFromSource) {
+            visitDates = getVisitDates(resultsCallNo);
+        }
         long end = System.currentTimeMillis();
         logger.info("Fetched visit dates for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
 
@@ -1889,9 +2085,9 @@ public class CertificateServiceImpl implements CertificateService {
         String certNo = generateCertificateNumber(inspectionCall);
         String contractor = buildContractorInfo(poHeader);
         String placeOfInspection = buildFinalPlaceOfInspection(finalDetails);
-        String sealingPattern = buildFinalSealingPattern(inspectionCall.getIcNumber());
+        String sealingPattern = buildFinalSealingPattern(resultsCallNo);
         String remarks = buildFinalRemarks(finalDetails);
-        Integer lotResultsRejectedSum = finalInspectionLotResultsRepository.sumTotalRejectedQtyByInspectionCallNo(inspectionCall.getIcNumber());
+        Integer lotResultsRejectedSum = finalInspectionLotResultsRepository.sumTotalRejectedQtyByInspectionCallNo(resultsCallNo);
         int totalRejCount = (lotResultsRejectedSum != null && lotResultsRejectedSum > 0) ? lotResultsRejectedSum : (int) qtyNowRejected;
         String reasonsForRejection = buildFinalReasonsForRejection(totalRejCount);
 
@@ -1944,6 +2140,9 @@ public class CertificateServiceImpl implements CertificateService {
         if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && inspectionCall.getSourceIcNo() != null) {
             String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
             dto.setRemarks((dto.getRemarks() != null ? dto.getRemarks() : "") + divNote);
+        }
+        if (divertedFromSource) {
+            applyFinalDiversion(inspectionCall, dto, rejectedByLot);
         }
         end = System.currentTimeMillis();
         logger.info("Built FinalCertificateDto for {} in {} ms", inspectionCall.getIcNumber(), (end - start));
