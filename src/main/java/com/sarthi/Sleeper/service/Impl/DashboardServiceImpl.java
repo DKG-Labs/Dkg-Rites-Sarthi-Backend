@@ -2012,10 +2012,41 @@ public class DashboardServiceImpl implements DashboardService {
                 }
             }
 
+            // The accepted quantity of each IC as the IC itself states it (numbers, or sets for turnouts); this is the
+            // figure the dashboard and the monthly progress report use. Per-batch figures are only the fallback.
+            java.util.Map<String, long[]> finalByCall = new java.util.HashMap<>();
+            java.util.Set<String> callNos = new java.util.HashSet<>();
+            for (Object[] r : closed) {
+                if (r[0] != null) callNos.add(r[0].toString().trim());
+            }
+            if (!callNos.isEmpty()) {
+                for (Object[] r : inspectionTestHeaderRepository.getFinalAcceptedByCalls(callNos)) {
+                    finalByCall.put(r[0].toString().trim(), new long[] { qNum(r[1]), qNum(r[2]) });
+                }
+            }
+
             // 2. Offered quantity, accepted quantity, calls and last IC date per plant and category;
             //    rejections are counted once per batch
             java.util.Set<String> countedBatch = new java.util.HashSet<>();
             java.util.Set<String> countedPd = new java.util.HashSet<>();
+            java.util.Set<String> countedCall = new java.util.HashSet<>();
+
+            // A call's batches can fall under more than one plant / sleeper category row. The IC is still one IC, so it
+            // is counted in a single "home" row: the one holding most of the call's offered quantity.
+            java.util.Map<String, java.util.Map<String, Long>> offeredByCallRow = new java.util.HashMap<>();
+            for (Object[] r : closed) {
+                Long homePd = pdByKey.get(norm.apply(r[1]) + "|" + day.apply(r[2]) + "|" + plantKey.apply(r[3]));
+                if (homePd == null) homePd = pdByKey.get(norm.apply(r[1]) + "|" + plantKey.apply(r[3]));
+                String homeCat = homePd != null ? categoryByPd.getOrDefault(homePd, "Mainline") : "Mainline";
+                String homeCall = r[0] == null ? "" : r[0].toString().trim();
+                offeredByCallRow.computeIfAbsent(homeCall, c -> new java.util.HashMap<>())
+                        .merge(plantKey.apply(r[3]) + "|" + homeCat.toLowerCase(), qNum(r[4]), Long::sum);
+            }
+            java.util.Map<String, String> homeRowByCall = new java.util.HashMap<>();
+            offeredByCallRow.forEach((c, byRow) -> homeRowByCall.put(c, byRow.entrySet().stream()
+                    .max(java.util.Map.Entry.<String, Long>comparingByValue().thenComparing(java.util.Map.Entry::getKey))
+                    .get().getKey()));
+
             for (Object[] r : closed) {
                 String key = norm.apply(r[1]) + "|" + day.apply(r[2]) + "|" + plantKey.apply(r[3]);
                 String looseKey = norm.apply(r[1]) + "|" + plantKey.apply(r[3]);
@@ -2023,14 +2054,22 @@ public class DashboardServiceImpl implements DashboardService {
                 if (pdId == null) pdId = pdByKey.get(looseKey);
                 String cat = pdId != null ? categoryByPd.getOrDefault(pdId, "Mainline") : "Mainline";
                 QualityRow q = rowOf.apply(r[3] == null ? null : r[3].toString(), cat);
+                String rowKey = q.plantKey + "|" + cat.toLowerCase();
 
-                q.inspected += qNum(r[4]);
-                q.icQty += qNum(r[5]);
-                if (r[0] != null) q.calls.add(r[0].toString().trim());
+                q.inspected += qNum(r[4]);   // offered in this batch
+                String callNo = r[0] == null ? "" : r[0].toString().trim();
+                long[] fin = finalByCall.get(callNo);
+                boolean homeRow = rowKey.equals(homeRowByCall.get(callNo));
+                if (fin == null) {
+                    q.icQty += qNum(r[5]);   // this batch's accepted quantity
+                } else if (homeRow && countedCall.add(callNo)) {
+                    // The IC's accepted quantity belongs to the call, so it is added once, not once per batch or row
+                    q.icQty += cat.toLowerCase().contains("turnout") && fin[1] > 0 ? fin[1] : fin[0];
+                }
+                if (r[0] != null && homeRow) q.calls.add(callNo);
                 String icDay = day.apply(r[6]);
                 if (icDay.compareTo(q.lastIcDay) > 0) q.lastIcDay = icDay;
 
-                String rowKey = q.plantKey + "|" + cat.toLowerCase();
                 if (countedBatch.add(rowKey + "|" + key)) {
                     q.rejectedInProcess += demouldingByBatch.containsKey(key)
                             ? demouldingByBatch.get(key) : demouldingByBatch.getOrDefault(looseKey, 0L);

@@ -1965,6 +1965,12 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         return digits.equals(ymd) || digits.equals(dmy) || digits.equals(mdy) || digits.contains(ymd) || digits.contains(dmy);
     }
 
+    // Unlike isCastingDateMatch, an unknown date is NOT a match: used where the date must corroborate the row
+    private boolean isCastingDateKnownMatch(LocalDate dDate, String testDateStr) {
+        if (dDate == null || testDateStr == null || testDateStr.isBlank()) return false;
+        return isCastingDateMatch(dDate, testDateStr);
+    }
+
     private boolean isCastingLocalDateMatch(LocalDate dDate, LocalDate testDate) {
         if (dDate == null || testDate == null) return true;
         return dDate.equals(testDate);
@@ -1991,7 +1997,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     .filter(m -> m != null && m.getBatchNumber() != null && isBatchMatch(m.getBatchNumber(), bNo))
                     .filter(m -> isPlantMatch(declPlant, m.getPlantId()))
                     .filter(m -> isVendorMatch(declVendor, m.getVendorCode(), parsedUserId))
-                    .filter(m -> isSleeperTypeMatch(targetSleeperType, m.getSleeperType()))
+                    // The sleeper type on a MOR row is typed in by hand and is sometimes wrong, while a batch number is
+                    // reused across sleeper types. Accept the row if its type matches OR its casting date is this
+                    // declaration's own casting date; a reused batch number on another date still does not match.
+                    .filter(m -> isSleeperTypeMatch(targetSleeperType, m.getSleeperType())
+                            || isCastingDateKnownMatch(declaration.getCastingDate(), m.getCastingDate()))
                     .collect(Collectors.toList());
 
             if (!matchingTests.isEmpty()) {

@@ -1401,6 +1401,14 @@ public class CallLetterServiceImpl implements CallLetterService {
                     } else if (etSleepersByBatch.containsKey(cleanBatch)) {
                         etSleepersDistinct.addAll(etSleepersByBatch.get(cleanBatch));
                     }
+                    // ET records are keyed by batch number only, so a reused batch number can bring in ET sleepers
+                    // from another batch/sleeper type. Keep only sleepers that belong to THIS call's batch.
+                    java.util.Set<String> ownSleepers = new java.util.HashSet<>();
+                    for (String s : goodSleepersList) ownSleepers.add(s.trim().toUpperCase());
+                    for (String s : rawBadSleepersList) ownSleepers.add(s.trim().toUpperCase());
+                    if (!ownSleepers.isEmpty()) {
+                        etSleepersDistinct.removeIf(s -> !ownSleepers.contains(s.trim().toUpperCase()));
+                    }
                     List<String> etSleepersList = new java.util.ArrayList<>(etSleepersDistinct);
                     String etNoStr = String.join(", ", etSleepersList);
                     int etCount = etSleepersList.size();
@@ -1519,9 +1527,6 @@ public class CallLetterServiceImpl implements CallLetterService {
                     }
                     // MF tables carry no sleeper type, so the same batch number on the same day/plant can hold
                     // samples of another sleeper type. Keep only samples that belong to THIS call's batch.
-                    java.util.Set<String> ownSleepers = new java.util.HashSet<>();
-                    for (String s : goodSleepersList) ownSleepers.add(s.trim().toUpperCase());
-                    for (String s : rawBadSleepersList) ownSleepers.add(s.trim().toUpperCase());
                     if (!ownSleepers.isEmpty()) {
                         mfSleepersDistinct.removeIf(s -> !ownSleepers.contains(s.trim().toUpperCase()));
                     }
