@@ -29,6 +29,8 @@ public class SleeperFinalIcEditDTO {
     private String manufacturer;
     private String trRecDate;
     private String noOfVisits;
+    private String dateOfCall;
+    private String desiredDate;
     private String datesOfInspection;
     private String sealingPattern;
     private String reasonsForRejection;

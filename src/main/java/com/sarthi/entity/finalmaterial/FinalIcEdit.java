@@ -67,6 +67,12 @@ public class FinalIcEdit {
     @Column(name = "NO_OF_VISITS")
     private String noOfVisits;
 
+    @Column(name = "DATE_OF_CALL")
+    private String dateOfCall;
+
+    @Column(name = "DESIRED_DATE")
+    private String desiredDate;
+
     @Column(name = "DATES_OF_INSPECTION", columnDefinition = "TEXT")
     private String datesOfInspection;
 

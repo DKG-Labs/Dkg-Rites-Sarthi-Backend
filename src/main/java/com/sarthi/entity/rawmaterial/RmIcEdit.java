@@ -73,6 +73,12 @@ public class RmIcEdit {
     @Column(name = "visits_no")
     private String visitsNo;
 
+    @Column(name = "call_date")
+    private String callDate;
+
+    @Column(name = "desired_date")
+    private String desiredDate;
+
     @Column(name = "inspection_date")
     private String inspectionDate;
 

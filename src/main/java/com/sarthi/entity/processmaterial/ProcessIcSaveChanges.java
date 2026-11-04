@@ -71,6 +71,12 @@ public class ProcessIcSaveChanges {
     @Column(name = "MAN_DAYS")
     private String manDays;
 
+    @Column(name = "CALL_DATE")
+    private String callDate;
+
+    @Column(name = "DESIRED_DATE")
+    private String desiredDate;
+
     @Column(name = "LOT_DETAILS", columnDefinition = "TEXT")
     private String lotDetails;
 

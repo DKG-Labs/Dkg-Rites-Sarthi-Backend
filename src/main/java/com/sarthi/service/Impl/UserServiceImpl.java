@@ -2993,11 +2993,14 @@ public class UserServiceImpl implements UserService {
                 vp = railVendorPlantsRepository.save(vp);
                 savedPlantIds.add(vp.getId());
 
-                // Sync IBS Vendor Code in sarthi_ibs_poi_mapping
-                if (plantId != null && !plantId.trim().isEmpty()) {
-                    SarthiIbsPoiMapping mapEntity = sarthiIbsPoiMappingRepository.findBestMatch(plantId, "railpad")
+                // Sync IBS Vendor Code in sarthi_ibs_poi_mapping, keyed by the Rail Pad POI code (e.g. POI02) because
+                // call raising and the IBS API look it up by POI code; the plant ID is only a fallback.
+                String ibsKey = (poiCode != null && !poiCode.trim().isEmpty()) ? poiCode.trim() : plantId;
+                if (ibsKey != null && !ibsKey.trim().isEmpty()
+                        && plantDto.getIbsVendorCode() != null && !plantDto.getIbsVendorCode().trim().isEmpty()) {
+                    SarthiIbsPoiMapping mapEntity = sarthiIbsPoiMappingRepository.findBestMatch(ibsKey, "railpad")
                             .orElse(new SarthiIbsPoiMapping());
-                    mapEntity.setPoiCode(plantId);
+                    mapEntity.setPoiCode(ibsKey);
                     if (plantDto.getIbsVendorCode() != null && !plantDto.getIbsVendorCode().trim().isEmpty()) {
                         mapEntity.setIbsVendorCode(plantDto.getIbsVendorCode().trim());
                     }
@@ -3203,15 +3206,16 @@ public class UserServiceImpl implements UserService {
                 pDto.setLatitude(vp.getLatitude());
                 pDto.setLongitude(vp.getLongitude());
 
+                // Rail Pad IBS code is keyed by POI code; older rows saved under the plant ID are the fallback
                 String ibsCode = null;
-                if (vp.getPlantId() != null && !vp.getPlantId().trim().isEmpty()) {
-                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(vp.getPlantId().trim(), "railpad");
+                if (rpm != null && rpm.getPoiCode() != null && !rpm.getPoiCode().trim().isEmpty()) {
+                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(rpm.getPoiCode().trim(), "railpad");
                     if (ibsOpt.isPresent()) {
                         ibsCode = ibsOpt.get().getIbsVendorCode();
                     }
                 }
-                if ((ibsCode == null || ibsCode.trim().isEmpty()) && rpm != null && rpm.getPoiCode() != null) {
-                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(rpm.getPoiCode().trim(), "railpad");
+                if ((ibsCode == null || ibsCode.trim().isEmpty()) && vp.getPlantId() != null && !vp.getPlantId().trim().isEmpty()) {
+                    var ibsOpt = sarthiIbsPoiMappingRepository.findBestMatch(vp.getPlantId().trim(), "railpad");
                     if (ibsOpt.isPresent()) {
                         ibsCode = ibsOpt.get().getIbsVendorCode();
                     }

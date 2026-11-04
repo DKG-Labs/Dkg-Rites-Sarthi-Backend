@@ -347,6 +347,9 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getChpClause() != null && !saveChanges.getChpClause().isBlank()) {
                 dto.setChpClause(saveChanges.getChpClause());
             }
+            if (saveChanges.getCallDate() != null && !saveChanges.getCallDate().isBlank()) {
+                dto.setDateOfCall(saveChanges.getCallDate());
+            }
         } else {
             Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
             if (rmIcEditOpt.isPresent()) {
@@ -395,6 +398,9 @@ public class CertificateServiceImpl implements CertificateService {
                 }
                 if (rmIcEdit.getChpClause() != null && !rmIcEdit.getChpClause().isBlank()) {
                     dto.setChpClause(rmIcEdit.getChpClause());
+                }
+                if (rmIcEdit.getCallDate() != null && !rmIcEdit.getCallDate().isBlank()) {
+                    dto.setDateOfCall(rmIcEdit.getCallDate());
                 }
             }
         }
@@ -1493,6 +1499,9 @@ public class CertificateServiceImpl implements CertificateService {
                 dto.setQapNo(saveChanges.getQapNo());
                 dto.setChpClause(saveChanges.getQapNo());
             }
+            if (saveChanges.getCallDate() != null && !saveChanges.getCallDate().isBlank()) {
+                dto.setDateOfCall(saveChanges.getCallDate());
+            }
         } else {
             Optional<ProcessIcEdit> processIcEditOpt = processIcEditRepository
                     .findByIcNumber(inspectionCall.getIcNumber());
@@ -1534,6 +1543,9 @@ public class CertificateServiceImpl implements CertificateService {
                 if (processIcEdit.getQapNo() != null && !processIcEdit.getQapNo().isBlank()) {
                     dto.setQapNo(processIcEdit.getQapNo());
                     dto.setChpClause(processIcEdit.getQapNo());
+                }
+                if (processIcEdit.getCallDate() != null && !processIcEdit.getCallDate().isBlank()) {
+                    dto.setDateOfCall(processIcEdit.getCallDate());
                 }
             }
         }
@@ -1591,7 +1603,14 @@ public class CertificateServiceImpl implements CertificateService {
             lot.setAcceptedQty(Math.max(0, totalProcessed - totalRejected));
         }
 
-        return new ArrayList<>(aggregatedLots.values());
+        // Shift results saved with nothing entered (e.g. a wrong heat/lot pair left at 0) are not real lots;
+        // drop them from the IC, but only when at least one lot carries quantities.
+        List<ProcessMaterialCertificateDto.LotDetailDto> lots = new ArrayList<>(aggregatedLots.values());
+        List<ProcessMaterialCertificateDto.LotDetailDto> withQty = lots.stream()
+                .filter(l -> (l.getTotalProcessed() != null && l.getTotalProcessed() > 0)
+                        || (l.getRejectedQty() != null && l.getRejectedQty() > 0))
+                .collect(java.util.stream.Collectors.toList());
+        return withQty.isEmpty() ? lots : withQty;
     }
 
     /**
@@ -2180,6 +2199,42 @@ public class CertificateServiceImpl implements CertificateService {
                 if (finalIcEdit.getDescription() != null && !finalIcEdit.getDescription().isBlank()) dto.setDescription(finalIcEdit.getDescription());
                 if (finalIcEdit.getTrRecDate() != null && !finalIcEdit.getTrRecDate().isBlank()) dto.setTrRecDate(finalIcEdit.getTrRecDate());
                 if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) dto.setSealingPattern(finalIcEdit.getSealingPattern());
+                if (finalIcEdit.getDateOfCall() != null && !finalIcEdit.getDateOfCall().isBlank()) dto.setDateOfCall(finalIcEdit.getDateOfCall());
+            }
+        }
+
+        if (!sleeperFound && sleeperFinalIcSaveChangesRepository != null) {
+            var sleeperSaveOpt = sleeperFinalIcSaveChangesRepository.findByIcNumber(inspectionCall.getIcNumber());
+            if (sleeperSaveOpt.isPresent()) {
+                var saveChanges = sleeperSaveOpt.get();
+                sleeperFound = true;
+                if (saveChanges.getCreatedAt() != null) {
+                    dto.setCertificateDate(formatDate(saveChanges.getCreatedAt().toLocalDate()));
+                }
+                if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) dto.setBookNo(saveChanges.getBookNo());
+                if (saveChanges.getSetNo() != null && !saveChanges.getSetNo().isBlank()) dto.setSetNo(saveChanges.getSetNo());
+                if (saveChanges.getOfferedInstallmentNo() != null && !saveChanges.getOfferedInstallmentNo().isBlank()) dto.setOfferedInstNo(saveChanges.getOfferedInstallmentNo());
+                if (saveChanges.getPassedInstallmentNo() != null && !saveChanges.getPassedInstallmentNo().isBlank()) dto.setPassedInstNo(saveChanges.getPassedInstallmentNo());
+                if (saveChanges.getConsignee() != null && !saveChanges.getConsignee().isBlank()) {
+                    dto.setConsignee(saveChanges.getConsignee());
+                    dto.setConsigneeRailway(saveChanges.getConsignee());
+                }
+                if (saveChanges.getCummQtyOfferedPrev() != null) {
+                    try { dto.setQtyOfferedPreviously(Double.parseDouble(saveChanges.getCummQtyOfferedPrev())); } catch (Exception ignored) {}
+                }
+                if (saveChanges.getQtyPrevPassed() != null) {
+                    try { dto.setQtyPassedPreviously(Double.parseDouble(saveChanges.getQtyPrevPassed())); } catch (Exception ignored) {}
+                }
+                if (saveChanges.getQtyStillDue() != null) {
+                    try { dto.setQtyStillDue(Double.parseDouble(saveChanges.getQtyStillDue())); } catch (Exception ignored) {}
+                }
+                if (saveChanges.getMaNumberAndDate() != null && !saveChanges.getMaNumberAndDate().isBlank()) dto.setMaNumberAndDate(saveChanges.getMaNumberAndDate());
+                if (saveChanges.getBillPayingOfficer() != null && !saveChanges.getBillPayingOfficer().isBlank()) dto.setBillPayingOfficer(saveChanges.getBillPayingOfficer());
+                if (saveChanges.getPurchasingAuthority() != null && !saveChanges.getPurchasingAuthority().isBlank()) dto.setPurchasingAuthority(saveChanges.getPurchasingAuthority());
+                if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) dto.setDescription(saveChanges.getDescription());
+                if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) dto.setTrRecDate(saveChanges.getTrRecDate());
+                if (saveChanges.getSealingPattern() != null && !saveChanges.getSealingPattern().isBlank()) dto.setSealingPattern(saveChanges.getSealingPattern());
+                if (saveChanges.getDateOfCall() != null && !saveChanges.getDateOfCall().isBlank()) dto.setDateOfCall(saveChanges.getDateOfCall());
             }
         }
 
@@ -2244,6 +2299,9 @@ public class CertificateServiceImpl implements CertificateService {
                 if (saveChanges.getSealingPattern() != null && !saveChanges.getSealingPattern().isBlank()) {
                     dto.setSealingPattern(saveChanges.getSealingPattern());
                 }
+                if (saveChanges.getDateOfCall() != null && !saveChanges.getDateOfCall().isBlank()) {
+                    dto.setDateOfCall(saveChanges.getDateOfCall());
+                }
             } else {
                 Optional<FinalIcEdit> finalIcEditOpt = finalIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
                 if (finalIcEditOpt.isPresent()) {
@@ -2302,6 +2360,9 @@ public class CertificateServiceImpl implements CertificateService {
                     }
                     if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) {
                         dto.setSealingPattern(finalIcEdit.getSealingPattern());
+                    }
+                    if (finalIcEdit.getDateOfCall() != null && !finalIcEdit.getDateOfCall().isBlank()) {
+                        dto.setDateOfCall(finalIcEdit.getDateOfCall());
                     }
                 }
             }

@@ -75,6 +75,12 @@ public class SleeperFinalIcEdit {
     @Column(name = "no_of_visits")
     private String noOfVisits;
 
+    @Column(name = "date_of_call")
+    private String dateOfCall;
+
+    @Column(name = "desired_date")
+    private String desiredDate;
+
     @Column(name = "dates_of_inspection", columnDefinition = "TEXT")
     private String datesOfInspection;
 

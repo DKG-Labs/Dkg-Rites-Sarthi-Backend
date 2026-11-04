@@ -1022,9 +1022,16 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setUom(uom);
         dto.setQuantityNowPassedInWords(passedWordsTemplate);
         dto.setNoOfItemsChecked("ONE");
-        dto.setDateOfCall(call.getCreatedAt() != null
+        String callDateStr = call.getCreatedAt() != null
                 ? call.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                : "");
+                : "";
+        String desiredDateStr = call.getInspectionDate() != null
+                ? call.getInspectionDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                : "";
+        String fullCallDate = !callDateStr.isEmpty() && !desiredDateStr.isEmpty()
+                ? callDateStr + ", Desired Date: " + desiredDateStr
+                : (!callDateStr.isEmpty() ? callDateStr : desiredDateStr);
+        dto.setDateOfCall(fullCallDate);
         dto.setNoOfVisits(visitsCount);
         dto.setDateOfInspection(datesString);
         dto.setTrRecDt("");
@@ -1152,6 +1159,12 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                             final String targetSr = cleanPoSr;
                             calls = calls.stream().filter(c -> isPoSrMatching(c, targetSr)).toList();
                         }
+                        // Only the selected rail pad type, plant and (if chosen) drawing
+                        calls = calls.stream()
+                                .filter(c -> sameText(c.getRailPadType(), railPadType))
+                                .filter(c -> isBlankText(plantId) || samePlant(c.getPlantId(), plantId))
+                                .filter(c -> sameText(c.getDrawingNo(), drawingNo))
+                                .toList();
                         if (!calls.isEmpty()) {
                             return calls;
                         }
@@ -1203,6 +1216,23 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private static boolean isBlankText(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    /** Empty filter matches everything; otherwise case- and space-insensitive equality (e.g. "6.00mm NCRGRSP"). */
+    private static boolean sameText(String value, String filter) {
+        if (isBlankText(filter)) return true;
+        if (value == null) return false;
+        return value.replace(" ", "").equalsIgnoreCase(filter.replace(" ", ""));
+    }
+
+    /** Rail Pad plant ids appear with and without the leading ':' (":1007406/Mohali" = "1007406/Mohali"). */
+    private static boolean samePlant(String value, String filter) {
+        if (value == null) return false;
+        return value.replace(":", "").trim().equalsIgnoreCase(filter.replace(":", "").trim());
     }
 
     @Override

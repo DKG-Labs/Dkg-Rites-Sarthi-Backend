@@ -61,6 +61,7 @@ public class RailpadProcessIcEditServiceImpl implements RailpadProcessIcEditServ
         entity.setQuantityNowPassedText(dto.getQuantityNowPassedText());
         entity.setReasonsForRejection(dto.getReasonsForRejection());
         entity.setDateOfCall(dto.getDateOfCall());
+        entity.setDesiredDate(dto.getDesiredDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
         entity.setDatesOfInspection(dto.getDatesOfInspection());
         entity.setSealingPattern(dto.getSealingPattern());
@@ -103,6 +104,7 @@ public class RailpadProcessIcEditServiceImpl implements RailpadProcessIcEditServ
                 .quantityNowPassedText(entity.getQuantityNowPassedText())
                 .reasonsForRejection(entity.getReasonsForRejection())
                 .dateOfCall(entity.getDateOfCall())
+                .desiredDate(entity.getDesiredDate())
                 .noOfVisits(entity.getNoOfVisits())
                 .datesOfInspection(entity.getDatesOfInspection())
                 .sealingPattern(entity.getSealingPattern())

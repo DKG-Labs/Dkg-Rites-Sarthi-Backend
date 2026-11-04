@@ -28,6 +28,9 @@ public class ProcessIcSaveChangesDTO {
     private String chpClause;
     private String inspectionDate;
     private String manDays;
+    private String callDate;
+    private String dateOfCall;
+    private String desiredDate;
     private String lotDetails;
     
     // Read-only audit fields

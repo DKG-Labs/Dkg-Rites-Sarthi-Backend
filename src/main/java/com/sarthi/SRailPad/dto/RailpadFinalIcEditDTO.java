@@ -43,6 +43,7 @@ public class RailpadFinalIcEditDTO {
     private String placeOfInspection;
     private String noOfVisits;
     private String dateOfCall;
+    private String desiredDate;
 
     // Read-only audit fields
     private String createdBy;

@@ -41,6 +41,7 @@ public class RailpadProcessIcEditDTO {
     private String quantityNowPassedText;
     private String reasonsForRejection;
     private String dateOfCall;
+    private String desiredDate;
     private String noOfVisits;
     private String datesOfInspection;
     private String sealingPattern;

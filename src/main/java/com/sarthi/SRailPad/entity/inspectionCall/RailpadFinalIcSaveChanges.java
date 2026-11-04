@@ -96,6 +96,9 @@ public class RailpadFinalIcSaveChanges {
     @Column(name = "date_of_call")
     private String dateOfCall;
 
+    @Column(name = "desired_date")
+    private String desiredDate;
+
     // Audit Fields
     @Column(name = "created_by", length = 50)
     private String createdBy;

@@ -26,6 +26,8 @@ public class ProcessInspectionSaveDto {
     private Long createdBy;
     private Long updatedBy;
     private List<ProcessBatchSaveDto> batches;
+    /** Read-only: rail pad type of the process call (filled in responses, ignored on save). */
+    private String railPadType;
 
     @Data
     public static class ProcessBatchSaveDto {

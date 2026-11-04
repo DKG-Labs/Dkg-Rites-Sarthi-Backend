@@ -60,6 +60,7 @@ public class RailpadFinalIcSaveChangesServiceImpl implements RailpadFinalIcSaveC
         entity.setPlaceOfInspection(dto.getPlaceOfInspection());
         entity.setNoOfVisits(dto.getNoOfVisits());
         entity.setDateOfCall(dto.getDateOfCall());
+        entity.setDesiredDate(dto.getDesiredDate());
         if(entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy());
         }
@@ -95,6 +96,7 @@ public class RailpadFinalIcSaveChangesServiceImpl implements RailpadFinalIcSaveC
                 .placeOfInspection(entity.getPlaceOfInspection())
                 .noOfVisits(entity.getNoOfVisits())
                 .dateOfCall(entity.getDateOfCall())
+                .desiredDate(entity.getDesiredDate())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .updatedBy(entity.getUpdatedBy())
