@@ -41,7 +41,7 @@ public class CaseLetterController {
             @RequestParam("files") List<MultipartFile> files
     ) {
         try {
-            byte[] mergedBytes = caseLetterService.mergeUploadedFiles(files);
+            byte[] mergedBytes = caseLetterService.mergeUploadedFilesForPreview(files);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"preview_case_letter.pdf\"")
                     .contentType(MediaType.APPLICATION_PDF)

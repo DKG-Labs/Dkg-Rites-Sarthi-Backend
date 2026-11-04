@@ -215,6 +215,15 @@ public class CaseLetterServiceImpl implements CaseLetterService {
     }
 
     @Override
+    public byte[] mergeUploadedFilesForPreview(List<MultipartFile> files) {
+        // Same merge as saving, then a lighter copy for viewing; the saved case letter keeps full quality
+        byte[] merged = mergeUploadedFiles(files);
+        byte[] preview = pdfCompressionService.compressForPreview(merged);
+        log.info("Case letter preview: merged {} bytes, sent {} bytes", merged.length, preview.length);
+        return preview;
+    }
+
+    @Override
     public byte[] mergeUploadedFiles(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("No files uploaded for merging");

@@ -16,8 +16,6 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 @Slf4j
@@ -81,11 +79,35 @@ public class PdfCompressionService {
             return originalBytes;
         }
 
+        return compressImagesInPdf(originalBytes, targetMaxWidth, targetQuality, this.targetImageSize, false);
+    }
+
+    /**
+     * Smaller copy of a PDF for on-screen preview only (never for stored documents): page images are scaled to
+     * at most 1600px and re-encoded as JPEG 0.70. Runs regardless of pdf.compression.compress-images, which
+     * protects stored documents only. Digital signatures are not a concern because previews are never saved.
+     */
+    public byte[] compressForPreview(byte[] originalBytes) {
+        if (originalBytes == null || originalBytes.length == 0) {
+            return originalBytes;
+        }
+        return compressImagesInPdf(originalBytes, 1600, 0.70f, 150L * 1024L, true);
+    }
+
+    /**
+     * Downsamples and re-encodes large page images; returns the original bytes if nothing gets smaller.
+     * previewMode: replace an image only when the JPEG is smaller, and leave 1-bit scans (CCITT/JBIG2) alone,
+     * since JPEG makes those bigger and blurrier.
+     */
+    private byte[] compressImagesInPdf(byte[] originalBytes, int targetMaxWidth, float targetQuality, long sizeThreshold,
+                                       boolean previewMode) {
         int effectiveMaxWidth = targetMaxWidth > 0 ? targetMaxWidth : this.maxImageWidth;
         float effectiveQuality = (targetQuality > 0.0f && targetQuality <= 1.0f) ? targetQuality : this.jpegQuality;
 
         try (PDDocument document = Loader.loadPDF(new RandomAccessReadBuffer(originalBytes))) {
-            Map<PDImageXObject, Boolean> processedCache = new HashMap<>();
+            // Keyed by the underlying stream so an image shared by many pages (e.g. a letterhead) is handled once
+            java.util.Set<org.apache.pdfbox.cos.COSStream> processedStreams =
+                    java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
             for (PDPage page : document.getPages()) {
                 PDResources resources = page.getResources();
@@ -98,29 +120,34 @@ public class PdfCompressionService {
                         PDImageXObject originalImageXObject = (PDImageXObject) resources.getXObject(name);
                         if (originalImageXObject == null) continue;
 
-                        if (processedCache.containsKey(originalImageXObject)) {
+                        org.apache.pdfbox.cos.COSStream oldStream = originalImageXObject.getCOSObject();
+                        if (oldStream == null || !processedStreams.add(oldStream)) {
                             continue;
                         }
-                        processedCache.put(originalImageXObject, true);
 
-                        BufferedImage bImage = originalImageXObject.getImage();
-                        if (bImage == null) continue;
-
-                        int origWidth = bImage.getWidth();
-                        int origHeight = bImage.getHeight();
+                        // Size checks use the image dictionary, so images that are skipped are never decoded
+                        int origWidth = originalImageXObject.getWidth();
+                        int origHeight = originalImageXObject.getHeight();
 
                         // Skip small icons/logos under 350px
                         if (origWidth < 350 && origHeight < 350) {
                             continue;
                         }
 
-                        org.apache.pdfbox.cos.COSStream oldStream = originalImageXObject.getCOSObject();
-                        long oldStreamLen = oldStream != null ? oldStream.getLength() : 0;
+                        long oldStreamLen = oldStream.getLength();
 
                         // If the image is already lightweight (<= 700 KB) and within max width, keep it untouched
-                        if (oldStreamLen > 0 && oldStreamLen <= targetImageSize && origWidth <= effectiveMaxWidth) {
+                        if (oldStreamLen > 0 && oldStreamLen <= sizeThreshold && origWidth <= effectiveMaxWidth) {
                             continue;
                         }
+
+                        // 1-bit scans and stencil masks are already tiny; JPEG would enlarge and blur them
+                        if (previewMode && (originalImageXObject.isStencil() || originalImageXObject.getBitsPerComponent() == 1)) {
+                            continue;
+                        }
+
+                        BufferedImage bImage = originalImageXObject.getImage();
+                        if (bImage == null) continue;
 
                         BufferedImage processedImage = scaleAndConvertToRgb(bImage, effectiveMaxWidth);
                         PDImageXObject compressedImageXObject = JPEGFactory.createFromImage(document, processedImage, effectiveQuality);
@@ -129,7 +156,10 @@ public class PdfCompressionService {
                         // Only replace if the new compressed stream is actually smaller than the old stream
                         long newStreamLen = newStream.getLength();
 
-                        if (newStreamLen < oldStreamLen || origWidth > effectiveMaxWidth) {
+                        boolean replace = previewMode
+                                ? newStreamLen < oldStreamLen
+                                : (newStreamLen < oldStreamLen || origWidth > effectiveMaxWidth);
+                        if (replace) {
                             oldStream.clear();
                             for (java.util.Map.Entry<COSName, org.apache.pdfbox.cos.COSBase> entry : newStream.entrySet()) {
                                 oldStream.setItem(entry.getKey(), entry.getValue());
