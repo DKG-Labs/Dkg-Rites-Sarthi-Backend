@@ -52,6 +52,8 @@ public class SleeperFinalIcSaveChangesService {
         entity.setManufacturer(dto.getManufacturer());
         entity.setTrRecDate(dto.getTrRecDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
+        entity.setDateOfCall(dto.getDateOfCall());
+        entity.setDesiredDate(dto.getDesiredDate());
         entity.setDatesOfInspection(dto.getDatesOfInspection());
         entity.setSealingPattern(dto.getSealingPattern());
         entity.setReasonsForRejection(dto.getReasonsForRejection());
@@ -88,6 +90,8 @@ public class SleeperFinalIcSaveChangesService {
                 .manufacturer(entity.getManufacturer())
                 .trRecDate(entity.getTrRecDate())
                 .noOfVisits(entity.getNoOfVisits())
+                .dateOfCall(entity.getDateOfCall())
+                .desiredDate(entity.getDesiredDate())
                 .datesOfInspection(entity.getDatesOfInspection())
                 .sealingPattern(entity.getSealingPattern())
                 .reasonsForRejection(entity.getReasonsForRejection())

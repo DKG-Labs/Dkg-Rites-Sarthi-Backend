@@ -44,6 +44,8 @@ public class FinalIcEditService {
         entity.setManufacturer(dto.getManufacturer());
         entity.setTrRecDate(dto.getTrRecDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
+        entity.setDateOfCall(dto.getDateOfCall());
+        entity.setDesiredDate(dto.getDesiredDate());
         entity.setDatesOfInspection(dto.getDatesOfInspection());
         entity.setSealingPattern(dto.getSealingPattern());
         
@@ -76,6 +78,8 @@ public class FinalIcEditService {
                 .manufacturer(entity.getManufacturer())
                 .trRecDate(entity.getTrRecDate())
                 .noOfVisits(entity.getNoOfVisits())
+                .dateOfCall(entity.getDateOfCall())
+                .desiredDate(entity.getDesiredDate())
                 .datesOfInspection(entity.getDatesOfInspection())
                 .sealingPattern(entity.getSealingPattern())
                 .createdBy(entity.getCreatedBy())

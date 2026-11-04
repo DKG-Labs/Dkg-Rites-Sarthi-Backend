@@ -1292,6 +1292,70 @@ Page<Object[]> fetchManufacturerSummary(
         """, nativeQuery = true)
   List<String> findAllProcessIcNumbers();
 
+  // ---------- ERC Raw Material Status report (Railway Board), one row per unit (POI) ----------
+
+  /** b. RM procured = RM offered qty (MT) of all raw material calls: [poi, company, unit, offeredMt]. */
+  @Query(value = """
+        SELECT ic.place_of_inspection, MAX(ic.company_name), MAX(ic.unit_name),
+               COALESCE(SUM(rmd.total_offered_qty_mt), 0)
+        FROM inspection_calls ic
+        JOIN rm_inspection_details rmd ON rmd.ic_id = ic.id
+        WHERE (UPPER(ic.type_of_call) LIKE '%RAW%' OR ic.ic_number LIKE 'ER%')
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
+          AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
+          AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
+        GROUP BY ic.place_of_inspection
+        """, nativeQuery = true)
+  List<Object[]> sumRmOfferedMtByPoi(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+  /**
+   * c. RM inspected, from the heat results of each RM call (rm_heat_final_result):
+   * MT = weight_accepted_mt, Nos = accepted_qty_mt (holds the ERC count despite the name).
+   * Returns [poi, company, unit, inspectedMt, inspectedNos]. Heats still PENDING are not counted.
+   */
+  @Query(value = """
+        SELECT ic.place_of_inspection, MAX(ic.company_name), MAX(ic.unit_name),
+               COALESCE(SUM(r.weight_accepted_mt), 0),
+               COALESCE(SUM(r.accepted_qty_mt), 0)
+        FROM inspection_calls ic
+        JOIN rm_heat_final_result r
+          ON r.inspection_call_no COLLATE utf8mb4_unicode_ci = ic.ic_number COLLATE utf8mb4_unicode_ci
+        WHERE UPPER(COALESCE(r.status, '')) <> 'PENDING'
+          AND (UPPER(ic.type_of_call) LIKE '%RAW%' OR ic.ic_number LIKE 'ER%')
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
+          AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
+          AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
+        GROUP BY ic.place_of_inspection
+        """, nativeQuery = true)
+  List<Object[]> sumRmInspectedMtByPoi(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+  /**
+   * e. Processed = offered qty of process calls: [poi, company, unit, offeredPieces, offeredMt].
+   * Pieces -> MT with the vendor call form's kg-per-ERC factors: MK-III 0.91, J 0.915, otherwise MK-V 1.14.
+   */
+  @Query(value = """
+        SELECT ic.place_of_inspection, MAX(ic.company_name), MAX(ic.unit_name),
+               COALESCE(SUM(pid.offered_qty), 0),
+               COALESCE(SUM(COALESCE(pid.offered_qty, 0) *
+                   CASE
+                     WHEN UPPER(COALESCE(ic.erc_type, '')) LIKE '%MK-III%' OR UPPER(COALESCE(ic.erc_type, '')) LIKE '%MKIII%'
+                       OR UPPER(COALESCE(ic.erc_type, '')) LIKE '%MK 3%' OR UPPER(COALESCE(ic.erc_type, '')) LIKE '%MK-3%' THEN 0.91
+                     WHEN UPPER(COALESCE(ic.erc_type, '')) LIKE '%J%' THEN 0.915
+                     ELSE 1.14
+                   END) / 1000, 0)
+        FROM inspection_calls ic
+        JOIN process_inspection_details pid ON pid.ic_id = ic.id
+        WHERE (UPPER(ic.type_of_call) LIKE '%PROCESS%' OR ic.ic_number LIKE 'EP%')
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
+          AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
+          AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
+        GROUP BY ic.place_of_inspection
+        """, nativeQuery = true)
+  List<Object[]> sumProcessOfferedByPoi(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
     @Query(value = """
     SELECT place_of_inspection 
     FROM inspection_calls 

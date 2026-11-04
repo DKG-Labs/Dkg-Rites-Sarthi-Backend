@@ -29,6 +29,9 @@ public class RmIcEditDTO {
     private String qapNo;
     private String chpClause;
     private String visitsNo;
+    private String callDate;
+    private String dateOfCall;
+    private String desiredDate;
     private String inspectionDate;
     
     // Read-only audit fields

@@ -1067,19 +1067,31 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 ic.po_no AS poNumberOnly,
                 ic.po_serial_no AS poSerialNumber,
                 ic.ic_number AS callNumber,
-                COALESCE(icd.certificate_no, '') AS icNumber,
+                COALESCE(NULLIF(icd.certificate_no, ''),
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (SELECT riex.ic_number FROM rm_ic_edit riex WHERE icd.certificate_no IS NULL AND riex.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', ic.ic_number, '/%') COLLATE utf8mb4_unicode_ci ORDER BY riex.id DESC LIMIT 1)
+                        WHEN ic.ic_number LIKE '%EP%' THEN (SELECT piex.ic_number FROM PROCESS_IC_EDIT piex WHERE icd.certificate_no IS NULL AND piex.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', ic.ic_number, '/%') COLLATE utf8mb4_unicode_ci ORDER BY piex.id DESC LIMIT 1)
+                        WHEN ic.ic_number LIKE '%EF%' THEN (SELECT fiex.ic_number FROM FINAL_IC_EDIT fiex WHERE icd.certificate_no IS NULL AND fiex.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', ic.ic_number, '/%') COLLATE utf8mb4_unicode_ci ORDER BY fiex.id DESC LIMIT 1)
+                    END,
+                    '') AS icNumber,
                 ic.type_of_call AS stage,
                 DATE_FORMAT(COALESCE(
                     CASE
-                        WHEN ic.ic_number LIKE '%ER%' THEN (
+                        WHEN ic.ic_number LIKE '%ER%' THEN COALESCE((
                             SELECT rie.created_at FROM rm_ic_edit rie WHERE rie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY rie.id DESC LIMIT 1
-                        )
-                        WHEN ic.ic_number LIKE '%EP%' THEN (
+                        ), (
+                            SELECT ried.created_at FROM rm_ic_edit ried WHERE icd.certificate_no IS NULL AND ried.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', ic.ic_number, '/%') COLLATE utf8mb4_unicode_ci ORDER BY ried.id DESC LIMIT 1
+                        ))
+                        WHEN ic.ic_number LIKE '%EP%' THEN COALESCE((
                             SELECT pie.created_at FROM PROCESS_IC_EDIT pie WHERE pie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY pie.id DESC LIMIT 1
-                        )
-                        WHEN ic.ic_number LIKE '%EF%' THEN (
+                        ), (
+                            SELECT pied.created_at FROM PROCESS_IC_EDIT pied WHERE icd.certificate_no IS NULL AND pied.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', ic.ic_number, '/%') COLLATE utf8mb4_unicode_ci ORDER BY pied.id DESC LIMIT 1
+                        ))
+                        WHEN ic.ic_number LIKE '%EF%' THEN COALESCE((
                             SELECT fie.created_at FROM FINAL_IC_EDIT fie WHERE fie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY fie.id DESC LIMIT 1
-                        )
+                        ), (
+                            SELECT fied.created_at FROM FINAL_IC_EDIT fied WHERE icd.certificate_no IS NULL AND fied.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%/', ic.ic_number, '/%') COLLATE utf8mb4_unicode_ci ORDER BY fied.id DESC LIMIT 1
+                        ))
                     END,
                     wt.CREATEDDATE
                 ), '%Y-%m-%d') AS icIssuedDate,
@@ -1087,6 +1099,16 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
                 wt.CREATEDDATE AS rawCreatedDate,
                 DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                 COALESCE(
+                    -- Diverted call: no own results; accepted = quantity moved by its diversion request
+                    -- (COMPLETE = full source accepted, PARTIAL = diverted share), same as the IC certificate
+                    CASE
+                        WHEN COALESCE(ic.is_diverted_material, 0) = 1 AND ic.diversion_request_no IS NOT NULL THEN (
+                            SELECT NULLIF(COALESCE(NULLIF(SUM(di.diversion_qty), 0), MAX(dr.total_diversion_qty)), 0)
+                            FROM erc_material_diversion_request dr
+                            LEFT JOIN erc_material_diversion_item di ON di.diversion_request_id = dr.id
+                            WHERE dr.request_no COLLATE utf8mb4_unicode_ci = ic.diversion_request_no COLLATE utf8mb4_unicode_ci
+                        )
+                    END,
                     CASE
                         WHEN ic.ic_number LIKE '%ER%' THEN (
                             SELECT NULLIF(SUM(COALESCE(r.weight_accepted_mt, 0)), 0)

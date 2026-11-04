@@ -578,6 +578,11 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
     @Override
     public ProcessInspectionSaveDto getAvailableBatchesForFinalCall(String callNo, String excludeCallNo) {
         ProcessInspectionSaveDto dto = getProcessInspectionResult(callNo);
+        // Rail pad type of the process call, so the final call form can match it to the selected type
+        if (dto != null && callNo != null) {
+            inspectionCallRepository.findByCallNo(callNo.trim())
+                    .ifPresent(call -> dto.setRailPadType(call.getRailPadType()));
+        }
         if (dto == null || dto.getBatches() == null || dto.getBatches().isEmpty()) {
             return dto;
         }

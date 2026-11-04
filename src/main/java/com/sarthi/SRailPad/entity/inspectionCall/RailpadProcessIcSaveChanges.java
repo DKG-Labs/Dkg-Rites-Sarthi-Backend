@@ -109,6 +109,9 @@ public class RailpadProcessIcSaveChanges {
     @Column(name = "date_of_call")
     private String dateOfCall;
 
+    @Column(name = "desired_date")
+    private String desiredDate;
+
     @Column(name = "no_of_visits")
     private String noOfVisits;
 

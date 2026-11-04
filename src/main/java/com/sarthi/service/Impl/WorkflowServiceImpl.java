@@ -163,6 +163,14 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private RmIcEditRepository rmIcEditRepository;
     @Autowired
+    private com.sarthi.repository.rawmaterial.RmIcSaveChangesRepository rmIcSaveChangesRepository;
+    @Autowired
+    private com.sarthi.repository.processmaterial.ProcessIcSaveChangesRepository processIcSaveChangesRepository;
+    @Autowired
+    private com.sarthi.repository.finalmaterial.FinalIcSaveChangesRepository finalIcSaveChangesRepository;
+    @Autowired
+    private com.sarthi.service.AzureBlobStorageService azureBlobStorageService;
+    @Autowired
     private ProcessIcEditRepository processIcEditRepository;
     @Autowired
     private FinalIcEditRepository finalIcEditRepository;
@@ -5987,6 +5995,17 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             icNumber = normalizedRequestId;
         }
 
+        // 6a. Note the signed certificate files before their certificate_storage rows are deleted below
+        final java.util.Set<String> certificateFiles = new java.util.LinkedHashSet<>();
+        if (certificateStorageRepository != null) {
+            certificateStorageRepository.findByIcNumber(icNumber).ifPresent(cs -> certificateFiles.add(cs.getFileName()));
+            certificateStorageRepository.findByCallNumber(normalizedRequestId).ifPresent(cs -> certificateFiles.add(cs.getFileName()));
+            certificateFiles.removeIf(f -> f == null || f.isBlank());
+        }
+
+        // 6b. IC save changes (draft values on the IC form) so the IC is issued afresh
+        deleteIcSaveChanges(requestType, icNumber, normalizedRequestId);
+
         // 7. Delete in specific tables based on type
         if ("ER".equals(requestType)) {
             // ER: rm_ic_edit, certificate_storage
@@ -6026,14 +6045,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                 }
             }
         } else if ("EF".equals(requestType)) {
-            // EF: final_ie_mapping, final_ic_edit, certificate_storage
-            if (finalIeMappingRepository != null && dscSignTransition.getWorkflowTransitionId() != null) {
-                try {
-                    finalIeMappingRepository.deleteByWorkflowTransitionId(dscSignTransition.getWorkflowTransitionId());
-                } catch (Exception ex) {
-                    log.warn("Error deleting final_ie_mapping for transition {}: {}", dscSignTransition.getWorkflowTransitionId(), ex.getMessage());
-                }
-            }
+            // EF: final_ic_edit, certificate_storage (final_ie_mapping is cleared for all types below)
             if (finalIcEditRepository != null) {
                 try {
                     finalIcEditRepository.findByIcNumber(icNumber).ifPresent(finalIcEditRepository::delete);
@@ -6052,8 +6064,51 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             }
         }
 
-        // 8. Delete ONLY the DSC_SIGN_IC workflow transition
+        // 8. final_ie_mapping rows point at this transition (FK_FINAL_IE_WT) for ER, EP and EF alike;
+        //    remove them first or MySQL rejects the transition delete.
+        if (finalIeMappingRepository != null && dscSignTransition.getWorkflowTransitionId() != null) {
+            finalIeMappingRepository.deleteByWorkflowTransitionId(dscSignTransition.getWorkflowTransitionId());
+        }
+
+        // 9. Delete ONLY the DSC_SIGN_IC workflow transition
         workflowTransitionRepository.delete(dscSignTransition);
+
+        // 10. Remove the signed PDFs from Azure only after the DB changes commit (a rollback keeps the files)
+        if (!certificateFiles.isEmpty() && azureBlobStorageService != null) {
+            Runnable deleteFiles = () -> certificateFiles.forEach(fileName -> {
+                try {
+                    boolean deleted = azureBlobStorageService.deleteFile(fileName);
+                    log.info("E-sign delete {}: certificate blob {} removed={}", normalizedRequestId, fileName, deleted);
+                } catch (Exception ex) {
+                    log.warn("E-sign delete {}: could not remove certificate blob {}: {}", normalizedRequestId, fileName, ex.getMessage());
+                }
+            });
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                        new org.springframework.transaction.support.TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                deleteFiles.run();
+                            }
+                        });
+            } else {
+                deleteFiles.run();
+            }
+        }
+    }
+
+    /** Deletes the saved IC form values (RM / Process / Final) by IC number and by call number. */
+    private void deleteIcSaveChanges(String requestType, String icNumber, String callNo) {
+        java.util.Set<String> keys = new java.util.LinkedHashSet<>(java.util.Arrays.asList(icNumber, callNo));
+        for (String key : keys) {
+            if (key == null || key.isBlank()) continue;
+            switch (requestType) {
+                case "ER" -> { if (rmIcSaveChangesRepository != null) rmIcSaveChangesRepository.findByIcNumber(key).ifPresent(rmIcSaveChangesRepository::delete); }
+                case "EP" -> { if (processIcSaveChangesRepository != null) processIcSaveChangesRepository.findByIcNumber(key).ifPresent(processIcSaveChangesRepository::delete); }
+                case "EF" -> { if (finalIcSaveChangesRepository != null) finalIcSaveChangesRepository.findByIcNumber(key).ifPresent(finalIcSaveChangesRepository::delete); }
+                default -> { }
+            }
+        }
     }
 
     @Override

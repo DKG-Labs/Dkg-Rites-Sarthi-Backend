@@ -45,6 +45,9 @@ public class RmIcSaveChangesService {
         entity.setQapNo(dto.getQapNo());
         entity.setChpClause(dto.getChpClause());
         entity.setVisitsNo(dto.getVisitsNo());
+        String effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : dto.getDateOfCall();
+        entity.setCallDate(effectiveCallDate);
+        entity.setDesiredDate(dto.getDesiredDate());
         entity.setInspectionDate(dto.getInspectionDate());
         
         if (entity.getId() == null) {
@@ -76,6 +79,9 @@ public class RmIcSaveChangesService {
                 .qapNo(entity.getQapNo())
                 .chpClause(entity.getChpClause())
                 .visitsNo(entity.getVisitsNo())
+                .callDate(entity.getCallDate())
+                .dateOfCall(entity.getCallDate())
+                .desiredDate(entity.getDesiredDate())
                 .inspectionDate(entity.getInspectionDate())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
