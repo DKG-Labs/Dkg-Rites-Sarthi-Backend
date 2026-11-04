@@ -14,6 +14,9 @@ public interface CaseLetterService {
 
     byte[] mergeUploadedFiles(List<MultipartFile> files);
 
+    /** Merged PDF with lighter page images, for the on-screen preview only. */
+    byte[] mergeUploadedFilesForPreview(List<MultipartFile> files);
+
     CaseLetterDocument saveCaseLetter(
             List<MultipartFile> files,
             String callNo,

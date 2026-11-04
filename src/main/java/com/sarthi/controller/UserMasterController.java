@@ -115,6 +115,14 @@ public class UserMasterController {
                 HttpStatus.OK);
     }
 
+    @GetMapping("/api/users/{userId}/photo")
+    public ResponseEntity<Object> getUserPhoto(@PathVariable Integer userId) {
+        return new ResponseEntity<Object>(
+                ResponseBuilder.getSuccessResponse(java.util.Map.of("profilePhotoPath",
+                        java.util.Objects.requireNonNullElse(userService.getUserProfilePhoto(userId), ""))),
+                HttpStatus.OK);
+    }
+
     @GetMapping("/api/users/by-role")
     public ResponseEntity<Object> getUsersByRole(@RequestParam String roleName) {
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getUsersByRole(roleName)),

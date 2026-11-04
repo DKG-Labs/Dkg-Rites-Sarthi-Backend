@@ -36,6 +36,9 @@ public interface UserService {
 
     public java.util.List<UserDto> getUsersByRole(String roleName);
 
+    /** One user's profile photo (base64 data URL); lists no longer include it. */
+    public String getUserProfilePhoto(Integer userId);
+
     public java.util.List<String> getAllCompanies();
 
     public java.util.List<String> getUnitsByCompany(String companyName);

@@ -183,7 +183,9 @@ public class UserServiceImpl implements UserService {
 
         userMaster.setDateOfBirth(userDto.getDateOfBirth());
         userMaster.setRio(userDto.getRio());
-        if (userDto.getProfilePhotoPath() != null) {
+        // Only replace the photo when a new one is sent; an empty value keeps the stored photo
+        // (user lists no longer carry photos, so the edit form may not have it)
+        if (userDto.getProfilePhotoPath() != null && !userDto.getProfilePhotoPath().isBlank()) {
             userMaster.setProfilePhotoPath(userDto.getProfilePhotoPath());
         }
 
@@ -1318,10 +1320,22 @@ public class UserServiceImpl implements UserService {
             }
         } catch (Exception ignored) {}
 
-        // 3. Map with context (zero per-row database queries)
+        // 3. Map with context (zero per-row database queries).
+        //    Photos are left out: they are stored as base64 and made this list several MB per call.
+        //    The edit form loads one user's photo via GET /api/users/{userId}/photo.
         return matchedUsers.stream()
-                .map(u -> mapToResponseDTOWithContext(u, null, rioUserMap, null, null, userRolesMap))
+                .map(u -> {
+                    UserDto dto = mapToResponseDTOWithContext(u, null, rioUserMap, null, null, userRolesMap);
+                    dto.setProfilePhotoPath(null);
+                    return dto;
+                })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public String getUserProfilePhoto(Integer userId) {
+        if (userId == null) return null;
+        return userMasterRepository.findById(userId).map(UserMaster::getProfilePhotoPath).orElse(null);
     }
 
     @Override

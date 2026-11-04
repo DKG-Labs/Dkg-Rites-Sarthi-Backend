@@ -81,6 +81,23 @@ public class PdfCompressionService {
             return originalBytes;
         }
 
+        return compressImagesInPdf(originalBytes, targetMaxWidth, targetQuality, this.targetImageSize);
+    }
+
+    /**
+     * Smaller copy of a PDF for on-screen preview only (never for stored documents): page images are scaled to
+     * at most 1600px and re-encoded as JPEG 0.70. Runs regardless of pdf.compression.compress-images, which
+     * protects stored documents only. Digital signatures are not a concern because previews are never saved.
+     */
+    public byte[] compressForPreview(byte[] originalBytes) {
+        if (originalBytes == null || originalBytes.length == 0) {
+            return originalBytes;
+        }
+        return compressImagesInPdf(originalBytes, 1600, 0.70f, 150L * 1024L);
+    }
+
+    /** Downsamples and re-encodes large page images; returns the original bytes if nothing gets smaller. */
+    private byte[] compressImagesInPdf(byte[] originalBytes, int targetMaxWidth, float targetQuality, long sizeThreshold) {
         int effectiveMaxWidth = targetMaxWidth > 0 ? targetMaxWidth : this.maxImageWidth;
         float effectiveQuality = (targetQuality > 0.0f && targetQuality <= 1.0f) ? targetQuality : this.jpegQuality;
 
@@ -118,7 +135,7 @@ public class PdfCompressionService {
                         long oldStreamLen = oldStream != null ? oldStream.getLength() : 0;
 
                         // If the image is already lightweight (<= 700 KB) and within max width, keep it untouched
-                        if (oldStreamLen > 0 && oldStreamLen <= targetImageSize && origWidth <= effectiveMaxWidth) {
+                        if (oldStreamLen > 0 && oldStreamLen <= sizeThreshold && origWidth <= effectiveMaxWidth) {
                             continue;
                         }
 
