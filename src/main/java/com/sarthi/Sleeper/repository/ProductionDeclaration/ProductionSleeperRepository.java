@@ -20,26 +20,62 @@ WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
 """)
     List<ProductionSleeper> getSleepersByBatch(Long batchId);
 
+    // Split into two index-friendly branches (chamber / gang) instead of LEFT JOIN + OR, which forced a full scan.
     @Query("""
-SELECT s, COALESCE(c.declaration.id, g.declaration.id)
+SELECT s, c.declaration.id
 FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id IN :batchIds OR g.declaration.id IN :batchIds)
+JOIN s.benchGroup b
+JOIN b.chamber c
+WHERE c.declaration.id IN :batchIds
 """)
-    List<Object[]> getSleepersWithBatchIdByBatchIds(@Param("batchIds") java.util.Collection<Long> batchIds);
+    List<Object[]> getSleepersWithBatchIdViaChamber(@Param("batchIds") java.util.Collection<Long> batchIds);
+
+    @Query("""
+SELECT s, g.declaration.id
+FROM ProductionSleeper s
+JOIN s.gang g
+WHERE g.declaration.id IN :batchIds
+""")
+    List<Object[]> getSleepersWithBatchIdViaGang(@Param("batchIds") java.util.Collection<Long> batchIds);
+
+    /** Same result as the old COALESCE(chamber, gang) query: chamber wins if a sleeper has both. */
+    default List<Object[]> getSleepersWithBatchIdByBatchIds(java.util.Collection<Long> batchIds) {
+        List<Object[]> result = new java.util.ArrayList<>(getSleepersWithBatchIdViaChamber(batchIds));
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (Object[] row : result) {
+            seen.add(((ProductionSleeper) row[0]).getId());
+        }
+        for (Object[] row : getSleepersWithBatchIdViaGang(batchIds)) {
+            if (seen.add(((ProductionSleeper) row[0]).getId())) {
+                result.add(row);
+            }
+        }
+        return result;
+    }
 
     @Query("""
 SELECT s
 FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId AND b.sleeperType = :sleeperType)
-   OR (g.declaration.id = :batchId AND g.sleeperType = :sleeperType)
+JOIN s.benchGroup b
+JOIN b.chamber c
+WHERE c.declaration.id = :batchId AND b.sleeperType = :sleeperType
 """)
-   List<ProductionSleeper> getSleepersByBatchAndType(Long batchId, String sleeperType);
+    List<ProductionSleeper> getSleepersByBatchAndTypeViaChamber(@Param("batchId") Long batchId, @Param("sleeperType") String sleeperType);
+
+    @Query("""
+SELECT s
+FROM ProductionSleeper s
+JOIN s.gang g
+WHERE g.declaration.id = :batchId AND g.sleeperType = :sleeperType
+""")
+    List<ProductionSleeper> getSleepersByBatchAndTypeViaGang(@Param("batchId") Long batchId, @Param("sleeperType") String sleeperType);
+
+    default List<ProductionSleeper> getSleepersByBatchAndType(Long batchId, String sleeperType) {
+        java.util.LinkedHashMap<Long, ProductionSleeper> merged = new java.util.LinkedHashMap<>();
+        for (ProductionSleeper s : getSleepersByBatchAndTypeViaChamber(batchId, sleeperType)) merged.putIfAbsent(s.getId(), s);
+        for (ProductionSleeper s : getSleepersByBatchAndTypeViaGang(batchId, sleeperType)) merged.putIfAbsent(s.getId(), s);
+        return new java.util.ArrayList<>(merged.values());
+    }
 
     @Query("""
 SELECT COUNT(s.id)
@@ -51,15 +87,26 @@ WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
 """)
     Long countByBatchId(Long batchId);
 
-    @Query("""
-    SELECT COALESCE(c.declaration.id, g.declaration.id), COUNT(s.id)
-    FROM ProductionSleeper s
-    LEFT JOIN s.benchGroup b
-    LEFT JOIN b.chamber c
-    LEFT JOIN s.gang g
-    WHERE (c.declaration.id IN :batchIds OR g.declaration.id IN :batchIds)
-    GROUP BY COALESCE(c.declaration.id, g.declaration.id)
-    """)
+    // Two index-friendly branches instead of LEFT JOIN + (c IN ... OR g IN ...), which forced a full scan.
+    // Note: a sleeper linked to BOTH a chamber and a gang is counted in both; the old COALESCE counted chamber only.
+    @Query(value = """
+    SELECT t.declaration_id, SUM(t.cnt)
+    FROM (
+        SELECT c.declaration_id AS declaration_id, COUNT(s.id) AS cnt
+        FROM production_sleeper s
+        JOIN production_bench_group b ON b.id = s.bench_group_id
+        JOIN production_stress_chamber c ON c.id = b.chamber_id
+        WHERE c.declaration_id IN (:batchIds)
+        GROUP BY c.declaration_id
+        UNION ALL
+        SELECT g.declaration_id AS declaration_id, COUNT(s.id) AS cnt
+        FROM production_sleeper s
+        JOIN production_longline_gang g ON g.id = s.gang_id
+        WHERE g.declaration_id IN (:batchIds)
+        GROUP BY g.declaration_id
+    ) t
+    GROUP BY t.declaration_id
+    """, nativeQuery = true)
     List<Object[]> countSleepersByBatchIds(@Param("batchIds") List<Long> batchIds);
 
     @Query("""

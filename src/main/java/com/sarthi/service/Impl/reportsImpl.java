@@ -2852,7 +2852,7 @@ public class reportsImpl implements reports {
                                 .supplyAsync(() -> railWorkflowTransactionRepository.getFilteredRailPadInspectionCallCounts(vCode, zCode, parsedStartDate, parsedEndDate));
 
                 CompletableFuture<Long> cfSleeperIcIssued = CompletableFuture.supplyAsync(() -> {
-                        Long count = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(
+                        Long count = sleeperWorkflowRepository.countSleeperIcIssuedSmart(
                                         (vCode == null || vCode.trim().isEmpty()) ? null : vCode,
                                         (zCode == null || zCode.trim().isEmpty()) ? null : zCode,
                                         parsedStartDate != null ? parsedStartDate.atStartOfDay() : null,
@@ -3390,19 +3390,16 @@ public class reportsImpl implements reports {
 
         private List<InspectionCallStatusDto> getSleeperStagewiseCallCounts(String vendorPlantCode,
                         String zonalRailway, String startDateStr, String endDateStr) {
-                List<com.sarthi.dto.reports.InspectionCallDetailDto> openCalls = getSleeperInspectionCallStatusDetails(
-                                "Final", "Open", vendorPlantCode, zonalRailway, startDateStr, endDateStr);
-
+                // Counts only (no detail rows). Open calls were never limited by the date range, so null dates here.
                 long underInspection = 0;
                 long pending = 0;
-                if (openCalls != null) {
-                        for (com.sarthi.dto.reports.InspectionCallDetailDto item : openCalls) {
-                                if ("Under Inspection".equalsIgnoreCase(item.getMainStatus())) {
-                                        underInspection++;
-                                } else {
-                                        pending++;
-                                }
-                        }
+                List<Object[]> counts = sleeperWorkflowRepository.countSleeperInspectionCallStatusFiltered(
+                                vendorPlantCode == null ? "" : vendorPlantCode,
+                                zonalRailway == null ? "" : zonalRailway, null, null);
+                if (counts != null && !counts.isEmpty() && counts.get(0) != null) {
+                        Object[] r = counts.get(0);
+                        underInspection = r.length > 0 && r[0] != null ? ((Number) r[0]).longValue() : 0L;
+                        pending = r.length > 1 && r[1] != null ? ((Number) r[1]).longValue() : 0L;
                 }
 
                 List<InspectionCallStatusDto> list = new ArrayList<>();

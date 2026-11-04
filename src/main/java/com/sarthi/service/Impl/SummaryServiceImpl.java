@@ -108,8 +108,38 @@ public class SummaryServiceImpl implements SummaryService {
         return value == null ? 0.0 : ((Number) value).doubleValue();
     }
 
+    // Short-lived cache for the two heavy monthly summary reports (each rebuilds the whole workflow
+    // history in SQL). Entries expire after SUMMARY_CACHE_TTL_MS so the numbers are at most a few minutes old.
+    private static final long SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private static final int SUMMARY_CACHE_MAX_ENTRIES = 200;
+    private final java.util.concurrent.ConcurrentHashMap<String, Object[]> summaryCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @SuppressWarnings("unchecked")
+    private <T> T cachedSummary(String key, java.util.function.Supplier<T> loader) {
+        long now = System.currentTimeMillis();
+        Object[] hit = summaryCache.get(key);
+        if (hit != null && now - (Long) hit[0] < SUMMARY_CACHE_TTL_MS) {
+            return (T) hit[1];
+        }
+        T value = loader.get();
+        if (summaryCache.size() >= SUMMARY_CACHE_MAX_ENTRIES) {
+            summaryCache.clear();
+        }
+        summaryCache.put(key, new Object[]{now, value});
+        return value;
+    }
+
     @Override
     public PageResponseDTO<MonthlyProgressReportDTO> getMonthlyProgress(
+            int page,
+            int size,
+            LocalDate startDate,
+            LocalDate endDate, String rio, String zone, String vendor) {
+        String key = "progress|" + page + "|" + size + "|" + startDate + "|" + endDate + "|" + rio + "|" + zone + "|" + vendor;
+        return cachedSummary(key, () -> loadMonthlyProgress(page, size, startDate, endDate, rio, zone, vendor));
+    }
+
+    private PageResponseDTO<MonthlyProgressReportDTO> loadMonthlyProgress(
             int page,
             int size,
             LocalDate startDate,
@@ -264,6 +294,16 @@ public class SummaryServiceImpl implements SummaryService {
             int size,
             LocalDate startDate,
             LocalDate endDate, String rio, String zone, String vendor) {
+        // rio / zone / vendor are not used by the query, so they are not part of the key
+        String key = "analysis|" + page + "|" + size + "|" + startDate + "|" + endDate;
+        return cachedSummary(key, () -> loadMonthlyAnalysis(page, size, startDate, endDate));
+    }
+
+    private PageResponseDTO<MonthlyAnalysisDTO> loadMonthlyAnalysis(
+            int page,
+            int size,
+            LocalDate startDate,
+            LocalDate endDate) {
 
         Pageable pageable = PageRequest.of(page, size);
 

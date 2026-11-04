@@ -288,9 +288,9 @@ LEFT JOIN (
                CASE WHEN LOWER(TRIM(COALESCE(
                         (SELECT pi2.uom FROM po_item pi2
                           WHERE pi2.po_header_id = ph2.id
-                            AND (CONVERT(pi2.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                              OR CONVERT(pi2.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                              OR CONVERT(pi2.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                            AND (pi2.item_sr_no =CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR pi2.item_sr_no =CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR pi2.item_sr_no =CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
                           ORDER BY pi2.id LIMIT 1),
                         (SELECT pi3.uom FROM po_item pi3 WHERE pi3.po_header_id = ph2.id ORDER BY pi3.id LIMIT 1),
                         ''))) LIKE 'set%' THEN 'Set' ELSE 'Nos.' END AS uom,
@@ -298,9 +298,9 @@ LEFT JOIN (
                CASE WHEN LOWER(TRIM(COALESCE(
                         (SELECT pi4.uom FROM po_item pi4
                           WHERE pi4.po_header_id = ph2.id
-                            AND (CONVERT(pi4.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                              OR CONVERT(pi4.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                              OR CONVERT(pi4.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                            AND (pi4.item_sr_no =CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR pi4.item_sr_no =CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                              OR pi4.item_sr_no =CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
                           ORDER BY pi4.id LIMIT 1),
                         (SELECT pi5.uom FROM po_item pi5 WHERE pi5.po_header_id = ph2.id ORDER BY pi5.id LIMIT 1),
                         ''))) LIKE 'set%'
@@ -312,13 +312,13 @@ LEFT JOIN (
             FROM sleeper_workflow_transaction
             WHERE workflow_id = 2
             GROUP BY request_id
-        ) latest ON CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) latest ON sic.call_no = CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
         INNER JOIN sleeper_workflow_transaction swt
                 ON swt.workflow_transition_id = latest.max_id
                AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
         INNER JOIN po_header ph2
-                ON (CONVERT(ph2.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                 OR CONVERT(ph2.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                ON (ph2.po_no = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                 OR ph2.po_no = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN (
             SELECT CONVERT(TRIM(call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_no,
                    SUM(total_accepted) AS acc_nos,
