@@ -112,7 +112,7 @@ public class reportsController {
                                 if (vCode.isEmpty() && zRly.isEmpty() && sDate == null && eDate == null) {
                                         sleeperIcIssued = sleeperWorkflowRepository.countAllSleeperIcIssued();
                                 } else {
-                                        sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedFiltered(vCode, zRly, sDate, eDate);
+                                        sleeperIcIssued = sleeperWorkflowRepository.countSleeperIcIssuedSmart(vCode, zRly, sDate, eDate);
                                 }
 
                                 long finalIcIssued = sleeperIcIssued != null ? sleeperIcIssued : 0L;

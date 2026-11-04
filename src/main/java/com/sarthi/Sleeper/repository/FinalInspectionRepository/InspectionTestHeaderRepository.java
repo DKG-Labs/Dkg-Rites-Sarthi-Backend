@@ -1469,16 +1469,66 @@ ORDER BY defect_count DESC
             """, nativeQuery = true)
     List<Object[]> getFinalDefectCountsByPdIds(@Param("pdIds") java.util.Collection<Long> pdIds);
 
-    /** Accepted quantity of the IC itself per call: numbers (acc_nos) and, for turnouts, sets (acc_sets). */
+    /**
+     * The IC's own figures per call, as printed on the certificate: accepted, offered and rejected, in numbers and
+     * (for turnouts) in sets. Columns: call_no, acc_nos, acc_sets, off_nos, off_sets, rej_nos, rej_sets.
+     */
     @Query(value = """
             SELECT TRIM(sfr.call_number) AS call_no,
                    COALESCE(SUM(sfr.total_accepted), 0) AS acc_nos,
-                   COALESCE(SUM(sfr.accepted_sets_quantity), 0) AS acc_sets
+                   COALESCE(SUM(sfr.accepted_sets_quantity), 0) AS acc_sets,
+                   COALESCE(SUM(sfr.total_offered_quantity), 0) AS off_nos,
+                   COALESCE(SUM(sfr.offered_sets_quantity), 0) AS off_sets,
+                   COALESCE(SUM(sfr.total_rejected), 0) AS rej_nos,
+                   COALESCE(SUM(sfr.rejected_sets_quantity), 0) AS rej_sets
             FROM sleeper_final_result sfr
             WHERE TRIM(sfr.call_number) IN (:callNos)
             GROUP BY TRIM(sfr.call_number)
             """, nativeQuery = true)
     List<Object[]> getFinalAcceptedByCalls(@Param("callNos") java.util.Collection<String> callNos);
+
+    /**
+     * Sleepers rejected on the IC itself per call, by defect group (same grouping as getFinalDefectCountsByPdIds):
+     * dimension, end damage, honeycomb/surface/crack, dowel, other.
+     */
+    @Query(value = """
+            SELECT t.call_no,
+                   COUNT(DISTINCT CASE WHEN t.grp = 1 THEN t.sk END) AS dimension_toe_gauge,
+                   COUNT(DISTINCT CASE WHEN t.grp = 2 THEN t.sk END) AS end_damage,
+                   COUNT(DISTINCT CASE WHEN t.grp = 3 THEN t.sk END) AS honeycomb_surface_crack,
+                   COUNT(DISTINCT CASE WHEN t.grp = 4 THEN t.sk END) AS missing_dowel,
+                   COUNT(DISTINCT CASE WHEN t.grp = 5 THEN t.sk END) AS other_defects
+            FROM (
+                SELECT TRIM(ibs.call_no) AS call_no,
+                       CONCAT(CONVERT(TRIM(ibs.batch_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci, '|',
+                              CONVERT(COALESCE(frs.sleeper_code, CAST(frs.sleeper_id AS CHAR)) USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS sk,
+                       CASE
+                         WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%dowel%' THEN 4
+                         WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%end damage%' THEN 2
+                         WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%honey%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%surface%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%crack%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%void%' THEN 3
+                         WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%dimension%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%rail seat%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%gauge%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%toe%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%length%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%width%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%height%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%depth%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%slope%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%twist%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%camber%' THEN 1
+                         ELSE 5
+                       END AS grp
+                FROM final_call_rejected_sleepers frs
+                JOIN ie_batch_summary ibs ON ibs.id = frs.batch_id
+                WHERE TRIM(ibs.call_no) IN (:callNos)
+            ) t
+            GROUP BY t.call_no
+            """, nativeQuery = true)
+    List<Object[]> getFinalRejectionGroupsByCalls(@Param("callNos") java.util.Collection<String> callNos);
 
     /** Sleepers rejected in process inspection (demoulding) per batch. */
     @Query(value = """

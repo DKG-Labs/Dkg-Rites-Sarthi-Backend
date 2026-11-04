@@ -82,7 +82,9 @@ public class DashboardServiceImpl implements DashboardService {
     private volatile Double rejectionPercentageCache = 0.0;
     private volatile boolean isCacheInitialized = false;
 
-    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 300000)
+    // fixedDelay (not fixedRate): the next run starts 5 min AFTER the previous one finishes, so a slow run can't stack up.
+    // initialDelay: don't hit the DB with this heavy query right at startup (getTotalRejectedCount() lazy-loads it anyway).
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 300000, initialDelay = 120000)
     public void updateDashboardMetrics() {
         try {
             Long rejected = 0L;
@@ -139,6 +141,17 @@ public class DashboardServiceImpl implements DashboardService {
         return rejectionPercentageCache;
     }
 
+    /** Runs one monthly-analysis query and logs its time; a null result becomes an empty list so one failure doesn't break the page. */
+    private static List<Object[]> timedAnalysisQuery(String name, java.util.function.Supplier<List<Object[]>> query) {
+        long t0 = System.currentTimeMillis();
+        try {
+            List<Object[]> rows = query.get();
+            return rows != null ? rows : new ArrayList<>();
+        } finally {
+            System.out.println("[SleeperAnalysis] " + name + " took " + (System.currentTimeMillis() - t0) + " ms");
+        }
+    }
+
     @Override
     public List<MonthlyAnalysisDto> getMonthlyAnalysis(String startDate, String endDate) {
 
@@ -149,14 +162,24 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDateTime end = eDate.atTime(23, 59, 59);
 
 
-        List<Object[]> prodList = productionDeclarationRepository.getProduction(start, end);
-        List<Object[]> procList = inspectionTestResultRepository.getProcessRejection(start, end);
-        List<Object[]> finalList = inspectionTestResultRepository.getFinalRejection(start, end);
+        // The five queries are independent, so they run at the same time (the request now takes as long as the
+        // slowest one instead of the sum of all five). Each one logs its own time as "[SleeperAnalysis] ...".
+        java.util.concurrent.CompletableFuture<List<Object[]>> cfProd = java.util.concurrent.CompletableFuture.supplyAsync(
+                () -> timedAnalysisQuery("production", () -> productionDeclarationRepository.getProduction(start, end)));
+        java.util.concurrent.CompletableFuture<List<Object[]>> cfProc = java.util.concurrent.CompletableFuture.supplyAsync(
+                () -> timedAnalysisQuery("process rejection", () -> inspectionTestResultRepository.getProcessRejection(start, end)));
+        java.util.concurrent.CompletableFuture<List<Object[]>> cfFinal = java.util.concurrent.CompletableFuture.supplyAsync(
+                () -> timedAnalysisQuery("final rejection", () -> inspectionTestResultRepository.getFinalRejection(start, end)));
+        java.util.concurrent.CompletableFuture<List<Object[]>> cfMaster = java.util.concurrent.CompletableFuture.supplyAsync(
+                () -> timedAnalysisQuery("plant master", () -> productionDeclarationRepository.getPlantMasterData()));
+        java.util.concurrent.CompletableFuture<List<Object[]>> cfPo = java.util.concurrent.CompletableFuture.supplyAsync(
+                () -> timedAnalysisQuery("po details", () -> productionDeclarationRepository.getPoDetailsByPlant()));
 
-        List<Object[]> masterList = productionDeclarationRepository.getPlantMasterData();
-
-
-        List<Object[]> poList = productionDeclarationRepository.getPoDetailsByPlant();
+        List<Object[]> prodList = cfProd.join();
+        List<Object[]> procList = cfProc.join();
+        List<Object[]> finalList = cfFinal.join();
+        List<Object[]> masterList = cfMaster.join();
+        List<Object[]> poList = cfPo.join();
         Map<String, Long> productionMap = new HashMap<>();
         Map<String, Long> processMap = new HashMap<>();
         Map<String, Long> finalMap = new HashMap<>();
@@ -1914,6 +1937,16 @@ public class DashboardServiceImpl implements DashboardService {
             return o instanceof Number ? ((Number) o).longValue() : 0L;
         }
 
+        /** Runs one query of the quality report and logs how long it took; a failure is passed on, not hidden. */
+        private static <T> T timedQualityQuery(String name, java.util.function.Supplier<T> query) {
+            long t0 = System.currentTimeMillis();
+            try {
+                return query.get();
+            } finally {
+                System.out.println("[QualityReport] " + name + " took " + (System.currentTimeMillis() - t0) + " ms");
+            }
+        }
+
         @Override
         public List<QualitySleeperReportDto> getQualitySleeperReport(
                 String startDate,
@@ -1945,9 +1978,17 @@ public class DashboardServiceImpl implements DashboardService {
                 return s.isEmpty() ? "Mainline" : s;
             };
 
+            // The queries that do not depend on the closed ICs start now and run alongside them
+            java.util.concurrent.CompletableFuture<List<Object[]>> cfPlants =
+                    java.util.concurrent.CompletableFuture.supplyAsync(() -> timedQualityQuery("plant zones",
+                            () -> inspectionTestHeaderRepository.getPlantZones()));
+            java.util.concurrent.CompletableFuture<List<Object[]>> cfProduced =
+                    java.util.concurrent.CompletableFuture.supplyAsync(() -> timedQualityQuery("produced",
+                            () -> inspectionTestHeaderRepository.getProducedByPlantCategory(start, end)));
+
             // Plants: railway zone and the name to show for the CSP
             java.util.Map<String, String[]> plants = new java.util.HashMap<>();   // zone, plant name, company, raw id
-            for (Object[] r : inspectionTestHeaderRepository.getPlantZones()) {
+            for (Object[] r : cfPlants.join()) {
                 String k = plantKey.apply(r[0]);
                 if (k.isEmpty()) continue;
                 String[] cur = plants.computeIfAbsent(k, x -> new String[] { "", "", "", r[0].toString().trim() });
@@ -1969,20 +2010,38 @@ public class DashboardServiceImpl implements DashboardService {
             };
 
             // 1. Closed ICs (latest status SEND_CALL_TO_IBS, IC date inside the range)
-            List<Object[]> closed = inspectionTestHeaderRepository.getClosedIcBatchRows(start, end);
+            List<Object[]> closed = timedQualityQuery("closed ICs",
+                    () -> inspectionTestHeaderRepository.getClosedIcBatchRows(start, end));
 
             java.util.Set<String> batchNos = new java.util.HashSet<>();
+            java.util.Set<String> callNos = new java.util.HashSet<>();
             for (Object[] r : closed) {
+                if (r[0] != null) callNos.add(r[0].toString().trim());
                 if (r[1] == null) continue;
                 batchNos.add(r[1].toString());
                 batchNos.add(r[1].toString().trim());
             }
 
+            // These only need the batch / call numbers, so they run while the declarations are looked up
+            java.util.concurrent.CompletableFuture<List<Object[]>> cfDemoulding = batchNos.isEmpty()
+                    ? java.util.concurrent.CompletableFuture.completedFuture(new ArrayList<Object[]>())
+                    : java.util.concurrent.CompletableFuture.supplyAsync(() -> timedQualityQuery("demoulding",
+                            () -> inspectionTestHeaderRepository.getDemouldingRejectionsByBatch(batchNos)));
+            java.util.concurrent.CompletableFuture<List<Object[]>> cfFinalResult = callNos.isEmpty()
+                    ? java.util.concurrent.CompletableFuture.completedFuture(new ArrayList<Object[]>())
+                    : java.util.concurrent.CompletableFuture.supplyAsync(() -> timedQualityQuery("final results",
+                            () -> inspectionTestHeaderRepository.getFinalAcceptedByCalls(callNos)));
+            java.util.concurrent.CompletableFuture<List<Object[]>> cfRejGroups = callNos.isEmpty()
+                    ? java.util.concurrent.CompletableFuture.completedFuture(new ArrayList<Object[]>())
+                    : java.util.concurrent.CompletableFuture.supplyAsync(() -> timedQualityQuery("rejection groups",
+                            () -> inspectionTestHeaderRepository.getFinalRejectionGroupsByCalls(callNos)));
+
             // Their production declarations (batch number + casting date + plant)
             java.util.Map<String, Long> pdByKey = new java.util.HashMap<>();
             if (!batchNos.isEmpty()) {
                 for (com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration pd
-                        : productionDeclarationRepository.findAllByTrimmedBatchNumbers(batchNos)) {
+                        : timedQualityQuery("declarations",
+                                () -> productionDeclarationRepository.findAllByTrimmedBatchNumbers(batchNos))) {
                     String key = norm.apply(pd.getBatchNumber()) + "|"
                             + (pd.getCastingDate() == null ? "" : pd.getCastingDate().toString())
                             + "|" + plantKey.apply(pd.getPlantId());
@@ -1995,34 +2054,40 @@ public class DashboardServiceImpl implements DashboardService {
             java.util.Map<Long, String> categoryByPd = new java.util.HashMap<>();
             java.util.Map<Long, long[]> defectsByPd = new java.util.HashMap<>();
             if (!pdIds.isEmpty()) {
-                for (Object[] r : inspectionTestHeaderRepository.getSleeperCategoryByPdIds(pdIds)) {
+                java.util.concurrent.CompletableFuture<List<Object[]>> cfCategory =
+                        java.util.concurrent.CompletableFuture.supplyAsync(() -> timedQualityQuery("categories",
+                                () -> inspectionTestHeaderRepository.getSleeperCategoryByPdIds(pdIds)));
+                java.util.concurrent.CompletableFuture<List<Object[]>> cfDefects =
+                        java.util.concurrent.CompletableFuture.supplyAsync(() -> timedQualityQuery("defect counts",
+                                () -> inspectionTestHeaderRepository.getFinalDefectCountsByPdIds(pdIds)));
+                for (Object[] r : cfCategory.join()) {
                     categoryByPd.put(qNum(r[0]), category.apply(r[1]));
                 }
-                for (Object[] r : inspectionTestHeaderRepository.getFinalDefectCountsByPdIds(pdIds)) {
+                for (Object[] r : cfDefects.join()) {
                     defectsByPd.put(qNum(r[0]), new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]) });
                 }
             }
 
             java.util.Map<String, Long> demouldingByBatch = new java.util.HashMap<>();
-            if (!batchNos.isEmpty()) {
-                for (Object[] r : inspectionTestHeaderRepository.getDemouldingRejectionsByBatch(batchNos)) {
-                    demouldingByBatch.merge(norm.apply(r[0]) + "|" + day.apply(r[1]) + "|" + plantKey.apply(r[2]),
-                            qNum(r[3]), Long::sum);
-                    demouldingByBatch.merge(norm.apply(r[0]) + "|" + plantKey.apply(r[2]), qNum(r[3]), Long::sum);
-                }
+            for (Object[] r : cfDemoulding.join()) {
+                demouldingByBatch.merge(norm.apply(r[0]) + "|" + day.apply(r[1]) + "|" + plantKey.apply(r[2]),
+                        qNum(r[3]), Long::sum);
+                demouldingByBatch.merge(norm.apply(r[0]) + "|" + plantKey.apply(r[2]), qNum(r[3]), Long::sum);
             }
 
             // The accepted quantity of each IC as the IC itself states it (numbers, or sets for turnouts); this is the
             // figure the dashboard and the monthly progress report use. Per-batch figures are only the fallback.
             java.util.Map<String, long[]> finalByCall = new java.util.HashMap<>();
-            java.util.Set<String> callNos = new java.util.HashSet<>();
-            for (Object[] r : closed) {
-                if (r[0] != null) callNos.add(r[0].toString().trim());
+            // acc_nos, acc_sets, off_nos, off_sets, rej_nos, rej_sets
+            for (Object[] r : cfFinalResult.join()) {
+                finalByCall.put(r[0].toString().trim(),
+                        new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]), qNum(r[6]) });
             }
-            if (!callNos.isEmpty()) {
-                for (Object[] r : inspectionTestHeaderRepository.getFinalAcceptedByCalls(callNos)) {
-                    finalByCall.put(r[0].toString().trim(), new long[] { qNum(r[1]), qNum(r[2]) });
-                }
+            // The IC's rejected sleepers by defect group (dimension, end damage, honeycomb/surface/crack, dowel, other)
+            java.util.Map<String, long[]> rejectionGroupsByCall = new java.util.HashMap<>();
+            for (Object[] r : cfRejGroups.join()) {
+                rejectionGroupsByCall.put(r[0].toString().trim(),
+                        new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]) });
             }
 
             // 2. Offered quantity, accepted quantity, calls and last IC date per plant and category;
@@ -2056,15 +2121,27 @@ public class DashboardServiceImpl implements DashboardService {
                 QualityRow q = rowOf.apply(r[3] == null ? null : r[3].toString(), cat);
                 String rowKey = q.plantKey + "|" + cat.toLowerCase();
 
-                q.inspected += qNum(r[4]);   // offered in this batch
                 String callNo = r[0] == null ? "" : r[0].toString().trim();
                 long[] fin = finalByCall.get(callNo);
                 boolean homeRow = rowKey.equals(homeRowByCall.get(callNo));
                 if (fin == null) {
-                    q.icQty += qNum(r[5]);   // this batch's accepted quantity
+                    // No final result for this call: fall back to this batch's own figures
+                    q.inspected += qNum(r[4]);
+                    q.icQty += qNum(r[5]);
                 } else if (homeRow && countedCall.add(callNo)) {
-                    // The IC's accepted quantity belongs to the call, so it is added once, not once per batch or row
+                    // The IC's figures belong to the call, so they are added once (in its home row), not once per
+                    // batch or row: offered, accepted (sets for turnouts) and rejected, as printed on the certificate
+                    q.inspected += fin[2];
                     q.icQty += cat.toLowerCase().contains("turnout") && fin[1] > 0 ? fin[1] : fin[0];
+
+                    long[] g = rejectionGroupsByCall.getOrDefault(callNo, new long[5]);
+                    long grouped = g[0] + g[1] + g[2] + g[3] + g[4];
+                    q.dimension += g[0];
+                    q.endDamage += g[1];
+                    q.honeycomb += g[2];
+                    q.dowel += g[3];
+                    // Rejected sleepers the reason list does not cover still count, so the groups add up to the IC total
+                    q.other += g[4] + Math.max(0L, fin[4] - grouped);
                 }
                 if (r[0] != null && homeRow) q.calls.add(callNo);
                 String icDay = day.apply(r[6]);
@@ -2074,7 +2151,8 @@ public class DashboardServiceImpl implements DashboardService {
                     q.rejectedInProcess += demouldingByBatch.containsKey(key)
                             ? demouldingByBatch.get(key) : demouldingByBatch.getOrDefault(looseKey, 0L);
                 }
-                if (pdId != null && countedPd.add(rowKey + "|" + pdId)) {
+                // Defect groups of the batch's inspection results: only a fallback for calls without a final result
+                if (fin == null && pdId != null && countedPd.add(rowKey + "|" + pdId)) {
                     long[] d = defectsByPd.get(pdId);
                     if (d != null) {
                         q.dimension += d[0];
@@ -2087,7 +2165,7 @@ public class DashboardServiceImpl implements DashboardService {
             }
 
             // 3. Sleepers produced: verified declarations cast inside the range
-            for (Object[] r : inspectionTestHeaderRepository.getProducedByPlantCategory(start, end)) {
+            for (Object[] r : cfProduced.join()) {
                 QualityRow q = rowOf.apply(r[0] == null ? null : r[0].toString(), category.apply(r[1]));
                 q.produced += qNum(r[2]);
             }
@@ -2274,11 +2352,18 @@ public class DashboardServiceImpl implements DashboardService {
             java.util.concurrent.CompletableFuture<List<Object[]>> cfFinal = java.util.concurrent.CompletableFuture.supplyAsync(
                     () -> timedSummaryQuery("final accepted", () -> sleeperFinalResultRepository.getSleeperFinalSummaryFiltered(fv, fz, fsDate, feDate)));
             java.util.concurrent.CompletableFuture<Long> cfIc = java.util.concurrent.CompletableFuture.supplyAsync(
-                    () -> timedSummaryQuery("ic issued", () -> sleeperWorkflowRepository.countSleeperIcIssuedFiltered(fv, fz, fStart, fEnd)));
+                    () -> timedSummaryQuery("ic issued", () -> (fv == null && fz == null)
+                            ? sleeperWorkflowRepository.countSleeperIcIssuedByDate(fStart, fEnd)
+                            : sleeperWorkflowRepository.countSleeperIcIssuedFiltered(fv, fz, fStart, fEnd)));
             java.util.concurrent.CompletableFuture<Long> cfDemould = java.util.concurrent.CompletableFuture.supplyAsync(
                     () -> timedSummaryQuery("process rejected", () -> demouldingDefectiveSleeperRepository.countDemouldingDefectsForIssuedIcsFiltered(fv, fz, fsDate, feDate)));
             java.util.concurrent.CompletableFuture<List<Object[]>> cfStatus = java.util.concurrent.CompletableFuture.supplyAsync(
-                    () -> timedSummaryQuery("call status", () -> sleeperWorkflowRepository.getSleeperInspectionCallStatusDetailsFiltered("ALL", "ALL", fv, fz, fStart, fEnd)));
+                    () -> timedSummaryQuery("call status", () -> (fv == null && fz == null)
+                            // counts only: [underInspection, pending]; skips the heavy vendor/po/user joins
+                            ? sleeperWorkflowRepository.countSleeperInspectionCallStatus(fStart, fEnd)
+                            // vendor / zone set: still counts only, with just the joins those filters need
+                            : sleeperWorkflowRepository.countSleeperInspectionCallStatusFiltered(fv, fz, fStart, fEnd)));
+            final boolean leanStatus = true;
 
             // 1. Direct Final Summary calculation (checking PO zone, vendor & date)
             try {
@@ -2335,7 +2420,13 @@ public class DashboardServiceImpl implements DashboardService {
             // 4. Inspection Call Status (Pending, Under Inspection)
             try {
                 List<Object[]> callStatusRows = cfStatus.join();
-                if (callStatusRows != null) {
+                if (callStatusRows != null && leanStatus) {
+                    if (!callStatusRows.isEmpty() && callStatusRows.get(0) != null) {
+                        Object[] r = callStatusRows.get(0);
+                        underInspection = r.length > 0 && r[0] != null ? ((Number) r[0]).longValue() : 0L;
+                        pending = r.length > 1 && r[1] != null ? ((Number) r[1]).longValue() : 0L;
+                    }
+                } else if (callStatusRows != null) {
                     for (Object[] callRow : callStatusRows) {
                         String mainStatus = callRow.length > 7 && callRow[7] != null ? callRow[7].toString().trim() : "";
                         String status = callRow.length > 6 && callRow[6] != null ? callRow[6].toString().trim() : "";

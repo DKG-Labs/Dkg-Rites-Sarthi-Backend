@@ -203,22 +203,15 @@ public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinal
             WHERE swt.workflow_id = 2
               AND (UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(swt.action, '')) = 'SEND_CALL_TO_IBS')
         ) sfr
-        LEFT JOIN (
-            SELECT CONVERT(TRIM(call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_key,
-                   CONVERT(SUBSTRING_INDEX(po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS po_key,
-                   sr_no, plant_id
-            FROM sleeper_inspection_call
-        ) sic ON sic.call_key = sfr.call_key
-        LEFT JOIN (
-            SELECT id, vendor_details, firm_details, vendor_code, rly_short_name, rly_cd,
-                   CONVERT(po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci AS po_key
-            FROM po_header
-        ) ph ON ph.po_key = sic.po_key
-        LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        -- Base tables are joined directly with their indexed column left bare; the collation conversion
+        -- is applied only on the already-computed (sfr/sic) side so the indexes can be used.
+        LEFT JOIN sleeper_inspection_call sic ON sic.call_no = sfr.call_key
+        LEFT JOIN po_header ph ON ph.po_no = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN vendor_plant vp ON (vp.plant_id = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR vp.plant_id = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
         LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
-            CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            pi.item_sr_no = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR pi.item_sr_no = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         )
         LEFT JOIN (
             SELECT CONVERT(call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_no, MIN(certificate_no) AS cert_no, MIN(created_on) AS created_on

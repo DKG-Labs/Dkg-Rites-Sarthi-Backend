@@ -396,10 +396,48 @@ public class SleeperDashboard {
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) String zone) {
 
-        List<QualitySleeperReportDto>  list = dashboardService.getQualitySleeperReport(startDate, endDate, zone);
+        // Identical requests share one result for a few minutes, and requests that arrive while it is being computed
+        // wait for that same computation instead of running the queries again
+        String key = String.join("|", String.valueOf(startDate), String.valueOf(endDate), String.valueOf(zone));
+        long now = System.currentTimeMillis();
+        java.util.concurrent.atomic.AtomicBoolean owner = new java.util.concurrent.atomic.AtomicBoolean(false);
+        QualityCacheEntry entry = qualityCache.compute(key, (k, old) -> {
+            if (old != null && now - old.createdAt() < QUALITY_CACHE_TTL_MS && !old.result().isCompletedExceptionally()) {
+                return old;
+            }
+            owner.set(true);
+            return new QualityCacheEntry(now, new java.util.concurrent.CompletableFuture<>());
+        });
+        if (qualityCache.size() > 100) {
+            qualityCache.clear();
+        }
+
+        if (owner.get()) {
+            try {
+                entry.result().complete(dashboardService.getQualitySleeperReport(startDate, endDate, zone));
+            } catch (Exception e) {
+                entry.result().completeExceptionally(e);
+                qualityCache.remove(key, entry);
+                throw e;
+            }
+        }
+        List<QualitySleeperReportDto> list;
+        try {
+            list = entry.result().get();
+        } catch (java.util.concurrent.ExecutionException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
 
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
+
+    private static final long QUALITY_CACHE_TTL_MS = 3 * 60 * 1000L;
+
+    private record QualityCacheEntry(long createdAt,
+                                     java.util.concurrent.CompletableFuture<List<QualitySleeperReportDto>> result) {}
+
+    private final java.util.concurrent.ConcurrentHashMap<String, QualityCacheEntry> qualityCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     @GetMapping("sleeperIc/{callNo}")
     public SleeperIcProjection getSleeperIcData(
