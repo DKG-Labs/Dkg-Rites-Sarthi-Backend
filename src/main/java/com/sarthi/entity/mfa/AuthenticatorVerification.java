@@ -59,8 +59,11 @@ public class AuthenticatorVerification {
     @Column(name = "ip_address", length = 50)
     private String ipAddress;
 
+    @Column(name = "user_role", length = 100)
+    private String userRole;
+
     @Column(name = "status", length = 30)
-    private String status; // PENDING, SCANNED, AUTHENTICATED, EXPIRED, FAILED
+    private String status; // PENDING, SCANNED, AUTHENTICATED, EXPIRED, FAILED, LOGGED_OUT
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

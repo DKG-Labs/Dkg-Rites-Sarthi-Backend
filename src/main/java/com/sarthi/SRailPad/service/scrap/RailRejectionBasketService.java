@@ -70,7 +70,7 @@ public class RailRejectionBasketService {
         String userName;
 
         boolean canSee(String plantId) { return allPlants || plantIds.contains(plantId); }
-        boolean canScrap(String plantId) { return processPlantIds.contains(plantId); }
+        boolean canScrap(String plantId) { return canSee(plantId); }
     }
 
     private Scope resolveScope(Object principal) {
@@ -92,8 +92,7 @@ public class RailRejectionBasketService {
                 String pid = normPlant(m.getPlantId());
                 if (pid == null) continue;
                 scope.plantIds.add(pid);
-                String type = m.getIeType() != null ? m.getIeType().toUpperCase().replace(' ', '_') : "";
-                if (type.contains("PROCESS")) scope.processPlantIds.add(pid);
+                scope.processPlantIds.add(pid);
             }
             return scope;
         }
@@ -312,39 +311,63 @@ public class RailRejectionBasketService {
         assertCanSee(scope, pid);
 
         // Build every transaction in date order, then compute the running balance over all of them
+        RailVendorPlants plant = plantMap().get(pid);
         List<Map<String, Object>> all = new ArrayList<>();
         for (RejectionEntry e : loadRejections(pid, key)) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("rowType", "REJECTION");
             m.put("date", e.date != null ? e.date.toString() : null);
+            m.put("entryDate", e.date != null ? e.date.toString() : null);
             m.put("sortTime", e.createdAt);
             m.put("transactionType", "PROCESS".equals(e.stage) ? "Rejection (Process)" : "Rejection (Final)");
             m.put("stage", e.stage);
+            m.put("stageOfInspection", e.stage);
             m.put("reference", e.reference);
+            m.put("scrapVerificationId", "—");
             m.put("callOrShift", e.callOrShift);
+            m.put("shift", e.callOrShift != null && e.callOrShift.startsWith("Shift ") ? e.callOrShift.replace("Shift ", "") : "—");
+            m.put("unitLineShedNo", plant != null ? plant.getPlantName() : pid);
             m.put("defectReason", e.defectReason);
+            m.put("remarks", e.defectReason);
             m.put("rejectedQty", e.qty);
             m.put("scrappedQty", null);
             m.put("engineer", e.addedBy);
+            m.put("ieName", e.addedBy);
             m.put("sourceId", e.sourceId);
+            m.put("imageUrls", Collections.emptyList());
             all.add(m);
         }
         List<RailScrapVerification> scraps = scrapRepo.findActive(pid, key);
+        List<Long> scrapIds = scraps.stream().map(RailScrapVerification::getId).toList();
+        Map<Long, List<String>> imagesByScrapId = new HashMap<>();
+        if (!scrapIds.isEmpty()) {
+            for (RailScrapVerificationImage img : imageRepo.findByScrapVerificationIdIn(scrapIds)) {
+                imagesByScrapId.computeIfAbsent(img.getScrapVerificationId(), k -> new ArrayList<>()).add(img.getImageUrl());
+            }
+        }
         for (RailScrapVerification s : scraps) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("rowType", "SCRAP");
             m.put("date", s.getScrappingDate() != null ? s.getScrappingDate().toString() : null);
+            m.put("entryDate", s.getScrappingDate() != null ? s.getScrappingDate().toString() : null);
             m.put("sortTime", s.getCreatedDate());
             m.put("transactionType", "Scrap Verification");
             m.put("stage", null);
+            m.put("stageOfInspection", "—");
             m.put("reference", s.getVerificationNo());
+            m.put("scrapVerificationId", s.getVerificationNo());
+            m.put("shift", s.getShift() != null ? s.getShift() : "—");
             m.put("callOrShift", s.getShift() != null ? "Shift " + s.getShift() : null);
+            m.put("unitLineShedNo", plant != null ? plant.getPlantName() : pid);
             m.put("defectReason", s.getRemarks());
+            m.put("remarks", s.getRemarks());
             m.put("rejectedQty", null);
             m.put("scrappedQty", (long) s.getQtyScrapped());
             m.put("engineer", s.getIeName());
+            m.put("ieName", s.getIeName());
             m.put("verificationId", s.getId());
             m.put("editable", isEditable(s, scope));
+            m.put("imageUrls", imagesByScrapId.getOrDefault(s.getId(), Collections.emptyList()));
             all.add(m);
         }
         all.sort(Comparator.comparing((Map<String, Object> m) -> toDate(m.get("date")), Comparator.nullsLast(Comparator.naturalOrder()))
@@ -374,7 +397,6 @@ public class RailRejectionBasketService {
             rows.add(m);
         }
 
-        RailVendorPlants plant = plantMap().get(pid);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("plantId", pid);
         out.put("manufacturer", plant != null ? plant.getCompanyName() : null);

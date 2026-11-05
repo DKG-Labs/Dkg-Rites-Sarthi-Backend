@@ -1297,11 +1297,38 @@ Page<Object[]> fetchManufacturerSummary(
   /** b. RM procured = RM offered qty (MT) of all raw material calls: [poi, company, unit, offeredMt]. */
   @Query(value = """
         SELECT ic.place_of_inspection, MAX(ic.company_name), MAX(ic.unit_name),
-               COALESCE(SUM(rmd.total_offered_qty_mt), 0)
+               COALESCE(SUM(rmd.total_offered_qty_mt), 0),
+               COALESCE(SUM(rmd.offered_qty_erc), 0),
+               COALESCE(SUM(rmd.offered_qty_erc), 0)
         FROM inspection_calls ic
         JOIN rm_inspection_details rmd ON rmd.ic_id = ic.id
         WHERE (UPPER(ic.type_of_call) LIKE '%RAW%' OR ic.ic_number LIKE 'ER%')
           AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%WITHDRAW%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%REJECT%'
+          AND UPPER(COALESCE(ic.status, '')) <> 'BLOCKED'
+          AND UPPER(COALESCE(ic.call_category, '')) NOT LIKE '%DIVERT%'
+          AND UPPER(COALESCE(ic.call_nature, '')) NOT LIKE '%DIVERT%'
+          AND COALESCE(ic.is_diverted_material, 0) = 0
+          AND (ic.diversion_request_no IS NULL OR TRIM(ic.diversion_request_no) = '')
+          AND NOT EXISTS (
+              SELECT 1 FROM workflow_transition wt
+              WHERE wt.requestid = ic.ic_number
+                AND (
+                    UPPER(COALESCE(wt.status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%CANCEL%'
+                )
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM call_cancellation_details ccd
+              WHERE ccd.call_number = ic.ic_number
+          )
           AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
           AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
           AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
@@ -1324,6 +1351,31 @@ Page<Object[]> fetchManufacturerSummary(
         WHERE UPPER(COALESCE(r.status, '')) <> 'PENDING'
           AND (UPPER(ic.type_of_call) LIKE '%RAW%' OR ic.ic_number LIKE 'ER%')
           AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%WITHDRAW%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%REJECT%'
+          AND UPPER(COALESCE(ic.status, '')) <> 'BLOCKED'
+          AND UPPER(COALESCE(ic.call_category, '')) NOT LIKE '%DIVERT%'
+          AND UPPER(COALESCE(ic.call_nature, '')) NOT LIKE '%DIVERT%'
+          AND COALESCE(ic.is_diverted_material, 0) = 0
+          AND (ic.diversion_request_no IS NULL OR TRIM(ic.diversion_request_no) = '')
+          AND NOT EXISTS (
+              SELECT 1 FROM workflow_transition wt
+              WHERE wt.requestid = ic.ic_number
+                AND (
+                    UPPER(COALESCE(wt.status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%CANCEL%'
+                )
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM call_cancellation_details ccd
+              WHERE ccd.call_number = ic.ic_number
+          )
           AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
           AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
           AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
@@ -1349,12 +1401,129 @@ Page<Object[]> fetchManufacturerSummary(
         JOIN process_inspection_details pid ON pid.ic_id = ic.id
         WHERE (UPPER(ic.type_of_call) LIKE '%PROCESS%' OR ic.ic_number LIKE 'EP%')
           AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%WITHDRAW%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%REJECT%'
+          AND UPPER(COALESCE(ic.status, '')) <> 'BLOCKED'
+          AND UPPER(COALESCE(ic.call_category, '')) NOT LIKE '%DIVERT%'
+          AND UPPER(COALESCE(ic.call_nature, '')) NOT LIKE '%DIVERT%'
+          AND COALESCE(ic.is_diverted_material, 0) = 0
+          AND (ic.diversion_request_no IS NULL OR TRIM(ic.diversion_request_no) = '')
+          AND NOT EXISTS (
+              SELECT 1 FROM workflow_transition wt
+              WHERE wt.requestid = ic.ic_number
+                AND (
+                    UPPER(COALESCE(wt.status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%CANCEL%'
+                )
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM call_cancellation_details ccd
+              WHERE ccd.call_number = ic.ic_number
+          )
           AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
           AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
           AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
         GROUP BY ic.place_of_inspection
         """, nativeQuery = true)
   List<Object[]> sumProcessOfferedByPoi(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+  /** c. RM offered qty (MT) grouped by vendor: [vendor_code, company, offeredMt]. */
+  @Query(value = """
+        SELECT COALESCE(NULLIF(poi.vendor_code, ''), ic.place_of_inspection) AS vendor_code,
+               MAX(COALESCE(NULLIF(poi.company_name, ''), ic.company_name)),
+               COALESCE(SUM(rmd.total_offered_qty_mt), 0),
+               COALESCE(SUM(rmd.offered_qty_erc), 0)
+        FROM inspection_calls ic
+        JOIN rm_inspection_details rmd ON rmd.ic_id = ic.id
+        LEFT JOIN pincode_poi_mapping poi ON (poi.poi_code = ic.place_of_inspection OR TRIM(LEADING ':' FROM poi.poi_code) = TRIM(LEADING ':' FROM ic.place_of_inspection))
+        WHERE (UPPER(ic.type_of_call) LIKE '%RAW%' OR ic.ic_number LIKE 'ER%')
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%WITHDRAW%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%REJECT%'
+          AND UPPER(COALESCE(ic.status, '')) <> 'BLOCKED'
+          AND UPPER(COALESCE(ic.call_category, '')) NOT LIKE '%DIVERT%'
+          AND UPPER(COALESCE(ic.call_nature, '')) NOT LIKE '%DIVERT%'
+          AND COALESCE(ic.is_diverted_material, 0) = 0
+          AND (ic.diversion_request_no IS NULL OR TRIM(ic.diversion_request_no) = '')
+          AND NOT EXISTS (
+              SELECT 1 FROM workflow_transition wt
+              WHERE wt.requestid = ic.ic_number
+                AND (
+                    UPPER(COALESCE(wt.status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%CANCEL%'
+                )
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM call_cancellation_details ccd
+              WHERE ccd.call_number = ic.ic_number
+          )
+          AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
+          AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
+          AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
+        GROUP BY COALESCE(NULLIF(poi.vendor_code, ''), ic.place_of_inspection)
+        """, nativeQuery = true)
+  List<Object[]> sumRmOfferedMtByVendor(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+  /** e. Process calls offered qty (MT & pieces) grouped by vendor: [vendor_code, company, offeredPieces, offeredMt]. */
+  @Query(value = """
+        SELECT COALESCE(NULLIF(poi.vendor_code, ''), ic.place_of_inspection) AS vendor_code,
+               MAX(COALESCE(NULLIF(poi.company_name, ''), ic.company_name)),
+               COALESCE(SUM(pid.offered_qty), 0),
+               COALESCE(SUM(COALESCE(pid.offered_qty, 0) *
+                   CASE
+                     WHEN UPPER(COALESCE(ic.erc_type, '')) LIKE '%MK-III%' OR UPPER(COALESCE(ic.erc_type, '')) LIKE '%MKIII%'
+                       OR UPPER(COALESCE(ic.erc_type, '')) LIKE '%MK 3%' OR UPPER(COALESCE(ic.erc_type, '')) LIKE '%MK-3%' THEN 0.91
+                     WHEN UPPER(COALESCE(ic.erc_type, '')) LIKE '%J%' THEN 0.915
+                     ELSE 1.14
+                   END) / 1000, 0)
+        FROM inspection_calls ic
+        JOIN process_inspection_details pid ON pid.ic_id = ic.id
+        LEFT JOIN pincode_poi_mapping poi ON (poi.poi_code = ic.place_of_inspection OR TRIM(LEADING ':' FROM poi.poi_code) = TRIM(LEADING ':' FROM ic.place_of_inspection))
+        WHERE (UPPER(ic.type_of_call) LIKE '%PROCESS%' OR ic.ic_number LIKE 'EP%')
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%CANCEL%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%WITHDRAW%'
+          AND UPPER(COALESCE(ic.status, '')) NOT LIKE '%REJECT%'
+          AND UPPER(COALESCE(ic.status, '')) <> 'BLOCKED'
+          AND UPPER(COALESCE(ic.call_category, '')) NOT LIKE '%DIVERT%'
+          AND UPPER(COALESCE(ic.call_nature, '')) NOT LIKE '%DIVERT%'
+          AND COALESCE(ic.is_diverted_material, 0) = 0
+          AND (ic.diversion_request_no IS NULL OR TRIM(ic.diversion_request_no) = '')
+          AND NOT EXISTS (
+              SELECT 1 FROM workflow_transition wt
+              WHERE wt.requestid = ic.ic_number
+                AND (
+                    UPPER(COALESCE(wt.status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.status, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%CANCEL%'
+                    OR UPPER(COALESCE(wt.action, '')) LIKE '%REJECT%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%WITHDRAW%'
+                    OR UPPER(COALESCE(wt.job_status, '')) LIKE '%CANCEL%'
+                )
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM call_cancellation_details ccd
+              WHERE ccd.call_number = ic.ic_number
+          )
+          AND ic.place_of_inspection IS NOT NULL AND ic.place_of_inspection <> ''
+          AND (:fromDate IS NULL OR DATE(ic.created_at) >= :fromDate)
+          AND (:toDate IS NULL OR DATE(ic.created_at) <= :toDate)
+        GROUP BY COALESCE(NULLIF(poi.vendor_code, ''), ic.place_of_inspection)
+        """, nativeQuery = true)
+  List<Object[]> sumProcessOfferedByVendor(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
     @Query(value = """
     SELECT place_of_inspection 

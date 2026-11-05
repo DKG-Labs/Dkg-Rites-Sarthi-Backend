@@ -12,4 +12,5 @@ public class VerifyAuthenticatorRequestDto {
     private String locationAddress;
     private String selfieImageBase64;
     private String deviceInfo;
+    private String userRole;
 }

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -175,4 +176,22 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
             "    ))" +
             ")", nativeQuery = true)
     List<String> findTcFilePathsByCallNo(@Param("callNo") String callNo);
+
+    /**
+     * ERC Raw Material Status: Sum of inventory tc_quantity added by vendor
+     */
+    @Query(value = """
+        SELECT ie.vendor_code,
+               MAX(COALESCE(NULLIF(ie.company_name, ''), ie.vendor_name)),
+               COALESCE(SUM(ie.tc_quantity), 0)
+        FROM inventory_entries ie
+        WHERE ie.vendor_code IS NOT NULL AND ie.vendor_code <> ''
+          AND (:fromDate IS NULL OR DATE(COALESCE(ie.created_at, ie.tc_date)) >= :fromDate)
+          AND (:toDate IS NULL OR DATE(COALESCE(ie.created_at, ie.tc_date)) <= :toDate)
+        GROUP BY ie.vendor_code
+    """, nativeQuery = true)
+    List<Object[]> sumInventoryByVendor(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 }
+
