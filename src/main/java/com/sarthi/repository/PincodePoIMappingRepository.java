@@ -246,4 +246,13 @@ WHERE :poiCode IS NULL OR :poiCode = ''
         String findMaxNumericPoiCode();
 
         List<PincodePoIMapping> findByCompanyName(String companyName);
+
+    @Query(value = """
+        SELECT DISTINCT ppm.vendor_code, ppm.company_name, ppm.unit_name, ppm.poi_code
+        FROM pincode_poi_mapping ppm
+        WHERE ppm.vendor_code IN (:vendorCodes)
+           OR ppm.poi_code IN (:vendorCodes)
+    """, nativeQuery = true)
+    List<Object[]> findVendorUnitsInfo(@Param("vendorCodes") List<String> vendorCodes);
 }
+

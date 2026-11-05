@@ -11,8 +11,10 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.mfa.AuthenticatorVerificationRepository;
 import com.sarthi.service.AuthenticatorService;
+import com.sarthi.service.AzureBlobStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,10 @@ public class AuthenticatorServiceImpl implements AuthenticatorService {
 
     private final AuthenticatorVerificationRepository verificationRepository;
     private final ObjectMapper objectMapper;
+    private final AzureBlobStorageService azureBlobStorageService;
+
+    @Value("${azure.storage.authenticator-selfies-container-name:authenticator-selfies-uat}")
+    private String selfiesContainerName;
 
     private static final int SESSION_EXPIRY_SECONDS = 180; // 3 minutes to scan the QR
     private static final int ACTIVE_LOGIN_HOURS = 12; // same as jwt.token.validity (12h); a verified login skips the QR for this long
@@ -148,11 +154,39 @@ public class AuthenticatorServiceImpl implements AuthenticatorService {
         verification.setLongitude(request.getLongitude());
         verification.setAccuracyMeters(request.getAccuracyMeters());
         verification.setLocationAddress(request.getLocationAddress());
-        verification.setSelfieImageUrl(request.getSelfieImageBase64());
         verification.setDeviceInfo(request.getDeviceInfo());
+
+        // Save userRole if provided (null or empty values treated as not provided)
+        String userRole = request.getUserRole();
+        if (userRole != null && !userRole.trim().isEmpty()) {
+            verification.setUserRole(userRole.trim());
+        }
+
         if (ipAddress != null && !ipAddress.isEmpty()) {
             verification.setIpAddress(ipAddress);
         }
+
+        // Upload selfie to Azure Blob Storage instead of storing in DB
+        if (request.getSelfieImageBase64() != null && !request.getSelfieImageBase64().isEmpty()) {
+            try {
+                String fileName = "selfie_" + verification.getUserId() + "_" + UUID.randomUUID() + ".jpg";
+                String selfieUrl = azureBlobStorageService.uploadBase64File(
+                    request.getSelfieImageBase64(),
+                    fileName,
+                    selfiesContainerName,
+                    50 // target 50 KB
+                );
+                verification.setSelfieImageUrl(selfieUrl);
+                log.info("Selfie uploaded to Azure Blob Storage: {}", selfieUrl);
+            } catch (Exception e) {
+                log.error("Failed to upload selfie to Azure Blob Storage: {}", e.getMessage(), e);
+                throw new BusinessException(
+                    new ErrorDetails(AppConstant.ERROR_CODE_INVALID, AppConstant.ERROR_TYPE_CODE_INVALID,
+                        AppConstant.ERROR_TYPE_INVALID, "Failed to upload selfie image.")
+                );
+            }
+        }
+
         verification.setStatus("AUTHENTICATED");
         LocalDateTime verifiedAt = LocalDateTime.now();
         verification.setVerifiedAt(verifiedAt);
