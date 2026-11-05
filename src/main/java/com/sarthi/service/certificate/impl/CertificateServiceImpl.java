@@ -302,6 +302,9 @@ public class CertificateServiceImpl implements CertificateService {
                 .findByIcNumber(inspectionCall.getIcNumber());
         if (rmIcSaveChangesOpt.isPresent()) {
             RmIcSaveChanges saveChanges = rmIcSaveChangesOpt.get();
+            if (saveChanges.getIcNumber() != null && !saveChanges.getIcNumber().isBlank()) {
+                dto.setCertificateNo(saveChanges.getIcNumber());
+            }
             if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
                 dto.setBookNo(saveChanges.getBookNo());
             }
@@ -354,6 +357,9 @@ public class CertificateServiceImpl implements CertificateService {
             Optional<RmIcEdit> rmIcEditOpt = rmIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
             if (rmIcEditOpt.isPresent()) {
                 RmIcEdit rmIcEdit = rmIcEditOpt.get();
+                if (rmIcEdit.getIcNumber() != null && !rmIcEdit.getIcNumber().isBlank()) {
+                    dto.setCertificateNo(rmIcEdit.getIcNumber());
+                }
                 if (rmIcEdit.getBookNo() != null && !rmIcEdit.getBookNo().isBlank()) {
                     dto.setBookNo(rmIcEdit.getBookNo());
                 }
@@ -1462,6 +1468,9 @@ public class CertificateServiceImpl implements CertificateService {
                 .findByIcNumber(inspectionCall.getIcNumber());
         if (processIcSaveChangesOpt.isPresent()) {
             ProcessIcSaveChanges saveChanges = processIcSaveChangesOpt.get();
+            if (saveChanges.getIcNumber() != null && !saveChanges.getIcNumber().isBlank()) {
+                dto.setCertificateNo(saveChanges.getIcNumber());
+            }
             if (saveChanges.getBookNo() != null && !saveChanges.getBookNo().isBlank()) {
                 dto.setBookNo(saveChanges.getBookNo());
             }
@@ -1507,6 +1516,9 @@ public class CertificateServiceImpl implements CertificateService {
                     .findByIcNumber(inspectionCall.getIcNumber());
             if (processIcEditOpt.isPresent()) {
                 ProcessIcEdit processIcEdit = processIcEditOpt.get();
+                if (processIcEdit.getIcNumber() != null && !processIcEdit.getIcNumber().isBlank()) {
+                    dto.setCertificateNo(processIcEdit.getIcNumber());
+                }
                 if (processIcEdit.getBookNo() != null && !processIcEdit.getBookNo().isBlank()) {
                     dto.setBookNo(processIcEdit.getBookNo());
                 }
@@ -2173,6 +2185,9 @@ public class CertificateServiceImpl implements CertificateService {
             if (sleeperEditOpt.isPresent()) {
                 var finalIcEdit = sleeperEditOpt.get();
                 sleeperFound = true;
+                if (finalIcEdit.getIcNumber() != null && !finalIcEdit.getIcNumber().isBlank()) {
+                    dto.setCertificateNo(finalIcEdit.getIcNumber());
+                }
                 if (finalIcEdit.getCreatedAt() != null) {
                     dto.setCertificateDate(formatDate(finalIcEdit.getCreatedAt().toLocalDate()));
                 }
@@ -2208,6 +2223,9 @@ public class CertificateServiceImpl implements CertificateService {
             if (sleeperSaveOpt.isPresent()) {
                 var saveChanges = sleeperSaveOpt.get();
                 sleeperFound = true;
+                if (saveChanges.getIcNumber() != null && !saveChanges.getIcNumber().isBlank()) {
+                    dto.setCertificateNo(saveChanges.getIcNumber());
+                }
                 if (saveChanges.getCreatedAt() != null) {
                     dto.setCertificateDate(formatDate(saveChanges.getCreatedAt().toLocalDate()));
                 }
@@ -2244,6 +2262,9 @@ public class CertificateServiceImpl implements CertificateService {
                     .findByIcNumber(inspectionCall.getIcNumber());
             if (finalIcSaveChangesOpt.isPresent()) {
                 FinalIcSaveChanges saveChanges = finalIcSaveChangesOpt.get();
+                if (saveChanges.getIcNumber() != null && !saveChanges.getIcNumber().isBlank()) {
+                    dto.setCertificateNo(saveChanges.getIcNumber());
+                }
                 if (saveChanges.getCreatedAt() != null) {
                     dto.setCertificateDate(formatDate(saveChanges.getCreatedAt().toLocalDate()));
                 }
@@ -2306,6 +2327,9 @@ public class CertificateServiceImpl implements CertificateService {
                 Optional<FinalIcEdit> finalIcEditOpt = finalIcEditRepository.findByIcNumber(inspectionCall.getIcNumber());
                 if (finalIcEditOpt.isPresent()) {
                     FinalIcEdit finalIcEdit = finalIcEditOpt.get();
+                    if (finalIcEdit.getIcNumber() != null && !finalIcEdit.getIcNumber().isBlank()) {
+                        dto.setCertificateNo(finalIcEdit.getIcNumber());
+                    }
                     if (finalIcEdit.getCreatedAt() != null) {
                         dto.setCertificateDate(formatDate(finalIcEdit.getCreatedAt().toLocalDate()));
                     }
