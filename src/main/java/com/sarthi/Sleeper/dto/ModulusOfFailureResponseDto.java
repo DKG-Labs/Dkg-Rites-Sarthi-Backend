@@ -32,6 +32,10 @@ public class ModulusOfFailureResponseDto {
 
     private String sampleType;
 
+    private String sleeperType;
+
+    private Long declarationId;
+
     private Long createdBy;
 
     private String shift;

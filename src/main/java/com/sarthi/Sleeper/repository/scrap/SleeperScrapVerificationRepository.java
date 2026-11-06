@@ -62,6 +62,16 @@ public interface SleeperScrapVerificationRepository extends JpaRepository<Sleepe
     // ---------- Final inspection rejections (Main IE): one row per rejected sleeper ----------
 
     /**
+     * The final-inspection screen saves by POST, which inserts a fresh ie_batch_summary row (with its full
+     * rejected / ET lists) every time, so older snapshots pile up. Only the latest save of each call + batch is
+     * the IE's current decision; earlier ones would count sleepers the IE later accepted.
+     * Uncorrelated on purpose: MySQL materialises the latest-id set once (a correlated MAX per row took minutes).
+     */
+    String LATEST_BATCH_SAVE = """
+            (b.call_no IS NULL OR b.id IN (SELECT MAX(b2.id) FROM ie_batch_summary b2
+                                           WHERE b2.call_no IS NOT NULL GROUP BY b2.call_no, b2.batch_no))""";
+
+    /**
      * 0 row id, 1 sleeper code, 2 reason, 3 type, 4 batch summary id, 5 plant id, 6 vendor code, 7 batch no,
      * 8 call no, 9 date casted, 10 shift, 11 created by, 12 IE name, 13 created date.
      * The plant of a final rejection is its inspection call's plant (like ERC), so for one plant this returns the
@@ -76,6 +86,7 @@ public interface SleeperScrapVerificationRepository extends JpaRepository<Sleepe
             LEFT JOIN user_master um ON um.userid = b.created_by
             WHERE r.sleeper_code IS NOT NULL AND TRIM(r.sleeper_code) NOT IN ('', '0')
               AND (:plantId = '' OR REPLACE(b.plant_id, ':', '') = :plantId OR b.call_no IN (:plantCalls))
+              AND """ + LATEST_BATCH_SAVE + """
             UNION ALL
             SELECT r.id, r.sleeper_code, r.reason, NULL, b.id, b.plant_id, b.vendor_code, b.batch_no,
                    b.call_no, b.date_casted, b.shift, b.created_by, um.full_name, b.created_date
@@ -84,6 +95,7 @@ public interface SleeperScrapVerificationRepository extends JpaRepository<Sleepe
             LEFT JOIN user_master um ON um.userid = b.created_by
             WHERE r.sleeper_code IS NOT NULL AND TRIM(r.sleeper_code) NOT IN ('', '0')
               AND (:plantId = '' OR REPLACE(b.plant_id, ':', '') = :plantId OR b.call_no IN (:plantCalls))
+              AND """ + LATEST_BATCH_SAVE + """
             """, nativeQuery = true)
     List<Object[]> findFinalRejections(@Param("plantId") String plantId,
                                        @Param("plantCalls") Collection<String> plantCalls);
@@ -126,6 +138,7 @@ public interface SleeperScrapVerificationRepository extends JpaRepository<Sleepe
             JOIN ie_batch_summary b ON b.id = s.batch_id
             WHERE s.sleeper_code IS NOT NULL AND TRIM(s.sleeper_code) NOT IN ('', '0')
               AND (:plantId = '' OR REPLACE(b.plant_id, ':', '') = :plantId OR b.call_no IN (:plantCalls))
+              AND """ + LATEST_BATCH_SAVE + """
             """, nativeQuery = true)
     List<Object[]> findFinalEpoxySleepers(@Param("plantId") String plantId,
                                           @Param("plantCalls") Collection<String> plantCalls);

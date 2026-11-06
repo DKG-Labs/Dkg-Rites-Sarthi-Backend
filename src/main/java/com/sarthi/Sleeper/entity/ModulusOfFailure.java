@@ -37,6 +37,12 @@ public class ModulusOfFailure {
 
     private String sampleType;
 
+    /** Drawing No. of the sampled sleeper (batch nos. repeat across declarations, so it is stored, not looked up) */
+    private String sleeperType;
+
+    /** production_declaration.id the sample was taken from */
+    private Long declarationId;
+
     private String shift;
     private String vendorCode;
     private String plantId;

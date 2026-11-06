@@ -66,6 +66,8 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
 
         entity.setMrResult(dto.getMrResult());
         entity.setSampleType(dto.getSampleType());
+        entity.setSleeperType(dto.getSleeperType());
+        entity.setDeclarationId(dto.getDeclarationId());
 
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedDate(LocalDateTime.now());
@@ -124,6 +126,9 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
 
         entity.setMrResult(dto.getMrResult());
         entity.setSampleType(dto.getSampleType());
+        // Older clients don't send these: keep what is stored rather than wiping it
+        if (dto.getSleeperType() != null && !dto.getSleeperType().isBlank()) entity.setSleeperType(dto.getSleeperType());
+        if (dto.getDeclarationId() != null) entity.setDeclarationId(dto.getDeclarationId());
 
         entity.setUpdatedBy(dto.getUpdatedBy());
         entity.setUpdatedDate(LocalDateTime.now());
@@ -214,6 +219,8 @@ public class ModulusOfFailureServiceImpl implements ModulusOfFailureService {
         dto.setSampleIdentification(entity.getSampleIdentification());
         dto.setMrResult(entity.getMrResult());
         dto.setSampleType(entity.getSampleType());
+        dto.setSleeperType(entity.getSleeperType());
+        dto.setDeclarationId(entity.getDeclarationId());
 
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setShift(entity.getShift());

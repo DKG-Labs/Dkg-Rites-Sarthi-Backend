@@ -28,6 +28,10 @@ public class ModulusOfFailureRequestDto {
 
     private String sampleType;
 
+    private String sleeperType;
+
+    private Long declarationId;
+
     private Long createdBy;
 
 
