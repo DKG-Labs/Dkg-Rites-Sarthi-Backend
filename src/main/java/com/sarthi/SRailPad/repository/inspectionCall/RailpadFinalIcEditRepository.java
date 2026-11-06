@@ -2,10 +2,12 @@ package com.sarthi.SRailPad.repository.inspectionCall;
 
 import com.sarthi.SRailPad.entity.inspectionCall.RailpadFinalIcEdit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,9 +45,9 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(f.created_at)                                      AS icDate,
-                COALESCE(SUM(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
-                COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
-                COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,
+                COALESCE(MAX(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
+                COALESCE(MAX(res.accepted_qty), 0)                      AS quantityPassed,
+                COALESCE(MAX(res.rejected_qty), 0)                      AS quantityRejected,
                 ic.call_no                                              AS callNo,
                 (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
@@ -191,9 +193,9 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(f.created_at)                                      AS icDate,
-                COALESCE(SUM(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
-                COALESCE(SUM(res.accepted_qty), 0)                      AS quantityPassed,
-                COALESCE(SUM(res.rejected_qty), 0)                      AS quantityRejected,
+                COALESCE(MAX(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
+                COALESCE(MAX(res.accepted_qty), 0)                      AS quantityPassed,
+                COALESCE(MAX(res.rejected_qty), 0)                      AS quantityRejected,
                 ic.call_no                                             AS callNo,
                 (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
@@ -285,6 +287,23 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 ic.total_qty
             """, nativeQuery = true)
     List<Object[]> getRailpadFinalCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
+
+    @Modifying
+    @Query(value = """
+            UPDATE railpad_final_ic_edit
+            SET created_at = :newDateTime
+            WHERE ic_number = :callNo OR ic_number LIKE CONCAT('%/', :callNo, '/%')
+            """, nativeQuery = true)
+    int updateCreatedAtByCallNo(
+            @Param("callNo") String callNo,
+            @Param("newDateTime") LocalDateTime newDateTime);
+
+    @Query(value = """
+            SELECT ic_number, created_at FROM railpad_final_ic_edit
+            WHERE ic_number = :callNo OR ic_number LIKE CONCAT('%/', :callNo, '/%')
+            ORDER BY id DESC LIMIT 1
+            """, nativeQuery = true)
+    List<Object[]> findIcNumberAndCreatedAtByCallNo(@Param("callNo") String callNo);
 }
 
 
