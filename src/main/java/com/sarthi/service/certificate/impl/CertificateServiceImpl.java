@@ -66,9 +66,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -211,6 +214,39 @@ public class CertificateServiceImpl implements CertificateService {
         List<RmHeatQuantity> heatQuantities = new ArrayList<>();
         if (rmDetails != null) {
             heatQuantities = rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rmDetails.getId()));
+        }
+
+        // For diverted RM calls, filter heat quantities to only those approved in the diversion request
+        if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && ercDiversionRequestRepository != null) {
+            String reqNo = inspectionCall.getDiversionRequestNo();
+            if (reqNo == null || reqNo.isBlank()) reqNo = inspectionCall.getIcNumber();
+            if (reqNo != null && !reqNo.isBlank()) {
+                try {
+                    com.sarthi.entity.ercdiversion.ErcDiversionRequest divReq = ercDiversionRequestRepository
+                            .findByRequestNo(reqNo.trim()).orElse(null);
+                    if (divReq != null && divReq.getItems() != null && !divReq.getItems().isEmpty()) {
+                        List<RmHeatQuantity> filtered = new ArrayList<>();
+                        for (RmHeatQuantity hq : heatQuantities) {
+                            String hNo = hq.getHeatNumber() != null ? hq.getHeatNumber().trim().toUpperCase() : "";
+                            for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : divReq.getItems()) {
+                                String itemHeat = item.getHeatNo() != null ? item.getHeatNo().trim().toUpperCase() : "";
+                                if (!itemHeat.isEmpty() && (hNo.equals(itemHeat) || hNo.contains(itemHeat))) {
+                                    if (item.getDiversionQty() != null) {
+                                        hq.setQtyAccepted(item.getDiversionQty());
+                                    }
+                                    filtered.add(hq);
+                                    break;
+                                }
+                            }
+                        }
+                        if (!filtered.isEmpty()) {
+                            heatQuantities = filtered;
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn("Could not filter RM heat quantities for diversion {}: {}", reqNo, e.getMessage());
+                }
+            }
         }
 
         // 4. Fetch Heat Final Results
@@ -1191,12 +1227,151 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
-     * Process certificate of a diverted IC: the lots are the source IC's full quantities, so scale each
-     * to the diverted share (e.g. 10,000 of 20,000 accepted -> 50%). Whole numbers only;
-     * accepted = processed - rejected so each row adds up. Full diversions stay unchanged.
+     * Matches a Process IC lot label (e.g. "26D00414 - AN6/173" or "AN6/173") with an ErcDiversionItem.
+     * When the diversion item has a lotNo, the label must contain/match that lot number.
+     * When it has only a heatNo, the label must match that heat number.
+     */
+    private boolean matchesLot(String lotHeatLabel, com.sarthi.entity.ercdiversion.ErcDiversionItem item) {
+        if (lotHeatLabel == null || item == null) return false;
+        String label = lotHeatLabel.trim().toUpperCase();
+        String itemLot = item.getLotNo() != null ? item.getLotNo().trim().toUpperCase() : "";
+        String itemHeat = item.getHeatNo() != null ? item.getHeatNo().trim().toUpperCase() : "";
+
+        if (!itemLot.isEmpty()) {
+            if (label.equals(itemLot)) return true;
+            if (label.endsWith(" - " + itemLot) || label.endsWith("-" + itemLot)) return true;
+            if (label.contains(" - " + itemLot) || label.contains(itemLot + " - ")) return true;
+            int idx = label.indexOf(itemLot);
+            if (idx >= 0) {
+                boolean startOk = (idx == 0) || !Character.isLetterOrDigit(label.charAt(idx - 1));
+                int endIdx = idx + itemLot.length();
+                boolean endOk = (endIdx == label.length()) || !Character.isLetterOrDigit(label.charAt(endIdx));
+                if (startOk && endOk) return true;
+            }
+            return false;
+        }
+
+        if (!itemHeat.isEmpty()) {
+            if (label.equals(itemHeat)) return true;
+            if (label.startsWith(itemHeat + " - ") || label.startsWith(itemHeat + "-")) return true;
+            int idx = label.indexOf(itemHeat);
+            if (idx >= 0) {
+                boolean startOk = (idx == 0) || !Character.isLetterOrDigit(label.charAt(idx - 1));
+                int endIdx = idx + itemHeat.length();
+                boolean endOk = (endIdx == label.length()) || !Character.isLetterOrDigit(label.charAt(endIdx));
+                if (startOk && endOk) return true;
+            }
+            return false;
+        }
+
+        return false;
+    }
+
+    private boolean matchesFinalLot(FinalCertificateDto.LotDetailDto lot, com.sarthi.entity.ercdiversion.ErcDiversionItem item) {
+        if (lot == null || item == null) return false;
+        String itemLot = item.getLotNo() != null ? item.getLotNo().trim().toUpperCase() : "";
+        String lotNo = lot.getLotNo() != null ? lot.getLotNo().trim().toUpperCase() : "";
+
+        if (!itemLot.isEmpty() && !lotNo.isEmpty()) {
+            return lotNo.equals(itemLot) || lotNo.contains(itemLot) || itemLot.contains(lotNo);
+        }
+
+        String itemHeat = item.getHeatNo() != null ? item.getHeatNo().trim().toUpperCase() : "";
+        String lotHeat = lot.getHeatNo() != null ? lot.getHeatNo().trim().toUpperCase() : "";
+        if (!itemHeat.isEmpty() && !lotHeat.isEmpty()) {
+            return lotHeat.equals(itemHeat) || lotHeat.contains(itemHeat);
+        }
+        return false;
+    }
+
+    /**
+     * Process certificate of a diverted IC: filter lots to ONLY those approved in the diversion
+     * request (erc_material_diversion_item), and scale quantities if a lot was partially diverted.
+     * Whole numbers only; accepted = processed - rejected.
      */
     private void applyDiversionRatio(InspectionCall call, List<ProcessMaterialCertificateDto.LotDetailDto> lots) {
-        if (lots == null || lots.isEmpty()) return;
+        if (lots == null) return;
+        if (!Boolean.TRUE.equals(call.getIsDivertedMaterial()) || ercDiversionRequestRepository == null) {
+            return;
+        }
+        String reqNo = call.getDiversionRequestNo();
+        if (reqNo == null || reqNo.isBlank()) reqNo = call.getIcNumber();
+        if (reqNo == null || reqNo.isBlank()) return;
+
+        com.sarthi.entity.ercdiversion.ErcDiversionRequest request;
+        try {
+            request = ercDiversionRequestRepository.findByRequestNo(reqNo.trim()).orElse(null);
+        } catch (Exception e) {
+            logger.warn("Could not load diversion request {}: {}", reqNo, e.getMessage());
+            return;
+        }
+        if (request == null) return;
+
+        List<com.sarthi.entity.ercdiversion.ErcDiversionItem> items = request.getItems();
+
+        // If items breakdown is present (standard for modern diversion requests),
+        // strictly filter lots to only those selected in the request.
+        if (items != null && !items.isEmpty()) {
+            List<ProcessMaterialCertificateDto.LotDetailDto> matchedLots = new ArrayList<>();
+            Set<Long> matchedItemIds = new HashSet<>();
+
+            for (ProcessMaterialCertificateDto.LotDetailDto lot : lots) {
+                com.sarthi.entity.ercdiversion.ErcDiversionItem matchedItem = null;
+                for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : items) {
+                    if (matchesLot(lot.getHeatNo(), item)) {
+                        matchedItem = item;
+                        break;
+                    }
+                }
+
+                if (matchedItem != null) {
+                    if (matchedItem.getId() != null) matchedItemIds.add(matchedItem.getId());
+                    double divQty = matchedItem.getDiversionQty() != null ? matchedItem.getDiversionQty().doubleValue() : 0;
+                    double accQty = matchedItem.getAcceptedQty() != null ? matchedItem.getAcceptedQty().doubleValue() : 0;
+                    double ratio = accQty > 0 ? Math.min(1.0, divQty / accQty) : 1.0;
+
+                    int processed = lot.getTotalProcessed() != null ? lot.getTotalProcessed() : (int) divQty;
+                    int rejected = lot.getRejectedQty() != null ? lot.getRejectedQty() : 0;
+
+                    if (ratio < 1.0) {
+                        processed = (int) Math.round(processed * ratio);
+                        rejected = (int) Math.round(rejected * ratio);
+                    }
+
+                    lot.setTotalProcessed(processed);
+                    lot.setRejectedQty(Math.min(rejected, processed));
+                    lot.setAcceptedQty((int) Math.round(divQty));
+                    matchedLots.add(lot);
+                }
+            }
+
+            // If any diversion items were not found in source test results, synthesize them
+            for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : items) {
+                if (item.getId() != null && matchedItemIds.contains(item.getId())) {
+                    continue;
+                }
+                int divQty = item.getDiversionQty() != null ? item.getDiversionQty().intValue() : 0;
+                String heatLabel = item.getHeatNo() != null ? item.getHeatNo().trim() : "";
+                if (item.getLotNo() != null && !item.getLotNo().isBlank()) {
+                    heatLabel = heatLabel.isEmpty() ? item.getLotNo().trim() : heatLabel + " - " + item.getLotNo().trim();
+                }
+                ProcessMaterialCertificateDto.LotDetailDto newLot = ProcessMaterialCertificateDto.LotDetailDto.builder()
+                        .heatNo(heatLabel)
+                        .totalProcessed(divQty)
+                        .acceptedQty(divQty)
+                        .rejectedQty(0)
+                        .build();
+                matchedLots.add(newLot);
+            }
+
+            lots.clear();
+            lots.addAll(matchedLots);
+            logger.info("Filtered process certificate lots for diverted IC {}: kept {} lots from {} diversion items",
+                    call.getIcNumber(), lots.size(), items.size());
+            return;
+        }
+
+        // Fallback for legacy requests with no items breakdown: scale all lots by overall ratio
         DiversionRatios ratios = loadDiversionRatios(call,
                 lots.stream().mapToDouble(l -> l.getAcceptedQty() != null ? l.getAcceptedQty() : 0).sum());
         if (ratios == null) return;
@@ -1216,8 +1391,8 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Final certificate of a diverted IC. Lot rows come from the source IC, where accepted was not
-     * stored per lot, so accepted = offered - that lot's rejected. Then, for a partial diversion, every
-     * lot and the "now" totals are scaled to the diverted share (whole numbers).
+     * stored per lot, so accepted = offered - that lot's rejected. Filters lots to ONLY those approved
+     * in the diversion request, and scales quantities if partially diverted.
      */
     private void applyFinalDiversion(InspectionCall call, FinalCertificateDto dto, Map<String, Integer> rejectedByLot) {
         List<FinalCertificateDto.LotDetailDto> lots = dto.getLotDetails() != null ? dto.getLotDetails() : new ArrayList<>();
@@ -1233,6 +1408,79 @@ public class CertificateServiceImpl implements CertificateService {
             }
         }
 
+        String reqNo = call.getDiversionRequestNo();
+        if (reqNo == null || reqNo.isBlank()) reqNo = call.getIcNumber();
+        com.sarthi.entity.ercdiversion.ErcDiversionRequest request = (reqNo != null && !reqNo.isBlank() && ercDiversionRequestRepository != null)
+                ? ercDiversionRequestRepository.findByRequestNo(reqNo.trim()).orElse(null)
+                : null;
+        List<com.sarthi.entity.ercdiversion.ErcDiversionItem> items = request != null ? request.getItems() : null;
+
+        if (items != null && !items.isEmpty()) {
+            List<FinalCertificateDto.LotDetailDto> matchedLots = new ArrayList<>();
+            Set<Long> matchedItemIds = new HashSet<>();
+
+            for (FinalCertificateDto.LotDetailDto lot : lots) {
+                com.sarthi.entity.ercdiversion.ErcDiversionItem matchedItem = null;
+                for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : items) {
+                    if (matchesFinalLot(lot, item)) {
+                        matchedItem = item;
+                        break;
+                    }
+                }
+
+                if (matchedItem != null) {
+                    if (matchedItem.getId() != null) matchedItemIds.add(matchedItem.getId());
+                    double divQty = matchedItem.getDiversionQty() != null ? matchedItem.getDiversionQty().doubleValue() : 0;
+                    double accQty = matchedItem.getAcceptedQty() != null ? matchedItem.getAcceptedQty().doubleValue() : 0;
+                    double ratio = accQty > 0 ? Math.min(1.0, divQty / accQty) : 1.0;
+
+                    int offered = lot.getOfferedQty() != null ? lot.getOfferedQty() : (int) divQty;
+                    int rejected = lot.getRejectedQty() != null ? lot.getRejectedQty() : 0;
+
+                    if (ratio < 1.0) {
+                        offered = (int) Math.round(offered * ratio);
+                        rejected = (int) Math.round(rejected * ratio);
+                    }
+
+                    lot.setOfferedQty(offered);
+                    lot.setRejectedQty(Math.min(rejected, offered));
+                    lot.setAcceptedQty((int) Math.round(divQty));
+                    lot.setStatus(lot.getRejectedQty() != null && lot.getRejectedQty() > 0 ? "PARTIAL" : "ACCEPTED");
+                    matchedLots.add(lot);
+                }
+            }
+
+            for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : items) {
+                if (item.getId() != null && matchedItemIds.contains(item.getId())) {
+                    continue;
+                }
+                int divQty = item.getDiversionQty() != null ? item.getDiversionQty().intValue() : 0;
+                FinalCertificateDto.LotDetailDto newLot = FinalCertificateDto.LotDetailDto.builder()
+                        .lotNo(item.getLotNo())
+                        .heatNo(item.getHeatNo())
+                        .offeredQty(divQty)
+                        .acceptedQty(divQty)
+                        .rejectedQty(0)
+                        .status("ACCEPTED")
+                        .build();
+                matchedLots.add(newLot);
+            }
+
+            dto.setLotDetails(matchedLots);
+            dto.setTotalLots(matchedLots.size());
+            dto.setQtyNowOffered((double) matchedLots.stream().mapToInt(l -> l.getOfferedQty() != null ? l.getOfferedQty() : 0).sum());
+            dto.setQtyNowRejected((double) matchedLots.stream().mapToInt(l -> l.getRejectedQty() != null ? l.getRejectedQty() : 0).sum());
+            dto.setQtyNowPassed((double) matchedLots.stream().mapToInt(l -> l.getAcceptedQty() != null ? l.getAcceptedQty() : 0).sum());
+
+            double onOrder = dto.getQtyOnOrder() != null ? dto.getQtyOnOrder() : 0;
+            double passedPrev = dto.getQtyPassedPreviously() != null ? dto.getQtyPassedPreviously() : 0;
+            dto.setQtyStillDue(Math.max(0.0, onOrder - passedPrev - (dto.getQtyNowPassed() != null ? dto.getQtyNowPassed() : 0)));
+            logger.info("Filtered final certificate lots for diverted IC {}: kept {} lots, passed {}",
+                    call.getIcNumber(), matchedLots.size(), dto.getQtyNowPassed());
+            return;
+        }
+
+        // Fallback for legacy requests with no items breakdown:
         double passedNow = dto.getQtyNowPassed() != null ? dto.getQtyNowPassed() : 0;
         DiversionRatios ratios = loadDiversionRatios(call, passedNow);
         boolean scaled = false;
@@ -1403,7 +1651,7 @@ public class CertificateServiceImpl implements CertificateService {
         // Diverted IC: lots taken from the source IC are its full quantities, so scale them to the
         // share actually diverted (e.g. 10,000 of 20,000 accepted -> 50%).
         // Normal ICs, and diverted ICs with their own results, are left unchanged.
-        if (lotsFromSource) {
+        if (lotsFromSource || Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial())) {
             applyDiversionRatio(inspectionCall, lots);
         }
 
@@ -2172,7 +2420,7 @@ public class CertificateServiceImpl implements CertificateService {
             String divNote = " [Material diverted from Source IC: " + inspectionCall.getSourceIcNo() + "]";
             dto.setRemarks((dto.getRemarks() != null ? dto.getRemarks() : "") + divNote);
         }
-        if (divertedFromSource) {
+        if (divertedFromSource || Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial())) {
             applyFinalDiversion(inspectionCall, dto, rejectedByLot);
         }
         end = System.currentTimeMillis();

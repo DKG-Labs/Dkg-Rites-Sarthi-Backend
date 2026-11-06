@@ -2,8 +2,12 @@ package com.sarthi.controller;
 
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.mfa.AuthenticatorVerificationRepository;
+import com.sarthi.service.AzureBlobStorageService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,6 +30,12 @@ public class ActiveLoginController {
 
     @Autowired
     private AuthenticatorVerificationRepository verificationRepository;
+
+    @Autowired
+    private AzureBlobStorageService azureBlobStorageService;
+
+    @Value("${azure.storage.authenticator-selfies-container-name:authenticator-selfies}")
+    private String selfiesContainerName;
 
     /**
      * GET /api/active-logins
@@ -130,6 +140,40 @@ public class ActiveLoginController {
                     Map<String, String> body = new HashMap<>();
                     body.put("selfieImageUrl", v.getSelfieImageUrl());
                     return ResponseEntity.ok((Object) body);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/active-logins/{id}/selfie/image
+     * Proxies the selfie image bytes from the private Azure Blob container so the
+     * browser can display it without a 403 / CORS error.
+     */
+    @GetMapping("/{id}/selfie/image")
+    public ResponseEntity<byte[]> getSelfieImage(@PathVariable Long id) {
+        return verificationRepository.findById(id)
+                .map(v -> {
+                    String url = v.getSelfieImageUrl();
+                    if (url == null || url.isBlank()) {
+                        return ResponseEntity.notFound().<byte[]>build();
+                    }
+                    try {
+                        java.net.URI uri = new java.net.URI(url);
+                        String path = uri.getPath(); // e.g. /authenticator-selfies/selfie_116_xxxx.jpg
+                        // Strip leading /<container>/ to get just the blob name
+                        String blobName = java.net.URLDecoder.decode(
+                                path.replaceFirst("^/[^/]+/", ""), "UTF-8");
+                        byte[] bytes = azureBlobStorageService.downloadFileFromContainer(
+                                blobName, selfiesContainerName);
+                        String contentType = blobName.toLowerCase().endsWith(".png")
+                                ? "image/png" : "image/jpeg";
+                        return ResponseEntity.ok()
+                                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600, private")
+                                .contentType(MediaType.parseMediaType(contentType))
+                                .body(bytes);
+                    } catch (Exception e) {
+                        return ResponseEntity.notFound().<byte[]>build();
+                    }
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
