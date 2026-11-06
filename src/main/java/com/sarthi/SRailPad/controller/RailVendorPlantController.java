@@ -28,11 +28,18 @@ public class RailVendorPlantController {
     @GetMapping("/vendor/{vendorCode}/plants")
     public ResponseEntity<RailVendorResponseDTO> getPlants(@PathVariable String vendorCode) {
         List<RailVendorPlants> plants = railVendorPlantsRepository.findByVendorCode(vendorCode);
+        if (plants == null || plants.isEmpty()) {
+            String clean = vendorCode != null ? vendorCode.replace(":", "").trim() : "";
+            plants = railVendorPlantsRepository.findByVendorCode(":" + clean);
+            if (plants == null || plants.isEmpty()) {
+                plants = railVendorPlantsRepository.findByVendorCode(clean);
+            }
+        }
         
         RailVendorResponseDTO response = new RailVendorResponseDTO();
         response.setVendorCode(vendorCode);
         
-        if (!plants.isEmpty()) {
+        if (plants != null && !plants.isEmpty()) {
             response.setCompanyName(plants.get(0).getCompanyName());
             response.setPlants(plants.stream()
                     .map(p -> new RailPlantDTO(p.getPlantName(), p.getPlantId()))

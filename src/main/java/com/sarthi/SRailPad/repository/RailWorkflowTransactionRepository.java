@@ -922,11 +922,14 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
     @Query(value = """
             SELECT DISTINCT
                 COALESCE(
-                    CASE 
-                        WHEN vm.vendor_name IS NOT NULL AND TRIM(vm.vendor_name) != '' AND vm.vendor_name NOT REGEXP '^[0-9]+$' 
-                        THEN TRIM(vm.vendor_name) 
-                        ELSE NULL 
-                    END,
+                    (SELECT TRIM(vm.vendor_name) FROM vendor_master vm
+                     WHERE vm.vendor_name IS NOT NULL AND TRIM(vm.vendor_name) != '' AND vm.vendor_name NOT REGEXP '^[0-9]+$'
+                       AND (vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                            OR vm.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                            OR CONCAT(':', vm.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                            OR vm.vendor_code COLLATE utf8mb4_unicode_ci = ph.vendor_code COLLATE utf8mb4_unicode_ci)
+                     ORDER BY CASE WHEN REPLACE(vm.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci THEN 0 ELSE 1 END
+                     LIMIT 1),
                     rvp_p.company_name,
                     rvp_v.company_name,
                     CASE 
@@ -972,14 +975,25 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 rwt.created_date AS rawCreatedDate,
                 DATE_FORMAT(ic.created_at, '%d/%m/%Y %H:%i:%s') AS callSubmissionDateTime,
                 CASE
-                    WHEN (rwt.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%') AND UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%' 
+                    WHEN (rwt.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%') AND UPPER(COALESCE(ic.rail_pad_type, '')) LIKE '%NCRGRSP%'
                         THEN CONCAT(COALESCE(
-                            (SELECT NULLIF(SUM(rfl.accepted_qty), 0) FROM rail_final_inspection_lot_results rfl WHERE rfl.call_no = ic.call_no),
+                            (SELECT NULLIF(MAX(rfl.accepted_qty), 0) FROM rail_final_inspection_lot_results rfl WHERE rfl.call_no = ic.call_no),
                             ic.no_of_sets, 0), ' Set')
                     WHEN (rwt.request_id LIKE 'RPF%' OR ic.call_no LIKE 'RPF%')
                         THEN CONCAT(COALESCE(
                             (SELECT NULLIF(SUM(rfl.accepted_qty), 0) FROM rail_final_inspection_lot_results rfl WHERE rfl.call_no = ic.call_no),
                             ic.total_qty, 0), ' Nos')
+                    WHEN (rwt.request_id LIKE 'RPP%' OR ic.call_no LIKE 'RPP%')
+                         AND EXISTS (
+                            SELECT 1 FROM po_item pi_u
+                            WHERE pi_u.po_header_id = ph.id
+                              AND pi_u.item_sr_no COLLATE utf8mb4_unicode_ci = (CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1) ELSE ic.po_sr END) COLLATE utf8mb4_unicode_ci
+                              AND LOWER(TRIM(COALESCE(pi_u.uom, ''))) LIKE 'set%'
+                         )
+                        THEN CONCAT(COALESCE(
+                            (SELECT NULLIF(MAX(rpir_s.accepted_sets), 0) FROM rail_process_inspection_result rpir_s WHERE rpir_s.inspection_call_id = ic.id),
+                            (SELECT NULLIF(MAX(rpir_s.total_accepted_qty), 0) FROM rail_process_inspection_result rpir_s WHERE rpir_s.inspection_call_id = ic.id),
+                            ic.total_qty, 0), ' Set')
                     ELSE CONCAT(COALESCE(ic.total_qty, 0), ' Nos')
                 END AS callQty,
                 ic.rail_pad_type AS railpadType
@@ -987,18 +1001,11 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             INNER JOIN (
                 SELECT request_id, MAX(workflow_transition_id) AS max_id
                 FROM rail_workflow_transaction
-                WHERE workflow_id IN (1, 2)
-                  AND UPPER(COALESCE(status, '')) = 'SEND_CALL_TO_IBS'
+                WHERE workflow_id = 2
                 GROUP BY request_id
             ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
             INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN vendor_master vm ON (
-                vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
-                OR vm.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
-                OR CONCAT(':', vm.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
-                OR vm.vendor_code COLLATE utf8mb4_unicode_ci = ph.vendor_code COLLATE utf8mb4_unicode_ci
-            )
             LEFT JOIN (
                 SELECT vendor_code, MAX(company_name) AS company_name
                 FROM rail_vendor_plant
@@ -1019,8 +1026,14 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                 OR rvp_p.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(ic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci
                 OR CONCAT(':', rvp_p.plant_id) COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
             )
-            LEFT JOIN rail_inspection_complete_details ricd ON ic.call_no COLLATE utf8mb4_unicode_ci = ricd.call_no COLLATE utf8mb4_unicode_ci
-            WHERE (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+            LEFT JOIN (
+                SELECT call_no, MAX(certificate_no) AS certificate_no
+                FROM rail_inspection_complete_details
+                GROUP BY call_no
+            ) ricd ON ic.call_no COLLATE utf8mb4_unicode_ci = ricd.call_no COLLATE utf8mb4_unicode_ci
+            WHERE (rwt.request_id LIKE 'RPP%' OR rwt.request_id LIKE 'RPF%')
+            AND (UPPER(COALESCE(rwt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(rwt.action, '')) = 'SEND_CALL_TO_IBS')
+            AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
                    rwt.plant_id = :vendorPlantCode OR
                    CONCAT(':', rwt.plant_id) = :vendorPlantCode OR
                    rwt.plant_id = REPLACE(:vendorPlantCode, ':', '') OR
@@ -1032,8 +1045,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
                    rwt.poi_code = :vendorPlantCode
             )
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
-            AND (:startDate IS NULL OR DATE(rwt.created_date) >= :startDate)
-            AND (:endDate IS NULL OR DATE(rwt.created_date) <= :endDate)
+            AND (:startDate IS NULL OR :endDate IS NULL OR DATE(ic.created_at) BETWEEN :startDate AND :endDate)
             ORDER BY rawCreatedDate DESC
             """, nativeQuery = true)
     List<Object[]> findRailPadDownloadIcAnnexuresReportRaw(

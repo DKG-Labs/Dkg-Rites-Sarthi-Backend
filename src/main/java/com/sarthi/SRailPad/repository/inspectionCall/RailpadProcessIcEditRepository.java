@@ -2,10 +2,12 @@ package com.sarthi.SRailPad.repository.inspectionCall;
 
 import com.sarthi.SRailPad.entity.inspectionCall.RailpadProcessIcEdit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -333,6 +335,23 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 p.qty_now_rejected
             """, nativeQuery = true)
     List<Object[]> getRailpadProcessCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
+
+    @Modifying
+    @Query(value = """
+            UPDATE railpad_process_ic_edit
+            SET created_at = :newDateTime
+            WHERE ic_number = :callNo OR ic_number LIKE CONCAT('%/', :callNo, '/%')
+            """, nativeQuery = true)
+    int updateCreatedAtByCallNo(
+            @Param("callNo") String callNo,
+            @Param("newDateTime") LocalDateTime newDateTime);
+
+    @Query(value = """
+            SELECT ic_number, created_at FROM railpad_process_ic_edit
+            WHERE ic_number = :callNo OR ic_number LIKE CONCAT('%/', :callNo, '/%')
+            ORDER BY id DESC LIMIT 1
+            """, nativeQuery = true)
+    List<Object[]> findIcNumberAndCreatedAtByCallNo(@Param("callNo") String callNo);
 }
 
 

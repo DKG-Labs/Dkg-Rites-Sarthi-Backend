@@ -14,7 +14,7 @@ public interface RailInspectionLotRepository extends JpaRepository<RailInspectio
         SELECT ril.id AS lotId, ril.lot_no AS lotNo, ric.call_no AS callNo
         FROM rail_inspection_lot ril
         JOIN rail_inspection_call ric ON ril.call_id = ric.id
-        WHERE ric.plant_id = :plantId
+        WHERE REPLACE(ric.plant_id, ':', '') = REPLACE(:plantId, ':', '')
           AND (YEAR(ric.created_at) = :year OR YEAR(ric.inspection_date) = :year)
         ORDER BY ril.lot_no, ric.call_no
     """, nativeQuery = true)
@@ -28,7 +28,7 @@ public interface RailInspectionLotRepository extends JpaRepository<RailInspectio
         FROM rail_production_batch pb
         JOIN rail_production_product pp ON pb.product_id = pp.id
         JOIN rail_production_declaration pd ON pp.declaration_id = pd.id
-        WHERE pd.plant_id = :plantId AND pb.batch_no = :batchNo
+        WHERE REPLACE(pd.plant_id, ':', '') = REPLACE(:plantId, ':', '') AND pb.batch_no = :batchNo
     """, nativeQuery = true)
     List<Object[]> findProductionByPlantAndBatch(@Param("plantId") String plantId, @Param("batchNo") String batchNo);
 
@@ -36,7 +36,7 @@ public interface RailInspectionLotRepository extends JpaRepository<RailInspectio
         SELECT COALESCE(SUM(pr.rejected_qty), 0), MAX(v.casting_date)
         FROM rail_ie_production_rejection pr
         JOIN rail_ie_production_verification v ON pr.verification_id = v.id
-        WHERE v.production_unit = :plantId AND pr.batch_no = :batchNo
+        WHERE REPLACE(v.production_unit, ':', '') = REPLACE(:plantId, ':', '') AND pr.batch_no = :batchNo
     """, nativeQuery = true)
     List<Object[]> findProcessRejectionByPlantAndBatch(@Param("plantId") String plantId, @Param("batchNo") String batchNo);
 }
