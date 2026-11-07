@@ -1142,7 +1142,22 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
+        // Only calls already sent to IBS are offered as process calls
+        return filterSentToIbs(findProcessCallsAnyStatus(railPadType, drawingNo, plantId, cleanPoNo, cleanPoSr));
+    }
+
+    private static final String STATUS_SEND_CALL_TO_IBS = "SEND_CALL_TO_IBS";
+
+    private static List<RailInspectionCall> filterSentToIbs(List<RailInspectionCall> calls) {
+        if (calls == null) return new ArrayList<>();
+        return calls.stream().filter(c -> STATUS_SEND_CALL_TO_IBS.equalsIgnoreCase(c.getStatus())).toList();
+    }
+
+    private List<RailInspectionCall> findProcessCallsAnyStatus(String railPadType, String drawingNo, String plantId,
+            String cleanPoNo, String cleanPoSr) {
         if (cleanPoNo != null && !cleanPoNo.isEmpty()) {
+            // Merge both sources: complete_details stores PO_NO as "PO/SR" or just "PO", so either lookup alone can miss calls
+            java.util.Map<Long, RailInspectionCall> merged = new java.util.LinkedHashMap<>();
             List<RailInspectionCompleteDetails> completeDetails = railInspectionCompleteDetailsRepository
                     .findProcessCallsByPoNoAndSr(cleanPoNo, cleanPoSr != null ? cleanPoSr : "");
             if (completeDetails != null && !completeDetails.isEmpty()) {
@@ -1165,9 +1180,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                                 .filter(c -> isBlankText(plantId) || samePlant(c.getPlantId(), plantId))
                                 .filter(c -> sameText(c.getDrawingNo(), drawingNo))
                                 .toList();
-                        if (!calls.isEmpty()) {
-                            return calls;
-                        }
+                        calls.forEach(c -> merged.putIfAbsent(c.getId(), c));
                     }
                 }
             }
@@ -1184,7 +1197,10 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 final String targetSr = cleanPoSr;
                 fallbackCalls = fallbackCalls.stream().filter(c -> isPoSrMatching(c, targetSr)).toList();
             }
-            return fallbackCalls != null ? fallbackCalls : new ArrayList<>();
+            if (fallbackCalls != null) {
+                fallbackCalls.forEach(c -> merged.putIfAbsent(c.getId(), c));
+            }
+            return new ArrayList<>(merged.values());
         }
         return repository.findProcessCallsByTypeAndDrawingAndPlant(railPadType, drawingNo, plantId);
     }
