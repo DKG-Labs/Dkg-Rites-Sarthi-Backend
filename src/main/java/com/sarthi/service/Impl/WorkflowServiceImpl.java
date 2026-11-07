@@ -3390,8 +3390,21 @@ public List<WorkflowTransitionDto> allPendingWorkflowTransition(String roleName)
 
     // Pass 3: Assemble DTOs
     final Map<Integer, UserMaster> finalUserMap = userMap;
+
+    // Original call date per request (status/action = Created), one bulk query
+    Map<String, Date> callCreatedMap = new HashMap<>();
+    if (!requestIds.isEmpty()) {
+        for (Object[] r : workflowTransitionRepository.findCreatedDatesByRequestIdIn(requestIds)) {
+            if (r[0] != null && r[1] != null) callCreatedMap.put((String) r[0], (Date) r[1]);
+        }
+    }
+
     return pending.stream()
-            .map(wt -> mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), wtErEfIeMap.get(wt.getWorkflowTransitionId()), finalUserMap))
+            .map(wt -> {
+                WorkflowTransitionDto dto = mapWorkflow(wt, inspectionMap, finalIeMap, poMap, vendorMap, wtProcessIeMap.get(wt.getWorkflowTransitionId()), wtErEfIeMap.get(wt.getWorkflowTransitionId()), finalUserMap);
+                dto.setCallCreatedDate(callCreatedMap.get(wt.getRequestId()));
+                return dto;
+            })
             .collect(Collectors.toList());
 }
 
