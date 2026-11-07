@@ -24,6 +24,8 @@ public class WorkflowTransitionDto {
 
     private String createdBy;
     private Date createdDate;
+    /** Original call date: createdDate of the 'Created' workflow row (additive field). */
+    private Date callCreatedDate;
 
     private Integer transitionOrder;
     private Integer workflowSequence;

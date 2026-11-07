@@ -40,6 +40,7 @@ import com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionLotRepository;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailIEProductionVerificationRepository;
+import com.sarthi.SRailPad.repository.inspectionCall.RailProcessInspectionResultRepository;
 import com.sarthi.util.CommonUtils;
 
 import com.sarthi.SRailPad.repository.ieVerification.RailFinalInspectionLotResultsRepository;
@@ -175,6 +176,9 @@ public class reportsImpl implements reports {
 
         @Autowired
         private RailIEProductionVerificationRepository railIEProductionVerificationRepository;
+
+        @Autowired
+        private RailProcessInspectionResultRepository railProcessInspectionResultRepository;
 
         @Autowired
         private RailProductionDeclarationRepository railProductionDeclarationRepository;
@@ -6001,18 +6005,19 @@ public class reportsImpl implements reports {
 
                 List<PoHeader> railPadPoHeaders = poHeaderRepository.findRailPadPoHeadersWithItems();
 
-                // Fetch bulk verification stats
+                // Process inspection qty (Nos & Sets) from rail_process_inspection_result
+                // row: [0] poNo, [1] inspectedNos, [2] acceptedNos, [3] inspectedSets, [4] acceptedSets
 
-                List<Object[]> verificationStatsList = railIEProductionVerificationRepository
-                                .findVerificationStatsGroupedByPo(start, end);
+                List<Object[]> processQtyList = railProcessInspectionResultRepository
+                                .findProcessQtyGroupedByPo(start, end);
 
                 Map<String, Object[]> verificationStatsMap = new HashMap<>();
 
-                for (Object[] row : verificationStatsList) {
+                for (Object[] row : processQtyList) {
 
                         if (row[0] != null) {
 
-                                verificationStatsMap.put(row[0].toString(), row);
+                                verificationStatsMap.put(row[0].toString().trim(), row);
 
                         }
 
@@ -6020,8 +6025,9 @@ public class reportsImpl implements reports {
 
                 // Fetch bulk final inspection stats
 
-                List<Object[]> finalStatsList = railIEProductionVerificationRepository
-                                .findFinalInspectionStatsGroupedByPo(start, end);
+                // row: [0] poNo, [1] icNos (all lots), [2] icSets (one lot per call), [3] lastDate
+                List<Object[]> finalStatsList = railFinalInspectionLotResultsRepository
+                                .findFinalIcQtyByUomGroupedByPo(start, end);
 
                 Map<String, Object[]> finalStatsMap = new HashMap<>();
 
@@ -6029,7 +6035,7 @@ public class reportsImpl implements reports {
 
                         if (row[0] != null) {
 
-                                finalStatsMap.put(row[0].toString(), row);
+                                finalStatsMap.put(row[0].toString().trim(), row);
 
                         }
 
@@ -6051,6 +6057,47 @@ public class reportsImpl implements reports {
                                 rejectionsMap.computeIfAbsent(poNoKey, k -> new ArrayList<>()).add(row);
 
                         }
+
+                }
+
+                // Process inspection batch rejections → per PO buckets of dropdown reasons
+                Map<String, long[]> batchRejectionMap = new HashMap<>();
+
+                for (Object[] row : railProcessInspectionResultRepository
+                                .findProcessBatchRejectionsGroupedByPo(start, end)) {
+
+                        if (row[0] == null) continue;
+                        long[] buckets = batchRejectionMap.computeIfAbsent(row[0].toString().trim(),
+                                        k -> new long[RAILPAD_PROCESS_BUCKETS]);
+                        addRailPadBatchRejection(buckets,
+                                        row[1] != null ? row[1].toString() : "",
+                                        row[2] != null ? ((Number) row[2]).longValue() : 0L,
+                                        row[3] != null ? ((Number) row[3]).longValue() : 1L);
+
+                }
+
+                // Latest final IC date per PO (railpad_final_ic_edit.created_at)
+                Map<String, String> lastIcDateMap = new HashMap<>();
+
+                for (Object[] row : railFinalInspectionLotResultsRepository
+                                .findLatestFinalIcDateGroupedByPo(start, end)) {
+
+                        if (row[0] != null && row[1] != null) {
+                                lastIcDateMap.put(row[0].toString().trim(), row[1].toString());
+                        }
+
+                }
+
+                // Final (acceptance) test rejections per PO → testKey → not-ok count
+                Map<String, Map<String, Long>> finalTestRejMap = new HashMap<>();
+
+                for (Object[] row : railFinalInspectionLotResultsRepository
+                                .findFinalTestRejectionsGroupedByPo(start, end)) {
+
+                        if (row[0] == null || row[1] == null) continue;
+                        finalTestRejMap.computeIfAbsent(row[0].toString().trim(), k -> new java.util.LinkedHashMap<>())
+                                        .merge(row[1].toString(),
+                                                        row[2] != null ? ((Number) row[2]).longValue() : 0L, Long::sum);
 
                 }
 
@@ -6081,7 +6128,9 @@ public class reportsImpl implements reports {
                         Object[] fStats = finalStatsMap.get(po.getPoNo());
                         List<Object[]> rList = rejectionsMap.get(po.getPoNo());
 
-                        if (vStats == null && fStats == null && rList == null) {
+                        if (vStats == null && fStats == null && rList == null
+                                        && !batchRejectionMap.containsKey(po.getPoNo())
+                                        && !finalTestRejMap.containsKey(po.getPoNo())) {
                                 continue;
                         }
 
@@ -6106,6 +6155,9 @@ public class reportsImpl implements reports {
 
                         long orderedQty = 0;
                         String uom = "";
+                        // PO items split by UOM: "Set" items vs Nos/pieces items
+                        long setOrderedQty = 0, nosOrderedQty = 0;
+                        String setUom = "", nosUom = "";
 
                         if (po.getItems() != null && !po.getItems().isEmpty()) {
 
@@ -6121,50 +6173,84 @@ public class reportsImpl implements reports {
 
                                 for (PoItem item : po.getItems()) {
 
-                                        orderedQty += item.getQty() != null ? item.getQty() : 0;
+                                        long q = item.getQty() != null ? item.getQty() : 0;
+                                        orderedQty += q;
+                                        String itemUom = item.getUom() != null ? item.getUom().trim() : "";
+                                        if (itemUom.toLowerCase().startsWith("set")) {
+                                                setOrderedQty += q;
+                                                if (setUom.isEmpty()) setUom = itemUom;
+                                        } else {
+                                                nosOrderedQty += q;
+                                                if (nosUom.isEmpty()) nosUom = itemUom;
+                                        }
 
                                 }
 
                         }
 
+                        boolean splitByUom = setOrderedQty > 0 && nosOrderedQty > 0;
+
                         dto.setTypeOfRubberPad(type);
 
-                        dto.setTotalPoQty(orderedQty);
-                        dto.setUom(uom);
+                        dto.setTotalPoQty(splitByUom ? nosOrderedQty : orderedQty);
+                        dto.setUom(splitByUom ? nosUom : uom);
 
                         dto.setSpecification("IRS-T-55-2025");
 
-                        // Map bulk verification stats
+                        // Process inspection qty (Nos & Sets)
 
                         Object[] verificationStats = verificationStatsMap.get(po.getPoNo());
 
+                        long inspNos = 0, accNos = 0, inspSets = 0, accSets = 0;
+
                         if (verificationStats != null) {
 
-                                dto.setQtyInspected(verificationStats[1] != null
-                                                ? ((Number) verificationStats[1]).longValue()
-                                                : 0L);
+                                inspNos = verificationStats[1] != null ? ((Number) verificationStats[1]).longValue() : 0L;
+                                accNos = verificationStats[2] != null ? ((Number) verificationStats[2]).longValue() : 0L;
+                                inspSets = verificationStats[3] != null ? ((Number) verificationStats[3]).longValue() : 0L;
+                                accSets = verificationStats[4] != null ? ((Number) verificationStats[4]).longValue() : 0L;
 
-                                dto.setQtyAccepted(verificationStats[2] != null
-                                                ? ((Number) verificationStats[2]).longValue()
-                                                : 0L);
+                        }
 
+                        // Set-only PO with sets recorded → show Sets only, hide related Nos (pieces)
+                        if (!splitByUom && setOrderedQty > 0 && nosOrderedQty == 0 && inspSets > 0) {
+                                inspNos = 0;
+                                accNos = 0;
+                        }
+
+                        // qtyInspected/qtyAccepted kept = Nos for backward compatibility
+                        dto.setQtyInspected(inspNos);
+                        dto.setQtyAccepted(accNos);
+                        dto.setQtyInspectedNos(inspNos);
+                        dto.setQtyAcceptedNos(accNos);
+                        if (!splitByUom) {
+                                dto.setQtyInspectedSets(inspSets);
+                                dto.setQtyAcceptedSets(accSets);
                         }
 
                         // Map bulk final inspection stats
 
                         Object[] finalStats = finalStatsMap.get(po.getPoNo());
 
+                        long icNos = 0, icSets = 0;
+                        String icLastDate = "";
+
                         if (finalStats != null) {
 
-                                dto.setIcIssuedQty(finalStats[1] != null ? ((Number) finalStats[1]).longValue() : 0L);
-
-                                if (finalStats[2] != null) {
-
-                                        dto.setLastDateIcIssued(finalStats[2].toString());
-
-                                }
-
+                                icNos = finalStats[1] != null ? ((Number) finalStats[1]).longValue() : 0L;
+                                icSets = finalStats[2] != null ? ((Number) finalStats[2]).longValue() : 0L;
                         }
+
+                        // Last Date of IC = latest railpad_final_ic_edit.created_at of the PO's calls
+                        icLastDate = lastIcDateMap.getOrDefault(po.getPoNo(), "");
+
+                        // icIssuedQty kept = Nos for backward compatibility
+                        dto.setIcIssuedQty(icNos);
+                        dto.setIcIssuedQtyNos(icNos);
+                        if (!splitByUom) {
+                                dto.setIcIssuedQtySets(icSets);
+                        }
+                        dto.setLastDateIcIssued(icLastDate);
 
                         // Map bulk rejections and defects
 
@@ -6268,17 +6354,53 @@ public class reportsImpl implements reports {
 
                         dto.setOtherRejection(other);
 
-                        // Rejection Percentage
+                        // Process rejections from rail_process_inspection_batch (dropdown reasons, Nos)
+                        long[] pb = batchRejectionMap.getOrDefault(po.getPoNo(), new long[RAILPAD_PROCESS_BUCKETS]);
+                        dto.setShortMoulding(pb[0]);
+                        dto.setBubblesBlisters(pb[1]);
+                        dto.setSurfaceRoughness(pb[2]);
+                        dto.setNylonCordExposure(pb[3]);
+                        dto.setUnevenEdges(pb[4]);
+                        dto.setUncleanCutSides(pb[5]);
+                        dto.setBlowHoles(pb[6]);
+                        dto.setPorosity(pb[7]);
+                        dto.setImproperGrooves(pb[8]);
+                        dto.setOtherProcessRejection(pb[9]);
+                        long processRejTotal = 0;
+                        for (long v : pb) processRejTotal += v;
+                        dto.setTotalProcessRejection(processRejTotal);
 
-                        long totalRejections = rm + compounding + mixing + curing + cutting + rheometer
-                                        + visualFinishing +
+                        // Final (acceptance) rejections from rail_final_* test tables
+                        Map<String, Long> fr = finalTestRejMap.getOrDefault(po.getPoNo(), new java.util.LinkedHashMap<>());
+                        dto.setFinalRejections(fr);
+                        long finalRejTotal = 0;
+                        for (Long v : fr.values()) finalRejTotal += v != null ? v : 0;
+                        dto.setTotalFinalRejection(finalRejTotal);
+                        // keep legacy acceptance fields in sync with final data
+                        dto.setHardness(fr.getOrDefault("hardness", 0L));
+                        dto.setSpecificGravity(fr.getOrDefault("specificGravity", 0L));
+                        dto.setRubberContent(fr.getOrDefault("rubberContent", 0L));
+                        dto.setAshContent(fr.getOrDefault("ashContent", 0L));
+                        dto.setReboundResilience(fr.getOrDefault("reboundResilience", 0L));
+                        dto.setDimension(fr.getOrDefault("dimension", 0L));
+                        dto.setWeight(fr.getOrDefault("weight", 0L));
+                        dto.setCompressionSet(fr.getOrDefault("compressionSet", 0L));
+                        dto.setVisualTest(fr.getOrDefault("visualTest", 0L));
+                        // surfaceDefect / otherRejection keep their existing values (no final-test source)
 
-                                        hardness + gravity + rubber + ash + rebound + dimension + weight + surface
-                                        + compression + visualTest + other;
+                        // Rejection Percentage = process batch rejections / process inspected (Nos)
+
+                        long totalRejections = processRejTotal;
 
                         if (dto.getQtyInspected() > 0) {
 
                                 double pct = (double) totalRejections * 100.0 / (double) dto.getQtyInspected();
+
+                                dto.setRejectionPercent(Math.round(pct * 100.0) / 100.0);
+
+                        } else if (!splitByUom && inspSets > 0) {
+
+                                double pct = (double) (inspSets - accSets) * 100.0 / (double) inspSets;
 
                                 dto.setRejectionPercent(Math.round(pct * 100.0) / 100.0);
 
@@ -6292,10 +6414,76 @@ public class reportsImpl implements reports {
 
                         resultList.add(dto);
 
+                        // PO has both Set and Nos items → second row for Sets
+                        if (splitByUom) {
+
+                                com.sarthi.dto.reports.RailPadQualityReportDto setRow = new com.sarthi.dto.reports.RailPadQualityReportDto();
+                                setRow.setSNo(index++);
+                                setRow.setZonalRailway(dto.getZonalRailway());
+                                setRow.setVendor(dto.getVendor());
+                                setRow.setPoNo(dto.getPoNo());
+                                setRow.setPoDate(dto.getPoDate());
+                                setRow.setTypeOfRubberPad(dto.getTypeOfRubberPad());
+                                setRow.setSpecification(dto.getSpecification());
+                                setRow.setTotalPoQty(setOrderedQty);
+                                setRow.setUom(setUom);
+                                setRow.setQtyInspectedSets(inspSets);
+                                setRow.setQtyAcceptedSets(accSets);
+                                setRow.setIcIssuedQtySets(icSets);
+                                setRow.setLastDateIcIssued(icLastDate);
+                                double setPct = inspSets > 0 ? (double) (inspSets - accSets) * 100.0 / (double) inspSets : 0.0;
+                                setRow.setRejectionPercent(Math.round(setPct * 100.0) / 100.0);
+                                setRow.setRemarks(inspSets > accSets ? "Defects observed" : "Satisfactory");
+                                resultList.add(setRow);
+
+                        }
+
                 }
 
                 return resultList;
 
+        }
+
+        // Rail Pad process rejection buckets — order matches IE production-verification dropdown:
+        // 0 Short Moulding, 1 Bubbles/Blisters, 2 Surface Roughness, 3 Nylon Cord Exposure, 4 Uneven Edges,
+        // 5 Unclean Cut Sides, 6 Blow Holes, 7 Porosity, 8 Improper Grooves, 9 Other
+        private static final int RAILPAD_PROCESS_BUCKETS = 10;
+
+        private static final java.util.regex.Pattern RAILPAD_REASON_QTY = java.util.regex.Pattern
+                        .compile("([^,;(]+?)\\s*\\(\\s*(\\d+)\\s*(?:nos?|pcs)?\\.?\\s*\\)",
+                                        java.util.regex.Pattern.CASE_INSENSITIVE);
+
+        /** Parses "Reason (n Nos)[, Reason (n Nos)]" and adds qty to the matching bucket. */
+        private static void addRailPadBatchRejection(long[] buckets, String reasonText, long sumQty, long rowCount) {
+                java.util.regex.Matcher m = RAILPAD_REASON_QTY.matcher(reasonText);
+                List<String> names = new ArrayList<>();
+                List<Long> qtys = new ArrayList<>();
+                while (m.find()) {
+                        names.add(m.group(1).trim());
+                        qtys.add(Long.parseLong(m.group(2)));
+                }
+                if (names.size() <= 1) {
+                        // single reason (or no count in text): qty_rejected is authoritative
+                        buckets[railPadReasonBucket(names.isEmpty() ? reasonText : names.get(0))] += sumQty;
+                        return;
+                }
+                for (int i = 0; i < names.size(); i++) {
+                        buckets[railPadReasonBucket(names.get(i))] += qtys.get(i) * rowCount;
+                }
+        }
+
+        private static int railPadReasonBucket(String reason) {
+                String r = reason == null ? "" : reason.toLowerCase();
+                if (r.contains("short")) return 0;
+                if (r.contains("bubble") || r.contains("blister")) return 1;
+                if (r.contains("rough")) return 2;
+                if (r.contains("nylon")) return 3;
+                if (r.contains("uneven")) return 4;
+                if (r.contains("unclean") || r.contains("cut side")) return 5;
+                if (r.contains("blow")) return 6;
+                if (r.contains("poros")) return 7;
+                if (r.contains("groove")) return 8;
+                return 9;
         }
 
         @Override

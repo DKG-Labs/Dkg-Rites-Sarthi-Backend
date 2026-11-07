@@ -204,6 +204,16 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
     List<WorkflowTransition> findPendingByRoles(
             @Param("roleNames") List<String> roleNames);
 
+    /** Original call date per request: created date of the 'Created' workflow row (bulk, one query). Returns [requestId, Date]. */
+    @Query("""
+            SELECT wt.requestId, MIN(wt.createdDate)
+            FROM WorkflowTransition wt
+            WHERE wt.requestId IN :requestIds
+              AND (UPPER(wt.status) = 'CREATED' OR UPPER(wt.action) = 'CREATED')
+            GROUP BY wt.requestId
+            """)
+    List<Object[]> findCreatedDatesByRequestIdIn(@Param("requestIds") List<String> requestIds);
+
     @Query("SELECT wt FROM WorkflowTransition wt " +
             "WHERE wt.workflowTransitionId IN (" +
             "     SELECT MAX(wt2.workflowTransitionId) " +

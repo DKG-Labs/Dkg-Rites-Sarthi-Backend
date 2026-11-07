@@ -2432,7 +2432,23 @@ public class IbsServiceImpl implements IbsService {
 
             // A. Enrich Quantities (Fetch Offered, Passed, Rejected from Source IC)
             boolean quantitiesResolved = false;
-            if (srcCallNo != null && !srcCallNo.isBlank()) {
+            // Diversion with lot breakdown (ERC Process source): report only the diverted lots,
+            // scaled like the IC certificate, instead of the whole source IC.
+            // PARTIAL only: fresh calls never reach here (skipped above) and COMPLETE keeps old logic.
+            if (divReq != null && divReq.getDiversionType() != null
+                    && "PARTIAL".equalsIgnoreCase(divReq.getDiversionType().name())
+                    && srcCallNo != null && !srcCallNo.isBlank() && srcCallNo.toUpperCase().startsWith("EP")) {
+                double[] lotQtys = diversionLotQuantities(divReq, srcCallNo);
+                if (lotQtys != null) {
+                    dto.setQuantityOffered(lotQtys[0]);
+                    dto.setQuantityPassed(lotQtys[1]);
+                    dto.setQuantityRejected(lotQtys[2]);
+                    quantitiesResolved = true;
+                    log.info("[IBS-FETCH] Set diverted-lot quantities for call {} from source {}: offered={}, passed={}, rejected={}",
+                            callNo, srcCallNo, lotQtys[0], lotQtys[1], lotQtys[2]);
+                }
+            }
+            if (!quantitiesResolved && srcCallNo != null && !srcCallNo.isBlank()) {
                 // Check if source call is already in memory DTOs
                 IbsInspectionDto srcDto = callDtoMap.get(srcCallNo);
                 if (srcDto == null) srcDto = callDtoMap.get(srcCallNo.toUpperCase());
@@ -2572,6 +2588,64 @@ public class IbsServiceImpl implements IbsService {
                 }
             }
         }
+    }
+
+    /**
+     * Quantities of only the lots selected in a diversion request, taken from the source IC's
+     * process_line_final_result rows. Same rule as the IC certificate: passed = diversion qty,
+     * processed/rejected scaled by diversionQty / acceptedQty (capped at 1).
+     * Returns null when the request has no items or no source rows, so callers fall back to old logic.
+     */
+    private double[] diversionLotQuantities(ErcDiversionRequest divReq, String srcCallNo) {
+        if (divReq == null || divReq.getItems() == null || divReq.getItems().isEmpty()
+                || processLineFinalResultRepository == null) {
+            return null;
+        }
+        List<ProcessLineFinalResult> rows;
+        try {
+            rows = processLineFinalResultRepository.findByInspectionCallNo(srcCallNo);
+        } catch (Exception e) {
+            log.debug("diversionLotQuantities: could not load source rows for {}: {}", srcCallNo, e.getMessage());
+            return null;
+        }
+        if (rows == null || rows.isEmpty()) return null;
+
+        double offered = 0.0, passed = 0.0, rejected = 0.0;
+        for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : divReq.getItems()) {
+            double divQty = item.getDiversionQty() != null ? item.getDiversionQty().doubleValue() : 0.0;
+            double accQty = item.getAcceptedQty() != null ? item.getAcceptedQty().doubleValue() : 0.0;
+            String itemHeat = item.getHeatNo() != null ? item.getHeatNo().trim() : "";
+            String itemLot = item.getLotNo() != null ? item.getLotNo().trim() : "";
+
+            double lotProcessed = 0.0, lotRejected = 0.0;
+            boolean found = false;
+            for (ProcessLineFinalResult r : rows) {
+                String rHeat = r.getHeatNumber() != null ? r.getHeatNumber().trim() : "";
+                String rLot = r.getLotNumber() != null ? r.getLotNumber().trim() : "";
+                boolean match = !itemLot.isEmpty()
+                        ? itemLot.equalsIgnoreCase(rLot) && (itemHeat.isEmpty() || itemHeat.equalsIgnoreCase(rHeat))
+                        : !itemHeat.isEmpty() && itemHeat.equalsIgnoreCase(rHeat);
+                if (!match) continue;
+                found = true;
+                // Same as IC certificate (buildProcessLotDetails): sum total_manufactured only.
+                // Rows with 0 manufactured still carry offered_qty, so falling back to it multiplies the lot.
+                lotProcessed += r.getTotalManufactured() != null ? r.getTotalManufactured() : 0;
+                lotRejected += r.getTotalRejected() != null ? r.getTotalRejected() : 0;
+            }
+
+            if (!found) {
+                offered += divQty;
+                passed += divQty;
+                continue;
+            }
+            double ratio = accQty > 0 ? Math.min(1.0, divQty / accQty) : 1.0;
+            double proc = Math.round(lotProcessed * ratio);
+            double rej = Math.min(Math.round(lotRejected * ratio), proc);
+            offered += proc;
+            passed += divQty;
+            rejected += rej;
+        }
+        return offered > 0 || passed > 0 ? new double[]{offered, passed, rejected} : null;
     }
 
     private double[] fetchSourceIcQuantities(String srcCallNo) {
