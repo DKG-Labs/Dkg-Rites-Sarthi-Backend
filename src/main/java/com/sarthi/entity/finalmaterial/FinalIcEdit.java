@@ -46,6 +46,15 @@ public class FinalIcEdit {
     @Column(name = "QTY_STILL_DUE")
     private String qtyStillDue;
 
+    @Column(name = "QTY_NOW_OFFERED")
+    private String qtyNowOffered;
+
+    @Column(name = "QTY_NOW_PASSED")
+    private String qtyNowPassed;
+
+    @Column(name = "QTY_NOW_REJECTED")
+    private String qtyNowRejected;
+
     @Column(name = "MA_NUMBER_AND_DATE", columnDefinition = "TEXT")
     private String maNumberAndDate;
 

@@ -21,6 +21,9 @@ public class FinalIcSaveChangesDTO {
     private String cummQtyOfferedPrev;
     private String qtyPrevPassed;
     private String qtyStillDue;
+    private String qtyNowOffered;
+    private String qtyNowPassed;
+    private String qtyNowRejected;
     private String maNumberAndDate;
     private String billPayingOfficer;
     private String purchasingAuthority;

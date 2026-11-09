@@ -83,6 +83,44 @@ public class PdfCompressionService {
     }
 
     /**
+     * Images scaled/encoded at once. Kept small on purpose: one decoded scan page can take 50-100 MB of heap,
+     * so this also caps memory per request.
+     */
+    private static final int IMAGE_PARALLELISM =
+            Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() - 1));
+
+    /** Shared pool for image encoding; daemon threads so it never blocks shutdown. */
+    private static final java.util.concurrent.ExecutorService IMAGE_POOL =
+            java.util.concurrent.Executors.newFixedThreadPool(IMAGE_PARALLELISM, r -> {
+                Thread t = new Thread(r, "pdf-image-encoder");
+                t.setDaemon(true);
+                return t;
+            });
+
+    private record PendingImage(String name, org.apache.pdfbox.cos.COSStream oldStream, int origWidth,
+                                long oldStreamLen, java.util.concurrent.Future<byte[]> encoded) {}
+
+    /** JPEG-encodes an RGB image at the given quality (same output PDFBox JPEGFactory would embed). */
+    private static byte[] encodeJpeg(BufferedImage image, float quality) throws java.io.IOException {
+        javax.imageio.ImageWriter writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpeg").next();
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             javax.imageio.stream.ImageOutputStream ios = javax.imageio.ImageIO.createImageOutputStream(baos)) {
+            writer.setOutput(ios);
+            javax.imageio.ImageWriteParam param = writer.getDefaultWriteParam();
+            param.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+            param.setCompressionQuality(quality);
+            writer.write(null, new javax.imageio.IIOImage(image, null, null), param);
+            ios.flush();
+            return baos.toByteArray();
+        } finally {
+            writer.dispose();
+        }
+    }
+
+    /** Upper bound on preview image re-encoding, kept well under the gateway timeout. */
+    private static final long PREVIEW_TIME_BUDGET_MS = 20_000L;
+
+    /**
      * Smaller copy of a PDF for on-screen preview only (never for stored documents): page images are scaled to
      * at most 1600px and re-encoded as JPEG 0.70. Runs regardless of pdf.compression.compress-images, which
      * protects stored documents only. Digital signatures are not a concern because previews are never saved.
@@ -105,9 +143,15 @@ public class PdfCompressionService {
         float effectiveQuality = (targetQuality > 0.0f && targetQuality <= 1.0f) ? targetQuality : this.jpegQuality;
 
         try (PDDocument document = Loader.loadPDF(new RandomAccessReadBuffer(originalBytes))) {
+            // Preview only: cap the image work so large (~50 MB) uploads return before the gateway timeout;
+            // images not reached in time are left as they are (bigger preview, same content)
+            final long deadline = previewMode ? System.currentTimeMillis() + PREVIEW_TIME_BUDGET_MS : Long.MAX_VALUE;
+            int skippedForTime = 0;
             // Keyed by the underlying stream so an image shared by many pages (e.g. a letterhead) is handled once
             java.util.Set<org.apache.pdfbox.cos.COSStream> processedStreams =
                     java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            java.util.List<PendingImage> pending = new java.util.ArrayList<>();
+            java.util.concurrent.Semaphore inFlight = new java.util.concurrent.Semaphore(IMAGE_PARALLELISM);
 
             for (PDPage page : document.getPages()) {
                 PDResources resources = page.getResources();
@@ -115,6 +159,10 @@ public class PdfCompressionService {
 
                 for (COSName name : resources.getXObjectNames()) {
                     if (!resources.isImageXObject(name)) continue;
+                    if (System.currentTimeMillis() > deadline) {
+                        skippedForTime++;
+                        continue;
+                    }
 
                     try {
                         PDImageXObject originalImageXObject = (PDImageXObject) resources.getXObject(name);
@@ -146,33 +194,77 @@ public class PdfCompressionService {
                             continue;
                         }
 
-                        BufferedImage bImage = originalImageXObject.getImage();
-                        if (bImage == null) continue;
-
-                        BufferedImage processedImage = scaleAndConvertToRgb(bImage, effectiveMaxWidth);
-                        PDImageXObject compressedImageXObject = JPEGFactory.createFromImage(document, processedImage, effectiveQuality);
-                        org.apache.pdfbox.cos.COSStream newStream = compressedImageXObject.getCOSObject();
-
-                        // Only replace if the new compressed stream is actually smaller than the old stream
-                        long newStreamLen = newStream.getLength();
-
-                        boolean replace = previewMode
-                                ? newStreamLen < oldStreamLen
-                                : (newStreamLen < oldStreamLen || origWidth > effectiveMaxWidth);
-                        if (replace) {
-                            oldStream.clear();
-                            for (java.util.Map.Entry<COSName, org.apache.pdfbox.cos.COSBase> entry : newStream.entrySet()) {
-                                oldStream.setItem(entry.getKey(), entry.getValue());
-                            }
-                            try (java.io.InputStream in = newStream.createRawInputStream();
-                                 java.io.OutputStream outStream = oldStream.createRawOutputStream()) {
-                                in.transferTo(outStream);
-                            }
+                        // Decoding reads the shared document, so it stays on this thread (PDDocument is not thread-safe).
+                        // Wait for a free slot first: caps how many decoded images sit in memory at once.
+                        inFlight.acquire();
+                        BufferedImage bImage;
+                        try {
+                            bImage = originalImageXObject.getImage();
+                        } catch (Exception decodeEx) {
+                            inFlight.release();
+                            throw decodeEx;
                         }
+                        if (bImage == null) {
+                            inFlight.release();
+                            continue;
+                        }
+
+                        // Scale + JPEG encode touch only the image, so they run in parallel
+                        final BufferedImage src = bImage;
+                        java.util.concurrent.Future<byte[]> encoded = IMAGE_POOL.submit(() -> {
+                            try {
+                                return encodeJpeg(scaleAndConvertToRgb(src, effectiveMaxWidth), effectiveQuality);
+                            } finally {
+                                inFlight.release();
+                            }
+                        });
+                        pending.add(new PendingImage(name.getName(), oldStream, origWidth, oldStreamLen, encoded));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
                     } catch (Exception imgEx) {
                         log.debug("Skipped compressing image {}: {}", name.getName(), imgEx.getMessage());
                     }
                 }
+            }
+
+            // Put results back one at a time (document writes stay on this thread), same replace rules as before
+            for (PendingImage p : pending) {
+                try {
+                    long waitMs = previewMode ? Math.max(0L, deadline - System.currentTimeMillis()) : Long.MAX_VALUE;
+                    byte[] jpegBytes = previewMode
+                            ? p.encoded.get(waitMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+                            : p.encoded.get();
+                    PDImageXObject compressedImageXObject = JPEGFactory.createFromByteArray(document, jpegBytes);
+                    org.apache.pdfbox.cos.COSStream newStream = compressedImageXObject.getCOSObject();
+                    long newStreamLen = newStream.getLength();
+
+                    boolean replace = previewMode
+                            ? newStreamLen < p.oldStreamLen
+                            : (newStreamLen < p.oldStreamLen || p.origWidth > effectiveMaxWidth);
+                    if (replace) {
+                        p.oldStream.clear();
+                        for (java.util.Map.Entry<COSName, org.apache.pdfbox.cos.COSBase> entry : newStream.entrySet()) {
+                            p.oldStream.setItem(entry.getKey(), entry.getValue());
+                        }
+                        try (java.io.InputStream in = newStream.createRawInputStream();
+                             java.io.OutputStream outStream = p.oldStream.createRawOutputStream()) {
+                            in.transferTo(outStream);
+                        }
+                    }
+                } catch (java.util.concurrent.TimeoutException te) {
+                    p.encoded.cancel(true);
+                    skippedForTime++;
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    p.encoded.cancel(true);
+                } catch (Exception imgEx) {
+                    log.debug("Skipped compressing image {}: {}", p.name, imgEx.getMessage());
+                }
+            }
+
+            if (skippedForTime > 0) {
+                log.info("Preview compression hit its {} ms time limit; {} images left uncompressed", PREVIEW_TIME_BUDGET_MS, skippedForTime);
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
