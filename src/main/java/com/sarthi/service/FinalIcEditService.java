@@ -37,6 +37,9 @@ public class FinalIcEditService {
         entity.setCummQtyOfferedPrev(dto.getCummQtyOfferedPrev());
         entity.setQtyPrevPassed(dto.getQtyPrevPassed());
         entity.setQtyStillDue(dto.getQtyStillDue());
+        entity.setQtyNowOffered(dto.getQtyNowOffered());
+        entity.setQtyNowPassed(dto.getQtyNowPassed());
+        entity.setQtyNowRejected(dto.getQtyNowRejected());
         entity.setMaNumberAndDate(dto.getMaNumberAndDate());
         entity.setBillPayingOfficer(dto.getBillPayingOfficer());
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
@@ -71,6 +74,9 @@ public class FinalIcEditService {
                 .cummQtyOfferedPrev(entity.getCummQtyOfferedPrev())
                 .qtyPrevPassed(entity.getQtyPrevPassed())
                 .qtyStillDue(entity.getQtyStillDue())
+                .qtyNowOffered(entity.getQtyNowOffered())
+                .qtyNowPassed(entity.getQtyNowPassed())
+                .qtyNowRejected(entity.getQtyNowRejected())
                 .maNumberAndDate(entity.getMaNumberAndDate())
                 .billPayingOfficer(entity.getBillPayingOfficer())
                 .purchasingAuthority(entity.getPurchasingAuthority())
