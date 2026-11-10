@@ -50,6 +50,9 @@ public class PoItem {
 
  // ---- QTY & UOM ----
  private Integer qty;
+ // Read-only exact view of the same decimal(10,2) column (e.g. 4524.36 Mtr); qty above truncates decimals.
+ @Column(name = "qty", insertable = false, updatable = false)
+ private BigDecimal qtyExact;
  private Integer qtyCancelled;
 
  private String uomCd;

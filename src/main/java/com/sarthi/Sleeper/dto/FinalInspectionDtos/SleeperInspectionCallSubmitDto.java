@@ -11,7 +11,7 @@ public class SleeperInspectionCallSubmitDto {
     private String poNo;
     private String srNo;
     private String sleeperType;
-    private Integer totalOffered;
+    private java.math.BigDecimal totalOffered;
     private Integer totalRejected;
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate desiredInspectionDate;

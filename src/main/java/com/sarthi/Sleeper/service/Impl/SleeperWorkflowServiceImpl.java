@@ -400,9 +400,11 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 }
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
-                Integer finalOffered = call.getTotalOffered();
+                Integer finalOffered = call.getTotalOffered() != null ? call.getTotalOffered().intValue() : null;
                 Integer finalAccepted = null;
                 Integer finalRejected = call.getTotalRejected();
+                // call.totalOffered is already the PASSED count; only an IE header's qty_offered_now includes rejections.
+                boolean offeredIncludesRejected = false;
 
                 try {
                     List<java.util.Map<String, Object>> fchList = jdbcTemplate.queryForList(
@@ -416,6 +418,7 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         Object qRej = fch.get("rejected_qty");
                         if (qOff != null && ((Number) qOff).intValue() > 0) {
                             finalOffered = ((Number) qOff).intValue();
+                            offeredIncludesRejected = true;
                         }
                         if (qAcc != null) {
                             finalAccepted = ((Number) qAcc).intValue();
@@ -437,14 +440,16 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         || sType.contains("POINTS")
                         || sType.contains("CROSSING");
 
-                if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered() > 0) {
-                    if (finalOffered == null || finalOffered > call.getTotalOffered()) {
-                        finalOffered = call.getTotalOffered();
+                if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered().signum() > 0) {
+                    if (finalOffered == null || finalOffered > call.getTotalOffered().intValue()) {
+                        finalOffered = call.getTotalOffered().intValue();
                     }
                 }
 
                 if (finalAccepted == null && finalOffered != null) {
-                    finalAccepted = Math.max(0, finalOffered - (finalRejected != null ? finalRejected : 0));
+                    finalAccepted = offeredIncludesRejected
+                            ? Math.max(0, finalOffered - (finalRejected != null ? finalRejected : 0))
+                            : finalOffered;
                 }
 
                 dto.setOfferedQty(finalOffered != null ? finalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));

@@ -580,7 +580,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         return calls.stream().map(call -> {
 
-            int offered = call.getTotalOffered() != null ? call.getTotalOffered() : 0;
+            int offered = call.getTotalOffered() != null ? call.getTotalOffered().intValue() : 0;
 
             int accepted = 0;
             int rejected = 0;

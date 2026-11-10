@@ -28,8 +28,9 @@ public class SleeperInspectionCall {
     @Column(name = "sleeper_type", nullable = false)
     private String sleeperType;
 
-    @Column(name = "total_offered", nullable = false)
-    private Integer totalOffered;
+    // Decimal so Mtr quantities (e.g. 4524.36) are stored exactly; Nos./Set calls hold whole numbers.
+    @Column(name = "total_offered", nullable = false, precision = 12, scale = 2)
+    private java.math.BigDecimal totalOffered;
 
     @Column(name = "total_rejected", nullable = false)
     private Integer totalRejected;

@@ -5647,7 +5647,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
                         if (rawPoNo == null || rawPoNo.isBlank()) rawPoNo = sic.getPoNo();
                         if (itemSrNo == null || itemSrNo.isBlank()) itemSrNo = sic.getSrNo();
                         if (sic.getTotalOffered() != null) {
-                            offeredQty = (double) sic.getTotalOffered();
+                            offeredQty = sic.getTotalOffered().doubleValue();
                         }
                     }
                 } catch (Exception ignored) {}
