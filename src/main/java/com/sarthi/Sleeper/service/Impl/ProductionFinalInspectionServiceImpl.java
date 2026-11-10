@@ -1219,6 +1219,15 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Override
     public List<BatchInspectionResponseDto> getCompletedBatches(String sleeperType, String userId, String excludeCallNo, String plantId) {
 
+        // TEMP timing diagnostics for slow completed-batches API
+        final long cbStart = System.currentTimeMillis();
+        final long[] cbLast = {cbStart};
+        final java.util.function.Consumer<String> cbMark = step -> {
+            long now = System.currentTimeMillis();
+            System.out.println("[completed-batches TIMING] " + step + ": +" + (now - cbLast[0]) + " ms (total " + (now - cbStart) + " ms)");
+            cbLast[0] = now;
+        };
+
         String parsedUserId = userId != null ? userId.replace(":", "").trim() : "";
         String vendorCodeStr = userId != null ? userId.trim() : "";
         Long vendorId = 0L;
@@ -1235,10 +1244,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 vendorId = Long.parseLong(parsedUserId);
             } catch (Exception ignored) {}
         }
-
+        cbMark.accept("user lookup (vendorId=" + vendorId + ")");
 
         List<Long> batchIds = new ArrayList<>(headerRepository.findCompletedBatchIdsBySleeperTypeAndVendor(
                 sleeperType, vendorId, vendorCodeStr, parsedUserId));
+        cbMark.accept("completed batch ids (" + batchIds.size() + ")");
 
         // In edit mode (excludeCallNo provided), ensure batches of this call are included!
         List<String> callBatchNos = new ArrayList<>();
@@ -1311,6 +1321,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds(targetSleeperType, targetVendorId));
             raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys(targetSleeperType, targetVendorId));
         }
+        cbMark.accept("declarations + raised sleepers (" + raisedSleeperIds.size() + ")");
 
         // ── Expand batch numbers in-memory to leverage DB index on batch_number ──
         Set<String> expandedBatchNumbers = new HashSet<>();
@@ -1342,7 +1353,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 : Collections.emptyMap();
 
         // ── Bulk Upfront Fetch 4: ET Sleeper Details for all batch numbers ───
+        cbMark.accept("test results (" + (allResults != null ? allResults.size() : 0) + ")");
         List<EtSleeperDetails> allEtDetails = etSleeperDetailsRepository.findByEt_BatchNumberIn(expandedBatchNumbers);
+        cbMark.accept("ET details (" + (allEtDetails != null ? allEtDetails.size() : 0) + ")");
         Map<String, Set<Long>> etSleeperIdsByBatchNo = (allEtDetails != null)
                 ? allEtDetails.stream()
                 .filter(e -> e.getEt() != null && e.getEt().getBatchNumber() != null && e.getSleeperId() != null)
@@ -1368,7 +1381,9 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 : Collections.emptyMap();
 
         // ── Bulk Upfront Fetch 6: Production Sleepers for all batches ────────
+        cbMark.accept("demoulding (" + (allDemouldings != null ? allDemouldings.size() : 0) + ")");
         List<Object[]> allProdSleeperRows = productionSleeperRepository.getSleepersWithBatchIdByBatchIds(batchIds);
+        cbMark.accept("production sleepers (" + (allProdSleeperRows != null ? allProdSleeperRows.size() : 0) + ")");
         Map<Long, List<ProductionSleeper>> prodSleepersByBatchId = new HashMap<>();
         if (allProdSleeperRows != null) {
             for (Object[] row : allProdSleeperRows) {
@@ -1399,6 +1414,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
         // ── Bulk Upfront Fetch 8: Water Cube Tests ───────────────────────────
         List<WaterCubeStrengthTest> allWaterCubeTests = waterCubeStrengthTestRepository.findByBatchNumbersIn(expandedBatchNumbers);
+        cbMark.accept("MOR + water cube");
 
         List<BatchInspectionResponseDto> responseList = new ArrayList<>();
 
@@ -1895,6 +1911,7 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             responseList.add(response);
         }
 
+        cbMark.accept("loop done (" + responseList.size() + " batches returned)");
         return responseList;
     }
 

@@ -492,9 +492,9 @@ public class FinalCallServiceImpl implements FinalCallService {
                             || sType.contains("POINTS")
                             || sType.contains("CROSSING");
 
-                    if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered() > 0) {
-                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered()) {
-                            entity.setQtyOfferedNow(sic.getTotalOffered());
+                    if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered().signum() > 0) {
+                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered().intValue()) {
+                            entity.setQtyOfferedNow(sic.getTotalOffered().intValue());
                         }
                     }
                 });
@@ -542,9 +542,9 @@ public class FinalCallServiceImpl implements FinalCallService {
                             || sType.contains("POINTS")
                             || sType.contains("CROSSING");
 
-                    if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered() > 0) {
-                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered() || entity.getQtyOfferedNow() <= 0) {
-                            entity.setQtyOfferedNow(sic.getTotalOffered());
+                    if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered().signum() > 0) {
+                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered().intValue() || entity.getQtyOfferedNow() <= 0) {
+                            entity.setQtyOfferedNow(sic.getTotalOffered().intValue());
                         }
                         if (entity.getRejectedQty() == null) {
                             entity.setRejectedQty(0);

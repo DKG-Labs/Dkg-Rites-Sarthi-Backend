@@ -12,7 +12,7 @@ public class SleeperInspectionCallDetailDto {
     private String poNo;
     private String srNo;
     private String sleeperType;
-    private Integer totalOffered;
+    private java.math.BigDecimal totalOffered;
     private Integer totalRejected;
     private LocalDate desiredInspectionDate;
     private String status;

@@ -156,9 +156,12 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
             dto.setSleeperType(call.getSleeperType());
 
-            Integer finalOffered = call.getTotalOffered();
+            Integer finalOffered = call.getTotalOffered() != null ? call.getTotalOffered().intValue() : null;
             Integer finalAccepted = null;
             Integer finalRejected = call.getTotalRejected();
+            // call.totalOffered is already the PASSED count (vendor form saves good sleepers only; rejections are in
+            // totalRejected). Only an IE header's qty_offered_now is a gross offered qty that still includes rejections.
+            boolean offeredIncludesRejected = false;
 
             try {
                 List<java.util.Map<String, Object>> fchList = jdbcTemplate.queryForList(
@@ -172,6 +175,7 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                     Object qRej = fch.get("rejected_qty");
                     if (qOff != null && ((Number) qOff).intValue() > 0) {
                         finalOffered = ((Number) qOff).intValue();
+                        offeredIncludesRejected = true;
                     }
                     if (qAcc != null) {
                         finalAccepted = ((Number) qAcc).intValue();
@@ -193,14 +197,16 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                     || sType.contains("POINTS")
                     || sType.contains("CROSSING");
 
-            if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered() > 0) {
-                if (finalOffered == null || finalOffered > call.getTotalOffered()) {
-                    finalOffered = call.getTotalOffered();
+            if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered().signum() > 0) {
+                if (finalOffered == null || finalOffered > call.getTotalOffered().intValue()) {
+                    finalOffered = call.getTotalOffered().intValue();
                 }
             }
 
             if (finalAccepted == null && finalOffered != null) {
-                finalAccepted = Math.max(0, finalOffered - (finalRejected != null ? finalRejected : 0));
+                finalAccepted = offeredIncludesRejected
+                        ? Math.max(0, finalOffered - (finalRejected != null ? finalRejected : 0))
+                        : finalOffered;
             }
 
             dto.setQtyOffered(finalOffered != null ? finalOffered : 0);

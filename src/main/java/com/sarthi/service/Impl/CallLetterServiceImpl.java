@@ -690,8 +690,14 @@ public class CallLetterServiceImpl implements CallLetterService {
                 || sleeperType.contains("4218") || sleeperType.contains("4865") || sleeperType.contains("9790")
                 || sleeperType.contains("4732") || sleeperType.contains("DERAIL");
 
-        if (isTurnout) {
-            int sets = sleeperCall.getTotalOffered() != null && sleeperCall.getTotalOffered() > 0 ? sleeperCall.getTotalOffered() : 1;
+        java.math.BigDecimal offeredDec = sleeperCall.getTotalOffered();
+        boolean hasFraction = offeredDec != null && offeredDec.stripTrailingZeros().scale() > 0;
+        if (hasFraction) {
+            // Manually declared decimal quantity in metres (Mtr UOM)
+            dto.setCallQty(offeredDec.stripTrailingZeros().toPlainString());
+            dto.setCallUnit("Mtr");
+        } else if (isTurnout) {
+            int sets = offeredInt(sleeperCall) > 0 ? offeredInt(sleeperCall) : 1;
             dto.setCallQty(String.valueOf(sets));
             dto.setCallUnit("Set");
         } else {
@@ -706,7 +712,7 @@ public class CallLetterServiceImpl implements CallLetterService {
 
             int callQtyVal = batchTotalOffered > 0
                     ? batchTotalOffered
-                    : (sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0);
+                    : offeredInt(sleeperCall);
 
             dto.setCallQty(String.valueOf(callQtyVal));
             dto.setCallUnit("Nos.");
@@ -1040,8 +1046,8 @@ public class CallLetterServiceImpl implements CallLetterService {
                         dto.setUom(itemUom);
                         if (itemUom.toUpperCase().contains("SET")) {
                             dto.setCallUnit("Set");
-                            int setQty = sleeperCall.getTotalOffered() != null && sleeperCall.getTotalOffered() > 0 && sleeperCall.getTotalOffered() <= 50
-                                    ? sleeperCall.getTotalOffered()
+                            int setQty = offeredInt(sleeperCall) > 0 && offeredInt(sleeperCall) <= 50
+                                    ? offeredInt(sleeperCall)
                                     : 1;
                             dto.setCallQty(String.valueOf(setQty));
                         } else {
@@ -1637,7 +1643,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     String st = c.getStatus() != null ? c.getStatus().trim().toUpperCase() : "";
                     if (st.equals("ACCEPTED") || st.equals("COMPLETED") || st.equals("VERIFIED") ||
                         st.contains("IBS") || st.contains("IC_ISSUE") || st.contains("CLOSED")) {
-                        passedQty += (c.getTotalOffered() != null ? c.getTotalOffered() : 0);
+                        passedQty += offeredInt(c);
                     }
                 }
             }
@@ -1645,7 +1651,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                 String curSt = sleeperCall.getStatus() != null ? sleeperCall.getStatus().trim().toUpperCase() : "";
                 if (curSt.equals("ACCEPTED") || curSt.equals("COMPLETED") || curSt.equals("VERIFIED") ||
                     curSt.contains("IBS") || curSt.contains("IC_ISSUE") || curSt.contains("CLOSED")) {
-                    passedQty = sleeperCall.getTotalOffered() != null ? sleeperCall.getTotalOffered() : 0;
+                    passedQty = offeredInt(sleeperCall);
                 }
             }
             dto.setFinalAcceptedQty(passedQty > 0 ? passedQty + " Nos." : "0 Nos.");
@@ -1745,6 +1751,10 @@ public class CallLetterServiceImpl implements CallLetterService {
             }
         }
         return parts[0].trim();
+    }
+
+    private static int offeredInt(com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall c) {
+        return c != null && c.getTotalOffered() != null ? c.getTotalOffered().intValue() : 0;
     }
 
     private String cleanMfSleeperNo(String s) {

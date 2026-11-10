@@ -300,7 +300,7 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setPoKey(poHeader.getPoKey());
 
         BigDecimal totalQty = poHeader.getItems().stream()
-                .map(item -> BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0))
+                .map(this::exactQty)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         dto.setQty(totalQty);
 
@@ -320,6 +320,12 @@ public class VendorPoServiceImpl implements VendorPoService {
         return dto;
     }
 
+    /** Exact PO item qty incl. decimals (e.g. 4524.36 Mtr); falls back to the integer qty. */
+    private BigDecimal exactQty(PoItem item) {
+        if (item.getQtyExact() != null) return item.getQtyExact().stripTrailingZeros();
+        return BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0);
+    }
+
     private VendorPoItemsResponseDto mapToItemDto(PoItem item,
             List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> vendorCalls,
             java.util.Map<String, List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults>> lotResultsByCallNo) {
@@ -335,7 +341,8 @@ public class VendorPoServiceImpl implements VendorPoService {
         dto.setPoSerialNo(poSrNo);
         dto.setPoDes(item.getItemDesc());
         dto.setConigness(item.getImmsConsigneeName());
-        dto.setOrderedQty(BigDecimal.valueOf(item.getQty() != null ? item.getQty() : 0));
+        BigDecimal itemQtyExact = exactQty(item);
+        dto.setOrderedQty(itemQtyExact);
         dto.setItemSrNo(srNo);
 
         String itemUom = item.getUom();
@@ -427,9 +434,8 @@ public class VendorPoServiceImpl implements VendorPoService {
 
         dto.setOfferedTillNow(offeredQty);
         dto.setAcceptedTillNow(acceptedQty);
-        int itemQtyVal = item.getQty() != null ? item.getQty() : 0;
-        int dueVal = Math.max(0, itemQtyVal - totalAccepted);
-        dto.setDue(BigDecimal.valueOf(dueVal));
+        BigDecimal dueVal = itemQtyExact.subtract(BigDecimal.valueOf(totalAccepted));
+        dto.setDue(dueVal.signum() < 0 ? BigDecimal.ZERO : dueVal);
 
         LocalDate effectiveOdp = resolveEffectiveOriginalDeliveryDate(item);
         LocalDate effectiveEdp = resolveEffectiveExtendedDeliveryDate(item);

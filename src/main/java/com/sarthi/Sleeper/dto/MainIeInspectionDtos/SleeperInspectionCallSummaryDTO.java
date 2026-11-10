@@ -15,7 +15,7 @@ public class SleeperInspectionCallSummaryDTO {
     private Integer cumulativeQtyOffered;
     private Integer cumulativeQtyPassed;
 
-    private Integer qtyOfferedNow;
+    private java.math.BigDecimal qtyOfferedNow;
     private Integer noOfBatches;
 
     private Integer totalAccepted;

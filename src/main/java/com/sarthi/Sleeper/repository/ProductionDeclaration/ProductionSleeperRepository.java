@@ -21,10 +21,12 @@ WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
     List<ProductionSleeper> getSleepersByBatch(Long batchId);
 
     // Split into two index-friendly branches (chamber / gang) instead of LEFT JOIN + OR, which forced a full scan.
+    // benchGroup / gang are JOIN FETCHed: callers read their sleeperType per sleeper, and lazy loading did one
+    // DB round trip per bench group / gang (completed-batches took 13+ min for ~200 batches).
     @Query("""
 SELECT s, c.declaration.id
 FROM ProductionSleeper s
-JOIN s.benchGroup b
+JOIN FETCH s.benchGroup b
 JOIN b.chamber c
 WHERE c.declaration.id IN :batchIds
 """)
@@ -33,7 +35,7 @@ WHERE c.declaration.id IN :batchIds
     @Query("""
 SELECT s, g.declaration.id
 FROM ProductionSleeper s
-JOIN s.gang g
+JOIN FETCH s.gang g
 WHERE g.declaration.id IN :batchIds
 """)
     List<Object[]> getSleepersWithBatchIdViaGang(@Param("batchIds") java.util.Collection<Long> batchIds);
