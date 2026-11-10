@@ -172,6 +172,13 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             """, nativeQuery = true)
     List<Object[]> getRailpadFinalInspectionCalls();
 
+    /*
+     * IBS: Rail Pad Final completed calls.
+     * Quantities: PO Sr item UOM = SET -> one lot (MAX); otherwise (Nos) -> SUM of all lots.
+     * `res` pre-aggregates lots per call (one row per call) so the OR-joins cannot repeat lot rows.
+     * `setu` is a DISTINCT (PO, Sr) list of SET items, so it never multiplies rows.
+     * Cross-table text comparisons use CONVERT ... COLLATE utf8mb4_unicode_ci (tables differ in collation).
+     */
     @Query(value = """
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
@@ -193,9 +200,15 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 CAST(COALESCE(f.book_no, '') AS CHAR)                   AS bkNumber,
                 CAST(COALESCE(f.set_no, '') AS CHAR)                    AS setNumber,
                 DATE(f.created_at)                                      AS icDate,
-                COALESCE(MAX(res.offered_qty), ic.total_qty, 0)         AS quantityOffered,
-                COALESCE(MAX(res.accepted_qty), 0)                      AS quantityPassed,
-                COALESCE(MAX(res.rejected_qty), 0)                      AS quantityRejected,
+                (CASE WHEN MAX(setu.po_no) IS NOT NULL
+                      THEN COALESCE(MAX(res.max_offered), ic.total_qty, 0)
+                      ELSE COALESCE(MAX(res.sum_offered), ic.total_qty, 0) END) AS quantityOffered,
+                (CASE WHEN MAX(setu.po_no) IS NOT NULL
+                      THEN COALESCE(MAX(res.max_accepted), 0)
+                      ELSE COALESCE(MAX(res.sum_accepted), 0) END)              AS quantityPassed,
+                (CASE WHEN MAX(setu.po_no) IS NOT NULL
+                      THEN COALESCE(MAX(res.max_rejected), 0)
+                      ELSE COALESCE(MAX(res.sum_rejected), 0) END)              AS quantityRejected,
                 ic.call_no                                             AS callNo,
                 (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
@@ -238,8 +251,34 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
             LEFT JOIN user_master um
                    ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-            LEFT JOIN rail_final_inspection_lot_results res
+            LEFT JOIN (
+                SELECT lr.call_no,
+                       SUM(COALESCE(lr.offered_qty, 0))  AS sum_offered,
+                       MAX(COALESCE(lr.offered_qty, 0))  AS max_offered,
+                       SUM(COALESCE(lr.accepted_qty, 0)) AS sum_accepted,
+                       MAX(COALESCE(lr.accepted_qty, 0)) AS max_accepted,
+                       SUM(COALESCE(lr.rejected_qty, 0)) AS sum_rejected,
+                       MAX(COALESCE(lr.rejected_qty, 0)) AS max_rejected
+                FROM rail_final_inspection_lot_results lr
+                WHERE lr.call_no IN (:callNumbers)
+                   OR CONVERT(lr.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci IN (
+                        SELECT CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f2.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                        FROM railpad_final_ic_edit f2
+                        WHERE f2.ic_number IN (:callNumbers)
+                   )
+                GROUP BY lr.call_no
+            ) res
                    ON CONVERT(res.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT DISTINCT phs.po_no, pis.item_sr_no
+                FROM po_header phs
+                JOIN po_item pis ON pis.po_header_id = phs.id
+                WHERE UPPER(TRIM(COALESCE(pis.uom, ''))) LIKE 'SET%'
+            ) setu
+                   ON CONVERT(setu.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+                      CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  AND CONVERT(setu.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+                      CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1) ELSE ic.po_sr END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN railpad_pincode_poi_mapping rpp
                    ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
