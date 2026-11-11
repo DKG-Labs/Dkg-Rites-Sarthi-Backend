@@ -4455,34 +4455,36 @@ public class reportsImpl implements reports {
                                                         row[26] == null ? 0L : ((Number) row[26]).longValue());
 
                                         dto.setDepthOfDecarburizationRej(
-                                                        row[26] == null ? 0L : ((Number) row[26]).longValue());
-
-                                        dto.setDimensionToleranceRej(
                                                         row[27] == null ? 0L : ((Number) row[27]).longValue());
 
-                                        dto.setApplicationAndDeflectionTestRej(
+                                        dto.setDimensionToleranceRej(
                                                         row[28] == null ? 0L : ((Number) row[28]).longValue());
 
-                                        dto.setToeLoadTestRej(
+                                        dto.setApplicationAndDeflectionTestRej(
                                                         row[29] == null ? 0L : ((Number) row[29]).longValue());
 
-                                        dto.setWeightRej(
+                                        dto.setToeLoadTestRej(
                                                         row[30] == null ? 0L : ((Number) row[30]).longValue());
 
-                                        dto.setVisualTestRej(
+                                        dto.setWeightRej(
                                                         row[31] == null ? 0L : ((Number) row[31]).longValue());
 
-                                        dto.setMicroStructureRej(
+                                        dto.setVisualTestRej(
                                                         row[32] == null ? 0L : ((Number) row[32]).longValue());
 
-                                        dto.setFreedomFromDefectsRej(
+                                        dto.setMicroStructureRej(
                                                         row[33] == null ? 0L : ((Number) row[33]).longValue());
 
-                                        dto.setOtherRejections(
+                                        dto.setFreedomFromDefectsRej(
                                                         row[34] == null ? 0L : ((Number) row[34]).longValue());
 
+                                        dto.setOtherRejections(
+                                                        row[35] == null ? 0L : ((Number) row[35]).longValue());
+
                                         dto.setRemarks(
-                                                        row[35] == null ? null : row[35].toString());
+                                                        row[36] == null ? null : row[36].toString());
+
+                                        dto.setUom(row.length > 37 && row[37] != null ? row[37].toString() : null);
 
                                         Long totalRejections =
 
@@ -4513,6 +4515,7 @@ public class reportsImpl implements reports {
                                                                         + dto.getOtherRejections();
 
                                         dto.setTotalRejections(totalRejections);
+                                        dto.setTotalRejectedNos(totalRejections);
 
                                         Double processInspectedQty = dto.getProcessInspectedQty() == null
                                                         ? 0D
