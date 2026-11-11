@@ -110,13 +110,13 @@ public class InventoryEntryController {
                 requestDto.getVendorCode(), requestDto.getTcNumber());
 
         try {
-            // Check Supplier + TC uniqueness across all vendors before processing
-            if (inventoryEntryService.existsByTcNumberAndSupplierName(requestDto.getTcNumber(), requestDto.getSupplierName())) {
+            // TC Number must be unique system-wide (any supplier, any vendor)
+            if (inventoryEntryService.isTcNumberTaken(requestDto.getTcNumber(), null)) {
                 ErrorDetails errorDetails = new ErrorDetails(
                         AppConstant.ERROR_CODE_INVALID,
                         AppConstant.ERROR_TYPE_CODE_VALIDATION,
                         AppConstant.ERROR_TYPE_VALIDATION,
-                        "Combination of Supplier ('" + requestDto.getSupplierName() + "') and TC Number ('" + requestDto.getTcNumber() + "') already exists in the system.");
+                        "TC Number '" + requestDto.getTcNumber().trim() + "' already exists in the system.");
                 return new ResponseEntity<>(ResponseBuilder.getErrorResponse(errorDetails), HttpStatus.BAD_REQUEST);
             }
 
@@ -320,12 +320,8 @@ public class InventoryEntryController {
                 tcNumber, supplierName, vendorCode, excludeId);
 
         try {
-            boolean exists = false;
-            if (supplierName != null && !supplierName.trim().isEmpty()) {
-                exists = inventoryEntryService.existsByTcNumberAndSupplierName(tcNumber, supplierName, excludeId);
-            } else if (vendorCode != null && !vendorCode.trim().isEmpty()) {
-                exists = inventoryEntryService.existsByTcNumber(tcNumber, vendorCode);
-            }
+            // TC Number is unique system-wide; supplierName/vendorCode kept as optional params for backward compatibility
+            boolean exists = inventoryEntryService.isTcNumberTaken(tcNumber, excludeId);
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(exists), HttpStatus.OK);
 
         } catch (Exception e) {

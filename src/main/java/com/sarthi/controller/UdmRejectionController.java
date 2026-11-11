@@ -40,10 +40,12 @@ public class UdmRejectionController {
             @RequestParam(required = false) String rejDate,
             @RequestParam(required = false) String poNo,
             @RequestParam(required = false) String vendorCode,
-            @RequestParam(required = false) String type) {
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String tab) {
         try {
+            // Same response as before, plus complaint status fields; optional tab=pending|closed
             List<UdmRejectionDTO> rejections = udmRejectionService
-                    .getConsigneeRejections(rejDate, poNo, vendorCode, type);
+                    .getConsigneeRejectionsWithComplaint(rejDate, poNo, vendorCode, type, tab);
             return ResponseEntity.ok(rejections);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();

@@ -124,6 +124,12 @@ public interface InventoryEntryService {
     boolean existsByTcNumberAndSupplierName(String tcNumber, String supplierName, Long excludeId);
 
     /**
+     * TC Number must be unique system-wide (any supplier, any vendor; case/space-insensitive).
+     * When excludeId is given (edit), the entry's own TC (shared by its sibling heat rows) is not a conflict.
+     */
+    boolean isTcNumberTaken(String tcNumber, Long excludeId);
+
+    /**
      * Get consumption history for an inventory entry
      */
     List<com.sarthi.dto.InventoryHistoryDto> getInventoryHistory(Long id);

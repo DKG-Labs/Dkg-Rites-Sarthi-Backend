@@ -52,13 +52,9 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
             // Validate required fields
             validateInventoryRequest(requestDto);
 
-            // Validate Supplier + TC Number combination uniqueness across all vendors
-            if (existsByTcNumberAndSupplierName(requestDto.getTcNumber(), requestDto.getSupplierName())) {
-                throw new BusinessException(
-                        new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
-                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "Combination of Supplier ('" + requestDto.getSupplierName() + "') and TC Number ('" + requestDto.getTcNumber() + "') already exists in the system."));
+            // TC Number must be unique system-wide
+            if (isTcNumberTaken(requestDto.getTcNumber(), null)) {
+                throw tcDuplicateException(requestDto.getTcNumber());
             }
 
             // Create entity from DTO
@@ -111,13 +107,25 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
             String tcFilePath) {
         logger.info("Creating multiple inventory entries (bulk) for vendor: {}", bulkRequestDto.getVendorCode());
 
-        // Validate Supplier + TC Number combination uniqueness across all vendors
-        if (existsByTcNumberAndSupplierName(bulkRequestDto.getTcNumber(), bulkRequestDto.getSupplierName())) {
-            throw new BusinessException(
-                    new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
-                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                            AppConstant.ERROR_TYPE_VALIDATION,
-                            "Combination of Supplier ('" + bulkRequestDto.getSupplierName() + "') and TC Number ('" + bulkRequestDto.getTcNumber() + "') already exists in the system."));
+        // TC Number must be unique system-wide
+        if (isTcNumberTaken(bulkRequestDto.getTcNumber(), null)) {
+            throw tcDuplicateException(bulkRequestDto.getTcNumber());
+        }
+
+        // One TC can hold many heats, but the same heat number must not repeat within the TC
+        if (bulkRequestDto.getHeatEntries() != null) {
+            java.util.Set<String> seenHeats = new java.util.HashSet<>();
+            for (InventoryBulkEntryRequestDto.HeatDetailsDto heat : bulkRequestDto.getHeatEntries()) {
+                String heatNo = heat.getHeatNumber() == null ? "" : heat.getHeatNumber().trim();
+                if (!heatNo.isEmpty() && !seenHeats.add(heatNo.toLowerCase())) {
+                    throw new BusinessException(
+                            new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
+                                    AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                    AppConstant.ERROR_TYPE_VALIDATION,
+                                    "Heat Number '" + heatNo + "' is entered more than once for TC Number '"
+                                            + bulkRequestDto.getTcNumber().trim() + "'."));
+                }
+            }
         }
 
         String finalTcFilePath = tcFilePath;
@@ -310,13 +318,9 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
         // Validate request
         validateInventoryRequest(requestDto);
 
-        // Validate Supplier + TC Number combination uniqueness excluding current entry ID
-        if (existsByTcNumberAndSupplierName(requestDto.getTcNumber(), requestDto.getSupplierName(), id)) {
-            throw new BusinessException(
-                    new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
-                            AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                            AppConstant.ERROR_TYPE_VALIDATION,
-                            "Combination of Supplier ('" + requestDto.getSupplierName() + "') and TC Number ('" + requestDto.getTcNumber() + "') already exists in the system."));
+        // TC Number must be unique system-wide (entry's own TC / sibling heats are allowed)
+        if (isTcNumberTaken(requestDto.getTcNumber(), id)) {
+            throw tcDuplicateException(requestDto.getTcNumber());
         }
 
         // Find existing entry
@@ -596,6 +600,32 @@ public class InventoryEntryServiceImpl implements InventoryEntryService {
     public boolean existsByTcNumber(String tcNumber, String vendorCode) {
         logger.info("Checking if TC number {} exists for vendor: {}", tcNumber, vendorCode);
         return inventoryEntryRepository.existsByTcNumberAndVendorCode(tcNumber, vendorCode);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isTcNumberTaken(String tcNumber, Long excludeId) {
+        if (tcNumber == null || tcNumber.trim().isEmpty()) {
+            return false;
+        }
+        String tc = tcNumber.trim();
+        if (excludeId != null) {
+            String ownTc = inventoryEntryRepository.findById(excludeId)
+                    .map(InventoryEntry::getTcNumber)
+                    .orElse(null);
+            if (ownTc != null && ownTc.trim().equalsIgnoreCase(tc)) {
+                return false; // unchanged TC on edit – shared with its own sibling heat rows
+            }
+        }
+        return inventoryEntryRepository.existsByNormalizedTcNumber(tc);
+    }
+
+    private BusinessException tcDuplicateException(String tcNumber) {
+        return new BusinessException(
+                new ErrorDetails(AppConstant.ERROR_CODE_INVALID,
+                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                        AppConstant.ERROR_TYPE_VALIDATION,
+                        "TC Number '" + (tcNumber == null ? "" : tcNumber.trim()) + "' already exists in the system."));
     }
 
     @Override
