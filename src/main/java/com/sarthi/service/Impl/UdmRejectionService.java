@@ -3,6 +3,9 @@ package com.sarthi.service.Impl;
 import com.sarthi.dto.crisDtos.UdmRejectionDTO;
 import com.sarthi.entity.UdmRejection;
 import com.sarthi.repository.UdmRejectionRepository;
+import com.sarthi.udmcomplaint.UdmComplaintConstants;
+import com.sarthi.udmcomplaint.entity.UdmComplaint;
+import com.sarthi.udmcomplaint.repository.UdmComplaintRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -10,6 +13,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -17,6 +23,54 @@ public class UdmRejectionService {
 
     @Autowired
     private UdmRejectionRepository repository;
+
+    @Autowired
+    private UdmComplaintRepository udmComplaintRepository;
+
+    /**
+     * Same as {@link #getConsigneeRejections(String, String, String, String)} plus the SARTHI complaint
+     * state of each row, and an optional tab filter ("pending" = not closed, "closed" = closed).
+     * Complaint state is loaded with one bulk query (no N+1).
+     */
+    public List<UdmRejectionDTO> getConsigneeRejectionsWithComplaint(String rejDate, String poNo,
+                                                                     String vendorCode, String type, String tab) {
+        List<UdmRejectionDTO> list = attachComplaintState(getConsigneeRejections(rejDate, poNo, vendorCode, type));
+
+        if (tab == null || tab.isBlank()) return list;
+        boolean wantClosed = "closed".equalsIgnoreCase(tab.trim());
+        return list.stream()
+                .filter(d -> UdmComplaintConstants.ST_CLOSED.equals(d.getComplaintStatus()) == wantClosed)
+                .collect(Collectors.toList());
+    }
+
+    /** Entities (e.g. one page from the role-scoped list) → DTOs with complaint state, order preserved. */
+    public List<UdmRejectionDTO> toDtosWithComplaint(List<UdmRejection> records) {
+        return attachComplaintState(records.stream().map(this::toDto).collect(Collectors.toList()));
+    }
+
+    /** Adds the SARTHI complaint state to each row with one bulk query (no N+1). */
+    private List<UdmRejectionDTO> attachComplaintState(List<UdmRejectionDTO> list) {
+        List<Long> ids = list.stream().map(UdmRejectionDTO::getId).filter(Objects::nonNull).toList();
+        Map<Long, UdmComplaint> byRejection = ids.isEmpty() ? Map.of()
+                : udmComplaintRepository.findByUdmRejectionIdIn(ids).stream()
+                    .collect(Collectors.toMap(UdmComplaint::getUdmRejectionId, Function.identity(), (a, b) -> a));
+
+        for (UdmRejectionDTO dto : list) {
+            UdmComplaint c = dto.getId() != null ? byRejection.get(dto.getId()) : null;
+            if (c == null) {
+                dto.setComplaintStatus(UdmComplaintConstants.ST_PENDING_CC);
+                dto.setPendingWith(UdmComplaintConstants.ROLE_COMPLAINT_CELL);
+            } else {
+                dto.setComplaintStatus(c.getStatus());
+                dto.setPendingWith(c.getPendingWithRoleName());
+                dto.setAssignedRio(c.getAssignedRio());
+                dto.setAssignedCmUserId(c.getAssignedCmUserId());
+                dto.setAssignedCmName(c.getAssignedCmName());
+                dto.setComplaintRemarks(c.getLastRemarks());
+            }
+        }
+        return list;
+    }
 
     public List<UdmRejectionDTO> getConsigneeRejections(String rejDate, String poNo,
                                                          String vendorCode, String type) {
@@ -42,6 +96,8 @@ public class UdmRejectionService {
 
     private UdmRejectionDTO toDto(UdmRejection e) {
         UdmRejectionDTO dto = new UdmRejectionDTO();
+        dto.setId(e.getId());
+        dto.setFetchedDate(e.getFetchedDate() != null ? e.getFetchedDate().toString() : null);
         dto.setPoNumber(e.getPoNumber());
         dto.setPoDate(e.getPoDate() != null ? e.getPoDate().toString() : null);
         dto.setPlNumber(e.getPlNumber());

@@ -73,4 +73,17 @@ public class UdmRejectionDTO {
 
     @JsonAlias("RECPT_DATE")
     private String materialReceivedDate;
+
+    // ---- SARTHI complaint workflow (additive; filled from udm_complaint) ----
+    /** udm_rejection.id — key for complaint actions. */
+    private Long id;
+    /** udm_rejection.fetched_date (yyyy-MM-dd) — date the complaint was received from UDM. */
+    private String fetchedDate;
+    /** PENDING_WITH_COMPLAINT_CELL | SENT_TO_CM | CLOSED */
+    private String complaintStatus;
+    private String pendingWith;
+    private String assignedRio;
+    private Integer assignedCmUserId;
+    private String assignedCmName;
+    private String complaintRemarks;
 }

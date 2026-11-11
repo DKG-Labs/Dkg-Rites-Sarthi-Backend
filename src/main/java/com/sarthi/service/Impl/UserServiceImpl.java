@@ -261,22 +261,36 @@ public class UserServiceImpl implements UserService {
             // Save SBU Head mapping (1 region = 1 SBU Head)
             if (roleName.equalsIgnoreCase("SBU Head")) {
 
-                // Check if SBU Head already exists for region
-                Optional<RegionSbuHead> existing = regionSbuHeadRepository.findByRegionName(userDto.getRegionName());
-
-                if (existing.isPresent()) {
+                // The user form sends the region as "rio"; older callers send "regionName"
+                String sbuRegion = (userDto.getRegionName() != null && !userDto.getRegionName().trim().isEmpty())
+                        ? userDto.getRegionName().trim()
+                        : (userDto.getRio() != null ? userDto.getRio().trim() : null);
+                if (sbuRegion == null || sbuRegion.isEmpty()) {
                     throw new BusinessException(
                             new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
                                     AppConstant.ERROR_TYPE_CODE_VALIDATION,
                                     AppConstant.ERROR_TYPE_VALIDATION,
-                                    "SBU Head already exists for region: " + userDto.getRegionName()));
+                                    "Please select the RIO for the SBU Head."));
                 }
 
-                // Save SBU Head
-                RegionSbuHead sbu = new RegionSbuHead();
-                sbu.setRegionName(userDto.getRegionName());
-                sbu.setSbuHeadUserId(userMaster.getUserId());
-                regionSbuHeadRepository.save(sbu);
+                // 1 region = 1 SBU Head: block only if ANOTHER user already holds this region
+                Optional<RegionSbuHead> existing = regionSbuHeadRepository.findByRegionName(sbuRegion);
+                if (existing.isPresent()) {
+                    Integer holder = existing.get().getSbuHeadUserId();
+                    if (holder != null && !holder.equals(userMaster.getUserId())) {
+                        throw new BusinessException(
+                                new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
+                                        AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                                        AppConstant.ERROR_TYPE_VALIDATION,
+                                        "SBU Head already exists for region: " + sbuRegion));
+                    }
+                    // Same user (edit/update): mapping already in place, nothing to add
+                } else {
+                    RegionSbuHead sbu = new RegionSbuHead();
+                    sbu.setRegionName(sbuRegion);
+                    sbu.setSbuHeadUserId(userMaster.getUserId());
+                    regionSbuHeadRepository.save(sbu);
+                }
             }
             if (roleName.equalsIgnoreCase("ZONAL RAILWAY")) {
 

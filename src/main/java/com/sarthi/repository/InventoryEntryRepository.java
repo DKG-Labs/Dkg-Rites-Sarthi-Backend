@@ -111,6 +111,14 @@ public interface InventoryEntryRepository extends JpaRepository<InventoryEntry, 
         return existsByTcNumberAndSupplierName(tcNumber, supplierName, null);
     }
 
+    /** TC Number exists anywhere in inventory (case/space-insensitive), regardless of supplier/vendor. */
+    @Query("""
+       SELECT COUNT(e) > 0
+       FROM InventoryEntry e
+       WHERE LOWER(TRIM(e.tcNumber)) = LOWER(TRIM(:tcNumber))
+       """)
+    boolean existsByNormalizedTcNumber(@Param("tcNumber") String tcNumber);
+
     /**
      * Find all inventory entries for a vendor with FRESH_PO status (available
      * inventory)
