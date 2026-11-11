@@ -16,4 +16,8 @@ public class CmContextDto {
     private Boolean failedWithin90Days;
     private Long daysToFailure;
     private Map<String, List<String>> dropdowns;
+    /** Rework round (1 = first submission). */
+    private Integer currentRound;
+    /** SBU Head remarks when the complaint was returned to the CM for rework; else null. */
+    private String returnedRemarks;
 }

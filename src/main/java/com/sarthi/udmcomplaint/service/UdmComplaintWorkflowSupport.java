@@ -94,6 +94,18 @@ public class UdmComplaintWorkflowSupport {
 
     public static boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
 
+    /** Current rework round of a complaint (1 if not set). */
+    public static int round(UdmComplaint c) {
+        return c.getCurrentRound() == null || c.getCurrentRound() < 1 ? 1 : c.getCurrentRound();
+    }
+
+    /** True if the user holds any of the given role names (lower-case) in user_role_master. */
+    public boolean hasAnyRole(Integer userId, java.util.Collection<String> lowerCaseNames) {
+        if (userId == null) return false;
+        return complaintRepository.findRoleNamesByUserId(userId).stream()
+                .anyMatch(r -> r != null && lowerCaseNames.contains(r.trim().toLowerCase(java.util.Locale.ROOT)));
+    }
+
     public static BusinessException validation(String message) {
         return new BusinessException(new ErrorDetails(
                 AppConstant.ERROR_CODE_RESOURCE,

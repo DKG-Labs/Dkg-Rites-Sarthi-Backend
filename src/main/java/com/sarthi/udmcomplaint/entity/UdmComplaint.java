@@ -42,6 +42,10 @@ public class UdmComplaint {
     @Column(name = "last_remarks", length = 500)
     private String lastRemarks;
 
+    /** Rework round: 1 on first submission, +1 each time the SBU Head returns it to the CM (V20261111_006). */
+    @Column(name = "current_round", nullable = false)
+    private Integer currentRound;
+
     @Column(name = "closed_by")
     private Integer closedBy;
 
@@ -69,6 +73,7 @@ public class UdmComplaint {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         if (version == null) version = 0;
+        if (currentRound == null) currentRound = 1;
     }
 
     @PreUpdate

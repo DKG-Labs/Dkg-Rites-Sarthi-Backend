@@ -6,6 +6,7 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.udmcomplaint.dto.*;
 import com.sarthi.udmcomplaint.service.UdmComplaintCmService;
+import com.sarthi.udmcomplaint.service.UdmComplaintSbuService;
 import com.sarthi.udmcomplaint.service.UdmComplaintWorkflowService;
 import com.sarthi.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class UdmComplaintController {
 
     private final UdmComplaintWorkflowService service;
     private final UdmComplaintCmService cmService;
+    private final UdmComplaintSbuService sbuService;
 
     /** RIOs that have Controlling Managers (RIO dropdown). */
     @GetMapping("/rios")
@@ -127,6 +129,22 @@ public class UdmComplaintController {
                                        @RequestPart(value = "file", required = false) MultipartFile file,
                                        @AuthenticationPrincipal Object principal) {
         return ok(cmService.submitCapa(rejectionId, request, file, userId(principal)));
+    }
+
+    // ================================================================ Phase 3a — SBU Head review
+
+    /** SBU Head review context: can act now, round, Railway Board remarks if returned. */
+    @GetMapping("/{rejectionId}/sbu-context")
+    public ResponseEntity<Object> sbuContext(@PathVariable Long rejectionId, @AuthenticationPrincipal Object principal) {
+        return ok(sbuService.getSbuContext(rejectionId, userId(principal)));
+    }
+
+    /** SBU Head: { decision: FORWARD | RETURN, remarks } — remarks mandatory for RETURN. */
+    @PostMapping("/{rejectionId}/sbu/review")
+    public ResponseEntity<Object> sbuReview(@PathVariable Long rejectionId,
+                                            @RequestBody SbuReviewRequest request,
+                                            @AuthenticationPrincipal Object principal) {
+        return ok(sbuService.review(rejectionId, request, userId(principal)));
     }
 
     /** Submitted stage details (for the timeline / View). */

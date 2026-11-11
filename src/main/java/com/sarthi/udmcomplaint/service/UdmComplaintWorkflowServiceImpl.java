@@ -30,6 +30,7 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
     private final UdmComplaintWorkflowTransitionRepository transitionLogRepository;
     private final UdmRejectionRepository udmRejectionRepository;
     private final UdmComplaintWorkflowSupport support;
+    private final UdmRoleResolver roles;
 
     // ------------------------------------------------------------------ actions
 
@@ -42,10 +43,10 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
         String remarks = support.trimRemarks(req.getRemarks(), false);
 
         String rio = req.getRio().trim();
-        if (complaintRepository.countCmInRio(req.getCmUserId(), rio, ROLE_CM_ID) == 0) {
+        if (complaintRepository.countCmInRio(req.getCmUserId(), rio, roles.cmRoleIdForQuery()) == 0) {
             throw validation("Selected Controlling Manager does not belong to RIO " + rio + ".");
         }
-        String cmName = complaintRepository.findCmsByRio(rio, ROLE_CM_ID).stream()
+        String cmName = complaintRepository.findCmsByRio(rio, roles.cmRoleIdForQuery()).stream()
                 .filter(r -> r[0] != null && ((Number) r[0]).intValue() == req.getCmUserId())
                 .map(r -> r[1] != null ? r[1].toString() : null)
                 .findFirst().orElse(null);
@@ -57,7 +58,7 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
         String fromStatus = c.getStatus();
 
         c.setStatus(ST_SENT_TO_CM);
-        c.setPendingWithRoleId(ROLE_CM_ID);
+        c.setPendingWithRoleId(roles.cmRoleId());
         c.setPendingWithRoleName(ROLE_CM_NAME);
         c.setAssignedRio(rio);
         c.setAssignedCmUserId(req.getCmUserId());
@@ -66,7 +67,7 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
         c.setUpdatedBy(actionBy);
         c = support.save(c);
 
-        support.logTransition(c, tr, fromStatus, ST_SENT_TO_CM, ROLE_COMPLAINT_CELL, ROLE_CM_NAME, ROLE_CM_ID,
+        support.logTransition(c, tr, fromStatus, ST_SENT_TO_CM, ROLE_COMPLAINT_CELL, ROLE_CM_NAME, roles.cmRoleId(),
                 remarks, rio, req.getCmUserId(), actionBy);
         log.info("[UDM-COMPLAINT] {} sent to CM {} ({}) by user {}", c.getRejectionNumber(), req.getCmUserId(), rio, actionBy);
         return support.toStatusDto(c);
@@ -104,14 +105,14 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
     @Override
     @Transactional(readOnly = true)
     public List<String> getRios() {
-        return complaintRepository.findRiosHavingCm(ROLE_CM_ID);
+        return complaintRepository.findRiosHavingCm(roles.cmRoleIdForQuery());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CmOptionDto> getCmsByRio(String rio) {
         if (isBlank(rio)) return List.of();
-        return complaintRepository.findCmsByRio(rio.trim(), ROLE_CM_ID).stream()
+        return complaintRepository.findCmsByRio(rio.trim(), roles.cmRoleIdForQuery()).stream()
                 .map(r -> new CmOptionDto(
                         r[0] != null ? ((Number) r[0]).intValue() : null,
                         r[1] != null ? r[1].toString() : "",

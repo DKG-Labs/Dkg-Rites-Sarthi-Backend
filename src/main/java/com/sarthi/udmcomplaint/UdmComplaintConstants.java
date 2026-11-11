@@ -20,8 +20,13 @@ public final class UdmComplaintConstants {
     // Roles
     public static final String ROLE_COMPLAINT_CELL = "Complaint Cell";
     public static final String ROLE_CM_NAME = "Controlling Manager";
-    /** CM role id as used in TRANSITION_MASTER (CM = 5). */
-    public static final int ROLE_CM_ID = 5;
+    /**
+     * ROLE_MASTER names (lower-case) used to look up role ids at runtime — ids differ per environment.
+     * See UdmRoleResolver.
+     */
+    public static final java.util.List<String> CM_ROLE_NAMES = java.util.List.of("control manager", "controlling manager", "cm");
+    public static final java.util.List<String> SBU_HEAD_ROLE_NAMES = java.util.List.of("sbu head");
+    public static final java.util.List<String> RAILWAY_BOARD_ROLE_NAMES = java.util.List.of("railway board");
 
     public static final int REMARKS_MAX = 500;
 
@@ -65,11 +70,23 @@ public final class UdmComplaintConstants {
     public static final String DD_AUDIT_TYPE = "AUDIT_TYPE";
 
     public static final String ROLE_SBU_HEAD_NAME = "SBU Head";
-    /** SBU Head role id (confirm in ROLE_MASTER; matches V20261111_003). */
-    public static final int ROLE_SBU_HEAD_ID = 8;
+    public static final String ROLE_RAILWAY_BOARD_NAME = "Railway Board";
 
-    /** Rework rounds start in Phase 3; Phase 2 always writes round 1. */
+    /** First submission round; each return to the CM for rework adds 1 (udm_complaint.current_round). */
     public static final int FIRST_ROUND = 1;
+
+    // ---------------- Phase 3a: SBU Head review (V20261111_006)
+    public static final String TR_SBU_FORWARD_TO_RB = "SBU_FORWARD_TO_RB";
+    public static final String TR_SBU_RETURN_TO_CM = "SBU_RETURN_TO_CM";
+
+    public static final String ST_SENT_TO_RB = "SENT_TO_RAILWAY_BOARD";
+    public static final String ST_RETURNED_TO_CM = "RETURNED_TO_CM";
+    /** Set by Railway Board "Return" (Phase 3b); SBU Head can act on it again. */
+    public static final String ST_RETURNED_TO_SBU = "RETURNED_TO_SBU";
+
+    public static final String STAGE_SBU_REVIEW = "SBU_REVIEW";
+    public static final String DECISION_FORWARD = "FORWARD";
+    public static final String DECISION_RETURN = "RETURN";
 
     public static final int JI_TEAM_MAX = 1000;
     public static final int JI_TEAM_OTHERS_MAX = 300;

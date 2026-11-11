@@ -27,6 +27,7 @@ import java.util.*;
 
 import static com.sarthi.udmcomplaint.UdmComplaintConstants.*;
 import static com.sarthi.udmcomplaint.service.UdmComplaintWorkflowSupport.isBlank;
+import static com.sarthi.udmcomplaint.service.UdmComplaintWorkflowSupport.round;
 import static com.sarthi.udmcomplaint.service.UdmComplaintWorkflowSupport.validation;
 
 /**
@@ -48,7 +49,8 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
             ST_AUDIT_IN_PROGRESS, STAGE_AUDIT_COMPLETE,
             ST_JI_COMPLETED, STAGE_RCA,
             ST_AUDIT_COMPLETED, STAGE_RCA,
-            ST_RCA_SUBMITTED, STAGE_CAPA);
+            ST_RCA_SUBMITTED, STAGE_CAPA,
+            ST_RETURNED_TO_CM, STAGE_RCA);   // SBU Head rework: RCA -> CAPA again (next round)
 
     private final UdmComplaintRepository complaintRepository;
     private final UdmComplaintStageRepository stageRepository;
@@ -56,6 +58,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
     private final UdmComplaintDropdownRepository dropdownRepository;
     private final UdmRejectionRepository udmRejectionRepository;
     private final UdmComplaintWorkflowSupport support;
+    private final UdmRoleResolver roles;
     private final UdmComplaintDocumentStorage storage;
 
     // ------------------------------------------------------------------ context
@@ -69,6 +72,10 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         d.setComplaintStatus(status);
         d.setNextStage(NEXT_STAGE.get(status));
         d.setCanAct(oc.isPresent() && d.getNextStage() != null && isAssignedCm(oc.get(), userId));
+        oc.ifPresent(c -> {
+            d.setCurrentRound(round(c));
+            if (ST_RETURNED_TO_CM.equals(c.getStatus())) d.setReturnedRemarks(c.getLastRemarks());
+        });
 
         udmRejectionRepository.findById(udmRejectionId).ifPresent(r -> {
             Long days = daysToFailure(r);
@@ -112,7 +119,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         }
 
         stageRepository.save(s);
-        return move(c, transition, toStatus, remarks, userId, ROLE_CM_NAME, ROLE_CM_ID);
+        return move(c, transition, toStatus, remarks, userId, ROLE_CM_NAME, roles.cmRoleId());
     }
 
     /** JI team options: all CMs (every RIO) first, then all IEs (ERC / Sleeper / Rail Pad; no Process IE). */
@@ -129,7 +136,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
 
     private List<JiTeamOptionDto> jiTeamOptions(UdmComplaint c) {
         Map<Integer, JiTeamOptionDto> byId = new LinkedHashMap<>();
-        for (Object[] r : complaintRepository.findAllCms(ROLE_CM_ID)) {
+        for (Object[] r : complaintRepository.findAllCms(roles.cmRoleIdForQuery())) {
             Integer id = r[0] != null ? ((Number) r[0]).intValue() : null;
             if (id != null) byId.put(id, new JiTeamOptionDto(id, str(r[1]), str(r[2]), str(r[3]), JI_TYPE_CM));
         }
@@ -185,7 +192,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         ValidPdf pdf = storage.validate(report, true, "JI Report");
         stageRepository.save(s);
         saveDocument(c, STAGE_JI_COMPLETE, DOC_JI_REPORT, pdf, userId);
-        return move(c, TR_CM_COMPLETE_JI, ST_JI_COMPLETED, s.getRemarks(), userId, ROLE_CM_NAME, ROLE_CM_ID);
+        return move(c, TR_CM_COMPLETE_JI, ST_JI_COMPLETED, s.getRemarks(), userId, ROLE_CM_NAME, roles.cmRoleId());
     }
 
     // ------------------------------------------------------------------ stage 3B: complete audit
@@ -207,7 +214,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         ValidPdf pdf = storage.validate(report, true, "Audit Report");
         stageRepository.save(s);
         saveDocument(c, STAGE_AUDIT_COMPLETE, DOC_AUDIT_REPORT, pdf, userId);
-        return move(c, TR_CM_COMPLETE_AUDIT, ST_AUDIT_COMPLETED, s.getRemarks(), userId, ROLE_CM_NAME, ROLE_CM_ID);
+        return move(c, TR_CM_COMPLETE_AUDIT, ST_AUDIT_COMPLETED, s.getRemarks(), userId, ROLE_CM_NAME, roles.cmRoleId());
     }
 
     // ------------------------------------------------------------------ stage 4: RCA
@@ -225,7 +232,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         ValidPdf pdf = storage.validate(evidence, false, "RCA evidence");
         stageRepository.save(s);
         if (pdf != null) saveDocument(c, STAGE_RCA, DOC_RCA_EVIDENCE, pdf, userId);
-        return move(c, TR_CM_SUBMIT_RCA, ST_RCA_SUBMITTED, s.getRemarks(), userId, ROLE_CM_NAME, ROLE_CM_ID);
+        return move(c, TR_CM_SUBMIT_RCA, ST_RCA_SUBMITTED, s.getRemarks(), userId, ROLE_CM_NAME, roles.cmRoleId());
     }
 
     // ------------------------------------------------------------------ stage 5: CAPA (→ SBU Head)
@@ -247,7 +254,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         ValidPdf pdf = storage.validate(evidence, false, "CAPA evidence");
         stageRepository.save(s);
         if (pdf != null) saveDocument(c, STAGE_CAPA, DOC_CAPA_EVIDENCE, pdf, userId);
-        return move(c, TR_CM_SUBMIT_CAPA, ST_CAPA_SUBMITTED, s.getRemarks(), userId, ROLE_SBU_HEAD_NAME, ROLE_SBU_HEAD_ID);
+        return move(c, TR_CM_SUBMIT_CAPA, ST_CAPA_SUBMITTED, s.getRemarks(), userId, ROLE_SBU_HEAD_NAME, roles.sbuHeadRoleId());
     }
 
     // ------------------------------------------------------------------ reads
@@ -338,11 +345,11 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
     private boolean isAssignedCm(UdmComplaint c, Integer userId) {
         return userId != null && userId.equals(c.getAssignedCmUserId())
                 && c.getAssignedRio() != null
-                && complaintRepository.countCmInRio(userId, c.getAssignedRio(), ROLE_CM_ID) > 0;
+                && complaintRepository.countCmInRio(userId, c.getAssignedRio(), roles.cmRoleIdForQuery()) > 0;
     }
 
     private UdmComplaintStatusDto move(UdmComplaint c, String transitionName, String toStatus, String remarks,
-                                       Integer userId, String toRoleName, int toRoleId) {
+                                       Integer userId, String toRoleName, Integer toRoleId) {
         TransitionMaster tr = support.transition(transitionName);
         String fromStatus = c.getStatus();
         c.setStatus(toStatus);
@@ -362,7 +369,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         s.setComplaintId(c.getId());
         s.setUdmRejectionId(c.getUdmRejectionId());
         s.setStage(stage);
-        s.setRoundNo(FIRST_ROUND);
+        s.setRoundNo(round(c));
         s.setCreatedBy(userId);
         return s;
     }
@@ -373,7 +380,7 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         d.setComplaintId(c.getId());
         d.setUdmRejectionId(c.getUdmRejectionId());
         d.setStage(stage);
-        d.setRoundNo(FIRST_ROUND);
+        d.setRoundNo(round(c));
         d.setDocType(docType);
         d.setOriginalName(pdf.originalName());
         d.setBlobName(blobName);

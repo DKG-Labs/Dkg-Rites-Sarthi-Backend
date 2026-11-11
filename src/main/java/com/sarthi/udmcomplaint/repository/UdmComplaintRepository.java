@@ -96,6 +96,14 @@ public interface UdmComplaintRepository extends JpaRepository<UdmComplaint, Long
         """, nativeQuery = true)
     List<Object[]> findInspectingEngineers();
 
+    /** Role ids for the given (lower-case) role names — ids differ per environment, so look them up by name. */
+    @Query(value = """
+        SELECT ROLEID FROM role_master
+        WHERE LOWER(TRIM(ROLENAME)) IN (:names)
+        ORDER BY ROLEID
+        """, nativeQuery = true)
+    List<Integer> findRoleIdsByNames(@Param("names") Collection<String> names);
+
     /** Role names of a user (for backend permission checks). */
     @Query(value = """
         SELECT rm.rolename FROM user_role_master urm
