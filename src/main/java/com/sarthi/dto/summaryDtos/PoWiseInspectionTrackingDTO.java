@@ -62,6 +62,7 @@ public class PoWiseInspectionTrackingDTO {
         private Long freedomFromDefectsRej;
         private Long otherRejections;
         private String remarks;
+        private String uom;
 
         private Long totalRejections;
 

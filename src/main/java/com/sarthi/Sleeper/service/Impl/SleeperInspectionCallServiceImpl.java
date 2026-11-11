@@ -197,10 +197,12 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                     || sType.contains("POINTS")
                     || sType.contains("CROSSING");
 
+            // For Set/Turnout calls the IE header stores quantities in SETS, while the call stores sleeper count.
             if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered().signum() > 0) {
-                if (finalOffered == null || finalOffered > call.getTotalOffered().intValue()) {
-                    finalOffered = call.getTotalOffered().intValue();
-                }
+                finalOffered = call.getTotalOffered().intValue();
+                finalRejected = call.getTotalRejected();
+                finalAccepted = null;
+                offeredIncludesRejected = false;
             }
 
             if (finalAccepted == null && finalOffered != null) {
