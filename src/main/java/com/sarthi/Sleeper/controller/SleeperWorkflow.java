@@ -119,10 +119,27 @@ public class SleeperWorkflow {
     }
 
     @GetMapping("/remap-available-users")
-    public ResponseEntity<Object> getRemapAvailableUsers() {
+    public ResponseEntity<Object> getRemapAvailableUsers(
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String ieRole) {
         try {
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(workflowService.getSleeperRemapAvailableUsers()),
+                    ResponseBuilder.getSuccessResponse(workflowService.getSleeperRemapAvailableUsers(rio, ieRole)),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("status", "error", "message", e.getMessage() != null ? e.getMessage() : "Unknown error"),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @GetMapping("/call-mapped-ie/{callNo}")
+    public ResponseEntity<Object> getCallMappedIe(@PathVariable String callNo) {
+        try {
+            return new ResponseEntity<>(
+                    ResponseBuilder.getSuccessResponse(workflowService.getMappedMainIeNameByCallNo(callNo)),
                     HttpStatus.OK
             );
         } catch (Exception e) {

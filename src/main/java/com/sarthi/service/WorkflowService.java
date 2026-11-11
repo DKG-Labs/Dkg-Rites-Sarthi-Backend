@@ -32,6 +32,7 @@ public interface WorkflowService {
     Map<String, Object> getRemapPoiDetails(String callNo);
     Map<String, Object> getRemapAssignedUser(String callNo, String stage, String poiCode);
     List<Map<String, Object>> getRemapAvailableEmployees(String stage);
+    List<Map<String, Object>> getRemapAvailableEmployees(String stage, String rio);
 
     public DashboardKPIsDto getDashboardKPIs(String rio);
     

@@ -62,10 +62,12 @@ public class CallDeskRemapController {
     }
 
     @GetMapping("/remap-available-employees")
-    public ResponseEntity<Object> getRemapAvailableEmployees(@RequestParam String stage) {
+    public ResponseEntity<Object> getRemapAvailableEmployees(
+            @RequestParam String stage,
+            @RequestParam(required = false) String rio) {
         try {
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(workflowService.getRemapAvailableEmployees(stage)),
+                    ResponseBuilder.getSuccessResponse(workflowService.getRemapAvailableEmployees(stage, rio)),
                     HttpStatus.OK
             );
         } catch (Exception e) {

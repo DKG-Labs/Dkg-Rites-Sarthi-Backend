@@ -814,11 +814,20 @@ public interface ProcessLineFinalResultRepository extends JpaRepository<ProcessL
                     SUM(COALESCE(p.forging_manufactured, 0)) AS forgingManufactured,
                     SUM(COALESCE(p.quenching_manufactured, 0)) AS quenchingManufactured,
                     SUM(COALESCE(p.tempering_manufactured, 0)) AS temperingManufactured,
-                    SUM(COALESCE(p.tempering_accepted, 0)) AS totalAccepted
+                    GREATEST(0, SUM(COALESCE(p.shearing_manufactured, 0)) - SUM(COALESCE(p.total_rejected, 0))) AS totalAccepted
                 FROM process_line_final_result p
                 JOIN inspection_calls ic ON ic.ic_number = p.inspection_call_no
-                WHERE (:startDate IS NULL OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN p.date_of_inspection ELSE p.created_at END) >= :startDate)
-                  AND (:endDate IS NULL OR (CASE WHEN p.date_of_inspection IS NOT NULL THEN p.date_of_inspection ELSE p.created_at END) <= :endDate)
+                /* Only Process ICs ISSUED (process_ic_edit, not deleted) in the range, on closed calls (sent to IBS) */
+                JOIN (SELECT ic2.ic_number AS call_no, MAX(pe.created_at) AS ic_date
+                      FROM inspection_calls ic2
+                      JOIN process_ic_edit pe
+                        ON pe.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', ic2.ic_number COLLATE utf8mb4_unicode_ci, '%')
+                      WHERE pe.deleted_by IS NULL
+                        AND UPPER(ic2.status) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS')
+                      GROUP BY ic2.ic_number) issued
+                  ON issued.call_no = ic.ic_number
+                WHERE (:startDate IS NULL OR issued.ic_date >= :startDate)
+                  AND (:endDate IS NULL OR issued.ic_date <= :endDate)
                 GROUP BY ic.company_name
             """, nativeQuery = true)
     List<Object[]> fetchProcessInspectionQualityTable(

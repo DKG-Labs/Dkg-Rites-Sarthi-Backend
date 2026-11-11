@@ -49,6 +49,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
     private final com.sarthi.SRailPad.repository.RailCallCancellationDetailRepository railCallCancellationDetailRepository;
     private final com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
+    private final com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
     private final com.sarthi.SRailPad.repository.plantDeclaration.RailApprovedQAPRepository railApprovedQAPRepository;
     private final com.sarthi.repository.UserMasterRepository userMasterRepository;
 
@@ -642,6 +643,31 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         return sb.toString();
     }
 
+    private String formatPoiAddress(com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping poi) {
+        if (poi == null) return "";
+        StringBuilder sb = new StringBuilder();
+        String addr = (poi.getAddress() != null) ? poi.getAddress().trim() : "";
+        if (!addr.isBlank()) sb.append(addr);
+        String district = (poi.getDistrict() != null) ? poi.getDistrict().trim() : "";
+        if (!district.isBlank() && !sb.toString().toUpperCase().contains(district.toUpperCase())) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(district);
+        }
+        String state = (poi.getState() != null) ? poi.getState().trim() : "";
+        if (!state.isBlank() && !sb.toString().toUpperCase().contains(state.toUpperCase())) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(state);
+        }
+        if (!sb.toString().toUpperCase().contains("INDIA")) {
+            if (sb.length() > 0) sb.append(", INDIA");
+        }
+        String pinCode = (poi.getPinCode() != null) ? poi.getPinCode().trim() : "";
+        if (!pinCode.isBlank() && !sb.toString().contains(pinCode)) {
+            sb.append(" - ").append(pinCode);
+        }
+        return sb.toString();
+    }
+
     @Override
     public com.sarthi.SRailPad.dto.RailpadIcCertificateDto getRailpadIcDetails(String callNo) {
         RailInspectionCall call = repository.findByCallNo(callNo)
@@ -821,8 +847,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
-        // Fetch manufacturer and factory/plant address from railpad_pincode_poi_mapping
-        com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping poiMapping = null;
+        // Fetch Place of Inspection (plant_name & plant_address) from rail_vendor_plant
+        // and Contractor (company_name & company_address) from railpad_pincode_poi_mapping
         String rawPlantId = call.getPlantId();
         String plantPrefix = (rawPlantId != null && rawPlantId.contains("/"))
                 ? rawPlantId.split("/")[0].replace(":", "").trim()
@@ -831,6 +857,27 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 ? call.getVendorCode().replace(":", "").trim()
                 : "";
 
+        com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants plant = null;
+        if (rawPlantId != null && !rawPlantId.isBlank()) {
+            plant = railVendorPlantsRepository.findByPlantId(rawPlantId)
+                    .orElseGet(() -> railVendorPlantsRepository.findByPlantId(rawPlantId.startsWith(":") ? rawPlantId.substring(1) : ":" + rawPlantId)
+                    .orElseGet(() -> {
+                        List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> list = railVendorPlantsRepository.findByPlantIdIn(
+                                Arrays.asList(rawPlantId, rawPlantId.startsWith(":") ? rawPlantId.substring(1) : ":" + rawPlantId, plantPrefix));
+                        return (list != null && !list.isEmpty()) ? list.get(0) : null;
+                    }));
+        }
+        if (plant == null && !cleanVendorCode.isEmpty()) {
+            List<com.sarthi.SRailPad.entity.raipadMapping.RailVendorPlants> vPlants = railVendorPlantsRepository.findByVendorCode(cleanVendorCode);
+            if (vPlants == null || vPlants.isEmpty()) {
+                vPlants = railVendorPlantsRepository.findByVendorCode(":" + cleanVendorCode);
+            }
+            if (vPlants != null && !vPlants.isEmpty()) {
+                plant = vPlants.get(0);
+            }
+        }
+
+        com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping poiMapping = null;
         if (!plantPrefix.isEmpty()) {
             poiMapping = railPadPincodePoIMappingRepository.findByVendorCode(plantPrefix)
                     .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(":" + plantPrefix)
@@ -842,60 +889,72 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         if (poiMapping == null && !cleanVendorCode.isEmpty()) {
             poiMapping = railPadPincodePoIMappingRepository.findByVendorCode(cleanVendorCode)
                     .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(":" + cleanVendorCode)
-                    .orElse(null));
+                    .orElseGet(() -> {
+                        List<com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping> list = railPadPincodePoIMappingRepository.findByPoiCode(cleanVendorCode);
+                        return (list != null && !list.isEmpty()) ? list.get(0) : null;
+                    }));
         }
 
-        String manufacturerAddress = "";
-        if (poiMapping != null) {
-            StringBuilder sb = new StringBuilder();
-            if (poiMapping.getCompanyName() != null && !poiMapping.getCompanyName().isBlank()) {
-                sb.append(poiMapping.getCompanyName().trim());
-            }
-            String addr = (poiMapping.getAddress() != null) ? poiMapping.getAddress().trim() : "";
-            if (!addr.isBlank()) {
-                if (sb.length() > 0) sb.append(",\n");
-                sb.append(addr);
-            }
-            String district = (poiMapping.getDistrict() != null) ? poiMapping.getDistrict().trim() : "";
-            if (!district.isBlank() && !addr.toUpperCase().contains(district.toUpperCase())) {
-                if (sb.length() > 0) sb.append(", ");
-                sb.append(district);
-            }
-            String state = (poiMapping.getState() != null) ? poiMapping.getState().trim() : "";
-            if (!state.isBlank() && !sb.toString().toUpperCase().contains(state.toUpperCase())) {
-                if (sb.length() > 0) sb.append(", ");
-                sb.append(state);
-            }
-            if (!sb.toString().toUpperCase().contains("INDIA")) {
-                sb.append(", India");
-            }
-            String pinCode = (poiMapping.getPinCode() != null) ? poiMapping.getPinCode().trim() : "";
-            if (!pinCode.isBlank() && !sb.toString().contains(pinCode)) {
-                sb.append(" – ").append(pinCode);
-            }
-            
-            // Clean up any accidental repeated adjacent comma-separated tokens (e.g., MEDAK, MEDAK)
-            String rawStr = sb.toString();
-            String[] lines = rawStr.split("\n");
-            StringBuilder cleanedSb = new StringBuilder();
-            for (String line : lines) {
-                String[] tokens = line.split(",");
-                List<String> lineTokens = new ArrayList<>();
-                for (String t : tokens) {
-                    String trimmed = t.trim();
-                    if (!trimmed.isEmpty()) {
-                        if (lineTokens.isEmpty() || !lineTokens.get(lineTokens.size() - 1).equalsIgnoreCase(trimmed)) {
-                            lineTokens.add(trimmed);
-                        }
-                    }
+        // 1. Construct Place of Inspection display: plant name & plant address (from rail_vendor_plant)
+        String placeOfInspectionDisplay = "";
+        if (plant != null && plant.getPlantName() != null && !plant.getPlantName().isBlank()) {
+            String pName = plant.getPlantName().trim();
+            String pAddr = plant.getPlantAddress() != null ? plant.getPlantAddress().trim() : "";
+            if (plant.getPlantPincode() != null && !plant.getPlantPincode().isBlank() && !pAddr.contains(plant.getPlantPincode().trim())) {
+                if (!pAddr.toUpperCase().contains("INDIA")) {
+                    pAddr += (pAddr.isBlank() ? "" : ", ") + "INDIA - " + plant.getPlantPincode().trim();
+                } else {
+                    pAddr += " - " + plant.getPlantPincode().trim();
                 }
-                if (cleanedSb.length() > 0) cleanedSb.append(",\n");
-                cleanedSb.append(String.join(", ", lineTokens));
             }
-            manufacturerAddress = cleanedSb.toString();
+            if (!pAddr.isBlank()) {
+                placeOfInspectionDisplay = pName + ",\n" + pAddr;
+            } else {
+                placeOfInspectionDisplay = pName;
+            }
         }
-        if (manufacturerAddress.isBlank()) {
-            manufacturerAddress = vendorFull;
+        if (placeOfInspectionDisplay.isBlank() && poiMapping != null) {
+            String pName = (poiMapping.getUnitName() != null && !poiMapping.getUnitName().isBlank())
+                    ? poiMapping.getUnitName().trim()
+                    : (poiMapping.getCompanyName() != null ? poiMapping.getCompanyName().trim() : "");
+            String pAddr = formatPoiAddress(poiMapping);
+            if (!pName.isBlank() && !pAddr.isBlank()) {
+                placeOfInspectionDisplay = pName + ",\n" + pAddr;
+            } else {
+                placeOfInspectionDisplay = !pName.isBlank() ? pName : pAddr;
+            }
+        }
+        if (placeOfInspectionDisplay.isBlank()) {
+            placeOfInspectionDisplay = vendorFull;
+        }
+
+        // 2. Construct Contractor display: company name & company address (from railpad_pincode_poi_mapping)
+        String compName = (poiMapping != null && poiMapping.getCompanyName() != null && !poiMapping.getCompanyName().isBlank())
+                ? poiMapping.getCompanyName().trim()
+                : (plant != null && plant.getCompanyName() != null && !plant.getCompanyName().isBlank()
+                        ? plant.getCompanyName().trim()
+                        : (poHeader != null ? extractVendorName(poHeader.getVendorDetails()) : ""));
+
+        String compAddr = (poiMapping != null && poiMapping.getAddress() != null && !poiMapping.getAddress().isBlank())
+                ? formatPoiAddress(poiMapping)
+                : (plant != null && plant.getPlantAddress() != null && !plant.getPlantAddress().isBlank()
+                        ? plant.getPlantAddress().trim()
+                        : (poHeader != null ? extractVendorAddress(poHeader.getVendorDetails()) : ""));
+
+        String contractorDisplay = "";
+        if (!compName.isBlank() && !compAddr.isBlank()) {
+            if (compAddr.toUpperCase().startsWith(compName.toUpperCase())) {
+                contractorDisplay = compAddr;
+            } else {
+                contractorDisplay = compName + ",\n" + compAddr;
+            }
+        } else if (!compName.isBlank()) {
+            contractorDisplay = compName;
+        } else {
+            contractorDisplay = compAddr;
+        }
+        if (contractorDisplay.isBlank()) {
+            contractorDisplay = vendorFull;
         }
 
         String poDateStr = poHeader != null && poHeader.getPoDate() != null
@@ -979,10 +1038,10 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setRegion(regionName);
         dto.setOfferedInsttNo("");
         dto.setPassedInsttNo("");
-        dto.setContractorName(vendorFull);
-        dto.setManufacturer(manufacturerAddress);
-        dto.setConsigneeManufacturer(manufacturerAddress);
-        dto.setPlaceOfInspection(manufacturerAddress);
+        dto.setContractorName(contractorDisplay);
+        dto.setManufacturer(placeOfInspectionDisplay);
+        dto.setConsigneeManufacturer(placeOfInspectionDisplay);
+        dto.setPlaceOfInspection(placeOfInspectionDisplay);
         String rly = (poHeader != null && poHeader.getRlyShortName() != null && !poHeader.getRlyShortName().trim().isEmpty())
                 ? poHeader.getRlyShortName().trim()
                 : (poHeader != null && poHeader.getRlyCd() != null ? poHeader.getRlyCd().trim() : "");

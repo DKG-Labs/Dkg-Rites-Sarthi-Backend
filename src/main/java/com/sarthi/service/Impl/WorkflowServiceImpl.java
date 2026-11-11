@@ -32,6 +32,7 @@ import com.sarthi.repository.rawmaterial.RmHeatQuantityRepository;
 import com.sarthi.repository.rawmaterial.RmIcEditRepository;
 import com.sarthi.repository.rawmaterial.RmInspectionDetailsRepository;
 import com.sarthi.service.WorkflowService;
+import com.sarthi.util.RioUtil;
 
 import com.sarthi.util.NotificationService;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -176,6 +177,12 @@ public class WorkflowServiceImpl implements WorkflowService {
     private FinalIcEditRepository finalIcEditRepository;
     @Autowired(required = false)
     private com.sarthi.repository.certificate.CertificateStorageRepository certificateStorageRepository;
+    @Autowired(required = false)
+    private IeProfileRepository ieProfileRepository;
+    @Autowired(required = false)
+    private RioUserRepository rioUserRepository;
+    @Autowired(required = false)
+    private com.sarthi.repository.UserRoleMasterRepository userRoleMasterRepository;
     private static final Logger log =
             LoggerFactory.getLogger(WorkflowServiceImpl.class);
 
@@ -5351,20 +5358,71 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
 
     @Override
     public List<Map<String, Object>> getRemapAvailableEmployees(String stage) {
+        return getRemapAvailableEmployees(stage, null);
+    }
+
+    @Override
+    public List<Map<String, Object>> getRemapAvailableEmployees(String stage, String rio) {
         List<Map<String, Object>> available = new java.util.ArrayList<>();
-        String targetRole = stage.equalsIgnoreCase("EP") ? "Process IE" : "IE";
-        
-        java.util.Optional<com.sarthi.entity.RoleMaster> optRole = roleMasterRepository.findByRoleName(targetRole);
-        if (optRole.isPresent()) {
-            java.util.List<Object[]> roleUsers = userMasterRepository.findUserDetailsByRoleId(optRole.get().getRoleId());
-            for (Object[] row : roleUsers) {
-                Map<String, Object> emp = new java.util.HashMap<>();
-                emp.put("userId", row[0]);
-                emp.put("employeeCode", row[1]);
-                emp.put("employeeName", row[2]);
-                emp.put("role", targetRole);
-                available.add(emp);
+        boolean isProcessStage = stage != null
+                && (stage.equalsIgnoreCase("EP") || stage.toUpperCase().contains("PROCESS"));
+        String targetRole = isProcessStage ? "Process IE" : "IE";
+        String targetIeRole = isProcessStage ? "PROCESS_IE" : "MAIN_IE";
+
+        java.util.Map<Integer, UserMaster> candidateUsers = new java.util.LinkedHashMap<>();
+
+        try {
+            java.util.Optional<com.sarthi.entity.RoleMaster> optRole = roleMasterRepository.findByRoleName(targetRole);
+            if (optRole.isPresent()) {
+                for (UserMaster u : userMasterRepository.findUsersByRoleId(optRole.get().getRoleId())) {
+                    if (u != null && u.getUserId() != null) {
+                        candidateUsers.putIfAbsent(u.getUserId(), u);
+                    }
+                }
             }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            for (UserMaster u : userMasterRepository.findUsersByRoleNameViaJoin(targetRole)) {
+                if (u != null && u.getUserId() != null) {
+                    candidateUsers.putIfAbsent(u.getUserId(), u);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (candidateUsers.isEmpty()) {
+            return available;
+        }
+
+        List<UserMaster> users = new java.util.ArrayList<>(candidateUsers.values());
+        Map<String, String> ieProfileRioMap = RioUtil.loadIeProfileRioMap(ieProfileRepository);
+        Map<String, String> rioUserMap = RioUtil.loadRioUserMap(rioUserRepository);
+        Map<Integer, List<String>> userRolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, users);
+
+        for (UserMaster u : users) {
+            String userRio = RioUtil.resolveUserRio(u, ieProfileRioMap, rioUserMap);
+            if (!RioUtil.isRioMatching(rio, userRio)) {
+                continue;
+            }
+            List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(u, userRolesMap);
+            if (!RioUtil.isProductAndRoleMatching(effectiveRoles, u.getRoleName(), u.getProductType(), "ERC", targetIeRole)) {
+                continue;
+            }
+
+            Map<String, Object> emp = new java.util.HashMap<>();
+            emp.put("userId", u.getUserId());
+            emp.put("employeeCode", u.getEmployeeCode());
+            emp.put("employeeName", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
+            emp.put("role", targetRole);
+            emp.put("roleName", u.getRoleName() != null && !u.getRoleName().isBlank()
+                    ? u.getRoleName()
+                    : (!effectiveRoles.isEmpty() ? String.join(",", effectiveRoles) : targetRole));
+            emp.put("roleNames", effectiveRoles);
+            emp.put("productType", u.getProductType());
+            emp.put("rio", userRio);
+            available.add(emp);
         }
         return available;
     }

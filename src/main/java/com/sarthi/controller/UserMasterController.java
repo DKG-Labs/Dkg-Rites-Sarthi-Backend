@@ -124,8 +124,12 @@ public class UserMasterController {
     }
 
     @GetMapping("/api/users/by-role")
-    public ResponseEntity<Object> getUsersByRole(@RequestParam String roleName) {
-        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getUsersByRole(roleName)),
+    public ResponseEntity<Object> getUsersByRole(
+            @RequestParam String roleName,
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String product,
+            @RequestParam(required = false) String ieRole) {
+        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(userService.getUsersByRole(roleName, rio, product, ieRole)),
                 HttpStatus.OK);
     }
 
