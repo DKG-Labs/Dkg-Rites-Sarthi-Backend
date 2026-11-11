@@ -19,6 +19,7 @@ import com.sarthi.repository.mfa.LoginOtpRepository;
 import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.JwtService;
 import com.sarthi.service.UserService;
+import com.sarthi.util.RioUtil;
 import com.sarthi.entity.IBS.SarthiIbsPoiMapping;
 import com.sarthi.entity.UserProfileAuditLog;
 import com.sarthi.repository.UserProfileAuditRepository;
@@ -417,7 +418,36 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserDto mapToResponseDTO(UserMaster userMaster) {
-        return mapToResponseDTOWithContext(userMaster, null, null, null, null, null);
+        return mapToResponseDTOWithContext(userMaster, null, null, null, null, null, null);
+    }
+
+    private String resolveLoginRio(UserMaster user) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getEmployeeCode() != null && !user.getEmployeeCode().trim().isEmpty()) {
+            String byRioUser = rioUserRepository
+                    .findFirstByEmployeeCode(user.getEmployeeCode())
+                    .map(RioUser::getRio)
+                    .filter(r -> !r.trim().isEmpty())
+                    .map(String::trim)
+                    .orElse(null);
+            if (byRioUser != null) {
+                return byRioUser;
+            }
+        }
+        if (user.getRio() != null && !user.getRio().trim().isEmpty()) {
+            return user.getRio().trim();
+        }
+        if (user.getEmployeeCode() != null && !user.getEmployeeCode().trim().isEmpty()) {
+            return ieProfileRepository
+                    .findFirstByEmployeeCode(user.getEmployeeCode().trim())
+                    .map(IeProfile::getRio)
+                    .filter(r -> !r.trim().isEmpty())
+                    .map(String::trim)
+                    .orElse(null);
+        }
+        return null;
     }
 
     private UserDto mapToResponseDTOWithContext(
@@ -427,6 +457,17 @@ public class UserServiceImpl implements UserService {
             Map<String, List<PincodePoIMapping>> vendorCodeToPpm,
             Map<String, String> ieFieldsRioMap,
             Map<Integer, List<String>> userRolesMap) {
+        return mapToResponseDTOWithContext(userMaster, vendorCodeToName, rioUserMap, vendorCodeToPpm, ieFieldsRioMap, userRolesMap, null);
+    }
+
+    private UserDto mapToResponseDTOWithContext(
+            UserMaster userMaster,
+            Map<String, String> vendorCodeToName,
+            Map<String, String> rioUserMap,
+            Map<String, List<PincodePoIMapping>> vendorCodeToPpm,
+            Map<String, String> ieFieldsRioMap,
+            Map<Integer, List<String>> userRolesMap,
+            Map<String, String> ieProfileRioMap) {
 
         UserDto userDto = new UserDto();
         userDto.setUserId(userMaster.getUserId());
@@ -565,12 +606,23 @@ public class UserServiceImpl implements UserService {
                     }
                 }
             } else if (empCode != null && !empCode.trim().isEmpty()) {
+                String cleanEmpCode = empCode.trim();
                 if (rioUserMap != null) {
-                    rio = rioUserMap.get(empCode);
+                    rio = rioUserMap.get(cleanEmpCode);
                 } else {
-                    Optional<RioUser> rioUserOpt = rioUserRepository.findFirstByEmployeeCode(empCode);
+                    Optional<RioUser> rioUserOpt = rioUserRepository.findFirstByEmployeeCode(cleanEmpCode);
                     if (rioUserOpt.isPresent() && rioUserOpt.get().getRio() != null) {
                         rio = rioUserOpt.get().getRio();
+                    }
+                }
+                if (rio == null || rio.trim().isEmpty()) {
+                    if (ieProfileRioMap != null) {
+                        rio = ieProfileRioMap.get(cleanEmpCode);
+                    } else {
+                        Optional<IeProfile> ieOpt = ieProfileRepository.findFirstByEmployeeCode(cleanEmpCode);
+                        if (ieOpt.isPresent() && ieOpt.get().getRio() != null) {
+                            rio = ieOpt.get().getRio();
+                        }
                     }
                 }
             }
@@ -623,10 +675,7 @@ public class UserServiceImpl implements UserService {
                 .toList();
 
         // ================= RIO =================
-        String rio = rioUserRepository
-                .findFirstByEmployeeCode(user.getEmployeeCode())
-                .map(RioUser::getRio)
-                .orElse(null);
+        String rio = resolveLoginRio(user);
 
         String token = jwtService.generateToken(user);
 
@@ -729,10 +778,7 @@ public class UserServiceImpl implements UserService {
                 .filter(Objects::nonNull)
                 .toList();
         // ================= RIO =================
-        String rio = rioUserRepository
-                .findFirstByEmployeeCode(user.getEmployeeCode())
-                .map(RioUser::getRio)
-                .orElse(null);
+        String rio = resolveLoginRio(user);
 
         // ================= TOKEN =================
         String token = jwtService.generateToken(user);
@@ -1057,13 +1103,7 @@ public class UserServiceImpl implements UserService {
 
         // ================= RIO =================
 
-        String rio =
-                rioUserRepository
-                        .findFirstByEmployeeCode(
-                                user.getEmployeeCode()
-                        )
-                        .map(RioUser::getRio)
-                        .orElse(null);
+        String rio = resolveLoginRio(user);
 
 
         // ================= TOKEN =================
@@ -1324,25 +1364,43 @@ public class UserServiceImpl implements UserService {
             }
         } catch (Exception ignored) {}
 
-        // 2. Bulk preload RioUser mapping
-        Map<String, String> rioUserMap = new HashMap<>();
-        try {
-            for (RioUser ru : rioUserRepository.findAll()) {
-                if (ru.getEmployeeCode() != null && ru.getRio() != null) {
-                    rioUserMap.put(ru.getEmployeeCode().trim(), ru.getRio().trim());
-                }
-            }
-        } catch (Exception ignored) {}
+        // 2. Bulk preload RioUser & IeProfile mappings
+        Map<String, String> rioUserMap = RioUtil.loadRioUserMap(rioUserRepository);
+        Map<String, String> ieProfileRioMap = RioUtil.loadIeProfileRioMap(ieProfileRepository);
 
         // 3. Map with context (zero per-row database queries).
         //    Photos are left out: they are stored as base64 and made this list several MB per call.
         //    The edit form loads one user's photo via GET /api/users/{userId}/photo.
         return matchedUsers.stream()
                 .map(u -> {
-                    UserDto dto = mapToResponseDTOWithContext(u, null, rioUserMap, null, null, userRolesMap);
+                    UserDto dto = mapToResponseDTOWithContext(u, null, rioUserMap, null, null, userRolesMap, ieProfileRioMap);
                     dto.setProfilePhotoPath(null);
                     return dto;
                 })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserDto> getUsersByRole(String roleName, String rio) {
+        return getUsersByRole(roleName, rio, null, null);
+    }
+
+    @Override
+    public List<UserDto> getUsersByRole(String roleName, String rio, String product, String ieRole) {
+        List<UserDto> users = getUsersByRole(roleName);
+        if (users.isEmpty()) {
+            return users;
+        }
+        boolean filterByRio = rio != null && !rio.trim().isEmpty();
+        boolean filterByProductOrRole = (product != null && !product.trim().isEmpty())
+                || (ieRole != null && !ieRole.trim().isEmpty());
+        if (!filterByRio && !filterByProductOrRole) {
+            return users;
+        }
+        return users.stream()
+                .filter(dto -> !filterByRio || RioUtil.isRioMatching(rio, dto.getRio()))
+                .filter(dto -> !filterByProductOrRole || RioUtil.isProductAndRoleMatching(
+                        dto.getRoleNames(), dto.getRoleName(), dto.getProductType(), product, ieRole))
                 .collect(Collectors.toList());
     }
 
@@ -1730,15 +1788,9 @@ public class UserServiceImpl implements UserService {
             }
         } catch (Exception ignored) {}
 
-        // 2. Bulk preload RIO User mappings
-        Map<String, String> rioUserMap = new HashMap<>();
-        try {
-            for (RioUser ru : rioUserRepository.findAll()) {
-                if (ru.getEmployeeCode() != null && ru.getRio() != null) {
-                    rioUserMap.put(ru.getEmployeeCode().trim(), ru.getRio().trim());
-                }
-            }
-        } catch (Exception ignored) {}
+        // 2. Bulk preload RIO User & IE Profile mappings
+        Map<String, String> rioUserMap = RioUtil.loadRioUserMap(rioUserRepository);
+        Map<String, String> ieProfileRioMap = RioUtil.loadIeProfileRioMap(ieProfileRepository);
 
         // 3. Bulk preload PincodePoIMapping
         Map<String, List<PincodePoIMapping>> vendorCodeToPpm = new HashMap<>();
@@ -1776,7 +1828,7 @@ public class UserServiceImpl implements UserService {
         } catch (Exception ignored) {}
 
         return allUsers.stream()
-                .map(u -> mapToResponseDTOWithContext(u, vendorCodeToName, rioUserMap, vendorCodeToPpm, ieFieldsRioMap, userRolesMap))
+                .map(u -> mapToResponseDTOWithContext(u, vendorCodeToName, rioUserMap, vendorCodeToPpm, ieFieldsRioMap, userRolesMap, ieProfileRioMap))
                 .collect(Collectors.toList());
     }
 

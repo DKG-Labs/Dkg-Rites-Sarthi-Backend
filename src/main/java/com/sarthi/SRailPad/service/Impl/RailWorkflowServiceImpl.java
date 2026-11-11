@@ -28,6 +28,7 @@ import com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionScheduleRepository;
 import com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository;
 import com.sarthi.util.NotificationService;
+import com.sarthi.util.RioUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,7 +48,6 @@ import java.util.Set;
 @Service
 @Slf4j
 @AllArgsConstructor
-@Transactional(readOnly = true)
 public class RailWorkflowServiceImpl implements RailWorkflowService {
 
 
@@ -2233,73 +2233,108 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers() {
+        return getRailpadRemapAvailableUsers(null);
+    }
+
+    @Override
+    public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers(String rio) {
+        return getRailpadRemapAvailableUsers(rio, null);
+    }
+
+    @Override
+    public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers(String rio, String ieRole) {
+        String normalizedIeRole = RioUtil.normalizeIeRole(ieRole);
+        String targetIeRole = !normalizedIeRole.isEmpty() ? normalizedIeRole : "MAIN_IE";
         Set<Integer> userIds = new java.util.LinkedHashSet<>();
 
-        // 1. All IEs present in rail_poi_ie_mapping
+        // 1. Railpad POI-IE mappings matching requested IE role
         try {
             List<RailPoiIeMapping> allMappings = poiIeMappingRepository.findAll();
             if (allMappings != null) {
                 for (RailPoiIeMapping m : allMappings) {
-                    if (m.getIeUserId() != null) {
+                    if (m.getIeUserId() == null) {
+                        continue;
+                    }
+                    String mappingIeRole = RioUtil.normalizeIeRole(m.getIeType());
+                    if ("PROCESS_IE".equals(targetIeRole)) {
+                        if ("PROCESS_IE".equals(mappingIeRole)) {
+                            userIds.add(m.getIeUserId());
+                        }
+                    } else if (mappingIeRole.isEmpty() || "MAIN_IE".equals(mappingIeRole)) {
                         userIds.add(m.getIeUserId());
                     }
                 }
             }
         } catch (Exception ignored) {}
 
-        // 2. All users with relevant IE roles
-        try {
-            List<UserMaster> r15 = userMasterRepository.findUsersByRoleId(15);
-            if (r15 != null) {
-                for (UserMaster u : r15) {
-                    if (u.getUserId() != null) userIds.add(u.getUserId());
+        // 2. Product- and role-specific Railpad IE roles
+        if ("PROCESS_IE".equals(targetIeRole)) {
+            addUsersByRoleName(userIds, "Rail Process IE");
+            addUsersByRoleName(userIds, "Railpad Process IE");
+        } else {
+            try {
+                List<UserMaster> r15 = userMasterRepository.findUsersByRoleId(15);
+                if (r15 != null) {
+                    for (UserMaster u : r15) {
+                        if (u.getUserId() != null) userIds.add(u.getUserId());
+                    }
                 }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+            addUsersByRoleName(userIds, "Rail Main IE");
+            addUsersByRoleName(userIds, "Railpad Main IE");
+        }
 
-        try {
-            List<UserMaster> roleUsers = userMasterRepository.findUsersByRoleNameViaJoin("Rail Main IE");
-            if (roleUsers != null) {
-                for (UserMaster u : roleUsers) {
-                    if (u.getUserId() != null) userIds.add(u.getUserId());
-                }
-            }
-        } catch (Exception ignored) {}
-
-        try {
-            List<UserMaster> mainIes = userMasterRepository.findByRoleNameContaining("Main IE");
-            if (mainIes != null) {
-                for (UserMaster u : mainIes) {
-                    if (u.getUserId() != null) userIds.add(u.getUserId());
-                }
-            }
-        } catch (Exception ignored) {}
-
-        try {
-            List<UserMaster> railpadIes = userMasterRepository.findByRoleNameContaining("Railpad");
-            if (railpadIes != null) {
-                for (UserMaster u : railpadIes) {
-                    if (u.getUserId() != null) userIds.add(u.getUserId());
-                }
-            }
-        } catch (Exception ignored) {}
+        java.util.Map<String, String> ieProfileRioMap = RioUtil.loadIeProfileRioMap(jdbcTemplate);
+        java.util.Map<String, String> rioUserMap = RioUtil.loadRioUserMap(rioUserRepository);
 
         List<java.util.Map<String, Object>> available = new ArrayList<>();
         if (!userIds.isEmpty()) {
             List<UserMaster> users = userMasterRepository.findAllById(userIds);
+            java.util.Map<Integer, List<String>> userRolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, users);
+            String defaultRole = "PROCESS_IE".equals(targetIeRole) ? "Rail Process IE" : "Rail Main IE";
+
             for (UserMaster u : users) {
+                String userRio = RioUtil.resolveUserRio(u, ieProfileRioMap, rioUserMap);
+                if (!RioUtil.isRioMatching(rio, userRio)) {
+                    continue;
+                }
+                List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(u, userRolesMap);
+                if (!RioUtil.isProductAndRoleMatching(effectiveRoles, u.getRoleName(), u.getProductType(), "RAILPAD", targetIeRole)) {
+                    continue;
+                }
+                String primaryRole = !effectiveRoles.isEmpty() ? effectiveRoles.get(0) : defaultRole;
+                String displayName = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername();
+
                 java.util.Map<String, Object> emp = new java.util.HashMap<>();
                 emp.put("userId", u.getUserId());
                 emp.put("id", u.getUserId());
                 emp.put("employeeCode", u.getEmployeeCode());
-                emp.put("fullName", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
-                emp.put("name", u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername());
-                emp.put("role", "Rail Main IE");
-                emp.put("roleName", "Rail Main IE");
+                emp.put("fullName", displayName);
+                emp.put("name", displayName);
+                emp.put("role", primaryRole);
+                emp.put("roleName", u.getRoleName() != null && !u.getRoleName().isBlank()
+                        ? u.getRoleName()
+                        : (!effectiveRoles.isEmpty() ? String.join(",", effectiveRoles) : defaultRole));
+                emp.put("roleNames", effectiveRoles);
+                emp.put("productType", u.getProductType());
+                emp.put("rio", userRio);
                 available.add(emp);
             }
         }
         return available;
+    }
+
+    private void addUsersByRoleName(Set<Integer> userIds, String roleName) {
+        try {
+            List<UserMaster> roleUsers = userMasterRepository.findUsersByRoleNameViaJoin(roleName);
+            if (roleUsers != null) {
+                for (UserMaster u : roleUsers) {
+                    if (u != null && u.getUserId() != null) {
+                        userIds.add(u.getUserId());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override

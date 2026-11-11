@@ -27,8 +27,18 @@ public class RailpadProcessIcController {
 
     @GetMapping("/save-changes/{icNumber}")
     public ResponseEntity<Object> getSaveChanges(@PathVariable String icNumber) {
-        log.info("GET Process IC Save Changes for: {}", icNumber);
+        log.info("GET Process IC Save Changes for (path): {}", icNumber);
         RailpadProcessIcEditDTO dto = saveChangesService.getByIcNumber(icNumber);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
+    }
+
+    @GetMapping("/save-changes")
+    public ResponseEntity<Object> getSaveChangesQuery(
+            @RequestParam(required = false) String icNumber,
+            @RequestParam(required = false) String icNo) {
+        String effective = (icNumber != null && !icNumber.isBlank()) ? icNumber : icNo;
+        log.info("GET Process IC Save Changes for (query): {}", effective);
+        RailpadProcessIcEditDTO dto = saveChangesService.getByIcNumber(effective);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
     }
 
@@ -50,8 +60,18 @@ public class RailpadProcessIcController {
 
     @GetMapping("/edit/{icNumber}")
     public ResponseEntity<Object> getEdit(@PathVariable String icNumber) {
-        log.info("GET Process IC Edit (e-sign) for: {}", icNumber);
+        log.info("GET Process IC Edit (e-sign) for (path): {}", icNumber);
         RailpadProcessIcEditDTO dto = editService.getByIcNumber(icNumber);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
+    }
+
+    @GetMapping("/edit")
+    public ResponseEntity<Object> getEditQuery(
+            @RequestParam(required = false) String icNumber,
+            @RequestParam(required = false) String icNo) {
+        String effective = (icNumber != null && !icNumber.isBlank()) ? icNumber : icNo;
+        log.info("GET Process IC Edit (e-sign) for (query): {}", effective);
+        RailpadProcessIcEditDTO dto = editService.getByIcNumber(effective);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(dto), HttpStatus.OK);
     }
 

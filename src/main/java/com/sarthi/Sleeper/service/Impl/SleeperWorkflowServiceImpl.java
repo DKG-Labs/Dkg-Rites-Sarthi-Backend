@@ -19,6 +19,7 @@ import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
 import com.sarthi.util.NotificationService;
 import com.sarthi.util.ResponseBuilder;
+import com.sarthi.util.RioUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import com.sarthi.Sleeper.entity.VendorPlant;
 
 @Slf4j
@@ -2220,23 +2222,232 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
     @Override
     public List<java.util.Map<String, Object>> getSleeperRemapAvailableUsers() {
-        List<Integer> mainIeUserIds = poiIeMappingRepository.findDistinctMainIeUserIds();
+        return getSleeperRemapAvailableUsers(null);
+    }
+
+    @Override
+    public List<java.util.Map<String, Object>> getSleeperRemapAvailableUsers(String rio) {
+        return getSleeperRemapAvailableUsers(rio, null);
+    }
+
+    @Override
+    public List<java.util.Map<String, Object>> getSleeperRemapAvailableUsers(String rio, String ieRole) {
+        String normalizedIeRole = RioUtil.normalizeIeRole(ieRole);
+        String targetIeRole = !normalizedIeRole.isEmpty() ? normalizedIeRole : "MAIN_IE";
+        Set<Integer> userIds = new java.util.LinkedHashSet<>();
+
+        if ("PROCESS_IE".equals(targetIeRole)) {
+            addSleeperUsersByRoleId(userIds, 14);
+            addSleeperUsersByRoleName(userIds, "Sleeper Process IE");
+            addSleeperUsersByRoleName(userIds, "Process Inspecting Engineer - PSC Sleeper");
+        } else {
+            try {
+                List<Integer> mainIeUserIds = poiIeMappingRepository.findDistinctMainIeUserIds();
+                if (mainIeUserIds != null) {
+                    for (Integer uid : mainIeUserIds) {
+                        if (uid != null) userIds.add(uid);
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            addSleeperUsersByRoleId(userIds, 10);
+            addSleeperUsersByRoleName(userIds, "Main IE");
+            addSleeperUsersByRoleName(userIds, "Sleeper Main IE");
+            addSleeperUsersByRoleName(userIds, "Sleeper IE");
+        }
+
         List<java.util.Map<String, Object>> available = new ArrayList<>();
-        if (mainIeUserIds != null && !mainIeUserIds.isEmpty()) {
-            List<UserMaster> users = userMasterRepository.findAllById(mainIeUserIds);
+        if (!userIds.isEmpty()) {
+            java.util.Map<String, String> ieProfileRioMap = RioUtil.loadIeProfileRioMap(jdbcTemplate);
+            java.util.Map<String, String> rioUserMap = RioUtil.loadRioUserMap(rioUserRepository);
+
+            List<UserMaster> users = userMasterRepository.findAllById(userIds);
+            java.util.Map<Integer, List<String>> userRolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, users);
+            String defaultRole = "PROCESS_IE".equals(targetIeRole) ? "Sleeper Process IE" : "Main IE";
+
             for (UserMaster u : users) {
+                String userRio = RioUtil.resolveUserRio(u, ieProfileRioMap, rioUserMap);
+                if (!RioUtil.isRioMatching(rio, userRio)) {
+                    continue;
+                }
+                List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(u, userRolesMap);
+                if (!RioUtil.isProductAndRoleMatching(effectiveRoles, u.getRoleName(), u.getProductType(), "SLEEPER", targetIeRole)) {
+                    continue;
+                }
+                String primaryRole = !effectiveRoles.isEmpty() ? effectiveRoles.get(0) : defaultRole;
+                String displayName = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername();
+
                 java.util.Map<String, Object> emp = new java.util.HashMap<>();
                 emp.put("userId", u.getUserId());
                 emp.put("employeeCode", u.getEmployeeCode());
-                emp.put("fullName", u.getFullName());
-                emp.put("name", u.getFullName());
+                emp.put("fullName", displayName);
+                emp.put("name", displayName);
                 emp.put("id", u.getUserId());
-                emp.put("role", "Main IE");
-                emp.put("roleName", "Main IE");
+                emp.put("role", primaryRole);
+                emp.put("roleName", u.getRoleName() != null && !u.getRoleName().isBlank()
+                        ? u.getRoleName()
+                        : (!effectiveRoles.isEmpty() ? String.join(",", effectiveRoles) : defaultRole));
+                emp.put("roleNames", effectiveRoles);
+                emp.put("productType", u.getProductType());
+                emp.put("rio", userRio);
                 available.add(emp);
             }
         }
         return available;
+    }
+
+    private void addSleeperUsersByRoleId(Set<Integer> userIds, Integer roleId) {
+        try {
+            List<UserMaster> roleUsers = userMasterRepository.findUsersByRoleId(roleId);
+            if (roleUsers != null) {
+                for (UserMaster u : roleUsers) {
+                    if (u != null && u.getUserId() != null) {
+                        userIds.add(u.getUserId());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void addSleeperUsersByRoleName(Set<Integer> userIds, String roleName) {
+        try {
+            List<UserMaster> roleUsers = userMasterRepository.findUsersByRoleNameViaJoin(roleName);
+            if (roleUsers != null) {
+                for (UserMaster u : roleUsers) {
+                    if (u != null && u.getUserId() != null) {
+                        userIds.add(u.getUserId());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    public List<String> getMappedMainIeNameByCallNo(String callNo) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        String trimmedCallNo = callNo.trim();
+        String targetIeRole = trimmedCallNo.toUpperCase().startsWith("SP") ? "PROCESS_IE" : "MAIN_IE";
+
+        String plantId = null;
+        String poiCode = null;
+        Long assignedToUser = null;
+
+        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByCreatedDateAsc(trimmedCallNo);
+        if (txList != null && !txList.isEmpty()) {
+            for (int i = txList.size() - 1; i >= 0; i--) {
+                SleeperWorkflowTransaction tx = txList.get(i);
+                if (plantId == null && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
+                    plantId = tx.getPlantId().trim();
+                }
+                if (poiCode == null && tx.getPoiCode() != null && !tx.getPoiCode().trim().isEmpty()) {
+                    poiCode = tx.getPoiCode().trim();
+                }
+                if (assignedToUser == null && tx.getAssignedToUser() != null) {
+                    assignedToUser = tx.getAssignedToUser();
+                }
+            }
+        }
+
+        if (plantId == null || plantId.isEmpty()) {
+            Optional<SleeperInspectionCall> optCall = sleeperInspectionCallRepository.findByCallNo(trimmedCallNo);
+            if (optCall.isPresent() && optCall.get().getPlantId() != null && !optCall.get().getPlantId().trim().isEmpty()) {
+                plantId = optCall.get().getPlantId().trim();
+            }
+        }
+
+        Set<Integer> mappedUserIds = new java.util.LinkedHashSet<>();
+        if (assignedToUser != null) {
+            userMasterRepository.findById(assignedToUser.intValue()).ifPresent(assignedUser -> {
+                List<UserMaster> singleList = java.util.Collections.singletonList(assignedUser);
+                java.util.Map<Integer, List<String>> rolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, singleList);
+                List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(assignedUser, rolesMap);
+                if (RioUtil.isProductAndRoleMatching(effectiveRoles, assignedUser.getRoleName(), assignedUser.getProductType(), "SLEEPER", targetIeRole)) {
+                    mappedUserIds.add(assignedUser.getUserId());
+                }
+            });
+        }
+
+        if (mappedUserIds.isEmpty()) {
+            List<SleeperPoiIeMapping> mappings = new ArrayList<>();
+            if (plantId != null && !plantId.isEmpty()) {
+                String cleanPlantId = plantId.replace(":", "").trim();
+                String colonPlantId = cleanPlantId.isEmpty() ? "" : (plantId.startsWith(":") ? plantId : ":" + cleanPlantId);
+                List<String> plantVariants = new ArrayList<>();
+                plantVariants.add(plantId);
+                if (!cleanPlantId.isEmpty() && !plantVariants.contains(cleanPlantId)) {
+                    plantVariants.add(cleanPlantId);
+                }
+                if (!colonPlantId.isEmpty() && !plantVariants.contains(colonPlantId)) {
+                    plantVariants.add(colonPlantId);
+                }
+
+                for (String pv : plantVariants) {
+                    if (poiCode != null && !poiCode.isEmpty()) {
+                        List<SleeperPoiIeMapping> found = poiIeMappingRepository.findByPoiCodeAndPlantId(poiCode, pv);
+                        if (found != null && !found.isEmpty()) {
+                            mappings.addAll(found);
+                        }
+                    }
+                    if (mappings.isEmpty()) {
+                        List<SleeperPoiIeMapping> found = poiIeMappingRepository.findByPlantId(pv);
+                        if (found != null && !found.isEmpty()) {
+                            mappings.addAll(found);
+                        }
+                    }
+                    if (!mappings.isEmpty()) {
+                        break;
+                    }
+                }
+            }
+
+            if (mappings.isEmpty() && poiCode != null && !poiCode.isEmpty()) {
+                List<SleeperPoiIeMapping> found = poiIeMappingRepository.findByPoiCode(poiCode);
+                if (found != null && !found.isEmpty()) {
+                    mappings.addAll(found);
+                }
+            }
+
+            for (SleeperPoiIeMapping m : mappings) {
+                if (m.getIeUserId() == null) {
+                    continue;
+                }
+                String mappingIeRole = RioUtil.normalizeIeRole(m.getIeType());
+                if ("PROCESS_IE".equals(targetIeRole)) {
+                    if ("PROCESS_IE".equals(mappingIeRole)) {
+                        mappedUserIds.add(m.getIeUserId());
+                    }
+                } else if (mappingIeRole.isEmpty() || "MAIN_IE".equals(mappingIeRole)) {
+                    mappedUserIds.add(m.getIeUserId());
+                }
+            }
+        }
+
+        if (mappedUserIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        java.util.Map<Integer, UserMaster> usersById = new java.util.HashMap<>();
+        for (UserMaster u : userMasterRepository.findAllById(mappedUserIds)) {
+            if (u != null && u.getUserId() != null) {
+                usersById.put(u.getUserId(), u);
+            }
+        }
+
+        List<String> names = new ArrayList<>();
+        for (Integer uid : mappedUserIds) {
+            UserMaster u = usersById.get(uid);
+            if (u != null) {
+                String displayName = (u.getFullName() != null && !u.getFullName().isBlank())
+                        ? u.getFullName().trim()
+                        : (u.getUsername() != null ? u.getUsername().trim() : null);
+                if (displayName != null && !displayName.isEmpty() && !names.contains(displayName)) {
+                    names.add(displayName);
+                }
+            }
+        }
+        return names;
     }
 
     @Override

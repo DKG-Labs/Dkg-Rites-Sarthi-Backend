@@ -104,10 +104,12 @@ public class RailWorkFlowController {
     }
 
     @GetMapping("/remap-available-users")
-    public ResponseEntity<Object> getRemapAvailableUsers() {
+    public ResponseEntity<Object> getRemapAvailableUsers(
+            @RequestParam(required = false) String rio,
+            @RequestParam(required = false) String ieRole) {
         try {
             return new ResponseEntity<>(
-                    ResponseBuilder.getSuccessResponse(workflowService.getRailpadRemapAvailableUsers()),
+                    ResponseBuilder.getSuccessResponse(workflowService.getRailpadRemapAvailableUsers(rio, ieRole)),
                     HttpStatus.OK
             );
         } catch (Exception e) {

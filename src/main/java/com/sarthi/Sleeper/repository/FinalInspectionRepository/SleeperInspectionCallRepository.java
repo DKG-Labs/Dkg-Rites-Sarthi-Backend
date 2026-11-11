@@ -1073,9 +1073,96 @@ ORDER BY um.employee_code
               AND sic_inst.id < sic.id
         ) AS passedInstallmentNumber,
 
-        COALESCE(ph.vendor_details, ph.vendor_code) AS contractor,
+        COALESCE(
+            (
+                SELECT CONCAT(
+                    TRIM(spm2.company_name),
+                    ',\n',
+                    TRIM(spm2.address),
+                    IF(spm2.district IS NOT NULL AND TRIM(spm2.district) <> '' AND spm2.address NOT LIKE CONCAT('%', TRIM(spm2.district), '%'), CONCAT(', ', TRIM(spm2.district)), ''),
+                    IF(spm2.state IS NOT NULL AND TRIM(spm2.state) <> '' AND spm2.address NOT LIKE CONCAT('%', TRIM(spm2.state), '%'), CONCAT(', ', TRIM(spm2.state)), ''),
+                    IF(UPPER(spm2.address) NOT LIKE '%INDIA%', ', INDIA', ''),
+                    IF(spm2.pin_code IS NOT NULL AND TRIM(spm2.pin_code) <> '' AND spm2.address NOT LIKE CONCAT('%', TRIM(spm2.pin_code), '%'), CONCAT(' - ', TRIM(spm2.pin_code)), '')
+                )
+                FROM sleeper_pincode_poi_mapping spm2
+                WHERE (spm2.vendor_code IS NOT NULL AND CONVERT(REPLACE(TRIM(spm2.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(COALESCE(ph.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                   OR CONVERT(REPLACE(TRIM(spm2.poi_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(spm2.poi_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR spm2.unit_name COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+                ORDER BY (CASE 
+                    WHEN (spm2.vendor_code IS NOT NULL AND CONVERT(REPLACE(TRIM(spm2.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(COALESCE(ph.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci) THEN 1
+                    ELSE 2 END) ASC
+                LIMIT 1
+            ),
+            (
+                SELECT CONCAT(
+                    TRIM(vp2.company_name),
+                    ',\n',
+                    TRIM(vp2.plant_address),
+                    IF(vp2.plant_pincode IS NOT NULL AND TRIM(vp2.plant_pincode) <> '' AND vp2.plant_address NOT LIKE CONCAT('%', TRIM(vp2.plant_pincode), '%'),
+                       IF(UPPER(vp2.plant_address) LIKE '%INDIA%', CONCAT(' - ', TRIM(vp2.plant_pincode)), CONCAT(', INDIA - ', TRIM(vp2.plant_pincode))),
+                       '')
+                )
+                FROM vendor_plant vp2
+                WHERE (vp2.vendor_code IS NOT NULL AND CONVERT(REPLACE(TRIM(vp2.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(COALESCE(ph.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                   OR vp2.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp2.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR vp2.plant_name COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+                ORDER BY (CASE 
+                    WHEN (vp2.vendor_code IS NOT NULL AND CONVERT(REPLACE(TRIM(vp2.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(COALESCE(ph.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci) THEN 1
+                    ELSE 2 END) ASC
+                LIMIT 1
+            ),
+            COALESCE(ph.vendor_details, ph.vendor_code)
+        ) AS contractor,
 
-        COALESCE(ph.vendor_details, ph.vendor_code) AS placeOfInspection,
+        COALESCE(
+            (
+                SELECT CONCAT(
+                    TRIM(vp.plant_name),
+                    ',\n',
+                    TRIM(vp.plant_address),
+                    IF(vp.plant_pincode IS NOT NULL AND TRIM(vp.plant_pincode) <> '' AND vp.plant_address NOT LIKE CONCAT('%', TRIM(vp.plant_pincode), '%'),
+                       IF(UPPER(vp.plant_address) LIKE '%INDIA%', CONCAT(' - ', TRIM(vp.plant_pincode)), CONCAT(', INDIA - ', TRIM(vp.plant_pincode))),
+                       '')
+                )
+                FROM vendor_plant vp
+                WHERE vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR vp.plant_name COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR (vp.vendor_code IS NOT NULL AND CONVERT(REPLACE(TRIM(vp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(COALESCE(ph.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                ORDER BY (CASE 
+                    WHEN vp.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci THEN 1
+                    WHEN CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci THEN 2
+                    WHEN vp.plant_name COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci THEN 3
+                    ELSE 4 END) ASC
+                LIMIT 1
+            ),
+            (
+                SELECT CONCAT(
+                    COALESCE(NULLIF(TRIM(spm.unit_name), ''), TRIM(spm.company_name)),
+                    ',\n',
+                    TRIM(spm.address),
+                    IF(spm.district IS NOT NULL AND TRIM(spm.district) <> '' AND spm.address NOT LIKE CONCAT('%', TRIM(spm.district), '%'), CONCAT(', ', TRIM(spm.district)), ''),
+                    IF(spm.state IS NOT NULL AND TRIM(spm.state) <> '' AND spm.address NOT LIKE CONCAT('%', TRIM(spm.state), '%'), CONCAT(', ', TRIM(spm.state)), ''),
+                    IF(UPPER(spm.address) NOT LIKE '%INDIA%', ', INDIA', ''),
+                    IF(spm.pin_code IS NOT NULL AND TRIM(spm.pin_code) <> '' AND spm.address NOT LIKE CONCAT('%', TRIM(spm.pin_code), '%'), CONCAT(' - ', TRIM(spm.pin_code)), '')
+                )
+                FROM sleeper_pincode_poi_mapping spm
+                WHERE CONVERT(REPLACE(TRIM(spm.poi_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR CONVERT(REPLACE(TRIM(spm.poi_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR spm.unit_name COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci
+                   OR (spm.vendor_code IS NOT NULL AND CONVERT(REPLACE(TRIM(spm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(COALESCE(ph.vendor_code, '')), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                ORDER BY (CASE 
+                    WHEN CONVERT(REPLACE(TRIM(spm.poi_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci THEN 1
+                    WHEN spm.unit_name COLLATE utf8mb4_unicode_ci = sic.plant_id COLLATE utf8mb4_unicode_ci THEN 2
+                    ELSE 3 END) ASC
+                LIMIT 1
+            ),
+            sic.plant_id,
+            COALESCE(ph.vendor_details, ph.vendor_code)
+        ) AS placeOfInspection,
 
         CONCAT(
             IF(COALESCE(NULLIF(TRIM(ph.rly_short_name), ''), NULLIF(TRIM(ph.rly_cd), '')) IS NOT NULL,

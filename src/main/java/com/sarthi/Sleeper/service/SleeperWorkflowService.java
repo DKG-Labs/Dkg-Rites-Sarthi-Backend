@@ -44,6 +44,12 @@ public interface SleeperWorkflowService {
 
     List<Map<String, Object>> getSleeperRemapAvailableUsers();
 
+    List<Map<String, Object>> getSleeperRemapAvailableUsers(String rio);
+
+    List<Map<String, Object>> getSleeperRemapAvailableUsers(String rio, String ieRole);
+
+    List<String> getMappedMainIeNameByCallNo(String callNo);
+
     void submitSleeperRemap(SleeperRemapSubmitDto dto);
 
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions();

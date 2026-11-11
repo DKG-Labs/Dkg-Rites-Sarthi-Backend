@@ -159,7 +159,7 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             WHERE wt.workflow_transition_id IN (
                 SELECT MIN(wt2.workflow_transition_id)
                 FROM rail_workflow_transaction wt2
-                WHERE wt2.request_id IN :requestIds
+                WHERE wt2.request_id IN (:requestIds)
                   AND wt2.rio IS NOT NULL AND wt2.rio != ''
                 GROUP BY wt2.request_id
             )

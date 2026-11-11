@@ -28,6 +28,10 @@ public interface RailWorkflowService {
 
     public List<Map<String, Object>> getRailpadRemapAvailableUsers();
 
+    public List<Map<String, Object>> getRailpadRemapAvailableUsers(String rio);
+
+    public List<Map<String, Object>> getRailpadRemapAvailableUsers(String rio, String ieRole);
+
     public void submitRailpadRemap(RailpadRemapSubmitDto dto);
 
     public void submitRailpadPendingRemap(RailpadRemapSubmitDto dto);
