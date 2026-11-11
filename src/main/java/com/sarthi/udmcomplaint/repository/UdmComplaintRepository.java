@@ -104,6 +104,16 @@ public interface UdmComplaintRepository extends JpaRepository<UdmComplaint, Long
         """, nativeQuery = true)
     List<Integer> findRoleIdsByNames(@Param("names") Collection<String> names);
 
+    /** Names of several users in one query: [0] userId, [1] name, [2] employee code. */
+    @Query(value = """
+        SELECT um.userid,
+               COALESCE(NULLIF(TRIM(um.FULL_NAME), ''), NULLIF(TRIM(um.SHORT_NAME), ''), um.username) AS name,
+               COALESCE(um.EMPLOYEE_CODE, '') AS empCode
+        FROM user_master um
+        WHERE um.userid IN (:ids)
+        """, nativeQuery = true)
+    List<Object[]> findUserNames(@Param("ids") Collection<Integer> ids);
+
     /** Role names of a user (for backend permission checks). */
     @Query(value = """
         SELECT rm.rolename FROM user_role_master urm

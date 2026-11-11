@@ -133,7 +133,17 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
     @Override
     @Transactional(readOnly = true)
     public List<UdmComplaintHistoryDto> getHistory(Long udmRejectionId) {
-        return transitionLogRepository.findByUdmRejectionIdOrderByCreatedDateAsc(udmRejectionId).stream()
+        var rows = transitionLogRepository.findByUdmRejectionIdOrderByCreatedDateAsc(udmRejectionId);
+        // Who performed each step — one bulk lookup (no N+1)
+        java.util.Set<Integer> userIds = rows.stream().map(t -> t.getCreatedBy())
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        java.util.Map<Integer, Object[]> users = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            for (Object[] u : complaintRepository.findUserNames(userIds)) {
+                if (u[0] != null) users.put(((Number) u[0]).intValue(), u);
+            }
+        }
+        return rows.stream()
                 .map(t -> {
                     UdmComplaintHistoryDto d = new UdmComplaintHistoryDto();
                     d.setAction(t.getAction());
@@ -144,6 +154,11 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
                     d.setAssignedRio(t.getAssignedRio());
                     d.setAssignedToUser(t.getAssignedToUser());
                     d.setActionBy(t.getCreatedBy());
+                    Object[] u = t.getCreatedBy() != null ? users.get(t.getCreatedBy()) : null;
+                    if (u != null) {
+                        d.setActionByName(u[1] != null ? u[1].toString() : null);
+                        d.setActionByEmployeeCode(u[2] != null && !u[2].toString().isBlank() ? u[2].toString() : null);
+                    }
                     d.setActionDate(t.getCreatedDate() != null ? t.getCreatedDate().toString() : null);
                     return d;
                 }).toList();

@@ -77,6 +77,8 @@ public class UdmRejectionDTO {
     // ---- SARTHI complaint workflow (additive; filled from udm_complaint) ----
     /** udm_rejection.id — key for complaint actions. */
     private Long id;
+    /** udm_rejection.fetched_date (yyyy-MM-dd) — date the complaint was received from UDM. */
+    private String fetchedDate;
     /** PENDING_WITH_COMPLAINT_CELL | SENT_TO_CM | CLOSED */
     private String complaintStatus;
     private String pendingWith;

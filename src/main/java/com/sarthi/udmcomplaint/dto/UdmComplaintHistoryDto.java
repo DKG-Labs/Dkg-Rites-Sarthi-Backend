@@ -12,5 +12,8 @@ public class UdmComplaintHistoryDto {
     private String assignedRio;
     private Integer assignedToUser;
     private Integer actionBy;
+    /** Name and employee code of the user who performed the step (from user_master). */
+    private String actionByName;
+    private String actionByEmployeeCode;
     private String actionDate;
 }

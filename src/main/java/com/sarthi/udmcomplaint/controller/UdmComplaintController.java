@@ -6,6 +6,9 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.udmcomplaint.dto.*;
 import com.sarthi.udmcomplaint.service.UdmComplaintCmService;
+import com.sarthi.udmcomplaint.service.UdmComplaintListService;
+import com.sarthi.udmcomplaint.service.UdmComplaintMergedPdfService;
+import com.sarthi.udmcomplaint.service.UdmComplaintRbService;
 import com.sarthi.udmcomplaint.service.UdmComplaintSbuService;
 import com.sarthi.udmcomplaint.service.UdmComplaintWorkflowService;
 import com.sarthi.util.ResponseBuilder;
@@ -30,6 +33,27 @@ public class UdmComplaintController {
     private final UdmComplaintWorkflowService service;
     private final UdmComplaintCmService cmService;
     private final UdmComplaintSbuService sbuService;
+    private final UdmComplaintRbService rbService;
+    private final UdmComplaintListService listService;
+    private final UdmComplaintMergedPdfService mergedPdfService;
+
+    /**
+     * Role-scoped, paginated complaint list.
+     * view = cc | cm | sbu | rb | board (checked against the user's roles); scope = mine | all; tab = pending | closed;
+     * page is 0-based; q searches rejection no., PO, PL, IC, vendor, consignee, type, CM, RIO.
+     */
+    @GetMapping("/list")
+    public ResponseEntity<Object> list(@RequestParam(defaultValue = "board") String view,
+                                       @RequestParam(defaultValue = "all") String scope,
+                                       @RequestParam(defaultValue = "pending") String tab,
+                                       @RequestParam(defaultValue = "0") int page,
+                                       @RequestParam(defaultValue = "10") int size,
+                                       @RequestParam(required = false) String q,
+                                       @AuthenticationPrincipal Object principal) {
+        // "board" is read-only and also works for service logins without a user id
+        Integer uid = principal instanceof UserMaster u ? u.getUserId() : null;
+        return ok(listService.list(view, scope, tab, page, size, q, uid));
+    }
 
     /** RIOs that have Controlling Managers (RIO dropdown). */
     @GetMapping("/rios")
@@ -147,6 +171,22 @@ public class UdmComplaintController {
         return ok(sbuService.review(rejectionId, request, userId(principal)));
     }
 
+    // ================================================================ Phase 3b — Railway Board review
+
+    /** Railway Board review context: can act now, round. */
+    @GetMapping("/{rejectionId}/rb-context")
+    public ResponseEntity<Object> rbContext(@PathVariable Long rejectionId, @AuthenticationPrincipal Object principal) {
+        return ok(rbService.getRbContext(rejectionId, userId(principal)));
+    }
+
+    /** Railway Board: { decision: APPROVE | RETURN, remarks } — APPROVE closes; remarks mandatory for RETURN. */
+    @PostMapping("/{rejectionId}/rb/review")
+    public ResponseEntity<Object> rbReview(@PathVariable Long rejectionId,
+                                           @RequestBody RbReviewRequest request,
+                                           @AuthenticationPrincipal Object principal) {
+        return ok(rbService.review(rejectionId, request, userId(principal)));
+    }
+
     /** Submitted stage details (for the timeline / View). */
     @GetMapping("/{rejectionId}/stages")
     public ResponseEntity<Object> stages(@PathVariable Long rejectionId) {
@@ -167,6 +207,29 @@ public class UdmComplaintController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + safeName + "\"")
+                .body(f.content());
+    }
+
+    /**
+     * Merged PDF: original IREPS rejection PDF + complaint timeline report (date, action, performed by, remarks,
+     * stage details) + uploaded documents in workflow order. Read-only; any signed-in user who can view complaints.
+     */
+    @GetMapping("/{rejectionId}/merged-pdf")
+    public ResponseEntity<byte[]> mergedPdf(@PathVariable Long rejectionId,
+                                            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
+        // Egress saving: unchanged complaint → 304 Not Modified, no PDF bytes sent (and no rebuild)
+        String etag = mergedPdfService.etag(rejectionId);
+        if (etag != null && etag.equals(ifNoneMatch)) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag)
+                    .header(HttpHeaders.CACHE_CONTROL, "private, no-cache").build();
+        }
+        UdmDocumentFile f = mergedPdfService.build(rejectionId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .eTag(etag)
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-cache")   // browser keeps a copy but always revalidates via ETag
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + f.fileName() + "\"")
+                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
                 .body(f.content());
     }
 

@@ -85,6 +85,12 @@ public final class UdmComplaintConstants {
     public static final String ST_RETURNED_TO_SBU = "RETURNED_TO_SBU";
 
     public static final String STAGE_SBU_REVIEW = "SBU_REVIEW";
+
+    // ---------------- Phase 3b: Railway Board review (V20261111_008)
+    public static final String TR_RB_APPROVE = "RB_APPROVE";
+    public static final String TR_RB_RETURN_TO_SBU = "RB_RETURN_TO_SBU";
+    public static final String STAGE_RB_REVIEW = "RB_REVIEW";
+    public static final String DECISION_APPROVE = "APPROVE";
     public static final String DECISION_FORWARD = "FORWARD";
     public static final String DECISION_RETURN = "RETURN";
 
