@@ -442,13 +442,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         || sType.contains("POINTS")
                         || sType.contains("CROSSING");
 
-                // For Set/Turnout calls the IE header stores quantities in SETS, while the call stores sleeper count.
-                // Always show the call's own figures so the list doesn't display e.g. "1" instead of "18".
+                // Set/Turnout: the call's total_offered is the vendor's offered SETS; always show it.
                 if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered().signum() > 0) {
                     finalOffered = call.getTotalOffered().intValue();
-                    finalRejected = call.getTotalRejected();
-                    finalAccepted = null;
-                    offeredIncludesRejected = false;
                 }
 
                 if (finalAccepted == null && finalOffered != null) {

@@ -8030,12 +8030,20 @@ public class reportsImpl implements reports {
                                 long totalAccepted = row[15] != null ? ((Number) row[15]).longValue() : 0L;
 
                                 double rejectionPercent = totalInspected > 0 ? Math.round((totalRejected * 100.0 / totalInspected) * 100.0) / 100.0 : 0.0;
-                                double shearingRejPct = shearingMfg > 0 ? Math.round((shearingRejected * 100.0 / shearingMfg) * 100.0) / 100.0 : 0.0;
-                                double turningRejPct = turningMfg > 0 ? Math.round((turningRejected * 100.0 / turningMfg) * 100.0) / 100.0 : 0.0;
-                                double mpiRejPct = mpiMfg > 0 ? Math.round((mpiRejected * 100.0 / mpiMfg) * 100.0) / 100.0 : 0.0;
-                                double forgingRejPct = forgingMfg > 0 ? Math.round((forgingRejected * 100.0 / forgingMfg) * 100.0) / 100.0 : 0.0;
-                                double quenchingRejPct = quenchingMfg > 0 ? Math.round((quenchingRejected * 100.0 / quenchingMfg) * 100.0) / 100.0 : 0.0;
-                                double temperingRejPct = temperingMfg > 0 ? Math.round((temperingRejected * 100.0 / temperingMfg) * 100.0) / 100.0 : 0.0;
+                                // Every stage % uses Total Inspected as denominator so the stage %s add up to the total Rejection %.
+                                java.util.function.LongFunction<Double> pctOf = r -> totalInspected > 0 ? Math.round((r * 100.0 / totalInspected) * 100.0) / 100.0 : 0.0;
+                                double shearingRejPct = pctOf.apply(shearingRejected);
+                                double turningRejPct = pctOf.apply(turningRejected);
+                                double mpiRejPct = pctOf.apply(mpiRejected);
+                                double forgingRejPct = pctOf.apply(forgingRejected);
+                                double quenchingRejPct = pctOf.apply(quenchingRejected);
+                                double temperingRejPct = pctOf.apply(temperingRejected);
+                                // Rejections at stages not shown above (visual, dimension, hardness, testing & finishing...)
+                                long otherRejected = Math.max(0L, totalRejected - (shearingRejected + turningRejected + mpiRejected
+                                                + forgingRejected + quenchingRejected + temperingRejected));
+                                // Absorb rounding so the displayed stage %s sum exactly to rejectionPercent
+                                double otherRejPct = Math.max(0.0, Math.round((rejectionPercent - (shearingRejPct + turningRejPct + mpiRejPct
+                                                + forgingRejPct + quenchingRejPct + temperingRejPct)) * 100.0) / 100.0);
 
                                 list.add(ProcessInspectionQualityTableDto.builder()
                                                 .manufacturerName(manufacturer)
@@ -8055,6 +8063,8 @@ public class reportsImpl implements reports {
                                                 .forgingRejected(forgingRejected)
                                                 .quenchingRejected(quenchingRejected)
                                                 .temperingRejected(temperingRejected)
+                                                .otherRejected(otherRejected)
+                                                .otherRejectionPercent(otherRejPct)
                                                 .build());
                         }
                 }

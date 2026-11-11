@@ -311,9 +311,37 @@ public class SummaryServiceImpl implements SummaryService {
         Page<Object[]> dbPage = inspectionCallRepository.fetchManufacturerSummaryByUom(startDate, endDate,
                 pageable);
 
+        // Process IC figures: selected range, and cumulative for the current FY (1 April -> today)
+        LocalDate today = LocalDate.now();
+        LocalDate fyStart = LocalDate.of(today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1, 4, 1);
+        LocalDate rangeStart = startDate != null ? startDate : fyStart;
+        LocalDate rangeEnd = endDate != null ? endDate : today;
+        java.util.Map<String, double[]> rangeStats = toProcessStatsMap(
+                inspectionCallRepository.fetchProcessIcStatsByVendorUom(rangeStart, rangeEnd));
+        java.util.Map<String, double[]> fyStats = toProcessStatsMap(
+                inspectionCallRepository.fetchProcessIcStatsByVendorUom(fyStart, today));
+
         List<MonthlyAnalysisDTO> content = dbPage.getContent()
                 .stream()
-                .map(this::mapMonthlyAnalysisRow)
+                .map(row -> {
+                    MonthlyAnalysisDTO dto = mapMonthlyAnalysisRow(row);
+                    dto.setVendorCode(row.length > 11 && row[11] != null ? row[11].toString() : null);
+                    String key = (row.length > 11 && row[11] != null ? row[11].toString() : "") + "|" + dto.getUom();
+                    double[] r = rangeStats.getOrDefault(key, new double[2]);
+                    double[] f = fyStats.getOrDefault(key, new double[2]);
+                    dto.setProcessInspected(r[0]);
+                    dto.setProcessRejectedQty(r[1]);
+                    dto.setProcessAccepted(Math.max(0, r[0] - r[1]));
+                    dto.setProcessRejectionPct(round2(calcPercent(r[1], r[0])));
+                    dto.setFyInspected(f[0]);
+                    dto.setFyRejected(f[1]);
+                    dto.setFyAccepted(Math.max(0, f[0] - f[1]));
+                    dto.setFyRejectionPct(round2(calcPercent(f[1], f[0])));
+                    return dto;
+                })
+                // Only units that have a Process IC issued (by IC date) in the selected range
+                .filter(dto -> rangeStats.containsKey(
+                        (dto.getVendorCode() != null ? dto.getVendorCode() : "") + "|" + dto.getUom()))
                 .toList();
 
         PageResponseDTO<MonthlyAnalysisDTO> response = new PageResponseDTO<>();
@@ -321,8 +349,8 @@ public class SummaryServiceImpl implements SummaryService {
         response.setContent(content);
         response.setPage(page);
         response.setSize(size);
-        response.setTotalElements(dbPage.getTotalElements());
-        response.setTotalPages(dbPage.getTotalPages());
+        response.setTotalElements(content.size());
+        response.setTotalPages(size > 0 ? (int) Math.ceil(content.size() / (double) size) : 1);
 
         return response;
     }
@@ -585,6 +613,22 @@ public class SummaryServiceImpl implements SummaryService {
         dto.setUom((String) row[10]);
 
         return dto;
+    }
+
+    private java.util.Map<String, double[]> toProcessStatsMap(List<Object[]> rows) {
+        java.util.Map<String, double[]> map = new java.util.HashMap<>();
+        if (rows == null) return map;
+        for (Object[] r : rows) {
+            String key = (r[0] != null ? r[0].toString() : "") + "|" + (r[1] != null ? r[1].toString() : "");
+            double[] v = map.computeIfAbsent(key, k -> new double[2]);
+            v[0] += r[2] != null ? ((Number) r[2]).doubleValue() : 0;
+            v[1] += r[3] != null ? ((Number) r[3]).doubleValue() : 0;
+        }
+        return map;
+    }
+
+    private Double round2(Double v) {
+        return v == null ? 0.0 : Math.round(v * 100.0) / 100.0;
     }
 
     private Double calcPercent(Double rejected, Double total) {

@@ -23,4 +23,16 @@ public class MonthlyAnalysisDTO {
     private Long noOfPos;
     private Double poQty;
     private String uom;
+    private String vendorCode;
+
+    // Process Inspection (Process ICs issued in selected range)
+    private Double processInspected;
+    private Double processAccepted;
+    private Double processRejectedQty;
+    private Double processRejectionPct;
+    // Cumulative for current FY (1 April to today)
+    private Double fyInspected;
+    private Double fyAccepted;
+    private Double fyRejected;
+    private Double fyRejectionPct;
 }

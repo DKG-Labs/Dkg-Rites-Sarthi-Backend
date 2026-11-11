@@ -1019,6 +1019,50 @@ Page<Object[]> fetchManufacturerSummary(
      * only from calls whose latest workflow status is SEND_CALL_TO_IBS, dated inside the range.
      * Column order must match SummaryServiceImpl.mapMonthlyAnalysisRow.
      */
+    /*
+     * Monthly Analysis of Units - Process Inspection.
+     * Per vendor + UoM: quantity processed and rejected in all Process ICs ISSUED (process_ic_edit.created_at,
+     * not deleted) in [startDate, endDate] for calls sent to IBS. Row: vendor_code, uom, inspected, rejected.
+     */
+    @Query(value = """
+    SELECT x.vendor_code,
+           CASE WHEN LOWER(TRIM(x.uom_raw)) IN ('mt', 'mts', 'mts.', 'metric ton', 'ton', 'tons') THEN 'MT'
+                WHEN LOWER(TRIM(x.uom_raw)) LIKE 'set%' THEN 'Set'
+                ELSE 'Nos.' END AS uom,
+           SUM(x.inspected) AS inspected,
+           SUM(x.rejected)  AS rejected
+    FROM (
+        SELECT poi.vendor_code AS vendor_code,
+               COALESCE(
+                   (SELECT pi2.uom FROM po_item pi2
+                     WHERE pi2.po_header_id = ph.id
+                       AND (pi2.item_sr_no = SUBSTRING_INDEX(ic.po_serial_no, '/', -1) OR pi2.item_sr_no = ic.po_serial_no)
+                     ORDER BY pi2.id LIMIT 1),
+                   (SELECT pi3.uom FROM po_item pi3 WHERE pi3.po_header_id = ph.id ORDER BY pi3.id LIMIT 1),
+                   ''
+               ) AS uom_raw,
+               COALESCE(pl.inspected, 0) AS inspected,
+               COALESCE(pl.rejected, 0)  AS rejected
+        FROM inspection_calls ic
+        JOIN pincode_poi_mapping poi ON poi.poi_code = ic.place_of_inspection
+        JOIN (SELECT inspection_call_no,
+                     SUM(COALESCE(total_manufactured, 0)) AS inspected,
+                     SUM(COALESCE(total_rejected, 0))     AS rejected
+              FROM process_line_final_result GROUP BY inspection_call_no) pl
+          ON pl.inspection_call_no = ic.ic_number
+        LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = ic.po_no COLLATE utf8mb4_unicode_ci
+        WHERE UPPER(ic.status) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS')
+          AND (SELECT MAX(pe.created_at) FROM process_ic_edit pe
+                WHERE pe.deleted_by IS NULL
+                  AND pe.ic_number COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', ic.ic_number COLLATE utf8mb4_unicode_ci, '%'))
+              BETWEEN :startDate AND DATE_ADD(:endDate, INTERVAL 1 DAY) - INTERVAL 1 SECOND
+    ) x
+    GROUP BY x.vendor_code, uom
+    """, nativeQuery = true)
+    List<Object[]> fetchProcessIcStatsByVendorUom(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
     @Query(value = """
     SELECT
         v.company_name AS manufacturer,
@@ -1031,7 +1075,8 @@ Page<Object[]> fetchManufacturerSummary(
         COALESCE(a.final_rejected, 0) AS finalRejected,
         pu.no_of_pos AS noOfPos,
         pu.po_qty AS poQty,
-        pu.uom AS uom
+        pu.uom AS uom,
+        v.vendor_code AS vendorCode
     FROM (
         SELECT DISTINCT poi_v.company_name AS company_name, ie_v.rio AS rio, poi_v.vendor_code AS vendor_code
         FROM inspection_calls icv

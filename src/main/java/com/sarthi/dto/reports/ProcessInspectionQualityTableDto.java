@@ -27,4 +27,6 @@ public class ProcessInspectionQualityTableDto {
     private Long forgingRejected;
     private Long quenchingRejected;
     private Long temperingRejected;
+    private Long otherRejected;
+    private Double otherRejectionPercent;
 }
