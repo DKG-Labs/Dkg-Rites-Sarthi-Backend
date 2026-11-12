@@ -83,6 +83,18 @@ public class PdfCompressionService {
     }
 
     /**
+     * Compression for a stored document that is safe to re-encode (e.g. merged Case Letters), independent of
+     * pdf.compression.compress-images (which keeps protecting Correction Slips / IC Annexures).
+     * Uses the safe rules: 1-bit scans are left alone and an image is replaced only when the result is smaller.
+     */
+    public byte[] compressForStorage(byte[] originalBytes, int targetMaxWidth, float targetQuality) {
+        if (originalBytes == null || originalBytes.length == 0) {
+            return originalBytes;
+        }
+        return compressImagesInPdf(originalBytes, targetMaxWidth, targetQuality, 150L * 1024L, false, true);
+    }
+
+    /**
      * Images scaled/encoded at once. Kept small on purpose: one decoded scan page can take 50-100 MB of heap,
      * so this also caps memory per request.
      */
@@ -139,6 +151,15 @@ public class PdfCompressionService {
      */
     private byte[] compressImagesInPdf(byte[] originalBytes, int targetMaxWidth, float targetQuality, long sizeThreshold,
                                        boolean previewMode) {
+        return compressImagesInPdf(originalBytes, targetMaxWidth, targetQuality, sizeThreshold, previewMode, previewMode);
+    }
+
+    /**
+     * safeRules: skip 1-bit/stencil images and replace an image only when the JPEG is smaller
+     * (always on for preview; also used for stored Case Letters). previewMode additionally applies the time budget.
+     */
+    private byte[] compressImagesInPdf(byte[] originalBytes, int targetMaxWidth, float targetQuality, long sizeThreshold,
+                                       boolean previewMode, boolean safeRules) {
         int effectiveMaxWidth = targetMaxWidth > 0 ? targetMaxWidth : this.maxImageWidth;
         float effectiveQuality = (targetQuality > 0.0f && targetQuality <= 1.0f) ? targetQuality : this.jpegQuality;
 
@@ -190,7 +211,7 @@ public class PdfCompressionService {
                         }
 
                         // 1-bit scans and stencil masks are already tiny; JPEG would enlarge and blur them
-                        if (previewMode && (originalImageXObject.isStencil() || originalImageXObject.getBitsPerComponent() == 1)) {
+                        if (safeRules && (originalImageXObject.isStencil() || originalImageXObject.getBitsPerComponent() == 1)) {
                             continue;
                         }
 
@@ -239,7 +260,7 @@ public class PdfCompressionService {
                     org.apache.pdfbox.cos.COSStream newStream = compressedImageXObject.getCOSObject();
                     long newStreamLen = newStream.getLength();
 
-                    boolean replace = previewMode
+                    boolean replace = safeRules
                             ? newStreamLen < p.oldStreamLen
                             : (newStreamLen < p.oldStreamLen || p.origWidth > effectiveMaxWidth);
                     if (replace) {

@@ -24,4 +24,7 @@ public interface VendorInspectionCallService {
      * @return byte[] of the merged PDF
      */
     byte[] getTcDocsByCallNo(String callNo);
+
+    /** True when TC documents exist for the call (DB check only, no download). */
+    boolean hasTcDocs(String callNo);
 }

@@ -351,7 +351,25 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
     @Override
     @Transactional(readOnly = true)
+    public boolean hasTcDocs(String callNo) {
+        // DB lookup only — no blob download, so the case letter popup can show "available" for ~0 MB
+        if (callNo == null || callNo.isBlank()) return false;
+        return !resolveTcFilePaths(callNo).isEmpty();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public byte[] getTcDocsByCallNo(String callNo) {
+        if (callNo == null || callNo.isBlank()) {
+            throw new BusinessException(new ErrorDetails(AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION, "Call number cannot be empty"));
+        }
+        String trimmed = callNo.trim();
+        Set<String> tcFilePaths = resolveTcFilePaths(callNo);
+        return downloadAndMergeTcDocs(trimmed, tcFilePaths);
+    }
+
+    /** Steps 1-5: resolve the TC file paths for a call (DB only). Shared by hasTcDocs and getTcDocsByCallNo. */
+    private Set<String> resolveTcFilePaths(String callNo) {
         if (callNo == null || callNo.isBlank()) {
             throw new BusinessException(new ErrorDetails(AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION, "Call number cannot be empty"));
         }
@@ -461,7 +479,11 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         }
 
         logger.info("Found {} TC file paths for call {}: {}", tcFilePaths.size(), trimmed, tcFilePaths);
+        return tcFilePaths;
+    }
 
+    /** Steps 6-7: download the TC PDFs from Azure and merge them (unchanged logic). */
+    private byte[] downloadAndMergeTcDocs(String trimmed, Set<String> tcFilePaths) {
         if (tcFilePaths.isEmpty()) {
             throw new BusinessException(new ErrorDetails(AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION, "No TC Documents found for this call number"));
         }

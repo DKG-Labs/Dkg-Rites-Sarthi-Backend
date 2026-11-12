@@ -41,6 +41,16 @@ public class CaseLetterServiceImpl implements CaseLetterService {
     @Value("${azure.storage.connection-string}")
     private String connectionString;
 
+    // Case letter compression (defaults apply when not set; no application.properties change needed)
+    @Value("${pdf.compression.case-letter.enabled:true}")
+    private boolean caseLetterCompressEnabled;
+
+    @Value("${pdf.compression.case-letter.max-image-width:1600}")
+    private int caseLetterMaxImageWidth;
+
+    @Value("${pdf.compression.case-letter.jpeg-quality:0.85}")
+    private float caseLetterJpegQuality;
+
     @Value("${azure.storage.case-letter-container-name:sarthi-case-letter}")
     private String caseLetterContainerName;
 
@@ -295,11 +305,22 @@ public class CaseLetterServiceImpl implements CaseLetterService {
         // 2. Merge all input PDFs
         byte[] mergedBytes = mergeUploadedFiles(files);
 
-        // 3. Compress the merged PDF (downsampling embedded images and optimizing streams)
-        byte[] compressedBytes = pdfCompressionService.compressPdf(mergedBytes);
-        if (compressedBytes == null || compressedBytes.length == 0) {
+        // 3. Compress the merged PDF: page images scaled to ~1600px (≈190 DPI on A4) and JPEG 0.85.
+        //    Case-letter only (Correction Slips / IC Annexures keep their own setting). Safe rules: 1-bit scans
+        //    untouched, images replaced only when smaller; the original is kept if compression doesn't help.
+        byte[] compressedBytes;
+        try {
+            compressedBytes = caseLetterCompressEnabled
+                    ? pdfCompressionService.compressForStorage(mergedBytes, caseLetterMaxImageWidth, caseLetterJpegQuality)
+                    : pdfCompressionService.compressPdf(mergedBytes);
+        } catch (Exception e) {
+            log.warn("Case letter compression failed, saving uncompressed: {}", e.getMessage());
             compressedBytes = mergedBytes;
         }
+        if (compressedBytes == null || compressedBytes.length == 0 || compressedBytes.length >= mergedBytes.length) {
+            compressedBytes = mergedBytes;
+        }
+        log.info("Case letter {}: merged {} bytes, stored {} bytes", cleanCallNo, mergedBytes.length, compressedBytes.length);
         long compressedSize = compressedBytes.length;
         long originalSize = originalInputSize > 0 ? originalInputSize : mergedBytes.length;
 
