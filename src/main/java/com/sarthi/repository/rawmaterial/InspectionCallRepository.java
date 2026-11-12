@@ -107,6 +107,10 @@ public interface InspectionCallRepository extends JpaRepository<InspectionCall, 
     @EntityGraph(attributePaths = {"rmInspectionDetails", "processInspectionDetails", "finalInspectionDetails"})
     List<InspectionCall> findByVendorIdOrderByCreatedAtDesc(String vendorId);
 
+    /** Same as above for several spellings of one vendor code (e.g. ":1084223" and "1084223"). */
+    @EntityGraph(attributePaths = {"rmInspectionDetails", "processInspectionDetails", "finalInspectionDetails"})
+    List<InspectionCall> findByVendorIdInOrderByCreatedAtDesc(java.util.Collection<String> vendorIds);
+
     /* ==================== Custom Queries ==================== */
 
     /**

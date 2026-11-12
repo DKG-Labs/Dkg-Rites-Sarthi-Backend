@@ -215,6 +215,13 @@ public class ErcDiversionController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
 
+    @GetMapping("/basket/vendor")
+    @Operation(summary = "Vendor's Material Basket: all available diverted & passed material (every stage / target PO)")
+    public ResponseEntity<APIResponse> getVendorBasketItems(@RequestParam String vendorCode) {
+        List<BasketItemDto> list = diversionService.getVendorBasketItems(vendorCode);
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+    }
+
     @GetMapping("/complete-source-sr-nos")
     @Operation(summary = "Get source PO SR numbers with COMPLETE diversion for a vendor")
     public ResponseEntity<APIResponse> getCompleteDiversionSourceSrNos(@RequestParam String vendorCode) {

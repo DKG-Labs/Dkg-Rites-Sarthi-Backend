@@ -34,6 +34,9 @@ public interface ErcDiversionService {
 
     List<BasketItemDto> getAvailableBasketItems(String vendorCode, DiversionStage stage, String targetPoNo, String targetPoSrNo);
 
+    /** Vendor's Material Basket tab: all available basket rows of the vendor (every stage / target PO). */
+    List<BasketItemDto> getVendorBasketItems(String vendorCode);
+
     CallSourceReferenceDto getCallSourceReference(Long callId);
 
     List<String> getCompleteDiversionSourceSrNos(String vendorCode);

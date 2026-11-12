@@ -763,6 +763,15 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<BasketItemDto> getVendorBasketItems(String vendorCode) {
+        String code = vendorCode == null ? "" : vendorCode.trim().replaceFirst("^:+", "");
+        if (code.isEmpty()) return Collections.emptyList();
+        return basketRepository.findAvailableForVendor(code).stream()
+                .map(this::mapBasketToDto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public CallSourceReferenceDto getCallSourceReference(Long callId) {
         log.info("Fetching call source reference for callId: {}", callId);
         InspectionCall call = inspectionCallRepository.findById(callId != null ? callId.intValue() : 0)
