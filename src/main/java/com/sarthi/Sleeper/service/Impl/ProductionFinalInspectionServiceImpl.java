@@ -1311,15 +1311,18 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         String targetSleeperType = (sleeperType != null && !sleeperType.isBlank()) ? sleeperType.trim() : null;
         Long targetVendorId = (vendorId != null && vendorId > 0) ? vendorId : null;
 
+        // Sleeper IDs are globally unique, so a sleeper raised in ANY active call must count as already offered —
+        // regardless of how that call's sleeper type was written or which vendor login/plant raised it.
+        // (Filtering by type/createdBy let previously raised sleepers re-appear as "eligible".)
         if (excludeCallNo != null && !excludeCallNo.isBlank()) {
             String trimmedExclude = excludeCallNo.trim();
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIdsExcludingCall(targetSleeperType, targetVendorId, trimmedExclude));
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIdsExcludingCall(targetSleeperType, targetVendorId, trimmedExclude));
-            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeysExcludingCall(targetSleeperType, targetVendorId, trimmedExclude));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIdsExcludingCall(null, null, trimmedExclude));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIdsExcludingCall(null, null, trimmedExclude));
+            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeysExcludingCall(null, targetVendorId, trimmedExclude));
         } else {
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds(targetSleeperType, targetVendorId));
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds(targetSleeperType, targetVendorId));
-            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys(targetSleeperType, targetVendorId));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds(null, null));
+            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds(null, null));
+            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys(null, targetVendorId));
         }
         cbMark.accept("declarations + raised sleepers (" + raisedSleeperIds.size() + ")");
 
