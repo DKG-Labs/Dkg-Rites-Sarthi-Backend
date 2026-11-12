@@ -25,6 +25,7 @@ public class StartDutyReqDto {
     private String startDate;
     private String shift;
     private String sms;
+    private String organisation;
     private String railGrade;
     private String mill;
     private String railSection;

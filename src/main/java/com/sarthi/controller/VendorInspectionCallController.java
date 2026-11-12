@@ -77,6 +77,21 @@ public class VendorInspectionCallController {
      * Get merged TC documents for a specific call number.
      * GET /api/vendor/inspection-calls/tc-docs?callNumber={callNo}
      */
+    /**
+     * Lightweight check used by the case letter popup: tells whether TC documents exist for the call
+     * without downloading them (~100 bytes instead of ~2 MB). The PDF itself is fetched only on view/save.
+     */
+    @GetMapping("/tc-docs/exists")
+    public ResponseEntity<java.util.Map<String, Object>> tcDocsExist(@RequestParam String callNumber) {
+        try {
+            boolean exists = vendorInspectionCallService.hasTcDocs(callNumber);
+            return ResponseEntity.ok(java.util.Map.of("exists", exists));
+        } catch (Exception e) {
+            logger.warn("TC docs existence check failed for call {}: {}", callNumber, e.getMessage());
+            return ResponseEntity.ok(java.util.Map.of("exists", false));
+        }
+    }
+
     @GetMapping(value = {"/tc-docs", "/tc-docs/{callNo}"})
     @Operation(
         summary = "Get merged TC documents for a call",

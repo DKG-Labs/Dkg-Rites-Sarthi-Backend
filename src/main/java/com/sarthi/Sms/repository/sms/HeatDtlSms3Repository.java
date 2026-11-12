@@ -28,5 +28,27 @@ public interface HeatDtlSms3Repository extends JpaRepository<HeatDtlSms3Entity, 
         List<HeatDtlSms3Entity> findHeatDetailsNotInBloomDetails(
                         @Param("dutyId") String dutyId);
 
+        /**
+         * Shift Summary heats: every heat linked to this duty, plus unfinished (not 'Complete'),
+         * non-diverted heats from earlier duties of the same organisation + SMS.
+         */
+        @Query("""
+            SELECT h FROM HeatDtlSms3Entity h
+            WHERE EXISTS (SELECT 1 FROM DutyHeatSms3Entity d
+                          WHERE d.dutyHeatRelationId.heatNo = h.heatNo
+                            AND d.dutyHeatRelationId.dutyId = :dutyId)
+               OR ((h.heatStage IS NULL OR h.heatStage <> 'Complete')
+                   AND h.isDiverted = false
+                   AND EXISTS (SELECT 1 FROM DutyHeatSms3Entity d2, SmsDutyEntity s
+                               WHERE d2.dutyHeatRelationId.heatNo = h.heatNo
+                                 AND s.dutyId = d2.dutyHeatRelationId.dutyId
+                                 AND s.sms = :sms
+                                 AND s.organisation = :organisation))
+            ORDER BY h.createdAt DESC
+            """)
+        List<HeatDtlSms3Entity> findShiftSummaryHeats(@Param("dutyId") String dutyId,
+                                                     @Param("sms") String sms,
+                                                     @Param("organisation") String organisation);
+
         Optional<HeatDtlSms3Entity> findByHeatNo(String heatNo);
 }

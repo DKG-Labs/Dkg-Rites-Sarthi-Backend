@@ -25,6 +25,38 @@ public class CaseLetterController {
     @Autowired
     private CaseLetterService caseLetterService;
 
+    /**
+     * Serves the latest saved case letter with an ETag (doc id + save time). When the browser already holds
+     * this version it gets a 304 with no body, and the blob is not even downloaded from Azure — so each device
+     * pays the PDF's outbound bytes once. "no-cache" makes the browser re-check every time, so a re-saved
+     * letter (new id) is fetched fresh.
+     */
+    private ResponseEntity<byte[]> cachedPdfResponse(String callNo, String ifNoneMatch, String disposition) {
+        String clean = callNo != null ? callNo.trim() : "";
+        if (clean.toLowerCase().endsWith(".pdf")) {
+            clean = clean.substring(0, clean.length() - 4).trim();
+        }
+        CaseLetterDocument doc = caseLetterService.getLatestCaseLetter(clean);
+        if (doc == null || doc.getId() == null) {
+            throw new java.util.NoSuchElementException("No Case Letter found for call: " + clean);
+        }
+        String etag = "\"cl-" + doc.getId() + "-"
+                + (doc.getUploadedAt() != null ? doc.getUploadedAt().toString().replaceAll("[^0-9]", "") : "0") + "\"";
+        org.springframework.http.CacheControl cache = org.springframework.http.CacheControl.noCache().cachePrivate();
+
+        if (ifNoneMatch != null && ifNoneMatch.contains(etag)) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).cacheControl(cache).build();
+        }
+        byte[] pdfBytes = caseLetterService.getCaseLetterPdf(doc.getId());
+        return ResponseEntity.ok()
+                .eTag(etag)
+                .cacheControl(cache)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"Case_Letter_" + clean + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .contentLength(pdfBytes.length)
+                .body(pdfBytes);
+    }
+
     @GetMapping("/metadata/{callNo}")
     @Operation(summary = "Get document metadata and existing case letter status for a call")
     public ResponseEntity<Map<String, Object>> getCallMetadata(
@@ -98,18 +130,10 @@ public class CaseLetterController {
 
     @GetMapping({"/view/{callNo}", "/view/{callNo}.pdf"})
     @Operation(summary = "View saved Case Letter PDF inline in browser")
-    public ResponseEntity<byte[]> viewCaseLetter(@PathVariable String callNo) {
+    public ResponseEntity<byte[]> viewCaseLetter(@PathVariable String callNo,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
         try {
-            String clean = callNo != null ? callNo.trim() : "";
-            if (clean.toLowerCase().endsWith(".pdf")) {
-                clean = clean.substring(0, clean.length() - 4).trim();
-            }
-            byte[] pdfBytes = caseLetterService.getLatestCaseLetterPdf(clean);
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"Case_Letter_" + clean + ".pdf\"")
-                    .contentType(MediaType.APPLICATION_PDF)
-                    .contentLength(pdfBytes.length)
-                    .body(pdfBytes);
+            return cachedPdfResponse(callNo, ifNoneMatch, "inline");
         } catch (Exception e) {
             log.warn("Error viewing Case Letter for {}: {}", callNo, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
@@ -118,18 +142,10 @@ public class CaseLetterController {
 
     @GetMapping({"/download/{callNo}", "/download/{callNo}.pdf"})
     @Operation(summary = "Download saved Case Letter PDF")
-    public ResponseEntity<byte[]> downloadCaseLetter(@PathVariable String callNo) {
+    public ResponseEntity<byte[]> downloadCaseLetter(@PathVariable String callNo,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
         try {
-            String clean = callNo != null ? callNo.trim() : "";
-            if (clean.toLowerCase().endsWith(".pdf")) {
-                clean = clean.substring(0, clean.length() - 4).trim();
-            }
-            byte[] pdfBytes = caseLetterService.getLatestCaseLetterPdf(clean);
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"Case_Letter_" + clean + ".pdf\"")
-                    .contentType(MediaType.APPLICATION_PDF)
-                    .contentLength(pdfBytes.length)
-                    .body(pdfBytes);
+            return cachedPdfResponse(callNo, ifNoneMatch, "attachment");
         } catch (Exception e) {
             log.warn("Error downloading Case Letter for {}: {}", callNo, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
