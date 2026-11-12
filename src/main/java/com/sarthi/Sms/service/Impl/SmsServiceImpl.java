@@ -92,6 +92,7 @@ public class SmsServiceImpl implements SmsService {
         se.setShift(req.getShift());
         se.setStartTime(LocalDateTime.now());
         se.setSms(req.getSms());
+        se.setOrganisation(req.getOrganisation() != null ? req.getOrganisation().trim() : null);
         se = sdr.save(se);
 
         StartDutyResDto sdrd = new StartDutyResDto();
@@ -178,7 +179,7 @@ public class SmsServiceImpl implements SmsService {
         List<ShiftSummaryHeatDtlDto> hdl = new ArrayList<>();
 
         if (sde.getSms().equalsIgnoreCase("SMS 2")) {
-            List<HeatDtlSms2Entity> hds2eList = hds2r.findHeatDetailsNotInBloomDetails(dutyId);
+            List<HeatDtlSms2Entity> hds2eList = hds2r.findShiftSummaryHeats(dutyId, sde.getSms(), sde.getOrganisation());
             hdl = hds2eList.stream().map(record -> {
                 ShiftSummaryHeatDtlDto sshdd = new ShiftSummaryHeatDtlDto(record);
                 return sshdd;
@@ -186,7 +187,7 @@ public class SmsServiceImpl implements SmsService {
 
 
         } else {
-            List<HeatDtlSms3Entity> hds3eList = hds3r.findHeatDetailsNotInBloomDetails(dutyId);
+            List<HeatDtlSms3Entity> hds3eList = hds3r.findShiftSummaryHeats(dutyId, sde.getSms(), sde.getOrganisation());
             hdl = hds3eList.stream().map(record -> {
                 ShiftSummaryHeatDtlDto sshdd = new ShiftSummaryHeatDtlDto(record);
                 return sshdd;

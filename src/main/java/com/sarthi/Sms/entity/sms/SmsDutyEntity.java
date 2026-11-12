@@ -29,6 +29,10 @@ public class SmsDutyEntity {
     @Column(name = "sms", nullable = false, length = 50)
     private String sms;
 
+    // JSPL / BSP — chosen at Start Duty; scopes carried-forward heats
+    @Column(name = "organisation", length = 20)
+    private String organisation;
+
     @Column(name = "rail_grade", nullable = false, length = 50)
     private String railGrade;
 

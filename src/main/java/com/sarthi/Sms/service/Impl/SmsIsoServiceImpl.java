@@ -54,7 +54,6 @@ public class SmsIsoServiceImpl implements SmsIsoService {
         boolean isSms3 = "SMS 3".equalsIgnoreCase(sms) || "SMS3".equalsIgnoreCase(sms);
         String dutyHeatTable = isSms3 ? "duty_heat_sms3" : "duty_heat_sms2";
         String heatDetailTable = isSms3 ? "heat_detail_sms3" : "heat_detail_sms2";
-        String bloomDetailTable = isSms3 ? "bloom_detail_sms3" : "bloom_detail_sms2";
 
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT ")
@@ -68,13 +67,13 @@ public class SmsIsoServiceImpl implements SmsIsoService {
            .append("shd.degassing_duration_wv, ")
            .append("shd.casting_temp, ")
            .append("shd.casting_temp_2, ")
-           .append("COALESCE(bd.number_of_co_blooms, shd.number_of_co_blooms, 0) as number_of_co_blooms, ")
+           // CO bloom count lives in the heat detail table (bloom_detail_* only has number_of_co_blooms_rejected)
+           .append("COALESCE(shd.number_of_co_blooms, 0) as number_of_co_blooms, ")
            .append("sd.is_ladle_to_tundish_used, ")
            .append("sd.is_tundish_to_mould_used ")
            .append("FROM sms_duty sd ")
            .append("JOIN ").append(dutyHeatTable).append(" dh ON sd.duty_id = dh.duty_id ")
            .append("JOIN ").append(heatDetailTable).append(" shd ON dh.heat_number = shd.heat_number ")
-           .append("LEFT JOIN ").append(bloomDetailTable).append(" bd ON shd.heat_number = bd.cast_number ")
            .append("WHERE 1=1 ");
 
         if (parsedDate != null) {
