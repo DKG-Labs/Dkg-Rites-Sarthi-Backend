@@ -2277,13 +2277,20 @@ public class UserServiceImpl implements UserService {
                 // Sync with sarthi_ibs_poi_mapping
                 if (mapping.getPoiCode() != null && !mapping.getPoiCode().trim().isEmpty()) {
                     String pCode = mapping.getPoiCode().trim();
+                    // poi_code is unique in sarthi_ibs_poi_mapping: when no 'erc' row matches, reuse the existing row
+                    // for this POI (e.g. product_type NULL) instead of inserting a duplicate → "already registered" error.
                     SarthiIbsPoiMapping ibsMap = sarthiIbsPoiMappingRepository.findBestMatch(pCode, "erc")
+                            .or(() -> sarthiIbsPoiMappingRepository.findBestMatch(pCode, null))
                             .orElse(new SarthiIbsPoiMapping());
-                    ibsMap.setPoiCode(pCode);
+                    if (ibsMap.getPoiCode() == null || ibsMap.getPoiCode().trim().isEmpty()) {
+                        ibsMap.setPoiCode(pCode);   // keep the stored spelling of an existing row
+                    }
                     if (unitDto.getIbsVendorCode() != null && !unitDto.getIbsVendorCode().trim().isEmpty()) {
                         ibsMap.setIbsVendorCode(unitDto.getIbsVendorCode().trim());
                     }
-                    ibsMap.setProductType("erc");
+                    if (ibsMap.getProductType() == null || ibsMap.getProductType().trim().isEmpty()) {
+                        ibsMap.setProductType("erc");
+                    }
                     sarthiIbsPoiMappingRepository.save(ibsMap);
                 }
 

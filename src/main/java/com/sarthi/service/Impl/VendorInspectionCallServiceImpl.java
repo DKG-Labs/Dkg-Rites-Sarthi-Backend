@@ -89,7 +89,17 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
 
         // 1. Fetch all inspection calls for the vendor
         long stepStart = System.currentTimeMillis();
-        List<InspectionCall> inspectionCalls = inspectionCallRepository.findByVendorIdOrderByCreatedAtDesc(vendorId);
+        // Vendor code is stored both as ":1084223" (regular calls) and "1084223" (ERC diversion calls created on
+        // CM approval) — match both spellings so diversion calls are not missed.
+        String bare = vendorId == null ? "" : vendorId.trim().replaceFirst("^:+", "");
+        java.util.Set<String> vendorIds = new java.util.LinkedHashSet<>();
+        if (vendorId != null) vendorIds.add(vendorId.trim());
+        if (!bare.isEmpty()) {
+            vendorIds.add(bare);
+            vendorIds.add(":" + bare);
+        }
+        List<InspectionCall> inspectionCalls = vendorIds.isEmpty() ? java.util.Collections.emptyList()
+                : inspectionCallRepository.findByVendorIdInOrderByCreatedAtDesc(vendorIds);
         logger.info("Step 1: Fetched {} inspection calls in {}ms", inspectionCalls.size(), (System.currentTimeMillis() - stepStart));
 
         if (inspectionCalls.isEmpty()) {

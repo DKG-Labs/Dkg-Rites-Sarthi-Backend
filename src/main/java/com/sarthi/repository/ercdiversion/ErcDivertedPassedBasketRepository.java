@@ -30,4 +30,12 @@ public interface ErcDivertedPassedBasketRepository extends JpaRepository<ErcDive
     );
 
     List<ErcDivertedPassedBasket> findByDiversionRequestId(Long diversionRequestId);
+
+    /** Vendor's Material Basket tab: every available row (all stages, all target POs), newest first. */
+    @Query("SELECT b FROM ErcDivertedPassedBasket b " +
+           "WHERE b.vendorCode = :vendorCode " +
+           "AND b.availableBalanceQty > 0 " +
+           "AND b.status = 'AVAILABLE' " +
+           "ORDER BY b.id DESC")
+    List<ErcDivertedPassedBasket> findAvailableForVendor(@Param("vendorCode") String vendorCode);
 }
