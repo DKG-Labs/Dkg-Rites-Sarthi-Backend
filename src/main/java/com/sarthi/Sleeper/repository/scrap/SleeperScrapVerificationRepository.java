@@ -100,6 +100,31 @@ public interface SleeperScrapVerificationRepository extends JpaRepository<Sleepe
     List<Object[]> findFinalRejections(@Param("plantId") String plantId,
                                        @Param("plantCalls") Collection<String> plantCalls);
 
+    // ---------- Process IE final inspection forms (Visual Check / Critical / Non-Critical Dimensions) ----------
+
+    /**
+     * Sleepers currently marked REJECTED on the Visual Check & Measurement (module 1), Critical Dimensions (2) and
+     * Non-Critical Dimensions (3) forms. Only active results count (a sleeper reset to pending is inactive / OK).
+     * 0 result id, 1 sleeper no, 2 rejection reason, 3 module id, 4 plant id, 5 vendor code, 6 batch no,
+     * 7 casting date, 8 sleeper type, 9 shift, 10 test date, 11 created by, 12 IE name, 13 created/updated date
+     */
+    @Query(value = """
+            SELECT itr.id, itr.sleeper_no, itr.rejection_reason, COALESCE(itr.module_id, ith.module_id),
+                   pd.plant_id, pd.vendor_code, pd.batch_number, pd.casting_date,
+                   ith.sleeper_type, ith.shift, ith.test_date, COALESCE(itr.updated_by, ith.created_by),
+                   um.full_name, COALESCE(itr.updated_date, ith.created_date)
+            FROM inspection_test_result itr
+            JOIN inspection_test_header ith ON ith.id = itr.test_header_id
+            JOIN production_declaration pd ON pd.id = ith.batch_id
+            LEFT JOIN user_master um ON um.userid = COALESCE(itr.updated_by, ith.created_by)
+            WHERE UPPER(TRIM(itr.result)) = 'REJECTED'
+              AND COALESCE(itr.active, 1) = 1
+              AND itr.sleeper_no IS NOT NULL AND TRIM(itr.sleeper_no) <> ''
+              AND pd.plant_id IS NOT NULL
+              AND (:plantId = '' OR REPLACE(pd.plant_id, ':', '') = :plantId)
+            """, nativeQuery = true)
+    List<Object[]> findProcessFinalRejections(@Param("plantId") String plantId);
+
     // ---------- Destructive testing: only MR (Moment of Resistance) failures count (client decision) ----------
 
     /**

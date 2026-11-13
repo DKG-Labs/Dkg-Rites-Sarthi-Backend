@@ -394,6 +394,7 @@ public class SleeperRejectionBasketService {
             finals.add(e);
         }
 
+        finals.addAll(loadProcessFinalRejections(filter));
         List<Rejection> mrFailures = loadMrFailures(filter);
         Set<String> epoxyKeys = loadEpoxyKeys(filter, finalEtRows, callByNo);
 
@@ -424,6 +425,50 @@ public class SleeperRejectionBasketService {
             log.debug("Sleeper scrap: left out {} non-MR test rejections and {} epoxy-treated demoulding defects", otherTests, epoxyCleared);
         }
         return new Loaded(list, unidentified);
+    }
+
+    /** Rejections on the Process IE Visual Check / Critical / Non-Critical Dimensions forms (inspection_test_result) */
+    private List<Rejection> loadProcessFinalRejections(String filter) {
+        Map<String, Rejection> bySleeper = new LinkedHashMap<>();
+        for (Object[] r : timed("processFinalRejections", () -> scrapRepo.findProcessFinalRejections(filter))) {
+            String plant = normPlant(str(r[4]));
+            String no = str(r[1]) != null ? str(r[1]).trim() : null;
+            if (plant == null || no == null) continue;
+            Rejection e = new Rejection();
+            e.plantId = plant;
+            e.vendorCode = str(r[5]);
+            e.batchNo = str(r[6]);
+            e.sleeperNo = no;
+            e.castingDate = toDate(r[7]);
+            e.sleeperType = str(r[8]);
+            e.shift = str(r[9]);
+            e.createdAt = toDateTime(r[13]);
+            LocalDate tested = toDate(r[10]);
+            e.date = tested != null ? tested : (e.createdAt != null ? e.createdAt.toLocalDate() : e.castingDate);
+            e.addedBy = nameOr(str(r[12]), r[11]);
+            e.stage = STAGE_FINAL;
+            e.reason = str(r[2]) != null ? str(r[2]) : "Rejected at final inspection";
+            String module = Objects.toString(r[3], "");
+            e.location = switch (module) {
+                case "1" -> "Visual Check & Measurement";
+                case "2" -> "Critical Dimensions";
+                case "3" -> "Non-Critical Dimensions";
+                default -> "Final Inspection";
+            };
+            e.reference = "Batch " + Objects.toString(e.batchNo, "-");
+            e.key = sleeperKey(e.batchNo, e.sleeperNo);
+            // Later forms copy an earlier rejection as "Previously Rejected": keep one row per sleeper, with the
+            // real defect reason (and the form it was found on) whenever one exists
+            Rejection prev = bySleeper.get(e.plantKey());
+            if (prev == null || (isCarriedOver(prev.reason) && !isCarriedOver(e.reason))) {
+                bySleeper.put(e.plantKey(), e);
+            }
+        }
+        return new ArrayList<>(bySleeper.values());
+    }
+
+    private static boolean isCarriedOver(String reason) {
+        return reason == null || reason.trim().equalsIgnoreCase("Previously Rejected");
     }
 
     /** One rejection per sleeper of every failed MR test (a test may cover a comma-separated list of sleepers) */
