@@ -6189,6 +6189,13 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         String effectiveVendorCode = (vendorCode != null && !vendorCode.trim().isEmpty()) 
                 ? vendorCode.replace(":", "").trim() : null;
 
+        // Never fall back to all vendors: a blank vendor code returned other vendors' cancelled calls
+        // and blocked every vendor from raising calls.
+        if (effectiveVendorCode == null || effectiveVendorCode.isBlank()) {
+            log.warn("getCancelledCallsForPayment called without vendorCode (plantId={}); returning empty list", plantId);
+            return new java.util.ArrayList<>();
+        }
+
         java.util.LinkedHashSet<String> allCallNos = new java.util.LinkedHashSet<>();
 
         // 1. Preload cancellation details (Fast filtered by vendor if available)
@@ -6322,9 +6329,7 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             if (effectiveVendorCode != null && !effectiveVendorCode.isBlank()) {
                 String cleanCallVendor = (callVendorCode != null) ? callVendorCode.replace(":", "").trim() : "";
                 String cleanReqVendor = effectiveVendorCode.replace(":", "").trim();
-                if (!cleanCallVendor.equalsIgnoreCase(cleanReqVendor) 
-                        && !cleanCallVendor.toLowerCase().contains(cleanReqVendor.toLowerCase())
-                        && !cleanReqVendor.toLowerCase().contains(cleanCallVendor.toLowerCase())) {
+                if (!cleanCallVendor.equalsIgnoreCase(cleanReqVendor)) {
                     continue;
                 }
             }
