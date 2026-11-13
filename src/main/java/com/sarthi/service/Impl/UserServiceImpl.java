@@ -237,25 +237,16 @@ public class UserServiceImpl implements UserService {
 
             if (userDto.getProductCmMappings() != null) {
 
+                // user_product_cm_mapping is no longer used: the chosen CM is stored on the IE itself
+                // (user_master.controlling_manager_id), the same field Admin -> IE Mapping uses.
+                final UserMaster savedUser = userMaster;
                 for (ProductCmDto dto : userDto.getProductCmMappings()) {
-
-                    UserProductCmMapping mapping =
-                            new UserProductCmMapping();
-
-                    mapping.setUserEmployeeCode(
-                            userMaster.getEmployeeCode());
-
-                    mapping.setProductType(dto.getProductType());
-
-                    mapping.setCmEmployeeCode(
-                            dto.getCmEmployeeCode());
-
-                    mapping.setCreatedBy(
-                            Long.valueOf(userDto.getCreatedBy()));
-
-                    mapping.setCreatedDate(new Date());
-
-                    userProductCmMappingRepository.save(mapping);
+                    if (dto == null || dto.getCmEmployeeCode() == null || dto.getCmEmployeeCode().isBlank()) continue;
+                    userMasterRepository.findFirstByEmployeeCode(dto.getCmEmployeeCode().trim())
+                            .ifPresent(cm -> {
+                                savedUser.setControllingManagerId(cm.getUserId());
+                                userMasterRepository.save(savedUser);
+                            });
                 }
             }
 
@@ -3384,8 +3375,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<Map<String, Object>> getIesByRio(String rio) {
-        List<String> ieRoles = List.of("IE", "Process IE", "Main IE", "Sleeper IE", "Sleeper Process IE", "Rail Main IE", "Rail Process IE");
-        return userMasterRepository.findByRioAndRoleNameIn(rio, ieRoles).stream()
+        // role_name may hold several roles ("Sleeper Process IE, Sleeper Main IE"), so match each role, not the whole string
+        java.util.Set<String> ieRoles = java.util.Set.of("ie", "process ie", "main ie", "sleeper ie", "sleeper process ie",
+                "sleeper main ie", "rail main ie", "rail process ie");
+        return userMasterRepository.findByRio(rio).stream()
+                .filter(u -> u.getRoleName() != null && java.util.Arrays.stream(u.getRoleName().split(","))
+                        .map(r -> r.trim().toLowerCase())
+                        .anyMatch(ieRoles::contains))
                 .map(u -> {
                     Map<String, Object> m = new HashMap<>();
                     m.put("userId", u.getUserId());

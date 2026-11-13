@@ -23,6 +23,10 @@ public class SleeperDashboard {
     @Autowired
     private DashboardService  dashboardService;
 
+    // Limits cm-* call lists to the logged-in CM (from JWT)
+    @Autowired
+    private com.sarthi.service.CmCallScopeService cmCallScopeService;
+
     @GetMapping("/demoulding-process-rejected-count")
     public ResponseEntity<Object> getRejectedCount() {
 
@@ -356,7 +360,7 @@ public class SleeperDashboard {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
 
-        List<InspectionCallsReportDto>  list = dashboardService.getInspectionCallsReport(startDate, endDate);
+        List<InspectionCallsReportDto>  list = cmCallScopeService.scopeTimed(() -> dashboardService.getInspectionCallsReport(startDate, endDate));
 
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }
@@ -366,7 +370,7 @@ public class SleeperDashboard {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
 
-        List<InspectionCallsReportDto>  list = dashboardService.getSleeperOverduePendingCallsReport(startDate, endDate);
+        List<InspectionCallsReportDto>  list = cmCallScopeService.scopeTimed(() -> dashboardService.getSleeperOverduePendingCallsReport(startDate, endDate));
 
         return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
     }

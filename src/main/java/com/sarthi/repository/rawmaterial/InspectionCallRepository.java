@@ -1847,6 +1847,10 @@ ORDER BY month
 
         ic.created_at AS callDate,
 
+        COALESCE(
+            (SELECT GROUP_CONCAT(DISTINCT CONCAT(ieu.full_name, ' - ', ieu.employee_code) SEPARATOR ', ')
+             FROM workflow_transition wa JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+             WHERE wa.requestid = ic.ic_number),
         CASE
                 
                     WHEN ic.ic_number LIKE 'EP%' THEN (
@@ -1885,56 +1889,28 @@ ORDER BY month
                         LIMIT 1
                     )
                 
-                END AS ieName,
+                END) AS ieName,
 
-        (
-                
-                    SELECT CONCAT(
-                        upcm.cm_employee_code,
-                        ' - ',
-                        um.full_name
-                    )
-                
-                    FROM user_product_cm_mapping upcm
-                
-                    JOIN user_master um
-                        ON um.employee_code = upcm.cm_employee_code
-                
-                    WHERE upcm.user_employee_code =
-                
-                    CASE
-                
-                        WHEN ic.ic_number LIKE 'EP%' THEN (
-                
-                            SELECT SUBSTRING_INDEX(
-                                GROUP_CONCAT(ppim.employee_code),
-                                ',',
-                                1
-                            )
-                
-                            FROM poi_process_ie_mapping ppim
-                
-                            WHERE ppim.poi_code = ic.place_of_inspection
-                        )
-                
-                        ELSE (
-                
-                            SELECT ipm.employee_code
-                
-                            FROM ie_pincode_poi_mapping ipm
-                
-                            WHERE ipm.poi_code = ic.place_of_inspection
-                
-                            LIMIT 1
-                        )
-                
-                    END
-                
-                    AND upcm.product_type = 'ERC'
-                
-                    LIMIT 1
-                
-                ) AS cmName,
+        COALESCE(
+            (SELECT GROUP_CONCAT(DISTINCT CONCAT(cmu.employee_code, ' - ', cmu.full_name) SEPARATOR ', ')
+             FROM workflow_transition wa JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+             JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
+             WHERE wa.requestid = ic.ic_number),
+            (CASE WHEN ic.ic_number LIKE 'EP%' THEN (
+                 SELECT GROUP_CONCAT(DISTINCT CONCAT(cmu.employee_code, ' - ', cmu.full_name) SEPARATOR ', ')
+                 FROM poi_process_ie_mapping ppim
+                 JOIN user_master ieu ON ieu.employee_code COLLATE utf8mb4_unicode_ci = ppim.employee_code COLLATE utf8mb4_unicode_ci
+                 JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
+                 WHERE ppim.poi_code = ic.place_of_inspection)
+             ELSE (
+                 SELECT CONCAT(cmu.employee_code, ' - ', cmu.full_name)
+                 FROM user_master ieu
+                 JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
+                 WHERE ieu.employee_code COLLATE utf8mb4_unicode_ci = (
+                     SELECT ipm.employee_code FROM ie_pincode_poi_mapping ipm
+                     WHERE ipm.poi_code = ic.place_of_inspection LIMIT 1) COLLATE utf8mb4_unicode_ci
+                 LIMIT 1)
+             END)) AS cmName,
 
         (
 
@@ -1975,14 +1951,20 @@ ORDER BY month
                     )
                         THEN 'Under Inspection'
 
-                    WHEN wt.status IN (
-                        'INSPECTION_COMPLETE_CONFIRM',
-                        'GENERATE_IC'
-                    )
-                        THEN 'Completed (Pending for IC Issue)'
+                    WHEN wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                        THEN 'Pending for IC Issue'
 
-                    WHEN wt.status IN ('DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
-                        THEN 'IC Issued (Completed)'
+                    WHEN wt.status = 'SEND_CALL_TO_IBS'
+                        THEN 'Completed'
+
+                    WHEN wt.status IN ('CANCELLED', 'CANCEL', 'CALL_CANCELLED')
+                        THEN 'Completed (Cancelled)'
+
+                    WHEN wt.status IN ('WITHDRAW', 'WITHDRAWN')
+                        THEN 'Completed (Withdrawn)'
+
+                    WHEN wt.status IN ('REJECTED', 'REJECT', 'CALL_REJECTED')
+                        THEN 'Completed (Rejected)'
 
                     ELSE wt.status
 
@@ -2011,7 +1993,22 @@ ORDER BY month
                 AND pi.item_sr_no =
                     SUBSTRING_INDEX(ic.po_serial_no, '/', -1)
 
+    LEFT JOIN (
+
+        SELECT DISTINCT wa.requestid AS rid
+
+        FROM workflow_transition wa
+
+        JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+
+        WHERE ieu.controlling_manager_id = :cmUserId
+
+    ) cmc ON cmc.rid = ic.ic_number
+
+
     WHERE ic.created_at BETWEEN :startDateTime AND :endDateTime
+
+      AND (:cmUserId = 0 OR cmc.rid IS NOT NULL)
 
     ORDER BY ic.created_at DESC
 
@@ -2019,7 +2016,8 @@ ORDER BY month
             nativeQuery = true)
     List<Object[]> getInspectionCallsReport(
             @Param("startDateTime") LocalDateTime startDateTime,
-            @Param("endDateTime") LocalDateTime endDateTime
+            @Param("endDateTime") LocalDateTime endDateTime,
+            @Param("cmUserId") Integer cmUserId
     );
 
 
@@ -2048,15 +2046,19 @@ ORDER BY month
 
         ic.created_at AS callDate,
 
+        COALESCE(
+            (SELECT GROUP_CONCAT(DISTINCT CONCAT(ieu.full_name, ' - ', ieu.employee_code) SEPARATOR ', ')
+             FROM workflow_transition wa JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+             WHERE wa.requestid = ic.ic_number),
         CASE
 
             WHEN ic.ic_number LIKE 'EP%' THEN (
 
-                SELECT CONCAT(
+                SELECT GROUP_CONCAT(DISTINCT CONCAT(
                     um.FULL_NAME,
                     ' - ',
                     ppim.employee_code
-                )
+                ) SEPARATOR ', ')
 
                 FROM poi_process_ie_mapping ppim
 
@@ -2065,8 +2067,6 @@ ORDER BY month
                        ppim.employee_code COLLATE utf8mb4_unicode_ci
 
                 WHERE ppim.poi_code = ic.place_of_inspection
-
-                LIMIT 1
             )
 
             ELSE (
@@ -2088,57 +2088,28 @@ ORDER BY month
                 LIMIT 1
             )
 
-        END AS ieName,
+        END) AS ieName,
 
-        (
-
-            SELECT CONCAT(
-                um2.FULL_NAME,
-                ' - ',
-                upcm.cm_employee_code
-            )
-
-            FROM user_product_cm_mapping upcm
-
-            LEFT JOIN user_master um2
-                ON um2.EMPLOYEE_CODE COLLATE utf8mb4_unicode_ci =
-                   upcm.cm_employee_code COLLATE utf8mb4_unicode_ci
-
-            WHERE upcm.user_employee_code =
-
-            CASE
-
-                WHEN ic.ic_number LIKE 'EP%' THEN (
-
-                    SELECT SUBSTRING_INDEX(
-                        GROUP_CONCAT(ppim.employee_code),
-                        ',',
-                        1
-                    )
-
-                    FROM poi_process_ie_mapping ppim
-
-                    WHERE ppim.poi_code = ic.place_of_inspection
-                )
-
-                ELSE (
-
-                    SELECT ipm.employee_code
-
-                    FROM ie_pincode_poi_mapping ipm
-
-                    WHERE ipm.poi_code = ic.place_of_inspection
-
-                    LIMIT 1
-                )
-
-            END
-
-            AND upcm.product_type = 'ERC'
-
-            LIMIT 1
-
-        ) AS cmName,
+        COALESCE(
+            (SELECT GROUP_CONCAT(DISTINCT CONCAT(cmu.employee_code, ' - ', cmu.full_name) SEPARATOR ', ')
+             FROM workflow_transition wa JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+             JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
+             WHERE wa.requestid = ic.ic_number),
+            (CASE WHEN ic.ic_number LIKE 'EP%' THEN (
+                 SELECT GROUP_CONCAT(DISTINCT CONCAT(cmu.employee_code, ' - ', cmu.full_name) SEPARATOR ', ')
+                 FROM poi_process_ie_mapping ppim
+                 JOIN user_master ieu ON ieu.employee_code COLLATE utf8mb4_unicode_ci = ppim.employee_code COLLATE utf8mb4_unicode_ci
+                 JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
+                 WHERE ppim.poi_code = ic.place_of_inspection)
+             ELSE (
+                 SELECT CONCAT(cmu.employee_code, ' - ', cmu.full_name)
+                 FROM user_master ieu
+                 JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
+                 WHERE ieu.employee_code COLLATE utf8mb4_unicode_ci = (
+                     SELECT ipm.employee_code FROM ie_pincode_poi_mapping ipm
+                     WHERE ipm.poi_code = ic.place_of_inspection LIMIT 1) COLLATE utf8mb4_unicode_ci
+                 LIMIT 1)
+             END)) AS cmName,
 
         (
 
@@ -2179,14 +2150,20 @@ ORDER BY month
                     )
                         THEN 'Under Inspection'
 
-                    WHEN wt.status IN (
-                        'INSPECTION_COMPLETE_CONFIRM',
-                        'GENERATE_IC'
-                    )
-                        THEN 'Completed (Pending for IC Issue)'
+                    WHEN wt.status IN ('INSPECTION_COMPLETE_CONFIRM', 'GENERATE_IC', 'DSC_SIGN_IC')
+                        THEN 'Pending for IC Issue'
 
-                    WHEN wt.status IN ('DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
-                        THEN 'IC Issued (Completed)'
+                    WHEN wt.status = 'SEND_CALL_TO_IBS'
+                        THEN 'Completed'
+
+                    WHEN wt.status IN ('CANCELLED', 'CANCEL', 'CALL_CANCELLED')
+                        THEN 'Completed (Cancelled)'
+
+                    WHEN wt.status IN ('WITHDRAW', 'WITHDRAWN')
+                        THEN 'Completed (Withdrawn)'
+
+                    WHEN wt.status IN ('REJECTED', 'REJECT', 'CALL_REJECTED')
+                        THEN 'Completed (Rejected)'
 
                     ELSE wt.status
 
@@ -2215,7 +2192,22 @@ ORDER BY month
         AND pi.item_sr_no =
             SUBSTRING_INDEX(ic.po_serial_no, '/', -1)
 
+    LEFT JOIN (
+
+        SELECT DISTINCT wa.requestid AS rid
+
+        FROM workflow_transition wa
+
+        JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+
+        WHERE ieu.controlling_manager_id = :cmUserId
+
+    ) cmc ON cmc.rid = ic.ic_number
+
+
     WHERE ic.created_at BETWEEN :startDateTime AND :endDateTime
+
+      AND (:cmUserId = 0 OR cmc.rid IS NOT NULL)
 
       AND ic.desired_inspection_date < CURDATE()
 
@@ -2243,7 +2235,8 @@ ORDER BY month
             nativeQuery = true)
     List<Object[]> getOverduePendingInspectionCallsReport(
             @Param("startDateTime") LocalDateTime startDateTime,
-            @Param("endDateTime") LocalDateTime endDateTime
+            @Param("endDateTime") LocalDateTime endDateTime,
+            @Param("cmUserId") Integer cmUserId
     );
 
     @Query(value = """
@@ -2503,16 +2496,13 @@ ORDER BY month
 
     FROM user_master um
 
-    JOIN user_role_master urm
-        ON urm.userid = um.userid
 
-    JOIN user_product_cm_mapping upcm
-        ON upcm.user_employee_code = um.employee_code
-        AND upcm.product_type = 'ERC'
+    JOIN user_master upcm
+        ON upcm.userid = um.controlling_manager_id
 
-    WHERE urm.roleid IN (3, 7)
+    WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(ie|process ie|erc ie|erc process ie|erc main ie),'
 
-      AND upcm.cm_employee_code = :cmEmployeeCode
+      AND upcm.employee_code = :cmEmployeeCode
 
     ORDER BY um.employee_code
 
@@ -2570,12 +2560,9 @@ SELECT
 
 FROM user_master um
 
-JOIN user_role_master urm
-    ON urm.userid = um.userid
 
-JOIN user_product_cm_mapping upcm
-    ON upcm.user_employee_code = um.employee_code
-    AND upcm.product_type = 'ERC'
+JOIN user_master upcm
+        ON upcm.userid = um.controlling_manager_id
 
 LEFT JOIN (
 
@@ -2854,9 +2841,9 @@ ON (
     )
 )
 
-WHERE urm.roleid IN (3,7)
+WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(ie|process ie|erc ie|erc process ie|erc main ie),'
 
-AND upcm.cm_employee_code = :cmEmployeeCode
+AND upcm.employee_code = :cmEmployeeCode
 
 GROUP BY
     um.employee_code,

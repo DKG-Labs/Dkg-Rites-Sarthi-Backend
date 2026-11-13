@@ -14,7 +14,85 @@ import java.util.Optional;
 
 @Repository
 public interface RailInspectionCallRepository extends JpaRepository<RailInspectionCall, Long> {
-    
+
+    /**
+     * CM dashboard row for Rail Pad calls (same column order as the ERC / Sleeper reports):
+     * callNumber, productAndStage, poNumber, deliveryDate, expectedDeliveryDate, vendorName,
+     * desiredDate, callDate, ieName, cmName, ritesRio, status.
+     * IE = latest workflow assignee, else the plant's Main IE; CM = that IE's user_master.controlling_manager_id.
+     * Latest workflow row is found once per call (derived table), not per column.
+     */
+    String RAIL_CM_CALLS_SELECT = """
+        SELECT
+            rc.call_no AS callNumber,
+            CASE WHEN rc.call_no LIKE 'RPP%' THEN 'Rail Pad - Process' ELSE 'Rail Pad - Final' END AS productAndStageOfInspection,
+            CONCAT(rc.po_no, '-', COALESCE(rc.po_sr, '')) AS poNumber,
+            NULL AS deliveryDate,
+            NULL AS expectedDeliveryDate,
+            (SELECT ph.vendor_details FROM po_header ph
+              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = rc.po_no COLLATE utf8mb4_unicode_ci LIMIT 1) AS vendorName,
+            rc.inspection_date AS inspectionDesiredDate,
+            rc.created_at AS callDate,
+            CONCAT(ie.full_name, ' - ', ie.employee_code) AS ieName,
+            CONCAT(cm.employee_code, ' - ', cm.full_name) AS cmName,
+            lw.rio AS ritesRio,
+            CASE
+                WHEN lw.action IS NULL OR lw.action = 'CREATED' THEN 'Pending for Call Desk Verification'
+                WHEN lw.action IN ('VERIFY', 'RIO_VERIFIED') THEN 'Pending - Assigned to IE'
+                WHEN lw.action IN ('MAIN_IE_SCHEDULE_CALL', 'SCHEDULE_CALL', 'SCHEDULE') THEN 'Pending - Schedule'
+                WHEN lw.action = 'SEND_CALL_TO_IBS' THEN 'Completed'
+                WHEN lw.action IN ('CANCELLED', 'CANCEL') OR lw.status IN ('CANCELLED', 'CANCEL') THEN 'Completed (Cancelled)'
+                WHEN lw.action IN ('WITHDRAW', 'WITHDRAWN') OR lw.status IN ('WITHDRAW', 'WITHDRAWN') THEN 'Completed (Withdrawn)'
+                WHEN lw.action IN ('REJECTED', 'REJECT') OR lw.status IN ('REJECTED', 'REJECT') THEN 'Completed (Rejected)'
+                WHEN (lw.action = 'FINISH' AND lw.status = 'COMPLETED') OR lw.action IN ('GENERATE_IC', 'DSC_SIGN_IC') THEN 'Pending for IC Issue'
+                WHEN lw.action = 'RETURNED' THEN 'Returned'
+                ELSE 'Under Inspection'
+            END AS status
+        FROM rail_inspection_call rc
+        LEFT JOIN (
+            SELECT DISTINCT w.request_id COLLATE utf8mb4_unicode_ci AS request_id, w.action, w.status, w.rio, w.assigned_to_user
+            FROM rail_workflow_transaction w
+            JOIN (SELECT request_id, MAX(workflow_transition_id) AS max_id
+                  FROM rail_workflow_transaction GROUP BY request_id) m
+              ON m.max_id = w.workflow_transition_id
+        ) lw ON lw.request_id = rc.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (
+            SELECT DISTINCT w3.request_id COLLATE utf8mb4_unicode_ci AS request_id, w3.assigned_to_user
+            FROM rail_workflow_transaction w3
+            JOIN (SELECT request_id, MAX(workflow_transition_id) AS mid
+                  FROM rail_workflow_transaction
+                  WHERE assigned_to_user IS NOT NULL GROUP BY request_id) m3
+              ON m3.mid = w3.workflow_transition_id
+        ) la ON la.request_id = rc.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN user_master ie ON ie.userid = COALESCE(
+            la.assigned_to_user,
+            (SELECT rpm.ie_user_id FROM rail_poi_ie_mapping rpm
+              WHERE rpm.plant_id COLLATE utf8mb4_unicode_ci = rc.plant_id COLLATE utf8mb4_unicode_ci
+                AND rpm.ie_type = 'Main IE' LIMIT 1))
+        LEFT JOIN user_master cm ON cm.userid = ie.controlling_manager_id
+        LEFT JOIN (
+            SELECT DISTINCT wa.request_id COLLATE utf8mb4_unicode_ci AS rid
+            FROM rail_workflow_transaction wa
+            JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+            WHERE ieu.controlling_manager_id = :cmUserId
+        ) cmc ON cmc.rid = rc.call_no COLLATE utf8mb4_unicode_ci
+        WHERE rc.created_at BETWEEN :startDate AND :endDate
+          AND (:cmUserId = 0 OR cmc.rid IS NOT NULL)
+        """;
+
+    @Query(value = RAIL_CM_CALLS_SELECT + " ORDER BY rc.created_at DESC", nativeQuery = true)
+    List<Object[]> getRailCmInspectionCalls(@Param("startDate") java.time.LocalDateTime startDate,
+                                            @Param("endDate") java.time.LocalDateTime endDate,
+                                            @Param("cmUserId") Integer cmUserId);
+
+    /** Overdue: desired date passed while the call is still assigned and not yet scheduled/started. */
+    @Query(value = RAIL_CM_CALLS_SELECT
+            + " AND rc.inspection_date < CURDATE() AND lw.action IN ('VERIFY', 'RIO_VERIFIED')"
+            + " ORDER BY rc.created_at DESC", nativeQuery = true)
+    List<Object[]> getRailCmOverdueCalls(@Param("startDate") java.time.LocalDateTime startDate,
+                                         @Param("endDate") java.time.LocalDateTime endDate,
+                                            @Param("cmUserId") Integer cmUserId);
+
     @Query(value = "SELECT call_no FROM rail_inspection_call WHERE call_no LIKE ?1 ORDER BY id DESC LIMIT 1", nativeQuery = true)
     Optional<String> findLastCallNoByPattern(String pattern);
 
