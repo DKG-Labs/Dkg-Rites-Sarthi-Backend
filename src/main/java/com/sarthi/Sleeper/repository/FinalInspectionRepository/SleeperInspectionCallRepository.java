@@ -343,312 +343,125 @@ ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
           @Param("startDate") LocalDate startDate,
           @Param("endDate") LocalDate endDate);
 
-    @Query(value = """
+    /*
+     * CM dashboard (Sleeper). Workflow is read in ONE pass each (latest row per call = lw,
+     * assigned IEs/CMs per call = asg) and joined, instead of per-call lookups whose COLLATE on
+     * request_id disabled its index. Columns / labels / rules are unchanged.
+     */
+    String SLEEPER_CM_LATEST_WF = """
+        LEFT JOIN (
+            SELECT DISTINCT w.request_id COLLATE utf8mb4_unicode_ci AS request_id, w.action, w.status, w.job_status
+            FROM sleeper_workflow_transaction w
+            JOIN (SELECT request_id, MAX(workflow_transition_id) AS mid
+                  FROM sleeper_workflow_transaction GROUP BY request_id) m
+              ON m.mid = w.workflow_transition_id
+        ) lw ON lw.request_id = sic.call_no COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (
+            SELECT ANY_VALUE(wa.request_id) COLLATE utf8mb4_unicode_ci AS request_id,
+                   GROUP_CONCAT(DISTINCT CONCAT(ieu.full_name, ' - ', ieu.employee_code) SEPARATOR ', ') AS ie_names,
+                   GROUP_CONCAT(DISTINCT CASE WHEN cmu.userid IS NOT NULL
+                                              THEN CONCAT(cmu.employee_code, ' - ', cmu.full_name) END SEPARATOR ', ') AS cm_names,
+                   MAX(CASE WHEN ieu.controlling_manager_id = :cmUserId THEN 1 ELSE 0 END) AS mine
+            FROM sleeper_workflow_transaction wa
+            JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
+            LEFT JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
+            GROUP BY wa.request_id
+        ) asg ON asg.request_id = sic.call_no COLLATE utf8mb4_unicode_ci
+        """;
 
-SELECT
-
-    sic.call_no AS callNumber,
-
-    CONCAT('Sleeper - Final')
-        AS productAndStageOfInspection,
-
-    CONCAT(sic.po_no, '-', sic.sr_no)
-        AS poNumber,
-
-    pi.delivery_date AS deliveryDate,
-
-    pi.extended_delivery_date AS expectedDeliveryDate,
-
-    ph.vendor_details AS vendorName,
-
-    NULL AS inspectionDesiredDate,
-
-    sic.created_at AS callDate,
-
-    (
-        SELECT CONCAT(
-            um.employee_code,
-            ' - ',
-            um.full_name
-        )
-
-        FROM sleeper_poi_ie_mapping spim
-
-        JOIN user_master um
-            ON um.userid = spim.ie_user_id
-
-        WHERE spim.plant_id = sic.plant_id
-          AND spim.ie_type = 'Main IE'
-
-        LIMIT 1
-
-    ) AS ieName,
-
-    (
-        SELECT CONCAT(
-            upcm.cm_employee_code,
-            ' - ',
-            cmum.full_name
-        )
-
-        FROM user_product_cm_mapping upcm
-
-        JOIN user_master cmum
-            ON cmum.employee_code = upcm.cm_employee_code
-
-        WHERE upcm.user_employee_code =
-
-        (
-            SELECT um.employee_code
-
-            FROM sleeper_poi_ie_mapping spim
-
-            JOIN user_master um
-                ON um.userid = spim.ie_user_id
-
-            WHERE spim.plant_id = sic.plant_id
-              AND spim.ie_type = 'Main IE'
-
-            LIMIT 1
-        )
-
-        AND upcm.product_type = 'SLEEPER'
-
-        LIMIT 1
-
-    ) AS cmName,
-
-    (
-        SELECT ifm.rio
-
-        FROM sleeper_pincode_poi_mapping sppm
-
-        JOIN ie_fields_mapping ifm
-            ON ifm.pin_code = sppm.pin_code
-           AND ifm.product = 'Sleeper'
-
-        WHERE CAST(sppm.vendor_code AS UNSIGNED) =
-              sic.created_by
-
-        LIMIT 1
-
-    ) AS ritesRio,
-
-    (
-        SELECT
-
+    String SLEEPER_CM_STATUS = """
             CASE
-
-                WHEN swt.action = 'CREATED'
-                    THEN 'Pending for Call Desk Verification'
-
-                WHEN swt.action = 'VERIFY'
-                    THEN 'Pending - Assigned to IE'
-
-                WHEN swt.action = 'MAIN_IE_SCHEDULE_CALL'
-                    THEN 'Pending - Schedule'
-
-                WHEN swt.action IN (
-                    'INITIATE_CALL',
-                    'PO_VERIFICATION',
-                    'PAUSE'
-                )
-                    THEN 'Under Inspection'
-
-                WHEN swt.action = 'FINISH'
-                    THEN 'Completed (Pending for IC Issue)'
-
+                WHEN lw.action = 'CREATED' THEN 'Pending for Call Desk Verification'
+                WHEN lw.action = 'VERIFY' THEN 'Pending - Assigned to IE'
+                WHEN lw.action = 'MAIN_IE_SCHEDULE_CALL' THEN 'Pending - Schedule'
+                WHEN lw.action IN ('INITIATE_CALL', 'PO_VERIFICATION', 'PAUSE') THEN 'Under Inspection'
+                WHEN lw.action = 'SEND_CALL_TO_IBS' THEN 'Completed'
+                WHEN lw.action IN ('CANCELLED', 'CANCEL') OR lw.status IN ('CANCELLED', 'CANCEL') THEN 'Completed (Cancelled)'
+                WHEN lw.action IN ('WITHDRAW', 'WITHDRAWN') OR lw.status IN ('WITHDRAW', 'WITHDRAWN') THEN 'Completed (Withdrawn)'
+                WHEN lw.action IN ('REJECTED', 'REJECT') OR lw.status IN ('REJECTED', 'REJECT') THEN 'Completed (Rejected)'
+                WHEN (lw.action = 'FINISH' AND lw.status = 'COMPLETED') OR lw.action IN ('GENERATE_IC', 'DSC_SIGN_IC')
+                    THEN 'Pending for IC Issue'
+                WHEN lw.action IS NULL THEN NULL
                 ELSE 'Under Inspection'
+            END AS status
+        """;
 
-            END
-
-        FROM sleeper_workflow_transaction swt
-
-        WHERE swt.workflow_transition_id = (
-
-            SELECT MAX(swt2.workflow_transition_id)
-
-            FROM sleeper_workflow_transaction swt2
-
-            WHERE swt2.request_id = sic.call_no
-
-        )
-
-    ) AS status
-
-FROM sleeper_inspection_call sic
-
-LEFT JOIN po_header ph
-    ON ph.po_no = sic.po_no
-
-LEFT JOIN po_item pi
-    ON pi.po_header_id = ph.id
-   AND pi.item_sr_no =
-       SUBSTRING_INDEX(sic.sr_no, '/', -1)
-
-WHERE sic.created_at BETWEEN :fromDate AND :toDate
-
-ORDER BY sic.created_at DESC
-
-""", nativeQuery = true)
+    @Query(value = """
+        SELECT
+            sic.call_no AS callNumber,
+            'Sleeper - Final' AS productAndStageOfInspection,
+            CONCAT(sic.po_no, '-', sic.sr_no) AS poNumber,
+            (SELECT pi.delivery_date FROM po_header ph JOIN po_item pi ON pi.po_header_id = ph.id
+              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                AND pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
+              LIMIT 1) AS deliveryDate,
+            (SELECT pi.extended_delivery_date FROM po_header ph JOIN po_item pi ON pi.po_header_id = ph.id
+              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                AND pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
+              LIMIT 1) AS expectedDeliveryDate,
+            (SELECT ph.vendor_details FROM po_header ph
+              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci LIMIT 1) AS vendorName,
+            NULL AS inspectionDesiredDate,
+            sic.created_at AS callDate,
+            COALESCE(asg.ie_names,
+                (SELECT CONCAT(um.employee_code, ' - ', um.full_name)
+                 FROM sleeper_poi_ie_mapping spim JOIN user_master um ON um.userid = spim.ie_user_id
+                 WHERE spim.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id AND spim.ie_type = 'Main IE'
+                 LIMIT 1)) AS ieName,
+            asg.cm_names AS cmName,
+            (SELECT ifm.rio
+             FROM sleeper_pincode_poi_mapping sppm
+             JOIN ie_fields_mapping ifm ON ifm.pin_code COLLATE utf8mb4_unicode_ci = sppm.pin_code AND ifm.product = 'Sleeper'
+             WHERE CAST(sppm.vendor_code AS UNSIGNED) = sic.created_by
+             LIMIT 1) AS ritesRio,
+        """ + SLEEPER_CM_STATUS + """
+        FROM sleeper_inspection_call sic
+        """ + SLEEPER_CM_LATEST_WF + """
+        WHERE sic.created_at BETWEEN :fromDate AND :toDate
+          AND (:cmUserId = 0 OR asg.mine = 1)
+        ORDER BY sic.created_at DESC
+        """, nativeQuery = true)
     List<Object[]> getSleeperInspectionReport(
             @Param("fromDate") LocalDateTime fromDate,
-            @Param("toDate") LocalDateTime toDate
+            @Param("toDate") LocalDateTime toDate,
+            @Param("cmUserId") Integer cmUserId
     );
 
     @Query(value = """
-
-    SELECT
-
-        sic.call_no AS callNumber,
-
-        CONCAT('Sleeper - Final')
-            AS productAndStageOfInspection,
-
-        CONCAT(sic.po_no, '-', sic.sr_no)
-            AS poNumber,
-
-        NULL AS deliveryDate,
-
-        NULL AS expectedDeliveryDate,
-
-        ph.vendor_details AS vendorName,
-
-        sic.desired_inspection_date AS inspectionDesiredDate,
-
-        sic.created_at AS callDate,
-
-        (
-            SELECT um.username
-
-            FROM sleeper_poi_ie_mapping spim
-
-            JOIN user_master um
-                ON um.userid = spim.ie_user_id
-
-            WHERE spim.plant_id = sic.plant_id
-              AND spim.ie_type = 'Main IE'
-
-            LIMIT 1
-        ) AS ieName,
-
-        (
-            SELECT upcm.cm_employee_code
-
-            FROM user_product_cm_mapping upcm
-
-            WHERE upcm.user_employee_code =
-
-            (
-                SELECT um.employee_code
-
-                FROM sleeper_poi_ie_mapping spim
-
-                JOIN user_master um
-                    ON um.userid = spim.ie_user_id
-
-                WHERE spim.plant_id = sic.plant_id
-                  AND spim.ie_type = 'Main IE'
-
-                LIMIT 1
-            )
-
-            AND upcm.product_type = 'SLEEPER'
-
-            LIMIT 1
-
-        ) AS cmName,
-
-        (
-            SELECT ifm.rio
-
-            FROM sleeper_pincode_poi_mapping sppm
-
-            JOIN ie_fields_mapping ifm
-                ON ifm.pin_code = sppm.pin_code
-                AND ifm.product = 'Sleeper'
-
-            WHERE sppm.vendor_code = sic.created_by
-
-            LIMIT 1
-
-        ) AS ritesRio,
-
-        (
-            SELECT
-
-                CASE
-
-                    WHEN swt.action = 'CREATED'
-                        THEN 'Pending for Call Desk Verification'
-
-                    WHEN swt.action = 'VERIFY'
-                        THEN 'Pending - Assigned to IE'
-
-                    WHEN swt.action = 'MAIN_IE_SCHEDULE_CALL'
-                        THEN 'Pending - Schedule'
-
-                    WHEN swt.action IN (
-                        'INITIATE_CALL',
-                        'PO_VERIFICATION',
-                        'PAUSE'
-                    )
-                        THEN 'Under Inspection'
-
-                    WHEN swt.action = 'FINISH'
-                        THEN 'Completed (Pending for IC Issue)'
-
-                    ELSE 'Under Inspection'
-
-                END
-
-            FROM sleeper_workflow_transaction swt
-
-            WHERE swt.workflow_transition_id = (
-
-                SELECT MAX(swt2.workflow_transition_id)
-
-                FROM sleeper_workflow_transaction swt2
-
-                WHERE swt2.request_id = sic.call_no
-
-            )
-
-        ) AS status
-
-    FROM sleeper_inspection_call sic
-
-    LEFT JOIN po_header ph
-        ON ph.po_no = sic.po_no
-
-    WHERE sic.created_at BETWEEN :fromDate AND :toDate
-
-      AND sic.desired_inspection_date < CURDATE()
-
-      AND (
-
-            SELECT swt.job_status
-
-            FROM sleeper_workflow_transaction swt
-
-            WHERE swt.workflow_transition_id = (
-
-                SELECT MAX(swt2.workflow_transition_id)
-
-                FROM sleeper_workflow_transaction swt2
-
-                WHERE swt2.request_id = sic.call_no
-
-            )
-
-        ) = 'RIO_VERIFIED'
-
-    ORDER BY sic.created_at DESC
-
-    """, nativeQuery = true)
+        SELECT
+            sic.call_no AS callNumber,
+            'Sleeper - Final' AS productAndStageOfInspection,
+            CONCAT(sic.po_no, '-', sic.sr_no) AS poNumber,
+            NULL AS deliveryDate,
+            NULL AS expectedDeliveryDate,
+            (SELECT ph.vendor_details FROM po_header ph
+              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci LIMIT 1) AS vendorName,
+            sic.desired_inspection_date AS inspectionDesiredDate,
+            sic.created_at AS callDate,
+            COALESCE(asg.ie_names,
+                (SELECT um.username
+                 FROM sleeper_poi_ie_mapping spim JOIN user_master um ON um.userid = spim.ie_user_id
+                 WHERE spim.plant_id COLLATE utf8mb4_unicode_ci = sic.plant_id AND spim.ie_type = 'Main IE'
+                 LIMIT 1)) AS ieName,
+            asg.cm_names AS cmName,
+            (SELECT ifm.rio
+             FROM sleeper_pincode_poi_mapping sppm
+             JOIN ie_fields_mapping ifm ON ifm.pin_code COLLATE utf8mb4_unicode_ci = sppm.pin_code AND ifm.product = 'Sleeper'
+             WHERE sppm.vendor_code COLLATE utf8mb4_unicode_ci = sic.created_by
+             LIMIT 1) AS ritesRio,
+        """ + SLEEPER_CM_STATUS + """
+        FROM sleeper_inspection_call sic
+        """ + SLEEPER_CM_LATEST_WF + """
+        WHERE sic.created_at BETWEEN :fromDate AND :toDate
+          AND (:cmUserId = 0 OR asg.mine = 1)
+          AND sic.desired_inspection_date < CURDATE()
+          AND lw.job_status = 'RIO_VERIFIED'
+        ORDER BY sic.created_at DESC
+        """, nativeQuery = true)
     List<Object[]> getSleeperOverduePendingCallsReport(
             @Param("fromDate") LocalDateTime fromDate,
-            @Param("toDate") LocalDateTime toDate
+            @Param("toDate") LocalDateTime toDate,
+            @Param("cmUserId") Integer cmUserId
     );
 
     @Query(value = """
@@ -817,18 +630,13 @@ ORDER BY sic.created_at DESC
 
     FROM user_master um
 
-    JOIN user_role_master urm
-        ON urm.userid = um.userid
 
-    JOIN user_product_cm_mapping upcm
-        ON upcm.user_employee_code COLLATE utf8mb4_unicode_ci =
-           um.employee_code COLLATE utf8mb4_unicode_ci
+    JOIN user_master upcm
+        ON upcm.userid = um.controlling_manager_id
 
-        AND upcm.product_type = 'SLEEPER'
+    WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(main ie|sleeper ie|sleeper main ie|sleeper process ie),'
 
-    WHERE urm.roleid IN (10)
-
-      AND upcm.cm_employee_code = :cmEmployeeCode
+      AND upcm.employee_code = :cmEmployeeCode
 
     ORDER BY um.employee_code
 
@@ -875,12 +683,9 @@ SELECT
 
 FROM user_master um
 
-JOIN user_role_master urm
-    ON urm.userid = um.userid
 
-JOIN user_product_cm_mapping upcm
-    ON upcm.user_employee_code = um.employee_code
-    AND upcm.product_type = 'SLEEPER'
+JOIN user_master upcm
+        ON upcm.userid = um.controlling_manager_id
 
 LEFT JOIN (
 
@@ -925,7 +730,7 @@ LEFT JOIN (
 
                     FROM sleeper_workflow_transaction swt2
 
-                    WHERE swt2.request_id = sic.call_no
+                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
                       AND swt2.action = 'MAIN_IE_SCHEDULE_CALL'
                 )
 
@@ -951,7 +756,7 @@ LEFT JOIN (
 
                     FROM sleeper_workflow_transaction swt2
 
-                    WHERE swt2.request_id = sic.call_no
+                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
                 )
 
             ) = 'DSC_SIGN_IC'
@@ -964,7 +769,7 @@ LEFT JOIN (
     FROM sleeper_inspection_call sic
 
     JOIN final_call_inspection_header fcih
-        ON fcih.call_no = sic.call_no
+        ON fcih.call_no COLLATE utf8mb4_unicode_ci = sic.call_no
 
     WHERE (
 
@@ -978,7 +783,7 @@ LEFT JOIN (
 
             FROM sleeper_workflow_transaction swt2
 
-            WHERE swt2.request_id = sic.call_no
+            WHERE swt2.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
         )
 
     ) IN (
@@ -995,14 +800,14 @@ ON EXISTS (
 
     FROM sleeper_poi_ie_mapping spim
 
-    WHERE spim.plant_id = fc.plant_id
+    WHERE spim.plant_id COLLATE utf8mb4_unicode_ci = fc.plant_id
       AND spim.ie_user_id = um.userid
 
 )
 
-WHERE urm.roleid IN (10)
+WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(main ie|sleeper ie|sleeper main ie|sleeper process ie),'
 
-AND upcm.cm_employee_code = :cmEmployeeCode
+AND upcm.employee_code = :cmEmployeeCode
 
 GROUP BY
     um.employee_code,

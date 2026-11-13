@@ -91,6 +91,10 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class reportsImpl implements reports {
 
+        // CM filter pushed into the cm-* call queries
+        @Autowired
+        private com.sarthi.service.CmCallScopeService cmCallScopeService;
+
         @Autowired
 
         private PoHeaderRepository poHeaderRepository;
@@ -6642,7 +6646,8 @@ public class reportsImpl implements reports {
 
                 List<Object[]> results = inspectionCallRepository.getInspectionCallsReport(
                                 startDateTime,
-                                endDateTime);
+                                endDateTime,
+                                cmCallScopeService.cmUserIdFilter());
 
                 List<InspectionCallsReportDto> response = new ArrayList<>();
 
@@ -6722,7 +6727,8 @@ public class reportsImpl implements reports {
                 List<Object[]> results = inspectionCallRepository
                                 .getOverduePendingInspectionCallsReport(
                                                 startDateTime,
-                                                endDateTime);
+                                                endDateTime,
+                                                cmCallScopeService.cmUserIdFilter());
 
                 return results.stream().map(obj -> {
 

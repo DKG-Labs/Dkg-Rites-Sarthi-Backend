@@ -35,6 +35,9 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
 
     java.util.List<UserMaster> findByRioAndRoleNameIn(String rio, java.util.List<String> roleNames);
 
+    /** All users of a RIO (roles are filtered in the service because role_name can hold several comma-separated roles). */
+    java.util.List<UserMaster> findByRio(String rio);
+
     @Query(value = """
         SELECT 
             um.USERID,

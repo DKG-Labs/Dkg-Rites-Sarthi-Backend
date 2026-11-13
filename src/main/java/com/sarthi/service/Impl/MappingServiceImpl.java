@@ -112,15 +112,20 @@ public class MappingServiceImpl implements MappingService {
                 .collect(Collectors.toMap(IeControllingManager::getIeEmployeeCode, IeControllingManager::getCmUserId, (a, b) -> a));
 
         // 1. UserProductCmMapping (IE to CM)
-        List<com.sarthi.entity.UserProductCmMapping> userProductCmMappings = userProductCmMappingRepository.findAll();
+        // "ieCode|cmCode" -> row, so the same IE->CM link from user_master (1b) is merged instead of shown twice
+        Map<String, IeMappingResponseDto> cmRowByIeAndCm = new java.util.HashMap<>();
+        // user_product_cm_mapping is no longer used: IE -> CM comes only from user_master.controlling_manager_id (1b).
+        // Kept as an empty list so the code below (and old cm_/cmboth_ delete ids) stays valid.
+        List<com.sarthi.entity.UserProductCmMapping> userProductCmMappings = java.util.Collections.emptyList();
         for (com.sarthi.entity.UserProductCmMapping m : userProductCmMappings) {
             IeMappingResponseDto dto = new IeMappingResponseDto();
             dto.setId("cm_" + m.getId());
             dto.setMappingType("IE to CM");
-            dto.setInspectingEngineer("ERC IE");
             dto.setStatus("Active");
 
             UserMaster ieUser = userByEmpCodeMap.get(m.getUserEmployeeCode());
+            // Label from this row's product (ERC / SLEEPER / RAILPAD) + the IE's role, not a fixed "ERC IE"
+            dto.setInspectingEngineer(ieLabelForProduct(m.getProductType(), ieUser != null ? ieUser.getRoleName() : null));
             if (ieUser != null) {
                 dto.setIeName(ieUser.getFullName() != null ? ieUser.getFullName() : ieUser.getUsername());
                 dto.setRio(ieUser.getRio() != null ? ieUser.getRio() : "-");
@@ -139,15 +144,28 @@ public class MappingServiceImpl implements MappingService {
             dto.setPoiCode("-");
             dto.setPoiName("-");
             responseList.add(dto);
+            cmRowByIeAndCm.putIfAbsent(linkKey(m.getUserEmployeeCode(), m.getCmEmployeeCode()), dto);
         }
 
         // 1b. controlling_manager_id based CM-IE mappings
         for (UserMaster u : allUsers) {
             if (u.getControllingManagerId() == null) continue;
+
+            // Same IE->CM already listed from user_product_cm_mapping: keep ONE row, and make its
+            // Delete remove the link from both tables (id "cmboth_<upcmId>_<ieUserId>")
+            UserMaster linkedCm = userByIdMap.get(u.getControllingManagerId());
+            IeMappingResponseDto existing = cmRowByIeAndCm.get(
+                    linkKey(u.getEmployeeCode(), linkedCm != null ? linkedCm.getEmployeeCode() : null));
+            if (existing != null && existing.getId() != null && existing.getId().startsWith("cm_")) {
+                existing.setId("cmboth_" + existing.getId().substring(3) + "_" + u.getUserId());
+                existing.setInspectingEngineer(ieRoleLabel(u.getRoleName(), u.getProductType()));
+                continue;
+            }
+
             IeMappingResponseDto dto = new IeMappingResponseDto();
             dto.setId("cmie_" + u.getUserId());
             dto.setMappingType("IE to CM");
-            dto.setInspectingEngineer(u.getRoleName() != null ? u.getRoleName() : "IE");
+            dto.setInspectingEngineer(ieRoleLabel(u.getRoleName(), u.getProductType()));
             dto.setStatus("Active");
             dto.setIeName(u.getFullName() != null ? u.getFullName() : u.getUsername());
             dto.setRio(u.getRio() != null ? u.getRio() : "-");
@@ -402,7 +420,12 @@ public class MappingServiceImpl implements MappingService {
     public void deleteMapping(String id) {
         if (id == null || id.isEmpty()) return;
 
-        if (id.startsWith("cmie_")) {
+        if (id.startsWith("cmboth_")) {
+            // Merged row: the same IE->CM link exists in user_product_cm_mapping and user_master
+            String[] parts = id.substring(7).split("_");
+            userProductCmMappingRepository.deleteById(Long.parseLong(parts[0]));
+            removeCmIeMapping(Integer.parseInt(parts[1]));
+        } else if (id.startsWith("cmie_")) {
             Integer ieUserId = Integer.parseInt(id.substring(5));
             removeCmIeMapping(ieUserId);
         } else if (id.startsWith("cm_")) {
@@ -460,5 +483,58 @@ public class MappingServiceImpl implements MappingService {
         ie.setControllingManagerId(null);
         userMasterRepository.save(ie);
         return "IE removed from CM mapping successfully.";
+    }
+
+    /** Role name -> display label; same mapping as the User Management list (UserList.jsx ROLE_LABELS). */
+    private static final Map<String, String> IE_ROLE_LABELS = Map.of(
+            "ie", "ERC IE",
+            "process ie", "ERC Process IE",
+            "main ie", "Sleeper Main IE",
+            "rail main ie", "Railpad Main IE",
+            "rail process ie", "Railpad Process IE");
+
+    /**
+     * Label for an IE in the mapping list, from the role name only (product_type is not filled in):
+     * "Main IE" -> "Sleeper Main IE", "IE" -> "ERC IE", "Process IE" -> "ERC Process IE", etc.
+     * Other roles ("Sleeper Process IE") are shown as they are; multi-role values are labelled one by one.
+     * productType is ignored (kept in the signature for the callers).
+     */
+    private static String ieRoleLabel(String roleName, String productType) {
+        if (roleName == null || roleName.isBlank()) return "IE";
+        return java.util.Arrays.stream(roleName.split(","))
+                .map(String::trim)
+                .filter(r -> !r.isEmpty())
+                .map(r -> IE_ROLE_LABELS.getOrDefault(r.toLowerCase(), r))
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    /** Key for one IE->CM link (case/space-insensitive employee codes). */
+    private static String linkKey(String ieEmployeeCode, String cmEmployeeCode) {
+        String ie = ieEmployeeCode == null ? "" : ieEmployeeCode.trim().toLowerCase();
+        String cm = cmEmployeeCode == null ? "" : cmEmployeeCode.trim().toLowerCase();
+        return ie + "|" + cm;
+    }
+
+    /**
+     * Display label for a user_product_cm_mapping row: product decides ERC / Sleeper / Railpad,
+     * the IE's role decides Process vs Main. Unknown product falls back to the old "ERC IE".
+     */
+    private static String ieLabelForProduct(String productType, String ieRoleName) {
+        String product = productType == null ? "" : productType.trim().toUpperCase();
+        String role = ieRoleName == null ? "" : ieRoleName.toLowerCase();
+        if (product.startsWith("SLEEPER")) {
+            if (role.contains("sleeper process")) return "Sleeper Process IE";
+            if (role.contains("sleeper main")) return "Sleeper Main IE";
+            return "Sleeper IE";
+        }
+        if (product.startsWith("RAIL")) {
+            return role.contains("rail process") ? "Railpad Process IE" : "Railpad Main IE";
+        }
+        if (product.startsWith("ERC") || product.isEmpty()) {
+            return role.contains("process ie") && !role.contains("sleeper") && !role.contains("rail")
+                    ? "ERC Process IE" : "ERC IE";
+        }
+        return productType.trim() + " IE";
     }
 }

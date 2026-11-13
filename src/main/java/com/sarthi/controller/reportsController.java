@@ -31,6 +31,10 @@ import com.sarthi.dto.reports.IcIssuedCountDto;
 @RestController
 @RequestMapping("/api/reports")
 public class reportsController {
+        // Limits cm-* call lists to the logged-in CM (from JWT)
+        @Autowired
+        private com.sarthi.service.CmCallScopeService cmCallScopeService;
+
         @Autowired
         private reports reportService;
 
@@ -681,7 +685,7 @@ public class reportsController {
                         @RequestParam(required = false) String startDate,
                         @RequestParam(required = false) String endDate) {
 
-                List<InspectionCallsReportDto> list = reportService.getInspectionCallsReport(startDate, endDate);
+                List<InspectionCallsReportDto> list = cmCallScopeService.scopeTimed(() -> reportService.getInspectionCallsReport(startDate, endDate));
 
                 return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
         }
@@ -691,8 +695,7 @@ public class reportsController {
                         @RequestParam(required = false) String startDate,
                         @RequestParam(required = false) String endDate) {
 
-                List<InspectionCallsReportDto> list = reportService.getOverduePendingInspectionCallsReport(startDate,
-                                endDate);
+                List<InspectionCallsReportDto> list = cmCallScopeService.scopeTimed(() -> reportService.getOverduePendingInspectionCallsReport(startDate, endDate));
 
                 return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
         }

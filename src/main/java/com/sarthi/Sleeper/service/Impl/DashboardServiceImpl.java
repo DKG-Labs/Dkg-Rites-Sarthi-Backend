@@ -37,6 +37,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class DashboardServiceImpl implements DashboardService {
+    // CM filter pushed into the cm-* call queries
+    @Autowired
+    private com.sarthi.service.CmCallScopeService cmCallScopeService;
+
     @Autowired
     private DemouldingDefectiveSleeperRepository demouldingDefectiveSleeperRepository;
 
@@ -1629,7 +1633,7 @@ public class DashboardServiceImpl implements DashboardService {
                 end.atTime(23, 59, 59);
 
         List<Object[]> results =
-                            inspectionCallRepository.getSleeperInspectionReport(startDateTime, endDateTime);
+                            inspectionCallRepository.getSleeperInspectionReport(startDateTime, endDateTime, cmCallScopeService.cmUserIdFilter());
 
         return results.stream().map(obj -> {
 
@@ -1706,8 +1710,8 @@ public class DashboardServiceImpl implements DashboardService {
                 inspectionCallRepository
                         .getSleeperOverduePendingCallsReport(
                                 startDateTime,
-                                endDateTime
-                        );
+                                endDateTime,
+                                cmCallScopeService.cmUserIdFilter());
 
         return results.stream().map(obj -> {
 
