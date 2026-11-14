@@ -1314,17 +1314,15 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
         // Sleeper IDs are globally unique, so a sleeper raised in ANY active call must count as already offered —
         // regardless of how that call's sleeper type was written or which vendor login/plant raised it.
         // (Filtering by type/createdBy let previously raised sleepers re-appear as "eligible".)
-        if (excludeCallNo != null && !excludeCallNo.isBlank()) {
-            String trimmedExclude = excludeCallNo.trim();
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIdsExcludingCall(null, null, trimmedExclude));
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIdsExcludingCall(null, null, trimmedExclude));
-            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeysExcludingCall(null, targetVendorId, trimmedExclude));
+        // raisedSleeperIds is filled further down (after test results and production sleepers are
+        // loaded), restricted to the sleeper ids this response can actually look up.
+        final String trimmedExcludeCallNo = (excludeCallNo != null && !excludeCallNo.isBlank()) ? excludeCallNo.trim() : null;
+        if (trimmedExcludeCallNo != null) {
+            raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeysExcludingCall(null, targetVendorId, trimmedExcludeCallNo));
         } else {
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllGoodSleeperIds(null, null));
-            raisedSleeperIds.addAll(inspectionCallRepository.findAllBadSleeperIds(null, null));
             raisedBadSleeperKeys.addAll(inspectionCallRepository.findAllRaisedBadSleeperKeys(null, targetVendorId));
         }
-        cbMark.accept("declarations + raised sleepers (" + raisedSleeperIds.size() + ")");
+        cbMark.accept("declarations + raised bad-sleeper keys (" + raisedBadSleeperKeys.size() + ")");
 
         // ── Expand batch numbers in-memory to leverage DB index on batch_number ──
         Set<String> expandedBatchNumbers = new HashSet<>();
@@ -1399,6 +1397,31 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                 }
             }
         }
+
+        // ── Raised sleeper ids, only for sleepers in this response ──────────
+        // Every raisedSleeperIds.contains(...) check below uses an id taken from either a test
+        // result (allResults) or a production sleeper (allProdSleeperRows), so these are the only
+        // ids we need. Same answers as loading every raised id, without reading ~1.25M rows.
+        Set<Long> candidateSleeperIds = new HashSet<>();
+        if (allResults != null) {
+            for (InspectionTestResult r : allResults) {
+                if (r.getSleeperId() != null && r.getSleeperId() > 0) candidateSleeperIds.add(r.getSleeperId());
+            }
+        }
+        for (List<ProductionSleeper> list : prodSleepersByBatchId.values()) {
+            for (ProductionSleeper ps : list) {
+                if (ps.getId() != null && ps.getId() > 0) candidateSleeperIds.add(ps.getId());
+            }
+        }
+        if (!candidateSleeperIds.isEmpty()) {
+            List<Long> candidates = new ArrayList<>(candidateSleeperIds);
+            for (int i = 0; i < candidates.size(); i += 1000) {
+                List<Long> chunk = candidates.subList(i, Math.min(i + 1000, candidates.size()));
+                raisedSleeperIds.addAll(inspectionCallRepository.findRaisedGoodSleeperIdsIn(chunk, trimmedExcludeCallNo));
+                raisedSleeperIds.addAll(inspectionCallRepository.findRaisedBadSleeperIdsIn(chunk, trimmedExcludeCallNo));
+            }
+        }
+        cbMark.accept("raised sleepers (" + raisedSleeperIds.size() + " of " + candidateSleeperIds.size() + " candidates)");
 
         // ── Bulk Upfront Fetch 7: MOR Tests and Declarations ─────────────────
         List<MomentOfResistanceTest> allMorTests = momentOfResistanceTestRepository.findByBatchNumbersIn(expandedBatchNumbers);

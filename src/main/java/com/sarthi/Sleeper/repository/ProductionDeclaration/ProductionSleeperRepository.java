@@ -13,12 +13,29 @@ public interface ProductionSleeperRepository extends JpaRepository<ProductionSle
     @Query("""
 SELECT s
 FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
+JOIN s.benchGroup b
+JOIN b.chamber c
+WHERE c.declaration.id = :batchId
 """)
-    List<ProductionSleeper> getSleepersByBatch(Long batchId);
+    List<ProductionSleeper> getSleepersByBatchViaChamber(@Param("batchId") Long batchId);
+
+    @Query("""
+SELECT s
+FROM ProductionSleeper s
+JOIN s.gang g
+WHERE g.declaration.id = :batchId
+""")
+    List<ProductionSleeper> getSleepersByBatchViaGang(@Param("batchId") Long batchId);
+
+    // Split instead of LEFT JOIN + OR (full scan); merged by id so each sleeper appears once, as before,
+    // and returned in id order - the order the old single query produced (it scanned production_sleeper
+    // by primary key), so screens listing these sleepers keep the same order.
+    default List<ProductionSleeper> getSleepersByBatch(Long batchId) {
+        java.util.TreeMap<Long, ProductionSleeper> merged = new java.util.TreeMap<>();
+        for (ProductionSleeper s : getSleepersByBatchViaChamber(batchId)) merged.putIfAbsent(s.getId(), s);
+        for (ProductionSleeper s : getSleepersByBatchViaGang(batchId)) merged.putIfAbsent(s.getId(), s);
+        return new java.util.ArrayList<>(merged.values());
+    }
 
     // Split into two index-friendly branches (chamber / gang) instead of LEFT JOIN + OR, which forced a full scan.
     // benchGroup / gang are JOIN FETCHed: callers read their sleeperType per sleeper, and lazy loading did one
@@ -79,15 +96,23 @@ WHERE g.declaration.id = :batchId AND g.sleeperType = :sleeperType
         return new java.util.ArrayList<>(merged.values());
     }
 
-    @Query("""
-SELECT COUNT(s.id)
-FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
-""")
-    Long countByBatchId(Long batchId);
+    // Two index-friendly branches instead of LEFT JOIN + OR (full scan of production_sleeper).
+    // UNION (not UNION ALL) de-duplicates sleeper ids, so the count matches the old OR exactly.
+    @Query(value = """
+    SELECT COUNT(*) FROM (
+        SELECT s.id
+        FROM production_sleeper s
+        JOIN production_bench_group b ON b.id = s.bench_group_id
+        JOIN production_stress_chamber c ON c.id = b.chamber_id
+        WHERE c.declaration_id = :batchId
+        UNION
+        SELECT s.id
+        FROM production_sleeper s
+        JOIN production_longline_gang g ON g.id = s.gang_id
+        WHERE g.declaration_id = :batchId
+    ) t
+    """, nativeQuery = true)
+    Long countByBatchId(@Param("batchId") Long batchId);
 
     // Two index-friendly branches instead of LEFT JOIN + (c IN ... OR g IN ...), which forced a full scan.
     // Note: a sleeper linked to BOTH a chamber and a gang is counted in both; the old COALESCE counted chamber only.
@@ -111,16 +136,22 @@ WHERE (c.declaration.id = :batchId OR g.declaration.id = :batchId)
     """, nativeQuery = true)
     List<Object[]> countSleepersByBatchIds(@Param("batchIds") List<Long> batchIds);
 
-    @Query("""
-SELECT COUNT(s.id)
-FROM ProductionSleeper s
-LEFT JOIN s.benchGroup b
-LEFT JOIN b.chamber c
-LEFT JOIN s.gang g
-WHERE (c.declaration.id = :batchId AND b.sleeperType = :sleeperType)
-   OR (g.declaration.id = :batchId AND g.sleeperType = :sleeperType)
-""")
-    Long countByBatchIdAndType(Long batchId, String sleeperType);
+    // Same split as countByBatchId; UNION de-duplicates so the count matches the old OR exactly.
+    @Query(value = """
+    SELECT COUNT(*) FROM (
+        SELECT s.id
+        FROM production_sleeper s
+        JOIN production_bench_group b ON b.id = s.bench_group_id
+        JOIN production_stress_chamber c ON c.id = b.chamber_id
+        WHERE c.declaration_id = :batchId AND b.sleeper_type = :sleeperType
+        UNION
+        SELECT s.id
+        FROM production_sleeper s
+        JOIN production_longline_gang g ON g.id = s.gang_id
+        WHERE g.declaration_id = :batchId AND g.sleeper_type = :sleeperType
+    ) t
+    """, nativeQuery = true)
+    Long countByBatchIdAndType(@Param("batchId") Long batchId, @Param("sleeperType") String sleeperType);
 
 @Query("""
 SELECT DISTINCT COALESCE(b.sleeperType, g.sleeperType)

@@ -99,6 +99,31 @@ WHERE s.sleeperId IS NOT NULL AND s.sleeperId > 0
 """)
     List<Long> findAllBadSleeperIdsExcludingCall(@Param("sleeperType") String sleeperType, @Param("vendorId") Long vendorId, @Param("excludeCallNo") String excludeCallNo);
 
+    // Same as findAllGood/BadSleeperIds[ExcludingCall](null, null, ...) but restricted to the given
+    // sleeper ids, so callers only fetch the ids they will actually look up (completed-batches used to
+    // load every raised sleeper id - ~1.25M rows - on each request). Call in chunks of <= 1000 ids.
+    @Query("""
+SELECT DISTINCT s.sleeperId
+FROM SleeperInspectionCallBatch b
+JOIN b.goodSleepers s
+WHERE s.sleeperId IN :ids
+  AND s.sleeperId > 0
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
+""")
+    List<Long> findRaisedGoodSleeperIdsIn(@Param("ids") java.util.Collection<Long> ids, @Param("excludeCallNo") String excludeCallNo);
+
+    @Query("""
+SELECT DISTINCT s.sleeperId
+FROM SleeperInspectionCallBatch b
+JOIN b.badSleepers s
+WHERE s.sleeperId IN :ids
+  AND s.sleeperId > 0
+  AND b.inspectionCall.status NOT IN ('CANCELLED', 'WITHDRAWN', 'REJECTED')
+  AND (:excludeCallNo IS NULL OR UPPER(TRIM(b.inspectionCall.callNo)) <> UPPER(TRIM(:excludeCallNo)))
+""")
+    List<Long> findRaisedBadSleeperIdsIn(@Param("ids") java.util.Collection<Long> ids, @Param("excludeCallNo") String excludeCallNo);
+
     @Query("""
 SELECT DISTINCT CONCAT(TRIM(b.batchNo), '_', TRIM(s.sleeperNo))
 FROM SleeperInspectionCallBatch b
@@ -344,29 +369,27 @@ ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
           @Param("endDate") LocalDate endDate);
 
     /*
-     * CM dashboard (Sleeper). Workflow is read in ONE pass each (latest row per call = lw,
-     * assigned IEs/CMs per call = asg) and joined, instead of per-call lookups whose COLLATE on
-     * request_id disabled its index. Columns / labels / rules are unchanged.
+     * CM dashboard (Sleeper). For each call shown: lw = its latest workflow row, asg = the IEs/CMs it
+     * was assigned to. Both are looked up per call through the request_id index (COLLATE is applied to
+     * sic.call_no, never to request_id, so the index stays usable). The previous version grouped the
+     * WHOLE workflow table on every request (19-79 s in prod). Columns / labels / rules are unchanged.
      */
     String SLEEPER_CM_LATEST_WF = """
-        LEFT JOIN (
-            SELECT DISTINCT w.request_id COLLATE utf8mb4_unicode_ci AS request_id, w.action, w.status, w.job_status
-            FROM sleeper_workflow_transaction w
-            JOIN (SELECT request_id, MAX(workflow_transition_id) AS mid
-                  FROM sleeper_workflow_transaction GROUP BY request_id) m
-              ON m.mid = w.workflow_transition_id
-        ) lw ON lw.request_id = sic.call_no COLLATE utf8mb4_unicode_ci
-        LEFT JOIN (
-            SELECT ANY_VALUE(wa.request_id) COLLATE utf8mb4_unicode_ci AS request_id,
-                   GROUP_CONCAT(DISTINCT CONCAT(ieu.full_name, ' - ', ieu.employee_code) SEPARATOR ', ') AS ie_names,
+        LEFT JOIN sleeper_workflow_transaction lw
+          ON lw.workflow_transition_id = (
+               SELECT MAX(w2.workflow_transition_id)
+               FROM sleeper_workflow_transaction w2
+               WHERE w2.request_id = sic.call_no COLLATE utf8mb4_0900_ai_ci)
+        LEFT JOIN LATERAL (
+            SELECT GROUP_CONCAT(DISTINCT CONCAT(ieu.full_name, ' - ', ieu.employee_code) SEPARATOR ', ') AS ie_names,
                    GROUP_CONCAT(DISTINCT CASE WHEN cmu.userid IS NOT NULL
                                               THEN CONCAT(cmu.employee_code, ' - ', cmu.full_name) END SEPARATOR ', ') AS cm_names,
                    MAX(CASE WHEN ieu.controlling_manager_id = :cmUserId THEN 1 ELSE 0 END) AS mine
             FROM sleeper_workflow_transaction wa
             JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
             LEFT JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
-            GROUP BY wa.request_id
-        ) asg ON asg.request_id = sic.call_no COLLATE utf8mb4_unicode_ci
+            WHERE wa.request_id = sic.call_no COLLATE utf8mb4_0900_ai_ci
+        ) asg ON TRUE
         """;
 
     String SLEEPER_CM_STATUS = """
@@ -466,179 +489,42 @@ ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
 
     @Query(value = """
 
+    WITH ies AS (
+        SELECT um.userid, um.employee_code, um.username
+        FROM user_master um
+        JOIN user_master upcm ON upcm.userid = um.controlling_manager_id
+        WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(main ie|sleeper ie|sleeper main ie|sleeper process ie),'
+          AND upcm.employee_code = :cmEmployeeCode
+    ),
+    ie_calls AS (
+        SELECT DISTINCT ies.userid, sic.id AS sic_id, sic.call_no, sic.desired_inspection_date
+        FROM ies
+        JOIN sleeper_poi_ie_mapping spim ON spim.ie_user_id = ies.userid
+        JOIN sleeper_inspection_call sic
+          ON sic.plant_id COLLATE utf8mb4_unicode_ci = spim.plant_id COLLATE utf8mb4_unicode_ci
+    ),
+    latest AS (
+        SELECT c.call_no, swt.action, swt.job_status
+        FROM (SELECT DISTINCT call_no FROM ie_calls) c
+        JOIN sleeper_workflow_transaction swt
+          ON swt.workflow_transition_id = (
+               SELECT MAX(s2.workflow_transition_id)
+               FROM sleeper_workflow_transaction s2
+               WHERE s2.request_id = c.call_no COLLATE utf8mb4_0900_ai_ci)
+    )
     SELECT
-
-        um.employee_code AS ieId,
-
-        um.username AS ieName,
-
-        COALESCE((
-            SELECT COUNT(*)
-
-            FROM sleeper_inspection_call sic
-
-            WHERE EXISTS (
-
-                SELECT 1
-
-                FROM sleeper_poi_ie_mapping spim
-
-                WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
-                      sic.plant_id COLLATE utf8mb4_unicode_ci
-
-                  AND spim.ie_user_id = um.userid
-            )
-
-            AND (
-
-                SELECT swt.action
-
-                FROM sleeper_workflow_transaction swt
-
-                WHERE swt.workflow_transition_id = (
-
-                    SELECT MAX(swt2.workflow_transition_id)
-
-                    FROM sleeper_workflow_transaction swt2
-
-                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
-                          sic.call_no COLLATE utf8mb4_unicode_ci
-                )
-
-            ) IN (
-                'VERIFY'
-            )
-
-        ),0) AS noOfCallsPending,
-
-        COALESCE((
-            SELECT COUNT(*)
-
-            FROM sleeper_inspection_call sic
-
-            WHERE EXISTS (
-
-                SELECT 1
-
-                FROM sleeper_poi_ie_mapping spim
-
-                WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
-                      sic.plant_id COLLATE utf8mb4_unicode_ci
-
-                  AND spim.ie_user_id = um.userid
-            )
-
-            AND (
-
-                SELECT swt.action
-
-                FROM sleeper_workflow_transaction swt
-
-                WHERE swt.workflow_transition_id = (
-
-                    SELECT MAX(swt2.workflow_transition_id)
-
-                    FROM sleeper_workflow_transaction swt2
-
-                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
-                          sic.call_no COLLATE utf8mb4_unicode_ci
-                )
-
-            ) IN (
-                'INITIATE_CALL',
-                'PO_VERIFICATION',
-                'PAUSE'
-            )
-
-        ),0) AS noOfCallsUnderInspection,
-
-        COALESCE((
-            SELECT COUNT(*)
-
-            FROM sleeper_inspection_call sic
-
-            WHERE EXISTS (
-
-                SELECT 1
-
-                FROM sleeper_poi_ie_mapping spim
-
-                WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
-                      sic.plant_id COLLATE utf8mb4_unicode_ci
-
-                  AND spim.ie_user_id = um.userid
-            )
-
-            AND (
-
-                SELECT swt.action
-
-                FROM sleeper_workflow_transaction swt
-
-                WHERE swt.workflow_transition_id = (
-
-                    SELECT MAX(swt2.workflow_transition_id)
-
-                    FROM sleeper_workflow_transaction swt2
-
-                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
-                          sic.call_no COLLATE utf8mb4_unicode_ci
-                )
-
-            ) = 'FINISH'
-
-        ),0) AS noOfCallsPendingForIc,
-
-        COALESCE((
-            SELECT COUNT(*)
-
-            FROM sleeper_inspection_call sic
-
-            WHERE sic.desired_inspection_date < CURDATE()
-
-              AND EXISTS (
-
-                    SELECT 1
-
-                    FROM sleeper_poi_ie_mapping spim
-
-                    WHERE spim.plant_id COLLATE utf8mb4_unicode_ci =
-                          sic.plant_id COLLATE utf8mb4_unicode_ci
-
-                      AND spim.ie_user_id = um.userid
-              )
-
-              AND (
-
-                    SELECT swt.job_status
-
-                    FROM sleeper_workflow_transaction swt
-
-                    WHERE swt.workflow_transition_id = (
-
-                        SELECT MAX(swt2.workflow_transition_id)
-
-                        FROM sleeper_workflow_transaction swt2
-
-                        WHERE swt2.request_id COLLATE utf8mb4_unicode_ci =
-                              sic.call_no COLLATE utf8mb4_unicode_ci
-                    )
-
-              ) = 'RIO_VERIFIED'
-
-        ),0) AS noOfCallsOverdue
-
-    FROM user_master um
-
-
-    JOIN user_master upcm
-        ON upcm.userid = um.controlling_manager_id
-
-    WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(main ie|sleeper ie|sleeper main ie|sleeper process ie),'
-
-      AND upcm.employee_code = :cmEmployeeCode
-
-    ORDER BY um.employee_code
+        ies.employee_code AS ieId,
+        ies.username      AS ieName,
+        COUNT(CASE WHEN l.action = 'VERIFY' THEN 1 END)                                     AS noOfCallsPending,
+        COUNT(CASE WHEN l.action IN ('INITIATE_CALL','PO_VERIFICATION','PAUSE') THEN 1 END) AS noOfCallsUnderInspection,
+        COUNT(CASE WHEN l.action = 'FINISH' THEN 1 END)                                     AS noOfCallsPendingForIc,
+        COUNT(CASE WHEN l.job_status = 'RIO_VERIFIED'
+                    AND ic.desired_inspection_date < CURDATE() THEN 1 END)                  AS noOfCallsOverdue
+    FROM ies
+    LEFT JOIN ie_calls ic ON ic.userid = ies.userid
+    LEFT JOIN latest l    ON l.call_no = ic.call_no
+    GROUP BY ies.userid, ies.employee_code, ies.username
+    ORDER BY ies.employee_code
 
     """, nativeQuery = true)
     List<Object[]> getSleeperIeWiseCallStatusWorkloadSummary(
@@ -648,172 +534,69 @@ ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
 
     @Query(value = """
 
-SELECT
-
-    um.employee_code AS ieId,
-
-    um.username AS ieName,
-
-    COUNT(DISTINCT fc.call_no) AS totalCalls,
-
-    COUNT(DISTINCT CASE
-        WHEN fc.isOverdue = 1
-        THEN fc.call_no
-    END) AS overdueCallsAttended,
-
-    COUNT(DISTINCT CASE
-        WHEN fc.finalStatus = 'ACCEPTED'
-        THEN fc.call_no
-    END) AS callsAccepted,
-
-    COUNT(DISTINCT CASE
-        WHEN fc.finalStatus = 'REJECTED'
-        THEN fc.call_no
-    END) AS callsRejected,
-
-    COUNT(DISTINCT CASE
-        WHEN fc.finalStatus = 'PARTIAL'
-        THEN fc.call_no
-    END) AS callsPartiallyAcceptedRejected,
-
-    COUNT(DISTINCT CASE
-        WHEN fc.icIssued = 1
-        THEN fc.call_no
-    END) AS icIssued
-
-FROM user_master um
-
-
-JOIN user_master upcm
-        ON upcm.userid = um.controlling_manager_id
-
-LEFT JOIN (
-
-    SELECT DISTINCT
-
-        sic.call_no,
-
-        sic.plant_id,
-
-        CASE
-
-            -- ACCEPTED
-            WHEN fcih.qty_offered_now = fcih.accepted_qty
-                 AND fcih.rejected_qty = 0
-            THEN 'ACCEPTED'
-
-            -- REJECTED
-            WHEN fcih.qty_offered_now = fcih.rejected_qty
-            THEN 'REJECTED'
-
-            -- PARTIAL
-            WHEN fcih.rejected_qty > 0
-                 AND fcih.rejected_qty < fcih.qty_offered_now
-            THEN 'PARTIAL'
-
-            ELSE NULL
-
-        END AS finalStatus,
-
-        -- OVERDUE
-        CASE
-
-            WHEN sic.desired_inspection_date < (
-
-                SELECT DATE(swt.created_date)
-
-                FROM sleeper_workflow_transaction swt
-
-                WHERE swt.workflow_transition_id = (
-
-                    SELECT MIN(swt2.workflow_transition_id)
-
-                    FROM sleeper_workflow_transaction swt2
-
-                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
-                      AND swt2.action = 'MAIN_IE_SCHEDULE_CALL'
-                )
-
-            )
-
-            THEN 1
-            ELSE 0
-
-        END AS isOverdue,
-
-        -- IC ISSUED
-       CASE
-
-            WHEN (
-
-                SELECT swt.status
-
-                FROM sleeper_workflow_transaction swt
-
-                WHERE swt.workflow_transition_id = (
-
-                    SELECT MAX(swt2.workflow_transition_id)
-
-                    FROM sleeper_workflow_transaction swt2
-
-                    WHERE swt2.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
-                )
-
-            ) = 'DSC_SIGN_IC'
-
-            THEN 1
-            ELSE 0
-
-        END AS icIssued
-
-    FROM sleeper_inspection_call sic
-
-    JOIN final_call_inspection_header fcih
-        ON fcih.call_no COLLATE utf8mb4_unicode_ci = sic.call_no
-
-    WHERE (
-
-        SELECT swt.action
-
-        FROM sleeper_workflow_transaction swt
-
-        WHERE swt.workflow_transition_id = (
-
-            SELECT MAX(swt2.workflow_transition_id)
-
-            FROM sleeper_workflow_transaction swt2
-
-            WHERE swt2.request_id COLLATE utf8mb4_unicode_ci = sic.call_no
-        )
-
-    ) IN (
-        'FINISH',
-        'GENERATE_IC',
-        'DSC_SIGN_IC'
-    )
-
-) fc
-
-ON EXISTS (
-
-    SELECT 1
-
+WITH ies AS (
+    SELECT um.userid, um.employee_code, um.username
+    FROM user_master um
+    JOIN user_master upcm ON upcm.userid = um.controlling_manager_id
+    WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(main ie|sleeper ie|sleeper main ie|sleeper process ie),'
+      AND upcm.employee_code = :cmEmployeeCode
+),
+ie_plants AS (
+    SELECT DISTINCT spim.ie_user_id, spim.plant_id
     FROM sleeper_poi_ie_mapping spim
-
-    WHERE spim.plant_id COLLATE utf8mb4_unicode_ci = fc.plant_id
-      AND spim.ie_user_id = um.userid
-
+    JOIN ies ON ies.userid = spim.ie_user_id
+),
+calls AS (
+    SELECT sic.call_no, sic.plant_id, sic.desired_inspection_date
+    FROM sleeper_inspection_call sic
+    WHERE sic.plant_id COLLATE utf8mb4_unicode_ci IN (SELECT plant_id COLLATE utf8mb4_unicode_ci FROM ie_plants)
+),
+wf AS (
+    SELECT c.call_no,
+        (SELECT s.action FROM sleeper_workflow_transaction s
+          WHERE s.workflow_transition_id = (SELECT MAX(s2.workflow_transition_id) FROM sleeper_workflow_transaction s2
+                                            WHERE s2.request_id = c.call_no COLLATE utf8mb4_0900_ai_ci)) AS last_action,
+        (SELECT s.status FROM sleeper_workflow_transaction s
+          WHERE s.workflow_transition_id = (SELECT MAX(s2.workflow_transition_id) FROM sleeper_workflow_transaction s2
+                                            WHERE s2.request_id = c.call_no COLLATE utf8mb4_0900_ai_ci)) AS last_status,
+        (SELECT DATE(s.created_date) FROM sleeper_workflow_transaction s
+          WHERE s.workflow_transition_id = (SELECT MIN(s2.workflow_transition_id) FROM sleeper_workflow_transaction s2
+                                            WHERE s2.request_id = c.call_no COLLATE utf8mb4_0900_ai_ci
+                                              AND s2.action = 'MAIN_IE_SCHEDULE_CALL')) AS schedule_date
+    FROM (SELECT DISTINCT call_no FROM calls) c
+),
+fc AS (
+    SELECT DISTINCT
+        c.call_no,
+        c.plant_id,
+        CASE
+            WHEN fcih.qty_offered_now = fcih.accepted_qty AND fcih.rejected_qty = 0 THEN 'ACCEPTED'
+            WHEN fcih.qty_offered_now = fcih.rejected_qty THEN 'REJECTED'
+            WHEN fcih.rejected_qty > 0 AND fcih.rejected_qty < fcih.qty_offered_now THEN 'PARTIAL'
+            ELSE NULL
+        END AS finalStatus,
+        CASE WHEN c.desired_inspection_date < wf.schedule_date THEN 1 ELSE 0 END AS isOverdue,
+        CASE WHEN wf.last_status = 'DSC_SIGN_IC' OR wf.last_action = 'SEND_CALL_TO_IBS' THEN 1 ELSE 0 END AS icIssued
+    FROM calls c
+    JOIN wf ON wf.call_no = c.call_no
+    JOIN final_call_inspection_header fcih
+      ON fcih.call_no COLLATE utf8mb4_unicode_ci = c.call_no COLLATE utf8mb4_unicode_ci
+    WHERE wf.last_action IN ('FINISH', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
 )
-
-WHERE CONCAT(',', REPLACE(REPLACE(LOWER(TRIM(um.role_name)), ' ,', ','), ', ', ','), ',') REGEXP ',(main ie|sleeper ie|sleeper main ie|sleeper process ie),'
-
-AND upcm.employee_code = :cmEmployeeCode
-
-GROUP BY
-    um.employee_code,
-    um.username
-
-ORDER BY um.employee_code
+SELECT
+    ies.employee_code AS ieId,
+    ies.username      AS ieName,
+    COUNT(DISTINCT fc.call_no) AS totalCalls,
+    COUNT(DISTINCT CASE WHEN fc.isOverdue = 1 THEN fc.call_no END) AS overdueCallsAttended,
+    COUNT(DISTINCT CASE WHEN fc.finalStatus = 'ACCEPTED' THEN fc.call_no END) AS callsAccepted,
+    COUNT(DISTINCT CASE WHEN fc.finalStatus = 'REJECTED' THEN fc.call_no END) AS callsRejected,
+    COUNT(DISTINCT CASE WHEN fc.finalStatus = 'PARTIAL' THEN fc.call_no END) AS callsPartiallyAcceptedRejected,
+    COUNT(DISTINCT CASE WHEN fc.icIssued = 1 THEN fc.call_no END) AS icIssued
+FROM ies
+LEFT JOIN ie_plants ip ON ip.ie_user_id = ies.userid
+LEFT JOIN fc ON fc.plant_id COLLATE utf8mb4_unicode_ci = ip.plant_id COLLATE utf8mb4_unicode_ci
+GROUP BY ies.employee_code, ies.username
+ORDER BY ies.employee_code
 
 """, nativeQuery = true)
     List<Object[]> getSleeperIeOperationalSlaPerformanceSummary(

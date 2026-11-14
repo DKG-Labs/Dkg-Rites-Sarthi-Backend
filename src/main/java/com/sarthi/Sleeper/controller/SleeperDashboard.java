@@ -474,8 +474,19 @@ public class SleeperDashboard {
      * Keeps the dashboard's default view (current financial year, all vendors and zones) ready, so opening the
      * dashboard never waits on the heavy queries. The new result replaces the old one only once it is finished.
      */
+    // The warm-up used to run every 4 minutes on every backend instance around the clock (the
+    // ie_batch_summary count alone ran ~12,000 times in 10 days, mostly from this timer). It now only
+    // runs while the dashboard is actually being used: if nobody has called /summary in the last
+    // 30 minutes it skips, and the next request computes the summary itself (then warming resumes).
+    // While the dashboard is in use, timing and results are exactly as before.
+    private static final long SUMMARY_WARM_IDLE_MS = 30 * 60 * 1000L;
+    private volatile long lastSummaryRequestAt = 0L;
+
     @org.springframework.scheduling.annotation.Scheduled(initialDelay = 5000, fixedDelay = 4 * 60 * 1000L)
     public void warmDefaultSummary() {
+        if (System.currentTimeMillis() - lastSummaryRequestAt > SUMMARY_WARM_IDLE_MS) {
+            return; // dashboard idle - don't run the heavy summary queries for nobody
+        }
         try {
             java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
             int fyStartYear = today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1;
@@ -499,6 +510,7 @@ public class SleeperDashboard {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false, defaultValue = "false") boolean refresh) throws Exception {
+        lastSummaryRequestAt = System.currentTimeMillis();
         String effectiveVendor = (vendor != null && !vendor.isBlank()) ? vendor : plantId;
         String key = summaryCacheKey(effectiveVendor, zone, startDate, endDate);
 
