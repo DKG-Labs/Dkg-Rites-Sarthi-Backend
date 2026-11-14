@@ -193,7 +193,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         entity.setGangs(gangList);
 
-        repository.save(entity);
+        repository.save(entity); invalidateSleeperTypeCache();
 
         return getById(entity.getId());
     }
@@ -315,7 +315,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         entity.setGangs(gangList);
 
-        repository.save(entity);
+        repository.save(entity); invalidateSleeperTypeCache();
 
         return getById(entity.getId());
     }
@@ -430,7 +430,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         }
     }
 
-    repository.save(entity);
+    repository.save(entity); invalidateSleeperTypeCache();
 
     return getById(entity.getId());
 }*/
@@ -649,7 +649,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         entity.getGangs().clear();
         entity.getGangs().addAll(finalGangs);
 
-        repository.save(entity);
+        repository.save(entity); invalidateSleeperTypeCache();
 
         return getById(entity.getId());
     }
@@ -827,7 +827,7 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Production not found")));
 
-        repository.deleteById(entity.getId());
+        repository.deleteById(entity.getId()); invalidateSleeperTypeCache();
         Long moduleId = 11L;
 
         SleeperWorkflowTransaction lastWorkflow =
@@ -878,7 +878,49 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
 //            .map(this::mapToResponse)
 //            .toList();
 //}
+    // ── Sleeper-type map cache ──────────────────────────────────────────────
+    // findStressDeclarationSleeperTypes() reads every bench group (~640K rows) and was being
+    // run by every list request in parallel (24 concurrent copies seen in prod, 7+ min each).
+    // Cache it for a few minutes and let only ONE request rebuild it at a time; the cache is
+    // cleared whenever a declaration is saved or deleted so new sleeper types show at once.
+    private static final long SLEEPER_TYPE_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private volatile Map<Long, String> sleeperTypeCache;
+    private volatile long sleeperTypeCacheLoadedAt;
+    private final Object sleeperTypeCacheLock = new Object();
+
+    private void invalidateSleeperTypeCache() {
+        sleeperTypeCache = null;
+        // Clear again once the save commits, so a request that reloaded the map between the save and
+        // the commit (and so cached the old data) can't keep serving it for the full TTL.
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            sleeperTypeCache = null;
+                        }
+                    });
+        }
+    }
+
     private Map<Long, String> buildSleeperTypeMap() {
+        Map<Long, String> cached = sleeperTypeCache;
+        if (cached != null && System.currentTimeMillis() - sleeperTypeCacheLoadedAt < SLEEPER_TYPE_CACHE_TTL_MS) {
+            return cached;
+        }
+        synchronized (sleeperTypeCacheLock) {
+            cached = sleeperTypeCache;
+            if (cached != null && System.currentTimeMillis() - sleeperTypeCacheLoadedAt < SLEEPER_TYPE_CACHE_TTL_MS) {
+                return cached; // another request rebuilt it while we waited
+            }
+            Map<Long, String> fresh = Collections.unmodifiableMap(loadSleeperTypeMap());
+            sleeperTypeCache = fresh;
+            sleeperTypeCacheLoadedAt = System.currentTimeMillis();
+            return fresh;
+        }
+    }
+
+    private Map<Long, String> loadSleeperTypeMap() {
         Map<Long, String> sleeperTypeMap = new HashMap<>();
         List<Object[]> stressTypes = repository.findStressDeclarationSleeperTypes();
         if (stressTypes != null) {

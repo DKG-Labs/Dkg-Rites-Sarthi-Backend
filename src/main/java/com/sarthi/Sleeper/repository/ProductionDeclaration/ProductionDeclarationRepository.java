@@ -273,7 +273,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
         JOIN production_declaration d
             ON c.declaration_id = d.id
         JOIN sleeper_workflow_transaction w 
-            ON w.request_id = d.id
+            ON w.request_id = CAST(d.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
         AND d.casting_date = :castingDate
@@ -282,7 +282,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
         AND w.workflow_transition_id = (
             SELECT MAX(w2.workflow_transition_id)
             FROM sleeper_workflow_transaction w2
-            WHERE w2.request_id = d.id
+            WHERE w2.request_id = CAST(d.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
               AND w2.module_id = 11
         )
         """, nativeQuery = true)
@@ -292,7 +292,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
             SELECT DISTINCT p.batch_number
             FROM production_declaration p
             JOIN sleeper_workflow_transaction w 
-              ON w.request_id = p.id
+              ON w.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
             WHERE p.created_by = :vendorId
               AND p.casting_date = :castingDate
               AND p.plant_id = :plantId
@@ -302,7 +302,7 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
               AND w.workflow_transition_id = (
                   SELECT MAX(w2.workflow_transition_id)
                   FROM sleeper_workflow_transaction w2
-                  WHERE w2.request_id = p.id
+                  WHERE w2.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
                     AND w2.module_id = 11
               )
             """, nativeQuery = true)
@@ -318,14 +318,14 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
             SELECT p.*
             FROM production_declaration p
             JOIN sleeper_workflow_transaction w 
-              ON w.request_id = p.id
+              ON w.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
             WHERE p.batch_number = :batchNo
               AND w.module_id = 11
               AND LOWER(w.status) = 'completed'
               AND w.workflow_transition_id = (
                   SELECT MAX(w2.workflow_transition_id)
                   FROM sleeper_workflow_transaction w2
-                  WHERE w2.request_id = p.id
+                  WHERE w2.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
                     AND w2.module_id = 11
               )
             ORDER BY p.id ASC
@@ -337,14 +337,14 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
             SELECT p.*
             FROM production_declaration p
             JOIN sleeper_workflow_transaction w 
-              ON w.request_id = p.id
+              ON w.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
             WHERE p.batch_number = :batchNo
               AND w.module_id = 11
               AND LOWER(w.status) = 'completed'
               AND w.workflow_transition_id = (
                   SELECT MAX(w2.workflow_transition_id)
                   FROM sleeper_workflow_transaction w2
-                  WHERE w2.request_id = p.id
+                  WHERE w2.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
                     AND w2.module_id = 11
               )
             """, nativeQuery = true)
@@ -421,7 +421,7 @@ WHERE d.batch_number = :batchNo
         JOIN production_declaration d
             ON g.declaration_id = d.id
         JOIN sleeper_workflow_transaction w 
-            ON w.request_id = d.id
+            ON w.request_id = CAST(d.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
         WHERE d.batch_number = :batchNo
         AND d.production_unit = :productionUnit
         AND d.casting_date = :castingDate
@@ -430,7 +430,7 @@ WHERE d.batch_number = :batchNo
         AND w.workflow_transition_id = (
             SELECT MAX(w2.workflow_transition_id)
             FROM sleeper_workflow_transaction w2
-            WHERE w2.request_id = d.id
+            WHERE w2.request_id = CAST(d.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
               AND w2.module_id = 11
         )
         """, nativeQuery = true)
@@ -442,7 +442,7 @@ WHERE d.batch_number = :batchNo
                 p.id AS id
             FROM production_declaration p
             JOIN sleeper_workflow_transaction w 
-              ON w.request_id = p.id
+              ON w.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
             WHERE p.created_by = :vendorId
               AND p.casting_date = :castingDate
               AND p.plant_id = :plantId
@@ -452,7 +452,7 @@ WHERE d.batch_number = :batchNo
               AND w.workflow_transition_id = (
                   SELECT MAX(w2.workflow_transition_id)
                   FROM sleeper_workflow_transaction w2
-                  WHERE w2.request_id = p.id
+                  WHERE w2.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
                     AND w2.module_id = 11
               )
             """, nativeQuery = true)
@@ -467,7 +467,7 @@ WHERE d.batch_number = :batchNo
             SELECT p.*
             FROM production_declaration p
             JOIN sleeper_workflow_transaction w 
-              ON w.request_id = p.id
+              ON w.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
             WHERE p.batch_number = :batchNo
               AND p.production_unit = :productionUnit
               AND w.module_id = 11
@@ -475,7 +475,7 @@ WHERE d.batch_number = :batchNo
               AND w.workflow_transition_id = (
                   SELECT MAX(w2.workflow_transition_id)
                   FROM sleeper_workflow_transaction w2
-                  WHERE w2.request_id = p.id
+                  WHERE w2.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
                     AND w2.module_id = 11
               )
             LIMIT 1
@@ -486,7 +486,7 @@ WHERE d.batch_number = :batchNo
             SELECT p.*
             FROM production_declaration p
             JOIN sleeper_workflow_transaction w 
-              ON w.request_id = p.id
+              ON w.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
             WHERE p.batch_number = :batchNo
               AND p.production_unit = :productionUnit
               AND w.module_id = 11
@@ -494,7 +494,7 @@ WHERE d.batch_number = :batchNo
               AND w.workflow_transition_id = (
                   SELECT MAX(w2.workflow_transition_id)
                   FROM sleeper_workflow_transaction w2
-                  WHERE w2.request_id = p.id
+                  WHERE w2.request_id = CAST(p.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
                     AND w2.module_id = 11
               )
             """, nativeQuery = true)
