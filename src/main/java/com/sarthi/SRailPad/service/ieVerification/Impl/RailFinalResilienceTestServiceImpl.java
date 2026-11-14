@@ -26,6 +26,13 @@ public class RailFinalResilienceTestServiceImpl implements RailFinalResilienceTe
                 .orElse(new RailFinalResilienceTest());
 
         boolean isNew = entity.getId() == null;
+
+        // Safeguard: a save with every impact value blank must not wipe impact values that are
+        // already saved for this call + lot (this is how saved Resilience values were disappearing).
+        if (!isNew && !hasAnyImpact(dto) && hasAnyImpact(entity)) {
+            return buildResponse(entity);
+        }
+
         mapDtoToEntity(dto, entity);
 
         if (isNew) {
@@ -66,6 +73,25 @@ public class RailFinalResilienceTestServiceImpl implements RailFinalResilienceTe
     @Transactional
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    private static boolean anyFilled(String... values) {
+        for (String v : values) {
+            if (v != null && !v.trim().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    private static boolean hasAnyImpact(RailFinalResilienceTestRequestDto d) {
+        return anyFilled(d.getS1Impact1(), d.getS1Impact2(), d.getS1Impact3(), d.getS1Impact4(), d.getS1Impact5(), d.getS1Impact6(),
+                d.getS2Impact1(), d.getS2Impact2(), d.getS2Impact3(), d.getS2Impact4(), d.getS2Impact5(), d.getS2Impact6(),
+                d.getS3Impact1(), d.getS3Impact2(), d.getS3Impact3(), d.getS3Impact4(), d.getS3Impact5(), d.getS3Impact6());
+    }
+
+    private static boolean hasAnyImpact(RailFinalResilienceTest e) {
+        return anyFilled(e.getS1Impact1(), e.getS1Impact2(), e.getS1Impact3(), e.getS1Impact4(), e.getS1Impact5(), e.getS1Impact6(),
+                e.getS2Impact1(), e.getS2Impact2(), e.getS2Impact3(), e.getS2Impact4(), e.getS2Impact5(), e.getS2Impact6(),
+                e.getS3Impact1(), e.getS3Impact2(), e.getS3Impact3(), e.getS3Impact4(), e.getS3Impact5(), e.getS3Impact6());
     }
 
     private void mapDtoToEntity(RailFinalResilienceTestRequestDto dto, RailFinalResilienceTest entity) {
