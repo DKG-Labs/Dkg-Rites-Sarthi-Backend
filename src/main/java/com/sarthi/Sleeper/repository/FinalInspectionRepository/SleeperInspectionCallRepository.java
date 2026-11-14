@@ -369,29 +369,27 @@ ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
           @Param("endDate") LocalDate endDate);
 
     /*
-     * CM dashboard (Sleeper). Workflow is read in ONE pass each (latest row per call = lw,
-     * assigned IEs/CMs per call = asg) and joined, instead of per-call lookups whose COLLATE on
-     * request_id disabled its index. Columns / labels / rules are unchanged.
+     * CM dashboard (Sleeper). For each call shown: lw = its latest workflow row, asg = the IEs/CMs it
+     * was assigned to. Both are looked up per call through the request_id index (COLLATE is applied to
+     * sic.call_no, never to request_id, so the index stays usable). The previous version grouped the
+     * WHOLE workflow table on every request (19-79 s in prod). Columns / labels / rules are unchanged.
      */
     String SLEEPER_CM_LATEST_WF = """
-        LEFT JOIN (
-            SELECT DISTINCT w.request_id COLLATE utf8mb4_unicode_ci AS request_id, w.action, w.status, w.job_status
-            FROM sleeper_workflow_transaction w
-            JOIN (SELECT request_id, MAX(workflow_transition_id) AS mid
-                  FROM sleeper_workflow_transaction GROUP BY request_id) m
-              ON m.mid = w.workflow_transition_id
-        ) lw ON lw.request_id = sic.call_no COLLATE utf8mb4_unicode_ci
-        LEFT JOIN (
-            SELECT ANY_VALUE(wa.request_id) COLLATE utf8mb4_unicode_ci AS request_id,
-                   GROUP_CONCAT(DISTINCT CONCAT(ieu.full_name, ' - ', ieu.employee_code) SEPARATOR ', ') AS ie_names,
+        LEFT JOIN sleeper_workflow_transaction lw
+          ON lw.workflow_transition_id = (
+               SELECT MAX(w2.workflow_transition_id)
+               FROM sleeper_workflow_transaction w2
+               WHERE w2.request_id = sic.call_no COLLATE utf8mb4_0900_ai_ci)
+        LEFT JOIN LATERAL (
+            SELECT GROUP_CONCAT(DISTINCT CONCAT(ieu.full_name, ' - ', ieu.employee_code) SEPARATOR ', ') AS ie_names,
                    GROUP_CONCAT(DISTINCT CASE WHEN cmu.userid IS NOT NULL
                                               THEN CONCAT(cmu.employee_code, ' - ', cmu.full_name) END SEPARATOR ', ') AS cm_names,
                    MAX(CASE WHEN ieu.controlling_manager_id = :cmUserId THEN 1 ELSE 0 END) AS mine
             FROM sleeper_workflow_transaction wa
             JOIN user_master ieu ON ieu.userid = wa.assigned_to_user
             LEFT JOIN user_master cmu ON cmu.userid = ieu.controlling_manager_id
-            GROUP BY wa.request_id
-        ) asg ON asg.request_id = sic.call_no COLLATE utf8mb4_unicode_ci
+            WHERE wa.request_id = sic.call_no COLLATE utf8mb4_0900_ai_ci
+        ) asg ON TRUE
         """;
 
     String SLEEPER_CM_STATUS = """
@@ -578,12 +576,12 @@ fc AS (
             ELSE NULL
         END AS finalStatus,
         CASE WHEN c.desired_inspection_date < wf.schedule_date THEN 1 ELSE 0 END AS isOverdue,
-        CASE WHEN wf.last_status = 'DSC_SIGN_IC' THEN 1 ELSE 0 END AS icIssued
+        CASE WHEN wf.last_status = 'DSC_SIGN_IC' OR wf.last_action = 'SEND_CALL_TO_IBS' THEN 1 ELSE 0 END AS icIssued
     FROM calls c
     JOIN wf ON wf.call_no = c.call_no
     JOIN final_call_inspection_header fcih
       ON fcih.call_no COLLATE utf8mb4_unicode_ci = c.call_no COLLATE utf8mb4_unicode_ci
-    WHERE wf.last_action IN ('FINISH', 'GENERATE_IC', 'DSC_SIGN_IC')
+    WHERE wf.last_action IN ('FINISH', 'GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'SEND_CALL_TO_IBS')
 )
 SELECT
     ies.employee_code AS ieId,
