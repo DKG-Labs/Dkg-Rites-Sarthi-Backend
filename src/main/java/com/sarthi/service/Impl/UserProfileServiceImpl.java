@@ -33,6 +33,12 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final UserRoleMasterRepository userRoleMasterRepository;
     private final RoleMasterRepository roleMasterRepository;
 
+    // OTP for password change: reuses the login OTP service (SMS + login_otp table, same rules as login)
+    @Autowired
+    private OtpService otpService;
+    @Autowired
+    private com.sarthi.repository.mfa.LoginOtpRepository loginOtpRepository;
+
     @Autowired
     public UserProfileServiceImpl(UserMasterRepository userMasterRepository,
                                   UserProfileAuditRepository userProfileAuditRepository,
@@ -193,9 +199,73 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     @Override
+    public OtpService.OtpResult requestChangePasswordOtp(String username, ChangePasswordRequest request) {
+        UserMaster user = getUserByUsernameOrEmpCode(username);
+        // only send an OTP for a request that would otherwise succeed
+        validatePasswordChange(user, request);
+        return otpService.generateAndSendOtp(user);
+    }
+
+    @Override
     public void changePassword(String username, ChangePasswordRequest request) {
         UserMaster user = getUserByUsernameOrEmpCode(username);
+        validatePasswordChange(user, request);
+        verifyPasswordChangeOtp(user, request);
 
+        // Save as encrypted password
+        user.setPassword(com.sarthi.util.PasswordEncryptionUtil.encrypt(request.getNewPassword()));
+        user.setUpdatedBy(username);
+        user.setUpdatedDate(LocalDateTime.now());
+
+        userMasterRepository.save(user);
+
+        logAudit(user.getUserId(), "CHANGE_PASSWORD", "Password", "*****", "*****");
+    }
+
+    /** OTP check — same rules as login: this user's OTP, unused, within 10 min, max 5 wrong attempts. */
+    private void verifyPasswordChangeOtp(UserMaster user, ChangePasswordRequest request) {
+        if (request.getTransactionId() == null || request.getTransactionId().trim().isEmpty()
+                || request.getOtp() == null || request.getOtp().trim().isEmpty()) {
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Please request an OTP and enter it to change your password."));
+        }
+        Long otpId;
+        try {
+            otpId = Long.parseLong(request.getTransactionId().trim());
+        } catch (NumberFormatException e) {
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Invalid OTP request. Please request a new OTP."));
+        }
+        com.sarthi.entity.mfa.LoginOtp loginOtp = loginOtpRepository.findById(otpId)
+                .orElseThrow(() -> new BusinessException(new ErrorDetails(400, 400, "ERROR", "Invalid or expired OTP. Please request a new OTP.")));
+
+        if (user.getUserId() == null || !Long.valueOf(user.getUserId()).equals(loginOtp.getUserId())) {
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Invalid OTP request. Please request a new OTP."));
+        }
+        if (Boolean.TRUE.equals(loginOtp.getUsed())) {
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "This OTP has already been used. Please request a new OTP."));
+        }
+        if (LocalDateTime.now().isAfter(loginOtp.getExpiresAt())) {
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "OTP has expired. Please request a new OTP."));
+        }
+        int attempts = loginOtp.getAttemptCount() == null ? 0 : loginOtp.getAttemptCount();
+        if (attempts >= 5) {
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Maximum OTP attempts exceeded. Please request a new OTP."));
+        }
+        if (!loginOtp.getOtp().equals(request.getOtp().trim())) {
+            loginOtp.setAttemptCount(attempts + 1);
+            loginOtpRepository.save(loginOtp);
+            int left = 5 - (attempts + 1);
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR",
+                    left > 0 ? "Incorrect OTP. " + left + " attempt(s) left." : "Incorrect OTP. Maximum attempts reached, please request a new OTP."));
+        }
+        loginOtp.setUsed(true);
+        loginOtpRepository.save(loginOtp);
+    }
+
+    /** Current password, confirmation and strength rules (shared by the OTP request and the final change). */
+    private void validatePasswordChange(UserMaster user, ChangePasswordRequest request) {
+        if (request.getCurrentPassword() == null || request.getNewPassword() == null || request.getConfirmPassword() == null) {
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Current, new and confirm password are required."));
+        }
         // System currently uses plain text passwords for login, so we must match that behavior.
         // Fallback to passwordEncoder in case the system migrates to encoded passwords in the future.
         boolean isCurrentPasswordCorrect = com.sarthi.util.PasswordEncryptionUtil.matches(request.getCurrentPassword(), user.getPassword()) || 
@@ -215,17 +285,8 @@ public class UserProfileServiceImpl implements UserProfileService {
 
         String passwordRegex = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$";
         if (!request.getNewPassword().matches(passwordRegex)) {
-            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Password must be at least 8 characters, contain one uppercase, one lowercase, one number, and one special character."));
+            throw new BusinessException(new ErrorDetails(400, 400, "ERROR", "Password must be at least 8 characters, contain one uppercase, one lowercase, one number, and one special character (@$!%*?&)."));
         }
-
-        // Save as encrypted password
-        user.setPassword(com.sarthi.util.PasswordEncryptionUtil.encrypt(request.getNewPassword()));
-        user.setUpdatedBy(username);
-        user.setUpdatedDate(LocalDateTime.now());
-
-        userMasterRepository.save(user);
-
-        logAudit(user.getUserId(), "CHANGE_PASSWORD", "Password", "*****", "*****");
     }
 
     @Override

@@ -57,6 +57,15 @@ public class UserProfileController {
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(updatedProfile), HttpStatus.OK);
     }
 
+    // Step 1: check the passwords, then SMS an OTP to the registered mobile
+    @PostMapping("/change-password/request-otp")
+    public ResponseEntity<APIResponse> requestChangePasswordOtp(@RequestBody ChangePasswordRequest request) {
+        String identifier = getAuthenticatedIdentifier();
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(
+                userProfileService.requestChangePasswordOtp(identifier, request)), HttpStatus.OK);
+    }
+
+    // Step 2: change the password (requires transactionId + otp from step 1)
     @PostMapping("/change-password")
     public ResponseEntity<APIResponse> changePassword(@RequestBody ChangePasswordRequest request) {
         String identifier = getAuthenticatedIdentifier();
