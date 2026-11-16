@@ -36,6 +36,16 @@ public class MappingController {
         try {
             Object obj = mappingService.mapProcessIe(userId, dto, createdBy);
             return ResponseEntity.ok(ResponseBuilder.getSuccessResponse(obj));
+        } catch (IllegalArgumentException ex) {
+            // validation (e.g. duplicate IE + POI mapping): show the message as-is
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
+                            HttpStatus.BAD_REQUEST.value(),
+                            1000,
+                            "error",
+                            ex.getMessage()
+                    ))
+            );
         } catch (org.springframework.dao.DataIntegrityViolationException ex) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ResponseBuilder.getErrorResponse(new com.sarthi.exception.ErrorDetails(
