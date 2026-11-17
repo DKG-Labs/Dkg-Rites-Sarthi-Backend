@@ -173,18 +173,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         String poiCode = mapping.getPoiCode();
 
-        // 1. Call Raising fails if no Main IE is mapped to the vendor plant/POI
+        // 1. Call Raising: check if Main IE is mapped to the vendor plant/POI
+        // If not mapped, allow call creation so it stays in Call Desk queue for manual remapping/verification
         if (workflowId != null && workflowId.equals(2L)) {
             boolean hasMainIe = poiIeMappingRepository.hasMainIeMapping(rawPlantId, cleanPlantId, colonPlantId, poiCode);
             if (!hasMainIe) {
-                throw new BusinessException(
-                        new ErrorDetails(
-                                AppConstant.ERROR_CODE_RESOURCE,
-                                AppConstant.ERROR_TYPE_CODE_VALIDATION,
-                                AppConstant.ERROR_TYPE_VALIDATION,
-                                "No Main ie has been mapped for this plant id"
-                        )
-                );
+                System.out.println("⚠️ Railpad call " + requestId + ": No Main IE mapped yet. Call will queue in Call Desk for manual verification.");
             }
         }
 
@@ -318,6 +312,37 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         RailWorkflowTransaction saved =
                 railWorkflowTransactionRepository.save(tx);
+
+        // DIRECT CALL FORWARDING: If a Main IE is mapped, auto-forward to Rail Main IE
+        if (workflowId != null && workflowId.equals(2L)) {
+            String pId = rawPlantId != null ? rawPlantId.trim() : "";
+            List<RailPoiIeMapping> mMappings = poiIeMappingRepository.findMappingsByPlantOrPoiAndIeType(pId, mapping.getPoiCode(), "MAIN_IE");
+            if (mMappings != null && !mMappings.isEmpty() && mMappings.get(0).getIeUserId() != null) {
+                Long targetAssignedUser = mMappings.get(0).getIeUserId().longValue();
+                RailWorkflowTransaction verifiedTx = new RailWorkflowTransaction();
+                verifiedTx.setRequestId(requestId);
+                verifiedTx.setWorkflowId(2L);
+                verifiedTx.setVendorCode(vendorCode);
+                verifiedTx.setPlantId(plantId);
+                verifiedTx.setPoiCode(mapping.getPoiCode());
+                verifiedTx.setShift(shift);
+                verifiedTx.setRio(tx.getRio());
+                verifiedTx.setCurrentRole("RIO Help Desk");
+                verifiedTx.setNextRole("Rail Main IE");
+                verifiedTx.setAction("VERIFY");
+                verifiedTx.setStatus(AppConstant.PENDING_TYPE);
+                verifiedTx.setJobStatus(determineJobStatus("VERIFY"));
+                verifiedTx.setAssignedToUser(targetAssignedUser);
+                verifiedTx.setCreatedBy(createdBy);
+                verifiedTx.setModifiedBy(createdBy);
+                verifiedTx.setCreatedDate(LocalDateTime.now());
+                RailWorkflowTransaction savedVerified = railWorkflowTransactionRepository.save(verifiedTx);
+                try {
+                    notificationService.sendRailPadCallRegisteredNotification(requestId, plantId, "CALL_REGISTERED");
+                } catch (Exception ne) {}
+                return mapToResponse(savedVerified);
+            }
+        }
 
         return mapToResponse(saved);
     }

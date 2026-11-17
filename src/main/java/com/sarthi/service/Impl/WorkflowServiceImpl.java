@@ -365,6 +365,7 @@ public class WorkflowServiceImpl implements WorkflowService {
 
         Integer assignedRioUserId =null;
         String rio = null;
+        PincodePoIMapping poi = null;
 
 
           if (workflowName.equalsIgnoreCase("INSPECTION CALL")) {
@@ -411,16 +412,9 @@ public class WorkflowServiceImpl implements WorkflowService {
               //  PincodePoIMapping poi = pincodePoIMappingRepository.findByPoiCode(ic.getPlaceOfInspection());
 
 
-              PincodePoIMapping poi =
+              poi =
                       pincodePoIMappingRepository.findByPoiCode(ic.getPlaceOfInspection())
-                              .orElseThrow(() -> new BusinessException(
-                                      new ErrorDetails(
-                                              AppConstant.ERROR_CODE_RESOURCE,
-                                              AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                              AppConstant.ERROR_TYPE_VALIDATION,
-                                              "Invalid POI code"
-                                      )
-                              ));
+                              .orElse(null);
               String stage = null;
               if(ic.getTypeOfCall().equalsIgnoreCase("Raw Material")){
                   stage ="R";
@@ -430,20 +424,21 @@ public class WorkflowServiceImpl implements WorkflowService {
                   stage="F";
               }
               String product ="ERC";
-              String pinCode = poi.getPinCode();
+              String pinCode = poi != null ? poi.getPinCode() : pincode;
 
-              IEFieldsMapping mapping =
-                      ieFieldsMappingRepository
-                              .findByPinCodeProductAndStageMatch(pinCode, product, stage)
-                              .orElseThrow(() -> new BusinessException(
-                                      new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
-                                              AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                              AppConstant.ERROR_TYPE_VALIDATION,
-                                              "Please contact Admin. No IE has been mapped.")));
+              if (pinCode != null && !pinCode.isBlank()) {
+                  IEFieldsMapping mapping =
+                          ieFieldsMappingRepository
+                                  .findByPinCodeProductAndStageMatch(pinCode, product, stage)
+                                  .orElse(null);
+                  if (mapping != null && mapping.getRio() != null) {
+                      rio = mapping.getRio();
+                  }
+              }
 
-              rio =mapping.getRio();
-
-            //  assignedRioUserId = rioUser.getRioUserId();
+              if (rio == null || rio.isBlank()) {
+                  rio = "NRIO";
+              }
           }
 
         // Create transition entry
@@ -454,33 +449,251 @@ public class WorkflowServiceImpl implements WorkflowService {
         entry.setStatus(AppConstant.CREATED_TYPE);
         entry.setJobStatus(AppConstant.CREATED_TYPE);
         entry.setAssignedToUser(null);
-        //entry.setCurrentRole(String.valueOf(transition.getCurrentRoleId()));
         entry.setCurrentRoleName(roleNameById(transition.getCurrentRoleId()));
         entry.setNextRole(String.valueOf(transition.getNextRoleId()));
         entry.setCurrentRole(String.valueOf(transition.getCurrentRoleId()));
         entry.setNextRoleName(roleNameById(transition.getNextRoleId()));
-      //  entry.setNextRole(String.valueOf(transition.getNextRoleId()));
         entry.setCreatedBy(createdBy);
         entry.setCreatedDate(new Date());
         entry.setWorkflowSequence(1);
-        //entry.setTransitionOrder(1);
 
         if(workflow.getWorkflowName().equalsIgnoreCase("INSPECTION CALL")){
-
             entry.setAssignedToUser(null);
             entry.setRio(rio);
             String productType = "ERC";
-            notificationService.sendInspectionCallAssignedToRio(
-                  productType,  rio,
-                    requestId
-            );
-
-
+            try {
+                notificationService.sendInspectionCallAssignedToRio(
+                      productType,  rio,
+                        requestId
+                );
+            } catch (Exception ne) {
+                // Ignore notification failure
+            }
         }
 
         workflowTransitionRepository.save(entry);
 
+        // DIRECT CALL FORWARDING: If an IE is mapped for this POI, auto-forward to CALL_REGISTERED!
+        if (workflow.getWorkflowName().equalsIgnoreCase("INSPECTION CALL")) {
+            InspectionCall ic = inspectionCallRepository.findByIcNumber(requestId).orElse(null);
+            if (ic != null && ic.getPlaceOfInspection() != null) {
+                String stage = "R";
+                if ("Process".equalsIgnoreCase(ic.getTypeOfCall())) {
+                    stage = "P";
+                } else if ("Final".equalsIgnoreCase(ic.getTypeOfCall())) {
+                    stage = "F";
+                }
+
+                String poiPinCode = (poi != null && poi.getPinCode() != null) ? poi.getPinCode() : pincode;
+                Integer mappedIeUserId = resolveMappedIeForErc(ic, poiPinCode, stage);
+
+                if (mappedIeUserId != null) {
+                    WorkflowTransitionDto autoVerifiedDto = autoVerifyAndRegisterErcCall(entry, ic, mappedIeUserId, stage, rio, createdBy);
+                    if (autoVerifiedDto != null) {
+                        return autoVerifiedDto;
+                    }
+                }
+            }
+        }
+
         return mapWorkflowTransition(entry);
+    }
+
+    /**
+     * Automatically verifies and registers an ERC inspection call to the mapped IE.
+     */
+    public WorkflowTransitionDto autoVerifyAndRegisterErcCall(
+            WorkflowTransition current,
+            InspectionCall ic,
+            Integer mappedIeUserId,
+            String stage,
+            String rio,
+            Integer actionBy
+    ) {
+        TransitionMaster verifyTransition = transitionMasterRepository.findByTransitionName("VERIFY_CALL");
+        TransitionMaster callRegTransition = transitionMasterRepository.findByTransitionName("CALL_REGISTERED");
+
+        if (verifyTransition == null || callRegTransition == null) {
+            return null;
+        }
+
+        Integer creator = actionBy != null ? actionBy : (current.getCreatedBy() != null ? current.getCreatedBy() : mappedIeUserId);
+        String effectiveRio = rio != null ? rio : current.getRio();
+
+        // 1. Create VERIFIED transition
+        WorkflowTransition verified = new WorkflowTransition();
+        verified.setWorkflowId(current.getWorkflowId());
+        verified.setTransitionId(verifyTransition.getTransitionId());
+        verified.setRequestId(current.getRequestId());
+        verified.setStatus("VERIFIED");
+        verified.setAction("AUTO_VERIFY");
+        verified.setRemarks("Auto-forwarded: Verified via POI mapping");
+        verified.setCreatedBy(creator);
+        verified.setCreatedDate(new Date());
+        verified.setRio(effectiveRio);
+        verified.setWorkflowSequence(current.getWorkflowSequence() + 1);
+        verified.setCurrentRole(String.valueOf(verifyTransition.getCurrentRoleId()));
+        verified.setCurrentRoleName(roleNameById(verifyTransition.getCurrentRoleId()));
+        verified.setNextRole(String.valueOf(verifyTransition.getNextRoleId()));
+        verified.setNextRoleName(roleNameById(verifyTransition.getNextRoleId()));
+        workflowTransitionRepository.save(verified);
+
+        // 2. Create CALL_REGISTERED transition
+        WorkflowTransition callReg = new WorkflowTransition();
+        callReg.setWorkflowId(current.getWorkflowId());
+        callReg.setTransitionId(callRegTransition.getTransitionId());
+        callReg.setRequestId(current.getRequestId());
+        callReg.setStatus("CALL_REGISTERED");
+        callReg.setJobStatus("CALL_REGISTERED");
+        callReg.setAction("AUTO_REGISTER");
+        callReg.setRemarks("Auto-forwarded: Registered to mapped IE");
+        callReg.setCreatedBy(creator);
+        callReg.setCreatedDate(new Date());
+        callReg.setRio(effectiveRio);
+        callReg.setWorkflowSequence(verified.getWorkflowSequence() + 1);
+        callReg.setAssignedToUser(mappedIeUserId);
+        if ("P".equals(stage)) {
+            callReg.setProcessIeUserId(mappedIeUserId);
+        }
+        callReg.setCurrentRole(String.valueOf(callRegTransition.getCurrentRoleId()));
+        callReg.setCurrentRoleName(roleNameById(callRegTransition.getCurrentRoleId()));
+        callReg.setNextRole(String.valueOf(callRegTransition.getNextRoleId()));
+        callReg.setNextRoleName(roleNameById(callRegTransition.getNextRoleId()));
+        workflowTransitionRepository.save(callReg);
+
+        // 3. If Final call: populate final_ie_mapping
+        if ("F".equals(stage) || "Final".equalsIgnoreCase(ic.getTypeOfCall())) {
+            List<IePincodePoiMapping> ieMappings = iePincodePoiMappingRepository.findByPoiCode(ic.getPlaceOfInspection());
+            if (ieMappings != null) {
+                for (IePincodePoiMapping m : ieMappings) {
+                    if (m.getEmployeeCode() != null && !m.getEmployeeCode().trim().isEmpty()) {
+                        UserMaster u = userMasterRepository.findByEmployeeCode(m.getEmployeeCode().trim());
+                        if (u != null) {
+                            FinalIeMapping fim = new FinalIeMapping();
+                            fim.setWorkflowTransitionId(callReg.getWorkflowTransitionId());
+                            fim.setIeUserId(u.getUserId());
+                            finalIeMappingRepository.save(fim);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Send registered notification
+        try {
+            notificationService.sendCallRegisteredNotification(current.getRequestId(), ic.getPlaceOfInspection(), "CALL_REGISTERED");
+        } catch (Exception ne) {}
+
+        return mapWorkflowTransition(callReg);
+    }
+
+    /**
+     * Resolves the mapped IE userId for an ERC inspection call based on POI mapping tables.
+     * Returns the mapped IE's userId, or null if unmapped / ambiguous.
+     */
+    private Integer resolveMappedIeForErc(InspectionCall ic, String pinCode, String stage) {
+        if (ic == null || ic.getPlaceOfInspection() == null) {
+            return null;
+        }
+        String poiCode = ic.getPlaceOfInspection().trim();
+        String callNo = ic.getIcNumber();
+
+        // 1. Process stage ("P" / "EP") uses poi_process_ie_mapping
+        if ("P".equalsIgnoreCase(stage) || (callNo != null && callNo.startsWith("EP")) || "PROCESS".equalsIgnoreCase(ic.getTypeOfCall())) {
+            try {
+                List<Long> userIds = poiProcessIeMappingRepository.findUserIdsByPoiCode(poiCode);
+                if (userIds != null && !userIds.isEmpty() && userIds.get(0) != null) {
+                    return userIds.get(0).intValue();
+                }
+            } catch (Exception e) {}
+            return null;
+        }
+
+        // 2. Raw Material ("R") and Final ("F") stages:
+        // Priority 1: Check findIeEmpCodeWithName (the exact query used by Call Desk to display CURRENT SYSTEM MAPPED IE)
+        try {
+            List<String> ieEmpNames = iePincodePoiMappingRepository.findIeEmpCodeWithName(poiCode);
+            if (ieEmpNames != null && !ieEmpNames.isEmpty()) {
+                for (String ieStr : ieEmpNames) {
+                    if (ieStr == null || ieStr.isBlank()) continue;
+                    String empCode = null;
+                    if (ieStr.contains("-")) {
+                        empCode = ieStr.split("-")[0].trim();
+                    } else if (ieStr.contains("(") && ieStr.contains(")")) {
+                        empCode = ieStr.substring(ieStr.indexOf('(') + 1, ieStr.indexOf(')')).trim();
+                    } else {
+                        empCode = ieStr.trim();
+                    }
+                    if (empCode != null && !empCode.isEmpty()) {
+                        Optional<UserMaster> optUm = userMasterRepository.findFirstByEmployeeCode(empCode);
+                        if (optUm.isPresent()) {
+                            return optUm.get().getUserId();
+                        }
+                        UserMaster um = userMasterRepository.findByEmployeeCode(empCode);
+                        if (um != null) {
+                            return um.getUserId();
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {}
+
+        // Priority 2: Primary IE
+        try {
+            if (pinCode != null && !pinCode.isBlank()) {
+                List<String> primaryIe = iePincodePoiMappingRepository.findPrimaryIe(pinCode, "ERC", poiCode);
+                if (primaryIe != null && primaryIe.size() == 1 && primaryIe.get(0) != null && !primaryIe.get(0).trim().isEmpty()) {
+                    String empCode = primaryIe.get(0).trim();
+                    Optional<UserMaster> optUm = userMasterRepository.findFirstByEmployeeCode(empCode);
+                    if (optUm.isPresent()) {
+                        return optUm.get().getUserId();
+                    }
+                    UserMaster um = userMasterRepository.findByEmployeeCode(empCode);
+                    if (um != null) {
+                        return um.getUserId();
+                    }
+                }
+            }
+        } catch (Exception e) {}
+
+        // Priority 3: Secondary IE
+        try {
+            if (pinCode != null && !pinCode.isBlank()) {
+                List<String> secondaryIe = iePincodePoiMappingRepository.findSecondaryIe(pinCode, "ERC", poiCode);
+                if (secondaryIe != null && secondaryIe.size() == 1 && secondaryIe.get(0) != null && !secondaryIe.get(0).trim().isEmpty()) {
+                    String empCode = secondaryIe.get(0).trim();
+                    Optional<UserMaster> optUm = userMasterRepository.findFirstByEmployeeCode(empCode);
+                    if (optUm.isPresent()) {
+                        return optUm.get().getUserId();
+                    }
+                    UserMaster um = userMasterRepository.findByEmployeeCode(empCode);
+                    if (um != null) {
+                        return um.getUserId();
+                    }
+                }
+            }
+        } catch (Exception e) {}
+
+        // Priority 4: Fallback directly by POI code
+        try {
+            List<IePincodePoiMapping> poiMappings = iePincodePoiMappingRepository.findByPoiCode(poiCode);
+            if (poiMappings == null || poiMappings.isEmpty()) {
+                String cleanPoi = poiCode.replaceAll("^:+", "").trim();
+                poiMappings = iePincodePoiMappingRepository.findByPoiCode(cleanPoi);
+            }
+            if (poiMappings != null && !poiMappings.isEmpty()) {
+                for (IePincodePoiMapping m : poiMappings) {
+                    if (m.getEmployeeCode() != null && !m.getEmployeeCode().trim().isEmpty()) {
+                        Optional<UserMaster> optUm = userMasterRepository.findFirstByEmployeeCode(m.getEmployeeCode().trim());
+                        if (optUm.isPresent()) {
+                            return optUm.get().getUserId();
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {}
+
+        return null;
     }
 
 
@@ -1808,14 +2021,17 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
 
         PincodePoIMapping poi =
                 pincodePoIMappingRepository.findByPoiCode(ic.getPlaceOfInspection())
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Invalid POI code"
-                                )
-                        ));
+                        .orElse(null);
+        if (poi == null && (req.getAssignUserId() == null || req.getAssignUserId() <= 0)) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Invalid POI code"
+                    )
+            );
+        }
         String stage = null;
         if(ic.getTypeOfCall().equalsIgnoreCase("Raw Material")){
             stage ="R";
@@ -1827,7 +2043,22 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
 
 
         // RAW / FINAL → normal IE assignment from POI mapping
-        callReg.setAssignedToUser(assignIE(poi.getPinCode(),"ERC",stage,ic.getPlaceOfInspection() ));
+        Integer assignedUserId = null;
+        if (req.getAssignUserId() != null && req.getAssignUserId() > 0) {
+            assignedUserId = req.getAssignUserId();
+        } else {
+            try {
+                assignedUserId = assignIE(poi.getPinCode(),"ERC",stage,ic.getPlaceOfInspection() );
+            } catch (Exception ex) {
+                WorkflowTransition lastTx = workflowTransitionRepository.findTopByRequestIdOrderByWorkflowTransitionIdDesc(req.getRequestId());
+                if (lastTx != null && lastTx.getAssignedToUser() != null) {
+                    assignedUserId = lastTx.getAssignedToUser();
+                } else {
+                    throw ex;
+                }
+            }
+        }
+        callReg.setAssignedToUser(assignedUserId);
     }
 
     workflowTransitionRepository.save(callReg);
@@ -1990,14 +2221,17 @@ private WorkflowTransitionDto verifyCall(WorkflowTransition current, TransitionA
 
         PincodePoIMapping poi =
                 pincodePoIMappingRepository.findByPoiCode(ic.getPlaceOfInspection())
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Invalid POI code"
-                                )
-                        ));
+                        .orElse(null);
+        if (poi == null && (req.getAssignUserId() == null || req.getAssignUserId() <= 0)) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Invalid POI code"
+                    )
+            );
+        }
         String stage = null;
         if(ic.getTypeOfCall().equalsIgnoreCase("Raw Material")){
             stage ="R";
@@ -3163,14 +3397,17 @@ private List<Integer> getIeUsersByProcessIeAndPoi(
 
         PincodePoIMapping poi =
                 pincodePoIMappingRepository.findByPoiCode(ic.getPlaceOfInspection())
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Invalid POI code"
-                                )
-                        ));
+                        .orElse(null);
+        if (poi == null && (req.getAssignUserId() == null || req.getAssignUserId() <= 0)) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Invalid POI code"
+                    )
+            );
+        }
 
         System.out.println("poi"+ poi);
         String stage = null;
@@ -3218,14 +3455,17 @@ private List<Integer> getIeUsersByProcessIeAndPoi(
 
         PincodePoIMapping poi =
                 pincodePoIMappingRepository.findByPoiCode(ic.getPlaceOfInspection())
-                        .orElseThrow(() -> new BusinessException(
-                                new ErrorDetails(
-                                        AppConstant.ERROR_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_CODE_RESOURCE,
-                                        AppConstant.ERROR_TYPE_VALIDATION,
-                                        "Invalid POI code"
-                                )
-                        ));
+                        .orElse(null);
+        if (poi == null && (req.getAssignUserId() == null || req.getAssignUserId() <= 0)) {
+            throw new BusinessException(
+                    new ErrorDetails(
+                            AppConstant.ERROR_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                            AppConstant.ERROR_TYPE_VALIDATION,
+                            "Invalid POI code"
+                    )
+            );
+        }
         String stage = null;
         if(ic.getTypeOfCall().equalsIgnoreCase("Raw Material")){
             stage ="R";
