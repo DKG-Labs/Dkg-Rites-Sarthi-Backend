@@ -885,7 +885,11 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         }
 
         com.sarthi.SRailPad.entity.raipadMapping.RailPadPincodePoIMapping poiMapping = null;
-        if (!cleanVendorCode.isEmpty()) {
+        // The POI mapping is stored under the plant's vendor id (e.g. 253), not the IMMS vendor code (:12094)
+        if (plant != null && plant.getVendorId() != null) {
+            poiMapping = railPadPincodePoIMappingRepository.findByVendorCode(String.valueOf(plant.getVendorId())).orElse(null);
+        }
+        if (poiMapping == null && !cleanVendorCode.isEmpty()) {
             final String prefixedVendorCode = ":" + cleanVendorCode;
             poiMapping = railPadPincodePoIMappingRepository.findByVendorCode(cleanVendorCode)
                     .orElseGet(() -> railPadPincodePoIMappingRepository.findByVendorCode(prefixedVendorCode)
@@ -911,7 +915,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         }
 
         // 1. Construct Contractor display: company name & company address (from railpad_pincode_poi_mapping, fallback to rail_vendor_plant)
-        String compName = (poiMapping != null && poiMapping.getCompanyName() != null && !poiMapping.getCompanyName().isBlank())
+        String compName = (poiMapping != null && poiMapping.getUnitName() != null && !poiMapping.getUnitName().isBlank())
+                ? poiMapping.getUnitName().trim()
+                : (poiMapping != null && poiMapping.getCompanyName() != null && !poiMapping.getCompanyName().isBlank())
                 ? poiMapping.getCompanyName().trim()
                 : (plant != null && plant.getCompanyName() != null && !plant.getCompanyName().isBlank()
                         ? plant.getCompanyName().trim()
