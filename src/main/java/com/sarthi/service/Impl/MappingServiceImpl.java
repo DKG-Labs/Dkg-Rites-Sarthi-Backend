@@ -73,17 +73,63 @@ public class MappingServiceImpl implements MappingService {
         
         String employeeCode = processIeUser.getEmployeeCode();
 
-        for (IePoiMappingDto ieDto : dto.getIePoiMappings()) {
-            for (String poi : ieDto.getPoiCodes()) {
-                
-                // Process IE EmployeeCode -> POI mapping
-                PoiProcessIeMapping poiProcessMap = new PoiProcessIeMapping();
-                poiProcessMap.setEmployeeCode(employeeCode);
-                poiProcessMap.setPoiCode(poi);
-                poiProcessMap.setCreatedBy(safeParseLong(createdBy));
-                poiProcessMap.setCreatedDate(new Date());
-                poiProcessIeMappingRepository.save(poiProcessMap);
+        // All POIs of this save, in order. On edit the FIRST one is the mapping being edited
+        // (the edit form pre-fills only that row); any further ones are plants added with "Add".
+        List<String> pois = new ArrayList<>();
+        if (dto.getIePoiMappings() != null) {
+            for (IePoiMappingDto ieDto : dto.getIePoiMappings()) {
+                if (ieDto.getPoiCodes() == null) continue;
+                for (String poi : ieDto.getPoiCodes()) {
+                    if (poi != null && !poi.trim().isEmpty()) pois.add(poi.trim());
+                }
             }
+        }
+        if (pois.isEmpty()) {
+            throw new IllegalArgumentException("Please select at least one POI.");
+        }
+
+        PoiProcessIeMapping editing = null;
+        if (dto.getId() != null) {
+            editing = poiProcessIeMappingRepository.findById(dto.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("The mapping being edited no longer exists. Please refresh and try again."));
+        }
+
+        // ---- 1. validate everything first; nothing is saved if any check fails ----
+        Set<String> seen = new HashSet<>();
+        List<String> alreadyMapped = new ArrayList<>();
+        for (int i = 0; i < pois.size(); i++) {
+            String poi = pois.get(i);
+            if (!seen.add(poi)) {
+                throw new IllegalArgumentException("POI " + poi + " is selected more than once.");
+            }
+            boolean isEditedRowUnchanged = (i == 0 && editing != null
+                    && poi.equals(editing.getPoiCode()) && employeeCode.equals(editing.getEmployeeCode()));
+            if (!isEditedRowUnchanged && poiProcessIeMappingRepository.existsByPoiCodeAndEmployeeCode(poi, employeeCode)) {
+                alreadyMapped.add(poi);
+            }
+        }
+        if (!alreadyMapped.isEmpty()) {
+            throw new IllegalArgumentException("IE " + employeeCode + " is already mapped to POI " + String.join(", ", alreadyMapped)
+                    + ". Duplicate mapping is not allowed.");
+        }
+
+        // ---- 2. save: edited row is updated, every other POI is added as a new mapping ----
+        for (int i = 0; i < pois.size(); i++) {
+            String poi = pois.get(i);
+            if (i == 0 && editing != null) {
+                editing.setEmployeeCode(employeeCode);
+                editing.setPoiCode(poi);
+                editing.setUpdatedBy(safeParseLong(createdBy));
+                editing.setUpdatedDate(new Date());
+                poiProcessIeMappingRepository.save(editing);
+                continue;
+            }
+            PoiProcessIeMapping poiProcessMap = new PoiProcessIeMapping();
+            poiProcessMap.setEmployeeCode(employeeCode);
+            poiProcessMap.setPoiCode(poi);
+            poiProcessMap.setCreatedBy(safeParseLong(createdBy));
+            poiProcessMap.setCreatedDate(new Date());
+            poiProcessIeMappingRepository.save(poiProcessMap);
         }
         return null;
     }

@@ -6,8 +6,12 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.sarthi.dto.StoreCorrectionSlipRequestDTO;
 import com.sarthi.dto.StoreCorrectionSlipResponseDTO;
+import com.sarthi.entity.certificate.CertificateStorage;
 import com.sarthi.entity.certificate.CorrectionSlipDocument;
+import com.sarthi.repository.certificate.CertificateStorageRepository;
 import com.sarthi.repository.certificate.CorrectionSlipDocumentRepository;
+import com.sarthi.service.AzureBlobStorageService;
+import com.sarthi.service.CaseLetterService;
 import com.sarthi.service.CorrectionSlipStorageService;
 import com.sarthi.service.PdfCompressionService;
 import com.sarthi.util.BlobFolderResolver;
@@ -20,6 +24,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @Service
@@ -41,6 +47,10 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
 
     private final CorrectionSlipDocumentRepository documentRepository;
     private final PdfCompressionService pdfCompressionService;
+    private final CertificateStorageRepository certificateStorageRepository;
+    private final AzureBlobStorageService azureBlobStorageService;
+    private final CaseLetterService caseLetterService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Value("${azure.storage.connection-string}")
     private String connectionString;
@@ -243,13 +253,34 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         variations.add(":" + clean);
         if (clean.contains(" ")) {
             variations.add(clean.replace(" ", "-"));
+            variations.add(clean.replace(" ", "/"));
+            variations.add(clean.replace(" ", "_"));
             variations.add(":" + clean.replace(" ", "-"));
-        } else if (clean.contains("-")) {
+        }
+        if (clean.contains("-")) {
             variations.add(clean.replace("-", " "));
+            variations.add(clean.replace("-", "/"));
+            variations.add(clean.replace("-", "_"));
             variations.add(":" + clean.replace("-", " "));
         }
+        if (clean.contains("/")) {
+            variations.add(clean.replace("/", "-"));
+            variations.add(clean.replace("/", " "));
+            variations.add(clean.replace("/", "_"));
+        }
 
-        List<CorrectionSlipDocument> list = documentRepository.findByCallNoInAndStatusOrderByUploadedAtAsc(variations, "ACTIVE");
+        // Sub-tokens if clean contains slashes, underscores, spaces or dashes
+        for (String part : clean.split("[/_ -]")) {
+            String p = part.trim();
+            if (p.length() >= 6 && p.matches(".*\\d+.*") && !variations.contains(p)) {
+                variations.add(p);
+            }
+        }
+
+        List<CorrectionSlipDocument> list = documentRepository.findAllMatchingForCall(variations, clean);
+        if (list == null || list.isEmpty()) {
+            list = documentRepository.findByCallNoInAndStatusOrderByUploadedAtAsc(variations, "ACTIVE");
+        }
         return list != null ? list : Collections.emptyList();
     }
 
@@ -305,8 +336,10 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         return buildPdfResponse(optDoc.get(), inline);
     }
 
-    private ResponseEntity<Resource> buildPdfResponse(CorrectionSlipDocument doc, boolean inline) {
-        log.info("buildPdfResponse for doc id={}, callNo='{}', blobFileName='{}', blobUrl='{}', defaultContainer='{}'",
+    @Override
+    public byte[] getDocumentBytes(CorrectionSlipDocument doc) {
+        if (doc == null) return null;
+        log.info("getDocumentBytes for doc id={}, callNo='{}', blobFileName='{}', blobUrl='{}', defaultContainer='{}'",
                 doc.getId(), doc.getCallNo(), doc.getBlobFileName(), doc.getBlobUrl(), correctionSlipContainerName);
 
         byte[] data = null;
@@ -428,11 +461,19 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         }
 
         if (data == null) {
+            return null;
+        }
+
+        return FileCompressionUtil.decompressIfNeeded(data);
+    }
+
+    private ResponseEntity<Resource> buildPdfResponse(CorrectionSlipDocument doc, boolean inline) {
+        byte[] decompressedBytes = getDocumentBytes(doc);
+        if (decompressedBytes == null) {
             log.warn("Correction slip file content could not be retrieved from local or Azure for id: {}", doc.getId());
             return ResponseEntity.notFound().build();
         }
 
-        byte[] decompressedBytes = FileCompressionUtil.decompressIfNeeded(data);
         ByteArrayResource resource = new ByteArrayResource(decompressedBytes);
 
         String disposition = inline ? "inline" : "attachment";
@@ -442,6 +483,166 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + filename + "\"")
                 .body(resource);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getMergedIcAndCorrectionSlips(String callNo) {
+        if (callNo == null || callNo.trim().isEmpty()) {
+            throw new IllegalArgumentException("Call number is required.");
+        }
+        String cleanCall = callNo.replaceAll("^:+", "").trim();
+
+        // 1. Fetch all active correction slip documents
+        List<CorrectionSlipDocument> slipDocs = getAllDocuments(cleanCall);
+        if (slipDocs == null || slipDocs.isEmpty()) {
+            throw new NoSuchElementException("No correction slip has been found this call");
+        }
+
+        List<byte[]> pdfList = new ArrayList<>();
+
+        // 2. Fetch original IC bytes
+        byte[] icBytes = fetchOriginalIcBytes(cleanCall, slipDocs);
+        if (icBytes != null && icBytes.length > 0) {
+            log.info("Found original IC ({} bytes) for call: {}", icBytes.length, cleanCall);
+            pdfList.add(icBytes);
+        } else {
+            log.warn("Original IC not found or could not be downloaded for call: {}", cleanCall);
+        }
+
+        // 3. Fetch each correction slip PDF bytes in sequence
+        for (CorrectionSlipDocument doc : slipDocs) {
+            byte[] slipBytes = getDocumentBytes(doc);
+            if (slipBytes != null && slipBytes.length > 0) {
+                log.info("Loaded correction slip id={} ({} bytes) for call: {}", doc.getId(), slipBytes.length, cleanCall);
+                pdfList.add(slipBytes);
+            } else {
+                log.warn("Correction slip id={} could not be retrieved for call: {}", doc.getId(), cleanCall);
+            }
+        }
+
+        if (pdfList.isEmpty()) {
+            throw new RuntimeException("No valid PDF content found to merge for call: " + cleanCall);
+        }
+
+        if (pdfList.size() == 1) {
+            return pdfList.get(0);
+        }
+
+        return caseLetterService.mergePdfs(pdfList);
+    }
+
+    private byte[] fetchOriginalIcBytes(String callNo, List<CorrectionSlipDocument> slipDocs) {
+        List<String> candidates = new ArrayList<>();
+        candidates.add(callNo);
+        if (callNo.contains(" ")) candidates.add(callNo.replace(" ", "-"));
+        if (callNo.contains("-")) candidates.add(callNo.replace("-", "/"));
+        if (callNo.contains("/")) candidates.add(callNo.replace("/", "-"));
+
+        for (CorrectionSlipDocument doc : slipDocs) {
+            if (doc.getIcNumber() != null && !doc.getIcNumber().isBlank()) {
+                String ic = doc.getIcNumber().trim();
+                if (!candidates.contains(ic)) candidates.add(ic);
+                if (ic.contains("/")) candidates.add(ic.replace("/", "-"));
+                if (ic.contains("-")) candidates.add(ic.replace("-", "/"));
+            }
+        }
+
+        // Try looking up certificate_no from inspection complete details tables
+        String[] compTables = {
+            "rail_inspection_complete_details",
+            "sleeper_inspection_complete_details",
+            "inspection_complete_details"
+        };
+        for (String t : compTables) {
+            try {
+                String sql = "SELECT certificate_no FROM " + t + " WHERE call_no = ? OR call_no LIKE CONCAT('%', ?, '%') ORDER BY id DESC LIMIT 1";
+                List<String> certList = jdbcTemplate.query(sql, (rs, rowNum) -> rs.getString("certificate_no"), callNo, callNo);
+                if (certList != null && !certList.isEmpty() && certList.get(0) != null && !certList.get(0).isBlank()) {
+                    String cert = certList.get(0).trim();
+                    if (!candidates.contains(cert)) candidates.add(cert);
+                    if (cert.contains("/")) candidates.add(cert.replace("/", "-"));
+                    if (cert.contains("-")) candidates.add(cert.replace("-", "/"));
+                    break;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        String resolvedFromTables = resolveIcFromEditTables(callNo);
+        if (resolvedFromTables != null && !candidates.contains(resolvedFromTables)) {
+            candidates.add(resolvedFromTables);
+            if (resolvedFromTables.contains("/")) candidates.add(resolvedFromTables.replace("/", "-"));
+            if (resolvedFromTables.contains("-")) candidates.add(resolvedFromTables.replace("-", "/"));
+        }
+
+        for (String cand : candidates) {
+            Optional<CertificateStorage> storageOpt = certificateStorageRepository.findByIcNumber(cand);
+            if (storageOpt.isEmpty()) {
+                storageOpt = certificateStorageRepository.findByCallNumber(cand);
+            }
+
+            if (storageOpt.isPresent()) {
+                CertificateStorage storage = storageOpt.get();
+                String fileName = storage.getFileName();
+                if (fileName != null && !fileName.isBlank()) {
+                    try {
+                        byte[] data = azureBlobStorageService.downloadFile(fileName);
+                        if (data != null && data.length > 0) return data;
+                    } catch (Exception e) {
+                        log.debug("Direct downloadFile failed for IC filename {}: {}", fileName, e.getMessage());
+                    }
+                    String noSpaces = fileName.replaceAll("\\s+", "");
+                    if (!noSpaces.equals(fileName)) {
+                        try {
+                            byte[] data = azureBlobStorageService.downloadFile(noSpaces);
+                            if (data != null && data.length > 0) return data;
+                        } catch (Exception ignored) {}
+                    }
+                }
+                if (storage.getBlobUrl() != null && storage.getBlobUrl().startsWith("http")) {
+                    try {
+                        java.net.URL url = new java.net.URI(storage.getBlobUrl()).toURL();
+                        try (java.io.InputStream in = url.openStream()) {
+                            byte[] data = in.readAllBytes();
+                            if (data != null && data.length > 0) return data;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            try {
+                ResponseEntity<byte[]> resp = azureBlobStorageService.openCertificate(cand);
+                if (resp != null && resp.getBody() != null && resp.getBody().length > 0) {
+                    return resp.getBody();
+                }
+            } catch (Exception ignored) {}
+        }
+
+        return null;
+    }
+
+    private String resolveIcFromEditTables(String callNo) {
+        String[] tables = {
+            "railpad_final_ic_edit", "sleeper_final_ic_edit",
+            "final_ic_edit", "railpad_process_ic_edit", "process_ic_edit", "rm_ic_edit"
+        };
+        for (String table : tables) {
+            try {
+                String sql = "SELECT ic_number FROM " + table + " WHERE ic_number LIKE CONCAT('%', ?, '%') ORDER BY id DESC LIMIT 1";
+                List<String> list = jdbcTemplate.query(sql, (rs, rowNum) -> rs.getString("ic_number"), callNo);
+                if (list != null && !list.isEmpty() && list.get(0) != null && !list.get(0).isBlank()) {
+                    return list.get(0).trim();
+                }
+            } catch (Exception ignored) {}
+            try {
+                String sql = "SELECT ic_number FROM " + table + " WHERE call_number LIKE CONCAT('%', ?, '%') ORDER BY id DESC LIMIT 1";
+                List<String> list = jdbcTemplate.query(sql, (rs, rowNum) -> rs.getString("ic_number"), callNo);
+                if (list != null && !list.isEmpty() && list.get(0) != null && !list.get(0).isBlank()) {
+                    return list.get(0).trim();
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     private boolean isValidAzure(String connStr) {

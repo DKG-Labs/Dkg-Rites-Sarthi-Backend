@@ -24,5 +24,9 @@ public interface CorrectionSlipStorageService {
 
     ResponseEntity<Resource> downloadPdfById(Long id);
 
+    byte[] getDocumentBytes(CorrectionSlipDocument doc);
+
+    byte[] getMergedIcAndCorrectionSlips(String callNo);
+
     void deleteCorrectionSlip(String callNo);
 }

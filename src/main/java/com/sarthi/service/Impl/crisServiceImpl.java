@@ -239,7 +239,7 @@ public class crisServiceImpl implements crisService {
                             if (m.getBILL_PASS_OFF() != null && !m.getBILL_PASS_OFF().isBlank()) existingItem.setBillPassOff(m.getBILL_PASS_OFF());
                             if (m.getUOM_CD() != null && !m.getUOM_CD().isBlank()) existingItem.setUomCd(m.getUOM_CD());
                             if (m.getUOM() != null && !m.getUOM().isBlank()) existingItem.setUom(m.getUOM());
-                            if (m.getQTY() != null) existingItem.setQty(new BigDecimal(m.getQTY()).setScale(0, java.math.RoundingMode.HALF_UP).intValue());
+                            if (m.getQTY() != null) existingItem.setQtyExact(new BigDecimal(m.getQTY().trim().replace(",", "")));
                             if (m.getQTY_CANCELLED() != null) existingItem.setQtyCancelled(new BigDecimal(m.getQTY_CANCELLED()).setScale(0, java.math.RoundingMode.HALF_UP).intValue());
                             if (m.getRATE() != null) existingItem.setRate(bd(m.getRATE()));
                             if (m.getBASIC_VALUE() != null) existingItem.setBasicValue(bd(m.getBASIC_VALUE()));
@@ -443,7 +443,7 @@ public class crisServiceImpl implements crisService {
         i.setUom(m.getUOM());
 
         if (m.getQTY() != null)
-            i.setQty(new BigDecimal(m.getQTY()).setScale(0, java.math.RoundingMode.HALF_UP).intValue());
+            i.setQtyExact(new BigDecimal(m.getQTY().trim().replace(",", "")));
 
         if (m.getQTY_CANCELLED() != null)
             i.setQtyCancelled(
@@ -533,6 +533,18 @@ public class crisServiceImpl implements crisService {
     private BigDecimal bd(Object o) {
         if (o == null) return null;
         String s = o.toString().trim();
+        if (s.isEmpty() || s.equalsIgnoreCase("null")) return null;
+        try {
+            return new BigDecimal(s);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // Quantity exactly as received ("10.18", "1,250.5"); null if blank or not a number
+    private BigDecimal parseDecimalQty(Object o) {
+        if (o == null) return null;
+        String s = o.toString().trim().replace(",", "");
         if (s.isEmpty() || s.equalsIgnoreCase("null")) return null;
         try {
             return new BigDecimal(s);
@@ -934,7 +946,14 @@ public class crisServiceImpl implements crisService {
                     if (amendedHeader != null) {
                         saveAmendedPoItems(amendedHeader, validPoDtls);
                         syncPoHeader(amendedHeader);
-                        syncPoItems(amendedHeader);
+                        // amendment_po_item.qty is a whole number, so pass the exact quantities
+                        // received (e.g. 10.18) straight through to po_item
+                        Map<String, BigDecimal> exactQtyBySr = new java.util.HashMap<>();
+                        for (AmendedPoItemDTO it : validPoDtls) {
+                            BigDecimal q = parseDecimalQty(it.getQty());
+                            if (q != null) exactQtyBySr.put(it.getItemSrNo().trim(), q);
+                        }
+                        syncPoItems(amendedHeader, exactQtyBySr);
                     }
                 }
             }
@@ -1106,7 +1125,8 @@ public class crisServiceImpl implements crisService {
 
             if (isQty && d.getNewValue() != null && !d.getNewValue().isBlank()) {
                 try {
-                    int newQty = (int) Math.round(Double.parseDouble(d.getNewValue().trim().replace(",", "")));
+                    // Keep the amended quantity exactly as CRIS sends it (e.g. 10.18), no rounding
+                    BigDecimal newQty = new BigDecimal(d.getNewValue().trim().replace(",", ""));
                     for (PoItem item : items) {
                         if (item.getItemSrNo() != null && item.getItemSrNo().contains("*")) {
                             continue;
@@ -1120,7 +1140,7 @@ public class crisServiceImpl implements crisService {
                         }
 
                         if (matches) {
-                            item.setQty(newQty);
+                            item.setQtyExact(newQty);
                             itemRepo.save(item);
                             System.out.println("[MA Sync] Updated PoItem Qty to " + newQty + " for item_sr_no: " + item.getItemSrNo());
                         }
@@ -1181,7 +1201,7 @@ public class crisServiceImpl implements crisService {
             // Token 5: Order Qty (e.g., "400000")
             if (tokens.length > 5 && !tokens[5].isBlank()) {
                 try {
-                    item.setQty((int) Math.round(Double.parseDouble(tokens[5].trim().replace(",", ""))));
+                    item.setQtyExact(new BigDecimal(tokens[5].trim().replace(",", "")));
                 } catch (Exception ignored) {}
             }
 
@@ -1695,6 +1715,13 @@ public class crisServiceImpl implements crisService {
 
     private void syncPoItems(
             AmendedPoHeader amendedHeader) {
+        syncPoItems(amendedHeader, null);
+    }
+
+    // exactQtyBySr: quantities as received, keyed by item sr no; overrides the whole-number staging qty
+    private void syncPoItems(
+            AmendedPoHeader amendedHeader,
+            Map<String, BigDecimal> exactQtyBySr) {
 
         if (amendedHeader == null) return;
 
@@ -1730,6 +1757,10 @@ public class crisServiceImpl implements crisService {
             }
 
             copyAmendedItemToPo(amendedItem, poItem);
+            if (exactQtyBySr != null) {
+                BigDecimal exact = exactQtyBySr.get(amendedItem.getItemSrNo().trim());
+                if (exact != null) poItem.setQtyExact(exact);
+            }
             itemRepo.save(poItem);
         }
     }

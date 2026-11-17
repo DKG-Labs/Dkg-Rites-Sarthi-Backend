@@ -9,8 +9,11 @@ import com.sarthi.service.CorrectionSlipService;
 import com.sarthi.service.CorrectionSlipStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 /**
@@ -279,6 +283,79 @@ public class CorrectionSlipController {
             callNo = callNo.substring(1);
         }
         return deleteCorrectionSlip(callNo);
+    }
+
+    /**
+     * GET /api/correction-slip/download-merged-ic?callNo=...
+     * Merges the original Inspection Certificate (IC) and all correction slips into one unified PDF and downloads it.
+     * If no correction slip exists for this call, returns 404 with JSON message: "No correction slip has been found this call".
+     */
+    @GetMapping({"/download-merged-ic", "/merged-ic", "/view-merged-ic",
+                 "/download-merged-ic/{callNo}", "/merged-ic/{callNo}", "/view-merged-ic/{callNo}",
+                 "/download-merged-ic/{*callNo}", "/merged-ic/{*callNo}", "/view-merged-ic/{*callNo}"})
+    public ResponseEntity<?> downloadMergedIc(
+            @RequestParam(value = "callNo", required = false) String paramCallNo,
+            @PathVariable(required = false) String callNo,
+            @RequestParam(value = "inline", defaultValue = "false") boolean inline,
+            jakarta.servlet.http.HttpServletRequest request) {
+
+        String effectiveCallNo = paramCallNo;
+        if (effectiveCallNo == null || effectiveCallNo.trim().isEmpty()) {
+            effectiveCallNo = callNo;
+        }
+        if (effectiveCallNo == null || effectiveCallNo.trim().isEmpty()) {
+            String uri = request != null ? request.getRequestURI() : "";
+            for (String prefix : List.of("/download-merged-ic/", "/merged-ic/", "/view-merged-ic/")) {
+                int idx = uri.indexOf(prefix);
+                if (idx != -1) {
+                    effectiveCallNo = uri.substring(idx + prefix.length());
+                    break;
+                }
+            }
+        }
+        if (effectiveCallNo != null && effectiveCallNo.startsWith("/")) {
+            effectiveCallNo = effectiveCallNo.substring(1);
+        }
+
+        if (effectiveCallNo == null || effectiveCallNo.trim().isEmpty()) {
+            return badRequest("Call number is required.");
+        }
+
+        String clean = effectiveCallNo.trim();
+        log.info("REST GET /api/correction-slip/download-merged-ic for callNo: {}, inline: {}", clean, inline);
+
+        try {
+            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getAllDocuments(clean);
+            if (allDocs == null || allDocs.isEmpty()) {
+                Map<String, Object> body = new HashMap<>();
+                body.put("hasCorrectionSlip", false);
+                body.put("message", "No correction slip has been found this call");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+            }
+
+            byte[] mergedPdf = correctionSlipStorageService.getMergedIcAndCorrectionSlips(clean);
+            if (mergedPdf == null || mergedPdf.length == 0) {
+                return serverError("Failed to generate merged IC and correction slip PDF.");
+            }
+
+            String safeName = clean.replaceAll("[^a-zA-Z0-9_-]", "_");
+            String filename = "Merged_IC_" + safeName + ".pdf";
+            ByteArrayResource resource = new ByteArrayResource(mergedPdf);
+            String disposition = inline ? "inline" : "attachment";
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + filename + "\"")
+                    .body(resource);
+        } catch (NoSuchElementException e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("hasCorrectionSlip", false);
+            body.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+        } catch (Exception e) {
+            log.error("Error merging IC and correction slips for call {}: ", clean, e);
+            return serverError("Failed to merge IC and correction slip: " + e.getMessage());
+        }
     }
 
     // ─── helpers ──────────────────────────────────────────────────────────────

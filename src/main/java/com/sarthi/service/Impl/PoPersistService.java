@@ -163,7 +163,7 @@ public class PoPersistService {
         i.setUom((String) m.get("UOM"));
 
         if (m.get("QTY") != null)
-            i.setQty(Integer.parseInt(m.get("QTY").toString()));
+            i.setQtyExact(new java.math.BigDecimal(m.get("QTY").toString().trim().replace(",", "")));
 
         if (m.get("QTY_CANCELLED") != null)
             i.setQtyCancelled(Integer.parseInt(m.get("QTY_CANCELLED").toString()));
