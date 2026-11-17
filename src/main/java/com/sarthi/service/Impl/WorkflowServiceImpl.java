@@ -4166,7 +4166,8 @@ private Integer getProcessIeUserFromPoi(String poiCode, Integer processIe) {
         // 4. Assemble DTOs
         final Map<Integer, UserMaster> finalUserMap = userMap;
         return workflowTransitionList.stream()
-                .sorted(Comparator.comparing(WorkflowTransition::getWorkflowSequence, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .sorted(Comparator.comparing(WorkflowTransition::getWorkflowSequence, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(WorkflowTransition::getWorkflowTransitionId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(wt -> {
                     WorkflowTransitionDto dto = mapWorkflowTransition(wt);
                     // Resolve names using the fetched userMap
