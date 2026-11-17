@@ -49,10 +49,25 @@ public class PoItem {
  private String consigneeDetail;
 
  // ---- QTY & UOM ----
- private Integer qty;
- // Read-only exact view of the same decimal(10,2) column (e.g. 4524.36 Mtr); qty above truncates decimals.
+ // Both fields map the same decimal(10,2) "qty" column.
+ // qtyExact is the one written to the DB, so decimals from CRIS (e.g. 10.18 MT) are stored as received.
+ // qty is a read-only whole-number view kept for existing code; it is rounded half-up like before.
  @Column(name = "qty", insertable = false, updatable = false)
+ private Integer qty;
+ @Column(name = "qty")
  private BigDecimal qtyExact;
+
+ // Whole-number quantity (existing callers): stored exactly as given
+ public void setQty(Integer qty) {
+  this.qty = qty;
+  this.qtyExact = qty == null ? null : BigDecimal.valueOf(qty);
+ }
+
+ // Decimal quantity: stored as received; qty view rounded half-up
+ public void setQtyExact(BigDecimal qtyExact) {
+  this.qtyExact = qtyExact;
+  this.qty = qtyExact == null ? null : qtyExact.setScale(0, java.math.RoundingMode.HALF_UP).intValue();
+ }
  private Integer qtyCancelled;
 
  private String uomCd;
