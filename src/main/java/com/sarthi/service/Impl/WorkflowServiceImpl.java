@@ -544,21 +544,31 @@ public class WorkflowServiceImpl implements WorkflowService {
         callReg.setTransitionId(callRegTransition.getTransitionId());
         callReg.setRequestId(current.getRequestId());
         callReg.setStatus("CALL_REGISTERED");
-        callReg.setJobStatus("CALL_REGISTERED");
+        // Same job status as the manual Call Desk verify: the IE / Process IE pending lists
+        // (findPendingByRoles / findPendingByRole) only accept 'VERIFIED', not 'CALL_REGISTERED'.
+        callReg.setJobStatus("VERIFIED");
         callReg.setAction("AUTO_REGISTER");
         callReg.setRemarks("Auto-forwarded: Registered to mapped IE");
         callReg.setCreatedBy(creator);
         callReg.setCreatedDate(new Date());
         callReg.setRio(effectiveRio);
         callReg.setWorkflowSequence(verified.getWorkflowSequence() + 1);
-        callReg.setAssignedToUser(mappedIeUserId);
-        if ("P".equals(stage)) {
-            callReg.setProcessIeUserId(mappedIeUserId);
+        // Process call: like the manual Call Desk verify, no single IE is assigned; it is open to every
+        // Process IE mapped to the POI (poi_process_ie_mapping -> processIes). RM / Final go to the mapped IE.
+        boolean isProcessCall = "P".equals(stage) || "Process".equalsIgnoreCase(ic.getTypeOfCall());
+        if (!isProcessCall) {
+            callReg.setAssignedToUser(mappedIeUserId);
         }
         callReg.setCurrentRole(String.valueOf(callRegTransition.getCurrentRoleId()));
         callReg.setCurrentRoleName(roleNameById(callRegTransition.getCurrentRoleId()));
-        callReg.setNextRole(String.valueOf(callRegTransition.getNextRoleId()));
-        callReg.setNextRoleName(roleNameById(callRegTransition.getNextRoleId()));
+        // Process call: same Process IE role override as the manual Call Desk path (role 3 IE -> 7 Process IE),
+        // otherwise the call goes to "IE" and the mapped Process IE never sees it in the pending list.
+        Integer callRegNextRoleId = callRegTransition.getNextRoleId();
+        if (isProcessCall && callRegNextRoleId != null && callRegNextRoleId == 3) {
+            callRegNextRoleId = 7; // ROLE ID FOR PROCESS IE
+        }
+        callReg.setNextRole(String.valueOf(callRegNextRoleId));
+        callReg.setNextRoleName(roleNameById(callRegNextRoleId));
         workflowTransitionRepository.save(callReg);
 
         // 3. If Final call: populate final_ie_mapping
