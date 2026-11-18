@@ -324,7 +324,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 verifiedTx.setCurrentRole("RIO Help Desk");
                 verifiedTx.setNextRole("Main IE");
                 verifiedTx.setAction("VERIFY");
-                verifiedTx.setStatus("RIO_VERIFIED");
+                // PENDING (like a manual Call Desk verify): the Main IE pending list only shows CREATED/PENDING.
+                // "RIO_VERIFIED" here hid auto-forwarded calls from the IE. Job status still says RIO_VERIFIED.
+                verifiedTx.setStatus("PENDING");
                 verifiedTx.setJobStatus(determineJobStatus("VERIFY"));
                 verifiedTx.setAssignedToUser(Long.valueOf(mappedIeUserId));
                 verifiedTx.setCreatedBy(createdBy);
