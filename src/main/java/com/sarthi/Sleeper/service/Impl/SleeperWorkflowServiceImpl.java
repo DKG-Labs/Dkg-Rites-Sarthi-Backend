@@ -290,6 +290,51 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         SleeperWorkflowTransaction saved = repository.save(tx);
 
+        // DIRECT CALL FORWARDING: If a Main IE is mapped to the POI/plant, auto-forward to Main IE
+        if (workflowId != null && workflowId == 2L) {
+            List<SleeperPoiIeMapping> ieMappings = null;
+            if (tx.getPoiCode() != null && tx.getPlantId() != null) {
+                ieMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "Main IE");
+                if (ieMappings == null || ieMappings.isEmpty()) {
+                    ieMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "MAIN_IE");
+                }
+            }
+            if ((ieMappings == null || ieMappings.isEmpty()) && tx.getPlantId() != null) {
+                ieMappings = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "Main IE");
+                if (ieMappings == null || ieMappings.isEmpty()) {
+                    ieMappings = poiIeMappingRepository.findByPlantIdAndIeType(tx.getPlantId(), "MAIN_IE");
+                }
+            }
+            if ((ieMappings == null || ieMappings.isEmpty()) && tx.getPoiCode() != null) {
+                ieMappings = poiIeMappingRepository.findByPoiCodeAndIeType(tx.getPoiCode(), "Main IE");
+                if (ieMappings == null || ieMappings.isEmpty()) {
+                    ieMappings = poiIeMappingRepository.findByPoiCodeAndIeType(tx.getPoiCode(), "MAIN_IE");
+                }
+            }
+
+            if (ieMappings != null && !ieMappings.isEmpty() && ieMappings.get(0).getIeUserId() != null) {
+                Integer mappedIeUserId = ieMappings.get(0).getIeUserId();
+                SleeperWorkflowTransaction verifiedTx = new SleeperWorkflowTransaction();
+                verifiedTx.setRequestId(requestId);
+                verifiedTx.setWorkflowId(2L);
+                verifiedTx.setVendorCode(vendorCode);
+                verifiedTx.setPlantId(plantId);
+                verifiedTx.setPoiCode(tx.getPoiCode());
+                verifiedTx.setRio(tx.getRio());
+                verifiedTx.setCurrentRole("RIO Help Desk");
+                verifiedTx.setNextRole("Main IE");
+                verifiedTx.setAction("VERIFY");
+                verifiedTx.setStatus("RIO_VERIFIED");
+                verifiedTx.setJobStatus(determineJobStatus("VERIFY"));
+                verifiedTx.setAssignedToUser(Long.valueOf(mappedIeUserId));
+                verifiedTx.setCreatedBy(createdBy);
+                verifiedTx.setModifiedBy(createdBy);
+                verifiedTx.setCreatedDate(LocalDateTime.now());
+                SleeperWorkflowTransaction savedVerified = repository.save(verifiedTx);
+                return mapToResponse(savedVerified);
+            }
+        }
+
         return mapToResponse(saved);
     }
 
