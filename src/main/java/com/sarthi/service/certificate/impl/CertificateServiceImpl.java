@@ -216,6 +216,9 @@ public class CertificateServiceImpl implements CertificateService {
             heatQuantities = rmHeatQuantityRepository.findByRmDetailId(Math.toIntExact(rmDetails.getId()));
         }
 
+        // Diverted heat -> diverted qty (MT); filled only for diverted RM calls, used to filter heat results below
+        Map<String, BigDecimal> divertedHeatQty = new LinkedHashMap<>();
+
         // For diverted RM calls, filter heat quantities to only those approved in the diversion request
         if (Boolean.TRUE.equals(inspectionCall.getIsDivertedMaterial()) && ercDiversionRequestRepository != null) {
             String reqNo = inspectionCall.getDiversionRequestNo();
@@ -225,6 +228,13 @@ public class CertificateServiceImpl implements CertificateService {
                     com.sarthi.entity.ercdiversion.ErcDiversionRequest divReq = ercDiversionRequestRepository
                             .findByRequestNo(reqNo.trim()).orElse(null);
                     if (divReq != null && divReq.getItems() != null && !divReq.getItems().isEmpty()) {
+                        for (com.sarthi.entity.ercdiversion.ErcDiversionItem item : divReq.getItems()) {
+                            String itemHeat = item.getHeatNo() != null ? item.getHeatNo().trim().toUpperCase() : "";
+                            if (!itemHeat.isEmpty()) {
+                                divertedHeatQty.merge(itemHeat,
+                                        item.getDiversionQty() != null ? item.getDiversionQty() : BigDecimal.ZERO, BigDecimal::add);
+                            }
+                        }
                         List<RmHeatQuantity> filtered = new ArrayList<>();
                         for (RmHeatQuantity hq : heatQuantities) {
                             String hNo = hq.getHeatNumber() != null ? hq.getHeatNumber().trim().toUpperCase() : "";
@@ -254,6 +264,28 @@ public class CertificateServiceImpl implements CertificateService {
                 .findByInspectionCallNo(effectiveCallNo);
         if (heatResults.isEmpty() && !effectiveCallNo.equals(inspectionCall.getIcNumber())) {
             heatResults = rmHeatFinalResultRepository.findByInspectionCallNo(inspectionCall.getIcNumber());
+        }
+
+        // Diverted RM IC: show only the diverted heats, at the diverted qty (the source call has all heats).
+        // Copies are used so the source call's saved results are never changed.
+        if (!divertedHeatQty.isEmpty() && !heatResults.isEmpty()) {
+            List<RmHeatFinalResult> divertedResults = new ArrayList<>();
+            for (RmHeatFinalResult hr : heatResults) {
+                BigDecimal qty = matchDivertedQty(hr.getHeatNo(), divertedHeatQty);
+                if (qty == null) continue;
+                RmHeatFinalResult copy = new RmHeatFinalResult();
+                org.springframework.beans.BeanUtils.copyProperties(hr, copy);
+                copy.setWeightAcceptedMt(qty);
+                copy.setWeightRejectedMt(BigDecimal.ZERO);
+                copy.setStatus("ACCEPTED");
+                divertedResults.add(copy);
+            }
+            if (!divertedResults.isEmpty()) {
+                heatResults = divertedResults;
+            } else {
+                logger.warn("Diverted RM IC {}: no source heat matched the diversion items {}",
+                        inspectionCall.getIcNumber(), divertedHeatQty.keySet());
+            }
         }
 
         // 5. Fetch PO Header and Items
@@ -1046,6 +1078,17 @@ public class CertificateServiceImpl implements CertificateService {
      * Combines data from RmHeatFinalResult (weights, status) and RmHeatQuantity
      * (manufacturer, TC info)
      */
+    /** Diverted qty for a heat: exact match first, then the same loose match used for heat quantities. */
+    private BigDecimal matchDivertedQty(String heatNo, Map<String, BigDecimal> divertedHeatQty) {
+        if (heatNo == null) return null;
+        String h = heatNo.trim().toUpperCase();
+        if (divertedHeatQty.containsKey(h)) return divertedHeatQty.get(h);
+        for (Map.Entry<String, BigDecimal> e : divertedHeatQty.entrySet()) {
+            if (h.contains(e.getKey())) return e.getValue();
+        }
+        return null;
+    }
+
     private List<RawMaterialCertificateDto.HeatDetailDto> buildHeatDetails(
             List<RmHeatQuantity> heatQuantities,
             List<RmHeatFinalResult> heatResults) {

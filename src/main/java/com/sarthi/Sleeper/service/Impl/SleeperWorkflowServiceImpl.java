@@ -324,7 +324,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 verifiedTx.setCurrentRole("RIO Help Desk");
                 verifiedTx.setNextRole("Main IE");
                 verifiedTx.setAction("VERIFY");
-                verifiedTx.setStatus("RIO_VERIFIED");
+                // PENDING (like a manual Call Desk verify): the Main IE pending list only shows CREATED/PENDING.
+                // "RIO_VERIFIED" here hid auto-forwarded calls from the IE. Job status still says RIO_VERIFIED.
+                verifiedTx.setStatus("PENDING");
                 verifiedTx.setJobStatus(determineJobStatus("VERIFY"));
                 verifiedTx.setAssignedToUser(Long.valueOf(mappedIeUserId));
                 verifiedTx.setCreatedBy(createdBy);
@@ -1936,7 +1938,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Override
     public List<SleeperWorkflowTransactionDto> allFinalCompletedWorkflowTransitions(String plantId, Long assignedTo) {
         String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
-        List<SleeperWorkflowTransaction> list = repository.findFinalCompletedRequests(cleanPlantId, assignedTo);
+        List<SleeperWorkflowTransaction> list = repository.findFinalCompletedRequests(
+                cleanPlantId, assignedTo, List.of(AppConstant.WITHDRAW_TYPE, AppConstant.WITHDRAWN_TYPE));
 
         java.util.Map<String, Object> cache = new java.util.HashMap<>();
         preloadSleeperCache(list, cache);
@@ -2510,14 +2513,107 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             plantId = latestTx.getPlantId();
         }
 
-        if (plantId != null && oldUserId != null) {
-            poiIeMappingRepository.updateIeUserIdByPlantId(plantId, oldUserId, newUserId);
+        // Pending Verification remap: also move the plant's IE mapping from the old IE to the new IE.
+        // Verified & Open remap (flag absent/false): only the call is reassigned.
+        if (Boolean.TRUE.equals(dto.getUpdatePlantMapping()) && plantId != null) {
+            Integer fromUserId = (oldUserId != null && oldUserId > 0)
+                    ? oldUserId
+                    : (latestTx != null && latestTx.getAssignedToUser() != null
+                            ? Integer.valueOf(latestTx.getAssignedToUser().intValue())
+                            : null);
+            if (fromUserId == null) {
+                // Pending Verification calls have no assigned IE yet: use the IE the plant mapping
+                // currently gives this call's stage (the same IE Verify would pick).
+                fromUserId = resolveCurrentPlantIe(plantId, callNo);
+            }
+            if (fromUserId == null) {
+                log.warn("Sleeper remap {}: no current IE found in plant mapping for plant {}; only the call was reassigned",
+                        callNo, plantId);
+            } else if (!fromUserId.equals(newUserId)) {
+                remapPlantIeMappings(callNo, plantId, fromUserId, newUserId);
+            }
         }
 
         if (latestTx != null) {
             latestTx.setAssignedToUser(Long.valueOf(newUserId));
             repository.save(latestTx);
         }
+    }
+
+    /**
+     * Moves every mapping row of {@code fromUserId} at the given plant to {@code toUserId}.
+     * If the new IE already holds the same IE type at this plant, the old row is removed
+     * instead, so no duplicate rows are created. Rows of other IEs are never touched.
+     */
+    private void remapPlantIeMappings(String callNo, String plantId, Integer fromUserId, Integer toUserId) {
+        List<SleeperPoiIeMapping> plantRows = findPlantMappingRows(plantId);
+
+        java.util.Set<String> typesHeldByNewIe = plantRows.stream()
+                .filter(m -> toUserId.equals(m.getIeUserId()))
+                .map(m -> RioUtil.normalizeIeRole(m.getIeType()))
+                .collect(java.util.stream.Collectors.toSet());
+
+        int changed = 0;
+        for (SleeperPoiIeMapping m : plantRows) {
+            if (!fromUserId.equals(m.getIeUserId())) {
+                continue;
+            }
+            if (typesHeldByNewIe.contains(RioUtil.normalizeIeRole(m.getIeType()))) {
+                poiIeMappingRepository.delete(m);
+            } else {
+                m.setIeUserId(toUserId);
+                poiIeMappingRepository.save(m);
+            }
+            changed++;
+        }
+
+        if (changed == 0) {
+            log.warn("Sleeper remap {}: IE {} has no mapping rows at plant {}; only the call was reassigned",
+                    callNo, fromUserId, plantId);
+        }
+    }
+
+    /**
+     * Returns the IE currently mapped to the plant for this call's stage
+     * (stage taken from the call number prefix and normalized with RioUtil, e.g. SF/SR -> Main IE, SP -> Process IE).
+     */
+    private Integer resolveCurrentPlantIe(String plantId, String callNo) {
+        java.util.regex.Matcher stage = java.util.regex.Pattern.compile("^[A-Za-z]+").matcher(callNo.trim());
+        if (!stage.find()) {
+            return null;
+        }
+        String stageIeRole = RioUtil.normalizeIeRole(stage.group());
+        return findPlantMappingRows(plantId).stream()
+                .filter(m -> m.getIeUserId() != null)
+                .filter(m -> stageIeRole.equals(RioUtil.normalizeIeRole(m.getIeType())))
+                .min(java.util.Comparator.comparing(SleeperPoiIeMapping::getId,
+                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
+                .map(SleeperPoiIeMapping::getIeUserId)
+                .orElse(null);
+    }
+
+    /**
+     * Loads the plant's mapping rows using the same plant-id spellings the Call Desk uses to show
+     * the mapped IE (as sent, without ':' and with a leading ':'), without duplicates.
+     */
+    private List<SleeperPoiIeMapping> findPlantMappingRows(String plantId) {
+        String trimmed = plantId.trim();
+        String cleanPlantId = trimmed.replace(":", "").trim();
+        java.util.LinkedHashSet<String> variants = new java.util.LinkedHashSet<>();
+        variants.add(trimmed);
+        if (!cleanPlantId.isEmpty()) {
+            variants.add(cleanPlantId);
+            variants.add(trimmed.startsWith(":") ? trimmed : ":" + cleanPlantId);
+        }
+
+        java.util.Map<Long, SleeperPoiIeMapping> rowsById = new java.util.LinkedHashMap<>();
+        for (String variant : variants) {
+            List<SleeperPoiIeMapping> found = poiIeMappingRepository.findByPlantId(variant);
+            if (found != null) {
+                found.forEach(m -> rowsById.putIfAbsent(m.getId(), m));
+            }
+        }
+        return new ArrayList<>(rowsById.values());
     }
 
     private String resolveSleeperCaseNo(String rawCaseNo, String rio) {
