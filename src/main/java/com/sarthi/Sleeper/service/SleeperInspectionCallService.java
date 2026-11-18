@@ -8,7 +8,7 @@ import java.util.List;
 public interface SleeperInspectionCallService {
     String submitInspectionCall(SleeperInspectionCallSubmitDto submitDto);
     List<SleeperInspectionCallListDto> getVendorInspectionCalls(Long userId);
-    String withdrawInspectionCall(String callNo);
+    String withdrawInspectionCall(String callNo, String remarks, Long actionBy);
     SleeperInspectionCallDetailDto getInspectionCallDetails(String callNo);
     String modifyInspectionCall(SleeperInspectionCallSubmitDto dto);
 }

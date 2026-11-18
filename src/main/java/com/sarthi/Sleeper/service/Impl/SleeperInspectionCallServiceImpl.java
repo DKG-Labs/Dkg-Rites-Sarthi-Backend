@@ -12,6 +12,8 @@ import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCallBatch;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperDetail;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.repository.SleeperWorkflowRepository;
+import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
+
 import com.sarthi.Sleeper.service.SleeperInspectionCallService;
 import com.sarthi.Sleeper.service.SleeperWorkflowService;
 import lombok.RequiredArgsConstructor;
@@ -241,52 +243,64 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         }).collect(Collectors.toList());
     }
 
-    @Override
+        @Override
     @Transactional
-    public String withdrawInspectionCall(String callNo) {
+    public String withdrawInspectionCall(String callNo, String remarks, Long actionBy) {
         if (callNo == null || callNo.isBlank()) {
             throw new IllegalArgumentException("Call Number is required");
         }
         String trimmedCallNo = callNo.trim();
 
-        // Check if call is SCHEDULED or PO_VERIFICATION in sleeper_workflow_transaction
-        try {
-            List<String> jsList = jdbcTemplate.query(
-                "SELECT swt.job_status FROM sleeper_workflow_transaction swt WHERE swt.request_id = ? ORDER BY swt.workflow_transition_id DESC LIMIT 1",
-                (rs, rowNum) -> rs.getString("job_status"),
-                trimmedCallNo
-            );
-            if (jsList != null && !jsList.isEmpty() && jsList.get(0) != null) {
-                String js = jsList.get(0).trim().toUpperCase();
-                if ("SCHEDULED".equals(js) || js.contains("SCHEDULE")) {
-                    throw new IllegalStateException("Inspection call is already SCHEDULED and cannot be withdrawn.");
-                }
-                if ("PO_VERIFICATION".equals(js) || js.contains("PO_VERIF")) {
-                    throw new IllegalStateException("Inspection call is under PO_VERIFICATION and cannot be withdrawn.");
-                }
-                if ("COMPLETED".equals(js)) {
-                    throw new IllegalStateException("Inspection call is COMPLETED and cannot be withdrawn.");
-                }
+        // 1. Latest workflow row: used for validation AND for the WITHDRAW update
+        SleeperWorkflowTransaction latestWf =
+                sleeperWorkflowRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(trimmedCallNo);
+
+        if (latestWf != null) {
+            String js = latestWf.getJobStatus() != null ? latestWf.getJobStatus().trim().toUpperCase() : "";
+            String st = latestWf.getStatus() != null ? latestWf.getStatus().trim().toUpperCase() : "";
+            if (js.contains(AppConstant.WITHDRAW_TYPE) || st.contains(AppConstant.WITHDRAW_TYPE)) {
+                throw new IllegalStateException("Inspection call is already withdrawn.");
             }
-        } catch (IllegalStateException e) {
-            throw e;
-        } catch (Exception ignored) {}
-
-        Optional<SleeperInspectionCall> callOpt = inspectionCallRepository.findByCallNoWithBatches(trimmedCallNo);
-        if (callOpt.isEmpty()) {
-            callOpt = inspectionCallRepository.findByCallNo(trimmedCallNo);
+            if (js.contains("SCHEDULE")) {
+                throw new IllegalStateException("Inspection call is already SCHEDULED and cannot be withdrawn.");
+            }
+            if (js.contains("PO_VERIF")) {
+                throw new IllegalStateException("Inspection call is under PO_VERIFICATION and cannot be withdrawn.");
+            }
+            if ("COMPLETED".equals(js)) {
+                throw new IllegalStateException("Inspection call is COMPLETED and cannot be withdrawn.");
+            }
         }
 
-        if (callOpt.isPresent()) {
-            SleeperInspectionCall call = callOpt.get();
-            inspectionCallRepository.delete(call);
-        }
+        // 2. Mark the call WITHDRAWN (do NOT delete).
+        //    Batch-availability queries in SleeperInspectionCallRepository already skip
+        //    status 'WITHDRAWN', so the batches are released automatically.
+        SleeperInspectionCall call = inspectionCallRepository.findByCallNo(trimmedCallNo)
+                .orElseThrow(() -> new RuntimeException("Inspection Call not found: " + trimmedCallNo));
+        call.setStatus(AppConstant.WITHDRAWN_TYPE);
+        inspectionCallRepository.save(call);
 
-        // Delete workflow transaction records for this call
-        sleeperWorkflowRepository.deleteByRequestId(trimmedCallNo);
+        // 3. Update the latest workflow row to WITHDRAW (preserve the record, same as ERC / RailPad).
+        //    The row is created at submit time by SleeperWorkflowService.initiateWorkflow; its
+        //    workflowId / moduleId / plantId are kept as-is. No row is fabricated here.
+        if (latestWf != null) {
+            latestWf.setStatus(AppConstant.WITHDRAW_TYPE);
+            latestWf.setAction(AppConstant.WITHDRAW_TYPE);
+            latestWf.setJobStatus(AppConstant.WITHDRAW_TYPE);
+            latestWf.setNextRole(null);
+            if (remarks != null && !remarks.isBlank()) {
+                latestWf.setRemarks(remarks.trim());
+            }
+            if (actionBy != null) {
+                latestWf.setModifiedBy(actionBy);
+            }
+            latestWf.setUpdatedDate(LocalDateTime.now());
+            sleeperWorkflowRepository.save(latestWf);
+        }
 
         return trimmedCallNo;
     }
+
 
     @Override
     @Transactional(readOnly = true)

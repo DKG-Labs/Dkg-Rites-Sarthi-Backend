@@ -171,8 +171,11 @@ public class FinalProductionInspectionController {
     }
 
     @PostMapping("/withdraw-call")
-    public ResponseEntity<Object> withdrawInspectionCall(@RequestParam("callNo") String callNo) {
-        String withdrawnCallNo = sleeperInspectionCallService.withdrawInspectionCall(callNo);
+    public ResponseEntity<Object> withdrawInspectionCall(
+            @RequestParam("callNo") String callNo,
+            @RequestParam(value = "remarks", required = false) String remarks,
+            @RequestParam(value = "actionBy", required = false) Long actionBy) {
+        String withdrawnCallNo = sleeperInspectionCallService.withdrawInspectionCall(callNo, remarks, actionBy);
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(withdrawnCallNo),
                 HttpStatus.OK

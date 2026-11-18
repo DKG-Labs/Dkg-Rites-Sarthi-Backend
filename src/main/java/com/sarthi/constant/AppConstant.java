@@ -16,6 +16,10 @@ public class AppConstant {
     public static final String USER_STATUS_INACTIVE= "Inactive";
     public static final String USER_STATUS= "Active";
     public static final String CHANGE_REQUEST_TYPE = "Change requested";
+    // Withdrawn call: workflow status/action/jobStatus (same value ERC & RailPad write)
+    public static final String WITHDRAW_TYPE = "WITHDRAW";
+    // Withdrawn call: inspection call status (value the batch-availability queries already skip)
+    public static final String WITHDRAWN_TYPE = "WITHDRAWN";
 
     // Error Type Codes
     public static final int ERROR_TYPE_CODE_DB = 1;
