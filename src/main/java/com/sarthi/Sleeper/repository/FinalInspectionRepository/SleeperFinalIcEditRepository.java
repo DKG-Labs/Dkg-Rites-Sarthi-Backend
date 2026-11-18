@@ -49,22 +49,22 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                     WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
-                    THEN COALESCE(CAST(sfr.offered_sets_quantity AS SIGNED), CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
-                    ELSE COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
+                    THEN COALESCE(sfr.offered_sets_quantity, sfr.total_offered_quantity, sic.total_offered, 0)
+                    ELSE COALESCE(sfr.total_offered_quantity, sic.total_offered, 0)
                 END                                                     AS quantityOffered,
                 CASE
                     WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
-                    THEN COALESCE(CAST(sfr.accepted_sets_quantity AS SIGNED), CAST(sfr.total_accepted AS SIGNED), 0)
-                    ELSE COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)
+                    THEN COALESCE(sfr.accepted_sets_quantity, sfr.total_accepted, 0)
+                    ELSE COALESCE(sfr.total_accepted, 0)
                 END                                                     AS quantityPassed,
                 CASE
                     WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
-                    THEN COALESCE(CAST(sfr.rejected_sets_quantity AS SIGNED), CAST(sfr.total_rejected AS SIGNED), 0)
-                    ELSE COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)
+                    THEN COALESCE(sfr.rejected_sets_quantity, sfr.total_rejected, 0)
+                    ELSE COALESCE(sfr.total_rejected, 0)
                 END                                                     AS quantityRejected,
                 sic.call_no                                             AS callNo,
                 (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,
@@ -236,22 +236,22 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                     WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
-                    THEN COALESCE(CAST(sfr.offered_sets_quantity AS SIGNED), CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
-                    ELSE COALESCE(CAST(sfr.total_offered_quantity AS SIGNED), sic.total_offered, 0)
+                    THEN COALESCE(sfr.offered_sets_quantity, sfr.total_offered_quantity, sic.total_offered, 0)
+                    ELSE COALESCE(sfr.total_offered_quantity, sic.total_offered, 0)
                 END                                                     AS quantityOffered,
                 CASE
                     WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
-                    THEN COALESCE(CAST(sfr.accepted_sets_quantity AS SIGNED), CAST(sfr.total_accepted AS SIGNED), 0)
-                    ELSE COALESCE(CAST(sfr.total_accepted AS SIGNED), 0)
+                    THEN COALESCE(sfr.accepted_sets_quantity, sfr.total_accepted, 0)
+                    ELSE COALESCE(sfr.total_accepted, 0)
                 END                                                     AS quantityPassed,
                 CASE
                     WHEN UPPER(TRIM(COALESCE(pi.uom, sfr.sleeper_type, ''))) IN ('SET', 'SETS')
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%TURNOUT%'
                          OR UPPER(TRIM(COALESCE(sfr.sleeper_type, ''))) LIKE '%SET%'
-                    THEN COALESCE(CAST(sfr.rejected_sets_quantity AS SIGNED), CAST(sfr.total_rejected AS SIGNED), 0)
-                    ELSE COALESCE(CAST(sfr.total_rejected AS SIGNED), 0)
+                    THEN COALESCE(sfr.rejected_sets_quantity, sfr.total_rejected, 0)
+                    ELSE COALESCE(sfr.total_rejected, 0)
                 END                                                     AS quantityRejected,
                 sic.call_no                                             AS callNo,
                 (CASE WHEN f.ic_number LIKE '%/%' THEN f.ic_number ELSE NULLIF(f.ic_number, '') END) AS callNumber,

@@ -735,9 +735,9 @@ ORDER BY ies.employee_code
 
         CONCAT(sic.call_no, '/', sic.sr_no, ' - ', COALESCE(pi.item_desc, 'MANUFACTURE AND SUPPLY OF PRESTRESSED MONO-BLOCK CONCRETE LINE SLEEPERES (RT-8746) (PRETENSIONED TYPE) FOR BROAD GAUGE(1673 MM)')) AS descriptionOfStores,
 
-        CAST(COALESCE(pi.qty, 0) AS SIGNED) AS quantityOnOrder,
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(pi.qty, 0) AS DECIMAL(18,3)))) AS quantityOnOrder,
 
-        CAST(COALESCE(
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
                 (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
@@ -763,9 +763,9 @@ ORDER BY ies.employee_code
                 )
             ),
             0
-        ) AS SIGNED) AS cumulativeQtyOfferedPreviously,
+        ) AS DECIMAL(18,3)))) AS cumulativeQtyOfferedPreviously,
 
-        CAST(COALESCE(
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
                 (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
@@ -791,9 +791,9 @@ ORDER BY ies.employee_code
                 )
             ),
             0
-        ) AS SIGNED) AS quantityPreviouslyPassed,
+        ) AS DECIMAL(18,3)))) AS quantityPreviouslyPassed,
 
-        CAST(COALESCE(
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
                 (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
@@ -807,9 +807,9 @@ ORDER BY ies.employee_code
             (SELECT (COALESCE(sfr2.total_accepted, 0) + COALESCE(sfr2.total_rejected, 0)) FROM sleeper_final_result sfr2 WHERE sfr2.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
             sic.total_offered,
             0
-        ) AS SIGNED) AS qtyNowOffered,
+        ) AS DECIMAL(18,3)))) AS qtyNowOffered,
 
-        CAST(COALESCE(
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
                 (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
@@ -822,9 +822,9 @@ ORDER BY ies.employee_code
             ),
             fcih.accepted_qty,
             0
-        ) AS SIGNED) AS qtyNowPassed,
+        ) AS DECIMAL(18,3)))) AS qtyNowPassed,
 
-        CAST(COALESCE(
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
                 (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
@@ -837,9 +837,9 @@ ORDER BY ies.employee_code
             ),
             fcih.rejected_qty,
             0
-        ) AS SIGNED) AS qtyNowRejected,
+        ) AS DECIMAL(18,3)))) AS qtyNowRejected,
 
-        CAST(GREATEST(0, (
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(GREATEST(0, (
             COALESCE(pi.qty, 0)
             -
             COALESCE(
@@ -884,7 +884,7 @@ ORDER BY ies.employee_code
                 fcih.accepted_qty,
                 0
             )
-        )) AS SIGNED) AS qtyStillDue,
+        )) AS DECIMAL(18,3)))) AS qtyStillDue,
 
         IF(
             (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
