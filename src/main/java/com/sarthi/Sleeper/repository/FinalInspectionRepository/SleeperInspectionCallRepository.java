@@ -604,6 +604,11 @@ ORDER BY ies.employee_code
     );
 
 
+    /*
+     * Sleeper Final IC data. "date" = date the IC was issued: the first GENERATE_IC / IC_GENERATION /
+     * DSC_SIGN_IC action in sleeper_workflow_transaction (IC_ISSUE only moves the call to the issuance queue,
+     * so it is not counted). Until the IC is issued it is today's date; once issued the date stays fixed.
+     */
     @Query(value = """
 
     SELECT
@@ -636,7 +641,9 @@ ORDER BY ies.employee_code
 
         COALESCE(
             DATE_FORMAT(
-                (SELECT sicd.created_on FROM sleeper_inspection_complete_details sicd WHERE sicd.call_no COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci ORDER BY sicd.id DESC LIMIT 1),
+                (SELECT MIN(swt_ic.created_date) FROM sleeper_workflow_transaction swt_ic
+                 WHERE swt_ic.request_id COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci
+                   AND UPPER(swt_ic.action) IN ('GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC')),
                 '%d.%m.%Y'
             ),
             DATE_FORMAT(CURRENT_DATE(), '%d.%m.%Y')
