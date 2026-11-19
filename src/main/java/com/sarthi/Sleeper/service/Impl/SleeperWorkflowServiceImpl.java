@@ -1265,8 +1265,14 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
         }
 
-        // Step 3: Pick the mapped Main IE user from sleeper_poi_ie_mapping when next role is Main IE
-        if ("Main IE".equalsIgnoreCase(tx.getNextRole())) {
+        // Step 3: Pick the mapped Main IE user from sleeper_poi_ie_mapping when next role is Main IE.
+        // If the call is already with a Main IE (e.g. reassigned via remap), keep that IE instead of
+        // re-picking from the plant mapping on every action.
+        if ("Main IE".equalsIgnoreCase(tx.getNextRole())
+                && "Main IE".equalsIgnoreCase(current.getNextRole())
+                && current.getAssignedToUser() != null) {
+            tx.setAssignedToUser(current.getAssignedToUser());
+        } else if ("Main IE".equalsIgnoreCase(tx.getNextRole())) {
             List<SleeperPoiIeMapping> ieMappings = null;
             if (tx.getPoiCode() != null && tx.getPlantId() != null) {
                 ieMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "Main IE");
