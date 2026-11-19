@@ -2448,6 +2448,20 @@ public class IbsServiceImpl implements IbsService {
                             callNo, srcCallNo, lotQtys[0], lotQtys[1], lotQtys[2]);
                 }
             }
+            // PARTIAL diversion from an RM (ER) or Final (EF) source: report only the diverted qty
+            // (sum of diversion_qty, e.g. 57.222 MT), not the whole source IC (e.g. 309.74 MT).
+            if (!quantitiesResolved && divReq != null && divReq.getDiversionType() != null
+                    && "PARTIAL".equalsIgnoreCase(divReq.getDiversionType().name())
+                    && srcCallNo != null && !srcCallNo.toUpperCase().startsWith("EP")
+                    && divReq.getTotalDiversionQty() != null && divReq.getTotalDiversionQty().signum() > 0) {
+                double divertedQty = divReq.getTotalDiversionQty().doubleValue();
+                dto.setQuantityOffered(divertedQty);
+                dto.setQuantityPassed(divertedQty);
+                dto.setQuantityRejected(0.0);
+                quantitiesResolved = true;
+                log.info("[IBS-FETCH] Set diverted quantity for partial diversion call {} from source {}: {}",
+                        callNo, srcCallNo, divertedQty);
+            }
             if (!quantitiesResolved && srcCallNo != null && !srcCallNo.isBlank()) {
                 // Check if source call is already in memory DTOs
                 IbsInspectionDto srcDto = callDtoMap.get(srcCallNo);

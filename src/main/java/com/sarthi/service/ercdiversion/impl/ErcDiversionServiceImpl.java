@@ -748,9 +748,78 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             ieWt.setRio(saved.getRioId());
             workflowTransitionRepository.save(ieWt);
             log.info("Created INSPECTION_COMPLETE_CONFIRM WT for diversion {} typeOfCall={} userId={}", saved.getRequestNo(), typeOfCall, assignedTo);
+
+            // 3. Raw Material: save the diverted heats (at the diverted qty) as this call's own RM details,
+            //    so the diversion call carries only the heats the vendor selected.
+            if (stage == DiversionStage.RAW_MATERIAL) {
+                saveDivertedRmHeats(saved, divCall);
+            }
         }
 
         return mapEntityToDto(saved);
+    }
+
+    /**
+     * RM diversion: copy the source call's RM details to the diversion call, keeping only the diverted heats,
+     * each at its diverted qty (lines for the same heat are added together). Source rows are not changed.
+     */
+    private void saveDivertedRmHeats(ErcDiversionRequest req, InspectionCall divCall) {
+        try {
+            if (divCall.getId() == null || rmDetailsRepository.findByIcId(divCall.getId()).isPresent()) {
+                return; // nothing to attach to, or already saved
+            }
+            String srcCallNo = req.getSourceCallNo();
+            if ((srcCallNo == null || srcCallNo.isBlank()) && req.getSourceIcNo() != null) {
+                for (String p : req.getSourceIcNo().split("/")) {
+                    if (p.trim().toUpperCase().startsWith("ER-")) { srcCallNo = p.trim(); break; }
+                }
+            }
+            if (srcCallNo == null) return;
+            InspectionCall srcCall = inspectionCallRepository.findByIcNumber(srcCallNo.trim()).orElse(null);
+            if (srcCall == null) return;
+            RmInspectionDetails src = rmDetailsRepository.findByIcId(srcCall.getId()).orElse(null);
+            if (src == null) return;
+
+            // diverted heat -> total diverted qty
+            java.util.Map<String, BigDecimal> divQty = new java.util.LinkedHashMap<>();
+            for (ErcDiversionItem it : req.getItems()) {
+                if (it.getHeatNo() == null || it.getHeatNo().isBlank()) continue;
+                divQty.merge(it.getHeatNo().trim().toUpperCase(),
+                        it.getDiversionQty() != null ? it.getDiversionQty() : BigDecimal.ZERO, BigDecimal::add);
+            }
+            if (divQty.isEmpty()) return;
+
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            RmInspectionDetails copy = new RmInspectionDetails();
+            org.springframework.beans.BeanUtils.copyProperties(src, copy,
+                    "id", "inspectionCall", "heatQuantities", "chemicalAnalysisList", "createdAt", "updatedAt");
+            copy.setInspectionCall(divCall);
+            copy.setHeatNumbers(String.join(", ", divQty.keySet()));
+            copy.setTotalOfferedQtyMt(divQty.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add));
+            copy.setCreatedAt(now);
+            copy.setUpdatedAt(now);
+            RmInspectionDetails savedDetails = rmDetailsRepository.save(copy);
+
+            java.util.Set<String> added = new java.util.HashSet<>();
+            for (RmHeatQuantity hq : heatQuantityRepository.findByRmDetailId(Math.toIntExact(src.getId()))) {
+                String h = hq.getHeatNumber() != null ? hq.getHeatNumber().trim().toUpperCase() : "";
+                BigDecimal qty = divQty.get(h);
+                if (qty == null || !added.add(h)) continue; // not diverted, or already added
+                RmHeatQuantity nq = new RmHeatQuantity();
+                org.springframework.beans.BeanUtils.copyProperties(hq, nq, "id", "rmInspectionDetails", "createdAt", "updatedAt");
+                nq.setRmInspectionDetails(savedDetails);
+                nq.setOfferedQty(qty);
+                nq.setQtyAccepted(qty);
+                nq.setQtyRejected(BigDecimal.ZERO);
+                nq.setQtyLeft(BigDecimal.ZERO);
+                nq.setCreatedAt(now);
+                nq.setUpdatedAt(now);
+                heatQuantityRepository.save(nq);
+            }
+            log.info("Diversion {}: saved {} diverted heat(s) {} on call {}", req.getRequestNo(), added.size(), added, divCall.getIcNumber());
+        } catch (Exception e) {
+            log.warn("Diversion {}: could not save diverted RM heats: {}", req.getRequestNo(), e.getMessage());
+        }
     }
 
     @Override

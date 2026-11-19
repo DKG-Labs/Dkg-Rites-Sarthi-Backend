@@ -218,9 +218,13 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                 logger.info("Found inspection call with id: {} for ER number: {}", inspectionCall.getId(), erNumber);
 
                 // 2. Get the RM inspection details for this call using ic_id
-                RmInspectionDetails rmDetails = rmDetailsRepository.findByIcId(inspectionCall.getId())
-                                .orElseThrow(() -> createNotFoundException(
-                                                "RM details not found for ER number: " + erNumber));
+                RmInspectionDetails rmDetails = rmDetailsRepository.findByIcId(inspectionCall.getId()).orElse(null);
+                if (rmDetails == null) {
+                        // Diversion RM call without its own RM details: use the source call's diverted heats
+                        List<RmHeatQuantityDto> diverted = divertedHeatsFromSource(erNumber);
+                        if (diverted != null) return diverted;
+                        throw createNotFoundException("RM details not found for ER number: " + erNumber);
+                }
 
                 logger.info("Found RM inspection details with id: {} for ic_id: {}", rmDetails.getId(),
                                 inspectionCall.getId());
@@ -232,9 +236,65 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                 logger.info("Found {} heat quantities for RM detail id: {}", heatQuantities.size(), rmDetails.getId());
 
                 // 4. Map to DTOs and enrich with final result data
-                return heatQuantities.stream()
+                List<RmHeatQuantityDto> dtos = heatQuantities.stream()
                                 .map(heatQty -> mapToHeatDtoWithFinalResult(heatQty, erNumber))
                                 .collect(Collectors.toList());
+
+                // Diversion RM call: no final results of its own, accepted = source IC's accepted weight per heat
+                List<RmHeatQuantityDto> fromSource = divertedHeatsFromSource(erNumber);
+                if (fromSource != null && !fromSource.isEmpty()) {
+                        Map<String, RmHeatQuantityDto> src = new LinkedHashMap<>();
+                        for (RmHeatQuantityDto s : fromSource) src.put(s.getHeatNumber().trim().toUpperCase(), s);
+                        for (RmHeatQuantityDto d : dtos) {
+                                if (d.getWeightAcceptedMt() != null && d.getWeightAcceptedMt() > 0) continue;
+                                RmHeatQuantityDto s = d.getHeatNumber() != null
+                                                ? src.get(d.getHeatNumber().trim().toUpperCase()) : null;
+                                if (s == null) continue;
+                                d.setWeightAcceptedMt(s.getWeightAcceptedMt());
+                                d.setWeightOfferedMt(s.getWeightOfferedMt());
+                        }
+                }
+                return dtos;
+        }
+
+        /** Diverted heats of a diversion RM call, read from its source call at the diverted qty; null if not a diversion. */
+        private List<RmHeatQuantityDto> divertedHeatsFromSource(String divCallNo) {
+                com.sarthi.entity.ercdiversion.ErcDiversionRequest req = ercDiversionRequestRepository
+                                .findByRequestNo(divCallNo).orElse(null);
+                if (req == null || req.getItems() == null || req.getItems().isEmpty()) return null;
+                String srcCallNo = req.getSourceCallNo();
+                if (srcCallNo == null || srcCallNo.isBlank()) srcCallNo = callNoFromCertificate(req.getSourceIcNo());
+                if (srcCallNo == null) return null;
+                InspectionCall srcCall = inspectionCallRepository.findByIcNumber(srcCallNo.trim()).orElse(null);
+                if (srcCall == null) return null;
+                RmInspectionDetails src = rmDetailsRepository.findByIcId(srcCall.getId()).orElse(null);
+                if (src == null) return null;
+
+                Map<String, java.math.BigDecimal> divQty = new LinkedHashMap<>();
+                for (com.sarthi.entity.ercdiversion.ErcDiversionItem it : req.getItems()) {
+                        if (it.getHeatNo() == null || it.getHeatNo().isBlank()) continue;
+                        divQty.merge(it.getHeatNo().trim().toUpperCase(),
+                                        it.getDiversionQty() != null ? it.getDiversionQty() : java.math.BigDecimal.ZERO,
+                                        java.math.BigDecimal::add);
+                }
+                if (divQty.isEmpty()) return null;
+
+                String srcNo = srcCallNo.trim();
+                java.util.Set<String> added = new java.util.HashSet<>();
+                List<RmHeatQuantityDto> out = new ArrayList<>();
+                for (RmHeatQuantity hq : heatQuantityRepository.findByRmDetailId(Math.toIntExact(src.getId()))) {
+                        String h = hq.getHeatNumber() != null ? hq.getHeatNumber().trim().toUpperCase() : "";
+                        java.math.BigDecimal qty = divQty.get(h);
+                        if (qty == null || !added.add(h)) continue;
+                        RmHeatQuantityDto dto = mapToHeatDtoWithFinalResult(hq, srcNo);
+                        dto.setOfferedQty(qty.doubleValue());
+                        dto.setQtyAccepted(qty.toPlainString());
+                        dto.setQtyRejected("0");
+                        dto.setQtyLeft("0");
+                        // weightOfferedMt / weightAcceptedMt stay as the source IC's (final result of the source call)
+                        out.add(dto);
+                }
+                return out;
         }
 
         @Override
@@ -248,20 +308,26 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                                         certificateNo);
                         InspectionCompleteDetails completeDetails = inspectionCompleteDetailsRepository
                                         .findByCertificateNo(certificateNo)
-                                        .orElseThrow(() -> {
-                                                logger.error("❌ Certificate not found in inspection_complete_details: {}",
-                                                                certificateNo);
-                                                return createNotFoundException(
-                                                                "Certificate not found: " + certificateNo);
-                                        });
+                                        .orElse(null);
 
-                        logger.info("✅ Step 1 SUCCESS: Found inspection complete details");
-                        logger.info("   - Certificate No: {}", completeDetails.getCertificateNo());
-                        logger.info("   - Call No (IC Number): {}", completeDetails.getCallNo());
-                        logger.info("   - PO No: {}", completeDetails.getPoNo());
-
-                        // 2. Get the IC number from the call_no field
-                        String icNumber = completeDetails.getCallNo();
+                        // 2. Get the IC number from the call_no field. Diversion ICs are not stored in
+                        //    inspection_complete_details: take the call no from the certificate no itself
+                        //    ("N/ER-26111801/RTS" -> "ER-26111801", or the bare "ER-26111801").
+                        String icNumber;
+                        if (completeDetails != null) {
+                                logger.info("✅ Step 1 SUCCESS: Found inspection complete details");
+                                logger.info("   - Certificate No: {}", completeDetails.getCertificateNo());
+                                logger.info("   - Call No (IC Number): {}", completeDetails.getCallNo());
+                                logger.info("   - PO No: {}", completeDetails.getPoNo());
+                                icNumber = completeDetails.getCallNo();
+                        } else {
+                                icNumber = callNoFromCertificate(certificateNo);
+                                logger.info("Step 1: certificate {} not in inspection_complete_details; using call no {}",
+                                                certificateNo, icNumber);
+                                if (icNumber == null) {
+                                        throw createNotFoundException("Certificate not found: " + certificateNo);
+                                }
+                        }
                         logger.info("Step 2: Extracted IC number from call_no: {}", icNumber);
 
                         // 3. Find the inspection call by IC number
@@ -295,6 +361,17 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                         logger.error("❌ ERROR in getInspectionCallByCertificateNo: {}", e.getMessage(), e);
                         throw e;
                 }
+        }
+
+        /** Call no inside a certificate no: the "ER-/EP-/EF-..." part of "N/ER-26111801/RTS", or the value itself. */
+        private String callNoFromCertificate(String certificateNo) {
+                if (certificateNo == null || certificateNo.isBlank()) return null;
+                String clean = certificateNo.trim();
+                for (String part : clean.split("/")) {
+                        String p = part.trim();
+                        if (p.matches("(?i)^(ER|EP|EF)-.+")) return p;
+                }
+                return clean.contains("/") ? null : clean;
         }
 
         /* ==================== Chemical Analysis Operations ==================== */
