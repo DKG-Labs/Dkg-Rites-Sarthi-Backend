@@ -39,6 +39,8 @@ public class ProcessIcSaveChangesService {
         entity.setBillPayingOfficer(dto.getBillPayingOfficer());
         entity.setPurchasingAuthority(dto.getPurchasingAuthority());
         entity.setDescription(dto.getDescription());
+        entity.setDrawingNo(dto.getDrawingNo());
+        entity.setSpecNo(dto.getSpecNo());
         entity.setManufacturer(dto.getManufacturer());
         entity.setQapNo(dto.getQapNo());
         entity.setChpClause(dto.getChpClause());
@@ -72,6 +74,8 @@ public class ProcessIcSaveChangesService {
                 .billPayingOfficer(entity.getBillPayingOfficer())
                 .purchasingAuthority(entity.getPurchasingAuthority())
                 .description(entity.getDescription())
+                .drawingNo(entity.getDrawingNo())
+                .specNo(entity.getSpecNo())
                 .manufacturer(entity.getManufacturer())
                 .qapNo(entity.getQapNo())
                 .chpClause(entity.getChpClause())

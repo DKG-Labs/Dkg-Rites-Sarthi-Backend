@@ -5651,10 +5651,12 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         Map<String, String> ieProfileRioMap = RioUtil.loadIeProfileRioMap(ieProfileRepository);
         Map<String, String> rioUserMap = RioUtil.loadRioUserMap(rioUserRepository);
         Map<Integer, List<String>> userRolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, users);
+        // Only IEs of the logged-in call desk user's RIO
+        String deskRio = RioUtil.loggedInUserRio(rio, ieProfileRioMap, rioUserMap);
 
         for (UserMaster u : users) {
             String userRio = RioUtil.resolveUserRio(u, ieProfileRioMap, rioUserMap);
-            if (!RioUtil.isRioMatching(rio, userRio)) {
+            if (!RioUtil.isRioMatching(deskRio, userRio)) {
                 continue;
             }
             List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(u, userRolesMap);

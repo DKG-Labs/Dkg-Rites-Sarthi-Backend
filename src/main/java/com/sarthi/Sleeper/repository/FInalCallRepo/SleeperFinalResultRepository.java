@@ -29,10 +29,26 @@ public interface SleeperFinalResultRepository extends JpaRepository<SleeperFinal
         @Param("callNumber") String callNumber
     );
 
+    /** IE-accepted qty (Nos.) for one call; null when the IE has not saved a final result yet. */
+    @Query("""
+        SELECT SUM(s.totalAccepted)
+        FROM SleeperFinalResult s
+        WHERE TRIM(s.callNumber) = TRIM(:callNumber)
+    """)
+    BigDecimal sumAcceptedByCallNumber(@Param("callNumber") String callNumber);
+
+    /** IE-accepted qty in sets for one call (falls back to total_accepted); null when no final result exists. */
+    @Query("""
+        SELECT SUM(COALESCE(s.acceptedSetsQuantity, s.totalAccepted))
+        FROM SleeperFinalResult s
+        WHERE TRIM(s.callNumber) = TRIM(:callNumber)
+    """)
+    BigDecimal sumAcceptedSetsByCallNumber(@Param("callNumber") String callNumber);
+
     @Query("""
         SELECT COALESCE(SUM(s.totalAccepted), 0)
         FROM SleeperFinalResult s
-        WHERE s.poNo = :poNo 
+        WHERE s.poNo = :poNo
           AND s.srNo = :srNo
           AND (:callNumber IS NULL OR s.callNumber <> :callNumber)
     """)

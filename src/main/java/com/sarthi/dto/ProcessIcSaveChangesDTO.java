@@ -23,6 +23,8 @@ public class ProcessIcSaveChangesDTO {
     private String billPayingOfficer;
     private String purchasingAuthority;
     private String description;
+    private String drawingNo;
+    private String specNo;
     private String manufacturer;
     private String qapNo;
     private String chpClause;

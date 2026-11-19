@@ -1265,8 +1265,14 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
         }
 
-        // Step 3: Pick the mapped Main IE user from sleeper_poi_ie_mapping when next role is Main IE
-        if ("Main IE".equalsIgnoreCase(tx.getNextRole())) {
+        // Step 3: Pick the mapped Main IE user from sleeper_poi_ie_mapping when next role is Main IE.
+        // If the call is already with a Main IE (e.g. reassigned via remap), keep that IE instead of
+        // re-picking from the plant mapping on every action.
+        if ("Main IE".equalsIgnoreCase(tx.getNextRole())
+                && "Main IE".equalsIgnoreCase(current.getNextRole())
+                && current.getAssignedToUser() != null) {
+            tx.setAssignedToUser(current.getAssignedToUser());
+        } else if ("Main IE".equalsIgnoreCase(tx.getNextRole())) {
             List<SleeperPoiIeMapping> ieMappings = null;
             if (tx.getPoiCode() != null && tx.getPlantId() != null) {
                 ieMappings = poiIeMappingRepository.findByPoiCodeAndPlantIdAndIeType(tx.getPoiCode(), tx.getPlantId(), "Main IE");
@@ -2308,10 +2314,12 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             List<UserMaster> users = userMasterRepository.findAllById(userIds);
             java.util.Map<Integer, List<String>> userRolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, users);
             String defaultRole = "PROCESS_IE".equals(targetIeRole) ? "Sleeper Process IE" : "Main IE";
+            // Only IEs of the logged-in call desk user's RIO
+            String deskRio = RioUtil.loggedInUserRio(rio, ieProfileRioMap, rioUserMap);
 
             for (UserMaster u : users) {
                 String userRio = RioUtil.resolveUserRio(u, ieProfileRioMap, rioUserMap);
-                if (!RioUtil.isRioMatching(rio, userRio)) {
+                if (!RioUtil.isRioMatching(deskRio, userRio)) {
                     continue;
                 }
                 List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(u, userRolesMap);

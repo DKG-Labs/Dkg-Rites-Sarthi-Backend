@@ -1792,6 +1792,12 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) {
                 dto.setDescription(saveChanges.getDescription());
             }
+            if (saveChanges.getDrawingNo() != null && !saveChanges.getDrawingNo().isBlank()) {
+                dto.setDrgNo(saveChanges.getDrawingNo());
+            }
+            if (saveChanges.getSpecNo() != null && !saveChanges.getSpecNo().isBlank()) {
+                dto.setSpecNo(saveChanges.getSpecNo());
+            }
             if (saveChanges.getManufacturer() != null && !saveChanges.getManufacturer().isBlank()) {
                 dto.setManufacturer(saveChanges.getManufacturer());
             }
@@ -1842,6 +1848,12 @@ public class CertificateServiceImpl implements CertificateService {
                 }
                 if (processIcEdit.getDescription() != null && !processIcEdit.getDescription().isBlank()) {
                     dto.setDescription(processIcEdit.getDescription());
+                }
+                if (processIcEdit.getDrawingNo() != null && !processIcEdit.getDrawingNo().isBlank()) {
+                    dto.setDrgNo(processIcEdit.getDrawingNo());
+                }
+                if (processIcEdit.getSpecNo() != null && !processIcEdit.getSpecNo().isBlank()) {
+                    dto.setSpecNo(processIcEdit.getSpecNo());
                 }
                 if (processIcEdit.getQapNo() != null && !processIcEdit.getQapNo().isBlank()) {
                     dto.setQapNo(processIcEdit.getQapNo());
