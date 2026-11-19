@@ -118,6 +118,9 @@ public class CallLetterServiceImpl implements CallLetterService {
     @Autowired
     private com.sarthi.Sleeper.repository.MfTestDetailsRepository mfTestDetailsRepository;
 
+    @Autowired
+    private com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository sleeperFinalResultRepository;
+
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public CallLetterDetailsDto getCallLetterDetails(String requestId) {
@@ -1637,13 +1640,14 @@ public class CallLetterServiceImpl implements CallLetterService {
             if ((allCalls == null || allCalls.isEmpty()) && barePoNo != null && !barePoNo.equals(rawPoNo)) {
                 allCalls = sleeperInspectionCallRepository.getCalls(barePoNo, cleanSrNo);
             }
+            boolean isSetUnit = "Set".equalsIgnoreCase(dto.getCallUnit());
             int passedQty = 0;
             if (allCalls != null) {
                 for (com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall c : allCalls) {
                     String st = c.getStatus() != null ? c.getStatus().trim().toUpperCase() : "";
                     if (st.equals("ACCEPTED") || st.equals("COMPLETED") || st.equals("VERIFIED") ||
                         st.contains("IBS") || st.contains("IC_ISSUE") || st.contains("CLOSED")) {
-                        passedQty += offeredInt(c);
+                        passedQty += ieAcceptedInt(c, isSetUnit);
                     }
                 }
             }
@@ -1651,7 +1655,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                 String curSt = sleeperCall.getStatus() != null ? sleeperCall.getStatus().trim().toUpperCase() : "";
                 if (curSt.equals("ACCEPTED") || curSt.equals("COMPLETED") || curSt.equals("VERIFIED") ||
                     curSt.contains("IBS") || curSt.contains("IC_ISSUE") || curSt.contains("CLOSED")) {
-                    passedQty = offeredInt(sleeperCall);
+                    passedQty = ieAcceptedInt(sleeperCall, isSetUnit);
                 }
             }
             dto.setFinalAcceptedQty(passedQty > 0 ? passedQty + " Nos." : "0 Nos.");
@@ -1755,6 +1759,26 @@ public class CallLetterServiceImpl implements CallLetterService {
 
     private static int offeredInt(com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall c) {
         return c != null && c.getTotalOffered() != null ? c.getTotalOffered().intValue() : 0;
+    }
+
+    /**
+     * Qty the IE actually accepted for a call (sleeper_final_result.total_accepted, or accepted sets for
+     * Set items). The vendor's total_offered can differ because the IE may reject more sleepers during
+     * final inspection, so it is used only as a fallback when no final result has been saved.
+     */
+    private int ieAcceptedInt(com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall c, boolean isSetUnit) {
+        if (c == null) return 0;
+        if (c.getCallNo() != null) {
+            try {
+                java.math.BigDecimal accepted = isSetUnit
+                        ? sleeperFinalResultRepository.sumAcceptedSetsByCallNumber(c.getCallNo())
+                        : sleeperFinalResultRepository.sumAcceptedByCallNumber(c.getCallNo());
+                if (accepted != null) return accepted.intValue();
+            } catch (Exception e) {
+                logger.warn("Could not read final result for sleeper call {}: {}", c.getCallNo(), e.getMessage());
+            }
+        }
+        return offeredInt(c);
     }
 
     private String cleanMfSleeperNo(String s) {
