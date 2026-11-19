@@ -2314,10 +2314,12 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             List<UserMaster> users = userMasterRepository.findAllById(userIds);
             java.util.Map<Integer, List<String>> userRolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, users);
             String defaultRole = "PROCESS_IE".equals(targetIeRole) ? "Sleeper Process IE" : "Main IE";
+            // Only IEs of the logged-in call desk user's RIO
+            String deskRio = RioUtil.loggedInUserRio(rio, ieProfileRioMap, rioUserMap);
 
             for (UserMaster u : users) {
                 String userRio = RioUtil.resolveUserRio(u, ieProfileRioMap, rioUserMap);
-                if (!RioUtil.isRioMatching(rio, userRio)) {
+                if (!RioUtil.isRioMatching(deskRio, userRio)) {
                     continue;
                 }
                 List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(u, userRolesMap);

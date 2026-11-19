@@ -55,6 +55,22 @@ public final class RioUtil {
      * Returns true if {@code targetRio} is blank (unfiltered) or if any comma-separated
      * segment in {@code candidateRio} normalizes to the same RIO code as {@code targetRio}.
      */
+    /**
+     * RIO for the call desk Remapping IE lists: the logged-in user's own RIO (from login, not the request);
+     * falls back to the requested RIO only when the user has none (e.g. admin).
+     */
+    public static String loggedInUserRio(String requestedRio, Map<String, String> ieProfileRioMap, Map<String, String> rioUserMap) {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof UserMaster user) {
+            String own = resolveUserRio(user, ieProfileRioMap, rioUserMap);
+            if (own != null && !own.trim().isEmpty()) {
+                return own.trim();
+            }
+        }
+        return requestedRio;
+    }
+
     public static boolean isRioMatching(String targetRio, String candidateRio) {
         if (targetRio == null || targetRio.trim().isEmpty()) {
             return true;

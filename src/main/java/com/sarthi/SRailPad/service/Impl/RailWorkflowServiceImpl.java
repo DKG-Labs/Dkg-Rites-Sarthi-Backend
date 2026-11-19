@@ -2269,7 +2269,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     @Override
     public List<java.util.Map<String, Object>> getRailpadRemapAvailableUsers(String rio, String ieRole) {
         String normalizedIeRole = RioUtil.normalizeIeRole(ieRole);
-        String targetIeRole = !normalizedIeRole.isEmpty() ? normalizedIeRole : "MAIN_IE";
+        // ieRole=ALL: both Main IEs and Process IEs (call desk reassign / remapping)
+        boolean bothRoles = "ALL".equals(normalizedIeRole);
+        String targetIeRole = !normalizedIeRole.isEmpty() && !bothRoles ? normalizedIeRole : "MAIN_IE";
         Set<Integer> userIds = new java.util.LinkedHashSet<>();
 
         // 1. Railpad POI-IE mappings matching requested IE role
@@ -2281,7 +2283,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                         continue;
                     }
                     String mappingIeRole = RioUtil.normalizeIeRole(m.getIeType());
-                    if ("PROCESS_IE".equals(targetIeRole)) {
+                    if (bothRoles) {
+                        userIds.add(m.getIeUserId());
+                    } else if ("PROCESS_IE".equals(targetIeRole)) {
                         if ("PROCESS_IE".equals(mappingIeRole)) {
                             userIds.add(m.getIeUserId());
                         }
@@ -2293,10 +2297,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         } catch (Exception ignored) {}
 
         // 2. Product- and role-specific Railpad IE roles
-        if ("PROCESS_IE".equals(targetIeRole)) {
+        if (bothRoles || "PROCESS_IE".equals(targetIeRole)) {
             addUsersByRoleName(userIds, "Rail Process IE");
             addUsersByRoleName(userIds, "Railpad Process IE");
-        } else {
+        }
+        if (bothRoles || !"PROCESS_IE".equals(targetIeRole)) {
             try {
                 List<UserMaster> r15 = userMasterRepository.findUsersByRoleId(15);
                 if (r15 != null) {
@@ -2317,17 +2322,24 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             List<UserMaster> users = userMasterRepository.findAllById(userIds);
             java.util.Map<Integer, List<String>> userRolesMap = RioUtil.loadUserRolesMap(userRoleMasterRepository, users);
             String defaultRole = "PROCESS_IE".equals(targetIeRole) ? "Rail Process IE" : "Rail Main IE";
+            // Only IEs of the logged-in call desk user's RIO
+            String deskRio = RioUtil.loggedInUserRio(rio, ieProfileRioMap, rioUserMap);
 
             for (UserMaster u : users) {
                 String userRio = RioUtil.resolveUserRio(u, ieProfileRioMap, rioUserMap);
-                if (!RioUtil.isRioMatching(rio, userRio)) {
+                if (!RioUtil.isRioMatching(deskRio, userRio)) {
                     continue;
                 }
                 List<String> effectiveRoles = RioUtil.resolveEffectiveRoles(u, userRolesMap);
-                if (!RioUtil.isProductAndRoleMatching(effectiveRoles, u.getRoleName(), u.getProductType(), "RAILPAD", targetIeRole)) {
+                boolean roleOk = bothRoles
+                        ? hasRailpadIeRole(effectiveRoles, u.getRoleName())
+                        : RioUtil.isProductAndRoleMatching(effectiveRoles, u.getRoleName(), u.getProductType(), "RAILPAD", targetIeRole);
+                if (!roleOk) {
                     continue;
                 }
-                String primaryRole = !effectiveRoles.isEmpty() ? effectiveRoles.get(0) : defaultRole;
+                // Show the user's Rail Pad role (a user may also hold ERC / Sleeper roles, e.g. "IE, Railpad Main IE")
+                String primaryRole = railpadRoleOf(effectiveRoles, u.getRoleName());
+                if (primaryRole == null) primaryRole = !effectiveRoles.isEmpty() ? effectiveRoles.get(0) : defaultRole;
                 String displayName = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : u.getUsername();
 
                 java.util.Map<String, Object> emp = new java.util.HashMap<>();
@@ -2347,6 +2359,24 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
         return available;
+    }
+
+    /** Rail Pad Main IE / Process IE roles only (not ERC "IE", Sleeper or Rail SMS roles). */
+    private static final Set<String> RAILPAD_IE_ROLES = Set.of(
+            "rail main ie", "railpad main ie", "rail process ie", "railpad process ie");
+
+    private boolean hasRailpadIeRole(List<String> effectiveRoles, String roleNameCsv) {
+        return railpadRoleOf(effectiveRoles, roleNameCsv) != null;
+    }
+
+    /** The user's first Rail Pad Main IE / Process IE role, or null if none. */
+    private String railpadRoleOf(List<String> effectiveRoles, String roleNameCsv) {
+        List<String> all = new ArrayList<>(effectiveRoles != null ? effectiveRoles : List.of());
+        if (roleNameCsv != null) all.addAll(java.util.Arrays.asList(roleNameCsv.split(",")));
+        return all.stream()
+                .filter(r -> r != null && RAILPAD_IE_ROLES.contains(r.trim().toLowerCase(java.util.Locale.ROOT)))
+                .map(String::trim)
+                .findFirst().orElse(null);
     }
 
     private void addUsersByRoleName(Set<Integer> userIds, String roleName) {
