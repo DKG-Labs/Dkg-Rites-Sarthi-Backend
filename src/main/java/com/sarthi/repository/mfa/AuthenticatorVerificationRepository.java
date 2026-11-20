@@ -66,4 +66,11 @@ public interface AuthenticatorVerificationRepository extends JpaRepository<Authe
                           @Param("status") String status,
                           @Param("newStatus") String newStatus,
                           @Param("now") LocalDateTime now);
+
+    /** Sessions past their expiry that never got a logout (tab closed, session timed out) → EXPIRED. */
+    @org.springframework.data.jpa.repository.Modifying
+    @Transactional
+    @Query("update AuthenticatorVerification v set v.status = 'EXPIRED' "
+            + "where v.status in ('AUTHENTICATED', 'PENDING', 'SCANNED') and v.expiresAt <= :now")
+    int expireOldSessions(@Param("now") LocalDateTime now);
 }
