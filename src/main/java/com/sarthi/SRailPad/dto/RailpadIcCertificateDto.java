@@ -49,4 +49,15 @@ public class RailpadIcCertificateDto {
     private String qapNo;
     private String drgNo;
     private String specNo;
+
+    // ---- Material diversion ----
+    /** FRESH / DIVERTED / DIVERTED_PASSED */
+    private String callCategory;
+    /** PARTIAL / COMPLETE for a diverted-passed IC */
+    private String diversionType;
+    private String diversionRequestNo;
+    /** Source IC the material was diverted from (diverted-passed) or the diverted IC used (diverted call). */
+    private String sourceIcNo;
+    /** e.g. "Material diverted from Source IC N/RPF-26110101/KRIS (railway letter 123 dt 10.11.2026)" */
+    private String diversionNote;
 }

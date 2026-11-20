@@ -318,6 +318,8 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                 boolean stillExists = processDetailsList.stream()
                         .anyMatch(dto -> dto.getLotNumber() != null && dto.getLotNumber().equals(existing.getLotNumber()));
                 if (!stillExists) {
+                    inspectionCallService.recordRowChange(inspection, "process_inspection_details", "DELETED",
+                            "lot " + existing.getLotNumber() + " / heat " + existing.getHeatNumber(), existing);
                     processDetailsRepository.delete(existing);
                 }
             }
@@ -345,6 +347,14 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                             icDto != null && icDto.getUpdatedBy() != null ? icDto.getUpdatedBy() : "SYSTEM_USER"
                     );
                     
+                    // RM IC changed on modify: keep rm_ic_id in step with rm_ic_number (the request carries only the number)
+                    if (lot.getRmIcNumber() != null && !lot.getRmIcNumber().isBlank()) {
+                        String rmCallNo = lot.getRmIcNumber().trim();
+                        java.util.regex.Matcher rm = java.util.regex.Pattern.compile("^[A-Z]/([^/]+)/").matcher(rmCallNo);
+                        if (rm.find()) rmCallNo = rm.group(1);
+                        inspectionCallRepository.findByIcNumber(rmCallNo).ifPresent(r -> lot.setRmIcId(r.getId()));
+                    }
+
                     // Always make sure relations and update date are set
                     lot.setUpdatedAt(LocalDateTime.now());
                     processDetailsRepository.save(lot);
@@ -394,6 +404,8 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
                     }
                     
                     processDetailsRepository.save(newLot);
+                    inspectionCallService.recordRowChange(inspection, "process_inspection_details", "ADDED",
+                            "lot " + newLot.getLotNumber() + " / heat " + newLot.getHeatNumber(), newLot);
                 }
             }
 

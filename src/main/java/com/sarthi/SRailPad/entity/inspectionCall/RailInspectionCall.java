@@ -85,6 +85,30 @@ public class RailInspectionCall {
     @JsonAlias({"remarks", "remark"})
     private String remarks;
 
+    // ---- Material diversion (see SRailPad.diversion) ----
+    /** FRESH / DIVERTED (chosen by the vendor when raising the call). */
+    @Column(name = "call_nature", length = 20)
+    @JsonAlias({"callNature", "call_nature"})
+    private String callNature;
+
+    /** FRESH / DIVERTED / DIVERTED_PASSED (DIVERTED_PASSED = system call created on diversion approval). */
+    @Column(name = "call_category", length = 30)
+    @JsonAlias({"callCategory", "call_category"})
+    private String callCategory;
+
+    @Column(name = "is_diverted_material")
+    @JsonAlias({"isDivertedMaterial", "is_diverted_material"})
+    private Boolean isDivertedMaterial;
+
+    @Column(name = "diversion_request_no", length = 50)
+    @JsonAlias({"diversionRequestNo", "diversion_request_no"})
+    private String diversionRequestNo;
+
+    /** For a DIVERTED call: the diverted-passed call whose IC it is raised on. */
+    @Column(name = "source_ic_no", length = 100)
+    @JsonAlias({"sourceIcNo", "source_ic_no"})
+    private String sourceIcNo;
+
     @Transient
     private String vendorName;
 

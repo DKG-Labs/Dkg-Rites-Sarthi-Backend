@@ -42,6 +42,21 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
     private final RailProcessCallDetailsRepository processCallDetailsRepository;
     private final RailProcessCallHistoryRepository historyRepository;
     private final RailInspectionCallRepository inspectionCallRepository;
+
+    /** Material diversion: batches of a diverted-passed Process call come from its diversion request. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sarthi.SRailPad.diversion.repository.RailDiversionRequestRepository railDiversionRequestRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sarthi.SRailPad.diversion.repository.RailDiversionItemRepository railDiversionItemRepository;
+
+    /** Diversion requests that hold quantity (same set as RailDiversionServiceImpl). */
+    private static final java.util.Set<com.sarthi.enums.DiversionRequestStatus> DIVERSION_HOLDING = java.util.EnumSet.of(
+            com.sarthi.enums.DiversionRequestStatus.PENDING_CM_APPROVAL, com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION,
+            com.sarthi.enums.DiversionRequestStatus.SENT_TO_SBU_HEAD, com.sarthi.enums.DiversionRequestStatus.PENDING_SBU_APPROVAL,
+            com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION, com.sarthi.enums.DiversionRequestStatus.CM_APPROVE_DIVERSION,
+            com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_APPROVE_DIVERSION, com.sarthi.enums.DiversionRequestStatus.BASKET_CREATED,
+            com.sarthi.enums.DiversionRequestStatus.COMPLETED);
     private final RailProductionBatchRepository productionBatchRepository;
     private final RailProcessInspectionResultRepository processInspectionResultRepository;
     private final RailProcessInspectionBatchRepository processInspectionBatchRepository;
@@ -140,6 +155,51 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
         return getProcessCallDetails(callNo);
     }
 
+    /**
+     * When an IE verification is unblocked / re-saved its batches get new ids, and Process calls that used the
+     * old ids no longer reduce the balance (a used batch shows full again). Carry that usage over to the current
+     * batch row with the same production date + batch no (+ drawing no) of this PO.
+     */
+    private void addUsageOnDeletedBatchIds(List<Object[]> results, String poNo, String callNo,
+                                           java.util.Map<Long, Integer> acceptedMap, java.util.Map<Long, Integer> rejectedMap) {
+        try {
+            java.util.Map<String, Long> liveByKey = new java.util.HashMap<>();
+            java.util.Set<java.time.LocalDate> dates = new java.util.HashSet<>();
+            java.util.Set<String> batchNos = new java.util.HashSet<>();
+            java.util.Set<Long> liveIds = new java.util.HashSet<>();
+            for (Object[] row : results) {
+                com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo i = (com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo) row[0];
+                RailIEProductionVerification v = (RailIEProductionVerification) row[1];
+                if (i == null || i.getId() == null || i.getBatchNo() == null || v == null || v.getCastingDate() == null) continue;
+                liveIds.add(i.getId());
+                dates.add(v.getCastingDate());
+                batchNos.add(i.getBatchNo());
+                liveByKey.putIfAbsent(usageKey(v.getCastingDate(), i.getBatchNo(), i.getDrawingNo()), i.getId());
+                liveByKey.putIfAbsent(usageKey(v.getCastingDate(), i.getBatchNo(), null), i.getId());
+            }
+            if (liveIds.isEmpty() || poNo == null || poNo.isBlank()) return;
+
+            List<RailProcessInspectionBatch> orphans = processInspectionBatchRepository.findUsageOnDeletedBatchIds(
+                    poNo.trim(), dates, batchNos, liveIds, callNo != null ? callNo.trim() : "");
+            for (RailProcessInspectionBatch pb : orphans) {
+                Long liveId = liveByKey.get(usageKey(pb.getProductionDate(), pb.getBatchNo(), pb.getDrawingNo()));
+                if (liveId == null) liveId = liveByKey.get(usageKey(pb.getProductionDate(), pb.getBatchNo(), null));
+                if (liveId == null) continue;
+                acceptedMap.merge(liveId, pb.getQtyAccepted() != null ? pb.getQtyAccepted() : 0, Integer::sum);
+                rejectedMap.merge(liveId, pb.getQtyRejected() != null ? pb.getQtyRejected() : 0, Integer::sum);
+            }
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(RailProcessCallServiceImpl.class)
+                    .warn("Could not add usage on deleted batch ids for PO {}: {}", poNo, e.getMessage());
+        }
+    }
+
+    private static String usageKey(java.time.LocalDate date, String batchNo, String drawingNo) {
+        String b = batchNo == null ? "" : batchNo.replaceAll("\\s+", "").toUpperCase();
+        String d = drawingNo == null ? "*" : drawingNo.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+        return date + "|" + b + "|" + d;
+    }
+
     @Override
     public ProcessAvailableBatchDto getAvailableBatchesForProcessIc(String poNo, String railPadType, String callNo) {
         List<Object[]> results = verificationRepository.findAvailableInfosForProcessIc(poNo, railPadType);
@@ -189,6 +249,7 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                     rejectedInOtherCallsMap.put(dId, rejectedInOtherCallsMap.getOrDefault(dId, 0) + rej);
                 }
             }
+            addUsageOnDeletedBatchIds(results, poNo, callNo, acceptedInOtherCallsMap, rejectedInOtherCallsMap);
         }
 
         ProcessAvailableBatchDto dto = new ProcessAvailableBatchDto();
@@ -578,10 +639,43 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
     @Override
     public ProcessInspectionSaveDto getAvailableBatchesForFinalCall(String callNo, String excludeCallNo) {
         ProcessInspectionSaveDto dto = getProcessInspectionResult(callNo);
+        // Material diversion: a diverted-passed Process call has no inspection of its own; its batches are the
+        // source call's batches limited to the diverted quantities (remaining = diverted − offered in Final calls).
+        RailInspectionCall divertedCall = callNo == null ? null
+                : inspectionCallRepository.findByCallNo(callNo.trim())
+                    .filter(c -> "DIVERTED_PASSED".equalsIgnoreCase(c.getCallCategory()) && c.getDiversionRequestNo() != null)
+                    .orElse(null);
+        if (divertedCall != null && railDiversionRequestRepository != null) {
+            com.sarthi.SRailPad.diversion.entity.RailDiversionRequest req =
+                    railDiversionRequestRepository.findByRequestNo(divertedCall.getDiversionRequestNo()).orElse(null);
+            if (req != null) {
+                ProcessInspectionSaveDto src = getProcessInspectionResult(req.getSourceCallNo());
+                java.util.Map<String, ProcessInspectionSaveDto.ProcessBatchSaveDto> srcByBatch = new java.util.HashMap<>();
+                if (src != null && src.getBatches() != null) {
+                    src.getBatches().forEach(b -> { if (b.getBatchNo() != null) srcByBatch.put(b.getBatchNo().trim().toUpperCase(), b); });
+                }
+                ProcessInspectionSaveDto out = src != null ? src : new ProcessInspectionSaveDto();
+                List<ProcessInspectionSaveDto.ProcessBatchSaveDto> batches = new ArrayList<>();
+                for (com.sarthi.SRailPad.diversion.entity.RailDiversionItem it : req.getItems()) {
+                    if (it.getBatchNo() == null) continue;
+                    ProcessInspectionSaveDto.ProcessBatchSaveDto b = srcByBatch.getOrDefault(it.getBatchNo().trim().toUpperCase(),
+                            new ProcessInspectionSaveDto.ProcessBatchSaveDto());
+                    int diverted = it.getDiversionQty().setScale(0, java.math.RoundingMode.HALF_UP).intValue();
+                    b.setBatchNo(it.getBatchNo());
+                    b.setQtyManufactured(diverted);
+                    b.setQtyRejected(0);
+                    b.setQtyAccepted(diverted);
+                    batches.add(b);
+                }
+                out.setBatches(batches);
+                dto = out;
+            }
+        }
         // Rail pad type of the process call, so the final call form can match it to the selected type
         if (dto != null && callNo != null) {
+            final ProcessInspectionSaveDto typeTarget = dto; // dto may be replaced above for diverted calls
             inspectionCallRepository.findByCallNo(callNo.trim())
-                    .ifPresent(call -> dto.setRailPadType(call.getRailPadType()));
+                    .ifPresent(call -> typeTarget.setRailPadType(call.getRailPadType()));
         }
         if (dto == null || dto.getBatches() == null || dto.getBatches().isEmpty()) {
             return dto;
@@ -670,6 +764,24 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             b.setPreviouslyOfferedQty(alreadyOfferedForThisBatch);
             b.setQtyRemaining(Math.max(0, netAccepted - alreadyOfferedForThisBatch));
             availableBatches.add(b);
+        }
+
+        // Material diversion: qty diverted away from this (source) Process IC is no longer available for its own Final calls.
+        // Only qtyRemaining is reduced; accepted / previously offered stay as they are (diversion balances use those).
+        if (divertedCall == null && railDiversionItemRepository != null && callNo != null) {
+            java.util.Map<String, Integer> divertedByBatch = new java.util.HashMap<>();
+            for (Object[] row : railDiversionItemRepository.sumDivertedByBatchForSourceCall(callNo.trim(), DIVERSION_HOLDING)) {
+                if (row[0] != null) divertedByBatch.merge(row[0].toString().trim().toUpperCase(),
+                        ((Number) row[1]).intValue(), Integer::sum);
+            }
+            if (!divertedByBatch.isEmpty()) {
+                for (ProcessInspectionSaveDto.ProcessBatchSaveDto b : availableBatches) {
+                    Integer div = b.getBatchNo() == null ? null : divertedByBatch.get(b.getBatchNo().trim().toUpperCase());
+                    if (div != null && div > 0) {
+                        b.setQtyRemaining(Math.max(0, (b.getQtyRemaining() == null ? 0 : b.getQtyRemaining()) - div));
+                    }
+                }
+            }
         }
         dto.setBatches(availableBatches);
         return dto;

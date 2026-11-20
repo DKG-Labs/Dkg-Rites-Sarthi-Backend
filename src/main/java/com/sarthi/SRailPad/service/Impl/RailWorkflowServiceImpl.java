@@ -69,6 +69,11 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     private RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
     private RailInspectionCallRepository railInspectionCallRepository;
+
+    /** Material diversion: consume / release diverted balance. Lazy to avoid a dependency cycle. */
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private com.sarthi.SRailPad.diversion.service.RailDiversionService railDiversionService;
     private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
     private PoHeaderRepository poHeaderRepository;
     private com.sarthi.repository.PoItemRepository poItemRepository;
@@ -737,6 +742,10 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
                     RailInspectionCall ic = icOpt.get();
                     ic.setStatus("CANCELLED");
                     railInspectionCallRepository.save(ic);
+                    // Material diversion: cancelled DIVERTED call gives its reserved qty back
+                    if ("DIVERTED".equalsIgnoreCase(ic.getCallCategory())) {
+                        railDiversionService.releaseForCall(ic.getCallNo());
+                    }
                 }
             } catch (Exception ex) {
                 System.err.println("⚠️ Could not update RailInspectionCall status: " + ex.getMessage());
@@ -875,7 +884,14 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
             tx.setStatus(AppConstant.COMPLETED_TYPE);
             tx.setJobStatus(AppConstant.COMPLETED_TYPE);
-            
+
+            // Material diversion: IC issued for a DIVERTED call -> accepted qty consumed, rejected part released
+            if (!req.getAction().equalsIgnoreCase("IC_ISSUE")) {
+                railInspectionCallRepository.findByCallNo(tx.getRequestId())
+                        .filter(c -> "DIVERTED".equalsIgnoreCase(c.getCallCategory()))
+                        .ifPresent(c -> railDiversionService.consumeForCall(c.getCallNo(), null));
+            }
+
         } else if(current.getWorkflowId().equals(2L)) {
 
             List<RailTransitionMaster> transitions =

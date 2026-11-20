@@ -25,6 +25,10 @@ public class VendorPoServiceImpl implements VendorPoService {
     @Autowired
     private PoHeaderRepository poHeaderRepository;
 
+    /** Rail Pad material diversion: Final qty diverted away from a PO serial. */
+    @Autowired
+    private com.sarthi.SRailPad.diversion.repository.RailDiversionRequestRepository railDiversionRequestRepository;
+
     @Autowired
     private com.sarthi.repository.PoMaDetailRepository poMaDetailRepository;
 
@@ -407,7 +411,14 @@ public class VendorPoServiceImpl implements VendorPoService {
             for (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall c : matchingCalls) {
                 List<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults> lots =
                         lotResultsByCallNo.getOrDefault(c.getCallNo(), List.of());
-                if (lots == null || lots.isEmpty()) continue;
+                if (lots == null || lots.isEmpty()) {
+                    // Material diversion: a diverted-passed Final call has no lot results; its diverted qty is accepted
+                    if ("DIVERTED_PASSED".equalsIgnoreCase(c.getCallCategory())) {
+                        totalAccepted += (isSetUom && c.getNoOfSets() != null && c.getNoOfSets() > 0)
+                                ? c.getNoOfSets() : (c.getTotalQty() != null ? c.getTotalQty() : 0);
+                    }
+                    continue;
+                }
 
                 boolean isNcr = (c.getRailPadType() != null && (c.getRailPadType().toUpperCase().contains("NCR") || c.getRailPadType().toUpperCase().contains("NYLON")))
                         || lots.stream().anyMatch(l -> l.getRailpadType() != null && (l.getRailpadType().toUpperCase().contains("NCR") || l.getRailpadType().toUpperCase().contains("NYLON")));
@@ -426,6 +437,16 @@ public class VendorPoServiceImpl implements VendorPoService {
                     totalAccepted += callAccepted;
                 }
             }
+        }
+
+        // Material diversion: Final material approved for diversion away from this PO serial is no longer accepted here
+        try {
+            java.math.BigDecimal divertedAway = railDiversionRequestRepository.sumApprovedFinalDivertedFromSource(basePoNo.trim(), srNo);
+            if (divertedAway != null && divertedAway.signum() > 0) {
+                totalAccepted = Math.max(0, totalAccepted - divertedAway.setScale(0, java.math.RoundingMode.HALF_UP).intValue());
+            }
+        } catch (Exception ex) {
+            logger.warn("[PO Stats] diversion adjustment skipped for {}: {}", poSrNo, ex.getMessage());
         }
 
         BigDecimal offeredQty = BigDecimal.valueOf(totalOffered);
