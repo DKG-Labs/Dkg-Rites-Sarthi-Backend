@@ -75,6 +75,15 @@ public interface IePincodePoiMappingRepository extends JpaRepository<IePincodePo
 
     boolean existsByPoiCodeAndEmployeeCodeAndIeType(String poiCode, String employeeCode, String ieType);
 
+    @Query("""
+        SELECT m FROM IePincodePoiMapping m 
+        WHERE (m.poiCode = :poiCode 
+           OR TRIM(LEADING ':' FROM m.poiCode) = TRIM(LEADING ':' FROM :poiCode)
+           OR m.poiCode IN (SELECT p.poiCode FROM PincodePoIMapping p WHERE p.poiCode = :poiCode OR TRIM(LEADING ':' FROM p.poiCode) = TRIM(LEADING ':' FROM :poiCode)))
+          AND (m.ieType IS NULL OR UPPER(TRIM(m.ieType)) = 'PRIMARY' OR UPPER(TRIM(m.ieType)) = 'MAIN_IE' OR UPPER(TRIM(m.ieType)) = 'MAIN IE')
+    """)
+    List<IePincodePoiMapping> findPrimaryMappingsByPoiCode(@Param("poiCode") String poiCode);
+
     @Query("SELECT DISTINCT m.poiCode FROM IePincodePoiMapping m WHERE m.employeeCode = :employeeCode")
     List<String> findDistinctPoiCodesByEmployeeCode(@Param("employeeCode") String employeeCode);
 

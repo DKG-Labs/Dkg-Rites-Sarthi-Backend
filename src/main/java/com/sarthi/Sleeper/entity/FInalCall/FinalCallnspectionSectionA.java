@@ -3,6 +3,7 @@ package com.sarthi.Sleeper.entity.FInalCall;
 import com.sarthi.Sleeper.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "final_call_inspection_section_a")
 @Data
+@EqualsAndHashCode(callSuper = false)
 public class FinalCallnspectionSectionA extends BaseEntity {
 
     @Id

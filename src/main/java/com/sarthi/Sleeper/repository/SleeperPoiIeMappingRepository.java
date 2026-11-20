@@ -62,6 +62,24 @@ public interface SleeperPoiIeMappingRepository extends JpaRepository<SleeperPoiI
             String ieType
     );
 
+    @Query("""
+        SELECT m FROM SleeperPoiIeMapping m 
+        WHERE (
+            (:plantId IS NOT NULL AND :plantId != '' AND (
+                m.plantId = :plantId 
+                OR m.plantId = CONCAT(':', REPLACE(:plantId, ':', '')) 
+                OR m.plantId = REPLACE(:plantId, ':', '')
+                OR REPLACE(m.plantId, ':', '') = REPLACE(:plantId, ':', '')
+            ))
+            OR (:poiCode IS NOT NULL AND :poiCode != '' AND m.poiCode = :poiCode)
+        )
+        AND (m.ieType IS NULL OR UPPER(TRIM(m.ieType)) IN ('MAIN IE', 'MAIN_IE', 'MAIN'))
+    """)
+    List<SleeperPoiIeMapping> findMainIeMappingsByPlantOrPoi(
+            @Param("plantId") String plantId,
+            @Param("poiCode") String poiCode
+    );
+
     @org.springframework.data.jpa.repository.Modifying
     @Query("UPDATE SleeperPoiIeMapping s SET s.ieUserId = :newUserId WHERE s.plantId = :plantId AND s.ieUserId = :oldUserId")
     void updateIeUserIdByPlantId(@Param("plantId") String plantId, @Param("oldUserId") Integer oldUserId, @Param("newUserId") Integer newUserId);

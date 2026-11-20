@@ -95,6 +95,19 @@ public class mappingImpl implements mappingService {
                 }
             }
 
+            if (req.getIeType() != null && (req.getIeType().equalsIgnoreCase("Main IE") || req.getIeType().toUpperCase().contains("MAIN"))) {
+                List<SleeperPoiIeMapping> existingMains = repository.findMainIeMappingsByPlantOrPoi(req.getPlantId(), req.getPoiCode());
+                if (existingMains != null && !existingMains.isEmpty()) {
+                    for (SleeperPoiIeMapping m : existingMains) {
+                        if (req.getId() == null || !m.getId().equals(req.getId())) {
+                            if (!m.getIeUserId().equals(um.getUserId())) {
+                                throw new RuntimeException("This plant is already mapped to another IE for Sleeper Final (Main IE). Only one IE can be mapped.");
+                            }
+                        }
+                    }
+                }
+            }
+
             boolean mappingExists =
                     repository
                             .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(
@@ -260,6 +273,23 @@ public class mappingImpl implements mappingService {
                 }
 
                 // DUPLICATE VALIDATION
+                if (req.getIeType() != null && (req.getIeType().equalsIgnoreCase("Main IE") || req.getIeType().toUpperCase().contains("MAIN"))) {
+                    List<SleeperPoiIeMapping> existingMains = repository.findMainIeMappingsByPlantOrPoi(req.getPlantId(), req.getPoiCode());
+                    if (existingMains != null && !existingMains.isEmpty()) {
+                        boolean alreadyMappedOther = false;
+                        for (SleeperPoiIeMapping m : existingMains) {
+                            if (!m.getIeUserId().equals(user.getUserId())) {
+                                alreadyMappedOther = true;
+                                break;
+                            }
+                        }
+                        if (alreadyMappedOther) {
+                            failedEmployees.add(employeeCode + " -> Plant already mapped to another Main IE");
+                            continue;
+                        }
+                    }
+                }
+
                 boolean mappingExists =
                         repository
                                 .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(

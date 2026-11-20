@@ -2687,17 +2687,13 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
         }
 
-        // 2. For Main IE, if a Main IE mapping already exists for this plant ID, update the Main IE
-        if (!isProcessIe) {
-            java.util.Optional<RailPoiIeMapping> existingMainIe = poiIeMappingRepository.findByPlantIdAndIeType(req.getPlantId(), req.getIeType());
-            if (existingMainIe.isPresent()) {
-                RailPoiIeMapping mainMapping = existingMainIe.get();
-                mainMapping.setIeUserId(req.getIeUserId());
-                if (poiCodeToSave != null && !poiCodeToSave.isEmpty()) {
-                    mainMapping.setPoiCode(poiCodeToSave);
+        // 2. Block mapping if plant/POI is already mapped to another IE for Process or Final (Main IE)
+        List<RailPoiIeMapping> existingForPlant = poiIeMappingRepository.findMappingsByPlantOrPoiAndIeType(req.getPlantId(), req.getPoiCode(), req.getIeType());
+        if (existingForPlant != null && !existingForPlant.isEmpty()) {
+            for (RailPoiIeMapping m : existingForPlant) {
+                if (m.getIeUserId() != null && !m.getIeUserId().equals(req.getIeUserId())) {
+                    throw new RuntimeException("This plant is already mapped to another IE for Rail Pad " + (isProcessIe ? "Process" : "Final (Main IE)") + ". Only one IE can be mapped.");
                 }
-                poiIeMappingRepository.save(mainMapping);
-                return "Railpad Main IE mapping updated successfully";
             }
         }
 
