@@ -56,6 +56,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.sarthi.entity.finalmaterial.FinalInspectionLotResults;
 import com.sarthi.repository.finalmaterial.FinalInspectionLotResultsRepository;
 import com.sarthi.repository.ercdiversion.ErcDiversionRequestRepository;
+import com.sarthi.entity.PincodePoIMapping;
+import com.sarthi.repository.PincodePoIMappingRepository;
+import com.sarthi.Sleeper.entity.VendorPlant;
+import com.sarthi.Sleeper.repository.VendorPlantRepository;
+import com.sarthi.entity.VendorMaster;
+import com.sarthi.repository.VendorMasterRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -165,6 +171,15 @@ public class CertificateServiceImpl implements CertificateService {
 
     @Autowired(required = false)
     private com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcSaveChangesRepository sleeperFinalIcSaveChangesRepository;
+
+    @Autowired(required = false)
+    private PincodePoIMappingRepository pincodePoIMappingRepository;
+
+    @Autowired(required = false)
+    private VendorPlantRepository vendorPlantRepository;
+
+    @Autowired(required = false)
+    private VendorMasterRepository vendorMasterRepository;
 
     @Override
     public RawMaterialCertificateDto generateRawMaterialCertificate(String icNumber) {
@@ -326,7 +341,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .certificateDate(formatDate(LocalDate.now()))
                 .offeredInstNo(calculateOfferedInstallment(inspectionCall.getPoNo()))
                 .passedInstNo(calculatePassedInstallment(inspectionCall.getPoNo()))
-                .contractor(buildContractorInfo(poHeader))
+                .contractor(buildContractorInfo(poHeader, inspectionCall))
                 .manufacturer(buildManufacturerInfo(heatQuantities))
                 .placeOfInspection(buildPlaceOfInspection(inspectionCall))
                 .contractRef(buildContractRef(poHeader, inspectionCall))
@@ -488,27 +503,144 @@ public class CertificateServiceImpl implements CertificateService {
      */
 
     /**
-     * Build Place of Inspection
-     * Format: Company Name + Unit Address
+     * Build Place of Inspection dynamically from pincode_poi_mapping or vendor_plant.
+     * Format: Company Name, Unit Name, Unit Address
      */
     private String buildPlaceOfInspection(InspectionCall inspectionCall) {
         if (inspectionCall == null)
             return "";
 
-        // Construct the fallback address from company and unit details
-        String companyName = inspectionCall.getCompanyName() != null ? inspectionCall.getCompanyName() : "";
-        String unitAddress = inspectionCall.getUnitAddress() != null ? inspectionCall.getUnitAddress() : "";
-        String constructedAddress = companyName + (unitAddress.isBlank() ? "" : ", " + unitAddress);
+        String companyName = inspectionCall.getCompanyName() != null ? inspectionCall.getCompanyName().trim() : "";
+        String unitName = inspectionCall.getUnitName() != null ? inspectionCall.getUnitName().trim() : "";
+        String unitAddress = inspectionCall.getUnitAddress() != null ? inspectionCall.getUnitAddress().trim() : "";
+        String poiCode = inspectionCall.getPlaceOfInspection() != null ? inspectionCall.getPlaceOfInspection().trim() : "";
+        String vendorId = inspectionCall.getVendorId() != null ? inspectionCall.getVendorId().trim() : "";
 
-        String directPlace = inspectionCall.getPlaceOfInspection();
+        // 1. Try lookup from pincode_poi_mapping
+        if (pincodePoIMappingRepository != null) {
+            Optional<PincodePoIMapping> poiOpt = Optional.empty();
 
-        // If direct place is present AND is not a POI code, use it.
-        // Otherwise, use the constructed address.
-        if (directPlace != null && !directPlace.isBlank() && !directPlace.toUpperCase().startsWith("POI")) {
-            return directPlace;
+            if (!poiCode.isEmpty()) {
+                poiOpt = pincodePoIMappingRepository.findByPoiCode(poiCode);
+                if (poiOpt.isEmpty()) {
+                    String cleanPoi = poiCode.startsWith(":") ? poiCode.substring(1) : ":" + poiCode;
+                    poiOpt = pincodePoIMappingRepository.findByPoiCode(cleanPoi);
+                }
+            }
+
+            if (poiOpt.isEmpty() && !companyName.isEmpty() && !unitName.isEmpty()) {
+                poiOpt = pincodePoIMappingRepository.findByCompanyNameAndUnitName(companyName, unitName);
+            }
+
+            if (poiOpt.isEmpty() && !vendorId.isEmpty()) {
+                List<PincodePoIMapping> units = pincodePoIMappingRepository.findByVendorCode(vendorId);
+                if (units == null || units.isEmpty()) {
+                    String cleanV = vendorId.startsWith(":") ? vendorId.substring(1) : ":" + vendorId;
+                    units = pincodePoIMappingRepository.findByVendorCode(cleanV);
+                }
+                if (units != null && !units.isEmpty()) {
+                    if (!unitName.isEmpty()) {
+                        poiOpt = units.stream()
+                                .filter(u -> u.getUnitName() != null && u.getUnitName().trim().equalsIgnoreCase(unitName))
+                                .findFirst();
+                    }
+                    if (poiOpt.isEmpty() && units.size() == 1) {
+                        poiOpt = Optional.of(units.get(0));
+                    }
+                }
+            }
+
+            if (poiOpt.isPresent()) {
+                PincodePoIMapping m = poiOpt.get();
+                String cName = m.getCompanyName() != null && !m.getCompanyName().isBlank() ? m.getCompanyName().trim() : companyName;
+                String uName = m.getUnitName() != null && !m.getUnitName().isBlank() ? m.getUnitName().trim() : unitName;
+                String addr = m.getAddress() != null && !m.getAddress().isBlank() ? m.getAddress().trim() : unitAddress;
+                return formatPlaceOfInspection(cName, uName, addr);
+            }
         }
 
-        return constructedAddress;
+        // 2. Try lookup from vendor_plant
+        if (vendorPlantRepository != null) {
+            Optional<com.sarthi.Sleeper.entity.VendorPlant> plantOpt = Optional.empty();
+
+            if (!poiCode.isEmpty()) {
+                plantOpt = vendorPlantRepository.findByPlantId(poiCode);
+                if (plantOpt.isEmpty()) {
+                    List<com.sarthi.Sleeper.entity.VendorPlant> matching = vendorPlantRepository.findMatchingPlants(poiCode);
+                    if (matching != null && !matching.isEmpty()) {
+                        plantOpt = Optional.of(matching.get(0));
+                    }
+                }
+            }
+
+            if (plantOpt.isEmpty() && !companyName.isEmpty() && !unitName.isEmpty()) {
+                plantOpt = vendorPlantRepository.findByCompanyNameAndPlantName(companyName, unitName);
+            }
+
+            if (plantOpt.isEmpty() && !vendorId.isEmpty()) {
+                List<com.sarthi.Sleeper.entity.VendorPlant> plants = vendorPlantRepository.findByVendorCode(vendorId);
+                if (plants == null || plants.isEmpty()) {
+                    String cleanV = vendorId.startsWith(":") ? vendorId.substring(1) : ":" + vendorId;
+                    plants = vendorPlantRepository.findByVendorCode(cleanV);
+                }
+                if (plants != null && !plants.isEmpty()) {
+                    if (!unitName.isEmpty()) {
+                        plantOpt = plants.stream()
+                                .filter(p -> p.getPlantName() != null && p.getPlantName().trim().equalsIgnoreCase(unitName))
+                                .findFirst();
+                    }
+                    if (plantOpt.isEmpty() && plants.size() == 1) {
+                        plantOpt = Optional.of(plants.get(0));
+                    }
+                }
+            }
+
+            if (plantOpt.isPresent()) {
+                com.sarthi.Sleeper.entity.VendorPlant vp = plantOpt.get();
+                String cName = vp.getCompanyName() != null && !vp.getCompanyName().isBlank() ? vp.getCompanyName().trim() : companyName;
+                String uName = vp.getPlantName() != null && !vp.getPlantName().isBlank() ? vp.getPlantName().trim() : unitName;
+                String addr = vp.getPlantAddress() != null && !vp.getPlantAddress().isBlank() ? vp.getPlantAddress().trim() : unitAddress;
+                if (vp.getPlantPincode() != null && !vp.getPlantPincode().isBlank() && !addr.contains(vp.getPlantPincode().trim())) {
+                    addr = addr + (addr.isEmpty() ? "" : ", ") + vp.getPlantPincode().trim();
+                }
+                return formatPlaceOfInspection(cName, uName, addr);
+            }
+        }
+
+        // 3. Fallback to inspectionCall's stored fields
+        return formatPlaceOfInspection(companyName, unitName, unitAddress);
+    }
+
+    private String formatPlaceOfInspection(String companyName, String unitName, String address) {
+        List<String> parts = new ArrayList<>();
+        String cleanComp = companyName != null ? companyName.trim() : "";
+        String cleanUnit = unitName != null ? unitName.trim() : "";
+        String cleanAddr = address != null ? address.trim() : "";
+
+        if (!cleanComp.isEmpty()) {
+            parts.add(cleanComp);
+        }
+        if (!cleanUnit.isEmpty()) {
+            if (parts.isEmpty() || !cleanComp.equalsIgnoreCase(cleanUnit)) {
+                parts.add(cleanUnit);
+            }
+        }
+        if (!cleanAddr.isEmpty()) {
+            String lowerAddr = cleanAddr.toLowerCase();
+            String lowerComp = cleanComp.toLowerCase();
+            String lowerUnit = cleanUnit.toLowerCase();
+
+            if (!lowerComp.isEmpty() && lowerAddr.startsWith(lowerComp)) {
+                cleanAddr = cleanAddr.substring(cleanComp.length()).replaceAll("^[\\s,]+", "");
+            }
+            if (!lowerUnit.isEmpty() && cleanAddr.toLowerCase().startsWith(lowerUnit)) {
+                cleanAddr = cleanAddr.substring(cleanUnit.length()).replaceAll("^[\\s,]+", "");
+            }
+            if (!cleanAddr.isEmpty()) {
+                parts.add(cleanAddr);
+            }
+        }
+        return String.join(", ", parts);
     }
 
     /**
@@ -549,14 +681,114 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
-     * Build Contractor Information (Vendor Name with Address)
+     * Build Contractor Information (Company Name and Registered Office Address).
+     * Automatically resolves updated details from Admin Portal (vendor_master / pincode_poi_mapping / vendor_plant).
      */
+    private String buildContractorInfo(PoHeader poHeader, InspectionCall inspectionCall) {
+        String vendorCode = null;
+        if (poHeader != null && poHeader.getVendorCode() != null && !poHeader.getVendorCode().isBlank()) {
+            vendorCode = poHeader.getVendorCode().trim();
+        } else if (inspectionCall != null && inspectionCall.getVendorId() != null && !inspectionCall.getVendorId().isBlank()) {
+            vendorCode = inspectionCall.getVendorId().trim();
+        }
+
+        String compName = "";
+        String compAddr = "";
+
+        // 1. Check vendor_master by vendorCode (updated by Admin in Admin portal)
+        if (vendorCode != null && !vendorCode.isEmpty() && vendorMasterRepository != null) {
+            String vCodeCol = vendorCode.startsWith(":") ? vendorCode : ":" + vendorCode;
+            String rawCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : vendorCode;
+            Optional<VendorMaster> vmOpt = vendorMasterRepository.findByVendorCode(vCodeCol);
+            if (vmOpt.isEmpty()) {
+                vmOpt = vendorMasterRepository.findByVendorCode(rawCode);
+            }
+            if (vmOpt.isPresent()) {
+                VendorMaster vm = vmOpt.get();
+                if (vm.getVendorName() != null && !vm.getVendorName().isBlank()) {
+                    compName = vm.getVendorName().trim();
+                }
+                if (vm.getVendorDetails() != null && !vm.getVendorDetails().isBlank()) {
+                    compAddr = vm.getVendorDetails().trim();
+                }
+            }
+        }
+
+        // 2. If address missing, check pincode_poi_mapping by vendorCode
+        if (compAddr.isEmpty() && vendorCode != null && pincodePoIMappingRepository != null) {
+            String vCodeCol = vendorCode.startsWith(":") ? vendorCode : ":" + vendorCode;
+            String rawCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : vendorCode;
+            List<PincodePoIMapping> list = pincodePoIMappingRepository.findByVendorCode(vCodeCol);
+            if (list == null || list.isEmpty()) {
+                list = pincodePoIMappingRepository.findByVendorCode(rawCode);
+            }
+            if (list != null && !list.isEmpty()) {
+                if (compName.isEmpty() && list.get(0).getCompanyName() != null) {
+                    compName = list.get(0).getCompanyName().trim();
+                }
+                if (list.get(0).getAddress() != null) {
+                    compAddr = list.get(0).getAddress().trim();
+                }
+            }
+        }
+
+        // 3. If address missing, check vendor_plant by vendorCode
+        if (compAddr.isEmpty() && vendorCode != null && vendorPlantRepository != null) {
+            String vCodeCol = vendorCode.startsWith(":") ? vendorCode : ":" + vendorCode;
+            String rawCode = vendorCode.startsWith(":") ? vendorCode.substring(1) : vendorCode;
+            List<com.sarthi.Sleeper.entity.VendorPlant> plants = vendorPlantRepository.findByVendorCode(vCodeCol);
+            if (plants == null || plants.isEmpty()) {
+                plants = vendorPlantRepository.findByVendorCode(rawCode);
+            }
+            if (plants != null && !plants.isEmpty()) {
+                if (compName.isEmpty() && plants.get(0).getCompanyName() != null) {
+                    compName = plants.get(0).getCompanyName().trim();
+                }
+                if (plants.get(0).getPlantAddress() != null) {
+                    compAddr = plants.get(0).getPlantAddress().trim();
+                }
+            }
+        }
+
+        // 4. Fallback to poHeader vendor details
+        if (compName.isEmpty() && poHeader != null) {
+            compName = extractVendorName(poHeader.getVendorDetails());
+        }
+        if (compAddr.isEmpty() && poHeader != null) {
+            compAddr = extractVendorAddress(poHeader.getVendorDetails());
+        }
+
+        // 5. Fallback to inspectionCall
+        if (compName.isEmpty() && inspectionCall != null && inspectionCall.getCompanyName() != null) {
+            compName = inspectionCall.getCompanyName().trim();
+        }
+        if (compAddr.isEmpty() && inspectionCall != null && inspectionCall.getUnitAddress() != null) {
+            compAddr = inspectionCall.getUnitAddress().trim();
+        }
+
+        // 6. If address is still missing but company name is known, check vendor_master by name
+        if (compAddr.isEmpty() && !compName.isEmpty() && vendorMasterRepository != null) {
+            Optional<VendorMaster> vmByName = vendorMasterRepository.findByVendorNameIgnoreCase(compName);
+            if (vmByName.isPresent() && vmByName.get().getVendorDetails() != null && !vmByName.get().getVendorDetails().isBlank()) {
+                compAddr = vmByName.get().getVendorDetails().trim();
+            }
+        }
+
+        // Format: Company Name, Address
+        if (!compName.isBlank() && !compAddr.isBlank()) {
+            if (compAddr.toUpperCase().startsWith(compName.toUpperCase())) {
+                return compAddr;
+            }
+            return compName + ", " + compAddr;
+        } else if (!compName.isBlank()) {
+            return compName;
+        } else {
+            return compAddr;
+        }
+    }
+
     private String buildContractorInfo(PoHeader poHeader) {
-        if (poHeader == null)
-            return "";
-        String vendorName = extractVendorName(poHeader.getVendorDetails());
-        String vendorAddress = extractVendorAddress(poHeader.getVendorDetails());
-        return vendorName + (vendorAddress.isBlank() ? "" : ", " + vendorAddress);
+        return buildContractorInfo(poHeader, null);
     }
 
     /**
@@ -1714,8 +1946,8 @@ public class CertificateServiceImpl implements CertificateService {
                 .certificateDate(formatDate(LocalDate.now()))
                 .offeredInstNo(calculateOfferedInstallment(inspectionCall.getPoNo()))
                 .passedInstNo(calculatePassedInstallment(inspectionCall.getPoNo()))
-                .contractor(buildContractorInfo(poHeader))
-                .manufacturer(buildContractorInfo(poHeader))
+                .contractor(buildContractorInfo(poHeader, inspectionCall))
+                .manufacturer(buildContractorInfo(poHeader, inspectionCall))
                 .placeOfInspection(buildPlaceOfInspection(inspectionCall))
                 .contractRef(buildContractRef(poHeader, inspectionCall))
                 .poDetails(inspectionCall.getPoNo() + " dated "
@@ -2417,8 +2649,11 @@ public class CertificateServiceImpl implements CertificateService {
         start = System.currentTimeMillis();
 
         String certNo = generateCertificateNumber(inspectionCall);
-        String contractor = buildContractorInfo(poHeader);
-        String placeOfInspection = buildFinalPlaceOfInspection(finalDetails);
+        String contractor = buildContractorInfo(poHeader, inspectionCall);
+        String placeOfInspection = buildPlaceOfInspection(inspectionCall);
+        if ((placeOfInspection == null || placeOfInspection.isBlank()) && finalDetails != null) {
+            placeOfInspection = buildFinalPlaceOfInspection(finalDetails);
+        }
         String sealingPattern = buildFinalSealingPattern(resultsCallNo);
         String remarks = buildFinalRemarks(finalDetails);
         Integer lotResultsRejectedSum = finalInspectionLotResultsRepository.sumTotalRejectedQtyByInspectionCallNo(resultsCallNo);

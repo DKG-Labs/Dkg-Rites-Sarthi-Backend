@@ -1,8 +1,11 @@
 package com.sarthi.Sleeper.controller;
 
 import com.sarthi.Sleeper.dto.mapping.*;
+import com.sarthi.Sleeper.entity.SleeperPoiIeMapping;
 import com.sarthi.Sleeper.repository.SleeperPoiIeMappingRepository;
 import com.sarthi.Sleeper.service.mappingService;
+import com.sarthi.entity.UserMaster;
+import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +25,9 @@ public class SleeperMapping {
 
     @Autowired
     private SleeperPoiIeMappingRepository sleeperPoiIeMappingRepository;
+
+    @Autowired(required = false)
+    private UserMasterRepository userMasterRepository;
 
     @GetMapping("/sleeper-plants/{vendorCode}")
     public ResponseEntity<List<String>> getPlantIdsByVendorCode(
@@ -134,6 +140,37 @@ public class SleeperMapping {
             @RequestParam String plantId,
             @RequestParam String poiCode,
             @RequestParam String ieType) {
+        
+        boolean isMainIe = ieType != null && (ieType.toUpperCase().contains("MAIN") || ieType.equalsIgnoreCase("Primary"));
+        
+        if (isMainIe) {
+            List<SleeperPoiIeMapping> mainMappings = sleeperPoiIeMappingRepository
+                    .findMainIeMappingsByPlantOrPoi(plantId, poiCode);
+            if (mainMappings != null && !mainMappings.isEmpty()) {
+                for (SleeperPoiIeMapping m : mainMappings) {
+                    if (m.getIeUserId() != null && !m.getIeUserId().equals(userId)) {
+                        String ieName = String.valueOf(m.getIeUserId());
+                        if (userMasterRepository != null) {
+                            try {
+                                UserMaster u = userMasterRepository.findById(m.getIeUserId()).orElse(null);
+                                if (u != null) {
+                                    ieName = (u.getEmployeeCode() != null ? u.getEmployeeCode() + " - " : "") + (u.getUsername() != null ? u.getUsername() : "");
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                        return ResponseEntity.ok(Map.of(
+                                "exists", true,
+                                "message", "This plant is already mapped to IE (" + ieName + ") for Sleeper Final (Main IE). Only one IE can be mapped."
+                        ));
+                    }
+                }
+                return ResponseEntity.ok(Map.of(
+                        "exists", true,
+                        "message", "This plant is already mapped to this IE for Sleeper Final (Main IE)."
+                ));
+            }
+        }
+
         boolean exists = sleeperPoiIeMappingRepository
                 .existsByPoiCodeAndPlantIdAndIeUserIdAndIeType(poiCode, plantId, userId, ieType);
         return ResponseEntity.ok(Map.of("exists", exists));

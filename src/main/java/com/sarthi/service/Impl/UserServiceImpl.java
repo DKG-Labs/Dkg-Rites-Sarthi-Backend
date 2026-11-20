@@ -380,6 +380,18 @@ public class UserServiceImpl implements UserService {
                 // ---------- IE PIN + POI ----------
                 if (userDto.getIePinPoiList() != null) {
                     for (IePinPoiDto dto : userDto.getIePinPoiList()) {
+                        String reqIeType = dto.getIeType() != null ? dto.getIeType().trim() : "Primary";
+                        boolean isPrimary = reqIeType.equalsIgnoreCase("Primary") || reqIeType.equalsIgnoreCase("MAIN_IE") || reqIeType.equalsIgnoreCase("MAIN IE");
+                        if (isPrimary && dto.getPoiCode() != null && !dto.getPoiCode().isBlank()) {
+                            List<IePincodePoiMapping> existing = iePincodePoiMappingRepository.findPrimaryMappingsByPoiCode(dto.getPoiCode());
+                            if (existing != null && !existing.isEmpty()) {
+                                for (IePincodePoiMapping m : existing) {
+                                    if (m.getEmployeeCode() != null && !m.getEmployeeCode().equalsIgnoreCase(userMaster.getEmployeeCode())) {
+                                        throw new RuntimeException("POI " + dto.getPoiCode() + " is already mapped to IE (" + m.getEmployeeCode() + ") for RM/Final. Only one IE can be mapped.");
+                                    }
+                                }
+                            }
+                        }
 
                         IePincodePoiMapping m = new IePincodePoiMapping();
                         m.setEmployeeCode(userMaster.getEmployeeCode());
@@ -1251,6 +1263,18 @@ public class UserServiceImpl implements UserService {
         if (dto.getIePinPoiList() != null) {
 
             for (IePinPoiDto p : dto.getIePinPoiList()) {
+                String reqIeType = p.getIeType() != null ? p.getIeType().trim() : "Primary";
+                boolean isPrimary = reqIeType.equalsIgnoreCase("Primary") || reqIeType.equalsIgnoreCase("MAIN_IE") || reqIeType.equalsIgnoreCase("MAIN IE");
+                if (isPrimary && p.getPoiCode() != null && !p.getPoiCode().isBlank()) {
+                    List<IePincodePoiMapping> existing = iePincodePoiMappingRepository.findPrimaryMappingsByPoiCode(p.getPoiCode());
+                    if (existing != null && !existing.isEmpty()) {
+                        for (IePincodePoiMapping m : existing) {
+                            if (m.getEmployeeCode() != null && !m.getEmployeeCode().equalsIgnoreCase(user.getEmployeeCode())) {
+                                throw new RuntimeException("POI " + p.getPoiCode() + " is already mapped to IE (" + m.getEmployeeCode() + ") for RM/Final. Only one IE can be mapped.");
+                            }
+                        }
+                    }
+                }
 
                 IePincodePoiMapping map = new IePincodePoiMapping();
 

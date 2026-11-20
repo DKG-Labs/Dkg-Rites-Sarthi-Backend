@@ -1,8 +1,11 @@
 package com.sarthi.controller;
 
 import com.sarthi.dto.ProcessIeMappingRequestDto;
+import com.sarthi.entity.IePincodePoiMapping;
+import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.IePincodePoiMappingRepository;
 import com.sarthi.repository.PoiProcessIeMappingRepository;
+import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.util.ResponseBuilder;
 import com.sarthi.service.MappingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +29,9 @@ public class MappingController {
 
     @Autowired
     private PoiProcessIeMappingRepository poiProcessIeMappingRepository;
+
+    @Autowired(required = false)
+    private UserMasterRepository userMasterRepository;
 
     @PostMapping("/processIe")
     public ResponseEntity<Object> createMappingProcessIe(
@@ -122,9 +128,38 @@ public class MappingController {
             @RequestParam String empCode,
             @RequestParam String poiCode,
             @RequestParam(required = false, defaultValue = "") String ieType) {
+        
+        List<IePincodePoiMapping> primaryMappings = iePincodePoiMappingRepository.findPrimaryMappingsByPoiCode(poiCode);
+        if (primaryMappings != null && !primaryMappings.isEmpty()) {
+            for (IePincodePoiMapping m : primaryMappings) {
+                String existingEmp = m.getEmployeeCode();
+                if (existingEmp != null && !existingEmp.equalsIgnoreCase(empCode)) {
+                    String ieName = existingEmp;
+                    if (userMasterRepository != null) {
+                        try {
+                            UserMaster u = userMasterRepository.findByEmployeeCode(existingEmp);
+                            if (u != null && u.getUsername() != null) {
+                                ieName = existingEmp + " - " + u.getUsername();
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                    return ResponseEntity.ok(Map.of(
+                            "exists", true,
+                            "message", "This POI is already mapped to IE (" + ieName + ") for RM/Final. Only one IE can be mapped."
+                    ));
+                }
+            }
+        }
+
         boolean exists = iePincodePoiMappingRepository
                 .existsByPoiCodeAndEmployeeCodeAndIeType(poiCode, empCode, ieType);
-        return ResponseEntity.ok(Map.of("exists", exists));
+        if (exists) {
+            return ResponseEntity.ok(Map.of(
+                    "exists", true,
+                    "message", "This POI is already mapped to this IE."
+            ));
+        }
+        return ResponseEntity.ok(Map.of("exists", false));
     }
 
     @GetMapping("/check-duplicate-process")

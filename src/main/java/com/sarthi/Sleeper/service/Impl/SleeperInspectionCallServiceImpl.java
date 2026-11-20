@@ -280,25 +280,51 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         call.setStatus(AppConstant.WITHDRAWN_TYPE);
         inspectionCallRepository.save(call);
 
-        // 3. Update the latest workflow row to WITHDRAW (preserve the record, same as ERC / RailPad).
-        //    The row is created at submit time by SleeperWorkflowService.initiateWorkflow; its
-        //    workflowId / moduleId / plantId are kept as-is. No row is fabricated here.
+        // 3. Append a new WITHDRAW workflow row (the previous rows stay untouched, so the
+        //    workflow history - e.g. the RIO Help Desk verification - is preserved).
+        //    Context fields are carried over from the latest row so every query that reads the
+        //    latest row per request (Completed / Pending / CM views) behaves exactly as before.
+        //    No row is created when the call has no workflow yet.
         if (latestWf != null) {
-            latestWf.setStatus(AppConstant.WITHDRAW_TYPE);
-            latestWf.setAction(AppConstant.WITHDRAW_TYPE);
-            latestWf.setJobStatus(AppConstant.WITHDRAW_TYPE);
-            latestWf.setNextRole(null);
-            if (remarks != null && !remarks.isBlank()) {
-                latestWf.setRemarks(remarks.trim());
-            }
-            if (actionBy != null) {
-                latestWf.setModifiedBy(actionBy);
-            }
-            latestWf.setUpdatedDate(LocalDateTime.now());
-            sleeperWorkflowRepository.save(latestWf);
+            LocalDateTime now = LocalDateTime.now();
+            SleeperWorkflowTransaction withdrawWf = new SleeperWorkflowTransaction();
+            withdrawWf.setWorkflowId(latestWf.getWorkflowId());
+            withdrawWf.setModuleId(latestWf.getModuleId());
+            withdrawWf.setRequestId(latestWf.getRequestId());
+            withdrawWf.setPlantId(latestWf.getPlantId());
+            withdrawWf.setVendorCode(latestWf.getVendorCode());
+            withdrawWf.setPoiCode(latestWf.getPoiCode());
+            withdrawWf.setRio(latestWf.getRio());
+            withdrawWf.setShift(latestWf.getShift());
+            withdrawWf.setAssignedToUser(latestWf.getAssignedToUser());
+            withdrawWf.setCreatedBy(latestWf.getCreatedBy());
+            withdrawWf.setStatus(AppConstant.WITHDRAW_TYPE);
+            withdrawWf.setAction(AppConstant.WITHDRAW_TYPE);
+            withdrawWf.setJobStatus(AppConstant.WITHDRAW_TYPE);
+            withdrawWf.setCurrentRole(resolveUserRole(actionBy));
+            withdrawWf.setNextRole(null);
+            withdrawWf.setRemarks(remarks != null && !remarks.isBlank() ? remarks.trim() : null);
+            withdrawWf.setModifiedBy(actionBy);
+            withdrawWf.setCreatedDate(now);
+            withdrawWf.setUpdatedDate(now);
+            sleeperWorkflowRepository.save(withdrawWf);
         }
 
         return trimmedCallNo;
+    }
+
+    /** Role name of the user performing an action, read from user_master; null when unknown. */
+    private String resolveUserRole(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        try {
+            List<String> roles = jdbcTemplate.queryForList(
+                    "SELECT role_name FROM user_master WHERE userid = ?", String.class, userId);
+            return roles.isEmpty() ? null : roles.get(0);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
 

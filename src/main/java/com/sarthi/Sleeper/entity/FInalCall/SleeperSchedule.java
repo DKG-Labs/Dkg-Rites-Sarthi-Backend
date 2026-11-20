@@ -3,12 +3,14 @@ package com.sarthi.Sleeper.entity.FInalCall;
 import com.sarthi.Sleeper.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "sleeper_schedule")
 @Data
+@EqualsAndHashCode(callSuper = false)
 public class SleeperSchedule extends BaseEntity {
 
     @Id

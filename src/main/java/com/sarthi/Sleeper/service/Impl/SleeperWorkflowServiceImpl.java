@@ -836,6 +836,32 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         return null;
     }
 
+    /** True when the vendor has withdrawn the call (call row WITHDRAWN or latest workflow row WITHDRAW). */
+    private boolean isWithdrawnCall(String requestId) {
+        if (requestId == null || requestId.trim().isEmpty()) {
+            return false;
+        }
+        String callNo = requestId.trim();
+        if (sleeperInspectionCallRepository != null) {
+            Optional<com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall> callOpt =
+                    sleeperInspectionCallRepository.findByCallNo(callNo);
+            if (callOpt.isPresent() && callOpt.get().getStatus() != null
+                    && callOpt.get().getStatus().trim().toUpperCase().contains(AppConstant.WITHDRAW_TYPE)) {
+                return true;
+            }
+        }
+        SleeperWorkflowTransaction latest = repository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+        if (latest == null) {
+            return false;
+        }
+        for (String value : new String[]{latest.getStatus(), latest.getAction(), latest.getJobStatus()}) {
+            if (value != null && value.trim().toUpperCase().contains(AppConstant.WITHDRAW_TYPE)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public SleeperWorkflowTransactionDto performTransitionAction(
             SleeperTransitionActionReqDto req) {
@@ -1095,6 +1121,16 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         } else if (req.getAction().equalsIgnoreCase("SEND_CALL_TO_IBS")
                 || req.getAction().equalsIgnoreCase("SEND CALL TO IBS")
                 || req.getAction().equalsIgnoreCase("CLOSED")) {
+
+            // A call withdrawn by the vendor must never be sent to IBS / closed.
+            if (isWithdrawnCall(req.getRequestId())) {
+                throw new BusinessException(
+                        new ErrorDetails(
+                                AppConstant.ERROR_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                                AppConstant.ERROR_TYPE_VALIDATION,
+                                "Call " + req.getRequestId() + " has been withdrawn by the vendor and cannot be sent to IBS."));
+            }
 
             tx.setCurrentRole(current.getNextRole() != null ? current.getNextRole() : current.getCurrentRole());
             tx.setNextRole(null);

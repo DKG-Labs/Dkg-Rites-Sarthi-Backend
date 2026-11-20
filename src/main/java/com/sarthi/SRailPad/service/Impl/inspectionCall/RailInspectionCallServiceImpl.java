@@ -453,7 +453,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 } else if (drg.contains("8528") || drg.contains("8747") || drg.contains("8998")
                         || drg.contains("8694")) {
                     call.setRailPadType("10.00mm CGRSP");
-                } else if (drg.contains("3703") || drg.contains("3711")) {
+                } else if (drg.contains("3703") || drg.contains("3711") || drg.contains("4159")) {
                     call.setRailPadType("6.00mm GRSP");
                 } else {
                     call.setRailPadType("6.00mm NCRGRSP");
