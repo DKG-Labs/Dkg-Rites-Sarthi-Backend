@@ -228,6 +228,26 @@ public class VendorPoServiceImpl implements VendorPoService {
                     }
                     return Optional.empty();
                 })
+                .or(() -> {
+                    // Try stripping railway prefix if clean contains a hyphen (e.g. "NCR-63245440202594" or "NCR-63245440202594/002")
+                    if (clean.contains("-")) {
+                        String withoutPrefix = clean.substring(clean.indexOf('-') + 1).trim();
+                        if (!withoutPrefix.isEmpty()) {
+                            Optional<com.sarthi.entity.PoHeader> found = poHeaderRepository.findFirstByPoNoOrL5PoNo(withoutPrefix);
+                            if (found.isPresent()) return found;
+                            if (withoutPrefix.contains("/")) {
+                                for (String p : withoutPrefix.split("/")) {
+                                    String pt = p.trim();
+                                    if (!pt.isEmpty()) {
+                                        Optional<com.sarthi.entity.PoHeader> f = poHeaderRepository.findFirstByPoNoOrL5PoNo(pt);
+                                        if (f.isPresent()) return f;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return Optional.empty();
+                })
                 .map(com.sarthi.entity.PoHeader::getPdfPath)
                 .orElse(null);
     }
