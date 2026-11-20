@@ -33,6 +33,9 @@ public class IbsController {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private com.sarthi.service.Impl.IbsCompletedCallsQueryService completedCallsQuery;
+
 
     @PostMapping("/sarthi/authenticate")
     public ResponseEntity<AuthResponseDto> generateIntegrationToken(
@@ -90,9 +93,11 @@ public class IbsController {
     ) {
 
         jwtService.validateToken(authHeader);
+        Object ackResult = service.acknowledgeCallData(dto);
+        completedCallsQuery.invalidate();
         return new ResponseEntity<Object>(
                 ResponseBuilder.getSuccessResponse(
-                        service.acknowledgeCallData(dto)
+                        ackResult
                 ),
                 HttpStatus.OK
         );
@@ -109,7 +114,7 @@ public class IbsController {
     @PostMapping("/ibs/save-case-no")
     public ResponseEntity<Object> saveIbsCaseNo(@RequestBody Map<String, Object> payload) {
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(service.saveIbsCaseNo(payload)),
+                ResponseBuilder.getSuccessResponse(saveCaseNoAndInvalidate(payload)),
                 HttpStatus.OK
         );
     }
@@ -123,9 +128,50 @@ public class IbsController {
         jwtService.validateToken(authHeader);
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        service.revertIbsCallToCompleted(callNumber, deletedBy)
+                        revertAndInvalidate(callNumber, deletedBy)
                 ),
                 HttpStatus.OK
         );
+    }
+
+    private Object saveCaseNoAndInvalidate(Map<String, Object> payload) {
+        Object r = service.saveIbsCaseNo(payload);
+        completedCallsQuery.invalidate();
+        return r;
+    }
+
+    private Object revertAndInvalidate(String callNumber, Integer deletedBy) {
+        Object r = service.revertIbsCallToCompleted(callNumber, deletedBy);
+        completedCallsQuery.invalidate();
+        return r;
+    }
+
+    /**
+     * Completed calls, filtered / sorted / paged on the server.
+     * size=0 returns every matching row (CSV export). refresh=true rebuilds the cached list.
+     */
+    @GetMapping("/ibs/completed-inspection-data/search")
+    public ResponseEntity<Object> searchCompletedCallData(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String product,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, defaultValue = "ACK") String dateField,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String sortKey,
+            @RequestParam(required = false, defaultValue = "asc") String sortDir,
+            @RequestParam(defaultValue = "false") boolean refresh) {
+
+        jwtService.validateToken(authHeader);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(completedCallsQuery.search(
+                        page, Math.min(size, 500), category, product, region, status, search,
+                        dateField, from, to, sortKey, sortDir, refresh)),
+                HttpStatus.OK);
     }
 }
