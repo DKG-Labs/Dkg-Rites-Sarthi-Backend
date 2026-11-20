@@ -31,11 +31,13 @@ public class ProcessIcSaveChangesController {
     }
 
     @PostMapping
-    public ResponseEntity<ProcessIcSaveChangesDTO> saveOrUpdate(@RequestBody ProcessIcSaveChangesDTO dto) {
+    public ResponseEntity<?> saveOrUpdate(@RequestBody ProcessIcSaveChangesDTO dto) {
         log.info("REST request to save/update ProcessIcSaveChanges for IC: {}", dto.getIcNumber());
         try {
             ProcessIcSaveChangesDTO saved = processIcSaveChangesService.saveOrUpdate(dto);
             return ResponseEntity.ok(saved);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving ProcessIcSaveChanges: ", e);
             return ResponseEntity.internalServerError().build();

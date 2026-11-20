@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RmIcSaveChangesService {
 
     private final RmIcSaveChangesRepository rmIcSaveChangesRepository;
+    private final com.sarthi.bookset.BookSetUsageGuard bookSetGuard;
 
     @Transactional(readOnly = true)
     public RmIcSaveChangesDTO getByIcNumber(String icNumber) {
@@ -29,6 +30,7 @@ public class RmIcSaveChangesService {
 
         entity.setIcNumber(dto.getIcNumber());
         entity.setCertificateId(dto.getCertificateId());
+        bookSetGuard.claim(dto.getBookNo(), dto.getSetNo(), dto.getIcNumber(), "ERC_RM");
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setOfferedInstallmentNo(dto.getOfferedInstallmentNo());

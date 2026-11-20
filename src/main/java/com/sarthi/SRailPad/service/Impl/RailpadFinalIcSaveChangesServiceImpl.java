@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RailpadFinalIcSaveChangesServiceImpl implements RailpadFinalIcSaveChangesService {
 
     private final RailpadFinalIcSaveChangesRepository repository;
+    private final com.sarthi.bookset.BookSetUsageGuard bookSetGuard;
 
     @Override
     public RailpadFinalIcEditDTO getByIcNumber(String icNumber) {
@@ -34,6 +35,7 @@ public class RailpadFinalIcSaveChangesServiceImpl implements RailpadFinalIcSaveC
 
     private void mapToEntity(RailpadFinalIcEditDTO dto, RailpadFinalIcSaveChanges entity) {
         entity.setIcNumber(dto.getIcNumber());
+        bookSetGuard.claim(dto.getBookNo(), dto.getSetNo(), dto.getIcNumber(), "RAILPAD_FINAL");
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setOfferedInstNo(dto.getOfferedInstNo());

@@ -36,6 +36,8 @@ public class SleeperFinalIcEditController {
         try {
             SleeperFinalIcEditDTO saved = sleeperFinalIcEditService.saveOrUpdate(dto);
             return ResponseEntity.ok(saved);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving Sleeper Final IC Edit: ", e);
             return ResponseEntity.internalServerError().body(java.util.Map.of(

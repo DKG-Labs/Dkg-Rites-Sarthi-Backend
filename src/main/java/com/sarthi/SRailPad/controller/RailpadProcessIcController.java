@@ -48,6 +48,8 @@ public class RailpadProcessIcController {
         try {
             RailpadProcessIcEditDTO saved = saveChangesService.saveOrUpdate(dto);
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(saved), HttpStatus.OK);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving Process IC Save Changes: ", e);
             throw new BusinessException(new ErrorDetails(
@@ -81,6 +83,8 @@ public class RailpadProcessIcController {
         try {
             RailpadProcessIcEditDTO saved = editService.saveOrUpdate(dto);
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(saved), HttpStatus.OK);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving Process IC Edit (e-sign): ", e);
             throw new BusinessException(new ErrorDetails(

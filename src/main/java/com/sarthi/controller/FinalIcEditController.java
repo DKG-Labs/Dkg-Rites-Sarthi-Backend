@@ -31,11 +31,13 @@ public class FinalIcEditController {
     }
 
     @PostMapping
-    public ResponseEntity<FinalIcEditDTO> saveOrUpdate(@RequestBody FinalIcEditDTO dto) {
+    public ResponseEntity<?> saveOrUpdate(@RequestBody FinalIcEditDTO dto) {
         log.info("REST request to save/update Final IC Edit for IC: {}", dto.getIcNumber());
         try {
             FinalIcEditDTO saved = finalIcEditService.saveOrUpdate(dto);
             return ResponseEntity.ok(saved);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving Final IC Edit: ", e);
             return ResponseEntity.internalServerError().build();

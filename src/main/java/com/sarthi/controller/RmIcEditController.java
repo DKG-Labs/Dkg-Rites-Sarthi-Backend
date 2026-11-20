@@ -31,11 +31,13 @@ public class RmIcEditController {
     }
 
     @PostMapping
-    public ResponseEntity<RmIcEditDTO> saveOrUpdate(@RequestBody RmIcEditDTO dto) {
+    public ResponseEntity<?> saveOrUpdate(@RequestBody RmIcEditDTO dto) {
         log.info("REST request to save/update RM IC Edit for IC: {}", dto.getIcNumber());
         try {
             RmIcEditDTO saved = rmIcEditService.saveOrUpdate(dto);
             return ResponseEntity.ok(saved);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving RM IC Edit: ", e);
             return ResponseEntity.internalServerError().build();

@@ -31,11 +31,13 @@ public class FinalIcSaveChangesController {
     }
 
     @PostMapping
-    public ResponseEntity<FinalIcSaveChangesDTO> saveOrUpdate(@RequestBody FinalIcSaveChangesDTO dto) {
+    public ResponseEntity<?> saveOrUpdate(@RequestBody FinalIcSaveChangesDTO dto) {
         log.info("REST request to save/update FinalIcSaveChanges for IC: {}", dto.getIcNumber());
         try {
             FinalIcSaveChangesDTO saved = finalIcSaveChangesService.saveOrUpdate(dto);
             return ResponseEntity.ok(saved);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving FinalIcSaveChanges: ", e);
             return ResponseEntity.internalServerError().build();

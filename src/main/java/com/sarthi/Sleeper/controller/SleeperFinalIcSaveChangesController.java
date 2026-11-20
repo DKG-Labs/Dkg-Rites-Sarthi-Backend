@@ -36,6 +36,8 @@ public class SleeperFinalIcSaveChangesController {
         try {
             SleeperFinalIcSaveChangesDTO saved = sleeperFinalIcSaveChangesService.saveOrUpdate(dto);
             return ResponseEntity.ok(saved);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving Sleeper Final IC Save Changes: ", e);
             return ResponseEntity.internalServerError().body(java.util.Map.of(

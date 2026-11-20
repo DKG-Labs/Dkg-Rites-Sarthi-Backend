@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SleeperFinalIcEditService {
 
     private final SleeperFinalIcEditRepository sleeperFinalIcEditRepository;
+    private final com.sarthi.bookset.BookSetUsageGuard bookSetGuard;
 
     @Transactional(readOnly = true)
     public SleeperFinalIcEditDTO getByIcNumber(String icNumber) {
@@ -37,6 +38,7 @@ public class SleeperFinalIcEditService {
 
         entity.setIcNumber(icNo);
         entity.setCertificateId(dto.getCertificateId());
+        bookSetGuard.claim(dto.getBookNo(), dto.getSetNo(), dto.getIcNumber(), "SLEEPER_FINAL");
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setOfferedInstallmentNo(dto.getOfferedInstallmentNo());
