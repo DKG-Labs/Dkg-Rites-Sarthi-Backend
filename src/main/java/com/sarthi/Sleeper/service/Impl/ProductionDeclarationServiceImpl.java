@@ -42,6 +42,31 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     @Autowired
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
 
+    /**
+     * Resolves the creator of a production declaration. Prefers the authenticated user from the
+     * security context; falls back to the request value only when it is a valid (positive) id.
+     * Rejects the request otherwise, so a declaration is never saved with created_by = 0/null
+     * (such declarations never appear in the IE's ET / Demoulding batch lists).
+     */
+    Long resolveCreatedBy(Long fromDto) {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder
+                        .getContext().getAuthentication();
+
+        if (auth != null && auth.getPrincipal() instanceof com.sarthi.entity.UserMaster user
+                && user.getUserId() != null && user.getUserId() > 0) {
+            return user.getUserId().longValue();
+        }
+        if (fromDto != null && fromDto > 0) {
+            return fromDto;
+        }
+        throw new BusinessException(new ErrorDetails(
+                AppConstant.ERROR_CODE_RESOURCE,
+                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                AppConstant.ERROR_TYPE_VALIDATION,
+                "Unable to identify the logged-in vendor. Please log in again and resubmit."));
+    }
+
     @Override
     @Transactional
     public ProductionDeclarationResponseDto create(
@@ -71,7 +96,7 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
 
         entity.setRemarks(dto.getRemarks());
 
-        entity.setCreatedBy(dto.getCreatedBy());
+        entity.setCreatedBy(resolveCreatedBy(dto.getCreatedBy()));
         entity.setCreatedDate(LocalDateTime.now());
 
         List<ProductionStressChamber> chamberList = new ArrayList<>();
