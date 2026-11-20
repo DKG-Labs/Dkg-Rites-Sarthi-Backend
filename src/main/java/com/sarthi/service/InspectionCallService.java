@@ -41,4 +41,7 @@ public interface InspectionCallService {
             Object oldValue,
             Object newValue,
             String modifiedBy);
+
+    /** Records a whole row ADDED / DELETED on a call edit (lot, heat, chemical row) in the modification history. */
+    void recordRowChange(InspectionCall inspection, String tableName, String changeType, String rowLabel, Object row);
 }

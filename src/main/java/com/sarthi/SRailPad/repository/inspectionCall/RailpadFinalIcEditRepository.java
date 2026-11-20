@@ -203,7 +203,9 @@ public interface RailpadFinalIcEditRepository extends JpaRepository<RailpadFinal
                 (CASE WHEN MAX(setu.po_no) IS NOT NULL
                       THEN COALESCE(MAX(res.max_offered), ic.total_qty, 0)
                       ELSE COALESCE(MAX(res.sum_offered), ic.total_qty, 0) END) AS quantityOffered,
-                (CASE WHEN MAX(setu.po_no) IS NOT NULL
+                (CASE WHEN MAX(ic.call_category) = 'DIVERTED_PASSED' AND MAX(res.sum_accepted) IS NULL
+                      THEN COALESCE(MAX(ic.no_of_sets), MAX(ic.total_qty), 0)
+                      WHEN MAX(setu.po_no) IS NOT NULL
                       THEN COALESCE(MAX(res.max_accepted), 0)
                       ELSE COALESCE(MAX(res.sum_accepted), 0) END)              AS quantityPassed,
                 (CASE WHEN MAX(setu.po_no) IS NOT NULL

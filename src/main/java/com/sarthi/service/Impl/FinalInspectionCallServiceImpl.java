@@ -697,6 +697,8 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                 boolean stillExists = lotDtoList.stream()
                         .anyMatch(dto -> dto.getLotNumber() != null && dto.getLotNumber().equals(existing.getLotNumber()));
                 if (!stillExists) {
+                    inspectionCallService.recordRowChange(inspection, "final_inspection_lot_details", "DELETED",
+                            "lot " + existing.getLotNumber() + " / heat " + existing.getHeatNumber(), existing);
                     finalInspectionLotDetailsRepository.delete(existing);
                 }
             }
@@ -750,6 +752,8 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
                     newLot.setCreatedAt(LocalDateTime.now());
                     newLot.setUpdatedAt(LocalDateTime.now());
                     finalInspectionLotDetailsRepository.save(newLot);
+                    inspectionCallService.recordRowChange(inspection, "final_inspection_lot_details", "ADDED",
+                            "lot " + newLot.getLotNumber() + " / heat " + newLot.getHeatNumber(), newLot);
                 }
             }
 

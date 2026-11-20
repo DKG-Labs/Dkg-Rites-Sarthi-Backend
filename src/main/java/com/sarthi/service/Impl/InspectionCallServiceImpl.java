@@ -441,6 +441,10 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     heat.setRejectionReason(dto.getRejectionReason());
                     heat.setUpdatedAt(LocalDateTime.now());
                     RmHeatQuantity saved = heatQuantityRepository.save(heat);
+                    if (difference.compareTo(BigDecimal.ZERO) != 0) {
+                        saveModificationHistory(inspection, null, "rm_heat_quantities",
+                                "offeredQty (heat " + heatNo + " / TC " + tcNo + ")", oldQty, newQty, icDto.getUpdatedBy());
+                    }
                     updatedHeatList.add(saved);
                 } else {
                     // Heat + TC combination is new: deduct new quantity from inventory
@@ -472,6 +476,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                     newHeat.setCreatedAt(LocalDateTime.now());
                     newHeat.setUpdatedAt(LocalDateTime.now());
                     RmHeatQuantity saved = heatQuantityRepository.save(newHeat);
+                    recordRowChange(inspection, "rm_heat_quantities", "ADDED",
+                            "heat " + newHeat.getHeatNumber() + " / TC " + newHeat.getTcNumber(), saved);
                     updatedHeatList.add(saved);
                 }
             }
@@ -489,6 +495,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                             logger.error("Failed to reinstate inventory for deleted heat: " + existing.getHeatNumber() + ", TC: " + existing.getTcNumber(), e);
                         }
                     }
+                    recordRowChange(inspection, "rm_heat_quantities", "DELETED",
+                            "heat " + existing.getHeatNumber() + " / TC " + existing.getTcNumber(), existing);
                     heatQuantityRepository.delete(existing);
                 }
             }
@@ -560,6 +568,8 @@ public class InspectionCallServiceImpl implements InspectionCallService {
             // Delete chemical analyses no longer present in the request
             for (RmChemicalAnalysis existing : existingChems) {
                 if (existing.getId() != null && !matchedChemIds.contains(existing.getId())) {
+                    recordRowChange(inspection, "rm_chemical_analysis", "DELETED",
+                            "chemical heat " + existing.getHeatNumber(), existing);
                     rmChemicalAnalysisRepository.delete(existing);
                 }
             }
@@ -720,6 +730,76 @@ public class InspectionCallServiceImpl implements InspectionCallService {
             Object newValue,
             String modifiedBy) {
 
+        writeHistory(inspection, tableName, fieldName, oldValue, newValue, "UPDATE", modifiedBy);
+    }
+
+    /**
+     * Records a whole row added to or removed from a call on edit (e.g. a lot or heat), so deleted data is not lost.
+     * changeType: ADDED / DELETED. rowLabel: e.g. "lot FJ 6/65 / heat J854502".
+     */
+    @Override
+    public void recordRowChange(InspectionCall inspection, String tableName, String changeType, String rowLabel, Object row) {
+        try {
+            String snapshot = row == null ? null : new com.fasterxml.jackson.databind.ObjectMapper()
+                    .findAndRegisterModules()
+                    .writeValueAsString(rowSummary(row));
+            boolean deleted = "DELETED".equalsIgnoreCase(changeType);
+            writeHistory(inspection, tableName, rowLabel, deleted ? snapshot : null, deleted ? null : snapshot,
+                    changeType.toUpperCase(), null);
+        } catch (Exception e) {
+            logger.warn("Could not record {} row history for {}: {}", changeType, inspection != null ? inspection.getIcNumber() : null, e.getMessage());
+        }
+    }
+
+    /** Simple field → value map of an entity (skips relations / collections) for history snapshots. */
+    private java.util.Map<String, Object> rowSummary(Object row) {
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        for (Field f : row.getClass().getDeclaredFields()) {
+            if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+            Class<?> t = f.getType();
+            boolean simple = t.isPrimitive() || Number.class.isAssignableFrom(t) || CharSequence.class.isAssignableFrom(t)
+                    || Boolean.class == t || java.time.temporal.Temporal.class.isAssignableFrom(t) || t.isEnum();
+            if (!simple) continue;
+            try { f.setAccessible(true); Object v = f.get(row); if (v != null) m.put(f.getName(), String.valueOf(v)); }
+            catch (Exception ignored) { }
+        }
+        return m;
+    }
+
+    /** Logged-in user id from the login token; falls back to what the caller passed. */
+    private String currentUserIdOr(String fallback) {
+        try {
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof com.sarthi.entity.UserMaster u && u.getUserId() != null) {
+                return String.valueOf(u.getUserId());
+            }
+        } catch (Exception ignored) { }
+        return fallback;
+    }
+
+    /** One version number per edit request for a call: max recorded + 1, reused for every change in the same request. */
+    private Integer versionForThisEdit(Long callId) {
+        if (callId == null) return 1;
+        String key = "sarthi.modVersion." + callId;
+        try {
+            org.springframework.web.context.request.RequestAttributes ra =
+                    org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (ra != null) {
+                Object v = ra.getAttribute(key, org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+                if (v instanceof Integer i) return i;
+                Integer max = modificationHistoryRepository.findMaxVersion(callId);
+                Integer next = (max != null ? max : 0) + 1;
+                ra.setAttribute(key, next, org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+                return next;
+            }
+        } catch (Exception ignored) { }
+        Integer max = modificationHistoryRepository.findMaxVersion(callId);
+        return (max != null ? max : 0) + 1;
+    }
+
+    private void writeHistory(InspectionCall inspection, String tableName, String fieldName,
+                              Object oldValue, Object newValue, String changeType, String modifiedBy) {
         InspectionModificationHistory history =
                 new InspectionModificationHistory();
 
@@ -730,7 +810,7 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                 inspection.getIcNumber());
 
         history.setModificationVersion(
-                modificationVersion);
+                versionForThisEdit(inspection.getId()));
 
         history.setTableName(
                 tableName);
@@ -749,12 +829,12 @@ public class InspectionCallServiceImpl implements InspectionCallService {
                         : null);
 
         history.setModifiedBy(
-                modifiedBy);
+                currentUserIdOr(modifiedBy));
 
         history.setModifiedAt(
                 LocalDateTime.now());
 
-        history.setChangeType("UPDATE");
+        history.setChangeType(changeType);
 
         modificationHistoryRepository.save(history);
     }

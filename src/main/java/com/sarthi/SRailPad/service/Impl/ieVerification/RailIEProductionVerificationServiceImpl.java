@@ -29,6 +29,83 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
     private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
     private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
     private final com.sarthi.SRailPad.repository.RailUnblockWorkflowHistoryRepository unblockHistoryRepository;
+    private final com.sarthi.SRailPad.repository.ieVerification.RailIEProductionInfoHistoryRepository infoHistoryRepository;
+    private final com.sarthi.SRailPad.repository.inspectionCall.RailProcessInspectionBatchRepository processInspectionBatchRepository;
+
+    /** Logged-in user from the login token (never from the request). */
+    private com.sarthi.entity.UserMaster currentUser() {
+        try {
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof com.sarthi.entity.UserMaster u) return u;
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    /**
+     * Copies the batch rows of these verifications to rail_ie_production_info_history before they are deleted,
+     * with how much each Process call had already used and who deleted them. Never stops the delete.
+     */
+    private void snapshotInfos(List<RailIEProductionVerification> verifications, String action, Long unblockHistoryId) {
+        try {
+            com.sarthi.entity.UserMaster user = currentUser();
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            List<com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfoHistory> rows = new ArrayList<>();
+            for (RailIEProductionVerification v : verifications) {
+                if (v.getProductionInfos() == null) continue;
+                for (RailIEProductionInfo i : v.getProductionInfos()) {
+                    if (i.getId() == null) continue;
+                    com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfoHistory h =
+                            new com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfoHistory();
+                    h.setAction(action);
+                    h.setUnblockHistoryId(unblockHistoryId);
+                    h.setInfoId(i.getId());
+                    h.setVerificationId(v.getId());
+                    h.setRequestId(v.getRequestId());
+                    h.setProductionUnit(v.getProductionUnit());
+                    h.setCastingDate(v.getCastingDate());
+                    h.setShift(v.getShift());
+                    h.setProductType(i.getProductType());
+                    h.setDrawingNo(i.getDrawingNo());
+                    h.setBatchNo(i.getBatchNo());
+                    h.setInitialWt(i.getInitialWt());
+                    h.setFinalWt(i.getFinalWt());
+                    h.setQuantityProduced(i.getQuantityProduced());
+                    int acc = 0, rej = 0;
+                    java.util.Map<String, Integer> byCall = new java.util.LinkedHashMap<>();
+                    for (com.sarthi.SRailPad.entity.inspectionCall.RailProcessInspectionBatch pb
+                            : processInspectionBatchRepository.findByDeclarationBatchId(i.getId())) {
+                        int a = pb.getQtyAccepted() != null ? pb.getQtyAccepted() : 0;
+                        acc += a;
+                        rej += pb.getQtyRejected() != null ? pb.getQtyRejected() : 0;
+                        String callNo = pb.getResult() != null && pb.getResult().getInspectionCall() != null
+                                ? pb.getResult().getInspectionCall().getCallNo() : "?";
+                        byCall.merge(callNo, a, Integer::sum);
+                    }
+                    h.setUsedAcceptedQty(acc);
+                    h.setUsedRejectedQty(rej);
+                    if (!byCall.isEmpty()) {
+                        String calls = byCall.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue())
+                                .collect(Collectors.joining(", "));
+                        h.setUsedInCalls(calls.length() > 1000 ? calls.substring(0, 1000) : calls);
+                    }
+                    if (user != null) {
+                        h.setDeletedBy(user.getUserId());
+                        h.setDeletedByName(user.getFullName() != null && !user.getFullName().isBlank()
+                                ? user.getFullName() : user.getUsername());
+                    }
+                    h.setDeletedAt(now);
+                    rows.add(h);
+                }
+            }
+            if (!rows.isEmpty()) {
+                infoHistoryRepository.saveAll(rows);
+                logger.info("[IE Verification] Saved history of {} batch row(s) before {}", rows.size(), action);
+            }
+        } catch (Exception e) {
+            logger.warn("[IE Verification] Could not save batch history before {}: {}", action, e.getMessage());
+        }
+    }
 
     @Override
     @Transactional
@@ -48,6 +125,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
         } else {
             System.out.println("[IE Verification] Updating EXISTING record with ID: " + existing.getId());
             verification = existing;
+            snapshotInfos(List.of(existing), "RESAVE", null);
             // Important: Clear the collections to trigger orphan removal
             verification.getProductionInfos().clear();
             verification.getRejections().clear();
@@ -183,6 +261,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
         // 1. Delete IE Production Verification and its children (info & rejections)
         List<RailIEProductionVerification> verifications = repository.findAllByRequestId(requestId);
         if (!verifications.isEmpty()) {
+            snapshotInfos(verifications, "DELETE", null);
             logger.info("[Delete Verification] Removing {} verification record(s) for RequestID: {}", verifications.size(), requestId);
             repository.deleteAll(verifications);
         }
@@ -219,6 +298,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
                 railWorkflowTransactionRepository.findFirstByRequestIdOrderByWorkflowTransitionIdDesc(reqIdStr);
 
         // 2. Record audit trail in Rail_unblock_workflow_hitory table
+        Long unblockHistoryId = null;
         try {
             com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory history = new com.sarthi.SRailPad.entity.RailUnblockWorkflowHistory();
             history.setRequestId(reqIdStr);
@@ -244,9 +324,19 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
                 history.setUnblockedByRole(unblockDto.getUnblockedByRole());
                 history.setUnblockRemarks(unblockDto.getRemarks());
             }
+            // Who unblocked: the logged-in user from the login token (overrides what the screen sent)
+            com.sarthi.entity.UserMaster user = currentUser();
+            if (user != null) {
+                history.setUnblockedBy(user.getUserId() != null ? user.getUserId().longValue() : history.getUnblockedBy());
+                if (user.getFullName() != null && !user.getFullName().isBlank()) {
+                    history.setUnblockedByName(user.getFullName());
+                } else if (user.getUsername() != null) {
+                    history.setUnblockedByName(user.getUsername());
+                }
+            }
             history.setUnblockedOn(java.time.LocalDateTime.now());
             if (unblockHistoryRepository != null) {
-                unblockHistoryRepository.save(history);
+                unblockHistoryId = unblockHistoryRepository.save(history).getId();
             }
         } catch (Exception e) {
             logger.warn("Warning: Error saving unblock history for Production Declaration {}: {}", requestId, e.getMessage());
@@ -255,6 +345,7 @@ public class RailIEProductionVerificationServiceImpl implements RailIEProduction
         // 3. Delete IE Production Verification and its children (info & rejections)
         List<RailIEProductionVerification> verifications = repository.findAllByRequestId(requestId);
         if (!verifications.isEmpty()) {
+            snapshotInfos(verifications, "UNBLOCK", unblockHistoryId);
             logger.info("[Unblock Verification] Removing {} verification record(s) for RequestID: {}", verifications.size(), requestId);
             repository.deleteAll(verifications);
         }

@@ -75,7 +75,7 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
         FROM process_inspection_details pid
         WHERE pid.heat_number = :heatNo
         AND (
-            (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId)
+            (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId AND (pid.rm_ic_number IS NULL OR pid.rm_ic_number = ''))
             OR pid.rm_ic_number IN :rmCallCandidates
             OR (:callPattern IS NOT NULL AND :callPattern != '' AND pid.rm_ic_number LIKE CONCAT('%', :callPattern, '%'))
             OR EXISTS (
@@ -106,7 +106,7 @@ Integer findOfferedQtyByIcId(@Param("icId") Long icId);
             SELECT 1 FROM process_inspection_details pid
             WHERE pid.ic_id = ic.id
             AND (
-                (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId)
+                (:rmIcId IS NOT NULL AND pid.rm_ic_id = :rmIcId AND (pid.rm_ic_number IS NULL OR pid.rm_ic_number = ''))
                 OR pid.rm_ic_number IN :rmCallCandidates
                 OR (:callPattern IS NOT NULL AND :callPattern != '' AND pid.rm_ic_number LIKE CONCAT('%', :callPattern, '%'))
             )

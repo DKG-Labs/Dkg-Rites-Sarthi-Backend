@@ -100,6 +100,7 @@ public class IbsServiceImpl implements IbsService {
     private final com.sarthi.SRailPad.repository.inspectionCall.RailpadProcessIcEditRepository railpadProcessIcEditRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailpadFinalIcEditRepository railpadFinalIcEditRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallRepository railInspectionCallRepository;
+    private final com.sarthi.SRailPad.diversion.repository.RailDiversionRequestRepository railDiversionRequestRepository;
 
     private final com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperFinalIcEditRepository sleeperFinalIcEditRepository;
     private final com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository sleeperInspectionCallRepository;
@@ -3183,7 +3184,52 @@ public class IbsServiceImpl implements IbsService {
             list.add(dto);
         }
 
+        if ("RAILPAD".equalsIgnoreCase(productType)) {
+            enrichRailpadDiversion(list);
+        }
         return list;
+    }
+
+    /** Rail Pad material diversion: diverted-passed ICs carry diversionType (PARTIAL / COMPLETE) to IBS. One bulk lookup. */
+    private void enrichRailpadDiversion(List<IbsInspectionDto> list) {
+        if (list == null || list.isEmpty()) return;
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("(RP[PF]-\\d{6,})", java.util.regex.Pattern.CASE_INSENSITIVE);
+        Map<String, List<IbsInspectionDto>> byCall = new LinkedHashMap<>();
+        for (IbsInspectionDto d : list) {
+            String src = d.getCallNumber() != null ? d.getCallNumber() : "";
+            java.util.regex.Matcher m = p.matcher(src);
+            if (m.find()) byCall.computeIfAbsent(m.group(1).toUpperCase(), k -> new ArrayList<>()).add(d);
+        }
+        if (byCall.isEmpty()) return;
+        try {
+            List<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall> calls =
+                    railInspectionCallRepository.findByCallNoIn(new ArrayList<>(byCall.keySet()));
+            Map<String, String> reqNoByCall = new java.util.HashMap<>();
+            for (com.sarthi.SRailPad.entity.inspectionCall.RailInspectionCall c : calls) {
+                if ("DIVERTED_PASSED".equalsIgnoreCase(c.getCallCategory()) && c.getDiversionRequestNo() != null) {
+                    reqNoByCall.put(c.getCallNo().toUpperCase(), c.getDiversionRequestNo());
+                    // A diverted-passed call has no lot results of its own (no re-inspection), so the Final query
+                    // reports passed = 0. Report the diverted qty: offered = passed = diverted, rejected = 0.
+                    Integer divertedQty = c.getNoOfSets() != null && c.getNoOfSets() > 0 ? c.getNoOfSets() : c.getTotalQty();
+                    if (divertedQty != null && divertedQty > 0) {
+                        for (IbsInspectionDto d : byCall.getOrDefault(c.getCallNo().toUpperCase(), List.of())) {
+                            d.setQuantityOffered(divertedQty.doubleValue());
+                            d.setQuantityPassed(divertedQty.doubleValue());
+                            d.setQuantityRejected(0.0);
+                        }
+                    }
+                }
+            }
+            if (reqNoByCall.isEmpty()) return;
+            for (Map.Entry<String, String> e : reqNoByCall.entrySet()) {
+                railDiversionRequestRepository.findByRequestNo(e.getValue()).ifPresent(r -> {
+                    String type = r.getDiversionType() != null ? r.getDiversionType().name() : null;
+                    byCall.getOrDefault(e.getKey(), List.of()).forEach(d -> d.setDiversionType(type));
+                });
+            }
+        } catch (Exception ex) {
+            log.warn("Rail Pad diversion enrichment skipped: {}", ex.getMessage());
+        }
     }
 
     private String resolveCaseNumberByRio(String rawCaseNo, String rio) {

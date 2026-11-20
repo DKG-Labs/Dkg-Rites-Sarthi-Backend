@@ -49,6 +49,14 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionBatchRepository railInspectionBatchRepository;
     private final com.sarthi.SRailPad.repository.RailCallCancellationDetailRepository railCallCancellationDetailRepository;
     private final com.sarthi.SRailPad.repository.RailPadPincodePoIMappingRepository railPadPincodePoIMappingRepository;
+
+    /** Material diversion: reserves / releases diverted balance for DIVERTED calls. Lazy to avoid a dependency cycle. */
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private com.sarthi.SRailPad.diversion.service.RailDiversionService railDiversionService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sarthi.SRailPad.diversion.repository.RailDiversionRequestRepository railDiversionRequestRepository;
     private final com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
     private final com.sarthi.SRailPad.repository.plantDeclaration.RailApprovedQAPRepository railApprovedQAPRepository;
     private final com.sarthi.repository.UserMasterRepository userMasterRepository;
@@ -235,7 +243,31 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
+        // Material diversion: a DIVERTED call is raised on a diverted IC and must stay within its balance
+        boolean divertedCall = "DIVERTED".equalsIgnoreCase(call.getCallNature());
+        if (divertedCall) {
+            if (call.getSourceIcNo() == null || call.getSourceIcNo().isBlank()) {
+                throw new BusinessException(new ErrorDetails(AppConstant.INVALID_INPUT, AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                        AppConstant.ERROR_TYPE_VALIDATION, "Select the diverted IC for a Diverted call"));
+            }
+            call.setCallCategory("DIVERTED");
+            call.setIsDivertedMaterial(true);
+        } else {
+            call.setCallNature("FRESH");
+            call.setCallCategory("FRESH");
+            call.setIsDivertedMaterial(false);
+            call.setSourceIcNo(null);
+        }
+
         RailInspectionCall savedCall = repository.save(call);
+
+        if (divertedCall) {
+            Integer offered = (call.getNoOfSets() != null && call.getNoOfSets() > 0
+                    && call.getRailPadType() != null && call.getRailPadType().toUpperCase().contains("NCRGRSP"))
+                    ? call.getNoOfSets() : call.getTotalQty();
+            railDiversionService.reserveForCall(savedCall.getCallNo(), call.getSourceIcNo(),
+                    java.math.BigDecimal.valueOf(offered == null ? 0 : offered));
+        }
 
         // If it's a PROCESS call, save the child details
         if ("PROCESS".equalsIgnoreCase(savedCall.getCallType())) {
@@ -776,6 +808,16 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                         .max(Double::compare).orElse(qtyNowOffered);
             }
         }
+        // Material diversion: a diverted-passed call has no inspection of its own; the diverted qty is passed as is
+        boolean divertedPassed = "DIVERTED_PASSED".equalsIgnoreCase(call.getCallCategory());
+        if (divertedPassed) {
+            double diverted = (isNCRGRSP && call.getNoOfSets() != null && call.getNoOfSets() > 0)
+                    ? call.getNoOfSets().doubleValue()
+                    : (call.getTotalQty() != null ? call.getTotalQty().doubleValue() : 0.0);
+            qtyNowOffered = diverted;
+            qtyNowPassed = diverted;
+            qtyNowRejected = 0.0;
+        }
         Double qtyStillDue = qtyOnOrder - prevPassed - qtyNowPassed;
 
         List<com.sarthi.SRailPad.entity.RailWorkflowTransaction> transitions = railWorkflowTransactionRepository
@@ -1166,6 +1208,24 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         dto.setQapNo(qapFormatted);
         dto.setDrgNo(call.getDrawingNo() != null ? call.getDrawingNo() : "");
 
+        // Material diversion details for the IC header / remark
+        dto.setCallCategory(call.getCallCategory() != null ? call.getCallCategory() : "FRESH");
+        dto.setSourceIcNo(call.getSourceIcNo());
+        dto.setDiversionRequestNo(call.getDiversionRequestNo());
+        if (divertedPassed && call.getDiversionRequestNo() != null) {
+            railDiversionRequestRepository.findByRequestNo(call.getDiversionRequestNo()).ifPresent(r -> {
+                dto.setDiversionType(r.getDiversionType() != null ? r.getDiversionType().name() : null);
+                String letter = r.getRailwayPermissionNo() != null
+                        ? " (railway permission " + r.getRailwayPermissionNo()
+                          + (r.getRailwayPermissionDate() != null ? " dt " + r.getRailwayPermissionDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")) : "")
+                          + ")"
+                        : "";
+                dto.setDiversionNote("Material diverted from Source IC " + r.getSourceIcNo() + letter);
+            });
+        } else if ("DIVERTED".equalsIgnoreCase(call.getCallCategory()) && call.getSourceIcNo() != null) {
+            dto.setDiversionNote("Raised on diverted IC " + call.getSourceIcNo());
+        }
+
         return dto;
     }
 
@@ -1512,6 +1572,11 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         String callNo = rawCallNo.trim();
         RailInspectionCall call = repository.findByCallNo(callNo)
                 .orElseThrow(() -> new RuntimeException("Inspection call not found: " + callNo));
+
+        // Material diversion: give the withdrawn DIVERTED call's reserved qty back to the diverted IC
+        if ("DIVERTED".equalsIgnoreCase(call.getCallCategory())) {
+            railDiversionService.releaseForCall(callNo);
+        }
 
         String withdrawnBy = dto.getWithdrawnBy() != null && !dto.getWithdrawnBy().isBlank()
                 ? dto.getWithdrawnBy().trim()
