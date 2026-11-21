@@ -256,6 +256,30 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
 
     List<ProductionDeclaration> findByIdIn(List<Long> ids);
 
+    /** Ids among the given batches that have the given lot status (e.g. rejected after a water cube failure). */
+    @Query("SELECT p.id FROM ProductionDeclaration p WHERE p.id IN :ids AND p.lotStatus = :status")
+    List<Long> findIdsByIdInAndLotStatus(@Param("ids") Collection<Long> ids,
+                                         @Param("status") com.sarthi.Sleeper.entity.ProductionDeclaration.LotStatus status);
+
+    /**
+     * Batches with this batch number and lot status (batch trimmed, case-insensitive). The plant is compared ignoring
+     * ':', spaces and case; when no plant is given, every plant's batch with that number matches.
+     */
+    @Query("""
+            SELECT p FROM ProductionDeclaration p
+            WHERE UPPER(TRIM(p.batchNumber)) = UPPER(TRIM(:batchNo))
+              AND (:plantId IS NULL OR TRIM(:plantId) = ''
+                   OR LOWER(REPLACE(REPLACE(COALESCE(p.plantId, ''), ':', ''), ' ', ''))
+                      = LOWER(REPLACE(REPLACE(:plantId, ':', ''), ' ', '')))
+              AND p.lotStatus = :status
+            """)
+    List<ProductionDeclaration> findByBatchAndPlantAndLotStatus(@Param("batchNo") String batchNo,
+                                                                @Param("plantId") String plantId,
+                                                                @Param("status") com.sarthi.Sleeper.entity.ProductionDeclaration.LotStatus status);
+
+    /** True when this water cube test is the one that rejected a batch (such a test is locked). */
+    boolean existsByLotRejectedByTestId(Long lotRejectedByTestId);
+
     @Query("SELECT DISTINCT p.batchNumber FROM ProductionDeclaration p " +
             "WHERE p.createdBy = :createdBy AND p.castingDate = :castingDate")
     List<String> findBatchNumbers(@Param("createdBy") Long createdBy,

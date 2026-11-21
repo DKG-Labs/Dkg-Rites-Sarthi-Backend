@@ -38,6 +38,9 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
     private final com.sarthi.repository.SarthiIbsPoiMappingRepository ibsPoiMappingRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
+    private com.sarthi.Sleeper.service.WaterCubeLotService waterCubeLotService;
+
+    @org.springframework.beans.factory.annotation.Autowired
     public SleeperInspectionCallServiceImpl(
             SleeperInspectionCallRepository inspectionCallRepository,
             SleeperWorkflowRepository sleeperWorkflowRepository,
@@ -49,6 +52,18 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         this.jdbcTemplate = jdbcTemplate;
         this.sleeperWorkflowService = sleeperWorkflowService;
         this.ibsPoiMappingRepository = ibsPoiMappingRepository;
+    }
+
+    /** Lots rejected by a failed water cube test are returned to the vendor and cannot be offered in a call. */
+    private void assertNoRejectedLots(SleeperInspectionCallSubmitDto dto, String plantId) {
+        if (dto.getBatchesSelected() == null) {
+            return;
+        }
+        for (SleeperInspectionCallBatchDto batchDto : dto.getBatchesSelected()) {
+            if (batchDto != null) {
+                waterCubeLotService.assertNotRejected(batchDto.getBatchNo(), plantId);
+            }
+        }
     }
 
     @Override
@@ -79,6 +94,8 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                         + dto.getPlantId() + "). Please contact RITES admin to update the IBS mapping."));
             }
         }
+
+        assertNoRejectedLots(dto, dto.getPlantId());
 
         SleeperInspectionCall call = new SleeperInspectionCall();
 
@@ -428,6 +445,8 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         SleeperInspectionCall call = inspectionCallRepository.findByCallNoWithBatches(trimmedCallNo)
                 .orElseGet(() -> inspectionCallRepository.findByCallNo(trimmedCallNo)
                         .orElseThrow(() -> new RuntimeException("Inspection Call not found: " + trimmedCallNo)));
+
+        assertNoRejectedLots(dto, dto.getPlantId() != null && !dto.getPlantId().isBlank() ? dto.getPlantId() : call.getPlantId());
 
         if (dto.getPoNo() != null) call.setPoNo(dto.getPoNo());
         if (dto.getSrNo() != null) call.setSrNo(dto.getSrNo());

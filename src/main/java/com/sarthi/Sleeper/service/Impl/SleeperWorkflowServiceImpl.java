@@ -65,6 +65,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Autowired
     private SleeperIcNumberSyncService sleeperIcNumberSyncService;
     @Autowired
+    private ProductionBatchIcLockService productionBatchIcLockService;
+    @Autowired
     private SleeperWorkflowMasterRepository workflowRepository;
 
     @Autowired
@@ -881,6 +883,13 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         }
 
         if ("UNLOCK".equalsIgnoreCase(req.getAction())) {
+            // Final IC batch lock: a production batch cannot be unlocked once its Final IC is issued
+            if (productionBatchIcLockService.isProductionDeclarationModule(current.getModuleId())
+                    && current.getRequestId() != null
+                    && current.getRequestId().trim().matches("\\d+")) {
+                productionBatchIcLockService.assertEditable(Long.valueOf(current.getRequestId().trim()));
+            }
+
             repository.deleteById(req.getWorkflowTransitionId());
 
             List<SleeperWorkflowTransaction> existingTxs = repository.findByRequestIdOrderByCreatedDateAsc(req.getRequestId());

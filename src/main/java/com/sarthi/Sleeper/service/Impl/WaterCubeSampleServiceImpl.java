@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.WaterCubeSampleResponseDto;
 import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeSampleDeclaration;
 import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeSampleDetail;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeSampleRepository;
+import com.sarthi.Sleeper.service.WaterCubeLotService;
 import com.sarthi.Sleeper.service.WaterCubeSampleService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
@@ -24,10 +25,16 @@ public class WaterCubeSampleServiceImpl implements WaterCubeSampleService {
     @Autowired
     private WaterCubeSampleRepository repository;
 
+    @Autowired
+    private WaterCubeLotService waterCubeLotService;
+
     // ================= CREATE =================
 
     @Override
     public WaterCubeSampleResponseDto create(WaterCubeSampleRequestDto dto) {
+
+        // A lot rejected by a failed water cube test is returned to the vendor: no further samples
+        waterCubeLotService.assertNotRejected(dto.getProductionDeclarationId());
 
         WaterCubeSampleDeclaration entity = new WaterCubeSampleDeclaration();
 

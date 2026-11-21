@@ -77,6 +77,8 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
     @Autowired
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
     @Autowired
+    private com.sarthi.Sleeper.service.WaterCubeLotService waterCubeLotService;
+    @Autowired
     private MomentOfResistanceTestRepository momentOfResistanceTestRepository;
     @Autowired
     private MomentOfResistanceRepository momentOfResistanceRepository;
@@ -701,8 +703,14 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             completedBatchIds.addAll(sleeperWorkflowRepository.findCompletedWorkflowsByRequestIds(chunk));
         }
 
+        // Lots rejected by a failed water cube test are returned to the vendor: not offered for inspection
+        Set<Long> rejectedLotIds = waterCubeLotService.findRejectedIds(list.stream()
+                .map(BatchTestingListResponseDto::getBatchId)
+                .collect(Collectors.toSet()));
+
         List<BatchTestingListResponseDto> workflowsCompletedList = list.stream()
                 .filter(dto -> completedBatchIds.contains(String.valueOf(dto.getBatchId())))
+                .filter(dto -> !rejectedLotIds.contains(dto.getBatchId()))
                 .collect(Collectors.toList());
 
         if (workflowsCompletedList.isEmpty()) {
@@ -1157,8 +1165,16 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
                     String sNo = s.getSleeperNo() != null ? s.getSleeperNo().trim() : "";
 
+                    // LOT rejection (water cube test failed): every sleeper of the batch is rejected
+                    if (waterCubeLotService.isRejected(declaration)) {
+
+                        sd.setStatus(com.sarthi.Sleeper.entity.ProductionDeclaration.LotStatus.REJECTED.name());
+                        sd.setModuleId(null);
+                        sd.setRejectionReason(declaration.getLotRejectionReason());
+
+                    }
                     // DEMOULDING rejection
-                    if (rejectedSet.contains(s.getSleeperNo()) || (!sNo.isEmpty() && rejectedSet.contains(sNo))) {
+                    else if (rejectedSet.contains(s.getSleeperNo()) || (!sNo.isEmpty() && rejectedSet.contains(sNo))) {
 
                         sd.setStatus("REJECTED");
                         sd.setModuleId(4L);
@@ -1453,6 +1469,13 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
             }
 
             String currentBatchNo = declaration.getBatchNumber().trim();
+
+            // A lot rejected by a failed water cube test is never offered, not even when editing a call that carried it
+            if (waterCubeLotService.isRejected(declaration)) {
+                System.out.println("BATCH_SKIPPED: batchNo=" + currentBatchNo + " lot rejected (water cube test failed)");
+                continue;
+            }
+
             String declPlant = declaration.getPlantId() != null ? declaration.getPlantId().trim() : "";
             String declVendor = declaration.getVendorCode() != null ? declaration.getVendorCode().trim() : "";
             LocalDate declCastDate = declaration.getCastingDate();
@@ -2059,22 +2082,22 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
 
     private boolean isWaterCubeLabPassedForDeclaration(ProductionDeclaration declaration, List<WaterCubeStrengthTest> allWaterCubeTests, String parsedUserId) {
         if (declaration == null || declaration.getBatchNumber() == null) return false;
+        // A lot rejected by a failed water cube test never passes, whatever later records say
+        if (waterCubeLotService.isRejected(declaration)) return false;
         String bNo = declaration.getBatchNumber().trim();
         String declPlant = declaration.getPlantId();
         String declVendor = declaration.getVendorCode();
 
         if (allWaterCubeTests != null && !allWaterCubeTests.isEmpty()) {
-            List<WaterCubeStrengthTest> matchingTests = allWaterCubeTests.stream()
+            // The latest test decides (an older PASS must not outweigh a newer FAIL)
+            Optional<WaterCubeStrengthTest> latestTest = allWaterCubeTests.stream()
                     .filter(w -> w != null && w.getBatchNumber() != null && isBatchMatch(w.getBatchNumber(), bNo))
                     .filter(w -> isPlantMatch(declPlant, w.getPlantId()))
                     .filter(w -> isVendorMatch(declVendor, w.getVendorCode(), parsedUserId))
-                    .collect(Collectors.toList());
+                    .max(Comparator.comparing(WaterCubeStrengthTest::getId, Comparator.nullsFirst(Comparator.naturalOrder())));
 
-            if (!matchingTests.isEmpty()) {
-                return matchingTests.stream().anyMatch(w -> {
-                    String res = w.getFinalTestResult() != null ? w.getFinalTestResult().trim().toUpperCase() : "";
-                    return res.startsWith("PASS");
-                });
+            if (latestTest.isPresent()) {
+                return waterCubeLotService.isPassResult(latestTest.get().getFinalTestResult());
             }
         }
         return false;
@@ -2246,8 +2269,16 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     sd.setSleeperId(s.getId());
                     sd.setSleeperNo(s.getSleeperNo());
 
+                    // LOT rejection (water cube test failed): every sleeper of the batch is rejected
+                    if (waterCubeLotService.isRejected(declaration)) {
+
+                        sd.setStatus(com.sarthi.Sleeper.entity.ProductionDeclaration.LotStatus.REJECTED.name());
+                        sd.setModuleId(null);
+                        sd.setRejectionReason(declaration.getLotRejectionReason());
+
+                    }
                     //  DEMOULDING rejection
-                    if (rejectedSet.contains(s.getSleeperNo())) {
+                    else if (rejectedSet.contains(s.getSleeperNo())) {
 
                         sd.setStatus("REJECTED");
                         sd.setModuleId(4L);

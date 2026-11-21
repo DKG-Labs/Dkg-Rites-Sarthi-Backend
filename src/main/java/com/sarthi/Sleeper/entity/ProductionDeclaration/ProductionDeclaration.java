@@ -56,6 +56,24 @@ public class ProductionDeclaration {
         private String vendorCode;
         private String plantId;
 
+        // LOT REJECTION (water cube test failure rejects the whole batch and returns it to the vendor)
+
+        @Enumerated(EnumType.STRING)
+        @Column(name = "lot_status", nullable = false)
+        private LotStatus lotStatus = LotStatus.ACTIVE;
+
+        @Column(name = "lot_rejection_reason")
+        private String lotRejectionReason;
+
+        @Column(name = "lot_rejected_at")
+        private LocalDateTime lotRejectedAt;
+
+        @Column(name = "lot_rejected_by")
+        private Long lotRejectedBy;
+
+        @Column(name = "lot_rejected_by_test_id")
+        private Long lotRejectedByTestId;
+
         // STRESS BENCH RELATION
 
      //   @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)

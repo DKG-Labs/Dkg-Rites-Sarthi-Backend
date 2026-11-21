@@ -41,6 +41,8 @@ public class ProductionDeclarationServiceImpl implements ProductionDeclarationSe
     private ProductionSleeperRepository productionSleeperRepository;
     @Autowired
     private WaterCubeStrengthTestRepository waterCubeStrengthTestRepository;
+    @Autowired
+    private ProductionBatchIcLockService productionBatchIcLockService;
 
     /**
      * Resolves the creator of a production declaration. Prefers the authenticated user from the
@@ -467,6 +469,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         ProductionDeclaration entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found"));
 
+        // Final IC batch lock: checked on the stored batch before anything is changed
+        productionBatchIcLockService.assertEditable(entity);
+
         // ===== HEADER =====
         entity.setPlantType(dto.getPlantType());
         entity.setProductionUnit(dto.getProductionUnit());
@@ -718,6 +723,13 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             response.setStatus(status);
         }
 
+        // Final IC batch lock state (used by the IE screen to hide Unlock)
+        Optional<String> issuedIcCallNo = productionBatchIcLockService.findIssuedIcCallNo(entity);
+        response.setLockedByIc(issuedIcCallNo.isPresent());
+        response.setLockedByIcCallNo(issuedIcCallNo.orElse(null));
+
+        applyLotStatus(response, entity);
+
         // ================= STRESS BENCH =================
 
         if (entity.getChambers() != null) {
@@ -851,6 +863,9 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
                                 AppConstant.ERROR_TYPE_CODE_RESOURCE,
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "Production not found")));
+
+        // Final IC batch lock: a batch covered by an issued Final IC cannot be deleted
+        productionBatchIcLockService.assertEditable(entity);
 
         repository.deleteById(entity.getId()); invalidateSleeperTypeCache();
         Long moduleId = 11L;
@@ -1079,6 +1094,14 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         return new com.sarthi.Sleeper.dto.PagedResponse<>(content, p, sz, result.getTotalElements());
     }
 
+    /** Lot rejection (water cube test failed → batch returned to vendor), shown to the IE and the vendor. */
+    private void applyLotStatus(ProductionDeclarationResponseDto response, ProductionDeclaration entity) {
+        boolean rejected = entity.getLotStatus() == com.sarthi.Sleeper.entity.ProductionDeclaration.LotStatus.REJECTED;
+        response.setLotRejected(rejected);
+        response.setLotRejectionReason(rejected ? entity.getLotRejectionReason() : null);
+        response.setLotRejectedAt(rejected ? entity.getLotRejectedAt() : null);
+    }
+
     private ProductionDeclarationResponseDto mapToResponse(
             ProductionDeclaration entity,
             Map<String, String> statusMap,
@@ -1112,6 +1135,8 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
         String sleeperDrawing = sleeperTypeMap != null ? sleeperTypeMap.get(entity.getId()) : null;
         response.setSleeperType(sleeperDrawing);
         response.setDrawingNo(sleeperDrawing);
+
+        applyLotStatus(response, entity);
 
         return response;
     }
@@ -1260,6 +1285,8 @@ public ProductionDeclarationResponseDto update(Long id, ProductionDeclarationReq
             response.setCondition2(false);
             response.setMrSamplesRequired(1);
         }
+
+        applyLotStatus(response, entity);
 
         return response;
     }

@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.sarthi.util.CommonUtils;
 
 import java.math.BigDecimal;
 import java.util.Objects;
@@ -1098,7 +1099,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                 }
 
                 // 1. Preload all ET sleepers in 1 bulk query
-                java.util.Map<String, List<String>> etSleepersByBatch = new java.util.HashMap<>();
+                java.util.Map<String, List<com.sarthi.Sleeper.entity.EtSleeperDetails>> etSleepersByBatch = new java.util.HashMap<>();
                 if (!allBatchNames.isEmpty() && etSleeperDetailsRepository != null) {
                     try {
                         List<com.sarthi.Sleeper.entity.EtSleeperDetails> etList = etSleeperDetailsRepository.findByEt_BatchNumberIn(allBatchNames);
@@ -1109,9 +1110,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                                         continue;
                                     }
                                     String bNo = et.getEt().getBatchNumber().trim();
-                                    etSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(et.getSleeperNo().trim());
+                                    etSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(et);
                                     String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
-                                    etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new java.util.ArrayList<>()).add(et.getSleeperNo().trim());
+                                    etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new java.util.ArrayList<>()).add(et);
                                 }
                             }
                         }
@@ -1404,11 +1405,20 @@ public class CallLetterServiceImpl implements CallLetterService {
                     }
 
                     // Look up ET sleepers from preloaded map (with deduplication)
-                    java.util.Set<String> etSleepersDistinct = new java.util.LinkedHashSet<>();
+                    // Batch numbers repeat across casting dates, so keep only ET records cast on this call batch's date
+                    LocalDate batchCastDate = CommonUtils.convertStringToDateObject(castDateStr);
+                    List<com.sarthi.Sleeper.entity.EtSleeperDetails> etCandidates = new java.util.ArrayList<>();
                     if (etSleepersByBatch.containsKey(rawBatchNo)) {
-                        etSleepersDistinct.addAll(etSleepersByBatch.get(rawBatchNo));
+                        etCandidates.addAll(etSleepersByBatch.get(rawBatchNo));
                     } else if (etSleepersByBatch.containsKey(cleanBatch)) {
-                        etSleepersDistinct.addAll(etSleepersByBatch.get(cleanBatch));
+                        etCandidates.addAll(etSleepersByBatch.get(cleanBatch));
+                    }
+                    java.util.Set<String> etSleepersDistinct = new java.util.LinkedHashSet<>();
+                    for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etCandidates) {
+                        LocalDate etCastDate = et.getEt().getDateOfCasting();
+                        if (batchCastDate == null || etCastDate == null || batchCastDate.equals(etCastDate)) {
+                            etSleepersDistinct.add(et.getSleeperNo().trim());
+                        }
                     }
                     // ET records are keyed by batch number only, so a reused batch number can bring in ET sleepers
                     // from another batch/sleeper type. Keep only sleepers that belong to THIS call's batch.
