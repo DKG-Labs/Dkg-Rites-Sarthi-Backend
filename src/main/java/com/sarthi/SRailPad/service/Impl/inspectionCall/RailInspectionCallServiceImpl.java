@@ -115,7 +115,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         }
 
         String generatedCallNo = String.format("%s%s%02d", prefix, datePart, seq);
-        while (repository.existsByCallNo(generatedCallNo) || railWorkflowTransactionRepository.existsByRequestId(generatedCallNo)) {
+        while (repository.existsByCallNo(generatedCallNo) || railWorkflowTransactionRepository.existsByRequestId(generatedCallNo)
+                || railDiversionRequestRepository.existsByRequestNo(generatedCallNo)) {
             seq++;
             generatedCallNo = String.format("%s%s%02d", prefix, datePart, seq);
         }

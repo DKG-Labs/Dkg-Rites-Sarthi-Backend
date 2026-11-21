@@ -488,7 +488,11 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         int qty = req.getTotalDiversionQty().setScale(0, RoundingMode.HALF_UP).intValue();
 
         RailInspectionCall c = new RailInspectionCall();
-        c.setCallNo(nextCallNo(process ? "RPP-" : "RPF-"));
+        // Same as ERC: the diverted call takes the request number. Older requests (RDP-/RDF-) get a new call number.
+        String reserved = req.getRequestNo() != null ? req.getRequestNo().trim() : "";
+        boolean useReserved = reserved.startsWith(process ? "RPP-" : "RPF-")
+                && !callRepository.existsByCallNo(reserved) && !workflowRepository.existsByRequestId(reserved);
+        c.setCallNo(useReserved ? reserved : nextCallNo(process ? "RPP-" : "RPF-"));
         c.setPoNo(req.getTargetPoNo());
         c.setPoSr(req.getTargetPoSrNo());
         c.setVendorCode(clean(src.getVendorCode()));
@@ -683,15 +687,13 @@ public class RailDiversionServiceImpl implements RailDiversionService {
                 });
     }
 
+    /**
+     * Same as ERC: the request number is a normal call number from the regular Rail Pad sequence
+     * (RPP-yyMMddNN / RPF-yyMMddNN). The diversion number is "D" + it, and the diverted call created on
+     * approval uses this same number.
+     */
     private String generateRequestNo(DiversionStage stage) {
-        String prefix = (stage == DiversionStage.PROCESS ? "RDP-" : "RDF-") + LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-        int seq = 1;
-        String no = prefix + String.format("%02d", seq);
-        while (requestRepository.existsByRequestNo(no)) {
-            seq++;
-            no = prefix + String.format("%02d", seq);
-        }
-        return no;
+        return nextCallNo(stage == DiversionStage.PROCESS ? "RPP-" : "RPF-");
     }
 
     /** Same numbering as RailInspectionCallServiceImpl.create (PREFIX-yyMMddNN, unique in calls and workflow). */
@@ -703,7 +705,8 @@ public class RailDiversionServiceImpl implements RailDiversionService {
             try { seq = Integer.parseInt(last.get().substring(last.get().length() - 2)) + 1; } catch (Exception ignored) { }
         }
         String no = String.format("%s%s%02d", prefix, datePart, seq);
-        while (callRepository.existsByCallNo(no) || workflowRepository.existsByRequestId(no)) {
+        // a number held by a diversion request (reserved for its diverted call) is not reused
+        while (callRepository.existsByCallNo(no) || workflowRepository.existsByRequestId(no) || requestRepository.existsByRequestNo(no)) {
             seq++;
             no = String.format("%s%s%02d", prefix, datePart, seq);
         }
