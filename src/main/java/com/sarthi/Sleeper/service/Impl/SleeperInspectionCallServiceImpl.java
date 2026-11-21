@@ -16,6 +16,7 @@ import com.sarthi.Sleeper.entity.SleeperWorkflowTransaction;
 
 import com.sarthi.Sleeper.service.SleeperInspectionCallService;
 import com.sarthi.Sleeper.service.SleeperWorkflowService;
+import com.sarthi.Sleeper.util.SleeperQtyUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -158,9 +159,10 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setDesiredInspectionDate(call.getDesiredInspectionDate());
             dto.setSleeperType(call.getSleeperType());
 
-            Integer finalOffered = call.getTotalOffered() != null ? call.getTotalOffered().intValue() : null;
-            Integer finalAccepted = null;
-            Integer finalRejected = call.getTotalRejected();
+            // Quantities are decimal: RMT calls can carry fractional offered / accepted / rejected qty.
+            java.math.BigDecimal finalOffered = SleeperQtyUtil.toQty(call.getTotalOffered());
+            java.math.BigDecimal finalAccepted = null;
+            java.math.BigDecimal finalRejected = SleeperQtyUtil.toQty(call.getTotalRejected());
             // call.totalOffered is already the PASSED count (vendor form saves good sleepers only; rejections are in
             // totalRejected). Only an IE header's qty_offered_now is a gross offered qty that still includes rejections.
             boolean offeredIncludesRejected = false;
@@ -175,15 +177,15 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                     Object qOff = fch.get("qty_offered_now");
                     Object qAcc = fch.get("accepted_qty");
                     Object qRej = fch.get("rejected_qty");
-                    if (qOff != null && ((Number) qOff).intValue() > 0) {
-                        finalOffered = ((Number) qOff).intValue();
+                    if (SleeperQtyUtil.isPositive(SleeperQtyUtil.toQty(qOff))) {
+                        finalOffered = SleeperQtyUtil.toQty(qOff);
                         offeredIncludesRejected = true;
                     }
                     if (qAcc != null) {
-                        finalAccepted = ((Number) qAcc).intValue();
+                        finalAccepted = SleeperQtyUtil.toQty(qAcc);
                     }
                     if (qRej != null) {
-                        finalRejected = ((Number) qRej).intValue();
+                        finalRejected = SleeperQtyUtil.toQty(qRej);
                     }
                 }
             } catch (Exception ignored) {}
@@ -201,18 +203,18 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
 
             // Set/Turnout: the call's total_offered is the vendor's offered SETS; always show it.
             if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered().signum() > 0) {
-                finalOffered = call.getTotalOffered().intValue();
+                finalOffered = SleeperQtyUtil.toQty(call.getTotalOffered());
             }
 
             if (finalAccepted == null && finalOffered != null) {
                 finalAccepted = offeredIncludesRejected
-                        ? Math.max(0, finalOffered - (finalRejected != null ? finalRejected : 0))
+                        ? SleeperQtyUtil.acceptedOf(finalOffered, finalRejected)
                         : finalOffered;
             }
 
-            dto.setQtyOffered(finalOffered != null ? finalOffered : 0);
-            dto.setAcceptedQty(finalAccepted != null ? finalAccepted : 0);
-            dto.setRejectedQty(finalRejected != null ? finalRejected : 0);
+            dto.setQtyOffered(SleeperQtyUtil.orZero(finalOffered));
+            dto.setAcceptedQty(SleeperQtyUtil.orZero(finalAccepted));
+            dto.setRejectedQty(SleeperQtyUtil.orZero(finalRejected));
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
             String effectiveStatus = call.getStatus();
             String jobStatus = null;

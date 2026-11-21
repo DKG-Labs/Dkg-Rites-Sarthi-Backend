@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -45,14 +46,14 @@ public class FinalCallInspectionHeader {
     private LocalDate maDate;
 
     // Inspection Summary
-    @Column(name = "qty_offered_now")
-    private Integer qtyOfferedNow;
+    @Column(name = "qty_offered_now", precision = 12, scale = 2)
+    private BigDecimal qtyOfferedNow;
 
-    @Column(name = "accepted_qty")
-    private Integer acceptedQty;
+    @Column(name = "accepted_qty", precision = 12, scale = 2)
+    private BigDecimal acceptedQty;
 
-    @Column(name = "rejected_qty")
-    private Integer rejectedQty;
+    @Column(name = "rejected_qty", precision = 12, scale = 2)
+    private BigDecimal rejectedQty;
 
     // ET Details
     @Column(name = "et_sleepers")

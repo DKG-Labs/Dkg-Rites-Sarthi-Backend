@@ -6,6 +6,7 @@ import com.sarthi.Sleeper.entity.FInalCall.*;
 import com.sarthi.Sleeper.repository.FInalCallRepo.FinalCallInspectionHeaderRepository;
 import com.sarthi.Sleeper.repository.FInalCallRepo.IEBatchSummaryRepository;
 import com.sarthi.Sleeper.service.FinalCallService;
+import com.sarthi.Sleeper.util.SleeperQtyUtil;
 import com.sarthi.util.CommonUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarthi.Sleeper.repository.FInalCallRepo.SleeperBatchResultRepository;
 import com.sarthi.Sleeper.repository.FInalCallRepo.SleeperFinalResultRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -493,8 +495,9 @@ public class FinalCallServiceImpl implements FinalCallService {
                             || sType.contains("CROSSING");
 
                     if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered().signum() > 0) {
-                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered().intValue()) {
-                            entity.setQtyOfferedNow(sic.getTotalOffered().intValue());
+                        BigDecimal vendorOffered = SleeperQtyUtil.toQty(sic.getTotalOffered());
+                        if (entity.getQtyOfferedNow() == null || SleeperQtyUtil.greaterThan(entity.getQtyOfferedNow(), vendorOffered)) {
+                            entity.setQtyOfferedNow(vendorOffered);
                         }
                     }
                 });
@@ -524,9 +527,9 @@ public class FinalCallServiceImpl implements FinalCallService {
             entity.setMaDate(CommonUtils.convertStringToDateObject(dto.getMaDate()));
         }
 
-        entity.setQtyOfferedNow(dto.getQtyOfferedNow());
-        entity.setAcceptedQty(dto.getAcceptedQty());
-        entity.setRejectedQty(dto.getRejectedQty());
+        entity.setQtyOfferedNow(SleeperQtyUtil.toQty(dto.getQtyOfferedNow()));
+        entity.setAcceptedQty(SleeperQtyUtil.toQty(dto.getAcceptedQty()));
+        entity.setRejectedQty(SleeperQtyUtil.toQty(dto.getRejectedQty()));
 
         if (dto.getCallNo() != null) {
             try {
@@ -543,14 +546,17 @@ public class FinalCallServiceImpl implements FinalCallService {
                             || sType.contains("CROSSING");
 
                     if (isTurnoutOrSet && sic.getTotalOffered() != null && sic.getTotalOffered().signum() > 0) {
-                        if (entity.getQtyOfferedNow() == null || entity.getQtyOfferedNow() > sic.getTotalOffered().intValue() || entity.getQtyOfferedNow() <= 0) {
-                            entity.setQtyOfferedNow(sic.getTotalOffered().intValue());
+                        BigDecimal vendorOffered = SleeperQtyUtil.toQty(sic.getTotalOffered());
+                        if (entity.getQtyOfferedNow() == null
+                                || SleeperQtyUtil.greaterThan(entity.getQtyOfferedNow(), vendorOffered)
+                                || !SleeperQtyUtil.isPositive(entity.getQtyOfferedNow())) {
+                            entity.setQtyOfferedNow(vendorOffered);
                         }
                         if (entity.getRejectedQty() == null) {
-                            entity.setRejectedQty(0);
+                            entity.setRejectedQty(SleeperQtyUtil.orZero(null));
                         }
-                        if (entity.getAcceptedQty() == null || entity.getAcceptedQty() > entity.getQtyOfferedNow()) {
-                            entity.setAcceptedQty(Math.max(0, entity.getQtyOfferedNow() - entity.getRejectedQty()));
+                        if (entity.getAcceptedQty() == null || SleeperQtyUtil.greaterThan(entity.getAcceptedQty(), entity.getQtyOfferedNow())) {
+                            entity.setAcceptedQty(SleeperQtyUtil.acceptedOf(entity.getQtyOfferedNow(), entity.getRejectedQty()));
                         }
                     }
                 });

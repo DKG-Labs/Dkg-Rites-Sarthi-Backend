@@ -2,6 +2,8 @@ package com.sarthi.Sleeper.dto.FinalCalDtos;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class FinalCallInspectionHeaderRequest {
 
@@ -14,9 +16,9 @@ public class FinalCallInspectionHeaderRequest {
     private String maNo;
     private String maDate;
 
-    private Integer qtyOfferedNow;
-    private Integer acceptedQty;
-    private Integer rejectedQty;
+    private BigDecimal qtyOfferedNow;
+    private BigDecimal acceptedQty;
+    private BigDecimal rejectedQty;
 
     private Integer etSleepers;
     private String callDate;
