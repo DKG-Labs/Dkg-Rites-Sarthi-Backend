@@ -1157,13 +1157,16 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
             AND (:startDate IS NULL OR DATE(wt.CREATEDDATE) >= :startDate)
             AND (:endDate IS NULL OR DATE(wt.CREATEDDATE) <= :endDate)
+            AND (:limitCalls = 0 OR ic.ic_number IN (:callNos))
             ORDER BY rawCreatedDate DESC
             """, nativeQuery = true)
     List<Object[]> findDownloadIcAnnexuresReportRaw(
             @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
             @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway,
             @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
-            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
+            @org.springframework.data.repository.query.Param("limitCalls") int limitCalls,
+            @org.springframework.data.repository.query.Param("callNos") java.util.Collection<String> callNos);
 
     @Query("""
             SELECT wt
@@ -1744,4 +1747,52 @@ public interface WorkflowTransitionRepository extends JpaRepository<WorkflowTran
     @org.springframework.data.jpa.repository.Query("SELECT w.assignedToUser FROM WorkflowTransition w WHERE w.requestId = :requestId "
             + "AND w.assignedToUser IS NOT NULL ORDER BY w.workflowTransitionId DESC")
     java.util.List<Number> findAssignedUsersLatestFirst(@org.springframework.data.repository.query.Param("requestId") String requestId);
+
+
+    /**
+     * Download IC & Annexures (ERC) - light list for paging: same issued-IC rule and filters as
+     * findDownloadIcAnnexuresReportRaw, but only cheap columns. Row:
+     * [callNo, certificateNo, vendorName, poNo, poSerialNo, stage, itemCatDescr, callCreatedAt, sortDate, icDate]
+     */
+    @Query(value = """
+            SELECT DISTINCT
+                ic.ic_number,
+                COALESCE(NULLIF(icd.certificate_no, ''), ''),
+                COALESCE(vm.vendor_name, ''),
+                ic.po_no,
+                ic.po_serial_no,
+                ic.type_of_call,
+                ph.item_cat_descr,
+                DATE_FORMAT(ic.created_at, '%Y-%m-%d %H:%i:%s'),
+                wt.CREATEDDATE,
+                DATE_FORMAT(COALESCE(
+                    CASE
+                        WHEN ic.ic_number LIKE '%ER%' THEN (SELECT rie.created_at FROM rm_ic_edit rie WHERE rie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY rie.id DESC LIMIT 1)
+                        WHEN ic.ic_number LIKE '%EP%' THEN (SELECT pie.created_at FROM PROCESS_IC_EDIT pie WHERE pie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY pie.id DESC LIMIT 1)
+                        WHEN ic.ic_number LIKE '%EF%' THEN (SELECT fie.created_at FROM FINAL_IC_EDIT fie WHERE fie.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(icd.certificate_no, ic.ic_number) COLLATE utf8mb4_unicode_ci ORDER BY fie.id DESC LIMIT 1)
+                    END,
+                    wt.CREATEDDATE
+                ), '%Y-%m-%d')
+            FROM workflow_transition wt
+            INNER JOIN (
+                SELECT requestid, MAX(workflowtransitionid) latest_id
+                FROM workflow_transition
+                GROUP BY requestid
+            ) x ON wt.workflowtransitionid = x.latest_id
+            INNER JOIN inspection_calls ic ON wt.REQUESTID = ic.ic_number
+            -- one PO header per call: exact PO first, then the part before "/", and only if neither matches the old LIKE match
+            -- (the OR/LIKE join compared every call with every PO header and made this list slow)
+            INNER JOIN po_header ph ON ph.id = COALESCE(
+                (SELECT p1.id FROM po_header p1 WHERE p1.po_no = ic.po_no ORDER BY p1.id LIMIT 1),
+                (SELECT p2.id FROM po_header p2 WHERE p2.po_no = SUBSTRING_INDEX(ic.po_no, '/', 1) ORDER BY p2.id LIMIT 1),
+                (SELECT p3.id FROM po_header p3 WHERE ic.po_no LIKE CONCAT('%', p3.po_no, '%') OR p3.po_no LIKE CONCAT('%', ic.po_no, '%') ORDER BY p3.id LIMIT 1))
+            LEFT JOIN vendor_master vm ON ic.vendor_id = vm.vendor_code
+            LEFT JOIN inspection_complete_details icd ON ic.ic_number = icd.call_no
+            WHERE wt.STATUS = 'SEND_CALL_TO_IBS'
+            AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR ic.place_of_inspection = :vendorPlantCode)
+            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+            """, nativeQuery = true)
+    List<Object[]> findDownloadIcAnnexuresKeys(
+            @org.springframework.data.repository.query.Param("vendorPlantCode") String vendorPlantCode,
+            @org.springframework.data.repository.query.Param("zonalRailway") String zonalRailway);
 }

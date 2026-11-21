@@ -6505,6 +6505,20 @@ public class reportsImpl implements reports {
         public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReport(String product,
                         String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate,
                         java.time.LocalDate endDate) {
+                return getDownloadIcAnnexuresReportForCalls(product, vendorPlantCode, zonalRailway, startDate, endDate, null);
+        }
+
+        @Override
+        public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReportForCalls(String product,
+                        String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate,
+                        java.time.LocalDate endDate, java.util.Collection<String> callNos) {
+                // callNos == null: every issued IC (old behaviour); otherwise only these calls (one page)
+                int limitCalls = callNos == null ? 0 : 1;
+                java.util.Collection<String> calls = (callNos == null || callNos.isEmpty())
+                                ? java.util.List.of("__none__") : callNos;
+                if (callNos != null && callNos.isEmpty()) {
+                        return new java.util.ArrayList<>();
+                }
                 String filterProduct = (product != null) ? product.trim().toLowerCase() : "";
                 boolean isRailPad = filterProduct.contains("pad") || "rail pad".equals(filterProduct) || "railpad".equals(filterProduct);
                 boolean isSleeper = filterProduct.contains("sleeper") || "sleeper".equals(filterProduct);
@@ -6512,15 +6526,15 @@ public class reportsImpl implements reports {
                 List<Object[]> rawList;
                 if (isRailPad) {
                         rawList = railWorkflowTransactionRepository.findRailPadDownloadIcAnnexuresReportRaw(
-                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                                        vendorPlantCode, zonalRailway, startDate, endDate, limitCalls, calls);
                 } else if (isSleeper) {
                         rawList = sleeperWorkflowRepository.findSleeperDownloadIcAnnexuresReportRaw(
-                                        vendorPlantCode, zonalRailway, startDate, endDate);
+                                        vendorPlantCode, zonalRailway, startDate, endDate, limitCalls, calls);
                 } else {
                         // ERC: the date range applies to the IC date shown in the list (when the IC was generated),
                         // so it is applied below instead of to the date the call was sent to IBS
                         rawList = workflowTransitionRepository.findDownloadIcAnnexuresReportRaw(
-                                        vendorPlantCode, zonalRailway, null, null);
+                                        vendorPlantCode, zonalRailway, null, null, limitCalls, calls);
                 }
 
                 List<com.sarthi.dto.reports.IcAnnexuresReportDto> resultList = new java.util.ArrayList<>();

@@ -125,6 +125,11 @@ public interface reports {
                         String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate,
                         java.time.LocalDate endDate);
 
+        /** Same rows as getDownloadIcAnnexuresReport, but only for these call numbers (one page). */
+        public List<com.sarthi.dto.reports.IcAnnexuresReportDto> getDownloadIcAnnexuresReportForCalls(String product,
+                        String vendorPlantCode, String zonalRailway, java.time.LocalDate startDate,
+                        java.time.LocalDate endDate, java.util.Collection<String> callNos);
+
         List<InspectionCallsReportDto> getInspectionCallsReport(String startDate, String endDate);
 
         public List<InspectionCallsReportDto> getOverduePendingInspectionCallsReport(
