@@ -69,6 +69,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
     private RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
     private RailInspectionCallRepository railInspectionCallRepository;
+    private RailIcNumberSyncService railIcNumberSyncService;
 
     /** Material diversion: consume / release diverted balance. Lazy to avoid a dependency cycle. */
     @org.springframework.beans.factory.annotation.Autowired
@@ -2545,6 +2546,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             }
             railWorkflowTransactionRepository.saveAll(txList);
         }
+
+        // 2. IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
+        railIcNumberSyncService.syncIeSuffix(callNo.trim());
     }
 
     @Override

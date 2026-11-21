@@ -60,6 +60,8 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private WorkflowMasterRepository workflowMasterRepository;
     @Autowired
+    private ErcIcNumberSyncService ercIcNumberSyncService;
+    @Autowired
     private UserMasterRepository userMasterRepository;
     @Autowired
     private TransitionMasterRepository transitionMasterRepository;
@@ -5860,6 +5862,9 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         // ALWAYS update the workflow transition's assigned user for this call!
         latest.setAssignedToUser(newUser.getUserId());
         workflowTransitionRepository.save(latest);
+
+        // IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
+        ercIcNumberSyncService.syncIeSuffix(callNo);
 
         if (isFinalStage) {
             List<FinalIeMapping> existingMappings = finalIeMappingRepository.findByWorkflowTransitionId(latest.getWorkflowTransitionId());

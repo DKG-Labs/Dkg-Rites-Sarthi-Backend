@@ -926,4 +926,14 @@ AND t.workflowTransitionId = (
     List<SleeperWorkflowTransaction> findLatestCancelledTransactions(
             @Param("plantId") String plantId,
             @Param("vendorCode") String vendorCode);
+
+    /** IC already generated / signed / sent to IBS for this call? (IC number must not change after that) */
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(w) FROM SleeperWorkflowTransaction w WHERE w.requestId = :requestId AND UPPER(w.action) IN "
+            + "('GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'DSC_SIGN', 'IC_ISSUE', 'ISSUE_IC', 'SEND_CALL_TO_IBS')")
+    long countIcIssuedActions(@org.springframework.data.repository.query.Param("requestId") String requestId);
+
+    /** Users the call was assigned to, latest first (first entry = IE handling the call now). */
+    @org.springframework.data.jpa.repository.Query("SELECT w.assignedToUser FROM SleeperWorkflowTransaction w WHERE w.requestId = :requestId "
+            + "AND w.assignedToUser IS NOT NULL ORDER BY w.workflowTransitionId DESC")
+    java.util.List<Number> findAssignedUsersLatestFirst(@org.springframework.data.repository.query.Param("requestId") String requestId);
 }

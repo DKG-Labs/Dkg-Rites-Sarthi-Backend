@@ -40,6 +40,7 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.repository.PoMaHeaderRepository poMaHeaderRepository;
     private final com.sarthi.SRailPad.repository.ieVerification.RailFinalInspectionLotResultsRepository railFinalInspectionLotResultsRepository;
     private final RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
+    private final com.sarthi.SRailPad.service.Impl.RailIcNumberSyncService railIcNumberSyncService;
     private final com.sarthi.SRailPad.repository.RailPoiIeMappingRepository railPoiIeMappingRepository;
     private final com.sarthi.SRailPad.repository.inspectionCall.RailInspectionCallAuditRepository railInspectionCallAuditRepository;
     private final com.sarthi.SRailPad.service.RailWorkflowService railWorkflowService;
@@ -1065,6 +1066,8 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
+        // Call reassigned after FINISH and IC not issued yet: IC number takes the current IE's name
+        railIcNumberSyncService.syncIeSuffix(callNo);
         String certificateNo = railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(callNo)
                 .map(RailInspectionCompleteDetails::getCertificateNo)
                 .orElse("");

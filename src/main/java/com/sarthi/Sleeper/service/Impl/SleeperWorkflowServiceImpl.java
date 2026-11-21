@@ -62,6 +62,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Autowired
     private SleeperWorkflowRepository repository;
     @Autowired
+    private SleeperIcNumberSyncService sleeperIcNumberSyncService;
+    @Autowired
     private SleeperWorkflowMasterRepository workflowRepository;
 
     @Autowired
@@ -2582,6 +2584,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             latestTx.setAssignedToUser(Long.valueOf(newUserId));
             repository.save(latestTx);
         }
+
+        // IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
+        sleeperIcNumberSyncService.syncIeSuffix(callNo);
     }
 
     /**

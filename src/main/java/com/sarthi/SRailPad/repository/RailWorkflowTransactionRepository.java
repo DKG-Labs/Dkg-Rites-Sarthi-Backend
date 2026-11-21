@@ -1075,4 +1075,15 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ORDER BY t.created_date DESC
             """, nativeQuery = true)
     List<RailWorkflowTransaction> findLatestCancelledTransactions(@Param("plantId") String plantId, @Param("vendorCode") String vendorCode);
+
+    /** Has this call already reached IC generation / signing / IBS? (IC number must not change after that) */
+    @Query(value = "SELECT COUNT(*) FROM rail_workflow_transaction WHERE request_id = :requestId "
+            + "AND UPPER(action) IN ('GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'IC_ISSUE', 'SEND_CALL_TO_IBS')",
+            nativeQuery = true)
+    long countIcIssuedActions(@Param("requestId") String requestId);
+
+    /** IE currently handling the call: latest workflow row that has an assigned user. */
+    @Query(value = "SELECT assigned_to_user FROM rail_workflow_transaction WHERE request_id = :requestId "
+            + "AND assigned_to_user IS NOT NULL ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
+    Long findLatestAssignedUser(@Param("requestId") String requestId);
 }
