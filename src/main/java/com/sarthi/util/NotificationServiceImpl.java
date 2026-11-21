@@ -48,6 +48,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 public class NotificationServiceImpl implements NotificationService {
 
     private final JavaMailSender mailSender;
+    /** Place of Inspection as name + address (instead of a bare POI code / plant id) in mails. */
+    private final MailPlaceResolver mailPlaceResolver;
     private final TemplateEngine templateEngine;
     private final IePincodePoiMappingRepository iePincodePoiMappingRepository;
     private final PoiProcessIeMappingRepository poiProcessIeMappingRepository;
@@ -338,6 +340,9 @@ public class NotificationServiceImpl implements NotificationService {
         vars.put("vendorName", um.getUsername());
         vars.put("callNo", call.getIcNumber());
         vars.put("status", status);
+        vars.put("vendorCode", um.getUsername());
+        vars.put("inspectionType", call.getTypeOfCall());
+        vars.putAll(mailPlaceResolver.erc(call.getPlaceOfInspection()));
 
         sendEmail(
                 um.getEmail(),
@@ -366,8 +371,10 @@ public class NotificationServiceImpl implements NotificationService {
         vars.put("ieName", ieName);
         vars.put("callNo", call.getIcNumber());
         vars.put("vendorCode", um.getUsername());
-        vars.put("poi", call.getPlaceOfInspection());
+        vars.put("inspectionType", call.getTypeOfCall());
         vars.put("status", status);
+        // company, unit and address of the POI (falls back to the POI code)
+        vars.putAll(mailPlaceResolver.erc(call.getPlaceOfInspection()));
 
         return vars;
 
@@ -625,6 +632,8 @@ public class NotificationServiceImpl implements NotificationService {
             ieVars.put("callNo", call.getCallNo());
             ieVars.put("status", status);
             ieVars.put("plantId", plantId);
+            ieVars.put("inspectionType", "Final");
+            ieVars.putAll(mailPlaceResolver.sleeper(plantId)); // plant name + address from vendor_plant
 
             sendEmail(
                     ie.getEmail(),
@@ -644,6 +653,8 @@ public class NotificationServiceImpl implements NotificationService {
             vendorVars.put("vendorName", vendor.getUsername());
             vendorVars.put("callNo", call.getCallNo());
             vendorVars.put("status", status);
+            vendorVars.put("inspectionType", "Final");
+            vendorVars.putAll(mailPlaceResolver.sleeper(plantId));
 
             sendEmail(
                     vendor.getEmail(),
@@ -696,6 +707,9 @@ public class NotificationServiceImpl implements NotificationService {
             ieVars.put("callNo", call.getCallNo());
             ieVars.put("status", status);
             ieVars.put("plantId", plantId);
+            ieVars.put("inspectionType", call.getCallType());
+            ieVars.putAll(mailPlaceResolver.railpad(plantId)); // plant name + address from rail_vendor_plant
+            if (call.getVendorCode() != null) ieVars.put("vendorCode", call.getVendorCode());
 
             sendEmail(
                     ie.getEmail(),
@@ -716,6 +730,9 @@ public class NotificationServiceImpl implements NotificationService {
             vendorVars.put("vendorName", vendor.getUsername());
             vendorVars.put("callNo", call.getCallNo());
             vendorVars.put("status", status);
+            vendorVars.put("inspectionType", call.getCallType());
+            vendorVars.putAll(mailPlaceResolver.railpad(plantId));
+            if (call.getVendorCode() != null) vendorVars.put("vendorCode", call.getVendorCode());
 
             sendEmail(
                     vendor.getEmail(),
