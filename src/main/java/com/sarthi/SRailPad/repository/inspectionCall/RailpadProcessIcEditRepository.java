@@ -197,6 +197,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
     List<Object[]> getRailpadProcessInspectionCalls();
 
     @Query(value = """
+
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                    AS callDate,
@@ -238,14 +239,17 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(rvp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
-            FROM railpad_process_ic_edit p
+            FROM (
+                SELECT e.*, k.call_key
+                FROM railpad_process_ic_edit e
+                JOIN (
+                    SELECT id, TRIM(ic_number) AS call_key FROM railpad_process_ic_edit
+                    UNION SELECT id, TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(ic_number, '/', 2), '/', -1)) FROM railpad_process_ic_edit WHERE ic_number LIKE '%/%'
+                    UNION SELECT id, TRIM(SUBSTRING_INDEX(ic_number, '/', 1)) FROM railpad_process_ic_edit WHERE ic_number LIKE '%/%'
+                ) k ON k.id = e.id
+            ) p
             INNER JOIN rail_inspection_call ic
-                    ON CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                    OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                       CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(p.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                    OR CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                       CONVERT(SUBSTRING_INDEX(p.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                    OR CONVERT(p.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+                    ON CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = p.call_key
             LEFT JOIN rail_process_inspection_result rpir
                    ON rpir.inspection_call_id = ic.id
             LEFT JOIN (
@@ -262,21 +266,21 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
             ) wt_assigned
                     ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN rail_vendor_plant rvp
-                   ON CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON rvp.plant_id = CONVERT(ic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(REPLACE(TRIM(rvp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(REPLACE(TRIM(ic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(rvp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   OR rvp.plant_id = 
                       CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(REPLACE(TRIM(rvp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(REPLACE(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
                ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
-                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   ON ph.po_no = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um
-                   ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(p.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = p.created_by
+                   OR um.employee_code = p.created_by
             LEFT JOIN railpad_pincode_poi_mapping rpp
                    ON CONVERT(REPLACE(TRIM(rpp.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -286,7 +290,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                       CONVERT(SUBSTRING_INDEX(TRIM(ic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON (
-                       CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rpp.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       pm.poi_code = rpp.poi_code
                        OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                           CONVERT(REPLACE(TRIM(ic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
                        OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
@@ -333,7 +337,7 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
                 p.qty_now_offered,
                 p.qty_now_passed,
                 p.qty_now_rejected
-            """, nativeQuery = true)
+""", nativeQuery = true)
     List<Object[]> getRailpadProcessCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 
     @Modifying
@@ -352,6 +356,10 @@ public interface RailpadProcessIcEditRepository extends JpaRepository<RailpadPro
             ORDER BY id DESC LIMIT 1
             """, nativeQuery = true)
     List<Object[]> findIcNumberAndCreatedAtByCallNo(@Param("callNo") String callNo);
+
+    /** Move drafts saved under an old IC number to the new one (IC number follows the reassigned IE). */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE RailpadProcessIcEdit e SET e.icNumber = :newNo WHERE e.icNumber = :oldNo")
+    int renameIcNumber(@org.springframework.data.repository.query.Param("oldNo") String oldNo,
+                       @org.springframework.data.repository.query.Param("newNo") String newNo);
 }
-
-

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RailpadFinalIcEditServiceImpl implements RailpadFinalIcEditService {
 
     private final RailpadFinalIcEditRepository repository;
+    private final com.sarthi.bookset.BookSetUsageGuard bookSetGuard;
 
     @Override
     public RailpadFinalIcEditDTO getByIcNumber(String icNumber) {
@@ -34,6 +35,7 @@ public class RailpadFinalIcEditServiceImpl implements RailpadFinalIcEditService 
 
     private void mapToEntity(RailpadFinalIcEditDTO dto, RailpadFinalIcEdit entity) {
         entity.setIcNumber(dto.getIcNumber());
+        bookSetGuard.claim(dto.getBookNo(), dto.getSetNo(), dto.getIcNumber(), "RAILPAD_FINAL");
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setOfferedInstNo(dto.getOfferedInstNo());

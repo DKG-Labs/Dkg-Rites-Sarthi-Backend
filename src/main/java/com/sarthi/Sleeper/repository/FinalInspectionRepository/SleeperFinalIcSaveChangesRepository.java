@@ -30,4 +30,10 @@ public interface SleeperFinalIcSaveChangesRepository extends JpaRepository<Sleep
         List<SleeperFinalIcSaveChanges> list = findAllByIcNumberFlexible(icNumber);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
+
+    /** Move rows saved under an old IC number to the new one (IC number follows the reassigned IE). */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE SleeperFinalIcSaveChanges e SET e.icNumber = :newNo WHERE e.icNumber = :oldNo")
+    int renameIcNumber(@org.springframework.data.repository.query.Param("oldNo") String oldNo,
+                       @org.springframework.data.repository.query.Param("newNo") String newNo);
 }

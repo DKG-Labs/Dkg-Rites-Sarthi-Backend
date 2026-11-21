@@ -20,4 +20,10 @@ public interface RailpadFinalIcSaveChangesRepository extends JpaRepository<Railp
             ORDER BY id DESC LIMIT 1
             """, nativeQuery = true)
     Optional<RailpadFinalIcSaveChanges> findByIcNumber(@org.springframework.data.repository.query.Param("icNumber") String icNumber);
+
+    /** Move drafts saved under an old IC number to the new one (IC number follows the reassigned IE). */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE RailpadFinalIcSaveChanges e SET e.icNumber = :newNo WHERE e.icNumber = :oldNo")
+    int renameIcNumber(@org.springframework.data.repository.query.Param("oldNo") String oldNo,
+                       @org.springframework.data.repository.query.Param("newNo") String newNo);
 }

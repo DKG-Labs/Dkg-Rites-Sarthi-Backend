@@ -17,6 +17,7 @@ import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.repository.*;
+import com.sarthi.Sleeper.util.SleeperQtyUtil;
 import com.sarthi.util.NotificationService;
 import com.sarthi.util.ResponseBuilder;
 import com.sarthi.util.RioUtil;
@@ -61,6 +62,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
     @Autowired
     private SleeperWorkflowRepository repository;
+    @Autowired
+    private SleeperIcNumberSyncService sleeperIcNumberSyncService;
     @Autowired
     private SleeperWorkflowMasterRepository workflowRepository;
 
@@ -449,9 +452,10 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 }
                 dto.setPoNo(call.getPoNo());
                 dto.setPoSr(call.getSrNo());
-                Integer finalOffered = call.getTotalOffered() != null ? call.getTotalOffered().intValue() : null;
-                Integer finalAccepted = null;
-                Integer finalRejected = call.getTotalRejected();
+                // Quantities are decimal: RMT calls can carry fractional offered / accepted / rejected qty.
+                BigDecimal finalOffered = SleeperQtyUtil.toQty(call.getTotalOffered());
+                BigDecimal finalAccepted = null;
+                BigDecimal finalRejected = SleeperQtyUtil.toQty(call.getTotalRejected());
                 // call.totalOffered is already the PASSED count; only an IE header's qty_offered_now includes rejections.
                 boolean offeredIncludesRejected = false;
 
@@ -465,15 +469,15 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                         Object qOff = fch.get("qty_offered_now");
                         Object qAcc = fch.get("accepted_qty");
                         Object qRej = fch.get("rejected_qty");
-                        if (qOff != null && ((Number) qOff).intValue() > 0) {
-                            finalOffered = ((Number) qOff).intValue();
+                        if (SleeperQtyUtil.isPositive(SleeperQtyUtil.toQty(qOff))) {
+                            finalOffered = SleeperQtyUtil.toQty(qOff);
                             offeredIncludesRejected = true;
                         }
                         if (qAcc != null) {
-                            finalAccepted = ((Number) qAcc).intValue();
+                            finalAccepted = SleeperQtyUtil.toQty(qAcc);
                         }
                         if (qRej != null) {
-                            finalRejected = ((Number) qRej).intValue();
+                            finalRejected = SleeperQtyUtil.toQty(qRej);
                         }
                     }
                 } catch (Exception ignored) {}
@@ -491,17 +495,17 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
                 // Set/Turnout: the call's total_offered is the vendor's offered SETS; always show it.
                 if (isTurnoutOrSet && call.getTotalOffered() != null && call.getTotalOffered().signum() > 0) {
-                    finalOffered = call.getTotalOffered().intValue();
+                    finalOffered = SleeperQtyUtil.toQty(call.getTotalOffered());
                 }
 
                 if (finalAccepted == null && finalOffered != null) {
                     finalAccepted = offeredIncludesRejected
-                            ? Math.max(0, finalOffered - (finalRejected != null ? finalRejected : 0))
+                            ? SleeperQtyUtil.acceptedOf(finalOffered, finalRejected)
                             : finalOffered;
                 }
 
-                dto.setOfferedQty(finalOffered != null ? finalOffered : (dto.getOfferedQty() != null ? dto.getOfferedQty() : 0));
-                dto.setAcceptedQty(finalAccepted != null ? finalAccepted : (dto.getAcceptedQty() != null ? dto.getAcceptedQty() : 0));
+                dto.setOfferedQty(finalOffered != null ? finalOffered : SleeperQtyUtil.orZero(dto.getOfferedQty()));
+                dto.setAcceptedQty(finalAccepted != null ? finalAccepted : SleeperQtyUtil.orZero(dto.getAcceptedQty()));
                 
                 // Lookup certificate details from SLEEPER_INSPECTION_COMPLETE_DETAILS
                 String certKey = "cert_" + tx.getRequestId();
@@ -2582,6 +2586,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             latestTx.setAssignedToUser(Long.valueOf(newUserId));
             repository.save(latestTx);
         }
+
+        // IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
+        sleeperIcNumberSyncService.syncIeSuffix(callNo);
     }
 
     /**

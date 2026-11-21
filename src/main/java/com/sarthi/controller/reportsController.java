@@ -680,6 +680,44 @@ public class reportsController {
                 }
         }
 
+        @org.springframework.beans.factory.annotation.Autowired
+        private com.sarthi.service.Impl.IcAnnexuresPageService icAnnexuresPageService;
+
+        /**
+         * Download IC & Annexures, one page at a time. Filters (stage, search, IC date, PO) apply to all ICs
+         * before paging. page is 0-based; size=0 returns every matching row (Excel / PDF export).
+         */
+        @GetMapping("/downloadIcAnnexures/page")
+        public ResponseEntity<Object> getDownloadIcAnnexuresPage(
+                        @RequestParam(required = false) String product,
+                        @RequestParam(required = false) String vendorPlantCode,
+                        @RequestParam(required = false) String zonalRailway,
+                        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate startDate,
+                        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate endDate,
+                        @RequestParam(required = false) String stage,
+                        @RequestParam(required = false) String search,
+                        @RequestParam(required = false, defaultValue = "global") String searchType,
+                        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate icFrom,
+                        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate icTo,
+                        @RequestParam(required = false) String poNumber,
+                        @RequestParam(required = false, defaultValue = "poWise") String sortKey,
+                        @RequestParam(required = false, defaultValue = "asc") String sortDir,
+                        @RequestParam(defaultValue = "0") int page,
+                        @RequestParam(defaultValue = "10") int size) {
+                try {
+                        return new ResponseEntity<Object>(ResponseBuilder.getSuccessResponse(
+                                        icAnnexuresPageService.page(product, vendorPlantCode, zonalRailway, startDate, endDate,
+                                                        stage, search, searchType, icFrom, icTo, poNumber,
+                                                        sortKey, sortDir, page, Math.min(size, 500))), HttpStatus.OK);
+                } catch (Exception e) {
+                        e.printStackTrace();
+                        ErrorDetails errorDetails = new ErrorDetails(500, 500, "ERROR",
+                                        "Error: " + e.getMessage() + " | Type: " + e.getClass().getName());
+                        return new ResponseEntity<Object>(ResponseBuilder.getErrorResponse(errorDetails),
+                                        HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+        }
+
         @GetMapping("/cm-inspection-calls")
         public ResponseEntity<Object> getInspectionCallsReport(
                         @RequestParam(required = false) String startDate,

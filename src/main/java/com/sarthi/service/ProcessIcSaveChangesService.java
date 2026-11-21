@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProcessIcSaveChangesService {
 
     private final ProcessIcSaveChangesRepository processIcSaveChangesRepository;
+    private final com.sarthi.bookset.BookSetUsageGuard bookSetGuard;
 
     @Transactional(readOnly = true)
     public ProcessIcSaveChangesDTO getByIcNumber(String icNumber) {
@@ -29,6 +30,7 @@ public class ProcessIcSaveChangesService {
 
         entity.setIcNumber(dto.getIcNumber());
         entity.setCertificateId(dto.getCertificateId());
+        bookSetGuard.claim(dto.getBookNo(), dto.getSetNo(), dto.getIcNumber(), "ERC_PROCESS");
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setOfferedInstallmentNo(dto.getOfferedInstallmentNo());

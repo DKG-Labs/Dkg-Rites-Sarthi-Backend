@@ -128,6 +128,7 @@ public class IbsServiceImpl implements IbsService {
     private final com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
     private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
     private final WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
+    private final com.sarthi.repository.FinalIeMappingRepository finalIeMappingRepository;
     private final ErcDiversionRequestRepository ercDiversionRequestRepository;
     private final ErcDiversionCallAllocationRepository ercDiversionCallAllocationRepository;
     private final PincodePoIMappingRepository pincodePoIMappingRepository;
@@ -999,7 +1000,19 @@ public class IbsServiceImpl implements IbsService {
     @Override
     @Transactional(readOnly = true)
     public List<IbsInspectionDto> getCompletedIbsCalls() {
-        List<IbsCallRegistration> allRegistrations = ibsCallRegistrationRepository.findAllCalls();
+        return buildCompletedCalls(ibsCallRegistrationRepository.findAllCalls());
+    }
+
+    /** Completed-call rows for just these registrations (one page). Same logic as the full list. */
+    @Override
+    @Transactional(readOnly = true)
+    public List<IbsInspectionDto> getCompletedIbsCallsFor(List<IbsCallRegistration> registrations) {
+        return buildCompletedCalls(registrations);
+    }
+
+    private List<IbsInspectionDto> buildCompletedCalls(List<IbsCallRegistration> allRegistrations) {
+        long tBuild = System.currentTimeMillis();
+        log.debug("[IBS completed] step registrations={} ms ({} rows)", System.currentTimeMillis() - tBuild, allRegistrations == null ? 0 : allRegistrations.size());
         log.info("Total registrations found in ibs_call_registration: {}", allRegistrations != null ? allRegistrations.size() : 0);
 
         if (allRegistrations == null || allRegistrations.isEmpty()) {
@@ -1100,6 +1113,7 @@ public class IbsServiceImpl implements IbsService {
         List<IbsInspectionDto> rawList = new ArrayList<>();
         try {
             CompletableFuture.allOf(f1, f2, f3, f4, f5, f6).join();
+            log.debug("[IBS completed] step 6 product queries done at {} ms", System.currentTimeMillis() - tBuild);
             rawList.addAll(f1.get());
             rawList.addAll(f2.get());
             rawList.addAll(f3.get());
@@ -1134,9 +1148,11 @@ public class IbsServiceImpl implements IbsService {
 
         // Single-batch enrich parent IC links for completed calls
         enrichLinkedParentIcs(uniqueCalls.values());
+        log.debug("[IBS completed] step parent IC links done at {} ms", System.currentTimeMillis() - tBuild);
 
         // Enrich diverted calls data (placeOfInspection, ibsManufacturedCode, quantities)
         enrichDivertedCallsData(uniqueCalls.values());
+        log.debug("[IBS completed] step diverted data done at {} ms", System.currentTimeMillis() - tBuild);
 
         Set<Long> matchedRegIds = new HashSet<>();
         Set<String> completedCallTokens = new HashSet<>();
@@ -1149,6 +1165,7 @@ public class IbsServiceImpl implements IbsService {
             if (reg.getCallNumber() != null) completedCallTokens.add(reg.getCallNumber());
         }
         Map<String, String> completedDocLinks = prefetchUploadedCallDocuments(completedCallTokens, completedIcTokens);
+        log.debug("[IBS completed] step uploaded documents done at {} ms", System.currentTimeMillis() - tBuild);
 
         // Enrich every matched call with IBS registration details
         for (IbsInspectionDto dto : uniqueCalls.values()) {
@@ -1221,6 +1238,7 @@ public class IbsServiceImpl implements IbsService {
         Map<String, String> fallbackLinkedIcs = (fallbackEpCallNos.isEmpty() && fallbackEfCallNos.isEmpty() && fallbackRpfCallNos.isEmpty())
                 ? Collections.emptyMap()
                 : prefetchLinkedParentIcNumbers(fallbackEpCallNos, fallbackEfCallNos, fallbackRpfCallNos);
+        log.debug("[IBS completed] step fallback linked ICs done at {} ms", System.currentTimeMillis() - tBuild);
 
         for (IbsCallRegistration reg : completedList) {
             if (matchedRegIds.contains(reg.getId())) {
@@ -1270,6 +1288,7 @@ public class IbsServiceImpl implements IbsService {
 
         // Batch-enrich cancelled calls: zero N+1 queries (batched via IN-clause or fast-path in-memory)
         batchEnrichCancelledCallEmployeeCodes(uniqueCalls.values());
+        log.debug("[IBS completed] step cancelled-call employee codes done at {} ms", System.currentTimeMillis() - tBuild);
 
         // Enrich diverted calls data (placeOfInspection, ibsManufacturedCode, quantities)
         enrichDivertedCallsData(uniqueCalls.values());
@@ -1281,6 +1300,7 @@ public class IbsServiceImpl implements IbsService {
             }
         }
 
+        log.debug("[IBS completed] build finished in {} ms ({} calls)", System.currentTimeMillis() - tBuild, uniqueCalls.size());
         return new ArrayList<>(uniqueCalls.values());
     }
 
@@ -2325,6 +2345,9 @@ public class IbsServiceImpl implements IbsService {
                 callNo = extractCallNo(dto.getIcNumber());
             }
             if (callNo == null || callNo.isEmpty()) continue;
+            // Diversion exists only for ERC calls: skip Sleeper / Rail Pad
+            String upCall = callNo.toUpperCase();
+            if (upCall.startsWith("SF") || upCall.startsWith("RP") || upCall.contains("/SF-") || upCall.contains("/RP")) continue;
 
             callDtoMap.put(callNo, dto);
             callDtoMap.put(callNo.toUpperCase(), dto);
@@ -2363,14 +2386,16 @@ public class IbsServiceImpl implements IbsService {
 
         Map<String, ErcDiversionRequest> divMap = new HashMap<>();
         if (ercDiversionRequestRepository != null) {
-            for (String cNo : callNos) {
-                try {
-                    Optional<ErcDiversionRequest> reqOpt = ercDiversionRequestRepository.findByRequestNo(cNo);
-                    reqOpt.ifPresent(req -> {
-                        divMap.put(cNo, req);
-                        divMap.put(cNo.toUpperCase(), req);
-                    });
-                } catch (Exception ignored) {}
+            try {
+                // one query for all calls (was one query per call number)
+                for (ErcDiversionRequest req : ercDiversionRequestRepository.findByRequestNoIn(callNos)) {
+                    if (req == null || req.getRequestNo() == null) continue;
+                    String k = req.getRequestNo().trim();
+                    divMap.put(k, req);
+                    divMap.put(k.toUpperCase(), req);
+                }
+            } catch (Exception e) {
+                log.warn("Error fetching diversion requests: {}", e.getMessage());
             }
         }
 
@@ -2381,14 +2406,9 @@ public class IbsServiceImpl implements IbsService {
             }
             if (callNo == null || callNo.isEmpty()) continue;
 
+            // Already loaded in one batch above (findByIcNumberIn on the same call numbers); no per-call lookup
             InspectionCall call = icMap.get(callNo);
             if (call == null) call = icMap.get(callNo.toUpperCase());
-            if (call == null && inspectionCallsRepository != null) {
-                try {
-                    call = inspectionCallsRepository.findByIcNumber(callNo).orElse(null);
-                    if (call != null) icMap.put(callNo, call);
-                } catch (Exception ignored) {}
-            }
 
             ErcDiversionRequest divReq = divMap.get(callNo);
             if (divReq == null) divReq = divMap.get(callNo.toUpperCase());
@@ -4094,6 +4114,11 @@ public class IbsServiceImpl implements IbsService {
                 hist.setDeletedBy(deletedBy);
                 hist.setDeletedOn(now);
                 workflowDeleteHistoryRepository.save(hist);
+                // ERC Final keeps a final_ie_mapping row per workflow step (FK_FINAL_IE_WT, NO ACTION):
+                // remove it first, otherwise deleting the step fails and EF calls cannot be moved back
+                if (wt.getWorkflowTransitionId() != null) {
+                    finalIeMappingRepository.deleteByWorkflowTransitionId(wt.getWorkflowTransitionId());
+                }
                 workflowTransitionRepository.delete(wt);
             }
         }

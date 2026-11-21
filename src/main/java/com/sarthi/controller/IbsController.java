@@ -33,6 +33,9 @@ public class IbsController {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private com.sarthi.service.Impl.IbsCompletedCallsQueryService completedCallsQuery;
+
 
     @PostMapping("/sarthi/authenticate")
     public ResponseEntity<AuthResponseDto> generateIntegrationToken(
@@ -127,5 +130,28 @@ public class IbsController {
                 ),
                 HttpStatus.OK
         );
+    }
+
+    /**
+     * Completed calls with normal paging: the database picks the page, details are loaded only for that page.
+     * size=0 returns every matching row (CSV export).
+     */
+    @GetMapping("/ibs/completed-inspection-data/search")
+    public ResponseEntity<Object> searchCompletedCallData(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String product,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+
+        jwtService.validateToken(authHeader);
+        return new ResponseEntity<>(
+                ResponseBuilder.getSuccessResponse(completedCallsQuery.search(
+                        page, size, category, product, status, search, from, to)),
+                HttpStatus.OK);
     }
 }

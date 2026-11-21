@@ -793,13 +793,16 @@ AND t.workflowTransitionId = (
                UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
           AND (:startDate IS NULL OR DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) >= :startDate)
           AND (:endDate IS NULL OR DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) <= :endDate)
+          AND (:limitCalls = 0 OR sic.call_no IN (:callNos))
         ORDER BY rawCreatedDate DESC
     """, nativeQuery = true)
     List<Object[]> findSleeperDownloadIcAnnexuresReportRaw(
             @Param("vendorPlantCode") String vendorPlantCode,
             @Param("zonalRailway") String zonalRailway,
             @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate);
+            @Param("endDate") java.time.LocalDate endDate,
+            @Param("limitCalls") int limitCalls,
+            @Param("callNos") java.util.Collection<String> callNos);
 
         /** Lean variant of countSleeperIcIssuedFiltered for when no vendor/zone filter is set: skips the slow vendor_plant/po_header OR-joins, which cannot change a COUNT DISTINCT. */
     @Query(value = """
@@ -926,4 +929,80 @@ AND t.workflowTransitionId = (
     List<SleeperWorkflowTransaction> findLatestCancelledTransactions(
             @Param("plantId") String plantId,
             @Param("vendorCode") String vendorCode);
+
+    /** IC already generated / signed / sent to IBS for this call? (IC number must not change after that) */
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(w) FROM SleeperWorkflowTransaction w WHERE w.requestId = :requestId AND UPPER(w.action) IN "
+            + "('GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'DSC_SIGN', 'IC_ISSUE', 'ISSUE_IC', 'SEND_CALL_TO_IBS')")
+    long countIcIssuedActions(@org.springframework.data.repository.query.Param("requestId") String requestId);
+
+    /** Users the call was assigned to, latest first (first entry = IE handling the call now). */
+    @org.springframework.data.jpa.repository.Query("SELECT w.assignedToUser FROM SleeperWorkflowTransaction w WHERE w.requestId = :requestId "
+            + "AND w.assignedToUser IS NOT NULL ORDER BY w.workflowTransitionId DESC")
+    java.util.List<Number> findAssignedUsersLatestFirst(@org.springframework.data.repository.query.Param("requestId") String requestId);
+
+    /**
+     * Download IC & Annexures (Sleeper) - light list for paging: same issued-IC rule and filters as
+     * findSleeperDownloadIcAnnexuresReportRaw, but only cheap columns. Row:
+     * [callNo, certificateNo, vendorName, poNo, poSerialNo, stage, itemCatDescr, callCreatedAt, sortDate, icDate]
+     */
+    @Query(value = """
+        SELECT DISTINCT
+            sic.call_no,
+            COALESCE(sicd.certificate_no, CONCAT('C/', sic.call_no, '/NV')),
+            COALESCE(vp.company_name, vp.plant_name, ph.vendor_details, ph.firm_details, 'N/A'),
+            SUBSTRING_INDEX(sic.po_no, '/', 1),
+            COALESCE(sic.sr_no, 'N/A'),
+            'Final',
+            COALESCE(ph.item_cat_descr, 'PSC Mainline Sleeper'),
+            DATE_FORMAT(sic.created_at, '%Y-%m-%d %H:%i:%s'),
+            COALESCE(sicd.created_on, swt.created_date),
+            DATE_FORMAT(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date), '%Y-%m-%d')
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AND swt.workflow_transition_id = latest.max_id
+        INNER JOIN sleeper_inspection_call sic ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_header ph ON (CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.po_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
+            CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        )
+        LEFT JOIN sleeper_final_result sfr ON CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM sleeper_final_ic_edit GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.certificate_no, sic.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE swt.workflow_id = 2
+          AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
+          AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR :vendorPlantCode = 'all' OR
+               CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(sic.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(swt.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(REPLACE(COALESCE(swt.plant_id, ''), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(:vendorPlantCode, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.company_name USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(vp.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               CONVERT(ph.vendor_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.firm_details USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') OR
+               CONVERT(ph.vendor_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.vendor_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(ph.firm_details, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%') OR
+               REPLACE(REPLACE(REPLACE(CONVERT(:vendorPlantCode USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', '') LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(CONVERT(COALESCE(vp.company_name, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci, ' ', ''), '.', ''), '+', ''), '%'))
+          AND (:zonalRailway IS NULL OR :zonalRailway = '' OR :zonalRailway = 'all' OR 
+               UPPER(TRIM(CONVERT(COALESCE(ph.rly_short_name, ph.rly_cd, vp.zonal_railway, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)) = UPPER(TRIM(CONVERT(:zonalRailway USING utf8mb4) COLLATE utf8mb4_unicode_ci)))
+          AND (:startDate IS NULL OR DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) >= :startDate)
+          AND (:endDate IS NULL OR DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) <= :endDate)
+        """, nativeQuery = true)
+    List<Object[]> findSleeperDownloadIcAnnexuresKeys(
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway,
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate);
 }

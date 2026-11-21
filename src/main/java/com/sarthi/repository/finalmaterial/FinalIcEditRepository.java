@@ -39,4 +39,10 @@ public interface FinalIcEditRepository extends JpaRepository<FinalIcEdit, Long> 
             ORDER BY id DESC LIMIT 1
             """, nativeQuery = true)
     java.util.List<Object[]> findIcNumberAndCreatedAtByCallNo(@Param("callNo") String callNo);
+
+    /** Move rows saved under an old IC number to the new one (IC number follows the reassigned IE). */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE FinalIcEdit e SET e.icNumber = :newNo WHERE e.icNumber = :oldNo")
+    int renameIcNumber(@org.springframework.data.repository.query.Param("oldNo") String oldNo,
+                       @org.springframework.data.repository.query.Param("newNo") String newNo);
 }

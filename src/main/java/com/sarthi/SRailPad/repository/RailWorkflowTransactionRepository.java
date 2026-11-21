@@ -1046,13 +1046,16 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             )
             AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
             AND (:startDate IS NULL OR :endDate IS NULL OR DATE(ic.created_at) BETWEEN :startDate AND :endDate)
+            AND (:limitCalls = 0 OR ic.call_no IN (:callNos))
             ORDER BY rawCreatedDate DESC
             """, nativeQuery = true)
     List<Object[]> findRailPadDownloadIcAnnexuresReportRaw(
             @Param("vendorPlantCode") String vendorPlantCode,
             @Param("zonalRailway") String zonalRailway,
             @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate);
+            @Param("endDate") java.time.LocalDate endDate,
+            @Param("limitCalls") int limitCalls,
+            @Param("callNos") java.util.Collection<String> callNos);
 
     @Query(value = "SELECT rio FROM rail_workflow_transaction WHERE (request_id = :callNo OR request_id LIKE CONCAT('%', :callNo, '%')) AND rio IS NOT NULL AND rio != '' ORDER BY workflow_transition_id ASC LIMIT 1", nativeQuery = true)
     String findRioByCallNo(@Param("callNo") String callNo);
@@ -1075,4 +1078,130 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
             ORDER BY t.created_date DESC
             """, nativeQuery = true)
     List<RailWorkflowTransaction> findLatestCancelledTransactions(@Param("plantId") String plantId, @Param("vendorCode") String vendorCode);
+
+    /** Has this call already reached IC generation / signing / IBS? (IC number must not change after that) */
+    @Query(value = "SELECT COUNT(*) FROM rail_workflow_transaction WHERE request_id = :requestId "
+            + "AND UPPER(action) IN ('GENERATE_IC', 'IC_GENERATION', 'DSC_SIGN_IC', 'IC_ISSUE', 'SEND_CALL_TO_IBS')",
+            nativeQuery = true)
+    long countIcIssuedActions(@Param("requestId") String requestId);
+
+    /** IE currently handling the call: latest workflow row that has an assigned user. */
+    @Query(value = "SELECT assigned_to_user FROM rail_workflow_transaction WHERE request_id = :requestId "
+            + "AND assigned_to_user IS NOT NULL ORDER BY workflow_transition_id DESC LIMIT 1", nativeQuery = true)
+    Long findLatestAssignedUser(@Param("requestId") String requestId);
+
+    /**
+     * Download IC & Annexures (Rail Pad) - light list for paging: same issued-IC rule and filters as
+     * findRailPadDownloadIcAnnexuresReportRaw, but only cheap columns. Row:
+     * [callNo, certificateNo, vendorName, poNo, poSerialNo, stage, itemCatDescr, callCreatedAt, sortDate, icDate]
+     */
+    @Query(value = """
+            SELECT DISTINCT
+                ic.call_no,
+                COALESCE(ricd.certificate_no, ic.call_no),
+                COALESCE(
+                    (SELECT TRIM(vm.vendor_name) FROM vendor_master vm
+                     WHERE vm.vendor_name IS NOT NULL AND TRIM(vm.vendor_name) != '' AND vm.vendor_name NOT REGEXP '^[0-9]+$'
+                       AND (vm.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                            OR vm.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                            OR CONCAT(':', vm.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                            OR vm.vendor_code COLLATE utf8mb4_unicode_ci = ph.vendor_code COLLATE utf8mb4_unicode_ci)
+                     ORDER BY CASE WHEN REPLACE(vm.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci THEN 0 ELSE 1 END
+                     LIMIT 1),
+                    rvp_p.company_name,
+                    rvp_v.company_name,
+                    CASE 
+                        WHEN SUBSTRING_INDEX(ph.vendor_details, '~', 1) IS NOT NULL AND TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1)) != '' AND SUBSTRING_INDEX(ph.vendor_details, '~', 1) NOT REGEXP '^[0-9]+$'
+                        THEN TRIM(SUBSTRING_INDEX(ph.vendor_details, '~', 1))
+                        ELSE NULL 
+                    END,
+                    CASE 
+                        WHEN ph.firm_details IS NOT NULL AND TRIM(ph.firm_details) != '' AND ph.firm_details NOT REGEXP '^[0-9]+$'
+                        THEN TRIM(ph.firm_details)
+                        ELSE NULL 
+                    END,
+                    ic.vendor_code,
+                    ''
+                ),
+                SUBSTRING_INDEX(ic.po_no, '/', 1),
+                CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', -1) ELSE COALESCE(ic.po_sr, '') END,
+                CASE
+                    WHEN rwt.request_id LIKE 'RPP%' THEN 'Process'
+                    WHEN rwt.request_id LIKE 'RPF%' THEN 'Final'
+                    WHEN rwt.request_id LIKE 'RPRM%' THEN 'RM'
+                    ELSE 'Process'
+                END,
+                COALESCE(ph.item_cat_descr, 'Rail Pad'),
+                DATE_FORMAT(ic.created_at, '%Y-%m-%d %H:%i:%s'),
+                rwt.created_date,
+                DATE_FORMAT(COALESCE(
+                    CASE
+                        WHEN rwt.request_id LIKE 'RPP%' THEN (
+                            SELECT rpe.created_at FROM railpad_process_ic_edit rpe
+                            WHERE rpe.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(ricd.certificate_no, ic.call_no) COLLATE utf8mb4_unicode_ci
+                            ORDER BY rpe.id DESC LIMIT 1
+                        )
+                        WHEN rwt.request_id LIKE 'RPF%' THEN (
+                            SELECT rfe.created_at FROM railpad_final_ic_edit rfe
+                            WHERE rfe.ic_number COLLATE utf8mb4_unicode_ci = COALESCE(ricd.certificate_no, ic.call_no) COLLATE utf8mb4_unicode_ci
+                            ORDER BY rfe.id DESC LIMIT 1
+                        )
+                    END,
+                    rwt.created_date
+                ), '%Y-%m-%d')
+            FROM rail_workflow_transaction rwt
+            INNER JOIN (
+                SELECT request_id, MAX(workflow_transition_id) AS max_id
+                FROM rail_workflow_transaction
+                WHERE workflow_id = 2
+                GROUP BY request_id
+            ) latest ON rwt.request_id = latest.request_id AND rwt.workflow_transition_id = latest.max_id
+            INNER JOIN rail_inspection_call ic ON rwt.request_id COLLATE utf8mb4_unicode_ci = ic.call_no COLLATE utf8mb4_unicode_ci
+            LEFT JOIN po_header ph ON ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(ic.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
+            LEFT JOIN (
+                SELECT vendor_code, MAX(company_name) AS company_name
+                FROM rail_vendor_plant
+                WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                GROUP BY vendor_code
+            ) rvp_v ON (
+                rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+                OR rvp_v.vendor_code COLLATE utf8mb4_unicode_ci = REPLACE(ic.vendor_code, ':', '') COLLATE utf8mb4_unicode_ci
+                OR CONCAT(':', rvp_v.vendor_code) COLLATE utf8mb4_unicode_ci = ic.vendor_code COLLATE utf8mb4_unicode_ci
+            )
+            LEFT JOIN (
+                SELECT plant_id, MAX(company_name) AS company_name
+                FROM rail_vendor_plant
+                WHERE company_name IS NOT NULL AND company_name != '' AND company_name NOT REGEXP '^[0-9]+$'
+                GROUP BY plant_id
+            ) rvp_p ON (
+                rvp_p.plant_id COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+                OR rvp_p.plant_id COLLATE utf8mb4_unicode_ci = REPLACE(ic.plant_id, ':', '') COLLATE utf8mb4_unicode_ci
+                OR CONCAT(':', rvp_p.plant_id) COLLATE utf8mb4_unicode_ci = ic.plant_id COLLATE utf8mb4_unicode_ci
+            )
+            LEFT JOIN (
+                SELECT call_no, MAX(certificate_no) AS certificate_no
+                FROM rail_inspection_complete_details
+                GROUP BY call_no
+            ) ricd ON ic.call_no COLLATE utf8mb4_unicode_ci = ricd.call_no COLLATE utf8mb4_unicode_ci
+            WHERE (rwt.request_id LIKE 'RPP%' OR rwt.request_id LIKE 'RPF%')
+            AND (UPPER(COALESCE(rwt.status, '')) = 'SEND_CALL_TO_IBS' OR UPPER(COALESCE(rwt.action, '')) = 'SEND_CALL_TO_IBS')
+            AND (:vendorPlantCode IS NULL OR :vendorPlantCode = '' OR
+                   rwt.plant_id = :vendorPlantCode OR
+                   CONCAT(':', rwt.plant_id) = :vendorPlantCode OR
+                   rwt.plant_id = REPLACE(:vendorPlantCode, ':', '') OR
+                   rwt.vendor_code = :vendorPlantCode OR
+                   CONCAT(':', rwt.vendor_code) = :vendorPlantCode OR
+                   rwt.vendor_code = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR
+                   CONCAT(':', rwt.vendor_code) = SUBSTRING_INDEX(:vendorPlantCode, '/', 1) OR
+                   rwt.vendor_code = REPLACE(SUBSTRING_INDEX(:vendorPlantCode, '/', 1), ':', '') OR
+                   rwt.poi_code = :vendorPlantCode
+            )
+            AND (:zonalRailway IS NULL OR :zonalRailway = '' OR ph.rly_short_name = :zonalRailway)
+            AND (:startDate IS NULL OR :endDate IS NULL OR DATE(ic.created_at) BETWEEN :startDate AND :endDate)
+            """, nativeQuery = true)
+    List<Object[]> findRailPadDownloadIcAnnexuresKeys(
+            @Param("vendorPlantCode") String vendorPlantCode,
+            @Param("zonalRailway") String zonalRailway,
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate);
 }

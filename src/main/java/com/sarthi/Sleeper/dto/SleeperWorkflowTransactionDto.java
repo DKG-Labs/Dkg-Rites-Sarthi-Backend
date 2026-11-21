@@ -96,8 +96,8 @@ public class SleeperWorkflowTransactionDto {
     private String ieName;
     private String productType;
     private String sleeperType;
-    private Integer offeredQty;
-    private Integer acceptedQty;
+    private java.math.BigDecimal offeredQty;
+    private java.math.BigDecimal acceptedQty;
     private String icNo;
     private LocalDate icDate;
     private String uom;

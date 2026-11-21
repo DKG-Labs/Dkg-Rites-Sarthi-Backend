@@ -252,6 +252,26 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
             addUsageOnDeletedBatchIds(results, poNo, callNo, acceptedInOtherCallsMap, rejectedInOtherCallsMap);
         }
 
+        // Rejection still to apply per verification (production entry):
+        //   total rejection recorded by the IE  -  rejection already applied by other calls on ANY batch of it.
+        // Counting per verification (not per batch) keeps the total right when the IE unblocks and re-enters
+        // the rejections with a different batch split after some batches were already used in a call.
+        java.util.Map<Long, Integer> rejectionPoolByVId = new java.util.HashMap<>();
+        {
+            java.util.Map<Long, Integer> appliedByVId = new java.util.HashMap<>();
+            java.util.Set<Long> countedInfoIds = new java.util.HashSet<>();
+            for (Object[] row : results) {
+                com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo i = (com.sarthi.SRailPad.entity.ieVerification.RailIEProductionInfo) row[0];
+                RailIEProductionVerification v = (RailIEProductionVerification) row[1];
+                if (v == null || v.getId() == null || i.getId() == null || !countedInfoIds.add(i.getId())) continue;
+                appliedByVId.merge(v.getId(), rejectedInOtherCallsMap.getOrDefault(i.getId(), 0), Integer::sum);
+            }
+            for (Map.Entry<Long, List<RailIEProductionRejection>> e : rejectionsByVIdMap.entrySet()) {
+                int total = e.getValue().stream().mapToInt(r -> r.getRejectedQty() != null ? r.getRejectedQty() : 0).sum();
+                rejectionPoolByVId.put(e.getKey(), Math.max(0, total - appliedByVId.getOrDefault(e.getKey(), 0)));
+            }
+        }
+
         ProcessAvailableBatchDto dto = new ProcessAvailableBatchDto();
         List<ProcessAvailableBatchDto.ProcessBatchDetailDto> batchDtos = new ArrayList<>();
 
@@ -314,9 +334,12 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                             .mapToInt(r -> r.getRejectedQty() != null ? r.getRejectedQty() : 0)
                             .sum();
 
-                    // Rejections are consumed once in the first call where this batch is inspected
-                    int remainingRejection = Math.max(0, originalRejectedQty - alreadyRejected);
-                    if (remainingRejection > 0 && alreadyRejected == 0) {
+                    // Rejections are consumed once: what this batch still owes, capped by what is still
+                    // unapplied for the whole verification (so a re-split after unblock is not counted twice)
+                    int pool = rejectionPoolByVId.getOrDefault(v.getId(), 0);
+                    int remainingRejection = Math.min(Math.max(0, originalRejectedQty - alreadyRejected), pool);
+                    if (remainingRejection > 0) {
+                        rejectionPoolByVId.put(v.getId(), pool - remainingRejection);
                         String combinedReasons = batchRejections.stream()
                                 .map(r -> r.getReason())
                                 .filter(reason -> reason != null && !reason.isBlank())
@@ -325,13 +348,23 @@ public class RailProcessCallServiceImpl implements RailProcessCallService {
                         bd.setVerificationRejectedQty(remainingRejection);
                         bd.setVerificationRejectedReason(combinedReasons);
 
-                        List<ProcessAvailableBatchDto.RejectionDetailDto> rejectionDtos = batchRejections.stream().map(r -> {
+                        List<ProcessAvailableBatchDto.RejectionDetailDto> rejectionDtos;
+                        if (remainingRejection == originalRejectedQty) {
+                            rejectionDtos = batchRejections.stream().map(r -> {
+                                ProcessAvailableBatchDto.RejectionDetailDto rDto = new ProcessAvailableBatchDto.RejectionDetailDto();
+                                rDto.setDrawingNo(r.getDrawingNo());
+                                rDto.setReason(r.getReason());
+                                rDto.setRejectedQty(r.getRejectedQty());
+                                return rDto;
+                            }).collect(java.util.stream.Collectors.toList());
+                        } else {
+                            // only part of it is still due: one line so the detail adds up to the total shown
                             ProcessAvailableBatchDto.RejectionDetailDto rDto = new ProcessAvailableBatchDto.RejectionDetailDto();
-                            rDto.setDrawingNo(r.getDrawingNo());
-                            rDto.setReason(r.getReason());
-                            rDto.setRejectedQty(r.getRejectedQty());
-                            return rDto;
-                        }).collect(java.util.stream.Collectors.toList());
+                            rDto.setDrawingNo(i.getDrawingNo());
+                            rDto.setReason(combinedReasons);
+                            rDto.setRejectedQty(remainingRejection);
+                            rejectionDtos = java.util.List.of(rDto);
+                        }
                         bd.setRejections(rejectionDtos);
                     } else {
                         bd.setVerificationRejectedQty(0);

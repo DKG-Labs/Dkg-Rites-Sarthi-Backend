@@ -45,6 +45,11 @@
                     <td th:text="${poi}"></td>
                 </tr>
 
+                <tr th:if="${poiAddress != null and !#strings.isEmpty(poiAddress)}">
+                  <td><b>Address</b></td>
+                  <td th:text="${poiAddress}"></td>
+                </tr>
+
                 <tr>
                     <td><b>Status</b></td>
                     <td th:text="${status}"></td>

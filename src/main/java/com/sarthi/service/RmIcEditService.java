@@ -16,6 +16,7 @@ import java.util.Optional;
 public class RmIcEditService {
 
     private final RmIcEditRepository rmIcEditRepository;
+    private final com.sarthi.bookset.BookSetUsageGuard bookSetGuard;
 
     @Transactional(readOnly = true)
     public RmIcEditDTO getByIcNumber(String icNumber) {
@@ -31,6 +32,7 @@ public class RmIcEditService {
 
         entity.setIcNumber(dto.getIcNumber());
         entity.setCertificateId(dto.getCertificateId());
+        bookSetGuard.claim(dto.getBookNo(), dto.getSetNo(), dto.getIcNumber(), "ERC_RM");
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setOfferedInstallmentNo(dto.getOfferedInstallmentNo());

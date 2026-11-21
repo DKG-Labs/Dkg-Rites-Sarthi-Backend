@@ -16,6 +16,9 @@ public interface IbsService {
     public List<IbsInspectionDto> getAllGeneratedIcCalls();
     public List<IbsInspectionDto> getCompletedIbsCalls();
 
+    /** Completed-call rows for just these registrations (used for paging). */
+    List<IbsInspectionDto> getCompletedIbsCallsFor(java.util.List<com.sarthi.entity.IBS.IbsCallRegistration> registrations);
+
     public String acknowledgeCallData(
             IbsAcknowledgementDto dto
     );

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RailpadProcessIcSaveChangesServiceImpl implements RailpadProcessIcSaveChangesService {
 
     private final RailpadProcessIcSaveChangesRepository repository;
+    private final com.sarthi.bookset.BookSetUsageGuard bookSetGuard;
 
     @Override
     public RailpadProcessIcEditDTO getByIcNumber(String icNumber) {
@@ -32,6 +33,7 @@ public class RailpadProcessIcSaveChangesServiceImpl implements RailpadProcessIcS
 
     private void mapToEntity(RailpadProcessIcEditDTO dto, RailpadProcessIcSaveChanges entity) {
         entity.setIcNumber(dto.getIcNumber());
+        bookSetGuard.claim(dto.getBookNo(), dto.getSetNo(), dto.getIcNumber(), "RAILPAD_PROCESS");
         entity.setBookNo(dto.getBookNo());
         entity.setSetNo(dto.getSetNo());
         entity.setInstallmentNo(dto.getInstallmentNo());

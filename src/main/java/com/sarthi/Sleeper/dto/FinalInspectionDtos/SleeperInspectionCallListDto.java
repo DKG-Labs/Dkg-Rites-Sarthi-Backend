@@ -12,9 +12,9 @@ public class SleeperInspectionCallListDto {
     private String callDate;
     private LocalDate desiredInspectionDate;
     private String sleeperType;
-    private Integer qtyOffered;
-    private Integer acceptedQty;
-    private Integer rejectedQty;
+    private java.math.BigDecimal qtyOffered;
+    private java.math.BigDecimal acceptedQty;
+    private java.math.BigDecimal rejectedQty;
     private Integer batches;
     private String status;
     private String jobStatus;

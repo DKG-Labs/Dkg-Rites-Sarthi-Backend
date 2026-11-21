@@ -212,6 +212,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
     List<Object[]> getSleeperFinalInspectionCalls();
 
     @Query(value = """
+
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(sic.created_at)                                    AS callDate,
@@ -259,18 +260,20 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 0.0                                                     AS rejectCharges,
                 COALESCE(NULLIF(TRIM(vp.rio), ''), NULLIF(TRIM(wt_assigned.rio), ''), '') AS plantRio
             FROM sleeper_inspection_call sic
-            LEFT JOIN sleeper_final_ic_edit f
-                    ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                    OR CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                       CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(f.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                    OR CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
-                       CONVERT(SUBSTRING_INDEX(f.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                    OR CONVERT(f.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
             LEFT JOIN (
-                SELECT swt1.request_id, swt1.assigned_to_user, swt1.rio
+                SELECT e.*, k.call_key
+                FROM sleeper_final_ic_edit e
+                JOIN (
+                    SELECT TRIM(ic_number) AS call_key, id FROM sleeper_final_ic_edit
+                    UNION SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(ic_number, '/', 2), '/', -1)), id FROM sleeper_final_ic_edit WHERE ic_number LIKE '%/%'
+                    UNION SELECT TRIM(SUBSTRING_INDEX(ic_number, '/', 1)), id FROM sleeper_final_ic_edit WHERE ic_number LIKE '%/%'
+                ) k ON k.id = e.id
+            ) f ON f.call_key = sic.call_no
+            LEFT JOIN (
+                SELECT latest_wt.req_key AS request_id, swt1.assigned_to_user, swt1.rio
                 FROM sleeper_workflow_transaction swt1
                 INNER JOIN (
-                    SELECT request_id, MAX(workflow_transition_id) AS max_wt_id
+                    SELECT CONVERT(request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS req_key, MAX(workflow_transition_id) AS max_wt_id
                     FROM sleeper_workflow_transaction
                     WHERE assigned_to_user IS NOT NULL
                       AND request_id IN (:callNumbers)
@@ -278,9 +281,9 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 ) latest_wt
                     ON swt1.workflow_transition_id = latest_wt.max_wt_id
             ) wt_assigned
-                    ON CONVERT(wt_assigned.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                    ON wt_assigned.request_id = sic.call_no
             LEFT JOIN vendor_plant vp
-                   ON CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = sic.plant_id
                    OR CONVERT(REPLACE(TRIM(vp.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(REPLACE(TRIM(sic.plant_id), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
@@ -294,11 +297,11 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
             LEFT JOIN user_master um_assigned
                ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(wt_assigned.assigned_to_user USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN po_header ph
-                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   ON ph.po_no = 
                       CONVERT((CASE WHEN sic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(sic.po_no, '/', 1) ELSE sic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um
-                   ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(f.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(um.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = f.created_by
+                   OR um.employee_code = f.created_by
             LEFT JOIN sleeper_pincode_poi_mapping sppm
                    ON CONVERT(REPLACE(TRIM(sppm.vendor_code), ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                       CONVERT(SUBSTRING_INDEX(TRIM(sic.plant_id), '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
@@ -306,7 +309,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                       CONVERT(CAST(sic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
                    ON (
-                       CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sppm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                       pm.poi_code = sppm.poi_code
                        OR CONVERT(REPLACE(TRIM(pm.poi_code), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
                           CONVERT(REPLACE(TRIM(sic.plant_id), ' ', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
                    )
@@ -323,16 +326,16 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 ) latest_sfr
                     ON sfr1.id = latest_sfr.max_id
             ) sfr
-                   ON CONVERT(sfr.call_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON sfr.call_number = sic.call_no
             LEFT JOIN po_item pi ON pi.po_header_id = ph.id AND (
-                CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                OR CONVERT(pi.item_sr_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                pi.item_sr_no = sic.sr_no
+                OR pi.item_sr_no = CONVERT(SUBSTRING_INDEX(sic.sr_no, '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             )
             WHERE sic.call_no IN (:callNumbers)
               AND UPPER(COALESCE(sic.status, '')) NOT LIKE '%CANCEL%'
               AND NOT EXISTS (
                   SELECT 1 FROM sleeper_workflow_transaction swt_c 
-                  WHERE CONVERT(swt_c.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                  WHERE CONVERT(swt_c.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = sic.call_no
                     AND (UPPER(swt_c.status) LIKE '%CANCEL%' OR UPPER(swt_c.action) LIKE '%CANCEL%' OR UPPER(COALESCE(swt_c.job_status, '')) LIKE '%CANCEL%')
               )
             GROUP BY
@@ -366,7 +369,7 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
                 sfr.rejected_sets_quantity,
                 sfr.sleeper_type,
                 pi.uom
-            """, nativeQuery = true)
+""", nativeQuery = true)
     List<Object[]> getSleeperFinalCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 
     @Modifying
@@ -385,4 +388,10 @@ public interface SleeperFinalIcEditRepository extends JpaRepository<SleeperFinal
             ORDER BY id DESC LIMIT 1
             """, nativeQuery = true)
     List<Object[]> findIcNumberAndCreatedAtByCallNo(@Param("callNo") String callNo);
+
+    /** Move rows saved under an old IC number to the new one (IC number follows the reassigned IE). */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE SleeperFinalIcEdit e SET e.icNumber = :newNo WHERE e.icNumber = :oldNo")
+    int renameIcNumber(@org.springframework.data.repository.query.Param("oldNo") String oldNo,
+                       @org.springframework.data.repository.query.Param("newNo") String newNo);
 }

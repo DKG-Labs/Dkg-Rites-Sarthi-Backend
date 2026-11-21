@@ -41,6 +41,8 @@ public class RailpadFinalIcEditController {
         try {
             RailpadFinalIcEditDTO saved = service.saveOrUpdate(dto);
             return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(saved), HttpStatus.OK);
+        } catch (com.sarthi.bookset.BookSetInUseException e) {
+            return e.toResponse();
         } catch (Exception e) {
             log.error("Error saving Railpad Final IC Edit: ", e);
             throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_INTERNAL, AppConstant.ERROR_TYPE_CODE_INTERNAL, AppConstant.ERROR_TYPE_ERROR, "Failed to save data."));
