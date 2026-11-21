@@ -128,6 +128,7 @@ public class IbsServiceImpl implements IbsService {
     private final com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
     private final com.sarthi.SRailPad.repository.RailWorkflowTransactionRepository railWorkflowTransactionRepository;
     private final WorkflowDeleteHistoryRepository workflowDeleteHistoryRepository;
+    private final com.sarthi.repository.FinalIeMappingRepository finalIeMappingRepository;
     private final ErcDiversionRequestRepository ercDiversionRequestRepository;
     private final ErcDiversionCallAllocationRepository ercDiversionCallAllocationRepository;
     private final PincodePoIMappingRepository pincodePoIMappingRepository;
@@ -4113,6 +4114,11 @@ public class IbsServiceImpl implements IbsService {
                 hist.setDeletedBy(deletedBy);
                 hist.setDeletedOn(now);
                 workflowDeleteHistoryRepository.save(hist);
+                // ERC Final keeps a final_ie_mapping row per workflow step (FK_FINAL_IE_WT, NO ACTION):
+                // remove it first, otherwise deleting the step fails and EF calls cannot be moved back
+                if (wt.getWorkflowTransitionId() != null) {
+                    finalIeMappingRepository.deleteByWorkflowTransitionId(wt.getWorkflowTransitionId());
+                }
                 workflowTransitionRepository.delete(wt);
             }
         }
