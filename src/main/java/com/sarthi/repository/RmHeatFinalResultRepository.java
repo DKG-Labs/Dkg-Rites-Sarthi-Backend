@@ -749,6 +749,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
     List<Object[]> getRmInspectionCalls();
 
     @Query(value = """
+
             SELECT
                 COALESCE(ph.case_no, '')                                AS caseNumber,
                 DATE(ic.created_at)                                     AS callDate,
@@ -781,13 +782,17 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 (CASE WHEN rm.ic_number LIKE '%/%' THEN rm.ic_number ELSE NULLIF(rm.ic_number, '') END) AS callNumber,
                 0.0                                                     AS cancelCharges,
                 0.0                                                     AS rejectCharges,
-                COALESCE(NULLIF(TRIM(wt_latest.rio), ''), '')           AS plantRio
+                COALESCE(NULLIF(TRIM(COALESCE(wt_latest.rio, wt_b.rio)), ''), '')           AS plantRio
             FROM inspection_calls ic
-            LEFT JOIN rm_ic_edit rm
-                   ON CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(rm.ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(SUBSTRING_INDEX(rm.ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%')
+            LEFT JOIN (
+                SELECT e.*, k.call_key
+                FROM rm_ic_edit e
+                JOIN (
+                    SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS call_key, id FROM rm_ic_edit
+                    UNION SELECT CONVERT(SUBSTRING_INDEX(SUBSTRING_INDEX(ic_number, '/', 2), '/', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci, id FROM rm_ic_edit WHERE ic_number LIKE '%/%'
+                    UNION SELECT CONVERT(SUBSTRING_INDEX(ic_number, '/', 1) USING utf8mb4) COLLATE utf8mb4_unicode_ci, id FROM rm_ic_edit WHERE ic_number LIKE '%/%'
+                ) k ON k.id = e.id
+            ) rm ON rm.call_key = ic.ic_number
             LEFT JOIN (
                 SELECT icd1.call_no, icd1.certificate_no, icd1.created_on
                 FROM inspection_complete_details icd1
@@ -797,12 +802,12 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                     WHERE call_no IN (:callNumbers)
                     GROUP BY call_no
                 ) latest_icd ON icd1.id = latest_icd.max_id
-            ) icd ON CONVERT(icd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            ) icd ON icd.call_no = ic.ic_number
             LEFT JOIN po_header ph
-                   ON CONVERT(ph.po_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = 
+                   ON ph.po_no = 
                       CONVERT((CASE WHEN ic.po_no LIKE '%/%' THEN SUBSTRING_INDEX(ic.po_no, '/', 1) ELSE ic.po_no END) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN sarthi_ibs_poi_mapping pm
-                   ON CONVERT(pm.poi_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.place_of_inspection USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON pm.poi_code = ic.place_of_inspection
                   AND pm.product_type = 'erc'
             LEFT JOIN (
                 SELECT wt1.requestid, wt1.assigned_to_user, wt1.createdby, wt1.status, wt1.action, wt1.rio
@@ -814,20 +819,30 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                     GROUP BY requestid
                 ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
             ) wt_latest
-                   ON CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR (rm.ic_number IS NOT NULL AND CONVERT(wt_latest.requestid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+                   ON wt_latest.requestid = ic.ic_number
+            LEFT JOIN (
+                SELECT wt1.requestid, wt1.assigned_to_user, wt1.createdby, wt1.status, wt1.action, wt1.rio
+                FROM workflow_transition wt1
+                INNER JOIN (
+                    SELECT requestid, MAX(workflowtransitionid) AS max_wt_id
+                    FROM workflow_transition
+                    WHERE requestid IN (:callNumbers)
+                    GROUP BY requestid
+                ) latest_wt ON wt1.workflowtransitionid = latest_wt.max_wt_id
+            ) wt_b
+                   ON wt_latest.requestid IS NULL AND rm.ic_number IS NOT NULL AND wt_b.requestid = CONVERT(rm.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_rm
                    ON CONVERT(um_rm.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_rm.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR um_rm.employee_code = CONVERT(rm.created_by USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_assigned
-                   ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_assigned.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.assigned_to_user AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(um_assigned.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(COALESCE(wt_latest.assigned_to_user, wt_b.assigned_to_user) AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR um_assigned.employee_code = CONVERT(CAST(COALESCE(wt_latest.assigned_to_user, wt_b.assigned_to_user) AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_wt
-                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_wt.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(wt_latest.createdby AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   ON CONVERT(um_wt.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(COALESCE(wt_latest.createdby, wt_b.createdby) AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR um_wt.employee_code = CONVERT(CAST(COALESCE(wt_latest.createdby, wt_b.createdby) AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN user_master um_ic
                    ON CONVERT(um_ic.userid USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
-                   OR CONVERT(um_ic.employee_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+                   OR um_ic.employee_code = CONVERT(CAST(ic.created_by AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
             LEFT JOIN (
                 SELECT 
                     rmr_sub.inspection_call_no,
@@ -837,7 +852,7 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 FROM rm_heat_final_result rmr_sub
                 WHERE rmr_sub.inspection_call_no IN (:callNumbers)
                 GROUP BY rmr_sub.inspection_call_no
-            ) rmr ON CONVERT(rmr.inspection_call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(ic.ic_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            ) rmr ON rmr.inspection_call_no = ic.ic_number
             WHERE ic.ic_number IN (:callNumbers)
               AND (ic.ic_number LIKE 'ER%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%RAW%' OR UPPER(COALESCE(ic.type_of_call, '')) LIKE '%RM%' OR UPPER(COALESCE(ic.type_of_call, '')) = 'S' OR rm.ic_number IS NOT NULL)
             GROUP BY
@@ -866,9 +881,9 @@ public interface RmHeatFinalResultRepository extends JpaRepository<RmHeatFinalRe
                 rmr.offered_qty,
                 rmr.total_accepted,
                 rmr.total_rejected,
-                wt_latest.rio,
+                wt_latest.rio, wt_b.rio,
                 ic.id
-            """, nativeQuery = true)
+""", nativeQuery = true)
     List<Object[]> getRmCompletedInspectionCalls(@Param("callNumbers") java.util.Collection<String> callNumbers);
 
     /** Bulk fetch: SUM(accepted_qty_mt) per ic_number for a list of RM call numbers */

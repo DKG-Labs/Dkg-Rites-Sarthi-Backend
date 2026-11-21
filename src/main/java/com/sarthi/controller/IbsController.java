@@ -93,11 +93,9 @@ public class IbsController {
     ) {
 
         jwtService.validateToken(authHeader);
-        Object ackResult = service.acknowledgeCallData(dto);
-        completedCallsQuery.invalidate();
         return new ResponseEntity<Object>(
                 ResponseBuilder.getSuccessResponse(
-                        ackResult
+                        service.acknowledgeCallData(dto)
                 ),
                 HttpStatus.OK
         );
@@ -114,7 +112,7 @@ public class IbsController {
     @PostMapping("/ibs/save-case-no")
     public ResponseEntity<Object> saveIbsCaseNo(@RequestBody Map<String, Object> payload) {
         return new ResponseEntity<>(
-                ResponseBuilder.getSuccessResponse(saveCaseNoAndInvalidate(payload)),
+                ResponseBuilder.getSuccessResponse(service.saveIbsCaseNo(payload)),
                 HttpStatus.OK
         );
     }
@@ -128,27 +126,15 @@ public class IbsController {
         jwtService.validateToken(authHeader);
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(
-                        revertAndInvalidate(callNumber, deletedBy)
+                        service.revertIbsCallToCompleted(callNumber, deletedBy)
                 ),
                 HttpStatus.OK
         );
     }
 
-    private Object saveCaseNoAndInvalidate(Map<String, Object> payload) {
-        Object r = service.saveIbsCaseNo(payload);
-        completedCallsQuery.invalidate();
-        return r;
-    }
-
-    private Object revertAndInvalidate(String callNumber, Integer deletedBy) {
-        Object r = service.revertIbsCallToCompleted(callNumber, deletedBy);
-        completedCallsQuery.invalidate();
-        return r;
-    }
-
     /**
-     * Completed calls, filtered / sorted / paged on the server.
-     * size=0 returns every matching row (CSV export). refresh=true rebuilds the cached list.
+     * Completed calls with normal paging: the database picks the page, details are loaded only for that page.
+     * size=0 returns every matching row (CSV export).
      */
     @GetMapping("/ibs/completed-inspection-data/search")
     public ResponseEntity<Object> searchCompletedCallData(
@@ -157,21 +143,15 @@ public class IbsController {
             @RequestParam(defaultValue = "25") int size,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String product,
-            @RequestParam(required = false) String region,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String search,
-            @RequestParam(required = false, defaultValue = "ACK") String dateField,
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to,
-            @RequestParam(required = false) String sortKey,
-            @RequestParam(required = false, defaultValue = "asc") String sortDir,
-            @RequestParam(defaultValue = "false") boolean refresh) {
+            @RequestParam(required = false) String to) {
 
         jwtService.validateToken(authHeader);
         return new ResponseEntity<>(
                 ResponseBuilder.getSuccessResponse(completedCallsQuery.search(
-                        page, Math.min(size, 500), category, product, region, status, search,
-                        dateField, from, to, sortKey, sortDir, refresh)),
+                        page, size, category, product, status, search, from, to)),
                 HttpStatus.OK);
     }
 }

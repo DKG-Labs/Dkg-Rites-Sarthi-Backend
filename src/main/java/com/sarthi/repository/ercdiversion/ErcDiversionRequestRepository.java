@@ -18,6 +18,9 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
     @EntityGraph(attributePaths = {"items"})
     Optional<ErcDiversionRequest> findByRequestNo(String requestNo);
 
+    /** Batch version for list screens (one query instead of one per call). */
+    List<ErcDiversionRequest> findByRequestNoIn(java.util.Collection<String> requestNos);
+
     @EntityGraph(attributePaths = {"items"})
     List<ErcDiversionRequest> findByVendorCodeOrderByCreatedDateDesc(String vendorCode);
 
