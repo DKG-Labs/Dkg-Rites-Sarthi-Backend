@@ -227,7 +227,16 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         if ("DIVERTED_PASSED".equalsIgnoreCase(src.getCallCategory())) throw invalid("A diverted IC cannot be diverted again");
         String expectedType = stage == DiversionStage.PROCESS ? "PROCESS" : "FINAL";
         if (!expectedType.equalsIgnoreCase(src.getCallType())) throw invalid("Source IC is not a " + expectedType + " IC");
-        if (dto.getTargetPoNo().trim().equals(src.getPoNo()) && dto.getTargetPoSrNo().trim().equals(src.getPoSr())) {
+        // Older calls store the PO as "PO/SR" with po_sr empty: split so PO and serial are separate
+        // (same as the source-IC list). source_po_sr_no is NOT NULL, so an empty serial failed the save.
+        String srcPoNo = src.getPoNo() != null ? src.getPoNo().trim() : null;
+        String srcPoSr = src.getPoSr() != null ? src.getPoSr().trim() : null;
+        if ((srcPoSr == null || srcPoSr.isEmpty()) && srcPoNo != null && srcPoNo.contains("/")) {
+            srcPoSr = srcPoNo.substring(srcPoNo.lastIndexOf('/') + 1).trim();
+            srcPoNo = srcPoNo.substring(0, srcPoNo.lastIndexOf('/')).trim();
+        }
+        if (srcPoSr == null || srcPoSr.isEmpty()) throw invalid("Source IC has no PO serial number");
+        if (dto.getTargetPoNo().trim().equals(srcPoNo) && dto.getTargetPoSrNo().trim().equals(srcPoSr)) {
             throw invalid("Target PO serial must be different from the source PO serial");
         }
 
@@ -240,8 +249,8 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         req.setCmUserId(dto.getCmUserId().trim());
         req.setStage(stage);
         req.setDiversionType(type);
-        req.setSourcePoNo(src.getPoNo());
-        req.setSourcePoSrNo(src.getPoSr());
+        req.setSourcePoNo(srcPoNo);
+        req.setSourcePoSrNo(srcPoSr);
         req.setSourceCallNo(callNo);
         req.setSourceIcNo(certificateNoOf(callNo, dto.getSourceIcNo()));
         req.setTargetPoNo(dto.getTargetPoNo().trim());
