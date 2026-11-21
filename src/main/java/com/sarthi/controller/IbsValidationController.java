@@ -28,7 +28,7 @@ public class IbsValidationController {
         if (conflict.isPresent()) {
             return ResponseEntity.ok(Map.of(
                     "resultFlag", 0,
-                    "message", com.sarthi.bookset.BookSetUsageGuard.conflictMessage(conflict.get())));
+                    "message", bookSetGuard.conflictMessage(conflict.get())));
         }
 
         RestTemplate restTemplate = new RestTemplate();

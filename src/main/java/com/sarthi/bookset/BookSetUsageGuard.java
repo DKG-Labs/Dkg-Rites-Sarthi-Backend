@@ -20,6 +20,7 @@ import java.util.Optional;
 public class BookSetUsageGuard {
 
     private final IcBookSetUsageRepository repository;
+    private final com.sarthi.repository.UserMasterRepository userMasterRepository;
 
     /** The IC that already holds this pair, if it is a different IC. Empty when free or held by this same IC. */
     @Transactional(readOnly = true)
@@ -30,11 +31,30 @@ public class BookSetUsageGuard {
                 .filter(u -> key == null || !u.getIcKey().equals(key));
     }
 
-    public static String conflictMessage(IcBookSetUsage u) {
+    /** e.g. "...already used for IC W/ER-02180005/KJM by KAMAL J MEHTA (Emp. Code 12345)..." */
+    public String conflictMessage(IcBookSetUsage u) {
         return "Book No. " + u.getBookNo() + " / Set No. " + u.getSetNo()
                 + " is already used for IC " + u.getIcNumber()
-                + (u.getUserId() != null ? " by user ID " + u.getUserId() : "")
+                + usedBy(u.getUserId())
                 + ". Please use a different Book No. / Set No.";
+    }
+
+    /** " by NAME (Emp. Code X)" from the stored user ID; empty when the user can't be found. */
+    private String usedBy(String userId) {
+        if (userId == null || userId.isBlank()) return "";
+        UserMaster user = null;
+        try {
+            user = userMasterRepository.findByUserId(Integer.valueOf(userId.trim())).orElse(null);
+        } catch (NumberFormatException ignored) {
+            // older rows may hold something other than a numeric user ID
+        }
+        if (user == null) return "";
+        String name = user.getUserName() != null ? user.getUserName().trim() : "";
+        String emp = user.getEmployeeCode() != null && !user.getEmployeeCode().isBlank()
+                ? user.getEmployeeCode().trim()
+                : (user.getRitesEmployeeCode() != null ? String.valueOf(user.getRitesEmployeeCode()) : "");
+        if (name.isEmpty() && emp.isEmpty()) return "";
+        return " by " + (name.isEmpty() ? "" : name) + (emp.isEmpty() ? "" : (name.isEmpty() ? "" : " ") + "(Emp. Code " + emp + ")");
     }
 
     /**
