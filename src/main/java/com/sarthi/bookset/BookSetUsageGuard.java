@@ -49,7 +49,8 @@ public class BookSetUsageGuard {
             // older rows may hold something other than a numeric user ID
         }
         if (user == null) return "";
-        String name = user.getUserName() != null ? user.getUserName().trim() : "";
+        // UserMaster exposes userName via UserDetails.getUsername() (Lombok skips getUserName)
+        String name = user.getUsername() != null ? user.getUsername().trim() : "";
         String emp = user.getEmployeeCode() != null && !user.getEmployeeCode().isBlank()
                 ? user.getEmployeeCode().trim()
                 : (user.getRitesEmployeeCode() != null ? String.valueOf(user.getRitesEmployeeCode()) : "");
