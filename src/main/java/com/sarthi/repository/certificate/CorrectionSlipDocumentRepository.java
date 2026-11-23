@@ -29,15 +29,11 @@ public interface CorrectionSlipDocumentRepository extends JpaRepository<Correcti
        WHERE (
            d.callNo IN :variations
            OR d.icNumber IN :variations
-           OR d.callNo LIKE CONCAT('%', :clean, '%')
-           OR :clean LIKE CONCAT('%', d.callNo, '%')
-           OR (d.icNumber IS NOT NULL AND d.icNumber <> '' AND (d.icNumber LIKE CONCAT('%', :clean, '%') OR :clean LIKE CONCAT('%', d.icNumber, '%')))
        )
        AND (d.status IS NULL OR UPPER(d.status) NOT IN ('DELETED', 'CANCELLED', 'INACTIVE'))
        ORDER BY d.uploadedAt ASC, d.id ASC
     """)
     List<CorrectionSlipDocument> findAllMatchingForCall(
-            @Param("variations") List<String> variations,
-            @Param("clean") String clean
+            @Param("variations") List<String> variations
     );
 }

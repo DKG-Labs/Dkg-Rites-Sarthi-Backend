@@ -4,6 +4,7 @@ import com.sarthi.dto.CorrectionSlipRequestDTO;
 import com.sarthi.dto.CorrectionSlipResponseDTO;
 import com.sarthi.entity.CorrectionSlip;
 import com.sarthi.repository.CorrectionSlipRepository;
+import com.sarthi.repository.UserMasterRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 public class CorrectionSlipService {
 
     private final CorrectionSlipRepository correctionSlipRepository;
+    private final UserMasterRepository userMasterRepository;
 
     // ─── Fetch ───────────────────────────────────────────────────────────────
 
@@ -80,6 +82,35 @@ public class CorrectionSlipService {
         String clean = callNo.trim();
         correctionSlipRepository.deleteAllByCallNo(clean);
         log.info("🗑️ Deleted correction slip rows for call: {}", clean);
+    }
+
+    // ─── Uploader name ───────────────────────────────────────────────────────
+
+    /**
+     * Resolves the full name of the user who uploaded a correction slip.
+     * The stored value is a user id (numeric) or a login name; returns "" when no full name is found.
+     */
+    @Transactional(readOnly = true)
+    public String resolveUserFullName(String userIdOrLogin) {
+        if (!StringUtils.hasText(userIdOrLogin)) {
+            return "";
+        }
+        String key = userIdOrLogin.trim();
+        java.util.Optional<com.sarthi.entity.UserMaster> user;
+        if (key.matches("\\d+")) {
+            try {
+                user = userMasterRepository.findByUserId(Integer.valueOf(key));
+            } catch (NumberFormatException e) {
+                return "";
+            }
+        } else {
+            user = userMasterRepository.findFirstByUserName(key);
+        }
+        return user
+                .map(com.sarthi.entity.UserMaster::getFullName)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .orElse("");
     }
 
     // ─── Validation ──────────────────────────────────────────────────────────
