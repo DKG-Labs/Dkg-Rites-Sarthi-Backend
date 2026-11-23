@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 public class InspectionCallSection1Response {
     private String rlyPoNo;
     private LocalDateTime poDate;
-    private Integer poQty;
+    private java.math.BigDecimal poQty;
     private String uom;
     private String vendorName;
     private String maNo;

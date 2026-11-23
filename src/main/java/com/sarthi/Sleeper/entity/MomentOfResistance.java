@@ -55,4 +55,12 @@ public class MomentOfResistance {
         @Column(name = "updated_date")
         private LocalDateTime updatedDate;
 
+        /** Fresh (first test) or Retest (double testing of 2 other sleepers); see sleeper.mr.retest-test-type */
+        @Column(name = "mr_test_type")
+        private String mrTestType;
+
+        /** production_declaration.id (the lot) the samples were taken from */
+        @Column(name = "production_declaration_id")
+        private Long productionDeclarationId;
+
 }

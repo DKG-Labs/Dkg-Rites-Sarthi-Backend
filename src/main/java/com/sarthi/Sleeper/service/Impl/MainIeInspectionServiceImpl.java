@@ -85,7 +85,8 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         dto.setNoOfBatches(batchCount);
 
         // Total Rejected
-        dto.setTotalRejected(call.getTotalRejected());
+        dto.setTotalRejected(call.getTotalRejected() != null
+                ? java.math.BigDecimal.valueOf(call.getTotalRejected()) : null);
 
         // 🔥 Calculate Accepted
         int accepted = 0;
@@ -99,7 +100,7 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             }
         }
 
-        dto.setTotalAccepted(accepted);
+        dto.setTotalAccepted(java.math.BigDecimal.valueOf(accepted));
 
         // If sleeper final result exists, prioritize its verified inspection totals
         sleeperFinalResultRepository.findByCallNumber(callNo).ifPresent(sfr -> {
@@ -108,11 +109,12 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                     dto.setQtyOfferedNow(sfr.getTotalOfferedQuantity());
                 }
             }
+            // Keep the saved decimals (e.g. 117.20 / 8.30 RMT) instead of truncating to whole numbers
             if (sfr.getTotalAccepted() != null) {
-                dto.setTotalAccepted(sfr.getTotalAccepted().intValue());
+                dto.setTotalAccepted(sfr.getTotalAccepted());
             }
             if (sfr.getTotalRejected() != null) {
-                dto.setTotalRejected(sfr.getTotalRejected().intValue());
+                dto.setTotalRejected(sfr.getTotalRejected());
             }
         });
 

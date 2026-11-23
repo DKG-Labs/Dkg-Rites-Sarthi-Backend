@@ -280,6 +280,11 @@ GROUP BY d.id,d.batchNumber,g.sleeperType,g.sleeperCategory,d.totalCastedSleeper
     /** True when this water cube test is the one that rejected a batch (such a test is locked). */
     boolean existsByLotRejectedByTestId(Long lotRejectedByTestId);
 
+    /** True when this test (of the given type: water cube or MR) is the one that rejected a batch. */
+    boolean existsByLotRejectedByTestIdAndLotRejectedByTestType(
+            Long lotRejectedByTestId,
+            com.sarthi.Sleeper.entity.ProductionDeclaration.LotRejectionTestType lotRejectedByTestType);
+
     @Query("SELECT DISTINCT p.batchNumber FROM ProductionDeclaration p " +
             "WHERE p.createdBy = :createdBy AND p.castingDate = :castingDate")
     List<String> findBatchNumbers(@Param("createdBy") Long createdBy,

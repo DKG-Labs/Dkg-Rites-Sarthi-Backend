@@ -58,6 +58,10 @@ public class MomentOfResistanceTest {
         @Column(name = "updated_date")
         private LocalDateTime updatedDate;
 
+        /** moment_of_resistance.id (the sample declaration) this result belongs to; set when the result is created */
+        @Column(name = "moment_of_resistance_id")
+        private Long momentOfResistanceId;
+
 
         @OneToMany(mappedBy = "mrTest", cascade = CascadeType.ALL, orphanRemoval = true)
         private List<MomentOfResistanceDetail> details;

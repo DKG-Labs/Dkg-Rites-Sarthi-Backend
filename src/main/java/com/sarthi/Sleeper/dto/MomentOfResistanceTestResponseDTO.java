@@ -29,4 +29,10 @@ public class MomentOfResistanceTestResponseDTO {
     private LocalDateTime updatedDate;
 
     private List<MomentOfResistanceDetailResponseDTO> details;
+
+    /** Set on create/update: true when this result (a Fail in double testing) rejected the lot */
+    private Boolean lotRejected;
+    private String rejectedBatchNumber;
+    /** Inspection calls (not cancelled/withdrawn) that still carry the rejected lot */
+    private List<String> openCallNos;
 }

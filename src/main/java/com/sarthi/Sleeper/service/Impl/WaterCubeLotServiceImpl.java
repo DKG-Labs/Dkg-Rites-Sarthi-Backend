@@ -4,6 +4,7 @@ import com.sarthi.Sleeper.dto.FinalInspectionDtos.WaterCubeStrengthDetailRequest
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.WaterCubeStrengthTestRequestDto;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
 import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest;
+import com.sarthi.Sleeper.entity.ProductionDeclaration.LotRejectionTestType;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.LotStatus;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
@@ -176,13 +177,32 @@ public class WaterCubeLotServiceImpl implements WaterCubeLotService {
         ProductionDeclaration pd = productionDeclarationRepository.findById(batchId)
                 .orElseThrow(() -> validation("Production batch " + batchId + " not found for the failed water cube test."));
 
+        return reject(pd, rules.getRejectionReason(), LotRejectionTestType.WATER_CUBE, test.getId(), userId);
+    }
+
+    @Override
+    public Rejection rejectBatch(Long productionDeclarationId, String reason, LotRejectionTestType testType,
+                                 Long testId, Long userId) {
+        if (productionDeclarationId == null) {
+            throw validation("The failed test is not linked to a production batch, so the lot cannot be rejected.");
+        }
+        final Long batchId = productionDeclarationId;
+        ProductionDeclaration pd = productionDeclarationRepository.findById(batchId)
+                .orElseThrow(() -> validation("Production batch " + batchId + " not found for the failed test."));
+
+        return reject(pd, reason, testType, testId, userId);
+    }
+
+    private Rejection reject(ProductionDeclaration pd, String reason, LotRejectionTestType testType,
+                             Long testId, Long userId) {
         // An already rejected batch keeps its original rejection (and rejecting test)
         if (!isRejected(pd)) {
             pd.setLotStatus(LotStatus.REJECTED);
-            pd.setLotRejectionReason(rules.getRejectionReason());
+            pd.setLotRejectionReason(reason);
             pd.setLotRejectedAt(LocalDateTime.now());
             pd.setLotRejectedBy(userId);
-            pd.setLotRejectedByTestId(test.getId());
+            pd.setLotRejectedByTestId(testId);
+            pd.setLotRejectedByTestType(testType);
             productionDeclarationRepository.save(pd);
         }
 
@@ -227,7 +247,13 @@ public class WaterCubeLotServiceImpl implements WaterCubeLotService {
 
     @Override
     public boolean isRejectingTest(Long testId) {
-        return testId != null && productionDeclarationRepository.existsByLotRejectedByTestId(testId);
+        return isRejectingTest(LotRejectionTestType.WATER_CUBE, testId);
+    }
+
+    @Override
+    public boolean isRejectingTest(LotRejectionTestType testType, Long testId) {
+        return testId != null && testType != null && productionDeclarationRepository
+                .existsByLotRejectedByTestIdAndLotRejectedByTestType(testId, testType);
     }
 
     @Override

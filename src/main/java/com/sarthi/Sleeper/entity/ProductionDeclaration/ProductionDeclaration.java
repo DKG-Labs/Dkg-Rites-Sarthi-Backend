@@ -74,6 +74,11 @@ public class ProductionDeclaration {
         @Column(name = "lot_rejected_by_test_id")
         private Long lotRejectedByTestId;
 
+        /** Which kind of test lotRejectedByTestId refers to (water cube or MR) */
+        @Enumerated(EnumType.STRING)
+        @Column(name = "lot_rejected_by_test_type")
+        private LotRejectionTestType lotRejectedByTestType;
+
         // STRESS BENCH RELATION
 
      //   @OneToMany(mappedBy = "declaration", cascade = CascadeType.ALL)

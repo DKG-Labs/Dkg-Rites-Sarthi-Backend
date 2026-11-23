@@ -27,7 +27,7 @@ public class SectionBRequest {
     private LocalDate origDpStart;
 
     private String stageOfInspection;
-    private Integer callQtyMt;
+    private java.math.BigDecimal callQtyMt;
 
     private String placeOfInspection;
 

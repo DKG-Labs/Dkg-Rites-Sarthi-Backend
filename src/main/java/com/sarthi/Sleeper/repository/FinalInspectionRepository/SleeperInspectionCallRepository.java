@@ -907,6 +907,8 @@ ORDER BY ies.employee_code
             'NOS.'
         ) AS unit,
 
+        pi.uom AS uom,
+
         CONCAT(
             DATE_FORMAT(COALESCE(sic.created_at, CURRENT_DATE()), '%d.%m.%Y'),
             ', Desired Date: ',

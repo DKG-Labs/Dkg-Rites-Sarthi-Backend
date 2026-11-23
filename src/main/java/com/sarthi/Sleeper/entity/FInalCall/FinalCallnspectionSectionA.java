@@ -23,7 +23,8 @@ public class FinalCallnspectionSectionA extends BaseEntity {
     private String rlyPoNo;
     private LocalDateTime poDate;
 
-    private Integer poQty;
+    @Column(name = "po_qty", precision = 12, scale = 2)
+    private java.math.BigDecimal poQty;
     private String vendorName;
 
     private String maNo;

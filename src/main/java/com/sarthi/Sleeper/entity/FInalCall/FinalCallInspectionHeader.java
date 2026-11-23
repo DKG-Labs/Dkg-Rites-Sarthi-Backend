@@ -36,8 +36,8 @@ public class FinalCallInspectionHeader {
     private String vendorName;
 
     // PO Details
-    @Column(name = "po_qty")
-    private Integer poQty;
+    @Column(name = "po_qty", precision = 12, scale = 2)
+    private BigDecimal poQty;
 
     @Column(name = "ma_no")
     private String maNo;

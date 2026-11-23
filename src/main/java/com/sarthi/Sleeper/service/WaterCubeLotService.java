@@ -2,6 +2,7 @@ package com.sarthi.Sleeper.service;
 
 import com.sarthi.Sleeper.dto.FinalInspectionDtos.WaterCubeStrengthTestRequestDto;
 import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest;
+import com.sarthi.Sleeper.entity.ProductionDeclaration.LotRejectionTestType;
 import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 
 import java.util.Collection;
@@ -35,13 +36,22 @@ public interface WaterCubeLotService {
     /** Rejects the batch of the given (saved) failed test. */
     Rejection rejectLot(WaterCubeStrengthTest test, Long fallbackProductionDeclarationId, Long userId);
 
+    /**
+     * Rejects the production batch (lot) with this id because the given test failed: returned to vendor, every
+     * sleeper rejected. An already rejected batch keeps its original rejection.
+     */
+    Rejection rejectBatch(Long productionDeclarationId, String reason, LotRejectionTestType testType, Long testId, Long userId);
+
     boolean isRejected(ProductionDeclaration declaration);
 
     /** True when a stored final_test_result is the configured pass value (case-insensitive, prefix match like before). */
     boolean isPassResult(String finalTestResult);
 
-    /** True when this test rejected a batch; such a test may not be changed or deleted. */
+    /** True when this water cube test rejected a batch; such a test may not be changed or deleted. */
     boolean isRejectingTest(Long testId);
+
+    /** True when this test (of the given type) rejected a batch; such a test may not be changed or deleted. */
+    boolean isRejectingTest(LotRejectionTestType testType, Long testId);
 
     /** Throws when the batch (of the plant) has been rejected. Blank batch numbers are ignored. */
     void assertNotRejected(String batchNumber, String plantId);

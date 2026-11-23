@@ -26,4 +26,7 @@ public class MomentOfResistanceResponseDTO {
 
     private Long updatedBy;
     private LocalDateTime updatedDate;
+
+    private String mrTestType;
+    private Long productionDeclarationId;
 }
