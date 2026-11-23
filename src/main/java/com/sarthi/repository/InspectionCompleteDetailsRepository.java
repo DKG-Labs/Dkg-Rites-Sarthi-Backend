@@ -127,7 +127,7 @@ public interface InspectionCompleteDetailsRepository extends JpaRepository<Inspe
     String findCertificateNoByCallNo(@Param("callNo") String callNo);
 
   @Query("""
-    SELECT i.callNo, i.certificateNo
+    SELECT i.callNo, i.certificateNo, i.createdOn
     FROM InspectionCompleteDetails i
     WHERE i.callNo IN :callNos
 """)

@@ -24,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -61,6 +62,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     private final com.sarthi.SRailPad.repository.RailVendorPlantsRepository railVendorPlantsRepository;
     private final com.sarthi.SRailPad.repository.plantDeclaration.RailApprovedQAPRepository railApprovedQAPRepository;
     private final com.sarthi.repository.UserMasterRepository userMasterRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sarthi.SRailPad.repository.inspectionCall.RailInspectionScheduleRepository railInspectionScheduleRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     private jakarta.persistence.EntityManager entityManager;
@@ -314,16 +318,16 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
     @Override
     public Page<RailInspectionCall> getPaginatedCallsByPlant(String plantId, String statusType, Pageable pageable) {
-        List<String> terminalStatuses = Arrays.asList(
-                "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
-                "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
+        List<String> completedStatuses = Arrays.asList(
                 "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
-                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish",
+                "REJECTED", "Rejected", "REJECT", "Reject",
+                "CANCEL", "Cancel", "CANCELLED", "Cancelled",
                 "SEND_CALL_TO_IBS", "Send_call_to_ibs", "SEND CALL TO IBS", "Send call to ibs",
-                "SEND_TO_IBS", "Send_to_ibs", "SEND TO IBS", "Send to ibs");
+                "SEND_TO_IBS", "Send_to_ibs", "SEND TO IBS", "Send to ibs",
+                "CLOSED", "Closed");
         Page<RailInspectionCall> page;
         if ("pending".equalsIgnoreCase(statusType)) {
-            page = repository.findPendingCallsForPlantNative(plantId, terminalStatuses, pageable);
+            page = repository.findPendingCallsForPlantNative(plantId, completedStatuses, pageable);
         } else {
             page = repository.findByPlantIdOrderByCreatedAtDesc(plantId, pageable);
         }
@@ -335,14 +339,14 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
     @Override
     public Page<RailInspectionCall> getCompletedPaginatedCallsByPlant(String plantId, Pageable pageable) {
         syncMissingWithdrawnCalls();
-        List<String> exactStatuses = Arrays.asList(
-                "Completed", "COMPLETED", "IC_ISSUE", "Ic_issue", "IC ISSUE", "Ic issue",
-                "GENERATE_IC", "Generate_ic", "GENERATE IC", "Generate ic",
+        List<String> completedStatuses = Arrays.asList(
                 "WITHDRAWN", "Withdrawn", "WITHDRAW", "Withdraw",
-                "CANCEL", "Cancel", "CANCELLED", "Cancelled", "FINISH", "Finish",
+                "REJECTED", "Rejected", "REJECT", "Reject",
+                "CANCEL", "Cancel", "CANCELLED", "Cancelled",
                 "SEND_CALL_TO_IBS", "Send_call_to_ibs", "SEND CALL TO IBS", "Send call to ibs",
-                "SEND_TO_IBS", "Send_to_ibs", "SEND TO IBS", "Send to ibs");
-        Page<RailInspectionCall> page = repository.findCompletedCallsForPlantNative(plantId, exactStatuses, pageable);
+                "SEND_TO_IBS", "Send_to_ibs", "SEND TO IBS", "Send to ibs",
+                "CLOSED", "Closed");
+        Page<RailInspectionCall> page = repository.findCompletedCallsForPlantNative(plantId, completedStatuses, pageable);
         page.forEach(this::enrichCallData);
         return page;
     }
@@ -552,7 +556,24 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             }
         }
 
-        // 4. Populate IE Assigned Name & Check IC_GENERATION action in workflow
+        // 4. Fetch schedule if exists
+        if (call.getCallNo() != null && railInspectionScheduleRepository != null) {
+            try {
+                Optional<com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule> schedOpt = 
+                        railInspectionScheduleRepository.findTopByCallNoOrderByIdDesc(call.getCallNo());
+                if (schedOpt.isEmpty()) {
+                    schedOpt = railInspectionScheduleRepository.findByCallNo(call.getCallNo());
+                }
+                if (schedOpt.isPresent()) {
+                    com.sarthi.SRailPad.entity.inspectionCall.RailInspectionSchedule sched = schedOpt.get();
+                    call.setScheduledDate(sched.getScheduleDate());
+                    call.setScheduleStatus(sched.getStatus() != null ? sched.getStatus() : "Scheduled");
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 5. Populate IE Assigned Name & Check IC_GENERATION action in workflow
         // transactions
         boolean isVerified = false;
         boolean hasIcGen = false;
@@ -581,6 +602,9 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 if (latestTx.getAction() != null) {
                     lastAction = latestTx.getAction();
                 }
+                call.setLatestAction(lastAction);
+                call.setJobStatus(latestTx.getJobStatus());
+                call.setWorkflowStatus(latestTx.getStatus());
 
                 // Resolve IE name from assignedToUser in the transactions
                 for (com.sarthi.SRailPad.entity.RailWorkflowTransaction tx : txList) {
@@ -593,6 +617,13 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                                 assignedIeName = (u.getFullName() != null && !u.getFullName().isBlank())
                                         ? u.getFullName().trim()
                                         : u.getUsername();
+                                String mob = (u.getMobileNumber() != null && !u.getMobileNumber().isBlank())
+                                        ? u.getMobileNumber().trim()
+                                        : (u.getAlternateMobileNumber() != null ? u.getAlternateMobileNumber().trim() : "");
+                                if (!mob.isEmpty()) {
+                                    call.setIeContactNo(mob);
+                                    call.setIeMobile(mob);
+                                }
                                 break;
                             }
                         } catch (Exception ignored) {
@@ -605,6 +636,58 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
         call.setIsIcGenerated(hasIcGen);
         call.setLatestAction(lastAction);
 
+        // Determine subStatus and displayStatus for vendor portal
+        String displayStatus = "Pending - Call Raised";
+        String subStatus = "Call Raised";
+        
+        String stUpper = call.getStatus() != null ? call.getStatus().toUpperCase() : "";
+        String jbUpper = call.getJobStatus() != null ? call.getJobStatus().toUpperCase() : "";
+        String actUpper = call.getLatestAction() != null ? call.getLatestAction().toUpperCase() : "";
+        
+        if (stUpper.contains("WITHDRAW")) {
+            displayStatus = "Withdrawn";
+            subStatus = "Withdrawn";
+        } else if (stUpper.contains("CANCEL")) {
+            displayStatus = "Cancelled";
+            subStatus = "Cancelled";
+        } else if (stUpper.contains("REJECT")) {
+            displayStatus = "Rejected";
+            subStatus = "Rejected";
+        } else if (stUpper.contains("IBS") || actUpper.contains("IBS") || "CLOSED".equalsIgnoreCase(stUpper)) {
+            displayStatus = "Send Call to IBS";
+            subStatus = "Sent to IBS";
+        } else if (actUpper.contains("GENERATE_IC") || actUpper.contains("DSC_SIGN") || actUpper.contains("E_SIGN") || actUpper.contains("ESIGN") || stUpper.contains("GENERATE_IC")) {
+            displayStatus = "Completed - E-Signed";
+            subStatus = "E-Signed";
+        } else if (actUpper.contains("IC_ISSUE") || actUpper.contains("ISSUE_IC") || actUpper.contains("IC_ISSUED") || stUpper.contains("IC_ISSUE")) {
+            displayStatus = "Completed - IC Issued";
+            subStatus = "IC Issued";
+        } else if (actUpper.contains("COMPLETE") || actUpper.contains("FINISH") || stUpper.contains("COMPLETE") || jbUpper.contains("COMPLETE")) {
+            displayStatus = "Completed";
+            subStatus = "Completed";
+        } else if (jbUpper.contains("PAUSE") || actUpper.contains("PAUSE")) {
+            displayStatus = "Under Inspection - Paused";
+            subStatus = "Paused for Next Schedule";
+        } else if (jbUpper.contains("INITIATE") || jbUpper.contains("INSPECT") || actUpper.contains("INSPECT")) {
+            displayStatus = "Under Inspection";
+            subStatus = "Under inspection";
+        } else if (call.getScheduledDate() != null || jbUpper.contains("SCHEDULE") || actUpper.contains("SCHEDULE") || stUpper.contains("SCHEDULE")) {
+            displayStatus = "Pending - Call Scheduled";
+            subStatus = "Call Scheduled";
+        } else if (jbUpper.contains("PO_VERIF") || stUpper.contains("PO_VERIF")) {
+            displayStatus = "Pending - PO Verification";
+            subStatus = "PO Verification";
+        } else if (actUpper.contains("VERIFY") || stUpper.contains("REGISTERED") || stUpper.contains("VERIFIED")) {
+            displayStatus = "Pending - Call Registered";
+            subStatus = "Call Registered";
+        } else {
+            displayStatus = "Pending - Call Raised";
+            subStatus = "Call Raised";
+        }
+        
+        call.setDisplayStatus(displayStatus);
+        call.setSubStatus(subStatus);
+
         if (assignedIeName != null && !assignedIeName.isBlank()) {
             call.setIeAssignedName(assignedIeName);
         } else if (!isVerified) {
@@ -615,6 +698,45 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 call.setIeAssignedName(String.join(", ", mainIeNames));
             } else {
                 call.setIeAssignedName("No ie assigned");
+            }
+        }
+
+        // If IE contact number is still not resolved, look it up via rail_poi_ie_mapping or user_master
+        if ((call.getIeContactNo() == null || call.getIeContactNo().isBlank()) && call.getIeAssignedName() != null && !call.getIeAssignedName().equalsIgnoreCase("No ie assigned")) {
+            if (jdbcTemplate != null) {
+                try {
+                    String plantIdClean = call.getPlantId() != null ? call.getPlantId().replace(":", "").trim() : "";
+                    List<String> mobiles = jdbcTemplate.query(
+                        "SELECT COALESCE(NULLIF(TRIM(um.MOBILENUMBER), ''), um.ALTERNATE_MOBILE_NUMBER) as mob " +
+                        "FROM rail_poi_ie_mapping rpm " +
+                        "JOIN user_master um ON um.userid = rpm.ie_user_id " +
+                        "WHERE REPLACE(rpm.plant_id, ':', '') = ? " +
+                        "  AND (UPPER(REPLACE(rpm.ie_type, ' ', '_')) = 'MAIN_IE' OR UPPER(rpm.ie_type) = 'MAIN IE') " +
+                        "  AND (um.MOBILENUMBER IS NOT NULL OR um.ALTERNATE_MOBILE_NUMBER IS NOT NULL) LIMIT 1",
+                        (rs, rowNum) -> rs.getString("mob"),
+                        plantIdClean
+                    );
+                    if (mobiles != null && !mobiles.isEmpty() && mobiles.get(0) != null && !mobiles.get(0).isBlank()) {
+                        call.setIeContactNo(mobiles.get(0).trim());
+                        call.setIeMobile(mobiles.get(0).trim());
+                    } else {
+                        // Fallback: look up by full name in user_master
+                        String ieTargetName = call.getIeAssignedName().trim();
+                        List<String> userMobiles = jdbcTemplate.query(
+                            "SELECT COALESCE(NULLIF(TRIM(um.MOBILENUMBER), ''), um.ALTERNATE_MOBILE_NUMBER) as mob " +
+                            "FROM user_master um " +
+                            "WHERE (LOWER(TRIM(um.FULL_NAME)) = LOWER(?) OR LOWER(TRIM(um.USERNAME)) = LOWER(?)) " +
+                            "  AND (um.MOBILENUMBER IS NOT NULL OR um.ALTERNATE_MOBILE_NUMBER IS NOT NULL) LIMIT 1",
+                            (rs, rowNum) -> rs.getString("mob"),
+                            ieTargetName, ieTargetName
+                        );
+                        if (userMobiles != null && !userMobiles.isEmpty() && userMobiles.get(0) != null && !userMobiles.get(0).isBlank()) {
+                            call.setIeContactNo(userMobiles.get(0).trim());
+                            call.setIeMobile(userMobiles.get(0).trim());
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
             }
         }
 
@@ -644,6 +766,136 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 if (lotRes.getRejectedQty() != null) {
                     call.setRejectedQty(lotRes.getRejectedQty());
                 }
+            }
+        }
+
+        // Fetch IC Number & IC Date (created_at) - Primary tables: railpad_process_ic_edit, railpad_final_ic_edit
+        if (call.getCallNo() != null && jdbcTemplate != null) {
+            String callNo = call.getCallNo().trim();
+            boolean isProcess = callNo.startsWith("RPP-") || "PROCESS".equalsIgnoreCase(call.getCallType());
+            String primaryTable = isProcess ? "railpad_process_ic_edit" : "railpad_final_ic_edit";
+            String secondaryTable = isProcess ? "railpad_final_ic_edit" : "railpad_process_ic_edit";
+
+            for (String tbl : new String[]{primaryTable, secondaryTable}) {
+                try {
+                    List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                        "SELECT ic_number, created_at FROM " + tbl + " " +
+                        "WHERE ic_number = ? " +
+                        "   OR ic_number LIKE CONCAT('%/', ?, '/%') " +
+                        "   OR ic_number LIKE CONCAT('%', ?, '%') " +
+                        "ORDER BY id DESC LIMIT 1",
+                        callNo, callNo, callNo
+                    );
+                    if (rows != null && !rows.isEmpty()) {
+                        Object ic = rows.get(0).get("ic_number");
+                        Object ca = rows.get(0).get("created_at");
+                        if (ic != null && !ic.toString().isBlank()) {
+                            call.setIcNo(ic.toString().trim());
+                        }
+                        if (ca instanceof java.time.LocalDateTime) {
+                            call.setIcDate(((java.time.LocalDateTime) ca).format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                            break;
+                        } else if (ca instanceof java.sql.Timestamp) {
+                            call.setIcDate(((java.sql.Timestamp) ca).toLocalDateTime().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                            break;
+                        } else if (ca instanceof java.sql.Date) {
+                            call.setIcDate(((java.sql.Date) ca).toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                            break;
+                        } else if (ca != null) {
+                            String s = ca.toString().trim();
+                            if (s.length() >= 10) {
+                                String sub = s.substring(0, 10);
+                                if (sub.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+                                    String[] p = sub.split("-");
+                                    call.setIcDate(p[2] + "-" + p[1] + "-" + p[0]);
+                                } else {
+                                    call.setIcDate(sub);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        // Secondary fallback: rail_inspection_complete_details (only if still missing)
+        if ((call.getIcNo() == null || call.getIcNo().isBlank() || call.getIcDate() == null || call.getIcDate().isBlank())
+                && call.getCallNo() != null && railInspectionCompleteDetailsRepository != null) {
+            try {
+                railInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(call.getCallNo())
+                        .ifPresent(icd -> {
+                            if ((call.getIcNo() == null || call.getIcNo().isBlank()) && icd.getCertificateNo() != null && !icd.getCertificateNo().isBlank()) {
+                                call.setIcNo(icd.getCertificateNo().trim());
+                            }
+                            if ((call.getIcDate() == null || call.getIcDate().isBlank()) && icd.getCreatedOn() != null) {
+                                call.setIcDate(icd.getCreatedOn().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                            }
+                        });
+            } catch (Exception ignored) {}
+        }
+
+        // Tertiary fallback: certificate_storage
+        if ((call.getIcNo() == null || call.getIcNo().isBlank() || call.getIcDate() == null || call.getIcDate().isBlank())
+                && call.getCallNo() != null && jdbcTemplate != null) {
+            try {
+                List<Map<String, Object>> csRows = jdbcTemplate.queryForList(
+                    "SELECT ic_number, ic_date, uploaded_at FROM certificate_storage WHERE ic_number = ? OR ic_number LIKE ? OR file_name LIKE ? ORDER BY id DESC LIMIT 1",
+                    call.getCallNo(), "%" + call.getCallNo() + "%", "%" + call.getCallNo() + "%"
+                );
+                if (csRows != null && !csRows.isEmpty()) {
+                    Object ic = csRows.get(0).get("ic_number");
+                    Object icd = csRows.get(0).get("ic_date");
+                    Object up = csRows.get(0).get("uploaded_at");
+                    if ((call.getIcNo() == null || call.getIcNo().isBlank()) && ic != null && !ic.toString().isBlank()) {
+                        call.setIcNo(ic.toString().trim());
+                    }
+                    if (call.getIcDate() == null || call.getIcDate().isBlank()) {
+                        if (icd instanceof java.sql.Date) {
+                            call.setIcDate(((java.sql.Date) icd).toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                        } else if (up instanceof java.sql.Timestamp) {
+                            call.setIcDate(((java.sql.Timestamp) up).toLocalDateTime().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        String rawSt = (call.getStatus() != null ? call.getStatus() : "") + " " + (call.getDisplayStatus() != null ? call.getDisplayStatus() : "");
+        boolean isIbsCall = rawSt.toUpperCase().contains("IBS") || rawSt.toUpperCase().contains("COMPLET");
+        if (isIbsCall) {
+            if (call.getIcNo() == null || call.getIcNo().isBlank()) {
+                call.setIcNo("N/" + call.getCallNo() + "/ARV");
+            }
+            if (call.getIcDate() == null || call.getIcDate().isBlank()) {
+                if (call.getInspectionDate() != null) {
+                    call.setIcDate(call.getInspectionDate().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                } else if (call.getCreatedAt() != null) {
+                    call.setIcDate(call.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+                }
+            }
+        }
+
+        // Populate acceptedQty for general calls if still null
+        if (call.getAcceptedQty() == null && call.getCallNo() != null && !call.getCallNo().isBlank()) {
+            try {
+                Optional<com.sarthi.SRailPad.entity.ieVerification.RailFinalInspectionLotResults> lotResultOpt = 
+                        railFinalInspectionLotResultsRepository.findFirstByCallNoOrderByIdAsc(call.getCallNo());
+                if (lotResultOpt.isEmpty()) {
+                    lotResultOpt = railFinalInspectionLotResultsRepository.findFirstByCallNo(call.getCallNo());
+                }
+                if (lotResultOpt.isPresent() && lotResultOpt.get().getAcceptedQty() != null) {
+                    call.setAcceptedQty(lotResultOpt.get().getAcceptedQty());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (call.getAcceptedQty() == null) {
+            String st = call.getStatus() != null ? call.getStatus().toUpperCase() : "";
+            if (st.contains("WITHDRAW") || st.contains("CANCEL") || st.contains("REJECT")) {
+                call.setAcceptedQty(0);
+            } else {
+                call.setAcceptedQty(call.getTotalQty() != null ? call.getTotalQty() : (call.getOfferedQty() != null ? call.getOfferedQty() : 0));
             }
         }
     }
@@ -1453,6 +1705,18 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                 : (dto.getProcessInspectionCertNo() != null ? dto.getProcessInspectionCertNo().trim() : "");
         if (!certNo.isBlank()) {
             call.setProcessIcNo(certNo);
+        }
+
+        // Validate: Decrease in call quantity should not be allowed
+        int oldQtyVal = call.getTotalQty() != null ? call.getTotalQty() : (call.getOfferedQty() != null ? call.getOfferedQty() : 0);
+        int newQtyVal = dto.getTotalQty() != null ? dto.getTotalQty() : 0;
+        if (oldQtyVal > 0 && newQtyVal > 0 && newQtyVal < oldQtyVal) {
+            throw new IllegalArgumentException("Modification not allowed: Call quantity cannot be decreased. Previous quantity: " 
+                    + oldQtyVal + ", entered: " + newQtyVal);
+        }
+        if (dto.getNoOfSets() != null && call.getNoOfSets() != null && call.getNoOfSets() > 0 && dto.getNoOfSets() < call.getNoOfSets()) {
+            throw new IllegalArgumentException("Modification not allowed: Number of sets cannot be decreased. Previous sets: " 
+                    + call.getNoOfSets() + ", entered: " + dto.getNoOfSets());
         }
 
         // 3. Check Quantity Desired For Final Inspection

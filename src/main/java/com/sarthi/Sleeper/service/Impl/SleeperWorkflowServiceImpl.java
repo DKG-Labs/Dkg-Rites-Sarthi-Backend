@@ -509,26 +509,64 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 dto.setOfferedQty(finalOffered != null ? finalOffered : SleeperQtyUtil.orZero(dto.getOfferedQty()));
                 dto.setAcceptedQty(finalAccepted != null ? finalAccepted : SleeperQtyUtil.orZero(dto.getAcceptedQty()));
                 
-                // Lookup certificate details from SLEEPER_INSPECTION_COMPLETE_DETAILS
-                String certKey = "cert_" + tx.getRequestId();
-                SleeperInspectionCompleteDetails certDetails = null;
-                if (cache.containsKey(certKey)) {
-                    certDetails = (SleeperInspectionCompleteDetails) cache.get(certKey);
-                } else if (sleeperInspectionCompleteDetailsRepository != null) {
-                    certDetails = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId()).orElse(null);
-                    cache.put(certKey, certDetails);
+                // Lookup certificate details: Primary from sleeper_final_ic_edit
+                String editKey = "final_ic_edit_" + tx.getRequestId();
+                Object[] editRow = cache.containsKey(editKey) ? (Object[]) cache.get(editKey) : null;
+                if (editRow == null && jdbcTemplate != null && tx.getRequestId() != null) {
+                    try {
+                        List<java.util.Map<String, Object>> sfRows = jdbcTemplate.queryForList(
+                            "SELECT ic_number, created_at FROM sleeper_final_ic_edit WHERE ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ? ORDER BY id DESC LIMIT 1",
+                            tx.getRequestId(), "%/" + tx.getRequestId() + "/%", "%" + tx.getRequestId() + "%"
+                        );
+                        if (sfRows != null && !sfRows.isEmpty()) {
+                            Object certNo = sfRows.get(0).get("ic_number");
+                            Object crAt = sfRows.get(0).get("created_at");
+                            String icNum = (certNo != null && !certNo.toString().isBlank()) ? certNo.toString().trim() : null;
+                            java.time.LocalDate ld = null;
+                            if (crAt instanceof java.time.LocalDateTime) {
+                                ld = ((java.time.LocalDateTime) crAt).toLocalDate();
+                            } else if (crAt instanceof java.sql.Timestamp) {
+                                ld = ((java.sql.Timestamp) crAt).toLocalDateTime().toLocalDate();
+                            } else if (crAt instanceof java.sql.Date) {
+                                ld = ((java.sql.Date) crAt).toLocalDate();
+                            } else if (crAt != null) {
+                                String s = crAt.toString().trim();
+                                if (s.length() >= 10) {
+                                    try { ld = java.time.LocalDate.parse(s.substring(0, 10)); } catch (Exception ignored) {}
+                                }
+                            }
+                            if (icNum != null) {
+                                editRow = new Object[]{icNum, ld};
+                                cache.put(editKey, editRow);
+                            }
+                        }
+                    } catch (Exception ignored) {}
                 }
 
-                if (certDetails != null && certDetails.getCertificateNo() != null && !certDetails.getCertificateNo().trim().isEmpty()) {
-                    dto.setIcNo(certDetails.getCertificateNo().trim());
-                    if (certDetails.getCreatedOn() != null) {
-                        dto.setIcDate(certDetails.getCreatedOn().toLocalDate());
+                if (editRow != null && editRow[0] != null) {
+                    dto.setIcNo((String) editRow[0]);
+                    dto.setIcDate((java.time.LocalDate) editRow[1]);
+                } else {
+                    String certKey = "cert_" + tx.getRequestId();
+                    SleeperInspectionCompleteDetails certDetails = null;
+                    if (cache.containsKey(certKey)) {
+                        certDetails = (SleeperInspectionCompleteDetails) cache.get(certKey);
+                    } else if (sleeperInspectionCompleteDetailsRepository != null) {
+                        certDetails = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId()).orElse(null);
+                        cache.put(certKey, certDetails);
+                    }
+
+                    if (certDetails != null && certDetails.getCertificateNo() != null && !certDetails.getCertificateNo().trim().isEmpty()) {
+                        dto.setIcNo(certDetails.getCertificateNo().trim());
+                        if (certDetails.getCreatedOn() != null) {
+                            dto.setIcDate(certDetails.getCreatedOn().toLocalDate());
+                        } else {
+                            dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
+                        }
                     } else {
+                        dto.setIcNo("N/" + tx.getRequestId() + "/ARV");
                         dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
                     }
-                } else {
-                    dto.setIcNo("IC-" + tx.getRequestId());
-                    dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
                 }
 
                 String uom = null;
@@ -2112,6 +2150,44 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             String callCacheKey = "call_" + reqId;
             if (!cache.containsKey(callCacheKey)) {
                 cache.put(callCacheKey, null);
+            }
+        }
+
+        // 2a. Preload sleeper_final_ic_edit (Primary Source: ic_number & created_at)
+        if (!requestIds.isEmpty() && jdbcTemplate != null) {
+            try {
+                String sql = "SELECT ic_number, created_at FROM sleeper_final_ic_edit WHERE ic_number IS NOT NULL AND created_at IS NOT NULL ORDER BY id DESC";
+                jdbcTemplate.query(sql, rs -> {
+                    String icNum = rs.getString("ic_number");
+                    Object crAtObj = rs.getObject("created_at");
+                    if (icNum != null && !icNum.isBlank() && crAtObj != null) {
+                        String icTrim = icNum.trim();
+                        for (String reqId : requestIds) {
+                            String key = "final_ic_edit_" + reqId;
+                            if (!cache.containsKey(key)) {
+                                String cleanReq = reqId.trim();
+                                if (icTrim.equals(cleanReq) || icTrim.contains("/" + cleanReq + "/") || icTrim.contains(cleanReq)) {
+                                    java.time.LocalDate ld = null;
+                                    if (crAtObj instanceof java.time.LocalDateTime) {
+                                        ld = ((java.time.LocalDateTime) crAtObj).toLocalDate();
+                                    } else if (crAtObj instanceof java.sql.Timestamp) {
+                                        ld = ((java.sql.Timestamp) crAtObj).toLocalDateTime().toLocalDate();
+                                    } else if (crAtObj instanceof java.sql.Date) {
+                                        ld = ((java.sql.Date) crAtObj).toLocalDate();
+                                    } else {
+                                        String s = crAtObj.toString().trim();
+                                        if (s.length() >= 10) {
+                                            try { ld = java.time.LocalDate.parse(s.substring(0, 10)); } catch (Exception ignored) {}
+                                        }
+                                    }
+                                    cache.put(key, new Object[]{icTrim, ld});
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("Error preloading sleeper_final_ic_edit: {}", e.getMessage());
             }
         }
 

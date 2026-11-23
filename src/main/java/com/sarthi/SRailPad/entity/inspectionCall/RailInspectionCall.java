@@ -140,7 +140,31 @@ public class RailInspectionCall {
     private String ieAssignedName;
 
     @Transient
+    private String ieContactNo;
+
+    @Transient
+    private String ieMobile;
+
+    @Transient
     private String latestAction;
+
+    @Transient
+    private String jobStatus;
+
+    @Transient
+    private String workflowStatus;
+
+    @Transient
+    private String subStatus;
+
+    @Transient
+    private String displayStatus;
+
+    @Transient
+    private LocalDate scheduledDate;
+
+    @Transient
+    private String scheduleStatus;
 
     @Transient
     private Boolean isIcGenerated;
@@ -153,6 +177,12 @@ public class RailInspectionCall {
 
     @Transient
     private Integer rejectedQty;
+
+    @Transient
+    private String icNo;
+
+    @Transient
+    private String icDate;
 
     @OneToMany(mappedBy = "inspectionCall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RailInspectionLot> lots;

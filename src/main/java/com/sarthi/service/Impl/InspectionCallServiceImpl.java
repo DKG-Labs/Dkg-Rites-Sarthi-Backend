@@ -355,6 +355,22 @@ public class InspectionCallServiceImpl implements InspectionCallService {
         RmInspectionDetails rmDetails =
                 inspection.getRmInspectionDetails();
 
+        // Validate: Decrease in call quantity should not be allowed
+        if (rmDto != null && rmDetails != null) {
+            if (rmDto.getOfferedQtyErc() != null && rmDetails.getOfferedQtyErc() != null) {
+                if (rmDto.getOfferedQtyErc() < rmDetails.getOfferedQtyErc()) {
+                    throw new IllegalArgumentException("Modification not allowed: Call quantity cannot be decreased. Previous quantity: " 
+                            + rmDetails.getOfferedQtyErc() + ", entered: " + rmDto.getOfferedQtyErc());
+                }
+            }
+            if (rmDto.getTotalOfferedQtyMt() != null && rmDetails.getTotalOfferedQtyMt() != null) {
+                if (java.math.BigDecimal.valueOf(rmDto.getTotalOfferedQtyMt()).compareTo(rmDetails.getTotalOfferedQtyMt()) < 0) {
+                    throw new IllegalArgumentException("Modification not allowed: Call quantity cannot be decreased. Previous quantity: " 
+                            + rmDetails.getTotalOfferedQtyMt() + " MT, entered: " + rmDto.getTotalOfferedQtyMt() + " MT");
+                }
+            }
+        }
+
         // =====================================================
         // PROCESS INSPECTION CALL DTO
         // =====================================================

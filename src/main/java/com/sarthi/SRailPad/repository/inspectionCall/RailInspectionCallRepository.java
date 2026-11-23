@@ -122,6 +122,10 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') 
             AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT IN (:statuses)
             AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%WITHDRAW%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%REJECT%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%IBS%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) <> 'CLOSED'
             ORDER BY c.created_at DESC
             """,
            countQuery = """
@@ -129,6 +133,10 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             WHERE REPLACE(c.plant_id, ':', '') = REPLACE(:plantId, ':', '') 
             AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT IN (:statuses)
             AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%CANCEL%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%WITHDRAW%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%REJECT%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) NOT LIKE '%IBS%'
+            AND UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) <> 'CLOSED'
             """,
            nativeQuery = true)
     Page<RailInspectionCall> findPendingCallsForPlantNative(@Param("plantId") String plantId, @Param("statuses") List<String> statuses, Pageable pageable);
@@ -139,6 +147,10 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             AND (
                 UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) IN (:statuses)
                 OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%WITHDRAW%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%REJECT%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%IBS%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) = 'CLOSED'
             )
             ORDER BY c.created_at DESC
             """,
@@ -148,6 +160,10 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
             AND (
                 UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) IN (:statuses)
                 OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%CANCEL%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%WITHDRAW%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%REJECT%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) LIKE '%IBS%'
+                OR UPPER(COALESCE((SELECT w.status FROM rail_workflow_transaction w WHERE w.request_id = c.call_no ORDER BY w.workflow_transition_id DESC LIMIT 1), c.status, 'PENDING')) = 'CLOSED'
             )
             """,
            nativeQuery = true)

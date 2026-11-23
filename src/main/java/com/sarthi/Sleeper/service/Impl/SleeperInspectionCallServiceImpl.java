@@ -21,8 +21,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -235,6 +237,9 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
             dto.setBatches(call.getBatchesSelected() != null ? call.getBatchesSelected().size() : 0);
             String effectiveStatus = call.getStatus();
             String jobStatus = null;
+            LocalDate scheduledDate = null;
+            String ieName = "Not Assigned";
+            String ieContactNo = "";
             try {
                 List<java.util.Map<String, Object>> wfList = jdbcTemplate.queryForList(
                     "SELECT swt.status, swt.job_status FROM sleeper_workflow_transaction swt WHERE swt.request_id = ? ORDER BY swt.workflow_transition_id DESC LIMIT 1",
@@ -249,6 +254,133 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
                     }
                     if (js != null && !js.toString().isBlank()) {
                         jobStatus = js.toString().trim();
+                    }
+                }
+
+                // Look for assigned IE in transactions for this call
+                List<java.util.Map<String, Object>> ieRows = jdbcTemplate.queryForList(
+                    "SELECT COALESCE(um.FULL_NAME, um.USERNAME) as ie_name, " +
+                    "COALESCE(NULLIF(TRIM(um.MOBILENUMBER), ''), um.ALTERNATE_MOBILE_NUMBER) as ie_mobile " +
+                    "FROM sleeper_workflow_transaction swt " +
+                    "JOIN user_master um ON um.userid = swt.assigned_to_user " +
+                    "WHERE swt.request_id = ? AND swt.assigned_to_user IS NOT NULL " +
+                    "ORDER BY swt.workflow_transition_id DESC LIMIT 1",
+                    call.getCallNo()
+                );
+                if (ieRows != null && !ieRows.isEmpty()) {
+                    Object ieN = ieRows.get(0).get("ie_name");
+                    Object ieM = ieRows.get(0).get("ie_mobile");
+                    if (ieN != null && !ieN.toString().isBlank()) ieName = ieN.toString().trim();
+                    if (ieM != null && !ieM.toString().isBlank()) ieContactNo = ieM.toString().trim();
+                }
+            } catch (Exception ignored) {}
+
+            dto.setIeName(ieName);
+            dto.setIeContactNo(ieContactNo);
+            dto.setIeMobile(ieContactNo);
+
+            try {
+                List<java.util.Map<String, Object>> schedList = jdbcTemplate.queryForList(
+                    "SELECT schedule_date FROM sleeper_schedule WHERE call_no = ? ORDER BY id DESC LIMIT 1",
+                    call.getCallNo()
+                );
+                if (schedList != null && !schedList.isEmpty()) {
+                    Object sd = schedList.get(0).get("schedule_date");
+                    if (sd instanceof java.sql.Date) {
+                        scheduledDate = ((java.sql.Date) sd).toLocalDate();
+                    } else if (sd instanceof java.time.LocalDate) {
+                        scheduledDate = (java.time.LocalDate) sd;
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            if (scheduledDate != null) {
+                dto.setScheduledDate(scheduledDate);
+                if (jobStatus == null || !jobStatus.toUpperCase().contains("INSPECT")) {
+                    jobStatus = "SCHEDULED";
+                }
+            }
+
+            try {
+                // 1. Primary Source: sleeper_final_ic_edit (fetch ic_number and created_at)
+                if (call.getCallNo() != null) {
+                    List<java.util.Map<String, Object>> sfRows = jdbcTemplate.queryForList(
+                        "SELECT ic_number, created_at FROM sleeper_final_ic_edit WHERE ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ? ORDER BY id DESC LIMIT 1",
+                        call.getCallNo(), "%/" + call.getCallNo() + "/%", "%" + call.getCallNo() + "%"
+                    );
+                    if (sfRows != null && !sfRows.isEmpty()) {
+                        Object certNo = sfRows.get(0).get("ic_number");
+                        Object crAt = sfRows.get(0).get("created_at");
+                        if (certNo != null && !certNo.toString().isBlank()) dto.setIcNo(certNo.toString().trim());
+                        if (crAt instanceof java.time.LocalDateTime) {
+                            dto.setIcDate(((java.time.LocalDateTime) crAt).toLocalDate().toString());
+                        } else if (crAt instanceof java.sql.Timestamp) {
+                            dto.setIcDate(((java.sql.Timestamp) crAt).toLocalDateTime().toLocalDate().toString());
+                        } else if (crAt instanceof java.sql.Date) {
+                            dto.setIcDate(((java.sql.Date) crAt).toLocalDate().toString());
+                        } else if (crAt != null) {
+                            String s = crAt.toString().trim();
+                            if (s.length() >= 10) dto.setIcDate(s.substring(0, 10));
+                        }
+                    }
+                }
+
+                // 2. Secondary fallback: sleeper_inspection_complete_details (only if missing)
+                if ((dto.getIcNo() == null || dto.getIcNo().isBlank() || dto.getIcDate() == null || dto.getIcDate().isBlank()) && call.getCallNo() != null) {
+                    List<java.util.Map<String, Object>> icList = jdbcTemplate.queryForList(
+                        "SELECT certificate_no, created_on FROM sleeper_inspection_complete_details WHERE call_no = ? ORDER BY id DESC LIMIT 1",
+                        call.getCallNo()
+                    );
+                    if (icList != null && !icList.isEmpty()) {
+                        Object certNo = icList.get(0).get("certificate_no");
+                        Object crOn = icList.get(0).get("created_on");
+                        if ((dto.getIcNo() == null || dto.getIcNo().isBlank()) && certNo != null && !certNo.toString().isBlank()) dto.setIcNo(certNo.toString().trim());
+                        if (dto.getIcDate() == null || dto.getIcDate().isBlank()) {
+                            if (crOn instanceof java.time.LocalDateTime) {
+                                dto.setIcDate(((java.time.LocalDateTime) crOn).toLocalDate().toString());
+                            } else if (crOn instanceof java.sql.Timestamp) {
+                                dto.setIcDate(((java.sql.Timestamp) crOn).toLocalDateTime().toLocalDate().toString());
+                            } else if (crOn != null) {
+                                dto.setIcDate(crOn.toString().substring(0, 10));
+                            }
+                        }
+                    }
+                }
+
+                // 3. Tertiary fallback: certificate_storage
+                if ((dto.getIcNo() == null || dto.getIcNo().isBlank() || dto.getIcDate() == null || dto.getIcDate().isBlank()) && call.getCallNo() != null) {
+                    List<java.util.Map<String, Object>> csRows = jdbcTemplate.queryForList(
+                        "SELECT ic_number, ic_date, uploaded_at FROM certificate_storage WHERE ic_number = ? OR ic_number LIKE ? OR file_name LIKE ? ORDER BY id DESC LIMIT 1",
+                        call.getCallNo(), "%" + call.getCallNo() + "%", "%" + call.getCallNo() + "%"
+                    );
+                    if (csRows != null && !csRows.isEmpty()) {
+                        Object certNo = csRows.get(0).get("ic_number");
+                        Object icd = csRows.get(0).get("ic_date");
+                        Object up = csRows.get(0).get("uploaded_at");
+                        if ((dto.getIcNo() == null || dto.getIcNo().isBlank()) && certNo != null && !certNo.toString().isBlank()) dto.setIcNo(certNo.toString().trim());
+                        if (dto.getIcDate() == null || dto.getIcDate().isBlank()) {
+                            if (icd != null) {
+                                dto.setIcDate(icd.toString());
+                            } else if (up instanceof java.time.LocalDateTime) {
+                                dto.setIcDate(((java.time.LocalDateTime) up).toLocalDate().toString());
+                            } else if (up instanceof java.sql.Timestamp) {
+                                dto.setIcDate(((java.sql.Timestamp) up).toLocalDateTime().toLocalDate().toString());
+                            }
+                        }
+                    }
+                }
+
+                String stUpper = (effectiveStatus != null ? effectiveStatus : "").toUpperCase();
+                if (stUpper.contains("IBS") || stUpper.contains("COMPLET")) {
+                    if (dto.getIcNo() == null || dto.getIcNo().isBlank()) {
+                        dto.setIcNo("N/" + call.getCallNo() + "/ARV");
+                    }
+                    if (dto.getIcDate() == null || dto.getIcDate().isBlank()) {
+                        if (call.getDesiredInspectionDate() != null) {
+                            dto.setIcDate(call.getDesiredInspectionDate().toString());
+                        } else if (call.getCreatedAt() != null) {
+                            dto.setIcDate(call.getCreatedAt().toLocalDate().toString());
+                        }
                     }
                 }
             } catch (Exception ignored) {}
@@ -451,7 +583,14 @@ public class SleeperInspectionCallServiceImpl implements SleeperInspectionCallSe
         if (dto.getPoNo() != null) call.setPoNo(dto.getPoNo());
         if (dto.getSrNo() != null) call.setSrNo(dto.getSrNo());
         if (dto.getSleeperType() != null) call.setSleeperType(dto.getSleeperType());
-        if (dto.getTotalOffered() != null) call.setTotalOffered(dto.getTotalOffered());
+        if (dto.getTotalOffered() != null) {
+            BigDecimal previousQty = call.getTotalOffered();
+            if (previousQty != null && previousQty.compareTo(BigDecimal.ZERO) > 0 && dto.getTotalOffered().compareTo(previousQty) < 0) {
+                throw new IllegalArgumentException("Modification not allowed: Call quantity cannot be decreased. Previous quantity: " 
+                        + previousQty + ", entered: " + dto.getTotalOffered());
+            }
+            call.setTotalOffered(dto.getTotalOffered());
+        }
         if (dto.getTotalRejected() != null) call.setTotalRejected(dto.getTotalRejected());
         if (dto.getDesiredInspectionDate() != null) call.setDesiredInspectionDate(dto.getDesiredInspectionDate());
         if (dto.getPlantId() != null) call.setPlantId(dto.getPlantId());

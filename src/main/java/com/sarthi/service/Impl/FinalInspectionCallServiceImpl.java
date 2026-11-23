@@ -648,6 +648,16 @@ public class FinalInspectionCallServiceImpl implements FinalInspectionCallServic
         FinalInspectionDetails finalDetails = finalInspectionDetailsRepository.findByIcId(inspection.getId().longValue())
                 .orElseThrow(() -> new RuntimeException("Final Inspection Details Not Found"));
 
+        // Validate: Decrease in call quantity should not be allowed
+        int prevFinalQty = finalDetails.getTotalOfferedQty() != null ? finalDetails.getTotalOfferedQty() : 0;
+        int newFinalQty = (finalDto != null && finalDto.getTotalOfferedQty() != null && finalDto.getTotalOfferedQty() > 0)
+                ? finalDto.getTotalOfferedQty()
+                : (lotDtoList != null ? lotDtoList.stream().mapToInt(l -> l.getOfferedQty() != null ? l.getOfferedQty() : 0).sum() : 0);
+        if (prevFinalQty > 0 && newFinalQty > 0 && newFinalQty < prevFinalQty) {
+            throw new IllegalArgumentException("Modification not allowed: Call quantity cannot be decreased. Previous quantity: " 
+                    + prevFinalQty + ", entered: " + newFinalQty);
+        }
+
         // 2. Update final details using reflection helper
         if (finalDto != null) {
             // Setup RM IC numbers multi-select if updated

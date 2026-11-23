@@ -22,5 +22,9 @@ public class SleeperInspectionCallListDto {
     private String uom;
     private String icNo;
     private String icDate;
+    private LocalDate scheduledDate;
+    private String ieName;
+    private String ieContactNo;
+    private String ieMobile;
 }
 

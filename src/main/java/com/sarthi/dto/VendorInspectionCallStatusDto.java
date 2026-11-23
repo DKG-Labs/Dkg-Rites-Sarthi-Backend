@@ -47,6 +47,8 @@ public class VendorInspectionCallStatusDto {
     private String lotNoProcess;
     private String lotNoFinal;
     private String ieName;
+    private String ieContactNo;
+    private String ieMobile;
     private String uom;
     private String scheduledDate;
 
@@ -54,6 +56,11 @@ public class VendorInspectionCallStatusDto {
     private String unitName;
     private String createdAt;
     private String updatedAt;
+
+    private String certificateNo;
+    private String certificateDate;
+    private String icNo;
+    private String icDate;
 
     private Long acceptedQty; // Actual accepted quantity from result tables
 }
