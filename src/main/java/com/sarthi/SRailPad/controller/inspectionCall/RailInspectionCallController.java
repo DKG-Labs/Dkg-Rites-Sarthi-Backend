@@ -219,6 +219,16 @@ public class RailInspectionCallController {
         );
     }
 
+    /**
+     * Calls of a plant. Rail Pad plant ids contain '/' (e.g. ":1007406/Mohali"), which cannot travel in the
+     * path, so the id is taken from the query string: GET /plant?plantId=:1007406/Mohali
+     */
+    @GetMapping("/plant")
+    public ResponseEntity<Object> getByPlantParam(@RequestParam String plantId) {
+        return getByPlant(plantId);
+    }
+
+    /** Kept for old callers whose plant id has no '/'. */
     @GetMapping("/plant/{plantId}")
     public ResponseEntity<Object> getByPlant(@PathVariable String plantId) {
         return new ResponseEntity<>(

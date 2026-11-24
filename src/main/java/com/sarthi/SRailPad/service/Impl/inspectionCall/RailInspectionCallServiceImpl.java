@@ -304,7 +304,18 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
 
     @Override
     public List<RailInspectionCall> getAllByPlantId(String plantId) {
-        List<RailInspectionCall> calls = repository.findAllByPlantId(plantId);
+        // Calls store the plant id without the leading ':' ("1007406/Mohali") while the vendor app sends
+        // ":1007406/Mohali" — match both spellings.
+        String raw = plantId == null ? "" : plantId.trim();
+        String bare = raw.startsWith(":") ? raw.substring(1) : raw;
+        List<RailInspectionCall> calls = new java.util.ArrayList<>(repository.findAllByPlantId(raw));
+        for (String variant : java.util.List.of(bare, ":" + bare)) {
+            if (!variant.equals(raw)) {
+                for (RailInspectionCall c : repository.findAllByPlantId(variant)) {
+                    if (calls.stream().noneMatch(x -> java.util.Objects.equals(x.getId(), c.getId()))) calls.add(c);
+                }
+            }
+        }
         calls.forEach(this::enrichCallData);
         return calls;
     }
