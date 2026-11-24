@@ -19,4 +19,10 @@ public class MomentOfResistanceRequestDTO {
 
     private Long createdBy;
     private Long updatedBy;
+
+    /** Fresh or Retest (double testing); stored on create only */
+    private String mrTestType;
+
+    /** production_declaration.id (the lot) the samples are taken from */
+    private Long productionDeclarationId;
 }

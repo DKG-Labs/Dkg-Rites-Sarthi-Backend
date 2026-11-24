@@ -65,6 +65,10 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Autowired
     private SleeperIcNumberSyncService sleeperIcNumberSyncService;
     @Autowired
+    private com.sarthi.notification.sms.CallSmsNotifier callSmsNotifier;
+    @Autowired
+    private ProductionBatchIcLockService productionBatchIcLockService;
+    @Autowired
     private SleeperWorkflowMasterRepository workflowRepository;
 
     @Autowired
@@ -424,9 +428,16 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     .map(SleeperPoiIeMapping::getIeUserId)
                     .toList();
 
-            // If the call is pending for Main IE, the assigned user is the mapped IE
-            if ("Main IE".equalsIgnoreCase(tx.getNextRole()) && !userIds.isEmpty()) {
-                dto.setAssignedToUser(Long.valueOf(userIds.get(0)));
+            // Pending for Main IE and NOT yet assigned: fall back to the plant's mapped Main IE.
+            // A call already assigned (e.g. after a call-desk reassign) keeps the IE on its latest transaction.
+            if ("Main IE".equalsIgnoreCase(tx.getNextRole()) && dto.getAssignedToUser() == null) {
+                Integer mainIe = mappings.stream()
+                        .filter(m -> m.getIeUserId() != null)
+                        .filter(m -> "MAIN_IE".equals(RioUtil.normalizeIeRole(m.getIeType())))
+                        .map(SleeperPoiIeMapping::getIeUserId)
+                        .findFirst()
+                        .orElse(null);
+                if (mainIe != null) dto.setAssignedToUser(Long.valueOf(mainIe));
             }
         }
         if (vendorId != null) {
@@ -507,26 +518,64 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                 dto.setOfferedQty(finalOffered != null ? finalOffered : SleeperQtyUtil.orZero(dto.getOfferedQty()));
                 dto.setAcceptedQty(finalAccepted != null ? finalAccepted : SleeperQtyUtil.orZero(dto.getAcceptedQty()));
                 
-                // Lookup certificate details from SLEEPER_INSPECTION_COMPLETE_DETAILS
-                String certKey = "cert_" + tx.getRequestId();
-                SleeperInspectionCompleteDetails certDetails = null;
-                if (cache.containsKey(certKey)) {
-                    certDetails = (SleeperInspectionCompleteDetails) cache.get(certKey);
-                } else if (sleeperInspectionCompleteDetailsRepository != null) {
-                    certDetails = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId()).orElse(null);
-                    cache.put(certKey, certDetails);
+                // Lookup certificate details: Primary from sleeper_final_ic_edit
+                String editKey = "final_ic_edit_" + tx.getRequestId();
+                Object[] editRow = cache.containsKey(editKey) ? (Object[]) cache.get(editKey) : null;
+                if (editRow == null && jdbcTemplate != null && tx.getRequestId() != null) {
+                    try {
+                        List<java.util.Map<String, Object>> sfRows = jdbcTemplate.queryForList(
+                            "SELECT ic_number, created_at FROM sleeper_final_ic_edit WHERE ic_number = ? OR ic_number LIKE ? OR ic_number LIKE ? ORDER BY id DESC LIMIT 1",
+                            tx.getRequestId(), "%/" + tx.getRequestId() + "/%", "%" + tx.getRequestId() + "%"
+                        );
+                        if (sfRows != null && !sfRows.isEmpty()) {
+                            Object certNo = sfRows.get(0).get("ic_number");
+                            Object crAt = sfRows.get(0).get("created_at");
+                            String icNum = (certNo != null && !certNo.toString().isBlank()) ? certNo.toString().trim() : null;
+                            java.time.LocalDate ld = null;
+                            if (crAt instanceof java.time.LocalDateTime) {
+                                ld = ((java.time.LocalDateTime) crAt).toLocalDate();
+                            } else if (crAt instanceof java.sql.Timestamp) {
+                                ld = ((java.sql.Timestamp) crAt).toLocalDateTime().toLocalDate();
+                            } else if (crAt instanceof java.sql.Date) {
+                                ld = ((java.sql.Date) crAt).toLocalDate();
+                            } else if (crAt != null) {
+                                String s = crAt.toString().trim();
+                                if (s.length() >= 10) {
+                                    try { ld = java.time.LocalDate.parse(s.substring(0, 10)); } catch (Exception ignored) {}
+                                }
+                            }
+                            if (icNum != null) {
+                                editRow = new Object[]{icNum, ld};
+                                cache.put(editKey, editRow);
+                            }
+                        }
+                    } catch (Exception ignored) {}
                 }
 
-                if (certDetails != null && certDetails.getCertificateNo() != null && !certDetails.getCertificateNo().trim().isEmpty()) {
-                    dto.setIcNo(certDetails.getCertificateNo().trim());
-                    if (certDetails.getCreatedOn() != null) {
-                        dto.setIcDate(certDetails.getCreatedOn().toLocalDate());
+                if (editRow != null && editRow[0] != null) {
+                    dto.setIcNo((String) editRow[0]);
+                    dto.setIcDate((java.time.LocalDate) editRow[1]);
+                } else {
+                    String certKey = "cert_" + tx.getRequestId();
+                    SleeperInspectionCompleteDetails certDetails = null;
+                    if (cache.containsKey(certKey)) {
+                        certDetails = (SleeperInspectionCompleteDetails) cache.get(certKey);
+                    } else if (sleeperInspectionCompleteDetailsRepository != null) {
+                        certDetails = sleeperInspectionCompleteDetailsRepository.findFirstByCallNoOrderByCreatedOnDesc(tx.getRequestId()).orElse(null);
+                        cache.put(certKey, certDetails);
+                    }
+
+                    if (certDetails != null && certDetails.getCertificateNo() != null && !certDetails.getCertificateNo().trim().isEmpty()) {
+                        dto.setIcNo(certDetails.getCertificateNo().trim());
+                        if (certDetails.getCreatedOn() != null) {
+                            dto.setIcDate(certDetails.getCreatedOn().toLocalDate());
+                        } else {
+                            dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
+                        }
                     } else {
+                        dto.setIcNo("N/" + tx.getRequestId() + "/ARV");
                         dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
                     }
-                } else {
-                    dto.setIcNo("IC-" + tx.getRequestId());
-                    dto.setIcDate(tx.getUpdatedDate() != null ? tx.getUpdatedDate().toLocalDate() : (tx.getCreatedDate() != null ? tx.getCreatedDate().toLocalDate() : null));
                 }
 
                 String uom = null;
@@ -881,6 +930,13 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         }
 
         if ("UNLOCK".equalsIgnoreCase(req.getAction())) {
+            // Final IC batch lock: a production batch cannot be unlocked once its Final IC is issued
+            if (productionBatchIcLockService.isProductionDeclarationModule(current.getModuleId())
+                    && current.getRequestId() != null
+                    && current.getRequestId().trim().matches("\\d+")) {
+                productionBatchIcLockService.assertEditable(Long.valueOf(current.getRequestId().trim()));
+            }
+
             repository.deleteById(req.getWorkflowTransitionId());
 
             List<SleeperWorkflowTransaction> existingTxs = repository.findByRequestIdOrderByCreatedDateAsc(req.getRequestId());
@@ -2106,6 +2162,44 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
         }
 
+        // 2a. Preload sleeper_final_ic_edit (Primary Source: ic_number & created_at)
+        if (!requestIds.isEmpty() && jdbcTemplate != null) {
+            try {
+                String sql = "SELECT ic_number, created_at FROM sleeper_final_ic_edit WHERE ic_number IS NOT NULL AND created_at IS NOT NULL ORDER BY id DESC";
+                jdbcTemplate.query(sql, rs -> {
+                    String icNum = rs.getString("ic_number");
+                    Object crAtObj = rs.getObject("created_at");
+                    if (icNum != null && !icNum.isBlank() && crAtObj != null) {
+                        String icTrim = icNum.trim();
+                        for (String reqId : requestIds) {
+                            String key = "final_ic_edit_" + reqId;
+                            if (!cache.containsKey(key)) {
+                                String cleanReq = reqId.trim();
+                                if (icTrim.equals(cleanReq) || icTrim.contains("/" + cleanReq + "/") || icTrim.contains(cleanReq)) {
+                                    java.time.LocalDate ld = null;
+                                    if (crAtObj instanceof java.time.LocalDateTime) {
+                                        ld = ((java.time.LocalDateTime) crAtObj).toLocalDate();
+                                    } else if (crAtObj instanceof java.sql.Timestamp) {
+                                        ld = ((java.sql.Timestamp) crAtObj).toLocalDateTime().toLocalDate();
+                                    } else if (crAtObj instanceof java.sql.Date) {
+                                        ld = ((java.sql.Date) crAtObj).toLocalDate();
+                                    } else {
+                                        String s = crAtObj.toString().trim();
+                                        if (s.length() >= 10) {
+                                            try { ld = java.time.LocalDate.parse(s.substring(0, 10)); } catch (Exception ignored) {}
+                                        }
+                                    }
+                                    cache.put(key, new Object[]{icTrim, ld});
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("Error preloading sleeper_final_ic_edit: {}", e.getMessage());
+            }
+        }
+
         // 2. Preload Inspection Complete Details (Certificates)
         if (!requestIds.isEmpty() && sleeperInspectionCompleteDetailsRepository != null) {
             try {
@@ -2426,9 +2520,10 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         String poiCode = null;
         Long assignedToUser = null;
 
-        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByCreatedDateAsc(trimmedCallNo);
+        // newest first by workflow_transition_id — the assigned IE is the one on the LATEST transaction
+        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(trimmedCallNo);
         if (txList != null && !txList.isEmpty()) {
-            for (int i = txList.size() - 1; i >= 0; i--) {
+            for (int i = 0; i < txList.size(); i++) {
                 SleeperWorkflowTransaction tx = txList.get(i);
                 if (plantId == null && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
                     plantId = tx.getPlantId().trim();
@@ -2554,8 +2649,10 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             throw new RuntimeException("Call No and new user ID are required.");
         }
 
-        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByCreatedDateAsc(callNo);
-        SleeperWorkflowTransaction latestTx = (txList != null && !txList.isEmpty()) ? txList.get(txList.size() - 1) : null;
+        // Latest transaction = highest workflow_transition_id (the row every dashboard reads).
+        // Not by created_date: several rows of a call are often created in the same second.
+        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+        SleeperWorkflowTransaction latestTx = (txList != null && !txList.isEmpty()) ? txList.get(0) : null;
 
         if (plantId == null && latestTx != null) {
             plantId = latestTx.getPlantId();
@@ -2582,6 +2679,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
         }
 
+        Integer smsOldIeUserId = latestTx != null && latestTx.getAssignedToUser() != null
+                ? latestTx.getAssignedToUser().intValue() : oldUserId;
         if (latestTx != null) {
             latestTx.setAssignedToUser(Long.valueOf(newUserId));
             repository.save(latestTx);
@@ -2589,6 +2688,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         // IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
         sleeperIcNumberSyncService.syncIeSuffix(callNo);
+
+        // SMS to new IE / old IE / vendor / CM (after commit, async; no-op unless enabled)
+        callSmsNotifier.callReassigned(callNo, smsOldIeUserId, newUserId);
     }
 
     /**

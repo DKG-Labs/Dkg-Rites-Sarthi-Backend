@@ -2871,11 +2871,25 @@ public class reportsImpl implements reports {
                 CompletableFuture<RailPadFinalInspectionSummaryDto> cfFinalSummary = CompletableFuture
                                 .supplyAsync(() -> getRailPadFinalInspectionSummary(vCode, zCode, startDateStr, endDateStr));
 
-                CompletableFuture<Long> cfTotalRejection = CompletableFuture
-                                .supplyAsync(() -> railIEProductionVerificationRepository.sumFilteredTotalPiecesRejected(vCode, zCode, parsedStartDate, parsedEndDate));
+                // Rail Pad process rejection: RPP calls sent to IBS (same source & filters as the
+                // "Process Accepted" card) — row: [0] accepted, [1] rejected, [2] manufactured
+                CompletableFuture<long[]> cfRpProcessSummary = CompletableFuture.supplyAsync(() -> {
+                        List<Object[]> rows = railWorkflowTransactionRepository.getRailPadProcessInspectionSummary(
+                                        vCode, zCode,
+                                        (startDateStr == null || startDateStr.trim().isEmpty()) ? null : parsedStartDate.atStartOfDay(),
+                                        (endDateStr == null || endDateStr.trim().isEmpty()) ? null : parsedEndDate.atTime(23, 59, 59));
+                        long rej = 0L, manuf = 0L;
+                        if (rows != null && !rows.isEmpty() && rows.get(0) != null) {
+                                Object[] r = rows.get(0);
+                                rej = r[1] != null ? ((Number) r[1]).longValue() : 0L;
+                                manuf = (r.length > 2 && r[2] != null) ? ((Number) r[2]).longValue() : 0L;
+                        }
+                        return new long[] { rej, manuf };
+                });
 
-                CompletableFuture<Long> cfProductionDeclared = CompletableFuture
-                                .supplyAsync(() -> railIEProductionVerificationRepository.sumFilteredTotalPiecesProduced(vCode, zCode, parsedStartDate, parsedEndDate));
+                CompletableFuture<Long> cfTotalRejection = cfRpProcessSummary.thenApply(a -> a[0]);
+
+                CompletableFuture<Long> cfProductionDeclared = cfRpProcessSummary.thenApply(a -> a[1]);
 
                 java.time.LocalDate thirtyDaysAgoDate = java.time.LocalDate.now().minusDays(30);
                 CompletableFuture<Long> cfRpPiecesSum = CompletableFuture

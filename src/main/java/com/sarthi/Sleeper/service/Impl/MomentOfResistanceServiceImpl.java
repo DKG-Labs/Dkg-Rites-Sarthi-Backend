@@ -3,8 +3,11 @@ package com.sarthi.Sleeper.service.Impl;
 import com.sarthi.Sleeper.dto.MomentOfResistanceRequestDTO;
 import com.sarthi.Sleeper.dto.MomentOfResistanceResponseDTO;
 import com.sarthi.Sleeper.entity.MomentOfResistance;
+import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.repository.MomentOfResistanceRepository;
+import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.service.MomentOfResistanceService;
+import com.sarthi.Sleeper.service.WaterCubeLotService;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
@@ -24,6 +27,13 @@ public class MomentOfResistanceServiceImpl implements MomentOfResistanceService 
 
         @Autowired
         private MomentOfResistanceRepository repository;
+
+        @Autowired
+        private ProductionDeclarationRepository productionDeclarationRepository;
+
+        /** Lot rejection (shared with the water cube test): a rejected lot gets no new MR samples */
+        @Autowired
+        private WaterCubeLotService lotService;
 
         /* ================= CREATE ================= */
 
@@ -47,6 +57,12 @@ public class MomentOfResistanceServiceImpl implements MomentOfResistanceService 
             entity.setCreatedBy(dto.getCreatedBy());
 
             entity.setCreatedDate(LocalDateTime.now());
+
+            // Round (Fresh / Retest = double testing) and lot of the samples
+            entity.setMrTestType(dto.getMrTestType());
+            if (dto.getProductionDeclarationId() != null) {
+                entity.setProductionDeclarationId(requireActiveLotOfBatch(dto.getProductionDeclarationId(), dto.getBatchNumber()));
+            }
 
             MomentOfResistance saved = repository.save(entity);
 
@@ -100,6 +116,10 @@ public class MomentOfResistanceServiceImpl implements MomentOfResistanceService 
 
             entity.setUpdatedBy(dto.getUpdatedBy());
             entity.setUpdatedDate(LocalDateTime.now());
+
+            // mrTestType and productionDeclarationId are fixed when the samples are declared and are not changed here:
+            // the MR page marks a tested first-test record as "Retest" through this update, which must not turn it
+            // into a double-testing declaration.
 
             MomentOfResistance updated = repository.save(entity);
 
@@ -161,7 +181,35 @@ public class MomentOfResistanceServiceImpl implements MomentOfResistanceService 
             dto.setUpdatedBy(entity.getUpdatedBy());
             dto.setUpdatedDate(entity.getUpdatedDate());
 
+            dto.setMrTestType(entity.getMrTestType());
+            dto.setProductionDeclarationId(entity.getProductionDeclarationId());
+
             return dto;
+        }
+
+        /**
+         * The production batch (lot) with this id, checked to exist, to carry the same batch number as the MR samples
+         * and not to be rejected. Returns its id.
+         */
+        private Long requireActiveLotOfBatch(Long productionDeclarationId, String batchNumber) {
+            ProductionDeclaration pd = productionDeclarationRepository.findById(productionDeclarationId)
+                    .orElseThrow(() -> validation("Production batch " + productionDeclarationId + " not found for the MR samples."));
+            String lotBatch = pd.getBatchNumber() != null ? pd.getBatchNumber().trim() : "";
+            String sampleBatch = batchNumber != null ? batchNumber.trim() : "";
+            if (!lotBatch.equalsIgnoreCase(sampleBatch)) {
+                throw validation("Production batch " + productionDeclarationId + " is batch " + lotBatch
+                        + ", not " + sampleBatch + ".");
+            }
+            lotService.assertNotRejected(pd.getId());
+            return pd.getId();
+        }
+
+        private static BusinessException validation(String message) {
+            return new BusinessException(new ErrorDetails(
+                    AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_VALIDATION,
+                    message));
         }
 
 

@@ -57,6 +57,21 @@ public final class SleeperQtyUtil {
         return result.signum() < 0 ? BigDecimal.ZERO.setScale(QTY_SCALE) : result.setScale(QTY_SCALE, RoundingMode.HALF_UP);
     }
 
+    /**
+     * Quantity as plain text without trailing zeros or exponent notation: 4238.25 -> "4238.25", 59490.00 -> "59490".
+     * Null when the value is null.
+     */
+    public static String plain(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        BigDecimal stripped = value.stripTrailingZeros();
+        if (stripped.scale() < 0) {
+            stripped = stripped.setScale(0);
+        }
+        return stripped.toPlainString();
+    }
+
     /** true when {@code a} is greater than {@code b} (both non-null). */
     public static boolean greaterThan(BigDecimal a, BigDecimal b) {
         return a != null && b != null && a.compareTo(b) > 0;

@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.sarthi.util.CommonUtils;
 
 import java.math.BigDecimal;
 import java.util.Objects;
@@ -96,6 +97,9 @@ public class CallLetterServiceImpl implements CallLetterService {
 
     @Autowired
     private com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
+
+    @Autowired
+    private com.sarthi.config.SleeperQtyUomProperties sleeperQtyUomProperties;
 
     @Autowired
     private com.sarthi.repository.VendorMasterRepository vendorMasterRepository;
@@ -380,7 +384,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     PoItem pi = piOpt.get();
                     dto.setItemSrNo(pi.getItemSrNo());
                     dto.setItemDesc(cleanTildes(pi.getItemDesc()));
-                    dto.setPoQty(pi.getQty());
+                    dto.setPoQty(pi.getQty() != null ? java.math.BigDecimal.valueOf(pi.getQty()) : null);
                     dto.setUom(pi.getUom());
                     String consignee = (pi.getImmsConsigneeName() != null && !pi.getImmsConsigneeName().isBlank())
                             ? pi.getImmsConsigneeName().trim()
@@ -1043,11 +1047,20 @@ public class CallLetterServiceImpl implements CallLetterService {
                     PoItem pi = piOpt.get();
                     dto.setItemSrNo(pi.getItemSrNo());
                     dto.setItemDesc(cleanTildes(pi.getItemDesc()));
-                    dto.setPoQty(pi.getQty());
+                    // Exact PO item qty (decimal column), so fractional quantities such as 4238.25 are not rounded
+                    String exactPoQty = com.sarthi.Sleeper.util.SleeperQtyUtil.plain(pi.getQtyExact());
+                    dto.setPoQty(exactPoQty != null ? new java.math.BigDecimal(exactPoQty) : null);
                     if (pi.getUom() != null && !pi.getUom().isBlank()) {
                         String itemUom = pi.getUom().trim();
                         dto.setUom(itemUom);
-                        if (itemUom.toUpperCase().contains("SET")) {
+                        if (sleeperQtyUomProperties.isMeasuredUom(itemUom)) {
+                            // Measured UOM (configured in sleeper.qty.measured-uoms): the call qty is the declared offered qty
+                            dto.setCallUnit(itemUom);
+                            String offeredQty = com.sarthi.Sleeper.util.SleeperQtyUtil.plain(sleeperCall.getTotalOffered());
+                            if (offeredQty != null) {
+                                dto.setCallQty(offeredQty);
+                            }
+                        } else if (itemUom.toUpperCase().contains("SET")) {
                             dto.setCallUnit("Set");
                             int setQty = offeredInt(sleeperCall) > 0 && offeredInt(sleeperCall) <= 50
                                     ? offeredInt(sleeperCall)
@@ -1098,7 +1111,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                 }
 
                 // 1. Preload all ET sleepers in 1 bulk query
-                java.util.Map<String, List<String>> etSleepersByBatch = new java.util.HashMap<>();
+                java.util.Map<String, List<com.sarthi.Sleeper.entity.EtSleeperDetails>> etSleepersByBatch = new java.util.HashMap<>();
                 if (!allBatchNames.isEmpty() && etSleeperDetailsRepository != null) {
                     try {
                         List<com.sarthi.Sleeper.entity.EtSleeperDetails> etList = etSleeperDetailsRepository.findByEt_BatchNumberIn(allBatchNames);
@@ -1109,9 +1122,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                                         continue;
                                     }
                                     String bNo = et.getEt().getBatchNumber().trim();
-                                    etSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(et.getSleeperNo().trim());
+                                    etSleepersByBatch.computeIfAbsent(bNo, k -> new java.util.ArrayList<>()).add(et);
                                     String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
-                                    etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new java.util.ArrayList<>()).add(et.getSleeperNo().trim());
+                                    etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new java.util.ArrayList<>()).add(et);
                                 }
                             }
                         }
@@ -1404,11 +1417,20 @@ public class CallLetterServiceImpl implements CallLetterService {
                     }
 
                     // Look up ET sleepers from preloaded map (with deduplication)
-                    java.util.Set<String> etSleepersDistinct = new java.util.LinkedHashSet<>();
+                    // Batch numbers repeat across casting dates, so keep only ET records cast on this call batch's date
+                    LocalDate batchCastDate = CommonUtils.convertStringToDateObject(castDateStr);
+                    List<com.sarthi.Sleeper.entity.EtSleeperDetails> etCandidates = new java.util.ArrayList<>();
                     if (etSleepersByBatch.containsKey(rawBatchNo)) {
-                        etSleepersDistinct.addAll(etSleepersByBatch.get(rawBatchNo));
+                        etCandidates.addAll(etSleepersByBatch.get(rawBatchNo));
                     } else if (etSleepersByBatch.containsKey(cleanBatch)) {
-                        etSleepersDistinct.addAll(etSleepersByBatch.get(cleanBatch));
+                        etCandidates.addAll(etSleepersByBatch.get(cleanBatch));
+                    }
+                    java.util.Set<String> etSleepersDistinct = new java.util.LinkedHashSet<>();
+                    for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etCandidates) {
+                        LocalDate etCastDate = et.getEt().getDateOfCasting();
+                        if (batchCastDate == null || etCastDate == null || batchCastDate.equals(etCastDate)) {
+                            etSleepersDistinct.add(et.getSleeperNo().trim());
+                        }
                     }
                     // ET records are keyed by batch number only, so a reused batch number can bring in ET sleepers
                     // from another batch/sleeper type. Keep only sleepers that belong to THIS call's batch.
@@ -1618,7 +1640,9 @@ public class CallLetterServiceImpl implements CallLetterService {
                     dto.setShed2BatchNo(buildBatchRange(shed2Batches));
                 } catch (Exception ignore) {}
 
-                if (!"Set".equalsIgnoreCase(dto.getCallUnit())) {
+                // Measured UOMs keep the declared offered qty as Call Qty; only counted UOMs use the sleeper count
+                if (!"Set".equalsIgnoreCase(dto.getCallUnit())
+                        && !sleeperQtyUomProperties.isMeasuredUom(dto.getCallUnit())) {
                     int totalSleepersAcceptedAndRejected = 0;
                     for (CallLetterDetailsDto.HeatDetail hd : heatDetailsList) {
                         int g = hd.getGoodCount() != null ? hd.getGoodCount() : 0;
@@ -1659,6 +1683,15 @@ public class CallLetterServiceImpl implements CallLetterService {
                 }
             }
             dto.setFinalAcceptedQty(passedQty > 0 ? passedQty + " Nos." : "0 Nos.");
+            // Measured UOMs: Final Accepted Qty is this call's accepted qty with its decimals, in the PO item's UOM
+            if (sleeperQtyUomProperties.isMeasuredUom(dto.getCallUnit())) {
+                java.math.BigDecimal thisCallAccepted = sleeperFinalResultRepository.sumAcceptedByCallNumber(sleeperCall.getCallNo());
+                if (thisCallAccepted != null) {
+                    dto.setFinalAcceptedQty(thisCallAccepted
+                            .setScale(com.sarthi.Sleeper.util.SleeperQtyUtil.QTY_SCALE, java.math.RoundingMode.HALF_UP)
+                            .toPlainString() + " " + dto.getCallUnit());
+                }
+            }
             dto.setRawMaterialQtyPassed("N/A");
         } catch (Exception e) {
             logger.error("Error calculating sleeper cumulative quantities", e);

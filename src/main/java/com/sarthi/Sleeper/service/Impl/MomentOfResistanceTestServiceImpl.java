@@ -6,14 +6,18 @@ import com.sarthi.Sleeper.dto.MomentOfResistanceTestResponseDTO;
 import com.sarthi.Sleeper.entity.MomentOfResistance;
 import com.sarthi.Sleeper.entity.MomentOfResistanceDetail;
 import com.sarthi.Sleeper.entity.MomentOfResistanceTest;
+import com.sarthi.Sleeper.entity.ProductionDeclaration.LotRejectionTestType;
 import com.sarthi.Sleeper.repository.MomentOfResistanceRepository;
 import com.sarthi.Sleeper.repository.MomentOfResistanceTestRepository;
 import com.sarthi.Sleeper.service.MomentOfResistanceTestService;
+import com.sarthi.Sleeper.service.WaterCubeLotService;
+import com.sarthi.config.MrLotRejectionProperties;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,9 +33,19 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
     private MomentOfResistanceTestRepository repository;
 @Autowired
     private MomentOfResistanceRepository momentOfResistanceRepository;
+
+    /** Lot rejection (shared with the water cube test) */
+    @Autowired
+    private WaterCubeLotService lotService;
+
+    @Autowired
+    private MrLotRejectionProperties mrRules;
+
     /* ================= CREATE ================= */
 
+    // The result, the declaration status and a lot rejection commit or roll back together
     @Override
+    @Transactional
     public MomentOfResistanceTestResponseDTO create(
             MomentOfResistanceTestRequestDTO dto) {
 
@@ -51,6 +65,10 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         }
 
         mr.setStatus("COMPLETED");
+
+        // A rejected lot is returned to the vendor and is not tested further
+        lotService.assertNotRejected(mr.getProductionDeclarationId());
+        entity.setMomentOfResistanceId(mr.getId());
 
         entity.setVendorCode(dto.getVendorCode());
         entity.setPlantId(dto.getPlantId());
@@ -76,7 +94,9 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         momentOfResistanceRepository.save(mr);
         MomentOfResistanceTest saved = repository.save(entity);
 
-        return mapToResponse(saved);
+        MomentOfResistanceTestResponseDTO response = mapToResponse(saved);
+        rejectLotOnDoubleTestingFailure(saved, mr, dto.getCreatedBy(), response);
+        return response;
     }
 
     /* ================= GET BY ID ================= */
@@ -99,6 +119,7 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
     /* ================= UPDATE ================= */
 
     @Override
+    @Transactional
     public MomentOfResistanceTestResponseDTO update(
             Long id,
             MomentOfResistanceTestRequestDTO dto) {
@@ -111,6 +132,18 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "MR Test not found")
                 ));
+
+        // A result that rejected its lot is the record of that rejection and cannot be changed
+        assertNotRejectingTest(id);
+
+        // The declaration stored when the result was created (the id sent on update is not reliable);
+        // results saved before it was stored have none and are updated as before
+        MomentOfResistance declaration = entity.getMomentOfResistanceId() != null
+                ? momentOfResistanceRepository.findById(entity.getMomentOfResistanceId()).orElse(null)
+                : null;
+        if (declaration != null) {
+            lotService.assertNotRejected(declaration.getProductionDeclarationId());
+        }
 
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setSleeperType(dto.getSleeperType());
@@ -146,7 +179,12 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
 
         MomentOfResistanceTest updated = repository.save(entity);
 
-        return mapToResponse(updated);
+        MomentOfResistanceTestResponseDTO response = mapToResponse(updated);
+        if (declaration != null) {
+            Long userId = dto.getUpdatedBy() != null ? dto.getUpdatedBy() : dto.getCreatedBy();
+            rejectLotOnDoubleTestingFailure(updated, declaration, userId, response);
+        }
+        return response;
     }
 
     /* ================= GET ALL ================= */
@@ -172,6 +210,9 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
                                 AppConstant.ERROR_TYPE_VALIDATION,
                                 "MR Test not found")
                 ));
+
+        // A result that rejected its lot is the record of that rejection and cannot be deleted
+        assertNotRejectingTest(id);
 
         repository.delete(entity);
 
@@ -219,6 +260,46 @@ public class MomentOfResistanceTestServiceImpl implements MomentOfResistanceTest
         dto.setDetails(details);
 
         return dto;
+    }
+
+    /* ================= LOT REJECTION (double testing) ================= */
+
+    /**
+     * A "Fail" for samples declared for double testing (the retest of 2 other sleepers after a first-test "Retest")
+     * rejects the whole lot: returned to vendor, every sleeper rejected. A "Fail" in the first test is left as before.
+     */
+    private void rejectLotOnDoubleTestingFailure(MomentOfResistanceTest test, MomentOfResistance declaration,
+                                                 Long userId, MomentOfResistanceTestResponseDTO response) {
+        if (!mrRules.isFail(test.getTestResult()) || !mrRules.isRetest(declaration.getMrTestType())) {
+            return;
+        }
+        if (declaration.getProductionDeclarationId() == null) {
+            throw validation("MR test failed in double testing, but the lot of batch " + test.getBatchNumber()
+                    + " is not known, so it cannot be rejected. Declare the double testing samples again from the batch.");
+        }
+        WaterCubeLotService.Rejection rejection = lotService.rejectBatch(
+                declaration.getProductionDeclarationId(),
+                mrRules.getRejectionReason(),
+                LotRejectionTestType.MR,
+                test.getId(),
+                userId);
+        response.setLotRejected(true);
+        response.setRejectedBatchNumber(rejection.batchNumber());
+        response.setOpenCallNos(rejection.affectedCallNos());
+    }
+
+    private void assertNotRejectingTest(Long testId) {
+        if (lotService.isRejectingTest(LotRejectionTestType.MR, testId)) {
+            throw validation("This MR test failed in double testing and rejected its lot, so it cannot be changed or deleted.");
+        }
+    }
+
+    private static BusinessException validation(String message) {
+        return new BusinessException(new ErrorDetails(
+                AppConstant.ERROR_CODE_RESOURCE,
+                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                AppConstant.ERROR_TYPE_VALIDATION,
+                message));
     }
 
     @Override

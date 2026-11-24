@@ -53,6 +53,16 @@ WHERE c.callNo = :callNo
 """)
     Optional<SleeperInspectionCall> findByCallNoWithBatches(@Param("callNo") String callNo);
 
+    /** Calls of a plant that offered the given production batch (plant matched with or without ':' prefix). */
+    @Query("""
+SELECT DISTINCT c.callNo
+FROM SleeperInspectionCall c
+JOIN c.batchesSelected b
+WHERE UPPER(TRIM(b.batchNo)) = UPPER(TRIM(:batchNo))
+  AND (c.plantId = :plantId OR REPLACE(COALESCE(c.plantId, ''), ':', '') = REPLACE(:plantId, ':', ''))
+""")
+    List<String> findCallNosByBatchNoAndPlant(@Param("batchNo") String batchNo, @Param("plantId") String plantId);
+
     @Query("""
 SELECT DISTINCT s.sleeperId
 FROM SleeperInspectionCallBatch b
@@ -896,6 +906,8 @@ ORDER BY ies.employee_code
             'SETS.',
             'NOS.'
         ) AS unit,
+
+        pi.uom AS uom,
 
         CONCAT(
             DATE_FORMAT(COALESCE(sic.created_at, CURRENT_DATE()), '%d.%m.%Y'),

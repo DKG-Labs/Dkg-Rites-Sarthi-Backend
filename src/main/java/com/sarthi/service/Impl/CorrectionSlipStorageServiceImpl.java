@@ -45,6 +45,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageService {
 
+    private static final String STAGE_PRE_SIGN = "PRE_SIGN";
+    private static final String STATUS_ACTIVE = "ACTIVE";
+
     private final CorrectionSlipDocumentRepository documentRepository;
     private final PdfCompressionService pdfCompressionService;
     private final CertificateStorageRepository certificateStorageRepository;
@@ -109,7 +112,7 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
 
         String callNo = request.getCallNo().trim();
         String moduleType = (request.getModuleType() != null ? request.getModuleType().trim().toUpperCase() : "ERC");
-        String stage = (request.getStage() != null ? request.getStage().trim().toUpperCase() : "PRE_SIGN");
+        String stage = (request.getStage() != null ? request.getStage().trim().toUpperCase() : STAGE_PRE_SIGN);
 
         String rawBase64 = request.getPdfBase64();
         if (rawBase64.contains(",")) {
@@ -144,12 +147,28 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         // 2. Resolve Azure folder hierarchy: erc/ER, erc/EP, erc/EF, railpad/RPP, railpad/RPF, sleeper
         String folderPrefix = BlobFolderResolver.resolveFolder(callNo, moduleType);
 
-        List<CorrectionSlipDocument> existingDocs = getAllDocuments(callNo);
-        int nextIndex = existingDocs.size() + 1;
+        // An unfinished pre-sign copy (eSign started but not completed, or retried) is reused instead of
+        // inserting a new row, so one correction slip never appears as several.
+        CorrectionSlipDocument reuseDoc = documentRepository
+                .findFirstByCallNoAndStageAndStatusOrderByUploadedAtDesc(callNo, STAGE_PRE_SIGN, STATUS_ACTIVE)
+                .filter(d -> d.getBlobFileName() != null && !d.getBlobFileName().trim().isEmpty())
+                .orElse(null);
 
-        String sanitizedCallNo = callNo.replaceAll("[^a-zA-Z0-9_-]", "_");
-        String sanitizedFileName = String.format("Correction_Slip_%s_%d.pdf", sanitizedCallNo, nextIndex);
-        String blobPath = String.format("%s/%s/%s", folderPrefix, sanitizedCallNo, sanitizedFileName);
+        String sanitizedFileName;
+        String blobPath;
+        if (reuseDoc != null) {
+            blobPath = reuseDoc.getBlobFileName().trim();
+            sanitizedFileName = reuseDoc.getOriginalFileName() != null
+                    ? reuseDoc.getOriginalFileName()
+                    : new File(blobPath).getName();
+        } else {
+            List<CorrectionSlipDocument> existingDocs = getAllDocuments(callNo);
+            int nextIndex = existingDocs.size() + 1;
+
+            String sanitizedCallNo = callNo.replaceAll("[^a-zA-Z0-9_-]", "_");
+            sanitizedFileName = String.format("Correction_Slip_%s_%d.pdf", sanitizedCallNo, nextIndex);
+            blobPath = String.format("%s/%s/%s", folderPrefix, sanitizedCallNo, sanitizedFileName);
+        }
 
         // 3. Upload to Azure or local storage
         String blobUrl;
@@ -170,21 +189,35 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             }
         }
 
-        // 4. Save new CorrectionSlipDocument row in DB
-        CorrectionSlipDocument doc = CorrectionSlipDocument.builder()
-                .callNo(callNo)
-                .status("ACTIVE")
-                .icNumber(request.getIcNumber())
-                .moduleType(moduleType)
-                .originalFileName(sanitizedFileName)
-                .blobFileName(blobPath)
-                .blobUrl(blobUrl)
-                .fileSizeOriginal(originalSize)
-                .fileSizeCompressed(finalSize)
-                .contentType("application/pdf")
-                .stage(stage)
-                .uploadedBy(request.getUploadedBy() != null ? request.getUploadedBy() : "Inspecting Engineer")
-                .build();
+        // 4. Save the CorrectionSlipDocument row in DB (update the open pre-sign row, or insert a new one)
+        String uploadedBy = request.getUploadedBy() != null ? request.getUploadedBy() : "Inspecting Engineer";
+        CorrectionSlipDocument doc;
+        if (reuseDoc != null) {
+            doc = reuseDoc;
+            doc.setIcNumber(request.getIcNumber());
+            doc.setModuleType(moduleType);
+            doc.setBlobUrl(blobUrl);
+            doc.setFileSizeOriginal(originalSize);
+            doc.setFileSizeCompressed(finalSize);
+            doc.setStage(stage);
+            doc.setUploadedBy(uploadedBy);
+            doc.setUploadedAt(java.time.LocalDateTime.now());
+        } else {
+            doc = CorrectionSlipDocument.builder()
+                    .callNo(callNo)
+                    .status(STATUS_ACTIVE)
+                    .icNumber(request.getIcNumber())
+                    .moduleType(moduleType)
+                    .originalFileName(sanitizedFileName)
+                    .blobFileName(blobPath)
+                    .blobUrl(blobUrl)
+                    .fileSizeOriginal(originalSize)
+                    .fileSizeCompressed(finalSize)
+                    .contentType("application/pdf")
+                    .stage(stage)
+                    .uploadedBy(uploadedBy)
+                    .build();
+        }
 
         documentRepository.save(doc);
 
@@ -227,18 +260,37 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             return Optional.empty();
         }
         String clean = callNo.replaceAll("^:+", "").trim();
-        Optional<CorrectionSlipDocument> docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(clean, "ACTIVE");
-        if (docOpt.isEmpty()) {
-            docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(":" + clean, "ACTIVE");
-        }
-        if (docOpt.isEmpty()) {
-            String alt = clean.contains(" ") ? clean.replace(" ", "-") : clean.replace("-", " ");
-            docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(alt, "ACTIVE");
-            if (docOpt.isEmpty()) {
-                docOpt = documentRepository.findFirstByCallNoAndStatusOrderByUploadedAtDesc(":" + alt, "ACTIVE");
+        String alt = clean.contains(" ") ? clean.replace(" ", "-") : clean.replace("-", " ");
+        // Same candidate keys and order as before; unfinished pre-sign copies are skipped.
+        for (String candidate : List.of(clean, ":" + clean, alt, ":" + alt)) {
+            Optional<CorrectionSlipDocument> docOpt = documentRepository
+                    .findByCallNoAndStatusOrderByUploadedAtDesc(candidate, STATUS_ACTIVE)
+                    .stream()
+                    .filter(this::isIssued)
+                    .findFirst();
+            if (docOpt.isPresent()) {
+                return docOpt;
             }
         }
-        return docOpt;
+        return Optional.empty();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CorrectionSlipDocument> getIssuedDocuments(String callNo) {
+        List<CorrectionSlipDocument> all = getAllDocuments(callNo);
+        List<CorrectionSlipDocument> issued = new ArrayList<>();
+        for (CorrectionSlipDocument doc : all) {
+            if (isIssued(doc)) {
+                issued.add(doc);
+            }
+        }
+        return issued;
+    }
+
+    /** A correction slip counts as issued unless it is only a pre-sign copy (null stage = legacy, issued). */
+    private boolean isIssued(CorrectionSlipDocument doc) {
+        return doc != null && (doc.getStage() == null || !STAGE_PRE_SIGN.equalsIgnoreCase(doc.getStage().trim()));
     }
 
     @Override
@@ -269,17 +321,9 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             variations.add(clean.replace("/", "_"));
         }
 
-        // Sub-tokens if clean contains slashes, underscores, spaces or dashes
-        for (String part : clean.split("[/_ -]")) {
-            String p = part.trim();
-            if (p.length() >= 6 && p.matches(".*\\d+.*") && !variations.contains(p)) {
-                variations.add(p);
-            }
-        }
-
-        List<CorrectionSlipDocument> list = documentRepository.findAllMatchingForCall(variations, clean);
+        List<CorrectionSlipDocument> list = documentRepository.findAllMatchingForCall(variations);
         if (list == null || list.isEmpty()) {
-            list = documentRepository.findByCallNoInAndStatusOrderByUploadedAtAsc(variations, "ACTIVE");
+            list = documentRepository.findByCallNoInAndStatusOrderByUploadedAtAsc(variations, STATUS_ACTIVE);
         }
         return list != null ? list : Collections.emptyList();
     }
@@ -327,7 +371,7 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
             return ResponseEntity.badRequest().build();
         }
 
-        Optional<CorrectionSlipDocument> optDoc = documentRepository.findByIdAndStatus(id, "ACTIVE");
+        Optional<CorrectionSlipDocument> optDoc = documentRepository.findByIdAndStatus(id, STATUS_ACTIVE);
         if (optDoc.isEmpty()) {
             log.warn("No correction slip document found in database for id: {}", id);
             return ResponseEntity.notFound().build();
@@ -493,8 +537,8 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         }
         String cleanCall = callNo.replaceAll("^:+", "").trim();
 
-        // 1. Fetch all active correction slip documents
-        List<CorrectionSlipDocument> slipDocs = getAllDocuments(cleanCall);
+        // 1. Fetch all issued (non pre-sign) correction slip documents
+        List<CorrectionSlipDocument> slipDocs = getIssuedDocuments(cleanCall);
         if (slipDocs == null || slipDocs.isEmpty()) {
             throw new NoSuchElementException("No correction slip has been found this call");
         }

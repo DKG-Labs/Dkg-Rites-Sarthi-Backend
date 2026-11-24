@@ -70,6 +70,7 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
     private RailInspectionCompleteDetailsRepository railInspectionCompleteDetailsRepository;
     private RailInspectionCallRepository railInspectionCallRepository;
     private RailIcNumberSyncService railIcNumberSyncService;
+    private com.sarthi.notification.sms.CallSmsNotifier callSmsNotifier;
 
     /** Material diversion: consume / release diverted balance. Lazy to avoid a dependency cycle. */
     @org.springframework.beans.factory.annotation.Autowired
@@ -2538,8 +2539,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
         }
 
         // 1. Update assigned_to_user in rail_workflow_transaction
-        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByCreatedDateAsc(callNo.trim());
+        // Latest transaction = highest workflow_transition_id (not created_date — rows often share the same second)
+        List<RailWorkflowTransaction> txList = railWorkflowTransactionRepository.findByRequestIdOrderByWorkflowTransitionIdDesc(callNo.trim());
+        Integer smsOldIeUserId = dto.getOldUserId();
         if (txList != null && !txList.isEmpty()) {
+            Long lastAssigned = txList.get(0).getAssignedToUser();
+            if (lastAssigned != null) smsOldIeUserId = lastAssigned.intValue();
             for (RailWorkflowTransaction tx : txList) {
                 tx.setAssignedToUser(newUserId != null ? newUserId.longValue() : null);
                 tx.setUpdatedDate(LocalDateTime.now());
@@ -2549,6 +2554,9 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
 
         // 2. IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
         railIcNumberSyncService.syncIeSuffix(callNo.trim());
+
+        // 3. SMS to new IE / old IE / vendor / CM (after commit, async; no-op unless enabled)
+        callSmsNotifier.callReassigned(callNo.trim(), smsOldIeUserId, newUserId);
     }
 
     @Override

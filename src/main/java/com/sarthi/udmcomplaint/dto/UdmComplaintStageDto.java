@@ -15,6 +15,8 @@ public class UdmComplaintStageDto {
     private Boolean flagCritical;
     private String stageDate;
     private String jiTeam;
+    private String ibsCaseNo;
+    private String firstReferenceDate;
     private String jiOutcome;
     private String auditType;
     private String findings;

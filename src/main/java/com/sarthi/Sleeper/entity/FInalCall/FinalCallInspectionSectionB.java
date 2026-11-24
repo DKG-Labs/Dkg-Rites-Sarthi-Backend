@@ -37,7 +37,8 @@ public class FinalCallInspectionSectionB extends BaseEntity {
     private LocalDate origDpStart;
 
     private String stageOfInspection;
-    private Integer callQtyMt;
+    @Column(name = "call_qty_mt", precision = 12, scale = 2)
+    private java.math.BigDecimal callQtyMt;
 
     private String placeOfInspection;
 

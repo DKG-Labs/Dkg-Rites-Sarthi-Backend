@@ -32,6 +32,29 @@ public class SmsService {
         this.restTemplate = restTemplate;
     }
 
+    /**
+     * Sends any DLT-registered message (body must match the registered template exactly).
+     * Uses the same XpertSMS account as the OTP; only the template id differs.
+     * Throws RuntimeException on failure so the caller can log it.
+     */
+    public void send(String mobileNumber, String body, String dltTemplateId) {
+        java.net.URI uri = UriComponentsBuilder
+                .fromUriString(smsApiUrl)
+                .queryParam("key", smsApiKey)
+                .queryParam("from", sender)
+                .queryParam("to", mobileNumber)
+                .queryParam("body", body)
+                .queryParam("templateid", dltTemplateId)
+                .queryParam("entityid", entityId)
+                .encode()
+                .build()
+                .toUri();
+        ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new RuntimeException("XpertSMS failed: " + response.getStatusCode());
+        }
+    }
+
     public void sendOtp(String mobileNumber, String otp) {
 
         /*

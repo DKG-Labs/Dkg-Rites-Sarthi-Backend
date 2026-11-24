@@ -9,10 +9,12 @@ import com.sarthi.Sleeper.entity.ProductionDeclaration.ProductionDeclaration;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.repository.ProductionDeclaration.ProductionDeclarationRepository;
 import com.sarthi.Sleeper.service.MainIeInspectionService;
+import com.sarthi.util.CommonUtils;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -83,7 +85,8 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         dto.setNoOfBatches(batchCount);
 
         // Total Rejected
-        dto.setTotalRejected(call.getTotalRejected());
+        dto.setTotalRejected(call.getTotalRejected() != null
+                ? java.math.BigDecimal.valueOf(call.getTotalRejected()) : null);
 
         // 🔥 Calculate Accepted
         int accepted = 0;
@@ -97,7 +100,7 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             }
         }
 
-        dto.setTotalAccepted(accepted);
+        dto.setTotalAccepted(java.math.BigDecimal.valueOf(accepted));
 
         // If sleeper final result exists, prioritize its verified inspection totals
         sleeperFinalResultRepository.findByCallNumber(callNo).ifPresent(sfr -> {
@@ -106,11 +109,12 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                     dto.setQtyOfferedNow(sfr.getTotalOfferedQuantity());
                 }
             }
+            // Keep the saved decimals (e.g. 117.20 / 8.30 RMT) instead of truncating to whole numbers
             if (sfr.getTotalAccepted() != null) {
-                dto.setTotalAccepted(sfr.getTotalAccepted().intValue());
+                dto.setTotalAccepted(sfr.getTotalAccepted());
             }
             if (sfr.getTotalRejected() != null) {
-                dto.setTotalRejected(sfr.getTotalRejected().intValue());
+                dto.setTotalRejected(sfr.getTotalRejected());
             }
         });
 
@@ -168,7 +172,7 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         }
 
         // Preload ET sleepers by batch
-        Map<String, List<String>> etSleepersByBatch = new HashMap<>();
+        Map<String, List<com.sarthi.Sleeper.entity.EtSleeperDetails>> etSleepersByBatch = new HashMap<>();
         if (!allBatchNames.isEmpty() && etSleeperDetailsRepository != null) {
             try {
                 List<com.sarthi.Sleeper.entity.EtSleeperDetails> etList = etSleeperDetailsRepository.findByEt_BatchNumberIn(allBatchNames);
@@ -179,9 +183,9 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
                                 continue;
                             }
                             String bNo = et.getEt().getBatchNumber().trim();
-                            etSleepersByBatch.computeIfAbsent(bNo, k -> new ArrayList<>()).add(et.getSleeperNo().trim());
+                            etSleepersByBatch.computeIfAbsent(bNo, k -> new ArrayList<>()).add(et);
                             String cleanBNo = bNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
-                            etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new ArrayList<>()).add(et.getSleeperNo().trim());
+                            etSleepersByBatch.computeIfAbsent(cleanBNo, k -> new ArrayList<>()).add(et);
                         }
                     }
                 }
@@ -424,9 +428,20 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
             String rawBatchNo = batchNo != null ? batchNo.trim() : "";
             String cleanBatch = rawBatchNo.replaceAll("(?i)^batch\\s*[-_:]*\\s*", "").trim();
 
+            // Batch numbers repeat across casting dates, so keep only ET records cast on this call batch's date
+            LocalDate batchCastDate = (declaration != null && declaration.getCastingDate() != null)
+                    ? declaration.getCastingDate()
+                    : CommonUtils.convertStringToDateObject(batch.getCastDate());
+            List<com.sarthi.Sleeper.entity.EtSleeperDetails> etCandidates = new ArrayList<>();
+            if (etSleepersByBatch.containsKey(rawBatchNo)) etCandidates.addAll(etSleepersByBatch.get(rawBatchNo));
+            if (etSleepersByBatch.containsKey(cleanBatch)) etCandidates.addAll(etSleepersByBatch.get(cleanBatch));
             Set<String> etDistinct = new java.util.LinkedHashSet<>();
-            if (etSleepersByBatch.containsKey(rawBatchNo)) etDistinct.addAll(etSleepersByBatch.get(rawBatchNo));
-            if (etSleepersByBatch.containsKey(cleanBatch)) etDistinct.addAll(etSleepersByBatch.get(cleanBatch));
+            for (com.sarthi.Sleeper.entity.EtSleeperDetails et : etCandidates) {
+                LocalDate etCastDate = et.getEt().getDateOfCasting();
+                if (batchCastDate == null || etCastDate == null || batchCastDate.equals(etCastDate)) {
+                    etDistinct.add(et.getSleeperNo().trim());
+                }
+            }
 
             Set<String> mfDistinct = new java.util.LinkedHashSet<>();
             if (mfSleepersByBatch.containsKey(rawBatchNo)) mfDistinct.addAll(mfSleepersByBatch.get(rawBatchNo));

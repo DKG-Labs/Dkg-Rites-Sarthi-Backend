@@ -797,7 +797,9 @@ public interface RailWorkflowTransactionRepository extends JpaRepository<RailWor
     @Query(value = """
         SELECT 
             COALESCE(SUM(pir.total_accepted_qty), 0) AS process_accepted_nos,
-            COALESCE(SUM(pir.total_rejected_qty), 0) AS process_rejected_nos
+            COALESCE(SUM(pir.total_rejected_qty), 0) AS process_rejected_nos,
+            COALESCE(SUM(COALESCE(pir.total_manufactured_qty,
+                     COALESCE(pir.total_accepted_qty, 0) + COALESCE(pir.total_rejected_qty, 0))), 0) AS process_manufactured_nos
         FROM rail_process_inspection_result pir
         JOIN rail_inspection_call ic ON pir.inspection_call_id = ic.id
         INNER JOIN (

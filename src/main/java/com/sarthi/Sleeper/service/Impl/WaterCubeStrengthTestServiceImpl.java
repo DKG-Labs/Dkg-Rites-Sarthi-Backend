@@ -7,12 +7,17 @@ import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthDetail;
 import com.sarthi.Sleeper.entity.FinalInspection.WaterCubeStrengthTest;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeSampleRepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.WaterCubeStrengthTestRepository;
+import com.sarthi.Sleeper.service.WaterCubeLotService;
 import com.sarthi.Sleeper.service.WaterCubeStrengthTestService;
+import com.sarthi.constant.AppConstant;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,6 +33,9 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
 
     @Autowired
     private WaterCubeSampleRepository waterCubeSampleRepository;
+
+    @Autowired
+    private WaterCubeLotService waterCubeLotService;
 
     private String normalizeToIsoDate(String dateStr) {
         if (dateStr == null || dateStr.trim().isEmpty() || "N/A".equalsIgnoreCase(dateStr.trim())) {
@@ -48,15 +56,75 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
         return str;
     }
 
-    @Override
-    public ResponseEntity<?> saveTestResult(WaterCubeStrengthTestRequestDto requestDto) {
-        try {
-            WaterCubeStrengthTest test = new WaterCubeStrengthTest();
+    /** The sample declaration the test belongs to; it links the test to its production batch (the lot). */
+    private WaterCubeSampleDeclaration requireSample(WaterCubeStrengthTestRequestDto requestDto) {
+        Long sampleId = requestDto.getWaterCubeSampleDeclarationId();
+        if (sampleId == null) {
+            throw validation("Water cube sample declaration is required to save a test result.");
+        }
+        return waterCubeSampleRepository.findById(sampleId)
+                .orElseThrow(() -> validation("Water cube sample declaration " + sampleId + " not found."));
+    }
 
-            if (requestDto.getWaterCubeSampleDeclarationId() != null) {
-                Optional<WaterCubeSampleDeclaration> sampleOpt = waterCubeSampleRepository.findById(requestDto.getWaterCubeSampleDeclarationId());
-                sampleOpt.ifPresent(test::setWaterCubeSampleDeclaration);
-            }
+    private static Long batchIdOf(WaterCubeSampleDeclaration sample, WaterCubeStrengthTestRequestDto requestDto) {
+        return sample != null && sample.getProductionDeclarationId() != null
+                ? sample.getProductionDeclarationId()
+                : requestDto.getProductionDeclarationId();
+    }
+
+    /** Stores the server-side evaluation, not the client-sent figures. */
+    private static void applyEvaluation(WaterCubeStrengthTest test, WaterCubeLotService.Evaluation eval) {
+        test.setFckTarget(eval.fck());
+        test.setS1Avg(eval.s1Avg());
+        test.setS2Avg(eval.s2Avg());
+        test.setAvgX(eval.avgX());
+        test.setMinY(eval.minY());
+        test.setS1Variation(eval.s1Variation());
+        test.setS2Variation(eval.s2Variation());
+        test.setCondition1(eval.condition1());
+        test.setCondition2(eval.condition2());
+        test.setCondition3(eval.condition3());
+        test.setMrSamplesRequired(eval.mrSamplesRequired());
+        test.setFinalTestResult(eval.finalTestResult());
+    }
+
+    /** On FAIL the whole lot is rejected; the response tells the IE which inspection calls still carry the batch. */
+    private Map<String, Object> finishSave(WaterCubeStrengthTest saved, WaterCubeLotService.Evaluation eval,
+                                           Long fallbackBatchId, Long userId) {
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("id", saved.getId());
+        result.put("finalTestResult", saved.getFinalTestResult());
+        result.put("lotRejected", false);
+        result.put("openCallNos", java.util.Collections.emptyList());
+        if (eval.failed()) {
+            WaterCubeLotService.Rejection rejection = waterCubeLotService.rejectLot(saved, fallbackBatchId, userId);
+            result.put("lotRejected", true);
+            result.put("productionDeclarationId", rejection.productionDeclarationId());
+            result.put("batchNumber", rejection.batchNumber());
+            result.put("openCallNos", rejection.affectedCallNos());
+        }
+        return result;
+    }
+
+    private static BusinessException validation(String message) {
+        return new BusinessException(new ErrorDetails(
+                AppConstant.ERROR_CODE_RESOURCE,
+                AppConstant.ERROR_TYPE_CODE_RESOURCE,
+                AppConstant.ERROR_TYPE_VALIDATION,
+                message));
+    }
+
+    // Errors propagate (handled by ExceptionHelper) so the test and the lot rejection commit or roll back together.
+    @Override
+    @Transactional
+    public ResponseEntity<?> saveTestResult(WaterCubeStrengthTestRequestDto requestDto) {
+            WaterCubeSampleDeclaration sample = requireSample(requestDto);
+            Long batchId = batchIdOf(sample, requestDto);
+            waterCubeLotService.assertNotRejected(batchId);
+            WaterCubeLotService.Evaluation eval = waterCubeLotService.evaluate(requestDto);
+
+            WaterCubeStrengthTest test = new WaterCubeStrengthTest();
+            test.setWaterCubeSampleDeclaration(sample);
 
             test.setBatchNumber(requestDto.getBatchNumber());
             test.setConcreteGrade(requestDto.getConcreteGrade());
@@ -65,24 +133,12 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
             }
             test.setShift(requestDto.getShift());
             test.setLineNo(requestDto.getLineNo());
-            test.setFckTarget(requestDto.getFckTarget());
             test.setAgeDays(requestDto.getAgeDays());
 
             test.setVendorCode(requestDto.getVendorCode());
             test.setPlantId(requestDto.getPlantId());
-            
-            test.setS1Avg(requestDto.getS1Avg());
-            test.setS2Avg(requestDto.getS2Avg());
-            test.setAvgX(requestDto.getAvgX());
-            test.setMinY(requestDto.getMinY());
-            test.setS1Variation(requestDto.getS1Variation());
-            test.setS2Variation(requestDto.getS2Variation());
-            
-            test.setCondition1(requestDto.getCondition1());
-            test.setCondition2(requestDto.getCondition2());
-            test.setCondition3(requestDto.getCondition3());
-            test.setMrSamplesRequired(requestDto.getMrSamplesRequired());
-            test.setFinalTestResult(requestDto.getFinalTestResult());
+
+            applyEvaluation(test, eval);
 
             test.setCreatedBy(requestDto.getCreatedBy());
             test.setCreatedDate(LocalDateTime.now());
@@ -112,11 +168,8 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
             test.setDetails(detailsList);
 
             WaterCubeStrengthTest savedTest = waterCubeStrengthTestRepository.save(test);
-            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(savedTest.getId()), HttpStatus.OK);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse("Error saving test result: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+            Map<String, Object> result = finishSave(savedTest, eval, batchId, requestDto.getCreatedBy());
+            return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(result), HttpStatus.OK);
     }
 
     @Override
@@ -150,8 +203,8 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
     }
 
     @Override
+    @Transactional
     public ResponseEntity<?> updateTestResult(Long id, WaterCubeStrengthTestRequestDto requestDto) {
-        try {
             Optional<WaterCubeStrengthTest> optional = waterCubeStrengthTestRepository.findById(id);
 
             if (optional.isEmpty()) {
@@ -159,6 +212,14 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
             }
 
             WaterCubeStrengthTest test = optional.get();
+            WaterCubeLotService.Evaluation eval = waterCubeLotService.evaluate(requestDto);
+
+            // A test that rejected its lot is locked: it can be corrected, but its result can no longer pass
+            if (waterCubeLotService.isRejectingTest(id) && !eval.failed()) {
+                throw validation("This water cube test rejected its batch, which has been returned to the vendor. "
+                        + "Its result can no longer be changed to " + eval.finalTestResult() + ".");
+            }
+            Long batchId = batchIdOf(test.getWaterCubeSampleDeclaration(), requestDto);
 
             // Update fields
             test.setBatchNumber(requestDto.getBatchNumber());
@@ -166,23 +227,12 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
             test.setCastingDate(normalizeToIsoDate(requestDto.getCastingDate()));
             test.setShift(requestDto.getShift());
             test.setLineNo(requestDto.getLineNo());
-            test.setFckTarget(requestDto.getFckTarget());
             test.setAgeDays(requestDto.getAgeDays());
 
             test.setVendorCode(requestDto.getVendorCode());
             test.setPlantId(requestDto.getPlantId());
-            test.setS1Avg(requestDto.getS1Avg());
-            test.setS2Avg(requestDto.getS2Avg());
-            test.setAvgX(requestDto.getAvgX());
-            test.setMinY(requestDto.getMinY());
-            test.setS1Variation(requestDto.getS1Variation());
-            test.setS2Variation(requestDto.getS2Variation());
 
-            test.setCondition1(requestDto.getCondition1());
-            test.setCondition2(requestDto.getCondition2());
-            test.setCondition3(requestDto.getCondition3());
-            test.setMrSamplesRequired(requestDto.getMrSamplesRequired());
-            test.setFinalTestResult(requestDto.getFinalTestResult());
+            applyEvaluation(test, eval);
 
           //  test.setUpdatedBy(requestDto.getUpdatedBy());
             test.setUpdatedDate(LocalDateTime.now());
@@ -212,18 +262,19 @@ public class WaterCubeStrengthTestServiceImpl implements WaterCubeStrengthTestSe
 
             test.setDetails(detailsList);
 
-            waterCubeStrengthTestRepository.save(test);
+            WaterCubeStrengthTest savedTest = waterCubeStrengthTestRepository.save(test);
+            Map<String, Object> result = finishSave(savedTest, eval, batchId, requestDto.getCreatedBy());
+            result.put("message", "Updated successfully");
 
-            return new ResponseEntity<>("Updated successfully", HttpStatus.OK);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ResponseEntity<>("Error updating: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+            return new ResponseEntity<>(result, HttpStatus.OK);
     }
 
     @Override
     public ResponseEntity<?> deleteTestResult(Long id) {
+        // A test that rejected its lot is the record of that rejection and cannot be deleted
+        if (waterCubeLotService.isRejectingTest(id)) {
+            throw validation("This water cube test rejected its batch, which has been returned to the vendor. It cannot be deleted.");
+        }
         try {
             if (!waterCubeStrengthTestRepository.existsById(id)) {
                 return new ResponseEntity<>("Record not found", HttpStatus.NOT_FOUND);

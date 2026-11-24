@@ -50,6 +50,14 @@ public class UdmComplaintStage {
     @Column(name = "ji_team_user_ids", length = 500)
     private String jiTeamUserIds;
 
+    /** JI Declaration by CM: IBS case number (V20261124_002). */
+    @Column(name = "ibs_case_no", length = 50)
+    private String ibsCaseNo;
+
+    /** JI Declaration by CM: date of 1st reference (V20261124_002). */
+    @Column(name = "first_reference_date")
+    private LocalDate firstReferenceDate;
+
     @Column(name = "ji_outcome", length = 60)
     private String jiOutcome;
 

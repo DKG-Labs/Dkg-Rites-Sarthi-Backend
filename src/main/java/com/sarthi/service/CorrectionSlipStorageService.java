@@ -16,6 +16,9 @@ public interface CorrectionSlipStorageService {
 
     java.util.List<CorrectionSlipDocument> getAllDocuments(String callNo);
 
+    /** Active correction slips for a call excluding unfinished pre-sign copies. */
+    java.util.List<CorrectionSlipDocument> getIssuedDocuments(String callNo);
+
     ResponseEntity<Resource> viewPdf(String callNo);
 
     ResponseEntity<Resource> downloadPdf(String callNo);

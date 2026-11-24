@@ -114,7 +114,7 @@ public class CorrectionSlipController {
             if (docOpt.isEmpty()) {
                 return ResponseEntity.ok(Map.of("exists", false, "totalCount", 0));
             }
-            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getAllDocuments(callNo);
+            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getIssuedDocuments(callNo);
             CorrectionSlipDocument doc = docOpt.get();
             Map<String, Object> res = new HashMap<>();
             res.put("exists", true);
@@ -129,7 +129,7 @@ public class CorrectionSlipController {
             res.put("fileSizeOriginal", doc.getFileSizeOriginal());
             res.put("fileSizeCompressed", doc.getFileSizeCompressed());
             res.put("stage", doc.getStage());
-            res.put("uploadedBy", doc.getUploadedBy());
+            res.put("uploadedBy", displayUploadedBy(doc.getUploadedBy()));
             res.put("uploadedAt", doc.getUploadedAt());
             return ResponseEntity.ok(res);
         } catch (Exception e) {
@@ -146,7 +146,7 @@ public class CorrectionSlipController {
     public ResponseEntity<?> getAllDocuments(@RequestParam String callNo) {
         log.info("REST GET /api/correction-slip/documents for callNo: {}", callNo);
         try {
-            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getAllDocuments(callNo);
+            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getIssuedDocuments(callNo);
             List<Map<String, Object>> resList = new ArrayList<>();
             for (int i = 0; i < allDocs.size(); i++) {
                 CorrectionSlipDocument doc = allDocs.get(i);
@@ -163,7 +163,7 @@ public class CorrectionSlipController {
                 item.put("fileSizeOriginal", doc.getFileSizeOriginal());
                 item.put("fileSizeCompressed", doc.getFileSizeCompressed());
                 item.put("stage", doc.getStage());
-                item.put("uploadedBy", doc.getUploadedBy());
+                item.put("uploadedBy", displayUploadedBy(doc.getUploadedBy()));
                 item.put("uploadedAt", doc.getUploadedAt());
                 resList.add(item);
             }
@@ -325,7 +325,7 @@ public class CorrectionSlipController {
         log.info("REST GET /api/correction-slip/download-merged-ic for callNo: {}, inline: {}", clean, inline);
 
         try {
-            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getAllDocuments(clean);
+            List<CorrectionSlipDocument> allDocs = correctionSlipStorageService.getIssuedDocuments(clean);
             if (allDocs == null || allDocs.isEmpty()) {
                 Map<String, Object> body = new HashMap<>();
                 body.put("hasCorrectionSlip", false);
@@ -359,6 +359,20 @@ public class CorrectionSlipController {
     }
 
     // ─── helpers ──────────────────────────────────────────────────────────────
+
+    /** Shows the uploader's full name when it can be resolved; otherwise the stored value as-is. */
+    private String displayUploadedBy(String uploadedBy) {
+        if (uploadedBy == null || uploadedBy.trim().isEmpty()) {
+            return uploadedBy;
+        }
+        try {
+            String fullName = correctionSlipService.resolveUserFullName(uploadedBy);
+            return (fullName != null && !fullName.isEmpty()) ? fullName : uploadedBy;
+        } catch (Exception e) {
+            log.warn("Could not resolve uploader name for '{}': {}", uploadedBy, e.getMessage());
+            return uploadedBy;
+        }
+    }
 
     private ResponseEntity<Map<String, String>> badRequest(String message) {
         Map<String, String> body = new HashMap<>();

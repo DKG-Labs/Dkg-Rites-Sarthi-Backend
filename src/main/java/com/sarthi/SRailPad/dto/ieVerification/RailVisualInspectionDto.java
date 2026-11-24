@@ -29,6 +29,8 @@ public class RailVisualInspectionDto {
     @NotBlank(message = "Smooth Surface check is required")
     private String smoothSurface;
 
+    private String freedomFromDefects;
+
     private String defectRemarks;
 
     private String status;

@@ -12,4 +12,7 @@ public class SleeperDto {
     public Long moduleId;
 
     private Boolean callRaised = false;
+
+    /** Set when the sleeper is rejected with its whole lot (e.g. water cube test failed). */
+    private String rejectionReason;
 }

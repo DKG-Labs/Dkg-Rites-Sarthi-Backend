@@ -26,7 +26,7 @@ public class CallLetterDetailsDto {
     // ---- PO Item fields ----
     private String itemSrNo; // Serial number e.g. "012"
     private String itemDesc; // Item description from po_item
-    private Integer poQty; // PO quantity
+    private java.math.BigDecimal poQty; // PO quantity (exact, can be fractional e.g. 4238.25 Mtr)
     private String uom; // Unit of measure e.g. "Nos."
     private String consigneeDetail; // Consignee (from po_item)
     private String billPayOffDesc; // Bill Paying Authority (from po_item)

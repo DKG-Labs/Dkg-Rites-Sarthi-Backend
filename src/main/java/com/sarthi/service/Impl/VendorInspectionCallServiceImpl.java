@@ -80,6 +80,9 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
     @Autowired
     private FinalCumulativeResultsRepository finalCumulativeResultsRepository;
 
+    @Autowired(required = false)
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @Override
     @Transactional(readOnly = true)
     public List<VendorInspectionCallStatusDto> getVendorInspectionCallsWithStatus(String vendorId) {
@@ -133,12 +136,26 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                 .collect(Collectors.toSet());
 
         Map<Integer, String> userNamesMap = Collections.emptyMap();
+        Map<Integer, String> userMobilesMap = Collections.emptyMap();
         if (!userIds.isEmpty()) {
-            userNamesMap = userMasterRepository.findByUserIdIn(new ArrayList<>(userIds))
-                    .stream().collect(Collectors.toMap(
-                            UserMaster::getUserId,
-                            u -> Optional.ofNullable(u.getFullName()).orElse("Unknown")
-                    ));
+            List<UserMaster> users = userMasterRepository.findByUserIdIn(new ArrayList<>(userIds));
+            userNamesMap = users.stream().collect(Collectors.toMap(
+                    UserMaster::getUserId,
+                    u -> Optional.ofNullable(u.getFullName()).orElse("Unknown"),
+                    (e1, e2) -> e1
+            ));
+            userMobilesMap = users.stream().collect(Collectors.toMap(
+                    UserMaster::getUserId,
+                    u -> {
+                        if (u.getMobileNumber() != null && !u.getMobileNumber().isBlank()) {
+                            return u.getMobileNumber().trim();
+                        } else if (u.getAlternateMobileNumber() != null && !u.getAlternateMobileNumber().isBlank()) {
+                            return u.getAlternateMobileNumber().trim();
+                        }
+                        return "";
+                    },
+                    (e1, e2) -> e1
+            ));
         }
         logger.info("Step 3c: Fetched {} user names in {}ms", userNamesMap.size(), (System.currentTimeMillis() - stepStart));
 
@@ -210,12 +227,136 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         }
         logger.info("Step 3e: Fetched accepted qtys for {} calls in {}ms", acceptedQtyMap.size(), (System.currentTimeMillis() - stepStart));
 
+        // 3f. Bulk-fetch IC Number & IC Date from edit tables (process_ic_edit, final_ic_edit, rm_ic_edit) FIRST, then fallback
+        stepStart = System.currentTimeMillis();
+        Map<String, String> certNoMap = new HashMap<>();
+        Map<String, String> certDateMap = new HashMap<>();
+        if (jdbcTemplate != null && !icNumbers.isEmpty()) {
+            try {
+                // 1. Primary Source: Query edit tables (process_ic_edit, final_ic_edit, rm_ic_edit) for created_at and ic_number
+                for (String tbl : new String[]{"process_ic_edit", "final_ic_edit", "rm_ic_edit"}) {
+                    try {
+                        String sqlEdit = "SELECT ic_number, created_at FROM " + tbl + " WHERE ic_number IS NOT NULL AND created_at IS NOT NULL ORDER BY id DESC";
+                        jdbcTemplate.query(sqlEdit, rs -> {
+                            String icNum = rs.getString("ic_number");
+                            Object crAtObj = rs.getObject("created_at");
+                            if (icNum != null && !icNum.isBlank() && crAtObj != null) {
+                                String icTrim = icNum.trim();
+                                for (String callNo : icNumbers) {
+                                    if (!certNoMap.containsKey(callNo) || !certDateMap.containsKey(callNo)) {
+                                        String cleanCall = callNo != null ? callNo.trim() : "";
+                                        String rawNum = cleanCall.contains("-") ? cleanCall.substring(cleanCall.indexOf("-") + 1).trim() : cleanCall;
+                                        boolean isMatch = icTrim.equals(cleanCall)
+                                                || icTrim.contains("/" + cleanCall + "/")
+                                                || icTrim.contains(cleanCall)
+                                                || (!rawNum.isEmpty() && (icTrim.contains("/" + rawNum + "/") || icTrim.contains(rawNum)));
+                                        if (isMatch) {
+                                            if (!certNoMap.containsKey(callNo)) {
+                                                certNoMap.put(callNo, icTrim);
+                                            }
+                                            if (!certDateMap.containsKey(callNo)) {
+                                                if (crAtObj instanceof java.time.LocalDateTime) {
+                                                    certDateMap.put(callNo, ((java.time.LocalDateTime) crAtObj).format(DATE_FORMATTER));
+                                                } else if (crAtObj instanceof java.sql.Timestamp) {
+                                                    certDateMap.put(callNo, ((java.sql.Timestamp) crAtObj).toLocalDateTime().format(DATE_FORMATTER));
+                                                } else if (crAtObj instanceof java.sql.Date) {
+                                                    certDateMap.put(callNo, ((java.sql.Date) crAtObj).toLocalDate().format(DATE_FORMATTER));
+                                                } else {
+                                                    String s = crAtObj.toString().trim();
+                                                    if (s.length() >= 10) {
+                                                        certDateMap.put(callNo, s.substring(0, 10));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } catch (Exception ignored) {}
+                }
+
+                // 2. Secondary fallback: Query inspection_complete_details by CALL_NO for remaining calls
+                List<String> missing = icNumbers.stream().filter(n -> !certNoMap.containsKey(n) || !certDateMap.containsKey(n)).collect(Collectors.toList());
+                if (!missing.isEmpty()) {
+                    for (int i = 0; i < missing.size(); i += 500) {
+                        List<String> subList = missing.subList(i, Math.min(i + 500, missing.size()));
+                        String inClause = "'" + String.join("','", subList) + "'";
+                        String sql = "SELECT CALL_NO, CERTIFICATE_NO, CREATED_ON FROM inspection_complete_details WHERE CALL_NO IN (" + inClause + ") ORDER BY id ASC";
+                        jdbcTemplate.query(sql, rs -> {
+                            String callNo = rs.getString("CALL_NO");
+                            String certNo = rs.getString("CERTIFICATE_NO");
+                            Object crOnObj = rs.getObject("CREATED_ON");
+                            if (callNo != null) {
+                                if (!certNoMap.containsKey(callNo) && certNo != null && !certNo.isBlank()) {
+                                    certNoMap.put(callNo, certNo.trim());
+                                }
+                                if (!certDateMap.containsKey(callNo) && crOnObj != null) {
+                                    if (crOnObj instanceof java.time.LocalDateTime) {
+                                        certDateMap.put(callNo, ((java.time.LocalDateTime) crOnObj).format(DATE_FORMATTER));
+                                    } else if (crOnObj instanceof java.sql.Timestamp) {
+                                        certDateMap.put(callNo, ((java.sql.Timestamp) crOnObj).toLocalDateTime().format(DATE_FORMATTER));
+                                    } else {
+                                        String s = crOnObj.toString().trim();
+                                        if (s.length() >= 10) certDateMap.put(callNo, s.substring(0, 10));
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // 3. Tertiary fallback: Query certificate_storage for remaining calls
+                List<String> stillMissing = icNumbers.stream().filter(n -> !certNoMap.containsKey(n) || !certDateMap.containsKey(n)).collect(Collectors.toList());
+                if (!stillMissing.isEmpty()) {
+                    try {
+                        String sqlCs = "SELECT ic_number, file_name, ic_date, uploaded_at FROM certificate_storage WHERE ic_number IS NOT NULL ORDER BY id DESC";
+                        jdbcTemplate.query(sqlCs, rs -> {
+                            String icNum = rs.getString("ic_number");
+                            String fName = rs.getString("file_name");
+                            java.sql.Date icDt = rs.getDate("ic_date");
+                            Object upAtObj = rs.getObject("uploaded_at");
+                            for (String callNo : stillMissing) {
+                                boolean match = (icNum != null && (icNum.equals(callNo) || icNum.contains("/" + callNo + "/") || icNum.contains(callNo)))
+                                        || (fName != null && fName.contains(callNo));
+                                if (match) {
+                                    if (!certNoMap.containsKey(callNo)) {
+                                        certNoMap.put(callNo, (icNum != null && !icNum.isBlank()) ? icNum.trim() : callNo);
+                                    }
+                                    if (!certDateMap.containsKey(callNo)) {
+                                        if (icDt != null) {
+                                            certDateMap.put(callNo, icDt.toString());
+                                        } else if (upAtObj != null) {
+                                            if (upAtObj instanceof java.time.LocalDateTime) {
+                                                certDateMap.put(callNo, ((java.time.LocalDateTime) upAtObj).format(DATE_FORMATTER));
+                                            } else if (upAtObj instanceof java.sql.Timestamp) {
+                                                certDateMap.put(callNo, ((java.sql.Timestamp) upAtObj).toLocalDateTime().format(DATE_FORMATTER));
+                                            } else {
+                                                String s = upAtObj.toString().trim();
+                                                if (s.length() >= 10) certDateMap.put(callNo, s.substring(0, 10));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception e) {
+                logger.warn("Step 3f: Error bulk-fetching certificates: {}", e.getMessage());
+            }
+        }
+        logger.info("Step 3f: Fetched certificates for {} calls in {}ms", certNoMap.size(), (System.currentTimeMillis() - stepStart));
+
         // 4. Map each inspection call to DTO using bulk-fetched data
         stepStart = System.currentTimeMillis();
         final Map<Integer, String> finalUserNamesMap = userNamesMap;
+        final Map<Integer, String> finalUserMobilesMap = userMobilesMap;
         final Map<Long, Long> finalRmHeatCountMap = rmHeatCountMap;
         final Map<Long, String> finalFinalLotNoMap = finalLotNoMap;
         final Map<String, Long> finalAcceptedQtyMap = acceptedQtyMap;
+        final Map<String, String> finalCertNoMap = certNoMap;
+        final Map<String, String> finalCertDateMap = certDateMap;
 
         List<VendorInspectionCallStatusDto> results = inspectionCalls.stream()
                 .map(ic -> mapToVendorInspectionCallStatusDtoOptimized(
@@ -226,9 +367,12 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                         ic.getProcessInspectionDetails(),
                         ic.getFinalInspectionDetails(),
                         finalUserNamesMap,
+                        finalUserMobilesMap,
                         finalRmHeatCountMap,
                         finalFinalLotNoMap,
-                        finalAcceptedQtyMap))
+                        finalAcceptedQtyMap,
+                        finalCertNoMap,
+                        finalCertDateMap))
                 .collect(Collectors.toList());
 
         long endTime = System.currentTimeMillis();
@@ -248,9 +392,12 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
             List<ProcessInspectionDetails> processList,
             FinalInspectionDetails finalDetails,
             Map<Integer, String> userNamesMap,
+            Map<Integer, String> userMobilesMap,
             Map<Long, Long> rmHeatCountMap,
             Map<Long, String> finalLotNoMap,
-            Map<String, Long> acceptedQtyMap) {
+            Map<String, Long> acceptedQtyMap,
+            Map<String, String> certNoMap,
+            Map<String, String> certDateMap) {
 
         // Get item name and quantity based on type of call
         String itemName = getItemNameOptimized(ic, rmDetails, processList, finalDetails);
@@ -260,13 +407,17 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         String rlyShortName = ph != null ? ph.getRlyShortName() : "N/A";
         String rlyCd = ph != null ? ph.getRlyCd() : "N/A";
 
-        // IE Name from Map
+        // IE Name & Mobile from Map
         String ieName = "Not Assigned";
+        String ieContactNo = "";
         if (latestTransition != null) {
-            if (latestTransition.getAssignedToUser() != null) {
-                ieName = userNamesMap.getOrDefault(latestTransition.getAssignedToUser(), "Not Assigned");
-            } else if (latestTransition.getProcessIeUserId() != null) {
-                ieName = userNamesMap.getOrDefault(latestTransition.getProcessIeUserId(), "Not Assigned");
+            Integer targetUserId = latestTransition.getAssignedToUser();
+            if (targetUserId == null || targetUserId <= 0) {
+                targetUserId = latestTransition.getProcessIeUserId();
+            }
+            if (targetUserId != null && targetUserId > 0) {
+                ieName = userNamesMap.getOrDefault(targetUserId, "Not Assigned");
+                ieContactNo = userMobilesMap.getOrDefault(targetUserId, "");
             }
         }
 
@@ -287,8 +438,47 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
         }
 
         String scheduledDate = null;
-        if (latestTransition != null && "SCHEDULED".equalsIgnoreCase(latestTransition.getStatus())) {
-            scheduledDate = ic.getActualInspectionDate() != null ? ic.getActualInspectionDate().format(DATE_FORMATTER) : null;
+        boolean isScheduled = (latestTransition != null && (
+                "SCHEDULED".equalsIgnoreCase(latestTransition.getStatus()) ||
+                "IE_SCHEDULED".equalsIgnoreCase(latestTransition.getStatus()) ||
+                "SCHEDULED".equalsIgnoreCase(latestTransition.getJobStatus()) ||
+                (latestTransition.getAction() != null && latestTransition.getAction().toUpperCase().contains("SCHEDULE"))
+        )) || ic.getActualInspectionDate() != null;
+        if (isScheduled && ic.getActualInspectionDate() != null) {
+            scheduledDate = ic.getActualInspectionDate().format(DATE_FORMATTER);
+        }
+
+        // Determine Certificate No and Date
+        String certNo = certNoMap != null ? certNoMap.get(ic.getIcNumber()) : null;
+        String certDate = certDateMap != null ? certDateMap.get(ic.getIcNumber()) : null;
+
+        String effectiveStatus = latestTransition != null ? latestTransition.getStatus() : ic.getStatus();
+        boolean isIbsOrComplete = effectiveStatus != null && (
+                effectiveStatus.toUpperCase().contains("IBS") ||
+                effectiveStatus.toUpperCase().contains("COMPLET")
+        );
+
+        if (isIbsOrComplete) {
+            if (certNo == null || certNo.isBlank()) {
+                String ieShort = "ARV";
+                if (latestTransition != null && latestTransition.getAssignedToUser() != null) {
+                    String fullIe = userNamesMap.get(latestTransition.getAssignedToUser());
+                    if (fullIe != null && !fullIe.isBlank()) {
+                        String[] parts = fullIe.trim().split("\\s+");
+                        ieShort = parts[0].substring(0, Math.min(3, parts[0].length())).toUpperCase();
+                    }
+                }
+                certNo = "N/" + ic.getIcNumber() + "/" + ieShort;
+            }
+            if (certDate == null || certDate.isBlank()) {
+                if (latestTransition != null && latestTransition.getCreatedDate() != null) {
+                    certDate = new java.text.SimpleDateFormat("yyyy-MM-dd").format(latestTransition.getCreatedDate());
+                } else if (ic.getUpdatedAt() != null) {
+                    certDate = ic.getUpdatedAt().format(DATE_FORMATTER);
+                } else if (ic.getDesiredInspectionDate() != null) {
+                    certDate = ic.getDesiredInspectionDate().format(DATE_FORMATTER);
+                }
+            }
         }
 
         return VendorInspectionCallStatusDto.builder()
@@ -316,9 +506,15 @@ public class VendorInspectionCallServiceImpl implements VendorInspectionCallServ
                 .lotNoProcess(lotNoProcess)
                 .lotNoFinal(lotNoFinal)
                 .ieName(ieName)
+                .ieContactNo(ieContactNo)
+                .ieMobile(ieContactNo)
                 .uom(uom)
                 .scheduledDate(scheduledDate)
                 .acceptedQty(acceptedQtyMap.getOrDefault(ic.getIcNumber(), 0L))
+                .certificateNo(certNo)
+                .certificateDate(certDate)
+                .icNo(certNo)
+                .icDate(certDate)
                 .build();
     }
 

@@ -13,7 +13,7 @@ public class SectionARequest {
     private String rlyPoNo;
     private LocalDateTime poDate;
 
-    private Integer poQty;
+    private java.math.BigDecimal poQty;
     private String vendorName;
 
     private String maNo;

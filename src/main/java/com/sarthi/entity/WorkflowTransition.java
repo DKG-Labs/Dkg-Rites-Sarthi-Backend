@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import java.util.Date;
 
 @Entity
+@jakarta.persistence.EntityListeners(com.sarthi.notification.sms.CallAssignmentEntityListener.class)
 @Table(name = "WORKFLOW_TRANSITION")
 @Data
 public class WorkflowTransition {

@@ -17,7 +17,7 @@ public class FinalCallInspectionHeaderResponse {
     private String vendorName;
 
     private String callNo;
-    private Integer poQty;
+    private BigDecimal poQty;
     private String maNo;
     private LocalDate maDate;
 

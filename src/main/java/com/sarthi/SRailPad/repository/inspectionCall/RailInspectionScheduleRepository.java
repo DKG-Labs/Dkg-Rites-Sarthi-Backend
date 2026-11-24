@@ -12,6 +12,7 @@ import java.util.Optional;
 @Repository
 public interface RailInspectionScheduleRepository extends JpaRepository<RailInspectionSchedule, Long> {
     Optional<RailInspectionSchedule> findByCallNo(String callNo);
+    Optional<RailInspectionSchedule> findTopByCallNoOrderByIdDesc(String callNo);
     List<RailInspectionSchedule> findByCallNoIn(Collection<String> callNos);
     long countByScheduleDate(LocalDate scheduleDate);
 }

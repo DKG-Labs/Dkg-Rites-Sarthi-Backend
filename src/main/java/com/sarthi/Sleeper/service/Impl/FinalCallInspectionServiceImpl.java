@@ -10,6 +10,7 @@ import com.sarthi.Sleeper.repository.FinalCallnspectionSectionARepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.repository.SleeperScheduleRepository;
 import com.sarthi.Sleeper.service.FinalCallInspectionService;
+import com.sarthi.Sleeper.util.SleeperQtyUtil;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.entity.PoHeader;
 import com.sarthi.entity.PoItem;
@@ -110,7 +111,8 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
             } else {
                 res.setRlyPoNo(call.getPoNo() + " / " + call.getSrNo());
             }
-            res.setPoQty(poItem != null ? poItem.getQty() : null);
+            // Exact PO item qty (decimal column), so fractional quantities such as 4238.25 Mtr are not rounded
+            res.setPoQty(poItem != null ? poItem.getQtyExact() : null);
             res.setUom(poItem != null && poItem.getUom() != null ? poItem.getUom() : "Nos");
             res.setMaNo("N/A"); // not available in entity
             res.setMaDate("N/A");
@@ -147,7 +149,7 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
         res.setProductType(null);
         res.setTypeOfErc(call.getSleeperType());
 
-        res.setPoSrQtyUnit(poItem.getQty() + " " + poItem.getUom());
+        res.setPoSrQtyUnit(SleeperQtyUtil.plain(poItem.getQtyExact()) + " " + poItem.getUom());
 
         res.setConsignee(
                 poItem.getConsigneeRly() + "/" + poItem.getConsigneeDetail()

@@ -18,8 +18,8 @@ public class SleeperInspectionCallSummaryDTO {
     private java.math.BigDecimal qtyOfferedNow;
     private Integer noOfBatches;
 
-    private Integer totalAccepted;
-    private Integer totalRejected;
+    private java.math.BigDecimal totalAccepted;
+    private java.math.BigDecimal totalRejected;
 
     private Integer noOfEtSleepers;
     private String desiredInspectionDate;

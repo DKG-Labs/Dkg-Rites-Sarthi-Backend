@@ -313,6 +313,14 @@ public class ProcessInspectionCallServiceImpl implements ProcessInspectionCallSe
         if (processDetailsList != null) {
             List<ProcessInspectionDetails> existingLots = processDetailsRepository.findByIcId(inspection.getId());
 
+            // Validate: Decrease in call quantity should not be allowed
+            int prevTotalQty = existingLots != null ? existingLots.stream().mapToInt(p -> p.getOfferedQty() != null ? p.getOfferedQty() : 0).sum() : 0;
+            int newTotalQty = processDetailsList.stream().mapToInt(p -> p.getOfferedQty() != null ? p.getOfferedQty() : 0).sum();
+            if (prevTotalQty > 0 && newTotalQty < prevTotalQty) {
+                throw new IllegalArgumentException("Modification not allowed: Call quantity cannot be decreased. Previous quantity: " 
+                        + prevTotalQty + ", entered: " + newTotalQty);
+            }
+
             // 1. Delete lots that are no longer present in the request list (matched by lotNumber)
             for (ProcessInspectionDetails existing : existingLots) {
                 boolean stillExists = processDetailsList.stream()

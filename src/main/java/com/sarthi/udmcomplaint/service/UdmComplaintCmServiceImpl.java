@@ -106,7 +106,9 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         String toStatus;
         if (PATH_JI.equals(path)) {
             s.setPath(PATH_JI);
-            s.setStageDate(parseDate(req.getJiDate(), "JI date", false));
+            s.setStageDate(parseDate(req.getJiDate(), "Scheduled JI date", false));
+            s.setIbsCaseNo(requiredText(req.getIbsCaseNo(), "IBS Case Number", 50));
+            s.setFirstReferenceDate(parseDate(req.getFirstReferenceDate(), "Date of 1st Reference", true));
             applyJiTeam(s, c, req);
             transition = TR_CM_SCHEDULE_JI;
             toStatus = ST_JI_SCHEDULED;
@@ -186,7 +188,11 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
         UdmComplaintStage s = newStage(c, STAGE_JI_COMPLETE, userId);
         s.setStageDate(parseDate(req.getActualJiDate(), "Actual JI date", true));
         s.setJiOutcome(oneOf(req.getJiOutcome(), dd.get(DD_JI_OUTCOME), "JI outcome"));
-        s.setAttributableTo(oneOf(req.getAttributableTo(), dd.get(DD_ATTRIBUTABLE_TO), "Attributable to"));
+        // "Attributable to" is no longer asked when completing a JI (Audit path still requires it);
+        // kept only if an older client still sends it.
+        if (!isBlank(req.getAttributableTo())) {
+            s.setAttributableTo(oneOf(req.getAttributableTo(), dd.get(DD_ATTRIBUTABLE_TO), "Attributable to"));
+        }
         s.setRemarks(support.trimRemarks(req.getRemarks(), false));
 
         ValidPdf pdf = storage.validate(report, true, "JI Report");
@@ -273,6 +279,8 @@ public class UdmComplaintCmServiceImpl implements UdmComplaintCmService {
             d.setFlagCritical(s.getFlagCritical());
             d.setStageDate(s.getStageDate() != null ? s.getStageDate().toString() : null);
             d.setJiTeam(s.getJiTeam());
+            d.setIbsCaseNo(s.getIbsCaseNo());
+            d.setFirstReferenceDate(s.getFirstReferenceDate() != null ? s.getFirstReferenceDate().toString() : null);
             d.setJiOutcome(s.getJiOutcome());
             d.setAuditType(s.getAuditType());
             d.setFindings(s.getFindings());

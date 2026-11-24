@@ -50,4 +50,13 @@ public class ProductionDeclarationResponseDto {
     private Boolean condition2;
     private Integer mrSamplesRequired;
 
+    /** True once a Final IC is issued on a call carrying this batch (batch locked for unlock/modify/delete). */
+    private Boolean lockedByIc;
+    private String lockedByIcCallNo;
+
+    /** True when the whole lot was rejected (water cube test failed) and returned to the vendor. */
+    private Boolean lotRejected;
+    private String lotRejectionReason;
+    private LocalDateTime lotRejectedAt;
+
 }

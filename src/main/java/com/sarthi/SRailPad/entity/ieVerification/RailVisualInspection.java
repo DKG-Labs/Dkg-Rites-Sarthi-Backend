@@ -36,6 +36,9 @@ public class RailVisualInspection {
     @Column(name = "smooth_surface", nullable = false)
     private String smoothSurface;
 
+    @Column(name = "freedom_from_defects")
+    private String freedomFromDefects;
+
     @Column(name = "defect_remarks", length = 500)
     private String defectRemarks;
 
