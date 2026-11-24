@@ -100,6 +100,7 @@ public class RailVisualInspectionServiceImpl implements RailVisualInspectionServ
         entity.setSampleQuantity(dto.getSampleQuantity());
         entity.setClearCutSides(dto.getClearCutSides());
         entity.setSmoothSurface(dto.getSmoothSurface());
+        entity.setFreedomFromDefects(dto.getFreedomFromDefects() != null ? dto.getFreedomFromDefects() : "Satisfactory");
         entity.setDefectRemarks(dto.getDefectRemarks());
         entity.setStatus(dto.getStatus());
         entity.setTimestamp(dto.getTimestamp());
@@ -116,6 +117,7 @@ public class RailVisualInspectionServiceImpl implements RailVisualInspectionServ
         dto.setSampleQuantity(entity.getSampleQuantity());
         dto.setClearCutSides(entity.getClearCutSides());
         dto.setSmoothSurface(entity.getSmoothSurface());
+        dto.setFreedomFromDefects(entity.getFreedomFromDefects() != null ? entity.getFreedomFromDefects() : "Satisfactory");
         dto.setDefectRemarks(entity.getDefectRemarks());
         dto.setStatus(entity.getStatus());
         dto.setTimestamp(entity.getTimestamp());
