@@ -6,6 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Entity
+@jakarta.persistence.EntityListeners(com.sarthi.notification.sms.CallAssignmentEntityListener.class)
 @Table(name = "sleeper_workflow_transaction")
 @Data
 public class SleeperWorkflowTransaction {

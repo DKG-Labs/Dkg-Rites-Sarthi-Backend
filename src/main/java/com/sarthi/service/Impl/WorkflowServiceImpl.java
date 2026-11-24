@@ -62,6 +62,8 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Autowired
     private ErcIcNumberSyncService ercIcNumberSyncService;
     @Autowired
+    private com.sarthi.notification.sms.CallSmsNotifier callSmsNotifier;
+    @Autowired
     private UserMasterRepository userMasterRepository;
     @Autowired
     private TransitionMasterRepository transitionMasterRepository;
@@ -5860,8 +5862,12 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
         }
 
         // ALWAYS update the workflow transition's assigned user for this call!
+        Integer smsOldIeUserId = latest.getAssignedToUser() != null ? latest.getAssignedToUser() : oldUserId;
         latest.setAssignedToUser(newUser.getUserId());
         workflowTransitionRepository.save(latest);
+
+        // SMS to new IE / old IE / vendor / CM (after commit, async; no-op unless enabled)
+        callSmsNotifier.callReassigned(callNo, smsOldIeUserId, newUser.getUserId());
 
         // IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
         ercIcNumberSyncService.syncIeSuffix(callNo);

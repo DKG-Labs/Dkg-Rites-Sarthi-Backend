@@ -40,6 +40,20 @@ public class RailInspectionCallController {
     private final RailVendorPlantsRepository railVendorPlantsRepository;
 
     @Autowired
+    private com.sarthi.SRailPad.service.Impl.inspectionCall.RailOpenProcessPoService railOpenProcessPoService;
+
+    /**
+     * Vendor – Declare New Production: POs that have a process (RPP) call in progress at this plant.
+     * GET /api/rail-inspection-call/open-process-pos?vendorCode=&plantId=
+     */
+    @GetMapping("/open-process-pos")
+    public ResponseEntity<Object> openProcessPos(@RequestParam String vendorCode,
+                                                 @RequestParam(required = false) String plantId) {
+        return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(
+                railOpenProcessPoService.openProcessPos(vendorCode, plantId)), HttpStatus.OK);
+    }
+
+    @Autowired
     public RailInspectionCallController(RailInspectionCallService service,
                                         RailWorkflowService railWorkflowService,
                                         RailPoSummaryService railPoSummaryService,

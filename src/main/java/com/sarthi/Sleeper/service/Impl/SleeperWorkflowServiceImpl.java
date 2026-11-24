@@ -65,6 +65,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Autowired
     private SleeperIcNumberSyncService sleeperIcNumberSyncService;
     @Autowired
+    private com.sarthi.notification.sms.CallSmsNotifier callSmsNotifier;
+    @Autowired
     private ProductionBatchIcLockService productionBatchIcLockService;
     @Autowired
     private SleeperWorkflowMasterRepository workflowRepository;
@@ -426,9 +428,16 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
                     .map(SleeperPoiIeMapping::getIeUserId)
                     .toList();
 
-            // If the call is pending for Main IE, the assigned user is the mapped IE
-            if ("Main IE".equalsIgnoreCase(tx.getNextRole()) && !userIds.isEmpty()) {
-                dto.setAssignedToUser(Long.valueOf(userIds.get(0)));
+            // Pending for Main IE and NOT yet assigned: fall back to the plant's mapped Main IE.
+            // A call already assigned (e.g. after a call-desk reassign) keeps the IE on its latest transaction.
+            if ("Main IE".equalsIgnoreCase(tx.getNextRole()) && dto.getAssignedToUser() == null) {
+                Integer mainIe = mappings.stream()
+                        .filter(m -> m.getIeUserId() != null)
+                        .filter(m -> "MAIN_IE".equals(RioUtil.normalizeIeRole(m.getIeType())))
+                        .map(SleeperPoiIeMapping::getIeUserId)
+                        .findFirst()
+                        .orElse(null);
+                if (mainIe != null) dto.setAssignedToUser(Long.valueOf(mainIe));
             }
         }
         if (vendorId != null) {
@@ -2511,9 +2520,10 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
         String poiCode = null;
         Long assignedToUser = null;
 
-        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByCreatedDateAsc(trimmedCallNo);
+        // newest first by workflow_transition_id — the assigned IE is the one on the LATEST transaction
+        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(trimmedCallNo);
         if (txList != null && !txList.isEmpty()) {
-            for (int i = txList.size() - 1; i >= 0; i--) {
+            for (int i = 0; i < txList.size(); i++) {
                 SleeperWorkflowTransaction tx = txList.get(i);
                 if (plantId == null && tx.getPlantId() != null && !tx.getPlantId().trim().isEmpty()) {
                     plantId = tx.getPlantId().trim();
@@ -2639,8 +2649,10 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             throw new RuntimeException("Call No and new user ID are required.");
         }
 
-        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByCreatedDateAsc(callNo);
-        SleeperWorkflowTransaction latestTx = (txList != null && !txList.isEmpty()) ? txList.get(txList.size() - 1) : null;
+        // Latest transaction = highest workflow_transition_id (the row every dashboard reads).
+        // Not by created_date: several rows of a call are often created in the same second.
+        List<SleeperWorkflowTransaction> txList = repository.findByRequestIdOrderByWorkflowTransitionIdDesc(callNo);
+        SleeperWorkflowTransaction latestTx = (txList != null && !txList.isEmpty()) ? txList.get(0) : null;
 
         if (plantId == null && latestTx != null) {
             plantId = latestTx.getPlantId();
@@ -2667,6 +2679,8 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
         }
 
+        Integer smsOldIeUserId = latestTx != null && latestTx.getAssignedToUser() != null
+                ? latestTx.getAssignedToUser().intValue() : oldUserId;
         if (latestTx != null) {
             latestTx.setAssignedToUser(Long.valueOf(newUserId));
             repository.save(latestTx);
@@ -2674,6 +2688,9 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
 
         // IC not issued yet: the IC number must carry the new IE's name, not the previous IE's
         sleeperIcNumberSyncService.syncIeSuffix(callNo);
+
+        // SMS to new IE / old IE / vendor / CM (after commit, async; no-op unless enabled)
+        callSmsNotifier.callReassigned(callNo, smsOldIeUserId, newUserId);
     }
 
     /**

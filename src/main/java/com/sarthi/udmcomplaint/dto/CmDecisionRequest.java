@@ -11,6 +11,8 @@ public class CmDecisionRequest {
     private String jiDate;          // yyyy-MM-dd, required for JI
     /** JI team: user ids from /cm/ji-team-options (IEs + CMs of the RIO); at least one for JI. */
     private List<Integer> jiTeamUserIds;
+    private String ibsCaseNo;           // required for JI
+    private String firstReferenceDate;  // yyyy-MM-dd, required for JI
     /** Optional other members not in SARTHI (e.g. consignee / vendor representatives). */
     private String jiTeamOthers;
     private Boolean flagFailed90;
