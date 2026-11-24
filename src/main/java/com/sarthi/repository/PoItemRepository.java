@@ -283,7 +283,10 @@ public interface PoItemRepository extends JpaRepository<PoItem, Long> {
                     END
                 ) AS uom,
                 COALESCE(
-                    (SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci ORDER BY sfr.id DESC LIMIT 1),
+                    (SELECT CASE WHEN LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('set', 'sets')
+                                 THEN COALESCE(sfr.accepted_sets_quantity, sfr.total_accepted)
+                                 ELSE sfr.total_accepted END
+                     FROM sleeper_final_result sfr WHERE CONVERT(TRIM(sfr.call_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci ORDER BY sfr.id DESC LIMIT 1),
                     (SELECT fci.accepted_qty FROM final_call_inspection_header fci WHERE CONVERT(TRIM(fci.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci ORDER BY fci.id DESC LIMIT 1),
                     (SELECT CAST(sfie.passed_installment_no AS SIGNED) FROM sleeper_final_ic_edit sfie WHERE CONVERT(TRIM(sfie.ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci OR CONVERT(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(sfie.ic_number, '/', 2), '/', -1)) USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(TRIM(sic.call_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci ORDER BY sfie.id DESC LIMIT 1),
                     GREATEST(0, COALESCE(sic.total_offered, 0) - COALESCE(sic.total_rejected, 0)),
