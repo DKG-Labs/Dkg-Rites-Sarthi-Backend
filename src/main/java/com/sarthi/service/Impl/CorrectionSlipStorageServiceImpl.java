@@ -154,6 +154,7 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
                 .filter(d -> d.getBlobFileName() != null && !d.getBlobFileName().trim().isEmpty())
                 .orElse(null);
 
+        String sanitizedCallNo = callNo.replaceAll("[^a-zA-Z0-9_-]", "_");
         String sanitizedFileName;
         String blobPath;
         if (reuseDoc != null) {
@@ -162,11 +163,7 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
                     ? reuseDoc.getOriginalFileName()
                     : new File(blobPath).getName();
         } else {
-            List<CorrectionSlipDocument> existingDocs = getAllDocuments(callNo);
-            int nextIndex = existingDocs.size() + 1;
-
-            String sanitizedCallNo = callNo.replaceAll("[^a-zA-Z0-9_-]", "_");
-            sanitizedFileName = String.format("Correction_Slip_%s_%d.pdf", sanitizedCallNo, nextIndex);
+            sanitizedFileName = String.format("Correction_Slip_%s.pdf", sanitizedCallNo);
             blobPath = String.format("%s/%s/%s", folderPrefix, sanitizedCallNo, sanitizedFileName);
         }
 
@@ -190,6 +187,16 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
         }
 
         // 4. Save the CorrectionSlipDocument row in DB (update the open pre-sign row, or insert a new one)
+        // Deactivate / supersede any previous active documents for this callNo so only ONE document is active
+        List<CorrectionSlipDocument> existingDocs = getAllDocuments(callNo);
+        for (CorrectionSlipDocument prev : existingDocs) {
+            if (reuseDoc == null || !prev.getId().equals(reuseDoc.getId())) {
+                prev.setStatus("SUPERSEDED");
+                documentRepository.save(prev);
+                log.info("Marked prior correction slip document id={} as SUPERSEDED for call: {}", prev.getId(), callNo);
+            }
+        }
+
         String uploadedBy = request.getUploadedBy() != null ? request.getUploadedBy() : "Inspecting Engineer";
         CorrectionSlipDocument doc;
         if (reuseDoc != null) {
@@ -278,14 +285,9 @@ public class CorrectionSlipStorageServiceImpl implements CorrectionSlipStorageSe
     @Override
     @Transactional(readOnly = true)
     public List<CorrectionSlipDocument> getIssuedDocuments(String callNo) {
-        List<CorrectionSlipDocument> all = getAllDocuments(callNo);
-        List<CorrectionSlipDocument> issued = new ArrayList<>();
-        for (CorrectionSlipDocument doc : all) {
-            if (isIssued(doc)) {
-                issued.add(doc);
-            }
-        }
-        return issued;
+        // Each call has at most ONE active correction slip (the latest active issued document)
+        Optional<CorrectionSlipDocument> latestOpt = getLatestDocument(callNo);
+        return latestOpt.map(List::of).orElse(Collections.emptyList());
     }
 
     /** A correction slip counts as issued unless it is only a pre-sign copy (null stage = legacy, issued). */

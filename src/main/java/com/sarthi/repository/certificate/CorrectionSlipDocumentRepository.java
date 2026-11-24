@@ -30,7 +30,7 @@ public interface CorrectionSlipDocumentRepository extends JpaRepository<Correcti
            d.callNo IN :variations
            OR d.icNumber IN :variations
        )
-       AND (d.status IS NULL OR UPPER(d.status) NOT IN ('DELETED', 'CANCELLED', 'INACTIVE'))
+       AND (d.status IS NULL OR UPPER(d.status) NOT IN ('DELETED', 'CANCELLED', 'INACTIVE', 'SUPERSEDED'))
        ORDER BY d.uploadedAt ASC, d.id ASC
     """)
     List<CorrectionSlipDocument> findAllMatchingForCall(

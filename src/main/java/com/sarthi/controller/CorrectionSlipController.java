@@ -153,7 +153,7 @@ public class CorrectionSlipController {
                 Map<String, Object> item = new HashMap<>();
                 item.put("id", doc.getId());
                 item.put("slipNumber", i + 1);
-                item.put("title", "Correction Slip " + (i + 1));
+                item.put("title", "Correction Slip");
                 item.put("callNo", doc.getCallNo());
                 item.put("icNumber", doc.getIcNumber());
                 item.put("moduleType", doc.getModuleType());
