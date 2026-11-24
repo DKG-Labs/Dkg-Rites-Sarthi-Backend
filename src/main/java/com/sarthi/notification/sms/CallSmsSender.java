@@ -75,10 +75,12 @@ public class CallSmsSender {
             Person cm = ie != null && ie.cmUserId() != null ? person(ie.cmUserId()) : null;
             Plant plant = plant(p, callNo);
             Map<String, String> v = values(callNo, p, plant, ie, null);
+            v.putAll(callInfo(p, callNo, ieUserId));
 
-            deliver(p, callNo, "ASSIGNED", "IE", ie, ieUserId, CallSmsTemplate.IE_ASSIGNED, v);
-            deliverVendor(p, callNo, "ASSIGNED", plant, ieUserId, CallSmsTemplate.VENDOR_ASSIGNED, v);
-            deliver(p, callNo, "ASSIGNED", "CM", cm, ieUserId, CallSmsTemplate.CM_ASSIGNED, v);
+            // single DLT template "QA Call Marked" for every recipient
+            deliver(p, callNo, "ASSIGNED", "IE", ie, ieUserId, CallSmsTemplate.QA_CALL_MARKED, v);
+            deliverVendor(p, callNo, "ASSIGNED", plant, ieUserId, CallSmsTemplate.QA_CALL_MARKED, v);
+            deliver(p, callNo, "ASSIGNED", "CM", cm, ieUserId, CallSmsTemplate.QA_CALL_MARKED, v);
         } catch (Exception e) {
             log.warn("Call SMS (assigned) failed for {}: {}", callNoRaw, e.getMessage());
         }
@@ -95,11 +97,13 @@ public class CallSmsSender {
             Person cm = newIe != null && newIe.cmUserId() != null ? person(newIe.cmUserId()) : null;
             Plant plant = plant(p, callNo);
             Map<String, String> v = values(callNo, p, plant, newIe, oldIe);
+            v.putAll(callInfo(p, callNo, newIeUserId));
 
-            deliver(p, callNo, "REASSIGNED", "IE", newIe, newIeUserId, CallSmsTemplate.IE_REASSIGNED_NEW, v);
-            if (oldIe != null) deliver(p, callNo, "REASSIGNED", "OLD_IE", oldIe, newIeUserId, CallSmsTemplate.IE_REASSIGNED_OLD, v);
-            deliverVendor(p, callNo, "REASSIGNED", plant, newIeUserId, CallSmsTemplate.VENDOR_REASSIGNED, v);
-            deliver(p, callNo, "REASSIGNED", "CM", cm, newIeUserId, CallSmsTemplate.CM_REASSIGNED, v);
+            // single DLT template "QA Call Marked" (new IE's details) for the new IE, vendor and CM.
+            // The previous IE gets no SMS: this template has no "reassigned away" wording.
+            deliver(p, callNo, "REASSIGNED", "IE", newIe, newIeUserId, CallSmsTemplate.QA_CALL_MARKED, v);
+            deliverVendor(p, callNo, "REASSIGNED", plant, newIeUserId, CallSmsTemplate.QA_CALL_MARKED, v);
+            deliver(p, callNo, "REASSIGNED", "CM", cm, newIeUserId, CallSmsTemplate.QA_CALL_MARKED, v);
         } catch (Exception e) {
             log.warn("Call SMS (reassigned) failed for {}: {}", callNoRaw, e.getMessage());
         }
@@ -211,11 +215,61 @@ public class CallSmsSender {
         v.put("callNo", callNo);
         v.put("product", productLabel(p));
         v.put("plant", plant != null && plant.name() != null ? plant.name().trim() : "-");
-        v.put("ieName", ie != null && ie.name() != null ? ie.name().trim() : "-");
+        v.put("firm", cut(plant != null ? plant.name() : null));            // overwritten by company name when known
+        v.put("ieName", cut(ie != null ? ie.name() : null));
         String ieMob = ie != null ? normaliseMobile(ie.mobile()) : null;
         v.put("ieMobile", ieMob != null ? ieMob : "-");
         v.put("oldIeName", oldIe != null && oldIe.name() != null ? oldIe.name().trim() : "-");
         return v;
+    }
+
+    /**
+     * Values for the "QA Call Marked" template: railway, PO no + date, firm, call date and the IE's RIO.
+     * Each DLT variable is limited to 30 characters, so every value is cut to 30.
+     */
+    private Map<String, String> callInfo(Product p, String callNo, Integer ieUserId) {
+        String sql = switch (p) {
+            case ERC -> "SELECT ic.po_no, ic.created_at, ic.company_name FROM inspection_calls ic WHERE ic.ic_number = ? LIMIT 1";
+            case SLEEPER -> "SELECT c.po_no, c.created_at, NULL FROM sleeper_inspection_call c WHERE UPPER(c.call_no) = ? LIMIT 1";
+            case RAILPAD -> "SELECT c.po_no, c.created_at, NULL FROM rail_inspection_call c WHERE UPPER(c.call_no) = ? LIMIT 1";
+        };
+        Map<String, String> v = new HashMap<>();
+        java.time.format.DateTimeFormatter d = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        try {
+            List<Object[]> rows = jdbc.query(sql, (rs, i) -> new Object[]{rs.getString(1), rs.getTimestamp(2), rs.getString(3)}, callNo);
+            String poFull = rows.isEmpty() ? null : (String) rows.get(0)[0];
+            String poNo = poFull == null ? null : poFull.split("/")[0].trim();
+            java.sql.Timestamp callTs = rows.isEmpty() ? null : (java.sql.Timestamp) rows.get(0)[1];
+            String company = rows.isEmpty() ? null : (String) rows.get(0)[2];
+
+            String rly = null, poDate = null;
+            if (poNo != null) {
+                List<Object[]> po = jdbc.query("SELECT rly_short_name, po_date FROM po_header WHERE po_no = ? LIMIT 1",
+                        (rs, i) -> new Object[]{rs.getString(1), rs.getTimestamp(2)}, poNo);
+                if (!po.isEmpty()) {
+                    rly = (String) po.get(0)[0];
+                    java.sql.Timestamp pd = (java.sql.Timestamp) po.get(0)[1];
+                    poDate = pd == null ? null : pd.toLocalDateTime().toLocalDate().format(d);
+                }
+            }
+            v.put("rly", cut(rly));
+            v.put("poNo", cut(poNo));
+            v.put("poDate", cut(poDate));
+            v.put("callDate", cut(callTs == null ? null : callTs.toLocalDateTime().toLocalDate().format(d)));
+            if (company != null && !company.isBlank()) v.put("firm", cut(company));
+        } catch (Exception e) {
+            log.warn("Call SMS {}: call/PO details not found: {}", callNo, e.getMessage());
+        }
+        List<String> rio = jdbc.queryForList("SELECT Region FROM user_master WHERE USERID = ? LIMIT 1", String.class, ieUserId);
+        v.put("rio", cut(rio.isEmpty() ? null : rio.get(0)));
+        return v;
+    }
+
+    /** DLT variables are max 30 characters; empty -> "-". */
+    private static String cut(String s) {
+        if (s == null || s.isBlank()) return "-";
+        String t = s.trim().replaceAll("\\s+", " ");
+        return t.length() > 30 ? t.substring(0, 30) : t;
     }
 
     /** 10-digit Indian mobile (drops +91 / 0 / spaces); null if not valid. */

@@ -9,6 +9,14 @@ package com.sarthi.notification.sms;
  */
 public enum CallSmsTemplate {
 
+    /**
+     * DLT template 1707164430135161602 "QA Call Marked" — the approved text, sent to IE, vendor and CM
+     * on assignment and reassignment. Text must stay byte-for-byte identical to the DLT registration.
+     */
+    QA_CALL_MARKED("qa-call-marked",
+            "RITES LTD - QA Call Marked, IE - {ieName},Contact No.{ieMobile},RLY-{rly},PO-{poNo},DT- {poDate}, "
+                    + "Firm Name-{firm}, Call Sno - {callNo},DT- {callDate}- RITES/{rio}"),
+
     IE_ASSIGNED("ie-assigned",
             "Call {callNo} ({product}) at {plant} has been assigned to you for inspection. -RITES/QA"),
     VENDOR_ASSIGNED("vendor-assigned",
