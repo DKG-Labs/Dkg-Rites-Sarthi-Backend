@@ -283,6 +283,7 @@ public class WorkflowServiceImpl implements WorkflowService {
           if(i.isPresent()){
               ic= i.get();
           }
+          validateErcIeCaseRioAccess(createdBy, requestId, ic);
                if(ic.getTypeOfCall().equalsIgnoreCase("PROCESS")){
                   //  && last.getNextRoleName().equalsIgnoreCase("IE")
                  //  validateProcessIeAction(last.getProcessIeUserId(),createdBy);
@@ -847,6 +848,64 @@ public class WorkflowServiceImpl implements WorkflowService {
     private static final List<String> PROCESS_SWIFTS =
             List.of("A", "B", "C", "G");
 
+    private boolean shouldValidateErcIeRio(WorkflowTransition current, String actionRaw) {
+        if (current == null) {
+            return false;
+        }
+        String action = actionRaw != null ? actionRaw.trim().toUpperCase() : "";
+        if (action.equals("VERIFY") || action.equals("RETURN_TO_VENDOR") || action.equals("FIX_ROUTING")
+                || action.equals("CREATE_CALL") || action.equals("CALL_REGISTERED")
+                || action.equals("CONFIRM_CANCEL_AFTER_PAYMENT") || action.equals("REQUEST_QTY_EDIT")
+                || action.startsWith("PAYMENT_") || action.startsWith("PARKED_PAYMENT_")
+                || action.startsWith("CM_") || action.startsWith("SBU_HEAD_")
+                || action.startsWith("WITHDRAW")) {
+            return false;
+        }
+        String nextRole = current.getNextRoleName() != null ? current.getNextRoleName().trim() : "";
+        if (nextRole.equalsIgnoreCase("RIO Help Desk") || nextRole.equalsIgnoreCase("Vendor")
+                || nextRole.equalsIgnoreCase("Finance") || nextRole.equalsIgnoreCase("Control Manager")
+                || nextRole.equalsIgnoreCase("SBU Head")) {
+            return false;
+        }
+        Integer wfId = current.getWorkflowId();
+        return wfId != null && (wfId == 2 || wfId == 4
+                || (wfId == 1 && (action.equals("CANCEL_CALL") || action.equals("CANCEL")
+                        || action.equals("CANCELLED") || action.equals("VERIFY_MATERIAL_AVAILABILITY"))));
+    }
+
+    private void validateErcIeCaseRioAccess(Integer actionBy, String callNo, InspectionCall knownCall) {
+        if (callNo == null || callNo.isBlank()) {
+            return;
+        }
+        InspectionCall ic = knownCall != null ? knownCall : inspectionCallRepository.findByIcNumber(callNo.trim()).orElse(null);
+        if (ic == null || ic.getPoNo() == null || ic.getPoNo().isBlank()) {
+            return;
+        }
+        PoHeader ph = poHeaderRepository.findFirstByPoNoOrL5PoNo(ic.getPoNo().trim()).orElse(null);
+        String caseNo = ph != null ? ph.getCaseNo() : null;
+        if ((caseNo == null || caseNo.trim().isEmpty()) && ph != null && ic.getPoSerialNo() != null) {
+            List<PoItem> items = poItemRepository.findByPoHeader_Id(ph.getId());
+            if (items != null) {
+                caseNo = items.stream()
+                        .filter(i -> i.getItemSrNo() != null && i.getItemSrNo().trim().equalsIgnoreCase(ic.getPoSerialNo().trim()))
+                        .map(PoItem::getCaseNo)
+                        .filter(c -> c != null && !c.trim().isEmpty())
+                        .findFirst()
+                        .orElse(items.stream().map(PoItem::getCaseNo).filter(c -> c != null && !c.trim().isEmpty()).findFirst().orElse(null));
+            }
+        }
+        UserMaster actionUser = actionBy != null ? userMasterRepository.findByUserId(actionBy).orElse(null) : null;
+        RioUtil.validateIeCaseRioAccess(
+                RioUtil.getAuthenticatedUser(),
+                actionUser,
+                userRoleMasterRepository,
+                ieProfileRepository,
+                rioUserRepository,
+                caseNo,
+                callNo
+        );
+    }
+
 
     @Override
     @Transactional
@@ -869,6 +928,12 @@ public class WorkflowServiceImpl implements WorkflowService {
                                 "Workflow transition not found"
                         )
                 ));
+
+        if (shouldValidateErcIeRio(current, req.getAction())) {
+            String targetCallNo = (req.getRequestId() != null && !req.getRequestId().isBlank())
+                    ? req.getRequestId().trim() : current.getRequestId();
+            validateErcIeCaseRioAccess(req.getActionBy(), targetCallNo, null);
+        }
 
         // GENERATE_IC action (Issuance of IC Tab: Update status so IC form can proceed)
         if (req.getAction() != null && req.getAction().equalsIgnoreCase("GENERATE_IC")) {

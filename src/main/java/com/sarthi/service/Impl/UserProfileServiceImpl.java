@@ -10,11 +10,14 @@ import com.sarthi.entity.UserRoleMaster;
 import com.sarthi.entity.RoleMaster;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
+import com.sarthi.repository.IeProfileRepository;
+import com.sarthi.repository.RioUserRepository;
 import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.repository.UserProfileAuditRepository;
 import com.sarthi.repository.UserRoleMasterRepository;
 import com.sarthi.repository.RoleMasterRepository;
 import com.sarthi.service.UserProfileService;
+import com.sarthi.util.RioUtil;
 import com.sarthi.constant.AppConstant;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,6 +41,10 @@ public class UserProfileServiceImpl implements UserProfileService {
     private OtpService otpService;
     @Autowired
     private com.sarthi.repository.mfa.LoginOtpRepository loginOtpRepository;
+    @Autowired(required = false)
+    private IeProfileRepository ieProfileRepository;
+    @Autowired(required = false)
+    private RioUserRepository rioUserRepository;
 
     @Autowired
     public UserProfileServiceImpl(UserMasterRepository userMasterRepository,
@@ -95,7 +102,8 @@ public class UserProfileServiceImpl implements UserProfileService {
         response.setDesignation(user.getDesignation());
         response.setDepartment(user.getDiscipline() != null ? user.getDiscipline() : user.getProductType());
         response.setOrganization("RITES"); // Or map from entity if available
-        response.setRegion(user.getRio());
+        String resolvedRio = RioUtil.resolveSingleUserRio(user, ieProfileRepository, rioUserRepository);
+        response.setRegion(resolvedRio != null ? resolvedRio : user.getRio());
         response.setOfficeLocation(user.getZonalRly());
         response.setRegisteredMobileNumber(user.getMobileNumber());
         response.setAlternateMobileNumber(user.getAlternateMobileNumber());

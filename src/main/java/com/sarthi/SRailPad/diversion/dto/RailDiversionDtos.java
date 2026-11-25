@@ -34,6 +34,7 @@ public final class RailDiversionDtos {
         private String reasonRemarks;
         private String railwayPermissionNo;
         private LocalDate railwayPermissionDate;
+        private LocalDate callDate;
         private String railwayPermissionDocUrl;
         private String vendorRemarks;
         private List<ItemDto> items = new ArrayList<>();

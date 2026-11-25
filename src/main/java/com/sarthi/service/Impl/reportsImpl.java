@@ -96,6 +96,9 @@ public class reportsImpl implements reports {
         private com.sarthi.service.CmCallScopeService cmCallScopeService;
 
         @Autowired
+        private com.sarthi.service.CmCallDocumentService cmCallDocumentService;
+
+        @Autowired
 
         private PoHeaderRepository poHeaderRepository;
 
@@ -6730,7 +6733,7 @@ public class reportsImpl implements reports {
                         response.add(dto);
                 }
 
-                return response;
+                return cmCallDocumentService.enrich(response);
         }
 
         @Override
@@ -6758,7 +6761,7 @@ public class reportsImpl implements reports {
                                                 endDateTime,
                                                 cmCallScopeService.cmUserIdFilter());
 
-                return results.stream().map(obj -> {
+                return cmCallDocumentService.enrich(results.stream().map(obj -> {
 
                         InspectionCallsReportDto dto = new InspectionCallsReportDto();
 
@@ -6808,7 +6811,7 @@ public class reportsImpl implements reports {
 
                         return dto;
 
-                }).toList();
+                }).toList());
         }
 
         @Override

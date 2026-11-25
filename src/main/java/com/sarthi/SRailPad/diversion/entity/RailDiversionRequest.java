@@ -126,6 +126,9 @@ public class RailDiversionRequest extends BaseAuditEntity {
     @Column(name = "diverted_call_no", length = 50)
     private String divertedCallNo;
 
+    @Transient
+    private LocalDate callDate;
+
     @OneToMany(mappedBy = "diversionRequest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JsonManagedReference
     @Builder.Default

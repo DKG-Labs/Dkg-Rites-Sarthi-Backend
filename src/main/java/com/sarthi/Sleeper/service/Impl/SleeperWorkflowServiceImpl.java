@@ -964,6 +964,12 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             return mapToResponse(current);
         }
 
+        if (shouldValidateSleeperIeRio(current, req.getAction())) {
+            String targetCallNo = (req.getRequestId() != null && !req.getRequestId().trim().isEmpty())
+                    ? req.getRequestId().trim() : current.getRequestId();
+            validateSleeperIeCaseRioAccess(req.getActionBy(), targetCallNo, current);
+        }
+
         if (current.getWorkflowId() == 1 && "IE".equalsIgnoreCase(current.getNextRole())) {
             // validateUserForPoi(current.getPoiCode(), req.getActionBy());
             validateUserForPoi(current.getPoiCode(), current.getPlantId(), req.getActionBy(), current.getAssignedToUser());
@@ -2771,6 +2777,63 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
             }
         }
         return new ArrayList<>(rowsById.values());
+    }
+
+    private boolean shouldValidateSleeperIeRio(SleeperWorkflowTransaction current, String actionRaw) {
+        if (current == null || current.getWorkflowId() == null || current.getWorkflowId() != 2) {
+            return false;
+        }
+        String action = actionRaw != null ? actionRaw.trim().toUpperCase() : "";
+        if (action.equals("VERIFY") || action.equals("RETURN_TO_VENDOR") || action.equals("FIX_ROUTING")
+                || action.equals("CREATE_CALL") || action.equals("CALL_REGISTERED")
+                || action.startsWith("WITHDRAW")) {
+            return false;
+        }
+        String nextRole = current.getNextRole() != null ? current.getNextRole().trim() : "";
+        return !nextRole.equalsIgnoreCase("RIO Help Desk") && !nextRole.equalsIgnoreCase("Vendor");
+    }
+
+    private void validateSleeperIeCaseRioAccess(Long actionBy, String callNo, SleeperWorkflowTransaction current) {
+        if (callNo == null || callNo.isBlank() || sleeperInspectionCallRepository == null || poHeaderRepository == null) {
+            return;
+        }
+        SleeperInspectionCall call = sleeperInspectionCallRepository.findByCallNo(callNo.trim()).orElse(null);
+        if (call == null || call.getPoNo() == null || call.getPoNo().isBlank()) {
+            return;
+        }
+        PoHeader poHeader = poHeaderRepository.findFirstByPoNoOrL5PoNo(call.getPoNo().trim()).orElse(null);
+        if (poHeader == null || poHeader.getCaseNo() == null || poHeader.getCaseNo().isBlank()) {
+            return;
+        }
+        String plantRio = current != null ? current.getRio() : null;
+        if (plantRio == null || plantRio.trim().isEmpty()) {
+            String pId = (current != null && current.getPlantId() != null) ? current.getPlantId() : call.getPlantId();
+            if (pId != null && !pId.trim().isEmpty() && vendorPlantRepository != null) {
+                List<VendorPlant> vpList = vendorPlantRepository.findMatchingPlants(pId.trim());
+                if (vpList != null) {
+                    for (VendorPlant vp : vpList) {
+                        if (vp.getRio() != null && !vp.getRio().trim().isEmpty()) {
+                            plantRio = vp.getRio().trim();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        String resolvedCaseNo = resolveSleeperCaseNo(poHeader.getCaseNo(), plantRio);
+        if (resolvedCaseNo == null || resolvedCaseNo.isBlank()) {
+            resolvedCaseNo = poHeader.getCaseNo();
+        }
+        UserMaster actionUser = actionBy != null ? userMasterRepository.findByUserId(Math.toIntExact(actionBy)).orElse(null) : null;
+        RioUtil.validateIeCaseRioAccess(
+                RioUtil.getAuthenticatedUser(),
+                actionUser,
+                userRoleMasterRepository,
+                jdbcTemplate,
+                rioUserRepository,
+                resolvedCaseNo,
+                callNo
+        );
     }
 
     private String resolveSleeperCaseNo(String rawCaseNo, String rio) {

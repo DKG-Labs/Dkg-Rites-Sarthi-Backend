@@ -30,6 +30,7 @@ import com.sarthi.service.ercdiversion.ErcDiversionService;
 import com.sarthi.entity.UserMaster;
 import com.sarthi.repository.UserMasterRepository;
 import com.sarthi.service.rawmaterial.RawMaterialInspectionService;
+import com.sarthi.util.DiversionCallDateHelper;
 import com.sarthi.util.IcNumberGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +65,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
     private final CertificateStorageRepository certificateStorageRepository;
     private final ProcessLineFinalResultRepository processLineFinalResultRepository;
     private final com.sarthi.repository.PincodePoIMappingRepository pincodePoIMappingRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private static final int DIVERSION_WORKFLOW_ID = 4;
     private static final String ROLE_VENDOR = "1";
@@ -372,6 +374,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         }
         entity.setStatus(DiversionRequestStatus.DRAFT);
         ErcDiversionRequest saved = requestRepository.save(entity);
+        LocalDate effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : LocalDate.now();
+        DiversionCallDateHelper.saveCallDate(jdbcTemplate, "erc_material_diversion_request", saved.getId(), effectiveCallDate);
+        saved.setCallDate(effectiveCallDate);
 
         saveHistory(saved, "VENDOR", dto.getVendorCode(), dto.getVendorCode(), "DRAFT_SAVE", null, "DRAFT", "Draft saved by vendor");
         return mapEntityToDto(saved);
@@ -412,6 +417,9 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         entity.setStatus(DiversionRequestStatus.PENDING_CM_APPROVAL);
 
         ErcDiversionRequest saved = requestRepository.save(entity);
+        LocalDate effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : LocalDate.now();
+        DiversionCallDateHelper.saveCallDate(jdbcTemplate, "erc_material_diversion_request", saved.getId(), effectiveCallDate);
+        saved.setCallDate(effectiveCallDate);
         saveHistory(saved, "VENDOR", dto.getVendorCode(), dto.getVendorCode(), "SUBMIT_DIVERSION_REQUEST", "DRAFT", "PENDING_CM_APPROVAL", dto.getVendorRemarks());
 
         // Insert into main WORKFLOW_TRANSITION table
@@ -463,7 +471,18 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
 
     private List<DiversionRequestDto> mapLightRows(List<Object[]> rows) {
         Map<Integer, UserMaster> userMap = buildUserMap(rows);
-        return rows.stream().map(r -> mapLightRowToDto(r, userMap)).collect(Collectors.toList());
+        List<Long> ids = rows.stream()
+                .map(r -> r[0] != null ? ((Number) r[0]).longValue() : null)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<Long, LocalDate> callDates = DiversionCallDateHelper.loadCallDates(jdbcTemplate, "erc_material_diversion_request", ids);
+        return rows.stream().map(r -> {
+            DiversionRequestDto dto = mapLightRowToDto(r, userMap);
+            if (dto.getId() != null && callDates.containsKey(dto.getId())) {
+                dto.setCallDate(callDates.get(dto.getId()));
+            }
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     private DiversionRequestDto mapLightRowToDto(Object[] r, Map<Integer, UserMaster> userMap) {
@@ -713,9 +732,11 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
             divCall.setStatus("CM_APPROVED");
             divCall.setCreatedBy(saved.getVendorCode());
             java.time.LocalDateTime now = java.time.LocalDateTime.now();
-            if (divCall.getCreatedAt() == null) {
-                divCall.setCreatedAt(now);
-            }
+            LocalDate reqCallDate = saved.getCallDate() != null
+                    ? saved.getCallDate()
+                    : DiversionCallDateHelper.loadCallDate(jdbcTemplate, "erc_material_diversion_request", saved.getId());
+            java.time.LocalDateTime callDateTime = reqCallDate != null ? reqCallDate.atTime(now.toLocalTime()) : now;
+            divCall.setCreatedAt(callDateTime);
             divCall.setUpdatedAt(now);
             inspectionCallRepository.save(divCall);
             log.info("Saved inspection_calls row for diversion {} icNumber={} typeOfCall={}", saved.getRequestNo(), saved.getRequestNo(), typeOfCall);
@@ -998,8 +1019,12 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
         dto.setVendorCode(existing.getVendorCode());
         // Keep DRAFT status on edit; resubmit is a separate action
         dto.setStatus(existing.getStatus());
+        LocalDate existingCallDate = DiversionCallDateHelper.loadCallDate(jdbcTemplate, "erc_material_diversion_request", existing.getId());
         ErcDiversionRequest updated = mapDtoToEntity(dto);
         ErcDiversionRequest saved = requestRepository.save(updated);
+        LocalDate effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : (existingCallDate != null ? existingCallDate : LocalDate.now());
+        DiversionCallDateHelper.saveCallDate(jdbcTemplate, "erc_material_diversion_request", saved.getId(), effectiveCallDate);
+        saved.setCallDate(effectiveCallDate);
         saveHistory(saved, "VENDOR", dto.getVendorCode(), dto.getVendorCode(), "EDIT_DRAFT", existing.getStatus().name(), existing.getStatus().name(), "Request edited by vendor");
         return mapEntityToDto(saved);
     }
@@ -1143,6 +1168,7 @@ public class ErcDiversionServiceImpl implements ErcDiversionService {
                 .reasonRemarks(entity.getReasonRemarks())
                 .railwayPermissionNo(entity.getRailwayPermissionNo())
                 .railwayPermissionDate(entity.getRailwayPermissionDate())
+                .callDate(entity.getCallDate() != null ? entity.getCallDate() : DiversionCallDateHelper.loadCallDate(jdbcTemplate, "erc_material_diversion_request", entity.getId()))
                 .railwayPermissionDocUrl(entity.getRailwayPermissionDocUrl() != null && !entity.getRailwayPermissionDocUrl().isEmpty()
                         ? "/api/erc/diversion/view-doc/" + entity.getId() + ".pdf" : null)
                 .vendorRemarks(entity.getVendorRemarks())

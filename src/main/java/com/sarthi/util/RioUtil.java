@@ -1,12 +1,17 @@
 package com.sarthi.util;
 
+import com.sarthi.constant.AppConstant;
 import com.sarthi.entity.IeProfile;
 import com.sarthi.entity.RioUser;
 import com.sarthi.entity.UserMaster;
+import com.sarthi.exception.BusinessException;
+import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.IeProfileRepository;
 import com.sarthi.repository.RioUserRepository;
 import com.sarthi.repository.UserRoleMasterRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
+
+import java.util.regex.Pattern;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,7 +44,7 @@ public final class RioUtil {
         if (r.equals("WR") || r.equals("WRIO") || r.contains("WEST") || r.contains("MUMBAI")) {
             return "WR";
         }
-        if (r.equals("NR") || r.equals("NRIO") || r.contains("NORTH") || r.contains("DELHI")) {
+        if (r.equals("NR") || r.equals("NRIO") || r.equals("NIRIO") || r.contains("NORTH") || r.contains("DELHI")) {
             return "NR";
         }
         if (r.equals("SR") || r.equals("SRIO") || r.contains("SOUTH") || r.contains("CHENNAI")) {
@@ -402,5 +407,292 @@ public final class RioUtil {
             }
         }
         return null;
+    }
+
+    private static final Pattern IE_WORD_PATTERN = Pattern.compile(".*\\bIE\\b.*");
+
+    /**
+     * Returns the currently authenticated {@link UserMaster} from the security context, if available.
+     */
+    public static UserMaster getAuthenticatedUser() {
+        try {
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof UserMaster user) {
+                return user;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * Resolves a single user's mapped RIO using {@link UserMaster}, {@link IeProfileRepository},
+     * and {@link RioUserRepository}.
+     */
+    public static String resolveSingleUserRio(
+            UserMaster user,
+            IeProfileRepository ieProfileRepository,
+            RioUserRepository rioUserRepository) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getRio() != null && !user.getRio().trim().isEmpty()) {
+            return user.getRio().trim();
+        }
+        String empCode = user.getEmployeeCode() != null ? user.getEmployeeCode().trim() : null;
+        if (empCode != null && !empCode.isEmpty()) {
+            if (ieProfileRepository != null) {
+                try {
+                    String r = ieProfileRepository.findFirstByEmployeeCode(empCode)
+                            .map(IeProfile::getRio)
+                            .orElse(null);
+                    if (r != null && !r.trim().isEmpty()) {
+                        return r.trim();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            if (rioUserRepository != null) {
+                try {
+                    String r = rioUserRepository.findFirstByEmployeeCode(empCode)
+                            .map(RioUser::getRio)
+                            .orElse(null);
+                    if (r != null && !r.trim().isEmpty()) {
+                        return r.trim();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        String username = user.getUsername() != null ? user.getUsername().trim() : null;
+        if (username != null && !username.isEmpty() && !username.equals(empCode)) {
+            if (ieProfileRepository != null) {
+                try {
+                    String r = ieProfileRepository.findFirstByEmployeeCode(username)
+                            .map(IeProfile::getRio)
+                            .orElse(null);
+                    if (r != null && !r.trim().isEmpty()) {
+                        return r.trim();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            if (rioUserRepository != null) {
+                try {
+                    String r = rioUserRepository.findFirstByEmployeeCode(username)
+                            .map(RioUser::getRio)
+                            .orElse(null);
+                    if (r != null && !r.trim().isEmpty()) {
+                        return r.trim();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Overload for modules (such as Sleeper) that query {@code ie_profile} via {@link JdbcTemplate}.
+     */
+    public static String resolveSingleUserRio(
+            UserMaster user,
+            JdbcTemplate jdbcTemplate,
+            RioUserRepository rioUserRepository) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getRio() != null && !user.getRio().trim().isEmpty()) {
+            return user.getRio().trim();
+        }
+        String empCode = user.getEmployeeCode() != null ? user.getEmployeeCode().trim() : null;
+        String username = user.getUsername() != null ? user.getUsername().trim() : null;
+        for (String key : new String[] { empCode, username }) {
+            if (key == null || key.isEmpty()) {
+                continue;
+            }
+            if (jdbcTemplate != null) {
+                try {
+                    List<String> rows = jdbcTemplate.query(
+                            "SELECT rio FROM ie_profile WHERE employee_code = ? AND rio IS NOT NULL LIMIT 1",
+                            (rs, rowNum) -> rs.getString("rio"),
+                            key);
+                    if (rows != null && !rows.isEmpty() && rows.get(0) != null && !rows.get(0).trim().isEmpty()) {
+                        return rows.get(0).trim();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            if (rioUserRepository != null) {
+                try {
+                    String r = rioUserRepository.findFirstByEmployeeCode(key)
+                            .map(RioUser::getRio)
+                            .orElse(null);
+                    if (r != null && !r.trim().isEmpty()) {
+                        return r.trim();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Checks whether the given user acts purely in an IE capacity (and not Admin/SuperAdmin).
+     */
+    public static boolean isActingUserRestrictedIe(UserMaster user, UserRoleMasterRepository userRoleMasterRepository) {
+        if (user == null) {
+            return false;
+        }
+        Map<Integer, List<String>> roleMap = loadUserRolesMap(userRoleMasterRepository, Collections.singletonList(user));
+        List<String> roles = new ArrayList<>(resolveEffectiveRoles(user, roleMap));
+        if (user.getRoleName() != null && !user.getRoleName().trim().isEmpty()) {
+            for (String token : user.getRoleName().split(",")) {
+                String trimmed = token.trim();
+                if (!trimmed.isEmpty() && !roles.contains(trimmed)) {
+                    roles.add(trimmed);
+                }
+            }
+        }
+        boolean hasIeRole = false;
+        for (String role : roles) {
+            if (role == null || role.trim().isEmpty()) {
+                continue;
+            }
+            String norm = role.trim().toUpperCase().replaceAll("[_-]+", " ").replaceAll("\\s+", " ");
+            if (norm.contains("ADMIN") || norm.contains("SUPER")) {
+                return false;
+            }
+            if (norm.contains("VENDOR") || norm.contains("FINANCE") || norm.contains("HELP DESK")
+                    || norm.contains("CALL DESK") || norm.contains("CONTROL MANAGER") || norm.contains("SBU")
+                    || norm.contains("RAILWAY") || norm.contains("BOARD") || norm.equals("SMS")) {
+                continue;
+            }
+            if (IE_WORD_PATTERN.matcher(norm).matches() || norm.contains("INSPECTING ENGINEER")) {
+                hasIeRole = true;
+            }
+        }
+        return hasIeRole;
+    }
+
+    /**
+     * Extracts canonical RIO short code ("NR", "ER", "WR", "SR", "CR") from a single IBS Case Number.
+     */
+    public static String extractCaseRioCode(String token) {
+        if (token == null) {
+            return "";
+        }
+        String t = token.trim().toUpperCase();
+        if (t.isEmpty() || t.equals("-") || t.equals("N/A") || t.equals("NA") || t.equals("NULL")) {
+            return "";
+        }
+        char first = t.charAt(0);
+        if (!Character.isLetter(first)) {
+            return "";
+        }
+        return switch (first) {
+            case 'N' -> "NR";
+            case 'E' -> "ER";
+            case 'W' -> "WR";
+            case 'S' -> "SR";
+            case 'C' -> "CR";
+            default -> first + "R";
+        };
+    }
+
+    /**
+     * Converts a normalized or raw RIO string to its display label (NRIO, ERIO, WRIO, SRIO, CRIO).
+     */
+    public static String toDisplayRioName(String rioStr) {
+        String norm = normalizeRio(rioStr);
+        return switch (norm) {
+            case "NR" -> "NRIO";
+            case "ER" -> "ERIO";
+            case "WR" -> "WRIO";
+            case "SR" -> "SRIO";
+            case "CR" -> "CRIO";
+            default -> (rioStr != null && !rioStr.trim().isEmpty()) ? rioStr.trim().toUpperCase() : norm;
+        };
+    }
+
+    /**
+     * Validates that the acting IE's mapped RIO matches the call's IBS Case Number prefix.
+     * Blocks cross-RIO inspection/scheduling even when the call was reassigned to the IE.
+     */
+    public static void validateIeCaseRioAccess(
+            UserMaster authUser,
+            UserMaster actionUser,
+            UserRoleMasterRepository userRoleMasterRepository,
+            IeProfileRepository ieProfileRepository,
+            RioUserRepository rioUserRepository,
+            String rawCaseNo,
+            String callNo) {
+        UserMaster targetUser = isActingUserRestrictedIe(authUser, userRoleMasterRepository)
+                ? authUser
+                : (isActingUserRestrictedIe(actionUser, userRoleMasterRepository) ? actionUser : null);
+        if (targetUser == null) {
+            return;
+        }
+        String ieRio = resolveSingleUserRio(targetUser, ieProfileRepository, rioUserRepository);
+        validateIeRioAgainstCaseNo(ieRio, rawCaseNo, callNo);
+    }
+
+    /**
+     * Overload for modules (such as Sleeper) that resolve {@code ie_profile} via {@link JdbcTemplate}.
+     */
+    public static void validateIeCaseRioAccess(
+            UserMaster authUser,
+            UserMaster actionUser,
+            UserRoleMasterRepository userRoleMasterRepository,
+            JdbcTemplate jdbcTemplate,
+            RioUserRepository rioUserRepository,
+            String rawCaseNo,
+            String callNo) {
+        UserMaster targetUser = isActingUserRestrictedIe(authUser, userRoleMasterRepository)
+                ? authUser
+                : (isActingUserRestrictedIe(actionUser, userRoleMasterRepository) ? actionUser : null);
+        if (targetUser == null) {
+            return;
+        }
+        String ieRio = resolveSingleUserRio(targetUser, jdbcTemplate, rioUserRepository);
+        validateIeRioAgainstCaseNo(ieRio, rawCaseNo, callNo);
+    }
+
+    private static void validateIeRioAgainstCaseNo(String ieRio, String rawCaseNo, String callNo) {
+        if (ieRio == null || ieRio.trim().isEmpty() || rawCaseNo == null || rawCaseNo.trim().isEmpty()) {
+            return;
+        }
+        String normIeRio = normalizeRio(ieRio);
+        if (normIeRio.isEmpty()) {
+            return;
+        }
+        String[] parts = rawCaseNo.trim().split(",");
+        List<String> caseCodes = new ArrayList<>();
+        for (String part : parts) {
+            String code = extractCaseRioCode(part);
+            if (!code.isEmpty()) {
+                caseCodes.add(code);
+            }
+        }
+        if (caseCodes.isEmpty()) {
+            return;
+        }
+        for (String code : caseCodes) {
+            if (code.equals(normIeRio)) {
+                return;
+            }
+        }
+        String ieDisplay = toDisplayRioName(ieRio);
+        String caseDisplay = toDisplayRioName(caseCodes.get(0));
+        String labelCall = (callNo != null && !callNo.trim().isEmpty()) ? ("Call " + callNo.trim()) : "This inspection call";
+        throw new BusinessException(new ErrorDetails(
+                AppConstant.ACCESS_DENIED,
+                AppConstant.ERROR_TYPE_CODE_VALIDATION,
+                AppConstant.ERROR_TYPE_VALIDATION,
+                labelCall + " belongs to Case Number " + rawCaseNo.trim() + " (" + caseDisplay
+                        + "). IE mapped to " + ieDisplay + " is not authorized to inspect or act on other RIO calls."
+        ));
     }
 }

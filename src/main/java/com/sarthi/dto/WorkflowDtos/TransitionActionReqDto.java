@@ -66,6 +66,11 @@ public class TransitionActionReqDto {
     private BigDecimal finalCancellationCharges;
     private String documentName;
     private String vendorCode;
+
+    // Call Result Dispatch & Pause fields
+    private String callResult;     // ACCEPTED / PARTIALLY_ACCEPTED / REJECTED
+    private String systemStatus;   // ACCEPTED / PARTIALLY_ACCEPTED / REJECTED
+    private String pauseReason;    // Send sample for testing / Pause for next schedule / Shift completed / etc.
 }
 
 

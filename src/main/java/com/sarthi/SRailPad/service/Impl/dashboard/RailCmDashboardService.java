@@ -23,22 +23,28 @@ public class RailCmDashboardService {
 
     private final com.sarthi.service.CmCallScopeService cmCallScopeService;
 
+    private final com.sarthi.service.CmCallDocumentService cmCallDocumentService;
+
     public RailCmDashboardService(RailInspectionCallRepository railInspectionCallRepository,
-                                  com.sarthi.service.CmCallScopeService cmCallScopeService) {
+                                  com.sarthi.service.CmCallScopeService cmCallScopeService,
+                                  com.sarthi.service.CmCallDocumentService cmCallDocumentService) {
         this.railInspectionCallRepository = railInspectionCallRepository;
         this.cmCallScopeService = cmCallScopeService;
+        this.cmCallDocumentService = cmCallDocumentService;
     }
 
     @Transactional(readOnly = true)
     public List<InspectionCallsReportDto> getCmInspectionCalls(String startDate, String endDate) {
         LocalDateTime[] range = range(startDate, endDate);
-        return map(railInspectionCallRepository.getRailCmInspectionCalls(range[0], range[1], cmCallScopeService.cmUserIdFilter()));
+        return cmCallDocumentService.enrich(
+                map(railInspectionCallRepository.getRailCmInspectionCalls(range[0], range[1], cmCallScopeService.cmUserIdFilter())));
     }
 
     @Transactional(readOnly = true)
     public List<InspectionCallsReportDto> getCmOverdueCalls(String startDate, String endDate) {
         LocalDateTime[] range = range(startDate, endDate);
-        return map(railInspectionCallRepository.getRailCmOverdueCalls(range[0], range[1], cmCallScopeService.cmUserIdFilter()));
+        return cmCallDocumentService.enrich(
+                map(railInspectionCallRepository.getRailCmOverdueCalls(range[0], range[1], cmCallScopeService.cmUserIdFilter())));
     }
 
     /** dd/MM/yyyy (as the other CM reports); defaults to the last 1 year. */

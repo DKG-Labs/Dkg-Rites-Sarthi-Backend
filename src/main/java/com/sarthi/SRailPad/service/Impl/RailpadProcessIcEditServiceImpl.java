@@ -62,7 +62,9 @@ public class RailpadProcessIcEditServiceImpl implements RailpadProcessIcEditServ
         entity.setRejectedSets(dto.getRejectedSets());
         entity.setQuantityNowPassedText(dto.getQuantityNowPassedText());
         entity.setReasonsForRejection(dto.getReasonsForRejection());
-        entity.setDateOfCall(dto.getDateOfCall());
+        if (entity.getId() == null || entity.getDateOfCall() == null || entity.getDateOfCall().isBlank()) {
+            entity.setDateOfCall(dto.getDateOfCall());
+        }
         entity.setDesiredDate(dto.getDesiredDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
         entity.setDatesOfInspection(dto.getDatesOfInspection());

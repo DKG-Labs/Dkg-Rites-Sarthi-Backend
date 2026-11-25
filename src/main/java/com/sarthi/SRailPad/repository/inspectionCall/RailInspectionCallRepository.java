@@ -26,11 +26,24 @@ public interface RailInspectionCallRepository extends JpaRepository<RailInspecti
         SELECT
             rc.call_no AS callNumber,
             CASE WHEN rc.call_no LIKE 'RPP%' THEN 'Rail Pad - Process' ELSE 'Rail Pad - Final' END AS productAndStageOfInspection,
-            CONCAT(rc.po_no, '-', COALESCE(rc.po_sr, '')) AS poNumber,
-            NULL AS deliveryDate,
-            NULL AS expectedDeliveryDate,
+            CONCAT(rc.po_no, CASE WHEN rc.po_sr IS NOT NULL AND TRIM(rc.po_sr) <> '' THEN CONCAT('-', rc.po_sr) ELSE '' END) AS poNumber,
+            (SELECT pi.delivery_date FROM po_header ph JOIN po_item pi ON pi.po_header_id = ph.id
+              WHERE (ph.po_no COLLATE utf8mb4_unicode_ci = rc.po_no COLLATE utf8mb4_unicode_ci
+                     OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(rc.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
+                     OR (rc.po_no LIKE '%/%/%' AND ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rc.po_no, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci))
+                AND pi.item_sr_no COLLATE utf8mb4_unicode_ci = COALESCE(NULLIF(TRIM(rc.po_sr), ''), SUBSTRING_INDEX(rc.po_no, '/', -1)) COLLATE utf8mb4_unicode_ci
+              LIMIT 1) AS deliveryDate,
+            (SELECT pi.extended_delivery_date FROM po_header ph JOIN po_item pi ON pi.po_header_id = ph.id
+              WHERE (ph.po_no COLLATE utf8mb4_unicode_ci = rc.po_no COLLATE utf8mb4_unicode_ci
+                     OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(rc.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
+                     OR (rc.po_no LIKE '%/%/%' AND ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rc.po_no, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci))
+                AND pi.item_sr_no COLLATE utf8mb4_unicode_ci = COALESCE(NULLIF(TRIM(rc.po_sr), ''), SUBSTRING_INDEX(rc.po_no, '/', -1)) COLLATE utf8mb4_unicode_ci
+              LIMIT 1) AS expectedDeliveryDate,
             (SELECT ph.vendor_details FROM po_header ph
-              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = rc.po_no COLLATE utf8mb4_unicode_ci LIMIT 1) AS vendorName,
+              WHERE (ph.po_no COLLATE utf8mb4_unicode_ci = rc.po_no COLLATE utf8mb4_unicode_ci
+                     OR ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(rc.po_no, '/', 1) COLLATE utf8mb4_unicode_ci
+                     OR (rc.po_no LIKE '%/%/%' AND ph.po_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(SUBSTRING_INDEX(rc.po_no, '/', 2), '/', -1) COLLATE utf8mb4_unicode_ci))
+              LIMIT 1) AS vendorName,
             rc.inspection_date AS inspectionDesiredDate,
             rc.created_at AS callDate,
             CONCAT(ie.full_name, ' - ', ie.employee_code) AS ieName,

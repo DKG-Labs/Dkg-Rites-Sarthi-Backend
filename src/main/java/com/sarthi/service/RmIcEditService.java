@@ -50,7 +50,9 @@ public class RmIcEditService {
         entity.setChpClause(dto.getChpClause());
         entity.setVisitsNo(dto.getVisitsNo());
         String effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : dto.getDateOfCall();
-        entity.setCallDate(effectiveCallDate);
+        if (entity.getId() == null || entity.getCallDate() == null || entity.getCallDate().isBlank()) {
+            entity.setCallDate(effectiveCallDate);
+        }
         entity.setDesiredDate(dto.getDesiredDate());
         entity.setInspectionDate(dto.getInspectionDate());
         

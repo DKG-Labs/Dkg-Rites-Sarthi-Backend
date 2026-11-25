@@ -116,6 +116,9 @@ public class ErcDiversionRequest extends BaseAuditEntity {
     @Column(name = "railway_permission_date", nullable = false)
     private LocalDate railwayPermissionDate;
 
+    @Transient
+    private LocalDate callDate;
+
     @Basic(fetch = FetchType.LAZY)
     @Column(name = "railway_permission_doc_url", nullable = false, columnDefinition = "LONGTEXT")
     private String railwayPermissionDocUrl;

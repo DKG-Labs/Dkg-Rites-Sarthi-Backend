@@ -36,4 +36,12 @@ public class InspectionCallsReportDto {
     private String ritesRio;
 
     private String status;
+
+    private String pdfPath;
+
+    private Boolean hasIc;
+
+    private String icNumber;
+
+    private Integer annexureCount;
 }

@@ -47,6 +47,9 @@ public class reportsController {
         @Autowired
         private com.sarthi.Sleeper.repository.SleeperWorkflowRepository sleeperWorkflowRepository;
 
+        @Autowired
+        private com.sarthi.service.CmCallDocumentService cmCallDocumentService;
+
         @GetMapping("/region")
         public ResponseEntity<Object> getRegionByCallNo(@RequestParam String callNo) {
                 try {
@@ -873,6 +876,20 @@ public class reportsController {
                 try {
                         List<PoOpenCallDetailsDto> list = reportService.getPoOpenCalls(poNo);
                         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(list), HttpStatus.OK);
+                } catch (Exception e) {
+                        return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
+                                        new ErrorDetails(500, 500, "ERROR", e.getMessage())),
+                                        HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+        }
+
+        @GetMapping("/call-documents")
+        public ResponseEntity<Object> getCallDocuments(@RequestParam String callNo,
+                        @RequestParam(required = false) String poNo) {
+                try {
+                        return new ResponseEntity<>(
+                                        ResponseBuilder.getSuccessResponse(cmCallDocumentService.getCallDocuments(callNo, poNo)),
+                                        HttpStatus.OK);
                 } catch (Exception e) {
                         return new ResponseEntity<>(ResponseBuilder.getErrorResponse(
                                         new ErrorDetails(500, 500, "ERROR", e.getMessage())),

@@ -433,7 +433,8 @@ public class CertificateServiceImpl implements CertificateService {
             if (saveChanges.getChpClause() != null && !saveChanges.getChpClause().isBlank()) {
                 dto.setChpClause(saveChanges.getChpClause());
             }
-            if (saveChanges.getCallDate() != null && !saveChanges.getCallDate().isBlank()) {
+            if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                    && saveChanges.getCallDate() != null && !saveChanges.getCallDate().isBlank()) {
                 dto.setDateOfCall(saveChanges.getCallDate());
             }
         } else {
@@ -488,7 +489,8 @@ public class CertificateServiceImpl implements CertificateService {
                 if (rmIcEdit.getChpClause() != null && !rmIcEdit.getChpClause().isBlank()) {
                     dto.setChpClause(rmIcEdit.getChpClause());
                 }
-                if (rmIcEdit.getCallDate() != null && !rmIcEdit.getCallDate().isBlank()) {
+                if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                        && rmIcEdit.getCallDate() != null && !rmIcEdit.getCallDate().isBlank()) {
                     dto.setDateOfCall(rmIcEdit.getCallDate());
                 }
             }
@@ -2037,7 +2039,8 @@ public class CertificateServiceImpl implements CertificateService {
                 dto.setQapNo(saveChanges.getQapNo());
                 dto.setChpClause(saveChanges.getQapNo());
             }
-            if (saveChanges.getCallDate() != null && !saveChanges.getCallDate().isBlank()) {
+            if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                    && saveChanges.getCallDate() != null && !saveChanges.getCallDate().isBlank()) {
                 dto.setDateOfCall(saveChanges.getCallDate());
             }
         } else {
@@ -2091,7 +2094,8 @@ public class CertificateServiceImpl implements CertificateService {
                     dto.setQapNo(processIcEdit.getQapNo());
                     dto.setChpClause(processIcEdit.getQapNo());
                 }
-                if (processIcEdit.getCallDate() != null && !processIcEdit.getCallDate().isBlank()) {
+                if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                        && processIcEdit.getCallDate() != null && !processIcEdit.getCallDate().isBlank()) {
                     dto.setDateOfCall(processIcEdit.getCallDate());
                 }
             }
@@ -2752,7 +2756,8 @@ public class CertificateServiceImpl implements CertificateService {
                 if (finalIcEdit.getDescription() != null && !finalIcEdit.getDescription().isBlank()) dto.setDescription(finalIcEdit.getDescription());
                 if (finalIcEdit.getTrRecDate() != null && !finalIcEdit.getTrRecDate().isBlank()) dto.setTrRecDate(finalIcEdit.getTrRecDate());
                 if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) dto.setSealingPattern(finalIcEdit.getSealingPattern());
-                if (finalIcEdit.getDateOfCall() != null && !finalIcEdit.getDateOfCall().isBlank()) dto.setDateOfCall(finalIcEdit.getDateOfCall());
+                if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                        && finalIcEdit.getDateOfCall() != null && !finalIcEdit.getDateOfCall().isBlank()) dto.setDateOfCall(finalIcEdit.getDateOfCall());
             }
         }
 
@@ -2790,7 +2795,8 @@ public class CertificateServiceImpl implements CertificateService {
                 if (saveChanges.getDescription() != null && !saveChanges.getDescription().isBlank()) dto.setDescription(saveChanges.getDescription());
                 if (saveChanges.getTrRecDate() != null && !saveChanges.getTrRecDate().isBlank()) dto.setTrRecDate(saveChanges.getTrRecDate());
                 if (saveChanges.getSealingPattern() != null && !saveChanges.getSealingPattern().isBlank()) dto.setSealingPattern(saveChanges.getSealingPattern());
-                if (saveChanges.getDateOfCall() != null && !saveChanges.getDateOfCall().isBlank()) dto.setDateOfCall(saveChanges.getDateOfCall());
+                if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                        && saveChanges.getDateOfCall() != null && !saveChanges.getDateOfCall().isBlank()) dto.setDateOfCall(saveChanges.getDateOfCall());
             }
         }
 
@@ -2858,7 +2864,8 @@ public class CertificateServiceImpl implements CertificateService {
                 if (saveChanges.getSealingPattern() != null && !saveChanges.getSealingPattern().isBlank()) {
                     dto.setSealingPattern(saveChanges.getSealingPattern());
                 }
-                if (saveChanges.getDateOfCall() != null && !saveChanges.getDateOfCall().isBlank()) {
+                if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                        && saveChanges.getDateOfCall() != null && !saveChanges.getDateOfCall().isBlank()) {
                     dto.setDateOfCall(saveChanges.getDateOfCall());
                 }
             } else {
@@ -2923,7 +2930,8 @@ public class CertificateServiceImpl implements CertificateService {
                     if (finalIcEdit.getSealingPattern() != null && !finalIcEdit.getSealingPattern().isBlank()) {
                         dto.setSealingPattern(finalIcEdit.getSealingPattern());
                     }
-                    if (finalIcEdit.getDateOfCall() != null && !finalIcEdit.getDateOfCall().isBlank()) {
+                    if ((dto.getDateOfCall() == null || dto.getDateOfCall().isBlank())
+                            && finalIcEdit.getDateOfCall() != null && !finalIcEdit.getDateOfCall().isBlank()) {
                         dto.setDateOfCall(finalIcEdit.getDateOfCall());
                     }
                 }
