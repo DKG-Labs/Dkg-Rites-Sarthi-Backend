@@ -139,8 +139,9 @@ public class CallSmsSender {
         }
         if (alreadySent(callNo, event, recipientType, ieUserId)) return;     // double click / retry
         try {
-            smsService.send(mobile, tpl.render(v), templateId);
-            log(p, callNo, event, recipientType, recipientUserId, ieUserId, mobile, tpl, "SENT", null);
+            String reply = smsService.send(mobile, tpl.render(v), templateId);
+            // keep the gateway reply (message id) so a delivery can be traced with XpertSMS
+            log(p, callNo, event, recipientType, recipientUserId, ieUserId, mobile, tpl, "SENT", trim(reply, 250));
         } catch (Exception e) {
             log(p, callNo, event, recipientType, recipientUserId, ieUserId, mobile, tpl, "FAILED", trim(e.getMessage(), 250));
         }
@@ -199,11 +200,11 @@ public class CallSmsSender {
                     + "WHERE ic.ic_number = ? LIMIT 1";
             case SLEEPER -> "SELECT COALESCE(NULLIF(vp.plant_name,''), vp.company_name), vp.contact_person_number "
                     + "FROM sleeper_inspection_call c JOIN vendor_plant vp "
-                    + "ON REPLACE(vp.plant_id, ':', '') = REPLACE(c.plant_id, ':', '') "
+                    + "ON REPLACE(vp.plant_id, ':', '') COLLATE utf8mb4_unicode_ci = REPLACE(c.plant_id, ':', '') COLLATE utf8mb4_unicode_ci "
                     + "WHERE UPPER(c.call_no) = ? LIMIT 1";
             case RAILPAD -> "SELECT COALESCE(NULLIF(rp.plant_name,''), rp.company_name), rp.contact_person_number "
                     + "FROM rail_inspection_call c JOIN rail_vendor_plant rp "
-                    + "ON REPLACE(rp.plant_id, ':', '') = REPLACE(c.plant_id, ':', '') "
+                    + "ON REPLACE(rp.plant_id, ':', '') COLLATE utf8mb4_unicode_ci = REPLACE(c.plant_id, ':', '') COLLATE utf8mb4_unicode_ci "
                     + "WHERE UPPER(c.call_no) = ? LIMIT 1";
         };
         List<Plant> l = jdbc.query(sql, (rs, i) -> new Plant(rs.getString(1), rs.getString(2)), callNo);
