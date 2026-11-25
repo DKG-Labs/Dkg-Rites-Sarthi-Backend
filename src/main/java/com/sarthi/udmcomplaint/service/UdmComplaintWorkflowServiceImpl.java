@@ -5,6 +5,7 @@ import com.sarthi.entity.UdmRejection;
 import com.sarthi.repository.UdmRejectionRepository;
 import com.sarthi.udmcomplaint.dto.*;
 import com.sarthi.udmcomplaint.entity.UdmComplaint;
+import com.sarthi.udmcomplaint.entity.UdmComplaintDocument;
 import com.sarthi.udmcomplaint.repository.UdmComplaintRepository;
 import com.sarthi.udmcomplaint.repository.UdmComplaintWorkflowTransitionRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,8 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
     private final UdmRejectionRepository udmRejectionRepository;
     private final UdmComplaintWorkflowSupport support;
     private final UdmRoleResolver roles;
+    private final UdmComplaintDocumentStorage storage;
+    private final com.sarthi.udmcomplaint.repository.UdmComplaintDocumentRepository documentRepository;
 
     // ------------------------------------------------------------------ actions
 
@@ -76,8 +79,17 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
     @Override
     @Transactional
     public UdmComplaintStatusDto close(Long udmRejectionId, CloseComplaintRequest req, Integer actionBy) {
+        return close(udmRejectionId, req, null, actionBy);
+    }
+
+    @Override
+    @Transactional
+    public UdmComplaintStatusDto close(Long udmRejectionId, CloseComplaintRequest req,
+                                       org.springframework.web.multipart.MultipartFile document, Integer actionBy) {
         requireRole(actionBy, ROLE_COMPLAINT_CELL);
         String remarks = support.trimRemarks(req != null ? req.getRemarks() : null, true);
+        // optional supporting PDF: validated before anything changes
+        UdmComplaintDocumentStorage.ValidPdf pdf = storage.validate(document, false, "Closure document");
 
         UdmComplaint c = loadOrCreate(udmRejectionId, actionBy);
         if (ST_CLOSED.equals(c.getStatus())) throw validation("Complaint is already closed.");
@@ -96,7 +108,22 @@ public class UdmComplaintWorkflowServiceImpl implements UdmComplaintWorkflowServ
 
         support.logTransition(c, tr, fromStatus, ST_CLOSED, ROLE_COMPLAINT_CELL, null, null,
                 remarks, c.getAssignedRio(), null, actionBy);
-        log.info("[UDM-COMPLAINT] {} closed by user {}", c.getRejectionNumber(), actionBy);
+        if (pdf != null) {
+            String blobName = storage.upload(pdf, c.getUdmRejectionId(), STAGE_CC_CLOSE);
+            UdmComplaintDocument d = new UdmComplaintDocument();
+            d.setComplaintId(c.getId());
+            d.setUdmRejectionId(c.getUdmRejectionId());
+            d.setStage(STAGE_CC_CLOSE);
+            d.setRoundNo(UdmComplaintWorkflowSupport.round(c));
+            d.setDocType(DOC_CLOSURE);
+            d.setOriginalName(pdf.originalName());
+            d.setBlobName(blobName);
+            d.setContentType("application/pdf");
+            d.setSizeBytes((long) pdf.bytes().length);
+            d.setUploadedBy(actionBy);
+            documentRepository.save(d);
+        }
+        log.info("[UDM-COMPLAINT] {} closed by user {}{}", c.getRejectionNumber(), actionBy, pdf != null ? " (with document)" : "");
         return support.toStatusDto(c);
     }
 

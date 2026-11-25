@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -18,13 +17,32 @@ public class RailMouldVerificationServiceImpl implements RailMouldVerificationSe
     @Autowired
     private RailMouldVerificationRepository repository;
 
+    /**
+     * A mould is verified once per date + shift. The same mould on another date or shift is a new check (allowed);
+     * the same mould again in the same date + shift is a duplicate (rejected; edit the existing entry instead).
+     */
+    private void rejectDuplicate(RailMouldVerificationDto dto, Long excludeId) {
+        String mould = dto.getMouldNumber() == null ? "" : dto.getMouldNumber().trim();
+        if (mould.isEmpty()) throw new RuntimeException("Mould / Drawing Number is required.");
+        dto.setMouldNumber(mould);
+        String plant = dto.getPlantId() == null ? "" : dto.getPlantId().trim();
+        String bare = plant.startsWith(":") ? plant.substring(1) : plant;
+        List<String> plantIds = List.of(bare, ":" + bare);
+        String date = dto.getCastingDate() == null ? "" : dto.getCastingDate().trim();
+        String shift = dto.getShift() == null ? "" : dto.getShift().trim().toUpperCase();
+
+        if (!repository.findSameMouldDateShift(plantIds, dto.getVendorCode(), mould.toUpperCase(), date, shift, excludeId).isEmpty()) {
+            throw new RuntimeException("Mould " + mould + " is already verified for " + (date.isEmpty() ? "this date" : date)
+                    + (shift.isEmpty() ? "" : ", Shift " + dto.getShift().trim())
+                    + ". Edit that entry instead of adding it again.");
+        }
+    }
+
+    /** synchronized: the duplicate check and the insert (auto-committed by save) run as one step per server. */
     @Override
-    public RailMouldVerificationDto createMouldVerification(RailMouldVerificationDto dto) {
+    public synchronized RailMouldVerificationDto createMouldVerification(RailMouldVerificationDto dto) {
         try {
-            Optional<RailMouldVerification> existing = repository.findByMouldNumberAndPlantIdAndVendorCode(dto.getMouldNumber(), dto.getPlantId(), dto.getVendorCode());
-            if (existing.isPresent()) {
-                throw new RuntimeException("A record with this Mould Number already exists for the given Plant and Vendor.");
-            }
+            rejectDuplicate(dto, null);
 
             RailMouldVerification entity = new RailMouldVerification();
             BeanUtils.copyProperties(dto, entity);
@@ -42,10 +60,17 @@ public class RailMouldVerificationServiceImpl implements RailMouldVerificationSe
     }
 
     @Override
-    public RailMouldVerificationDto updateMouldVerification(Long id, RailMouldVerificationDto dto) {
+    public synchronized RailMouldVerificationDto updateMouldVerification(Long id, RailMouldVerificationDto dto) {
         try {
             RailMouldVerification entity = repository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Mould Verification record not found with id: " + id));
+            // An edit changes the check's values, never which day / shift / plant it belongs to
+            // (the form sends the current shift's date, which would move an older entry to today).
+            dto.setCastingDate(entity.getCastingDate());
+            dto.setShift(entity.getShift());
+            dto.setPlantId(entity.getPlantId());
+            dto.setVendorCode(entity.getVendorCode());
+            rejectDuplicate(dto, id);
 
             BeanUtils.copyProperties(dto, entity, "id", "createdDate", "createdBy");
             entity = repository.save(entity);

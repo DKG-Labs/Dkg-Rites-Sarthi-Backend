@@ -93,7 +93,8 @@ public class UdmComplaintMergedPdfService {
 
     private static final Map<String, String> DOC_LABEL = Map.of(
             DOC_JI_REPORT, "JI Report", DOC_AUDIT_REPORT, "Audit Report",
-            DOC_RCA_EVIDENCE, "RCA Evidence", DOC_CAPA_EVIDENCE, "CAPA Evidence");
+            DOC_RCA_EVIDENCE, "RCA Evidence", DOC_CAPA_EVIDENCE, "CAPA Evidence",
+            DOC_CLOSURE, "Closure Document (Complaint Cell)");
 
     private static final Color INK = new Color(15, 23, 42);
     private static final Color MUTED = new Color(100, 116, 139);
