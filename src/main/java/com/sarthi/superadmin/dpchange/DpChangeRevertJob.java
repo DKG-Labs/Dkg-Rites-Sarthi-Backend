@@ -19,16 +19,11 @@ public class DpChangeRevertJob {
     @Scheduled(fixedDelay = 60_000, initialDelay = 60_000)
     public void revertDue() {
         try {
-            for (Long id : service.dueIds()) {
-                try {
-                    service.revert(id, "REVERTED", null, "System (auto, after " + DpChangeService.REVERT_HOURS + " h)");
-                } catch (Exception e) {
-                    log.error("Auto-revert of DP change {} failed: {}", id, e.getMessage());
-                }
-            }
+            int n = service.revertOverdue();
+            if (n > 0) log.info("DP change job: {} change(s) reverted", n);
         } catch (Exception e) {
             // e.g. table not created yet: try again next minute
-            log.debug("DP change revert job skipped: {}", e.getMessage());
+            log.warn("DP change revert job skipped: {}", e.getMessage());
         }
     }
 }
