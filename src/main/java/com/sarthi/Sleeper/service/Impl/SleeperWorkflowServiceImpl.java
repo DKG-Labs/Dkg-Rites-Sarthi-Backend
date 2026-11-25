@@ -2071,9 +2071,11 @@ public class SleeperWorkflowServiceImpl implements SleeperWorkflowService {
     @Override
     public List<SleeperWorkflowTransactionDto> allFinalClosedWorkflowTransitions(String plantId, Long userId) {
         String cleanPlantId = (plantId != null && !plantId.trim().isEmpty()) ? plantId.trim() : null;
-        List<SleeperWorkflowTransaction> list = (cleanPlantId != null && !cleanPlantId.isEmpty())
-                ? repository.findFinalClosedRequests(cleanPlantId)
-                : repository.findFinalClosedRequests();
+        List<SleeperWorkflowTransaction> list = userId != null
+                ? repository.findFinalClosedRequestsByAssignedUser(cleanPlantId, userId)   // IE: calls assigned to this user
+                : (cleanPlantId != null && !cleanPlantId.isEmpty())
+                        ? repository.findFinalClosedRequests(cleanPlantId)
+                        : repository.findFinalClosedRequests();
 
         if (list == null || list.isEmpty()) {
             return java.util.Collections.emptyList();

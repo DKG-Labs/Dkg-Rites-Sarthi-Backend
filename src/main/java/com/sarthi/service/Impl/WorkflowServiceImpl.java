@@ -6259,6 +6259,10 @@ public List<WorkflowTransitionDto> allDisposedWorkflowTransitions(String rio) {
             finalIcEditRepository.save(finalIc);
         });
 
+        // Back to inspection: drop the saved IC form (RM / Process / Final IC save changes) too,
+        // otherwise the next IC reloads the old lot quantities instead of the newly entered shifts.
+        deleteIcSaveChanges(requestType, certificateNo, normalizedRequestId);
+
         // ---------------------------------------------------------
         // 8. Delete inspection complete details
         // ---------------------------------------------------------

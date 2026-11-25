@@ -231,8 +231,11 @@ ORDER BY t.workflowTransitionId DESC
     )
     AND t.workflowId = 2
     AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
-    AND (:assignedTo IS NULL OR t.assignedToUser = :assignedTo OR t.createdBy = :assignedTo OR t.modifiedBy = :assignedTo
-         OR UPPER(COALESCE(t.status, '')) IN :withdrawStatuses)
+    AND (:assignedTo IS NULL OR :assignedTo = (
+            SELECT a.assignedToUser FROM SleeperWorkflowTransaction a
+            WHERE a.workflowTransitionId = (
+                SELECT MAX(a2.workflowTransitionId) FROM SleeperWorkflowTransaction a2
+                WHERE a2.requestId = t.requestId AND a2.workflowId = 2 AND a2.assignedToUser IS NOT NULL)))
     ORDER BY t.workflowTransitionId DESC
 """)
     List<SleeperWorkflowTransaction> findFinalCompletedRequests(@Param("plantId") String plantId, @Param("assignedTo") Long assignedTo,
@@ -305,6 +308,34 @@ ORDER BY t.workflowTransitionId DESC
     ORDER BY t.workflowTransitionId DESC
 """)
     List<SleeperWorkflowTransaction> findFinalClosedRequests(@Param("plantId") String plantId);
+
+    /** Closed calls of one IE: the call's last assigned user (closing transactions carry no assignee). */
+    @Query("""
+    SELECT t FROM SleeperWorkflowTransaction t
+    WHERE t.workflowTransitionId IN (
+        SELECT MAX(t2.workflowTransitionId)
+        FROM SleeperWorkflowTransaction t2
+        WHERE t2.workflowId = 2
+        GROUP BY t2.requestId
+    )
+    AND (
+        UPPER(COALESCE(t.status, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'CANCEL', 'CANCELLED', 'BLOCKED')
+        OR UPPER(COALESCE(t.action, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'SEND CALL TO IBS', 'CANCEL', 'BLOCKED')
+        OR UPPER(COALESCE(t.jobStatus, '')) IN ('SEND_CALL_TO_IBS', 'SENT_TO_IBS', 'CLOSED', 'CANCEL', 'CANCELLED', 'BLOCKED')
+        OR UPPER(COALESCE(t.status, '')) LIKE '%CANCEL%'
+        OR UPPER(COALESCE(t.jobStatus, '')) LIKE '%CANCEL%'
+    )
+    AND t.workflowId = 2
+    AND (:plantId IS NULL OR :plantId = '' OR t.plantId = :plantId OR REPLACE(COALESCE(t.plantId, ''), ':', '') = REPLACE(:plantId, ':', '') OR t.plantId LIKE CONCAT('%', :plantId, '%'))
+    AND :assignedTo = (
+            SELECT a.assignedToUser FROM SleeperWorkflowTransaction a
+            WHERE a.workflowTransitionId = (
+                SELECT MAX(a2.workflowTransitionId) FROM SleeperWorkflowTransaction a2
+                WHERE a2.requestId = t.requestId AND a2.workflowId = 2 AND a2.assignedToUser IS NOT NULL))
+    ORDER BY t.workflowTransitionId DESC
+""")
+    List<SleeperWorkflowTransaction> findFinalClosedRequestsByAssignedUser(@Param("plantId") String plantId,
+                                                                           @Param("assignedTo") Long assignedTo);
 
     @Query("""
     SELECT t FROM SleeperWorkflowTransaction t
