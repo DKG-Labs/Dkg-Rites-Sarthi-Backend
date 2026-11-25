@@ -53,12 +53,12 @@ public class DpChangeService {
         pageArgs.add(s);
         pageArgs.add(pg * s);
         List<Map<String, Object>> rows = jdbc.query(
-                "SELECT ph.po_no, ph.po_date, ph.vendor_code, ph.firm_details, ph.vendor_details, ph.item_cat_descr, ph.rly_short_name "
+                "SELECT ph.po_no, DATE_FORMAT(ph.po_date, '%Y-%m-%d') po_date, ph.vendor_code, ph.firm_details, ph.vendor_details, ph.item_cat_descr, ph.rly_short_name "
                         + "FROM po_header ph" + where + " ORDER BY ph.po_date DESC, ph.po_no LIMIT ? OFFSET ?",
                 (rs, i) -> {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("poNo", rs.getString("po_no"));
-                    m.put("poDate", date(rs.getTimestamp("po_date")));
+                    m.put("poDate", rs.getString("po_date"));
                     m.put("vendorCode", cleanCode(rs.getString("vendor_code")));
                     m.put("vendorName", vendorName(rs.getString("firm_details"), rs.getString("vendor_details")));
                     m.put("product", product(rs.getString("item_cat_descr")));
@@ -77,13 +77,13 @@ public class DpChangeService {
 
     public Map<String, Object> getPo(String poNo) {
         List<Map<String, Object>> head = jdbc.query(
-                "SELECT id, po_no, po_date, vendor_code, firm_details, vendor_details, item_cat_descr, rly_short_name, "
+                "SELECT id, po_no, DATE_FORMAT(po_date, '%Y-%m-%d') po_date, vendor_code, firm_details, vendor_details, item_cat_descr, rly_short_name, "
                         + "COALESCE(is_amended, 0) is_amended FROM po_header WHERE po_no = ? LIMIT 1",
                 (rs, i) -> {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("id", rs.getLong("id"));
                     m.put("poNo", rs.getString("po_no"));
-                    m.put("poDate", date(rs.getTimestamp("po_date")));
+                    m.put("poDate", rs.getString("po_date"));
                     m.put("vendorCode", cleanCode(rs.getString("vendor_code")));
                     m.put("vendorName", vendorName(rs.getString("firm_details"), rs.getString("vendor_details")));
                     m.put("product", product(rs.getString("item_cat_descr")));
@@ -99,7 +99,8 @@ public class DpChangeService {
         for (Map<String, Object> a : activeChanges(po.get("poNo").toString())) active.put(a.get("srNo").toString(), a);
 
         List<Map<String, Object>> items = jdbc.query(
-                "SELECT id, item_sr_no, item_desc, qty, uom, delivery_date, extended_delivery_date "
+                "SELECT id, item_sr_no, item_desc, qty, uom, DATE_FORMAT(delivery_date, '%Y-%m-%d') delivery_date, "
+                        + "DATE_FORMAT(extended_delivery_date, '%Y-%m-%d') extended_delivery_date "
                         + "FROM po_item WHERE po_header_id = ? ORDER BY item_sr_no",
                 (rs, i) -> {
                     Map<String, Object> m = new LinkedHashMap<>();
@@ -108,8 +109,8 @@ public class DpChangeService {
                     m.put("itemDesc", rs.getString("item_desc"));
                     m.put("qty", rs.getBigDecimal("qty"));
                     m.put("uom", rs.getString("uom"));
-                    m.put("dp", date(rs.getTimestamp("delivery_date")));
-                    m.put("extDp", date(rs.getTimestamp("extended_delivery_date")));
+                    m.put("dp", rs.getString("delivery_date"));
+                    m.put("extDp", rs.getString("extended_delivery_date"));
                     m.put("activeChange", active.get(sr));
                     return m;
                 }, po.get("id"));
@@ -132,7 +133,8 @@ public class DpChangeService {
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("New DP date is not a valid date.");
         }
-        Timestamp newTs = Timestamp.valueOf(newDate.atTime(23, 59));   // same time of day the PO sync stores
+        // dates are handled as 'yyyy-MM-dd HH:mm:ss' text: no JVM (IST) <-> DB (UTC) conversion
+        String newDt = newDate + " 23:59:00";   // same time of day the PO sync stores
 
         Integer open = jdbc.queryForObject("SELECT COUNT(*) FROM super_admin_dp_change WHERE po_no = ? AND item_sr_no = ? AND status = 'ACTIVE'",
                 Integer.class, po, sr);
@@ -143,27 +145,27 @@ public class DpChangeService {
         // every row that carries this serial's DP: po_item + amendment copies
         List<Map<String, Object>> affected = new ArrayList<>();
         affected.addAll(jdbc.query(
-                "SELECT 'po_item' t, i.id, i.delivery_date d FROM po_item i JOIN po_header h ON h.id = i.po_header_id "
-                        + "WHERE h.po_no = ? AND i.item_sr_no = ?", (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getTimestamp("d")), po, sr));
+                "SELECT 'po_item' t, i.id, DATE_FORMAT(i.delivery_date, '%Y-%m-%d %H:%i:%s') d FROM po_item i JOIN po_header h ON h.id = i.po_header_id "
+                        + "WHERE h.po_no = ? AND i.item_sr_no = ?", (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getString("d")), po, sr));
         if (affected.isEmpty()) throw new NoSuchElementException("Sr No. " + sr + " not found on PO " + po + ".");
-        Timestamp oldDp = (Timestamp) affected.get(0).get("oldTs");
-        if (oldDp != null && oldDp.toLocalDateTime().toLocalDate().equals(newDate)) {
+        String oldDp = (String) affected.get(0).get("old");
+        if (oldDp != null && oldDp.startsWith(newDate.toString())) {
             throw new IllegalArgumentException("New DP is the same as the current DP.");
         }
         affected.addAll(jdbc.query(
-                "SELECT 'amendment_po_item' t, ai.id, ai.delivery_date d FROM amendment_po_item ai "
+                "SELECT 'amendment_po_item' t, ai.id, DATE_FORMAT(ai.delivery_date, '%Y-%m-%d %H:%i:%s') d FROM amendment_po_item ai "
                         + "JOIN amendment_po_header ah ON ah.id = ai.amended_po_header_id WHERE ah.po_no = ? AND ai.item_sr_no = ?",
-                (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getTimestamp("d")), po, sr));
+                (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getString("d")), po, sr));
 
         for (Map<String, Object> r : affected) {
-            jdbc.update("UPDATE " + table(r) + " SET delivery_date = ? WHERE id = ?", newTs, r.get("id"));
+            jdbc.update("UPDATE " + table(r) + " SET delivery_date = CAST(? AS DATETIME) WHERE id = ?", newDt, r.get("id"));
         }
 
         String name = user.getFullName() != null && !user.getFullName().isBlank() ? user.getFullName() : user.getUsername();
         jdbc.update("INSERT INTO super_admin_dp_change (po_no, item_sr_no, old_delivery_date, new_delivery_date, affected_rows, remarks, "
                         + "changed_by, changed_by_emp_code, changed_by_name, changed_at, revert_at, status) "
-                        + "VALUES (?,?,?,?,?,?,?,?,?, NOW(), NOW() + INTERVAL " + REVERT_HOURS + " HOUR, 'ACTIVE')",
-                po, sr, oldDp, newTs, toJson(affected), note, user.getUserId(), user.getEmployeeCode(), name);
+                        + "VALUES (?,?,CAST(? AS DATETIME),CAST(? AS DATETIME),?,?,?,?,?, NOW(), NOW() + INTERVAL " + REVERT_HOURS + " HOUR, 'ACTIVE')",
+                po, sr, oldDp, newDt, toJson(affected), note, user.getUserId(), user.getEmployeeCode(), name);
         log.info("Super Admin {} set DP of PO {} Sr {} to {} for {} h ({} rows)", user.getUserId(), po, sr, newDate, REVERT_HOURS, affected.size());
         return getPo(po);
     }
@@ -176,6 +178,22 @@ public class DpChangeService {
         String result = revert(id, "REVERTED_MANUAL", user.getUserId(), name);
         if (result == null) throw new IllegalStateException("This change is no longer active.");
         return Map.of("status", result);
+    }
+
+    /**
+     * Restores every change whose 2 hours are over. Used by the job every minute, and before the screen reads
+     * data, so a change never stays past its time even if the scheduler is busy.
+     */
+    public int revertOverdue() {
+        int done = 0;
+        for (Long id : dueIds()) {
+            try {
+                if (revert(id, "REVERTED", null, "System (auto, after " + REVERT_HOURS + " h)") != null) done++;
+            } catch (Exception e) {
+                log.error("Auto-revert of DP change {} failed", id, e);
+            }
+        }
+        return done;
     }
 
     /** Changes whose 2 hours are over (used by the job). */
@@ -191,17 +209,22 @@ public class DpChangeService {
     String revert(long id, String doneStatus, Integer byUser, String byName) {
         return tx.execute(st -> {
             if (jdbc.update("UPDATE super_admin_dp_change SET status = 'REVERTING' WHERE id = ? AND status = 'ACTIVE'", id) == 0) return null;
-            Map<String, Object> c = jdbc.queryForMap("SELECT new_delivery_date, affected_rows FROM super_admin_dp_change WHERE id = ?", id);
-            Timestamp setTs = (Timestamp) c.get("new_delivery_date");
+            // read as text: the driver returns DATETIME as LocalDateTime (a Timestamp cast failed here and every
+            // revert rolled back), and text avoids any time-zone shift
+            Map<String, Object> c = jdbc.queryForMap("SELECT DATE_FORMAT(new_delivery_date, '%Y-%m-%d %H:%i:%s') set_dt, "
+                    + "DATE_FORMAT(old_delivery_date, '%Y-%m-%d %H:%i:%s') old_dt, affected_rows "
+                    + "FROM super_admin_dp_change WHERE id = ?", id);
+            String setDt = (String) c.get("set_dt");
             List<Map<String, Object>> rows = fromJson((String) c.get("affected_rows"));
 
             int restored = 0, keptNewer = 0;
             for (Map<String, Object> r : rows) {
-                Object old = r.get("old");
-                Timestamp oldTs = old == null ? null : Timestamp.valueOf(old.toString());
+                // new records keep each row's old value as DB text ("fmt":"text"). Records saved before this fix
+                // kept a time-zone-shifted value, so they restore the change's own old_delivery_date (exact DB text).
+                Object old = "text".equals(r.get("fmt")) ? r.get("old") : c.get("old_dt");
                 // only if the row still holds the date we set (a PO / MA sync may have changed it since)
-                int n = jdbc.update("UPDATE " + table(r) + " SET delivery_date = ? WHERE id = ? AND delivery_date <=> ?",
-                        oldTs, ((Number) r.get("id")).longValue(), setTs);
+                int n = jdbc.update("UPDATE " + table(r) + " SET delivery_date = CAST(? AS DATETIME) WHERE id = ? AND delivery_date <=> CAST(? AS DATETIME)",
+                        old == null ? null : old.toString(), ((Number) r.get("id")).longValue(), setDt);
                 if (n > 0) restored++; else keptNewer++;
             }
             String status = restored == 0 ? "SKIPPED" : doneStatus;
@@ -218,13 +241,16 @@ public class DpChangeService {
     // ───────────────────────────── lists ─────────────────────────────
 
     public List<Map<String, Object>> activeChanges(String poNo) {
+        revertOverdue();
         String where = " WHERE status = 'ACTIVE'" + (poNo != null && !poNo.isBlank() ? " AND po_no = ?" : "");
         Object[] args = poNo != null && !poNo.isBlank() ? new Object[]{poNo.trim()} : new Object[]{};
-        return jdbc.query("SELECT *, TIMESTAMPDIFF(SECOND, NOW(), revert_at) secs_left FROM super_admin_dp_change" + where
+        return jdbc.query("SELECT *, TIMESTAMPDIFF(SECOND, NOW(), revert_at) secs_left, DATE_FORMAT(old_delivery_date, '%Y-%m-%d') old_dp, "
+                + "DATE_FORMAT(new_delivery_date, '%Y-%m-%d') new_dp FROM super_admin_dp_change" + where
                 + " ORDER BY revert_at", (rs, i) -> change(rs), args);
     }
 
     public Map<String, Object> history(String poNo, int page, int size) {
+        revertOverdue();
         int s = Math.min(Math.max(size, 5), 100);
         int pg = Math.max(page, 0);
         boolean byPo = poNo != null && !poNo.isBlank();
@@ -235,7 +261,8 @@ public class DpChangeService {
         if (byPo) args.add(poNo.trim());
         args.add(s);
         args.add(pg * s);
-        List<Map<String, Object>> rows = jdbc.query("SELECT *, TIMESTAMPDIFF(SECOND, NOW(), revert_at) secs_left FROM super_admin_dp_change"
+        List<Map<String, Object>> rows = jdbc.query("SELECT *, TIMESTAMPDIFF(SECOND, NOW(), revert_at) secs_left, DATE_FORMAT(old_delivery_date, '%Y-%m-%d') old_dp, "
+                + "DATE_FORMAT(new_delivery_date, '%Y-%m-%d') new_dp FROM super_admin_dp_change"
                 + where + " ORDER BY id DESC LIMIT ? OFFSET ?", (rs, i) -> change(rs), args.toArray());
         return Map.of("content", rows, "total", total == null ? 0 : total, "page", pg);
     }
@@ -247,8 +274,8 @@ public class DpChangeService {
         m.put("id", rs.getLong("id"));
         m.put("poNo", rs.getString("po_no"));
         m.put("srNo", rs.getString("item_sr_no"));
-        m.put("oldDp", date(rs.getTimestamp("old_delivery_date")));
-        m.put("newDp", date(rs.getTimestamp("new_delivery_date")));
+        m.put("oldDp", rs.getString("old_dp"));
+        m.put("newDp", rs.getString("new_dp"));
         m.put("remarks", rs.getString("remarks"));
         m.put("changedBy", rs.getString("changed_by_name"));
         m.put("changedByEmpCode", rs.getString("changed_by_emp_code"));
@@ -262,12 +289,11 @@ public class DpChangeService {
         return m;
     }
 
-    private static Map<String, Object> row(String table, long id, Timestamp old) {
+    private static Map<String, Object> row(String table, long id, String old) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("table", table);
         m.put("id", id);
-        m.put("old", old == null ? null : old.toString());
-        m.put("oldTs", old);
+        m.put("old", old);
         return m;
     }
 
@@ -282,7 +308,7 @@ public class DpChangeService {
     private String toJson(List<Map<String, Object>> rows) {
         List<Map<String, Object>> clean = new ArrayList<>();
         for (Map<String, Object> r : rows) clean.add(Map.of("table", r.get("table"), "id", r.get("id"),
-                "old", r.get("old") == null ? "" : r.get("old")));
+                "old", r.get("old") == null ? "" : r.get("old"), "fmt", "text"));
         try {
             return mapper.writeValueAsString(clean);
         } catch (Exception e) {
