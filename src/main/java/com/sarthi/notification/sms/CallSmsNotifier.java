@@ -25,7 +25,7 @@ public class CallSmsNotifier {
     @Value("${xpertsms.call-notifications.enabled:false}")
     private boolean enabled;
 
-    /** First IE assignment of a call (ERC CALL_REGISTERED, Sleeper / Rail Pad VERIFY → Main IE). */
+    /** First IE assignment of a call (ERC CALL_REGISTERED, Sleeper / Rail Pad VERIFY → Main or Process IE). */
     public void callAssigned(String callNo, Integer ieUserId) {
         if (!enabled || callNo == null) return;
         afterCommit(() -> sender.assigned(callNo, ieUserId));
@@ -51,8 +51,11 @@ public class CallSmsNotifier {
         if (p == null) return false;
         String sql = switch (p) {
             case ERC -> "SELECT COUNT(*) FROM workflow_transition WHERE UPPER(REQUESTID) = ? AND STATUS = 'CALL_REGISTERED'";
-            case SLEEPER -> "SELECT COUNT(*) FROM sleeper_workflow_transaction WHERE UPPER(request_id) = ? AND action = 'VERIFY' AND next_role = 'Main IE'";
-            case RAILPAD -> "SELECT COUNT(*) FROM rail_workflow_transaction WHERE UPPER(request_id) = ? AND action = 'VERIFY' AND next_role = 'Rail Main IE'";
+            // any IE role, Main or Process (same rule as CallAssignmentEntityListener.isIeRole)
+            case SLEEPER -> "SELECT COUNT(*) FROM sleeper_workflow_transaction WHERE UPPER(request_id) = ? AND action = 'VERIFY' "
+                    + "AND TRIM(next_role) REGEXP '(^|[[:space:]])IE$'";
+            case RAILPAD -> "SELECT COUNT(*) FROM rail_workflow_transaction WHERE UPPER(request_id) = ? AND action = 'VERIFY' "
+                    + "AND TRIM(next_role) REGEXP '(^|[[:space:]])IE$'";
         };
         Integer n = jdbc.queryForObject(sql, Integer.class, callNo);
         return n != null && n > 0;

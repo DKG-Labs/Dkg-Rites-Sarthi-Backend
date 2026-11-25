@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
  * Catches the first IE assignment of a call wherever the workflow row is inserted
  * (there are several code paths that create these rows):
  *   ERC      : new workflow_transition row with STATUS = 'CALL_REGISTERED'
- *   Sleeper  : new sleeper_workflow_transaction row, action VERIFY, next role 'Main IE'
- *   Rail Pad : new rail_workflow_transaction row, action VERIFY, next role 'Rail Main IE'
+ *   Sleeper  : new sleeper_workflow_transaction row, action VERIFY, next role an IE role (Main / Process IE)
+ *   Rail Pad : new rail_workflow_transaction row, action VERIFY, next role an IE role (Rail Main / Rail Process IE)
  * Only hands the call to CallSmsNotifier (which waits for commit); never throws.
  */
 @Slf4j
@@ -36,11 +36,11 @@ public class CallAssignmentEntityListener implements ApplicationContextAware {
                     notifier().callAssigned(w.getRequestId(), w.getAssignedToUser());
                 }
             } else if (entity instanceof SleeperWorkflowTransaction s) {
-                if ("VERIFY".equalsIgnoreCase(s.getAction()) && "Main IE".equalsIgnoreCase(s.getNextRole())) {
+                if ("VERIFY".equalsIgnoreCase(s.getAction()) && isIeRole(s.getNextRole())) {
                     notifier().callAssigned(s.getRequestId(), toInt(s.getAssignedToUser()));
                 }
             } else if (entity instanceof RailWorkflowTransaction r) {
-                if ("VERIFY".equalsIgnoreCase(r.getAction()) && "Rail Main IE".equalsIgnoreCase(r.getNextRole())) {
+                if ("VERIFY".equalsIgnoreCase(r.getAction()) && isIeRole(r.getNextRole())) {
                     notifier().callAssigned(r.getRequestId(), toInt(r.getAssignedToUser()));
                 }
             }
@@ -51,6 +51,14 @@ public class CallAssignmentEntityListener implements ApplicationContextAware {
 
     private static CallSmsNotifier notifier() {
         return ctx.getBean(CallSmsNotifier.class);
+    }
+
+    /**
+     * Any IE role, Main or Process: "Main IE", "IE", "Sleeper Process IE", "Rail Main IE", "Rail Process IE".
+     * Vendor / RIO rows don't match.
+     */
+    static boolean isIeRole(String role) {
+        return role != null && role.trim().matches("(?i)(.*\\s)?IE");
     }
 
     private static Integer toInt(Long v) {

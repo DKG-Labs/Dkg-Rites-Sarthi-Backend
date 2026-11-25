@@ -37,7 +37,8 @@ public class SmsService {
      * Uses the same XpertSMS account as the OTP; only the template id differs.
      * Throws RuntimeException on failure so the caller can log it.
      */
-    public void send(String mobileNumber, String body, String dltTemplateId) {
+    /** Sends one DLT SMS; returns the XpertSMS reply text. Throws when the gateway rejects it (HTTP error or error reply). */
+    public String send(String mobileNumber, String body, String dltTemplateId) {
         java.net.URI uri = UriComponentsBuilder
                 .fromUriString(smsApiUrl)
                 .queryParam("key", smsApiKey)
@@ -53,6 +54,12 @@ public class SmsService {
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new RuntimeException("XpertSMS failed: " + response.getStatusCode());
         }
+        // XpertSMS answers HTTP 200 even when it rejects a message (template mismatch, bad number, no balance)
+        String reply = response.getBody() == null ? "" : response.getBody().trim();
+        if (reply.matches("(?is).*(error|fail|invalid|reject|insufficient|blocked|not allowed).*")) {
+            throw new RuntimeException("XpertSMS rejected: " + reply);
+        }
+        return reply;
     }
 
     public void sendOtp(String mobileNumber, String otp) {
