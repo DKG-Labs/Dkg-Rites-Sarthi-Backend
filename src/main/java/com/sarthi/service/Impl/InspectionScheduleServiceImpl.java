@@ -3,12 +3,24 @@ package com.sarthi.service.Impl;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.dto.InspectionScheduleDto;
 import com.sarthi.entity.InspectionSchedule;
+import com.sarthi.entity.PoHeader;
+import com.sarthi.entity.PoItem;
+import com.sarthi.entity.UserMaster;
+import com.sarthi.entity.rawmaterial.InspectionCall;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
+import com.sarthi.repository.IeProfileRepository;
 import com.sarthi.repository.InspectionScheduleRepository;
+import com.sarthi.repository.PoHeaderRepository;
+import com.sarthi.repository.PoItemRepository;
+import com.sarthi.repository.RioUserRepository;
+import com.sarthi.repository.UserMasterRepository;
+import com.sarthi.repository.UserRoleMasterRepository;
+import com.sarthi.repository.rawmaterial.InspectionCallRepository;
 import com.sarthi.service.InspectionScheduleService;
 import com.sarthi.util.NotificationService;
+import com.sarthi.util.RioUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +46,60 @@ public class InspectionScheduleServiceImpl implements InspectionScheduleService 
     private InspectionScheduleRepository scheduleRepository;
     @Autowired
     private NotificationService notificationService;
+    @Autowired(required = false)
+    private InspectionCallRepository inspectionCallRepository;
+    @Autowired(required = false)
+    private PoHeaderRepository poHeaderRepository;
+    @Autowired(required = false)
+    private PoItemRepository poItemRepository;
+    @Autowired(required = false)
+    private UserMasterRepository userMasterRepository;
+    @Autowired(required = false)
+    private UserRoleMasterRepository userRoleMasterRepository;
+    @Autowired(required = false)
+    private IeProfileRepository ieProfileRepository;
+    @Autowired(required = false)
+    private RioUserRepository rioUserRepository;
+
+    private void validateScheduleIeRio(String callNo, String actorStr) {
+        if (callNo == null || callNo.isBlank() || inspectionCallRepository == null || poHeaderRepository == null) {
+            return;
+        }
+        InspectionCall ic = inspectionCallRepository.findByIcNumber(callNo.trim()).orElse(null);
+        if (ic == null || ic.getPoNo() == null || ic.getPoNo().isBlank()) {
+            return;
+        }
+        PoHeader ph = poHeaderRepository.findFirstByPoNoOrL5PoNo(ic.getPoNo().trim()).orElse(null);
+        String caseNo = ph != null ? ph.getCaseNo() : null;
+        if ((caseNo == null || caseNo.trim().isEmpty()) && ph != null && poItemRepository != null && ic.getPoSerialNo() != null) {
+            List<PoItem> items = poItemRepository.findByPoHeader_Id(ph.getId());
+            if (items != null) {
+                caseNo = items.stream()
+                        .filter(i -> i.getItemSrNo() != null && i.getItemSrNo().trim().equalsIgnoreCase(ic.getPoSerialNo().trim()))
+                        .map(PoItem::getCaseNo)
+                        .filter(c -> c != null && !c.trim().isEmpty())
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+        UserMaster actorUser = null;
+        if (actorStr != null && !actorStr.isBlank() && userMasterRepository != null) {
+            try {
+                actorUser = userMasterRepository.findByUserId(Integer.valueOf(actorStr.trim())).orElse(null);
+            } catch (NumberFormatException ignored) {
+                actorUser = userMasterRepository.findFirstByEmployeeCode(actorStr.trim()).orElse(null);
+            }
+        }
+        RioUtil.validateIeCaseRioAccess(
+                RioUtil.getAuthenticatedUser(),
+                actorUser,
+                userRoleMasterRepository,
+                ieProfileRepository,
+                rioUserRepository,
+                caseNo,
+                callNo
+        );
+    }
 
     @Override
     @Transactional
@@ -59,6 +125,8 @@ public class InspectionScheduleServiceImpl implements InspectionScheduleService 
                     AppConstant.ERROR_TYPE_VALIDATION,
                     "Inspection already scheduled for call: " + scheduleDto.getCallNo()));
         }
+
+        validateScheduleIeRio(scheduleDto.getCallNo(), scheduleDto.getCreatedBy());
 
         InspectionSchedule schedule = new InspectionSchedule();
         schedule.setCallNo(scheduleDto.getCallNo());
@@ -88,6 +156,10 @@ public class InspectionScheduleServiceImpl implements InspectionScheduleService 
                         AppConstant.NO_RECORD_FOUND, AppConstant.ERROR_TYPE_CODE_VALIDATION,
                         AppConstant.ERROR_TYPE_VALIDATION,
                         "No schedule found for call: " + scheduleDto.getCallNo())));
+
+        String actorStr = scheduleDto.getUpdatedBy() != null && !scheduleDto.getUpdatedBy().isBlank()
+                ? scheduleDto.getUpdatedBy() : scheduleDto.getCreatedBy();
+        validateScheduleIeRio(scheduleDto.getCallNo(), actorStr);
 
         schedule.setScheduleDate(LocalDate.parse(scheduleDto.getScheduleDate(), DATE_FORMATTER));
         schedule.setReason(scheduleDto.getReason());

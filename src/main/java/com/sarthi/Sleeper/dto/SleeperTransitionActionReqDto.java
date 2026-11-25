@@ -38,4 +38,10 @@ public class SleeperTransitionActionReqDto {
     private String pincode;
     private String materialAvailable;
     private String updatedBy;
+
+    // Call Result Dispatch & Pause fields
+    private String callResult;
+    private String systemStatus;
+    private String resultStatus;
+    private String pauseReason;
 }

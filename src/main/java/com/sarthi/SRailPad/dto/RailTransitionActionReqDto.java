@@ -35,4 +35,10 @@ public class RailTransitionActionReqDto {
     private String vendorCode;
     private String pincode;
     private String updatedBy;
+
+    // Call Result Dispatch & Pause fields
+    private String callResult;
+    private String systemStatus;
+    private String resultStatus;
+    private String pauseReason;
 }

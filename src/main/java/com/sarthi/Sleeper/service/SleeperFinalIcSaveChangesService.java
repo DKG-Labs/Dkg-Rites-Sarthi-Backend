@@ -54,7 +54,9 @@ public class SleeperFinalIcSaveChangesService {
         entity.setManufacturer(dto.getManufacturer());
         entity.setTrRecDate(dto.getTrRecDate());
         entity.setNoOfVisits(dto.getNoOfVisits());
-        entity.setDateOfCall(dto.getDateOfCall());
+        if (entity.getId() == null || entity.getDateOfCall() == null || entity.getDateOfCall().isBlank()) {
+            entity.setDateOfCall(dto.getDateOfCall());
+        }
         entity.setDesiredDate(dto.getDesiredDate());
         entity.setDatesOfInspection(dto.getDatesOfInspection());
         entity.setSealingPattern(dto.getSealingPattern());

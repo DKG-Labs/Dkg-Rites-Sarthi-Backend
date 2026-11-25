@@ -23,6 +23,7 @@ import com.sarthi.exception.ErrorDetails;
 import com.sarthi.exception.InvalidInputException;
 import com.sarthi.exception.UnauthorizedException;
 import com.sarthi.repository.UserMasterRepository;
+import com.sarthi.util.DiversionCallDateHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -83,6 +84,7 @@ public class RailDiversionServiceImpl implements RailDiversionService {
     private final RailFinalInspectionLotResultsRepository lotResultsRepository;
     private final RailProcessCallService processCallService;
     private final UserMasterRepository userMasterRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     // ================= Vendor: source ICs and balances =================
 
@@ -164,6 +166,9 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         req.setStatus(PENDING_CM_APPROVAL);
         req.setCreatedBy(String.valueOf(user.getUserId()));
         RailDiversionRequest saved = requestRepository.save(req);
+        java.time.LocalDate effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : java.time.LocalDate.now();
+        DiversionCallDateHelper.saveCallDate(jdbcTemplate, "rail_material_diversion_request", saved.getId(), effectiveCallDate);
+        saved.setCallDate(effectiveCallDate);
         history(saved, "VENDOR", user, "SUBMIT", DRAFT, PENDING_CM_APPROVAL, dto.getVendorRemarks());
         return saved;
     }
@@ -175,7 +180,11 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         if (!EDITABLE.contains(req.getStatus())) throw invalid("This request can no longer be edited (" + req.getStatus() + ")");
         applyAndValidate(req, dto, vendorCode(user), req.getId());
         req.setUpdatedBy(String.valueOf(user.getUserId()));
+        java.time.LocalDate existingCallDate = DiversionCallDateHelper.loadCallDate(jdbcTemplate, "rail_material_diversion_request", req.getId());
         RailDiversionRequest saved = requestRepository.save(req);
+        java.time.LocalDate effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : (existingCallDate != null ? existingCallDate : java.time.LocalDate.now());
+        DiversionCallDateHelper.saveCallDate(jdbcTemplate, "rail_material_diversion_request", saved.getId(), effectiveCallDate);
+        saved.setCallDate(effectiveCallDate);
         history(saved, "VENDOR", user, "EDIT", req.getStatus(), req.getStatus(), null);
         return saved;
     }
@@ -316,14 +325,33 @@ public class RailDiversionServiceImpl implements RailDiversionService {
                 && !clean(req.getVendorCode()).equalsIgnoreCase(vendorCode(user))) {
             throw unauthorized("This request belongs to another vendor");
         }
+        return attachCallDate(req);
+    }
+
+    private RailDiversionRequest attachCallDate(RailDiversionRequest req) {
+        if (req != null && req.getCallDate() == null && req.getId() != null) {
+            req.setCallDate(DiversionCallDateHelper.loadCallDate(jdbcTemplate, "rail_material_diversion_request", req.getId()));
+        }
         return req;
+    }
+
+    private List<RailDiversionRequest> attachCallDates(List<RailDiversionRequest> list) {
+        if (list == null || list.isEmpty()) return list;
+        List<Long> ids = list.stream().map(RailDiversionRequest::getId).filter(Objects::nonNull).toList();
+        Map<Long, LocalDate> map = DiversionCallDateHelper.loadCallDates(jdbcTemplate, "rail_material_diversion_request", ids);
+        for (RailDiversionRequest r : list) {
+            if (r.getId() != null && map.containsKey(r.getId())) {
+                r.setCallDate(map.get(r.getId()));
+            }
+        }
+        return list;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<RailDiversionRequest> getVendorRequests() {
         String vc = vendorCode(requireRole(VENDOR_ROLES, "Only Rail Pad vendors can view their diversions"));
-        return requestRepository.findByVendorCodeAndStatusNotOrderByCreatedDateDesc(vc, DELETED_BY_VENDOR);
+        return attachCallDates(requestRepository.findByVendorCodeAndStatusNotOrderByCreatedDateDesc(vc, DELETED_BY_VENDOR));
     }
 
     @Override
@@ -365,16 +393,16 @@ public class RailDiversionServiceImpl implements RailDiversionService {
     @Transactional(readOnly = true)
     public List<RailDiversionRequest> getCmPending() {
         UserMaster cm = requireRole(CM_ROLES, "Only a Controlling Manager can view this queue");
-        return requestRepository.findByCmUserIdAndStatusOrderByCreatedDateDesc(String.valueOf(cm.getUserId()), PENDING_CM_APPROVAL);
+        return attachCallDates(requestRepository.findByCmUserIdAndStatusOrderByCreatedDateDesc(String.valueOf(cm.getUserId()), PENDING_CM_APPROVAL));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<RailDiversionRequest> getCmActioned() {
         UserMaster cm = requireRole(CM_ROLES, "Only a Controlling Manager can view this queue");
-        return requestRepository.findByCmUserIdAndStatusInOrderByCreatedDateDesc(String.valueOf(cm.getUserId()),
+        return attachCallDates(requestRepository.findByCmUserIdAndStatusInOrderByCreatedDateDesc(String.valueOf(cm.getUserId()),
                 EnumSet.of(CM_APPROVE_DIVERSION, CM_RETURN_DIVERSION, SENT_TO_SBU_HEAD, SBU_HEAD_APPROVE_DIVERSION,
-                        SBU_HEAD_RETURN_DIVERSION, BASKET_CREATED, COMPLETED));
+                        SBU_HEAD_RETURN_DIVERSION, BASKET_CREATED, COMPLETED)));
     }
 
     @Override
@@ -393,11 +421,11 @@ public class RailDiversionServiceImpl implements RailDiversionService {
 
     private List<RailDiversionRequest> byRio(UserMaster user, Set<DiversionRequestStatus> statuses) {
         String rio = user.getRio();
-        if (rio == null || rio.isBlank()) return requestRepository.findByStatusInOrderByCreatedDateDesc(statuses);
+        if (rio == null || rio.isBlank()) return attachCallDates(requestRepository.findByStatusInOrderByCreatedDateDesc(statuses));
         String initial = rio.trim().substring(0, 1).toUpperCase();
-        return requestRepository.findByStatusInOrderByCreatedDateDesc(statuses).stream()
+        return attachCallDates(requestRepository.findByStatusInOrderByCreatedDateDesc(statuses).stream()
                 .filter(r -> r.getRioId() != null && r.getRioId().trim().toUpperCase().startsWith(initial))
-                .toList();
+                .toList());
     }
 
     @Override
@@ -415,7 +443,7 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         RailDiversionRequest req = forAction(a, PENDING_CM_APPROVAL);
         ownCmCheck(req, cm);
         approveAndCreateCall(req, a, cm, "CM", CM_APPROVE_DIVERSION);
-        return req;
+        return attachCallDate(req);
     }
 
     @Override
@@ -441,7 +469,7 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         RailDiversionRequest req = forAction(a, SENT_TO_SBU_HEAD, PENDING_SBU_APPROVAL);
         req.setSbuHeadUserId(String.valueOf(sbu.getUserId()));
         approveAndCreateCall(req, a, sbu, "SBU_HEAD", SBU_HEAD_APPROVE_DIVERSION);
-        return req;
+        return attachCallDate(req);
     }
 
     @Override
@@ -513,7 +541,10 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         c.setDiversionRequestNo(req.getRequestNo());
         c.setSourceIcNo(req.getSourceIcNo());
         c.setCreatedBy(actor.getUserId() != null ? actor.getUserId().longValue() : null);
-        c.setCreatedAt(now);
+        java.time.LocalDate reqCallDate = req.getCallDate() != null
+                ? req.getCallDate()
+                : DiversionCallDateHelper.loadCallDate(jdbcTemplate, "rail_material_diversion_request", req.getId());
+        c.setCreatedAt(reqCallDate != null ? reqCallDate.atTime(now.toLocalTime()) : now);
         RailInspectionCall saved = callRepository.save(c);
 
         // Workflow placed at "inspection finished": the IE's completed-calls list shows it under Issuance of IC
@@ -647,7 +678,7 @@ public class RailDiversionServiceImpl implements RailDiversionService {
         if (!Arrays.asList(allowed).contains(req.getStatus())) {
             throw invalid("Action not allowed in status " + req.getStatus());
         }
-        return req;
+        return attachCallDate(req);
     }
 
     private void ownCmCheck(RailDiversionRequest req, UserMaster cm) {
@@ -675,7 +706,7 @@ public class RailDiversionServiceImpl implements RailDiversionService {
     private RailDiversionRequest ownRequest(Long id, UserMaster user) {
         RailDiversionRequest req = requestRepository.findById(id).orElseThrow(() -> invalid("Diversion request not found"));
         if (!clean(req.getVendorCode()).equalsIgnoreCase(vendorCode(user))) throw unauthorized("This request belongs to another vendor");
-        return req;
+        return attachCallDate(req);
     }
 
     private boolean isIcIssued(String callNo) {

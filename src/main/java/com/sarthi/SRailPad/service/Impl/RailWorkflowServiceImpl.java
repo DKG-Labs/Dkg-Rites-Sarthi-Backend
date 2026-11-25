@@ -540,6 +540,12 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             );
         }
 
+        if (shouldValidateRailIeRio(current, req.getAction())) {
+            String targetCallNo = (req.getRequestId() != null && !req.getRequestId().trim().isEmpty())
+                    ? req.getRequestId().trim() : current.getRequestId();
+            validateRailIeCaseRioAccess(req.getActionBy(), targetCallNo);
+        }
+
 
 
         // Strict Assigned User Verification for in-progress / initiated calls
@@ -3073,6 +3079,62 @@ public class RailWorkflowServiceImpl implements RailWorkflowService {
             return railCallCancellationDetailRepository.findByCallNumber(callNo.trim()).orElse(null);
         }
         return null;
+    }
+
+    private boolean shouldValidateRailIeRio(RailWorkflowTransaction current, String actionRaw) {
+        if (current == null || current.getWorkflowId() == null || current.getWorkflowId() == 1) {
+            return false;
+        }
+        String action = actionRaw != null ? actionRaw.trim().toUpperCase() : "";
+        if (action.equals("VERIFY") || action.equals("RETURN_TO_VENDOR") || action.equals("FIX_ROUTING")
+                || action.equals("CREATE_CALL") || action.equals("CALL_REGISTERED")
+                || action.equals("UNLOCK") || action.startsWith("WITHDRAW")) {
+            return false;
+        }
+        String nextRole = current.getNextRole() != null ? current.getNextRole().trim() : "";
+        return !nextRole.equalsIgnoreCase("RIO Help Desk")
+                && !nextRole.equalsIgnoreCase("Rail Vendor")
+                && !nextRole.equalsIgnoreCase("Vendor");
+    }
+
+    private void validateRailIeCaseRioAccess(Long actionBy, String callNo) {
+        if (callNo == null || callNo.isBlank() || railInspectionCallRepository == null || poHeaderRepository == null) {
+            return;
+        }
+        RailInspectionCall ic = railInspectionCallRepository.findByCallNo(callNo.trim()).orElse(null);
+        if (ic == null || ic.getPoNo() == null || ic.getPoNo().isBlank()) {
+            return;
+        }
+        com.sarthi.entity.PoHeader poHeader = poHeaderRepository.findFirstByPoNoOrL5PoNo(ic.getPoNo().trim()).orElse(null);
+        String caseNo = poHeader != null ? poHeader.getCaseNo() : null;
+        if ((caseNo == null || caseNo.trim().isEmpty()) && poHeader != null && poItemRepository != null) {
+            List<com.sarthi.entity.PoItem> items = poItemRepository.findByPoHeader_Id(poHeader.getId());
+            if (items != null) {
+                String targetSr = ic.getPoSr() != null ? ic.getPoSr().trim() : "";
+                caseNo = items.stream()
+                        .filter(i -> i.getItemSrNo() != null && i.getItemSrNo().trim().equalsIgnoreCase(targetSr))
+                        .map(com.sarthi.entity.PoItem::getCaseNo)
+                        .filter(c -> c != null && !c.trim().isEmpty())
+                        .findFirst()
+                        .orElse(items.stream()
+                                .map(com.sarthi.entity.PoItem::getCaseNo)
+                                .filter(c -> c != null && !c.trim().isEmpty())
+                                .findFirst()
+                                .orElse(null));
+            }
+        }
+        UserMaster actionUser = actionBy != null
+                ? userMasterRepository.findByUserId(Math.toIntExact(actionBy)).orElse(null)
+                : null;
+        RioUtil.validateIeCaseRioAccess(
+                RioUtil.getAuthenticatedUser(),
+                actionUser,
+                userRoleMasterRepository,
+                jdbcTemplate,
+                rioUserRepository,
+                caseNo,
+                callNo
+        );
     }
 
     // ─── IBS Payment Verification Proxy ──────────────────────────────────────────

@@ -5,24 +5,34 @@ import com.sarthi.Sleeper.entity.FInalCall.FinalCallInspectionSectionB;
 import com.sarthi.Sleeper.entity.FInalCall.FinalCallnspectionSectionA;
 import com.sarthi.Sleeper.entity.FInalCall.SleeperSchedule;
 import com.sarthi.Sleeper.entity.FinalInspection.SleeperInspectionCall;
+import com.sarthi.Sleeper.entity.VendorPlant;
 import com.sarthi.Sleeper.repository.FinalCallInspectionSectionBRepository;
 import com.sarthi.Sleeper.repository.FinalCallnspectionSectionARepository;
 import com.sarthi.Sleeper.repository.FinalInspectionRepository.SleeperInspectionCallRepository;
 import com.sarthi.Sleeper.repository.SleeperScheduleRepository;
+import com.sarthi.Sleeper.repository.VendorPlantRepository;
 import com.sarthi.Sleeper.service.FinalCallInspectionService;
 import com.sarthi.Sleeper.util.SleeperQtyUtil;
 import com.sarthi.constant.AppConstant;
 import com.sarthi.entity.PoHeader;
 import com.sarthi.entity.PoItem;
+import com.sarthi.entity.UserMaster;
 import com.sarthi.exception.BusinessException;
 import com.sarthi.exception.ErrorDetails;
 import com.sarthi.repository.PoHeaderRepository;
 import com.sarthi.repository.PoItemRepository;
+import com.sarthi.repository.RioUserRepository;
+import com.sarthi.repository.UserMasterRepository;
+import com.sarthi.repository.UserRoleMasterRepository;
 import com.sarthi.util.NotificationService;
+import com.sarthi.util.RioUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +49,66 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
         private final SleeperScheduleRepository sleeperScheduleRepository;
 
         private final NotificationService notificationService;
+
+        @Autowired(required = false)
+        private UserMasterRepository userMasterRepository;
+        @Autowired(required = false)
+        private UserRoleMasterRepository userRoleMasterRepository;
+        @Autowired(required = false)
+        private RioUserRepository rioUserRepository;
+        @Autowired(required = false)
+        private VendorPlantRepository vendorPlantRepository;
+        @Autowired(required = false)
+        private JdbcTemplate jdbcTemplate;
+
+        private void validateSleeperScheduleRio(String callNo, Long actorUserId) {
+            if (callNo == null || callNo.isBlank() || callRepo == null || poHeaderRepo == null) {
+                return;
+            }
+            SleeperInspectionCall call = callRepo.findByCallNo(callNo.trim()).orElse(null);
+            if (call == null || call.getPoNo() == null || call.getPoNo().isBlank()) {
+                return;
+            }
+            PoHeader poHeader = poHeaderRepo.findFirstByPoNoOrL5PoNo(call.getPoNo().trim()).orElse(null);
+            if (poHeader == null || poHeader.getCaseNo() == null || poHeader.getCaseNo().isBlank()) {
+                return;
+            }
+            String plantRio = null;
+            if (call.getPlantId() != null && !call.getPlantId().isBlank() && vendorPlantRepository != null) {
+                List<VendorPlant> vps = vendorPlantRepository.findMatchingPlants(call.getPlantId().trim());
+                if (vps != null) {
+                    for (VendorPlant vp : vps) {
+                        if (vp.getRio() != null && !vp.getRio().isBlank()) {
+                            plantRio = vp.getRio().trim();
+                            break;
+                        }
+                    }
+                }
+            }
+            String targetCaseNo = poHeader.getCaseNo().trim();
+            if (plantRio != null && !plantRio.isEmpty()) {
+                String prefix = plantRio.substring(0, 1).toUpperCase();
+                for (String token : targetCaseNo.split(",")) {
+                    String trimmed = token.trim();
+                    if (trimmed.toUpperCase().startsWith(prefix)) {
+                        targetCaseNo = trimmed;
+                        break;
+                    }
+                }
+            }
+            UserMaster actionUser = (actorUserId != null && userMasterRepository != null)
+                    ? userMasterRepository.findByUserId(Math.toIntExact(actorUserId)).orElse(null)
+                    : null;
+            RioUtil.validateIeCaseRioAccess(
+                    RioUtil.getAuthenticatedUser(),
+                    actionUser,
+                    userRoleMasterRepository,
+                    jdbcTemplate,
+                    rioUserRepository,
+                    targetCaseNo,
+                    callNo
+            );
+        }
         public InspectionCallSection1Response getDetails(String callNo) {
 
             SleeperInspectionCall call = callRepo.findByCallNo(callNo)
@@ -310,6 +380,8 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
 
     public SleeperScheduleRequest create(SleeperScheduleRequest req) {
 
+        validateSleeperScheduleRio(req.getCallNo(), req.getCreatedBy());
+
         if (sleeperScheduleRepository.existsByCallNo(req.getCallNo())) {
             req.setUpdatedBy(req.getCreatedBy());
             return update(req);
@@ -339,6 +411,8 @@ public class FinalCallInspectionServiceImpl implements FinalCallInspectionServic
     }
 
     public SleeperScheduleRequest update(SleeperScheduleRequest req) {
+
+        validateSleeperScheduleRio(req.getCallNo(), req.getUpdatedBy() != null ? req.getUpdatedBy() : req.getCreatedBy());
 
         SleeperSchedule entity = sleeperScheduleRepository.findByCallNo(req.getCallNo())
                 .orElse(null);

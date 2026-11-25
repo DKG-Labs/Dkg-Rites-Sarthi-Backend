@@ -61,7 +61,9 @@ public class RailpadFinalIcEditServiceImpl implements RailpadFinalIcEditService 
         entity.setContractor(dto.getContractor());
         entity.setPlaceOfInspection(dto.getPlaceOfInspection());
         entity.setNoOfVisits(dto.getNoOfVisits());
-        entity.setDateOfCall(dto.getDateOfCall());
+        if (entity.getId() == null || entity.getDateOfCall() == null || entity.getDateOfCall().isBlank()) {
+            entity.setDateOfCall(dto.getDateOfCall());
+        }
         entity.setDesiredDate(dto.getDesiredDate());
         if(entity.getId() == null) {
             entity.setCreatedBy(dto.getCreatedBy());

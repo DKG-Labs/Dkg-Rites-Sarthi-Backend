@@ -49,7 +49,9 @@ public class ProcessIcSaveChangesService {
         entity.setInspectionDate(dto.getInspectionDate());
         entity.setManDays(dto.getManDays());
         String effectiveCallDate = dto.getCallDate() != null ? dto.getCallDate() : dto.getDateOfCall();
-        entity.setCallDate(effectiveCallDate);
+        if (entity.getId() == null || entity.getCallDate() == null || entity.getCallDate().isBlank()) {
+            entity.setCallDate(effectiveCallDate);
+        }
         entity.setDesiredDate(dto.getDesiredDate());
         entity.setLotDetails(dto.getLotDetails());
         

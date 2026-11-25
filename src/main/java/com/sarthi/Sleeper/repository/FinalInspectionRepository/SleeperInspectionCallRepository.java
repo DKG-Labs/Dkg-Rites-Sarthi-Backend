@@ -434,7 +434,7 @@ ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
               LIMIT 1) AS expectedDeliveryDate,
             (SELECT ph.vendor_details FROM po_header ph
               WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci LIMIT 1) AS vendorName,
-            NULL AS inspectionDesiredDate,
+            sic.desired_inspection_date AS inspectionDesiredDate,
             sic.created_at AS callDate,
             COALESCE(asg.ie_names,
                 (SELECT CONCAT(um.employee_code, ' - ', um.full_name)
@@ -465,8 +465,14 @@ ORDER BY ph.po_no, CASE pu.uom WHEN 'Nos.' THEN 0 ELSE 1 END
             sic.call_no AS callNumber,
             'Sleeper - Final' AS productAndStageOfInspection,
             CONCAT(sic.po_no, '-', sic.sr_no) AS poNumber,
-            NULL AS deliveryDate,
-            NULL AS expectedDeliveryDate,
+            (SELECT pi.delivery_date FROM po_header ph JOIN po_item pi ON pi.po_header_id = ph.id
+              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                AND pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
+              LIMIT 1) AS deliveryDate,
+            (SELECT pi.extended_delivery_date FROM po_header ph JOIN po_item pi ON pi.po_header_id = ph.id
+              WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci
+                AND pi.item_sr_no COLLATE utf8mb4_unicode_ci = SUBSTRING_INDEX(sic.sr_no, '/', -1) COLLATE utf8mb4_unicode_ci
+              LIMIT 1) AS expectedDeliveryDate,
             (SELECT ph.vendor_details FROM po_header ph
               WHERE ph.po_no COLLATE utf8mb4_unicode_ci = sic.po_no COLLATE utf8mb4_unicode_ci LIMIT 1) AS vendorName,
             sic.desired_inspection_date AS inspectionDesiredDate,

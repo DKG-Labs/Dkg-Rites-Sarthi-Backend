@@ -42,6 +42,9 @@ public class DashboardServiceImpl implements DashboardService {
     private com.sarthi.service.CmCallScopeService cmCallScopeService;
 
     @Autowired
+    private com.sarthi.service.CmCallDocumentService cmCallDocumentService;
+
+    @Autowired
     private DemouldingDefectiveSleeperRepository demouldingDefectiveSleeperRepository;
 
     @Autowired
@@ -1635,7 +1638,7 @@ public class DashboardServiceImpl implements DashboardService {
         List<Object[]> results =
                             inspectionCallRepository.getSleeperInspectionReport(startDateTime, endDateTime, cmCallScopeService.cmUserIdFilter());
 
-        return results.stream().map(obj -> {
+        return cmCallDocumentService.enrich(results.stream().map(obj -> {
 
             InspectionCallsReportDto dto =
                     new InspectionCallsReportDto();
@@ -1644,27 +1647,15 @@ public class DashboardServiceImpl implements DashboardService {
             dto.setProductAndStageOfInspection((String) obj[1]);
             dto.setPoNumber((String) obj[2]);
 
-            dto.setDeliveryDate(
-                    obj[3] != null
-                            ? ((Timestamp) obj[3]).toLocalDateTime()
-                            : null
-            );
+            dto.setDeliveryDate(toCmDateTime(obj[3]));
 
-            dto.setExpectedDeliveryDate(
-                    obj[4] != null
-                            ? ((Timestamp) obj[4]).toLocalDateTime()
-                            : null
-            );
+            dto.setExpectedDeliveryDate(toCmDateTime(obj[4]));
 
             dto.setVendorName((String) obj[5]);
 
-            dto.setInspectionDesiredDate((LocalDate) obj[6]);
+            dto.setInspectionDesiredDate(toCmDate(obj[6]));
 
-            dto.setCallDate(
-                    obj[7] != null
-                            ? ((Timestamp) obj[7]).toLocalDateTime()
-                            : null
-            );
+            dto.setCallDate(toCmDateTime(obj[7]));
 
             dto.setIeName(
                     obj[8] != null ? obj[8].toString() : null
@@ -1678,7 +1669,7 @@ public class DashboardServiceImpl implements DashboardService {
 
             return dto;
 
-        }).toList();
+        }).toList());
     }
 
 
@@ -1713,7 +1704,7 @@ public class DashboardServiceImpl implements DashboardService {
                                 endDateTime,
                                 cmCallScopeService.cmUserIdFilter());
 
-        return results.stream().map(obj -> {
+        return cmCallDocumentService.enrich(results.stream().map(obj -> {
 
             InspectionCallsReportDto dto =
                     new InspectionCallsReportDto();
@@ -1730,25 +1721,17 @@ public class DashboardServiceImpl implements DashboardService {
                     obj[2] != null ? obj[2].toString() : null
             );
 
-            dto.setDeliveryDate(null);
+            dto.setDeliveryDate(toCmDateTime(obj[3]));
 
-            dto.setExpectedDeliveryDate(null);
+            dto.setExpectedDeliveryDate(toCmDateTime(obj[4]));
 
             dto.setVendorName(
                     obj[5] != null ? obj[5].toString() : null
             );
 
-            dto.setInspectionDesiredDate(
-                    obj[6] != null
-                            ? ((java.sql.Date) obj[6]).toLocalDate()
-                            : null
-            );
+            dto.setInspectionDesiredDate(toCmDate(obj[6]));
 
-            dto.setCallDate(
-                    obj[7] != null
-                            ? ((java.sql.Timestamp) obj[7]).toLocalDateTime()
-                            : null
-            );
+            dto.setCallDate(toCmDateTime(obj[7]));
 
             dto.setIeName(
                     obj[8] != null ? obj[8].toString() : null
@@ -1768,7 +1751,7 @@ public class DashboardServiceImpl implements DashboardService {
 
             return dto;
 
-        }).toList();
+        }).toList());
     }
 
 
@@ -2505,6 +2488,23 @@ public class DashboardServiceImpl implements DashboardService {
         return result;
     }
 
+    private static LocalDateTime toCmDateTime(Object o) {
+        if (o == null) return null;
+        if (o instanceof LocalDateTime ldt) return ldt;
+        if (o instanceof Timestamp ts) return ts.toLocalDateTime();
+        if (o instanceof java.sql.Date d) return d.toLocalDate().atStartOfDay();
+        if (o instanceof LocalDate ld) return ld.atStartOfDay();
+        return null;
+    }
+
+    private static LocalDate toCmDate(Object o) {
+        if (o == null) return null;
+        if (o instanceof LocalDate ld) return ld;
+        if (o instanceof java.sql.Date d) return d.toLocalDate();
+        if (o instanceof Timestamp ts) return ts.toLocalDateTime().toLocalDate();
+        if (o instanceof LocalDateTime ldt) return ldt.toLocalDate();
+        return null;
+    }
 
 }
 
