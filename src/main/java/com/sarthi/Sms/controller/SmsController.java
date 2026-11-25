@@ -91,6 +91,25 @@ public class SmsController {
         List<ReportResDto> res = smsService.getSmsReport(req);
         return new ResponseEntity<Object>(SmsResponseBuilder.getSuccessResponse(res), HttpStatus.OK);
     }
+    @Autowired
+    private com.sarthi.Sms.service.Impl.SmsShiftDaySummaryService smsShiftDaySummaryService;
+
+    /**
+     * SMS Summary record: shift-wise or day-wise, per SMS & caster.
+     * Body: { startDate: dd/MM/yyyy, endDate: dd/MM/yyyy, groupBy: SHIFT|DAY, smsCaster: "SMS 3 - CV1",
+     *         railGrade: "R260", reason: HYDROGEN|CHEMICAL|NITROGEN|OXYGEN }  (filters optional)
+     */
+    @PostMapping("/getSmsShiftDaySummary")
+    public ResponseEntity<Object> getSmsShiftDaySummary(@RequestBody java.util.Map<String, String> req) {
+        try {
+            return new ResponseEntity<Object>(SmsResponseBuilder.getSuccessResponse(smsShiftDaySummaryService.summary(
+                    req.get("startDate"), req.get("endDate"), req.get("groupBy"),
+                    req.get("smsCaster"), req.get("railGrade"), req.get("reason"))), HttpStatus.OK);
+        } catch (IllegalArgumentException e) {
+            return new ResponseEntity<Object>(java.util.Map.of("message", e.getMessage()), HttpStatus.BAD_REQUEST);
+        }
+    }
+
     @PostMapping("/getHeatSummary")
     public ResponseEntity<Object> geHeatSummary(@RequestBody ReportReqDto req) {
         List<SmsHeatReportDto> res = smsService.getHeatReport(req);
