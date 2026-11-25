@@ -13,6 +13,10 @@ public interface UdmComplaintWorkflowService {
     /** Complaint Cell: close the complaint (remarks mandatory). */
     UdmComplaintStatusDto close(Long udmRejectionId, CloseComplaintRequest request, Integer actionByUserId);
 
+    /** Close with an optional supporting PDF (max 5 MB); {@code document} may be null. */
+    UdmComplaintStatusDto close(Long udmRejectionId, CloseComplaintRequest request,
+                                org.springframework.web.multipart.MultipartFile document, Integer actionByUserId);
+
     /** RIOs that have at least one Controlling Manager. */
     List<String> getRios();
 

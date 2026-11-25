@@ -168,6 +168,12 @@ public class IcAnnexuresPageService {
                     .thenComparingInt(k -> switch (stageOf(k)) { case "PROCESS" -> 0; case "FINAL" -> 1; default -> 2; })
                     .thenComparing(k -> nz(k.callAt()));
         }
+        if (key.equals("icIssuedDate")) {
+            // IC date is a day only: break ties by the issue time, then call no., so "desc" puts the latest IC first
+            return Comparator.comparing((Key k) -> nz(k.icDate()))
+                    .thenComparing(k -> nz(k.sortDate()))
+                    .thenComparing(k -> lower(k.callNo()));
+        }
         Function<Key, String> f = switch (key) {
             case "vendorName" -> Key::vendor;
             case "poNumber" -> Key::poFull;

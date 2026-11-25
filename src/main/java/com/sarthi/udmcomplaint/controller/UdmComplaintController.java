@@ -83,6 +83,15 @@ public class UdmComplaintController {
         return ok(service.close(rejectionId, request, userId(principal)));
     }
 
+    /** Complaint Cell: close with multipart "data" (JSON remarks) + optional "file" (supporting PDF, max 5 MB). */
+    @PostMapping(value = "/{rejectionId}/close", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Object> closeWithDocument(@PathVariable Long rejectionId,
+                                                    @RequestPart("data") CloseComplaintRequest request,
+                                                    @RequestPart(value = "file", required = false) MultipartFile file,
+                                                    @AuthenticationPrincipal Object principal) {
+        return ok(service.close(rejectionId, request, file, userId(principal)));
+    }
+
     /** Controlling Manager: complaints assigned to me (paginated). */
     @GetMapping("/my-assigned")
     public ResponseEntity<Object> myAssigned(@RequestParam(defaultValue = "0") int page,

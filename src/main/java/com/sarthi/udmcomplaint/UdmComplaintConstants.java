@@ -60,6 +60,10 @@ public final class UdmComplaintConstants {
     public static final String DOC_AUDIT_REPORT = "AUDIT_REPORT";
     public static final String DOC_RCA_EVIDENCE = "RCA_EVIDENCE";
     public static final String DOC_CAPA_EVIDENCE = "CAPA_EVIDENCE";
+    /** Optional document the Complaint Cell attaches when it closes a complaint directly. */
+    public static final String DOC_CLOSURE = "CLOSURE_DOCUMENT";
+    /** udm_complaint_document.stage of that document. */
+    public static final String STAGE_CC_CLOSE = "CC_CLOSE";
 
     // udm_complaint_dropdown_master.category
     public static final String DD_JI_OUTCOME = "JI_OUTCOME";
