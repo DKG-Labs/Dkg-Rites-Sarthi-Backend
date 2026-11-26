@@ -107,16 +107,37 @@ public interface SleeperScrapVerificationRepository extends JpaRepository<Sleepe
      * Non-Critical Dimensions (3) forms. Only active results count (a sleeper reset to pending is inactive / OK).
      * 0 result id, 1 sleeper no, 2 rejection reason, 3 module id, 4 plant id, 5 vendor code, 6 batch no,
      * 7 casting date, 8 sleeper type, 9 shift, 10 test date, 11 created by, 12 IE name, 13 created/updated date
+     * <p>
+     * Every save of a form re-inserts its results under a new header created by whoever saved, so the current
+     * row's header names the last IE who saved the batch. The IE shown (11, 12) is instead the creator of the
+     * header of the first result that rejected this sleeper on this form: the IE who actually rejected it.
      */
     @Query(value = """
             SELECT itr.id, itr.sleeper_no, itr.rejection_reason, COALESCE(itr.module_id, ith.module_id),
                    pd.plant_id, pd.vendor_code, pd.batch_number, pd.casting_date,
-                   ith.sleeper_type, ith.shift, ith.test_date, COALESCE(itr.updated_by, ith.created_by),
+                   ith.sleeper_type, ith.shift, ith.test_date, first_ith.created_by,
                    um.full_name, COALESCE(itr.updated_date, ith.created_date)
             FROM inspection_test_result itr
             JOIN inspection_test_header ith ON ith.id = itr.test_header_id
             JOIN production_declaration pd ON pd.id = ith.batch_id
-            LEFT JOIN user_master um ON um.userid = COALESCE(itr.updated_by, ith.created_by)
+            JOIN (
+                SELECT ith0.batch_id,
+                       COALESCE(itr0.module_id, ith0.module_id) AS module_id,
+                       TRIM(itr0.sleeper_no) AS sleeper_no,
+                       MIN(itr0.id) AS first_id
+                FROM inspection_test_result itr0
+                JOIN inspection_test_header ith0 ON ith0.id = itr0.test_header_id
+                JOIN production_declaration pd0 ON pd0.id = ith0.batch_id
+                WHERE UPPER(TRIM(itr0.result)) = 'REJECTED'
+                  AND itr0.sleeper_no IS NOT NULL AND TRIM(itr0.sleeper_no) <> ''
+                  AND (:plantId = '' OR REPLACE(pd0.plant_id, ':', '') = :plantId)
+                GROUP BY ith0.batch_id, COALESCE(itr0.module_id, ith0.module_id), TRIM(itr0.sleeper_no)
+            ) first_rej ON first_rej.batch_id = ith.batch_id
+                       AND first_rej.module_id = COALESCE(itr.module_id, ith.module_id)
+                       AND first_rej.sleeper_no = TRIM(itr.sleeper_no)
+            JOIN inspection_test_result first_itr ON first_itr.id = first_rej.first_id
+            JOIN inspection_test_header first_ith ON first_ith.id = first_itr.test_header_id
+            LEFT JOIN user_master um ON um.userid = first_ith.created_by
             WHERE UPPER(TRIM(itr.result)) = 'REJECTED'
               AND COALESCE(itr.active, 1) = 1
               AND itr.sleeper_no IS NOT NULL AND TRIM(itr.sleeper_no) <> ''

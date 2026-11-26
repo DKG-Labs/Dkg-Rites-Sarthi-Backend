@@ -597,16 +597,14 @@ WHERE d.batch_number = :batchNo
      * Row: plant_id, FY total, selected-period total. Only plants with production in [fromDate, toDate].
      */
     @Query(value = """
-            SELECT vp.plant_id,
+            SELECT pd.plant_id,
                    COALESCE(SUM(CASE WHEN pd.created_date BETWEEN :fyStart AND :fyEnd
                                      THEN pd.total_casted_sleepers END), 0) AS fy_inspected,
                    COALESCE(SUM(CASE WHEN pd.created_date BETWEEN :periodStart AND :periodEnd
                                      THEN pd.total_casted_sleepers END), 0) AS period_inspected
-            FROM (SELECT DISTINCT plant_id FROM vendor_plant) vp
-            JOIN production_declaration pd
-                ON pd.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
-                AND pd.created_date BETWEEN :fromDate AND :toDate
-            GROUP BY vp.plant_id
+            FROM production_declaration pd
+            WHERE pd.created_date BETWEEN :fromDate AND :toDate
+            GROUP BY pd.plant_id
             """, nativeQuery = true)
     List<Object[]> getProduction(
             @Param("fromDate") LocalDateTime fromDate,
